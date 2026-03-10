@@ -48,12 +48,14 @@ function makeFresnelMat() {
   });
 }
 
-// --- Textured Earth globe (matches threejs-earth visuals) ---
-function Globe() {
-  const earthRef = useRef<THREE.Mesh>(null);
-  const lightsRef = useRef<THREE.Mesh>(null);
+// --- Textured Earth globe + city markers in one shared rotating group ---
+interface GlobeProps {
+  onCityClick: (city: City) => void;
+}
+
+function Globe({ onCityClick }: GlobeProps) {
+  const groupRef = useRef<THREE.Group>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
-  const glowRef = useRef<THREE.Mesh>(null);
 
   const [earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans] =
     useTexture([
@@ -91,21 +93,19 @@ function Globe() {
     [cloudsMap, cloudsTrans],
   );
 
-  // IcosahedronGeometry detail=12 matches threejs-earth exactly
   const geo = useMemo(() => new THREE.IcosahedronGeometry(GLOBE_RADIUS, 12), []);
 
   useFrame(() => {
-    const spd = 0.0005;
-    if (earthRef.current) earthRef.current.rotation.y += spd;
-    if (lightsRef.current) lightsRef.current.rotation.y += spd;
-    if (cloudsRef.current) cloudsRef.current.rotation.y += spd * 1.15;
-    if (glowRef.current) glowRef.current.rotation.y += spd;
+    // Rotate the whole group so globe + markers drift together
+    if (groupRef.current) groupRef.current.rotation.y += 0.0005;
+    // Clouds drift very slightly faster than the rest
+    if (cloudsRef.current) cloudsRef.current.rotation.y += 0.000075;
   });
 
   return (
-    <>
+    <group ref={groupRef}>
       {/* Main earth surface */}
-      <mesh ref={earthRef} geometry={geo}>
+      <mesh geometry={geo}>
         <meshPhongMaterial
           map={earthMap}
           specularMap={specularMap}
@@ -114,15 +114,27 @@ function Globe() {
         />
       </mesh>
 
-      {/* Night-side city lights (additive – only visible in shadow) */}
-      <mesh ref={lightsRef} geometry={geo} material={lightsMat} />
+      {/* Night-side city lights */}
+      <mesh geometry={geo}>
+        <primitive object={lightsMat} attach="material" />
+      </mesh>
 
-      {/* Cloud layer */}
+      {/* Cloud layer – tiny extra drift relative to the group */}
       <mesh ref={cloudsRef} geometry={geo} material={cloudsMat} scale={1.003} />
 
       {/* Fresnel atmosphere glow */}
-      <mesh ref={glowRef} geometry={geo} material={fresnelMat} scale={1.01} />
-    </>
+      <mesh geometry={geo} material={fresnelMat} scale={1.01} />
+
+      {/* City markers inside the same group so they rotate with the globe */}
+      {CITIES.map((city) => (
+        <CityMarker
+          key={city.id}
+          city={city}
+          globeRadius={GLOBE_RADIUS}
+          onClick={onCityClick}
+        />
+      ))}
+    </group>
   );
 }
 
@@ -196,19 +208,8 @@ export default function WorldMap({ onCityClick }: WorldMapProps) {
       {/* Tiny ambient so the dark side isn't pure black */}
       <ambientLight intensity={0.05} />
 
-      {/* Textured globe */}
-      <Globe />
-
-      {/* City markers – outside the globe meshes so they stay at correct
-          lat/lng positions regardless of globe auto-rotation */}
-      {CITIES.map((city) => (
-        <CityMarker
-          key={city.id}
-          city={city}
-          globeRadius={GLOBE_RADIUS}
-          onClick={onCityClick}
-        />
-      ))}
+      {/* Globe + city markers in one shared group so they rotate together */}
+      <Globe onCityClick={onCityClick} />
 
       {/* Orbit controls */}
       <OrbitControls
