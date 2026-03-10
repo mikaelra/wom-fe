@@ -28,12 +28,20 @@ export const CITIES: City[] = [
   { id: 10, name: "House of Hades", country: "Underworld", lat: 36.0, lng: 25.0, color: "#8b5cf6", tag: "Ghostly Flames" },
 ];
 
-/** Convert lat/lng degrees to a Vec3 on a sphere of given radius. */
+/**
+ * Convert lat/lng degrees to a Vec3 on a sphere of given radius.
+ *
+ * Calibrated for Three.js IcosahedronGeometry (PolyhedronGeometry base),
+ * whose UV seam sits on the +X axis:
+ *   u = atan2(-z, -x) / (2π) + 0.5
+ * So lng=0 (prime meridian, u=0.5) → -X axis,
+ *    lng=±180 (date line, u=0/1) → +X axis.
+ */
 export function latLngToVec3(lat: number, lng: number, radius: number): [number, number, number] {
-  const phi = (90 - lat) * (Math.PI / 180);
-  const theta = (lng + 180) * (Math.PI / 180);
-  const x = -(radius * Math.sin(phi) * Math.cos(theta));
+  const phi = (90 - lat) * (Math.PI / 180); // colatitude
+  const lngRad = lng * (Math.PI / 180);
+  const x = -radius * Math.sin(phi) * Math.cos(lngRad);
   const y = radius * Math.cos(phi);
-  const z = radius * Math.sin(phi) * Math.sin(theta);
+  const z = -radius * Math.sin(phi) * Math.sin(lngRad);
   return [x, y, z];
 }

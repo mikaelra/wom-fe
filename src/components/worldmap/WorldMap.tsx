@@ -2,165 +2,134 @@
 
 import { useRef, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Stars } from '@react-three/drei';
+import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import CityMarker from './CityMarker';
 import { CITIES, type City } from '@/lib/cities';
 
 const GLOBE_RADIUS = 2.5;
 
-// --- Simple procedural globe material (land / ocean via noise-like pattern) ---
-
-function Globe() {
-  const meshRef = useRef<THREE.Mesh>(null);
-
-  // Vertex shader adds noise-based coloring to differentiate land/ocean
-  const shaderMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-      },
-      vertexShader: /* glsl */ `
-        varying vec3 vNormal;
-        varying vec3 vPosition;
-        varying vec2 vUv;
-        void main() {
-          vNormal = normalize(normalMatrix * normal);
-          vPosition = (modelMatrix * vec4(position, 1.0)).xyz;
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: /* glsl */ `
-        varying vec3 vNormal;
-        varying vec3 vPosition;
-        varying vec2 vUv;
-        uniform float uTime;
-
-        // Simple hash-based pseudo-noise
-        float hash(vec2 p) {
-          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-        }
-        float noise(vec2 p) {
-          vec2 i = floor(p);
-          vec2 f = fract(p);
-          f = f * f * (3.0 - 2.0 * f);
-          float a = hash(i);
-          float b = hash(i + vec2(1.0, 0.0));
-          float c = hash(i + vec2(0.0, 1.0));
-          float d = hash(i + vec2(1.0, 1.0));
-          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-        }
-        float fbm(vec2 p) {
-          float v = 0.0;
-          float a = 0.5;
-          for (int i = 0; i < 5; i++) {
-            v += a * noise(p);
-            p *= 2.0;
-            a *= 0.5;
-          }
-          return v;
-        }
-
-        void main() {
-          // Spherical UV → noise → land or ocean
-          vec2 st = vUv * 8.0;
-          float n = fbm(st + 0.5);
-
-          vec3 ocean = vec3(0.05, 0.15, 0.35);
-          vec3 shallow = vec3(0.1, 0.3, 0.5);
-          vec3 land = vec3(0.18, 0.42, 0.18);
-          vec3 highland = vec3(0.35, 0.30, 0.15);
-          vec3 snow = vec3(0.85, 0.88, 0.92);
-
-          vec3 col;
-          if (n < 0.42) {
-            col = mix(ocean, shallow, smoothstep(0.3, 0.42, n));
-          } else if (n < 0.5) {
-            col = mix(shallow, land, smoothstep(0.42, 0.5, n));
-          } else if (n < 0.65) {
-            col = mix(land, highland, smoothstep(0.5, 0.65, n));
-          } else {
-            col = mix(highland, snow, smoothstep(0.65, 0.8, n));
-          }
-
-          // Fake rim lighting / atmosphere
-          float rim = 1.0 - max(dot(vNormal, vec3(0.0, 0.0, 1.0)), 0.0);
-          rim = pow(rim, 3.0);
-          col = mix(col, vec3(0.4, 0.7, 1.0), rim * 0.4);
-
-          gl_FragColor = vec4(col, 1.0);
-        }
-      `,
-    });
-  }, []);
-
-  useFrame(({ clock }) => {
-    shaderMaterial.uniforms.uTime.value = clock.elapsedTime;
-    if (meshRef.current) {
-      meshRef.current.rotation.y += 0.0005; // Slow auto-rotate
-    }
+// Fresnel / atmosphere glow matching threejs-earth getFresnelMat
+function makeFresnelMat() {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      color1: { value: new THREE.Color(0x0088ff) },
+      color2: { value: new THREE.Color(0x000000) },
+      fresnelBias: { value: 0.1 },
+      fresnelScale: { value: 1.0 },
+      fresnelPower: { value: 4.0 },
+    },
+    vertexShader: /* glsl */ `
+      uniform float fresnelBias;
+      uniform float fresnelScale;
+      uniform float fresnelPower;
+      varying float vReflectionFactor;
+      void main() {
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vec3 worldNormal = normalize(mat3(modelMatrix[0].xyz, modelMatrix[1].xyz, modelMatrix[2].xyz) * normal);
+        vec3 I = worldPosition.xyz - cameraPosition;
+        vReflectionFactor = fresnelBias + fresnelScale * pow(1.0 + dot(normalize(I), worldNormal), fresnelPower);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 color1;
+      uniform vec3 color2;
+      varying float vReflectionFactor;
+      void main() {
+        float f = clamp(vReflectionFactor, 0.0, 1.0);
+        gl_FragColor = vec4(mix(color2, color1, vec3(f)), f);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
   });
-
-  return (
-    <mesh ref={meshRef} material={shaderMaterial}>
-      <sphereGeometry args={[GLOBE_RADIUS, 64, 64]} />
-    </mesh>
-  );
 }
 
-// --- Atmosphere glow ring ---
-function Atmosphere() {
-  const material = useMemo(
+// --- Textured Earth globe (matches threejs-earth visuals) ---
+function Globe() {
+  const earthRef = useRef<THREE.Mesh>(null);
+  const lightsRef = useRef<THREE.Mesh>(null);
+  const cloudsRef = useRef<THREE.Mesh>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
+
+  const [earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans] =
+    useTexture([
+      '/textures/00_earthmap1k.jpg',
+      '/textures/02_earthspec1k.jpg',
+      '/textures/01_earthbump1k.jpg',
+      '/textures/03_earthlights1k.jpg',
+      '/textures/04_earthcloudmap.jpg',
+      '/textures/05_earthcloudmaptrans.jpg',
+    ]);
+
+  const fresnelMat = useMemo(makeFresnelMat, []);
+
+  const lightsMat = useMemo(
     () =>
-      new THREE.ShaderMaterial({
-        uniforms: {},
-        vertexShader: /* glsl */ `
-          varying vec3 vNormal;
-          void main() {
-            vNormal = normalize(normalMatrix * normal);
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: /* glsl */ `
-          varying vec3 vNormal;
-          void main() {
-            float intensity = pow(0.65 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
-            gl_FragColor = vec4(0.3, 0.6, 1.0, intensity * 0.6);
-          }
-        `,
+      new THREE.MeshBasicMaterial({
+        map: lightsMap,
+        blending: THREE.AdditiveBlending,
         transparent: true,
-        side: THREE.BackSide,
         depthWrite: false,
       }),
-    [],
+    [lightsMap],
   );
-  return (
-    <mesh material={material}>
-      <sphereGeometry args={[GLOBE_RADIUS * 1.15, 64, 64]} />
-    </mesh>
-  );
-}
 
-// --- Clouds layer ---
-function Clouds() {
-  const ref = useRef<THREE.Mesh>(null);
+  const cloudsMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        map: cloudsMap,
+        alphaMap: cloudsTrans,
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    [cloudsMap, cloudsTrans],
+  );
+
+  // IcosahedronGeometry detail=12 matches threejs-earth exactly
+  const geo = useMemo(() => new THREE.IcosahedronGeometry(GLOBE_RADIUS, 12), []);
+
   useFrame(() => {
-    if (ref.current) ref.current.rotation.y += 0.0008;
+    const spd = 0.0005;
+    if (earthRef.current) earthRef.current.rotation.y += spd;
+    if (lightsRef.current) lightsRef.current.rotation.y += spd;
+    if (cloudsRef.current) cloudsRef.current.rotation.y += spd * 1.15;
+    if (glowRef.current) glowRef.current.rotation.y += spd;
   });
+
   return (
-    <mesh ref={ref}>
-      <sphereGeometry args={[GLOBE_RADIUS * 1.01, 48, 48]} />
-      <meshStandardMaterial color="#ffffff" transparent opacity={0.08} depthWrite={false} />
-    </mesh>
+    <>
+      {/* Main earth surface */}
+      <mesh ref={earthRef} geometry={geo}>
+        <meshPhongMaterial
+          map={earthMap}
+          specularMap={specularMap}
+          bumpMap={bumpMap}
+          bumpScale={0.04 * GLOBE_RADIUS}
+        />
+      </mesh>
+
+      {/* Night-side city lights (additive – only visible in shadow) */}
+      <mesh ref={lightsRef} geometry={geo} material={lightsMat} />
+
+      {/* Cloud layer */}
+      <mesh ref={cloudsRef} geometry={geo} material={cloudsMat} scale={1.003} />
+
+      {/* Fresnel atmosphere glow */}
+      <mesh ref={glowRef} geometry={geo} material={fresnelMat} scale={1.01} />
+    </>
   );
 }
 
-// --- Camera auto-rotation (slow orbit when idle) ---
+// --- Camera initial placement ---
 function CameraRig() {
   const { camera } = useThree();
   const initialized = useRef(false);
-
   useFrame(() => {
     if (!initialized.current) {
       camera.position.set(0, 2, 7);
@@ -168,8 +137,44 @@ function CameraRig() {
       initialized.current = true;
     }
   });
-
   return null;
+}
+
+// --- Procedural starfield matching threejs-earth style ---
+function Starfield() {
+  const geo = useMemo(() => {
+    const verts: number[] = [];
+    const colors: number[] = [];
+    for (let i = 0; i < 2000; i++) {
+      const r = Math.random() * 25 + 50;
+      const u = Math.random();
+      const v = Math.random();
+      const theta = 2 * Math.PI * u;
+      const phi = Math.acos(2 * v - 1);
+      verts.push(
+        r * Math.sin(phi) * Math.cos(theta),
+        r * Math.sin(phi) * Math.sin(theta),
+        r * Math.cos(phi),
+      );
+      const c = new THREE.Color().setHSL(0.6, 0.2, Math.random());
+      colors.push(c.r, c.g, c.b);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    return g;
+  }, []);
+
+  const starsRef = useRef<THREE.Points>(null);
+  useFrame(() => {
+    if (starsRef.current) starsRef.current.rotation.y -= 0.0002;
+  });
+
+  return (
+    <points ref={starsRef} geometry={geo}>
+      <pointsMaterial size={0.15} vertexColors sizeAttenuation />
+    </points>
+  );
 }
 
 // --- Main WorldMap scene ---
@@ -182,21 +187,20 @@ export default function WorldMap({ onCityClick }: WorldMapProps) {
     <>
       <CameraRig />
 
-      {/* Lighting */}
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[5, 3, 5]} intensity={1.5} />
-      <pointLight position={[-5, -3, -5]} intensity={0.3} color="#4488ff" />
-
-      {/* Background */}
+      {/* Deep space background */}
       <color attach="background" args={['#070b15']} />
-      <Stars radius={50} depth={40} count={2000} factor={3} fade speed={0.5} />
+      <Starfield />
 
-      {/* Globe */}
+      {/* Sun-like directional light (same position as threejs-earth) */}
+      <directionalLight position={[-2, 0.5, 1.5]} intensity={2.0} color={0xffffff} />
+      {/* Tiny ambient so the dark side isn't pure black */}
+      <ambientLight intensity={0.05} />
+
+      {/* Textured globe */}
       <Globe />
-      <Atmosphere />
-      <Clouds />
 
-      {/* City markers */}
+      {/* City markers – outside the globe meshes so they stay at correct
+          lat/lng positions regardless of globe auto-rotation */}
       {CITIES.map((city) => (
         <CityMarker
           key={city.id}
