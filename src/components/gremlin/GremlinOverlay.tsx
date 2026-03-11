@@ -218,27 +218,57 @@ export default function GremlinOverlay({ lobbyId, onStateChange }: GremlinOverla
         </div>
       )}
 
-      {/* Stats — three individual floating windows below the player character */}
+      {/* Stats — clickable resource windows below the player character */}
       {myPlayer && !myPlayer.spectator && (
         <div
-          className="absolute flex gap-2 pointer-events-none"
+          className="absolute flex gap-2 pointer-events-auto"
           style={{ top: '68%', left: '50%', transform: 'translateX(-50%)' }}
         >
-          <div className="bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 border border-red-500/50 text-center min-w-[62px]">
+          <button
+            type="button"
+            disabled={!showActions}
+            onClick={() => handleResource('gain_hp')}
+            className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
+              ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+              ${resource === 'gain_hp'
+                ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                : 'bg-black/70 border-red-500/50 hover:bg-red-950/80 hover:border-red-400/80 hover:shadow-[0_0_6px_rgba(239,68,68,0.3)]'
+              }`}
+          >
             <p className="text-gray-400 text-xs uppercase tracking-wide">HP</p>
             <p className="text-red-400 font-bold text-xl leading-tight">{myPlayer.hp}</p>
-            <p className="text-red-500/70 text-xs">❤</p>
-          </div>
-          <div className="bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 border border-yellow-500/50 text-center min-w-[62px]">
+            <p className="text-red-400/70 text-xs">❤ Get</p>
+          </button>
+          <button
+            type="button"
+            disabled={!showActions}
+            onClick={() => handleResource('gain_coin')}
+            className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
+              ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+              ${resource === 'gain_coin'
+                ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
+                : 'bg-black/70 border-yellow-500/50 hover:bg-yellow-950/80 hover:border-yellow-400/80 hover:shadow-[0_0_6px_rgba(234,179,8,0.3)]'
+              }`}
+          >
             <p className="text-gray-400 text-xs uppercase tracking-wide">Coins</p>
             <p className="text-yellow-400 font-bold text-xl leading-tight">{myPlayer.coins}</p>
-            <p className="text-yellow-500/70 text-xs">💰</p>
-          </div>
-          <div className="bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 border border-blue-500/50 text-center min-w-[62px]">
+            <p className="text-yellow-400/70 text-xs">💰 Get</p>
+          </button>
+          <button
+            type="button"
+            disabled={!showActions}
+            onClick={() => handleResource('gain_attack')}
+            className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
+              ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+              ${resource === 'gain_attack'
+                ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
+                : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80 hover:shadow-[0_0_6px_rgba(59,130,246,0.3)]'
+              }`}
+          >
             <p className="text-gray-400 text-xs uppercase tracking-wide">ATK</p>
             <p className="text-blue-400 font-bold text-xl leading-tight">{myPlayer.attackDamage}</p>
-            <p className="text-blue-500/70 text-xs">⚔</p>
-          </div>
+            <p className="text-blue-400/70 text-xs">⚔ Buy</p>
+          </button>
         </div>
       )}
 
@@ -254,29 +284,6 @@ export default function GremlinOverlay({ lobbyId, onStateChange }: GremlinOverla
               </span>
             )}
           </div>
-
-          {/* Resource buttons */}
-          {!gameOver && isAlive && gameStarted && (
-            <div className="mb-3">
-              <p className="text-green-300 text-xs font-semibold mb-2 uppercase tracking-wide">Resource</p>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { id: 'gain_hp', label: 'Get ❤' },
-                  { id: 'gain_coin', label: 'Get 💰' },
-                  { id: 'gain_attack', label: 'Buy ⚔' },
-                ].map((res) => (
-                  <button
-                    key={res.id}
-                    type="button"
-                    onClick={() => handleResource(res.id)}
-                    className={`${btn} text-sm ${resource === res.id ? 'bg-green-600 text-white border-green-400' : 'bg-gray-700 text-gray-200 border-gray-500'}`}
-                  >
-                    {res.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Messages */}
           {messages.length > 0 && (
