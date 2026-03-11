@@ -15,6 +15,8 @@ export interface City {
   tag: string;
   /** If true, this marker launches the Gremlin fight instead of a city hub */
   isGremlin?: boolean;
+  /** If true, clicking this marker navigates directly to the vault page */
+  isVault?: boolean;
 }
 
 export const CITIES: City[] = [
@@ -29,6 +31,7 @@ export const CITIES: City[] = [
   { id: 9, name: "Tokyo", country: "Japan", lat: 35.6762, lng: 139.6503, color: "#ec4899", tag: "Shinto Gates" },
   { id: 10, name: "House of Hades", country: "Underworld", lat: 36.0, lng: 25.0, color: "#8b5cf6", tag: "Ghostly Flames" },
   { id: 11, name: "Gremlin's Lair", country: "Black Forest", lat: 48.0, lng: 8.2, color: "#22c55e", tag: "Dark Forest", isGremlin: true },
+  { id: 12, name: "The Vault", country: "South Pole", lat: -90, lng: 0, color: "#FFD700", tag: "The Vault", isVault: true },
 ];
 
 /**

@@ -173,6 +173,10 @@ export default function Page() {
   const router = useRouter();
 
   const handleCityClick = useCallback(async (city: City) => {
+    if (city.isVault) {
+      router.push('/vault');
+      return;
+    }
     if (city.isGremlin) {
       const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
       if (!playerName) {

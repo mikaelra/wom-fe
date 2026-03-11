@@ -287,9 +287,6 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
             <Link href="/leaderboards" className="text-xl underline" style={{ color: 'red' }}>
               Leaderboards
             </Link>
-            <Link href="/vault" className="text-xl underline" style={{ color: 'lightblue' }}>
-              Do you have a key?
-            </Link>
           </div>
         </div>
       </div>
