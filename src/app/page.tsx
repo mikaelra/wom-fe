@@ -4,6 +4,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Environment } from '@react-three/drei';
 import dynamic from 'next/dynamic';
 import { useState, useRef, useCallback, memo } from 'react';
+import { useRouter } from 'next/navigation';
 import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
@@ -12,6 +13,7 @@ import HomeOverlay from '@/components/home/HomeOverlay';
 import WorldMap from '@/components/worldmap/WorldMap';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
+import { createGremlinLobby } from '@/lib/api';
 
 // Dynamically import heavy 3D models
 const Model = dynamic(() => import('../components/Model'), { ssr: false });
@@ -168,10 +170,25 @@ function adjustSkyColor(hex: string): string {
 // ========== Main page component ==========
 export default function Page() {
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
+  const router = useRouter();
 
-  const handleCityClick = useCallback((city: City) => {
+  const handleCityClick = useCallback(async (city: City) => {
+    if (city.isGremlin) {
+      const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
+      if (!playerName) {
+        alert('You must enter a name to fight the Gremlin.');
+        return;
+      }
+      try {
+        const data = await createGremlinLobby(playerName);
+        router.push(`/gremlin/${data.lobby_id}`);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to enter the forest.');
+      }
+      return;
+    }
     setSelectedCity(city);
-  }, []);
+  }, [router]);
 
   const handleBackToMap = useCallback(() => {
     setSelectedCity(null);

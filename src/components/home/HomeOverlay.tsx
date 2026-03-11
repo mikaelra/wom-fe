@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createLobby, joinLobby, getRaidLobby, getNextRaidTime, getPlayerRelics, createGremlinLobby } from '@/lib/api';
+import { createLobby, joinLobby, getRaidLobby, getNextRaidTime, getPlayerRelics } from '@/lib/api';
 import type { Relic } from '@/types/game';
 import type { City } from '@/lib/cities';
 
@@ -95,20 +95,6 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
       router.push(`/lobby/${data.lobby_id}`);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to enter raid.');
-    }
-  };
-
-  const handleGremlin = async () => {
-    const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
-    if (!playerName) {
-      alert('You must enter a name to fight the Gremlin.');
-      return;
-    }
-    try {
-      const data = await createGremlinLobby(playerName);
-      router.push(`/gremlin/${data.lobby_id}`);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to enter the forest.');
     }
   };
 
@@ -289,15 +275,6 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
             style={{ color: 'gold' }}
           >
             Enter Boss-fight
-          </button>
-
-          <button
-            type="button"
-            onClick={handleGremlin}
-            className="text-2xl bg-transparent border-none cursor-pointer underline mt-2 font-bold"
-            style={{ color: '#22c55e' }}
-          >
-            GREMLIN
           </button>
 
           <div className="flex flex-col gap-2 mt-4">

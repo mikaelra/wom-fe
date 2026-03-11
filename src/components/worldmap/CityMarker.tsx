@@ -37,11 +37,14 @@ export default function CityMarker({ city, globeRadius, onClick }: CityMarkerPro
     up,
   );
 
+  const markerScale = city.isGremlin ? 2 : 1;
+
   return (
     <group
       ref={groupRef}
       position={position}
       quaternion={quaternion}
+      scale={markerScale}
       onClick={(e) => {
         e.stopPropagation();
         onClick(city);
