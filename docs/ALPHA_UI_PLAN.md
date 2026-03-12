@@ -15,6 +15,7 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 3. **Combat animations** — Polished enough to feel satisfying: attack, defend, raid, death, victory. This is a priority.
 4. **Lobby chat** — Players can text each other inside a lobby before and during a match.
 5. **All in-game button labels are in English.**
+6. **Email service** — Email verification on signup, optional email-based login auth, username retrieval via email. Uses Resend as the mail provider.
 
 ### Not required for Alpha (post-alpha)
 
@@ -44,7 +45,8 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 10. [Purchasable Stages (Merch)](#10-purchasable-stages-merch)
 11. [Distribution — App Stores & Steam](#11-distribution--app-stores--steam)
 12. [Technical Architecture Changes](#12-technical-architecture-changes)
-13. [Implementation Phases](#13-implementation-phases)
+13. [Email Service](#13-email-service)
+14. [Implementation Phases](#14-implementation-phases)
 
 ---
 
@@ -1136,7 +1138,7 @@ tjuvpakk-backend/
   │   ├── dlc.py                (DLC chapters + progress)
   │   └── relic.py              (Relics + equipped relics)
   ├── routes/
-  │   ├── auth.py               (login, signup)
+  │   ├── auth.py               (login, signup, email verification)
   │   ├── lobby.py              (create, join, state, actions)
   │   ├── matchmaking.py        (queue, status, leave)
   │   ├── cities.py             (city list, city stats, city leaderboards)
@@ -1207,11 +1209,27 @@ CREATE TABLE dlc_relics (
     flavour_text TEXT
 );
 
+-- Email verification codes
+CREATE TABLE email_verification_codes (
+    id SERIAL PRIMARY KEY,
+    email TEXT NOT NULL,
+    code TEXT NOT NULL,           -- 6-digit numeric code
+    purpose TEXT NOT NULL,        -- 'signup' or 'login'
+    player_name TEXT,             -- set for login codes
+    created_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN DEFAULT FALSE
+);
+
+CREATE INDEX idx_email_codes_lookup ON email_verification_codes(email, code, purpose);
+
 -- Modifications to existing tables
 
 ALTER TABLE players ADD COLUMN dlc_owned JSONB DEFAULT '[]';
 ALTER TABLE players ADD COLUMN equipped_relic_id TEXT;
 ALTER TABLE players ADD COLUMN home_city INT REFERENCES cities(id);
+ALTER TABLE players ADD COLUMN email_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE players ADD COLUMN require_email_auth BOOLEAN DEFAULT FALSE;
 
 ALTER TABLE game_player_stats ADD COLUMN city_id INT REFERENCES cities(id);
 ALTER TABLE game_player_stats ADD COLUMN mode TEXT DEFAULT 'ffa';  -- 'ffa' or 'team'
@@ -1238,7 +1256,89 @@ Recommendation: **Keep polling for alpha**, add SSE for event notifications only
 
 ---
 
-## 13. Implementation Phases
+## 13. Email Service
+
+The game currently collects emails during signup but has no email infrastructure. Before alpha, a proper email service must be in place for account security and recovery.
+
+### 13.1 Mail Provider: Resend
+
+**Resend** is the recommended provider.
+
+- **Free tier:** 3,000 emails/month, 100/day — sufficient for alpha
+- **Backend integration:** `pip install resend` + single API call
+- **Transactional focus:** Built for verification codes, not marketing bulk mail
+- **Cost at scale:** $20/month for 50k emails
+- **Custom domain:** Optional for alpha (can use shared domain), upgrade to `noreply@worldofmythos.com` later
+
+Alternatives considered: SendGrid (100/day free but complex), Amazon SES (cheapest at scale but requires AWS), Mailgun (good but smaller free tier).
+
+### 13.2 Features
+
+#### Email Verification on Signup
+
+Signup becomes a two-step process:
+
+1. User submits name, email, and email-auth preference → backend creates account in "pending" state, sends 6-digit code
+2. User enters the code → backend activates the account
+
+If the user never verifies, the account stays pending (name is reserved but login is blocked).
+
+#### Optional Email-Based Login Authentication
+
+During signup, a checkbox (default OFF): **"Require email verification code on every login"**
+
+- When **OFF**: Login works as it does now (name + email)
+- When **ON**: After submitting name + email at login, a 6-digit code is sent to the email. The user must enter the code to complete login.
+
+This gives security-conscious users two-factor login without forcing it on everyone.
+
+#### Username Retrieval ("Forgot Username")
+
+Inline on the login page — a "Forgot your username?" toggle that expands an email input. On submit, the backend emails the username if the account exists. The response is always the same regardless of whether the email is found (prevents email enumeration).
+
+### 13.3 Backend API Contract
+
+| Endpoint | Method | Request Body | Success Response | Notes |
+|----------|--------|-------------|------------------|-------|
+| `/claim_name` | POST | `{ name, email, require_email_auth }` | `{ status: "verification_pending" }` | Modified — adds `require_email_auth` field, sends verification code |
+| `/verify_email` | POST | `{ email, code }` | `{ status: "verified" }` | New — activates pending account |
+| `/resend_verification` | POST | `{ email }` | `{ status: "sent" }` | New — resends 6-digit code |
+| `/log_in` | POST | `{ name, email }` | `{ status: "ok" }` or `{ status: "email_auth_required" }` | Modified — returns `email_auth_required` if user opted in |
+| `/verify_login_code` | POST | `{ name, email, code }` | `{ status: "ok" }` | New — completes login after code entry |
+| `/forgot_username` | POST | `{ email }` | `{ status: "sent" }` (always) | New — emails username; same response whether email exists or not |
+
+All error responses follow existing convention: `{ error: "message" }`.
+
+### 13.4 Frontend Changes
+
+**`src/lib/api.ts`** — Add four new API functions:
+- `verifyEmail(email, code)` → `POST /verify_email`
+- `resendVerification(email)` → `POST /resend_verification`
+- `verifyLoginCode(name, email, code)` → `POST /verify_login_code`
+- `forgotUsername(email)` → `POST /forgot_username`
+
+**`src/app/signup/page.tsx`** — Two-step flow:
+- Add `requireEmailAuth` checkbox (default OFF) with label: "Require email verification code on every login"
+- Add `step` state (`'form' | 'verify' | 'done'`)
+- On signup success → transition to verify step (6-digit code input, resend button with 30s cooldown)
+- On verify success → show existing success screen
+
+**`src/app/login/page.tsx`** — Conditional two-step + inline forgot username:
+- After login POST, check if `status === "email_auth_required"` → show code entry UI
+- Code entry: 6-digit input, verify button, resend button (re-calls `/log_in`), back link
+- Add "Forgot your username?" toggle → expands inline email input + send button
+- Success message: "If an account exists with that email, your username has been sent to it."
+
+### 13.5 Backend Implementation Notes
+
+- Verification codes: 6-digit random numeric, stored in DB with expiry (10 minutes)
+- Rate limiting: Max 3 resend attempts per email per hour
+- Code cleanup: Expired codes cleaned up by a periodic job or on next request
+- Resend SDK: `pip install resend`, configure with API key from environment variable
+
+---
+
+## 14. Implementation Phases
 
 > Phases are ordered by **alpha priority first**. Phases 1–3 must ship before alpha release. Phases 4–8 are post-alpha.
 
@@ -1304,6 +1404,26 @@ Backend:
 - [ ] `GET /lobby/<id>/chat?player_name=X` — returns messages visible to this player (filters whispers)
 - [ ] `POST /lobby/<id>/chat` — body: `player_name`, `message`, optional `target_player`
 - [ ] Rate limiting: 1 message per 2 seconds per player
+
+### Phase 3b: Email Service *(Alpha)*
+
+**Goal**: Verified emails, optional email-based login auth, username recovery
+
+Frontend:
+- [ ] `src/lib/api.ts` — Add `verifyEmail`, `resendVerification`, `verifyLoginCode`, `forgotUsername` API functions
+- [ ] `src/app/signup/page.tsx` — Add `requireEmailAuth` checkbox (default OFF), two-step flow with verification code entry + resend with 30s cooldown
+- [ ] `src/app/login/page.tsx` — Handle `email_auth_required` login response with code entry step; add inline "Forgot your username?" toggle with email input
+
+Backend:
+- [ ] Install Resend SDK (`pip install resend`), configure API key
+- [ ] `email_verification_codes` table (see schema in section 12.2)
+- [ ] `players` table: add `email_verified` (bool) and `require_email_auth` (bool) columns
+- [ ] Modify `POST /claim_name` — accept `require_email_auth`, create pending account, send verification code
+- [ ] `POST /verify_email` — validate code, activate account
+- [ ] `POST /resend_verification` — resend code (rate-limited: 3/hour)
+- [ ] Modify `POST /log_in` — if `require_email_auth` is true, send code and return `email_auth_required`
+- [ ] `POST /verify_login_code` — validate login code, complete login
+- [ ] `POST /forgot_username` — email username if account exists (always returns same response)
 
 ---
 
@@ -1480,3 +1600,7 @@ Setup:
 | GET | `/players/<name>/city_stats` | All city stat breakdowns |
 | GET | `/lobby/<id>/chat` | Fetch lobby chat messages |
 | POST | `/lobby/<id>/chat` | Send a lobby chat message |
+| POST | `/verify_email` | Verify signup email with 6-digit code |
+| POST | `/resend_verification` | Resend verification code (rate-limited) |
+| POST | `/verify_login_code` | Verify login code for email-auth users |
+| POST | `/forgot_username` | Email username to address (anti-enumeration) |
