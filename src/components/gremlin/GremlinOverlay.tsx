@@ -112,6 +112,7 @@ export default function GremlinOverlay({ lobbyId, onStateChange }: GremlinOverla
   const isAlive = (myPlayer?.hp ?? 0) > 0;
   const gameOver = state?.gameover ?? false;
   const gameStarted = (state?.round ?? 0) > 0;
+  const playerWon = gameOver && (state?.winner === playerName || state?.winner === 'Players');
 
   const handleResource = async (resId: string) => {
     try {
@@ -214,7 +215,7 @@ export default function GremlinOverlay({ lobbyId, onStateChange }: GremlinOverla
           {gameOver && (
             <div className="mt-3 text-center">
               <p className="text-xl font-bold mb-2">
-                {state.winner === playerName ? (
+                {playerWon ? (
                   <span className="text-green-400">You defeated the Gremlin!</span>
                 ) : gremlin && state.winner === gremlin.name ? (
                   <span className="text-red-400">The Gremlin got you...</span>
@@ -222,7 +223,7 @@ export default function GremlinOverlay({ lobbyId, onStateChange }: GremlinOverla
                   <span className="text-yellow-400">Game Over! {state.winner} wins!</span>
                 )}
               </p>
-              {state.winner !== playerName && (
+              {!playerWon && (
                 <Link
                   href="/"
                   className="text-green-400 hover:underline font-medium"
@@ -379,7 +380,7 @@ export default function GremlinOverlay({ lobbyId, onStateChange }: GremlinOverla
       )}
 
       {/* Wooden signpost after victory */}
-      {gameOver && state.winner === playerName && (
+      {playerWon && (
         <div
           className="absolute pointer-events-auto"
           style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}

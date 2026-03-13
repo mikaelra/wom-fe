@@ -188,7 +188,7 @@ export default function EncounterOverlay({ lobbyId, onStateChange }: EncounterOv
   }
 
   const showActions = !gameOver && isAlive && gameStarted;
-  const playerWon = gameOver && state.winner === playerName;
+  const playerWon = gameOver && (state.winner === playerName || state.winner === 'Players');
 
   // Enemy display info
   const enemies = isThiefEncounter
