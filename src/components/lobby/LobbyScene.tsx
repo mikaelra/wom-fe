@@ -12,18 +12,11 @@ import {
   TABLE_POSITION,
   SCENE_CENTER,
   PLAYER_POSITIONS,
-  PLAYER_FRONT_POSITIONS,
   getCameraTargetPosition,
   getResponsiveFov,
 } from '@/lib/sceneConstants';
 import type { LobbyState } from '@/types/game';
 
-const RESOURCE_LABELS = [
-  { id: 'gain_hp', label: 'Get ❤' },
-  { id: 'gain_coin', label: 'Get 💰' },
-  { id: 'gain_attack', label: 'Buy ⚔' },
-];
-const ACTION_LABELS = ['Attack', 'Defend', 'Raid'];
 
 function CameraFlyIn() {
   const { camera, size } = useThree();
@@ -92,45 +85,6 @@ function PlayerWithName({
   );
 }
 
-function ChoiceLabelsIn3D({ position }: { position: [number, number, number] }) {
-  return (
-    <Html
-      position={position}
-      center
-      distanceFactor={2.5}
-      style={{
-        pointerEvents: 'none',
-        userSelect: 'none',
-        background: 'rgba(0,0,0,0.75)',
-        padding: '10px 14px',
-        borderRadius: '8px',
-        color: 'white',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        textAlign: 'center',
-        minWidth: '120px',
-        border: '2px solid rgba(255,255,255,0.3)',
-      }}
-    >
-      <div style={{ marginBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.3)', paddingBottom: '4px' }}>
-        Resource
-      </div>
-      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '8px' }}>
-        {RESOURCE_LABELS.map((r) => (
-          <span key={r.id}>{r.label}</span>
-        ))}
-      </div>
-      <div style={{ marginBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.3)', paddingBottom: '4px' }}>
-        Action
-      </div>
-      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
-        {ACTION_LABELS.map((a) => (
-          <span key={a}>{a}</span>
-        ))}
-      </div>
-    </Html>
-  );
-}
 
 type LobbySceneProps = {
   state: LobbyState | null;
@@ -140,17 +94,6 @@ type LobbySceneProps = {
 export default function LobbyScene({ state, playerName }: LobbySceneProps) {
   const players = (state?.players ?? []).slice(0, PLAYER_POSITIONS.length);
   const winner = state?.winner ?? state?.raidwinner ?? null;
-  const gameStarted = (state?.round ?? 0) > 0;
-  const myIndex = players.findIndex((p) => p.name === playerName);
-  const mySeatIndex = myIndex >= 0 ? myIndex : 0;
-  const isDenied = state?.deny_target === playerName;
-  const showChoicesForMe =
-    gameStarted &&
-    myIndex >= 0 &&
-    (players[myIndex]?.hp ?? 0) > 0 &&
-    !isDenied &&
-    !state?.gameover;
-
   return (
     <>
       <CameraFlyIn />
@@ -180,10 +123,6 @@ export default function LobbyScene({ state, playerName }: LobbySceneProps) {
           />
         );
       })}
-
-      {showChoicesForMe && (
-        <ChoiceLabelsIn3D position={PLAYER_FRONT_POSITIONS[mySeatIndex]} />
-      )}
 
       <Environment preset="sunset" />
     </>
