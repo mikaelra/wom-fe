@@ -150,26 +150,24 @@ export default function WorldMapOverlay() {
       </div>
 
       {/* Bottom: lobby controls */}
-      <div className="absolute bottom-56 left-0 right-0 z-20 flex justify-center pointer-events-none">
-        <div className="pointer-events-auto flex flex-col items-center gap-3">
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              placeholder="Lobby code"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleJoinLobby()}
-              className="w-36 p-2 rounded-md bg-black/60 backdrop-blur-sm border border-white/30 text-white placeholder-white/40 focus:outline-none focus:border-white/60 text-sm"
-            />
-            <button
-              type="button"
-              onClick={handleJoinLobby}
-              disabled={lobbyLoading}
-              className="px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/30 text-white font-semibold text-sm hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              Join Lobby
-            </button>
-          </div>
+      <div className="absolute bottom-44 left-0 right-0 z-20 flex justify-center pointer-events-none">
+        <div className="pointer-events-auto flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Lobby code"
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleJoinLobby()}
+            className="w-36 p-2 rounded-md bg-black/60 backdrop-blur-sm border border-white/30 text-white placeholder-white/40 focus:outline-none focus:border-white/60 text-sm"
+          />
+          <button
+            type="button"
+            onClick={handleJoinLobby}
+            disabled={lobbyLoading}
+            className="px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/30 text-white font-semibold text-sm hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            Join Lobby
+          </button>
           <button
             type="button"
             onClick={handleCreateLobby}
