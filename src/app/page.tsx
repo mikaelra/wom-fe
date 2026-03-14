@@ -182,6 +182,14 @@ export default function Page() {
       router.push('/vault');
       return;
     }
+    if (city.isLeaderboard) {
+      router.push('/leaderboards');
+      return;
+    }
+    if (city.isRules) {
+      router.push('/rules');
+      return;
+    }
     if (city.isGremlin) {
       const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
       if (!playerName) {

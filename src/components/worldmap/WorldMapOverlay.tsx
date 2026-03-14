@@ -125,21 +125,6 @@ export default function WorldMapOverlay() {
           )}
         </div>
 
-        {/* Right: nav links */}
-        <div className="pointer-events-auto flex items-center gap-2">
-          <Link
-            href="/leaderboards"
-            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-white/20 transition-colors"
-          >
-            Leaderboards
-          </Link>
-          <Link
-            href="/rules"
-            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-white/20 transition-colors"
-          >
-            Rules
-          </Link>
-        </div>
       </div>
 
       {/* Center title */}
