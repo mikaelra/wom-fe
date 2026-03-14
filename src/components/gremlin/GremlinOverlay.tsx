@@ -287,6 +287,21 @@ export default function GremlinOverlay({ lobbyId, onStateChange }: GremlinOverla
         </div>
       )}
 
+      {/* "More monsters" button — over the signpost on the right, shown after game over */}
+      {gameOver && (
+        <div
+          className="absolute pointer-events-auto"
+          style={{ top: '54%', left: '78%', transform: 'translate(-50%, -50%)' }}
+        >
+          <Link
+            href="/"
+            className={`${btn} text-sm backdrop-blur-sm shadow-lg bg-amber-900/80 text-amber-200 border-amber-700 hover:bg-amber-800/90`}
+          >
+            ⚔ More monsters
+          </Link>
+        </div>
+      )}
+
       {/* Player nametag — between well and defend, right of center */}
       {myPlayer && (
         <div

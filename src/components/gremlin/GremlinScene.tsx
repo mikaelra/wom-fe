@@ -243,6 +243,81 @@ function Mushroom({ position }: { position: [number, number, number] }) {
   );
 }
 
+// Wooden signpost that flies from the sky when the gremlin is defeated
+function WoodenSignpost({ show }: { show: boolean }) {
+  const groupRef = useRef<THREE.Group>(null!);
+  const yRef = useRef(16);
+  const velRef = useRef(0);
+  const landedRef = useRef(false);
+
+  // Arrow shape pointing right: flat left edge, pointed right tip
+  const signShape = useMemo(() => {
+    const shape = new THREE.Shape();
+    shape.moveTo(0, -0.14);
+    shape.lineTo(0.62, -0.14);
+    shape.lineTo(0.82, 0); // right arrow tip
+    shape.lineTo(0.62, 0.14);
+    shape.lineTo(0, 0.14);
+    shape.closePath();
+    return shape;
+  }, []);
+
+  const extrudeSettings = useMemo(() => ({ depth: 0.06, bevelEnabled: false }), []);
+
+  useEffect(() => {
+    if (!show) {
+      yRef.current = 16;
+      velRef.current = 0;
+      landedRef.current = false;
+    }
+  }, [show]);
+
+  useFrame((_, delta) => {
+    if (!show || !groupRef.current || landedRef.current) return;
+
+    // Gravity-based fall
+    velRef.current -= delta * 18;
+    yRef.current += velRef.current * delta;
+
+    if (yRef.current <= 0) {
+      yRef.current = 0;
+      velRef.current = Math.abs(velRef.current) * 0.3; // small bounce
+      if (velRef.current < 0.8) {
+        velRef.current = 0;
+        landedRef.current = true;
+      }
+    }
+
+    groupRef.current.position.y = yRef.current;
+    // Slight wobble tilt while airborne
+    groupRef.current.rotation.z = yRef.current > 0.05 ? Math.sin(yRef.current * 1.5) * 0.12 : 0;
+  });
+
+  if (!show) return null;
+
+  return (
+    <group ref={groupRef} position={[1.48, 16, 0.3]}>
+      {/* Wooden post */}
+      <mesh position={[0, 0.6, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.045, 0.065, 1.2, 8]} />
+        <meshStandardMaterial color="#5a3018" roughness={0.95} />
+      </mesh>
+      {/* Post top point */}
+      <mesh position={[0, 1.26, 0]} castShadow>
+        <coneGeometry args={[0.045, 0.12, 8]} />
+        <meshStandardMaterial color="#5a3018" roughness={0.95} />
+      </mesh>
+      {/* Arrow-shaped sign board pointing right */}
+      <group position={[0.02, 0.96, -0.03]}>
+        <mesh castShadow>
+          <extrudeGeometry args={[signShape, extrudeSettings]} />
+          <meshStandardMaterial color="#8B5E3C" roughness={0.8} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
 type GremlinSceneProps = {
   state: LobbyState | null;
 };
@@ -327,6 +402,9 @@ export default function GremlinScene({ state }: GremlinSceneProps) {
 
       {/* Player — cherub model, near side of table, facing the gremlin */}
       <CherubModel position={CHERUB_POS} rotation={[0, Math.PI, 0]} />
+
+      {/* Signpost flies in from the sky when the gremlin is defeated */}
+      <WoodenSignpost show={!gremlinAlive} />
 
       <Environment preset="forest" />
     </>
