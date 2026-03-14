@@ -6,7 +6,6 @@ import { useRef } from 'react';
 import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
-import Model from '@/components/Model';
 import PlayerV1 from '@/components/Playerv1';
 import {
   TABLE_POSITION,
@@ -102,7 +101,6 @@ export default function LobbyScene({ state, playerName }: LobbySceneProps) {
       <color attach="background" args={['#87ceeb']} />
 
       <Mountain scale={150} position={[40, -282, 62]} />
-      <Model scale={1} position={[0, 3, 0]} />
       <Table position={TABLE_POSITION} scale={1.2} />
 
       {players.map((player, i) => {
