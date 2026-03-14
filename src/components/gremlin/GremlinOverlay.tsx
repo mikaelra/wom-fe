@@ -287,8 +287,8 @@ export default function GremlinOverlay({ lobbyId, onStateChange }: GremlinOverla
         </div>
       )}
 
-      {/* "More monsters" button — over the signpost on the right, shown after gremlin defeat */}
-      {gremlin !== undefined && gremlin.hp <= 0 && (
+      {/* "More monsters" button — over the signpost on the right, shown after game over */}
+      {gameOver && (
         <div
           className="absolute pointer-events-auto"
           style={{ top: '54%', left: '78%', transform: 'translate(-50%, -50%)' }}
