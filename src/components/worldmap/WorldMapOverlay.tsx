@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createLobby, joinLobby } from '@/lib/api';
+import { createLobby, joinLobby, getPlayerRelics } from '@/lib/api';
+import type { Relic } from '@/types/game';
 
 export default function WorldMapOverlay() {
   const router = useRouter();
@@ -17,12 +18,51 @@ export default function WorldMapOverlay() {
   const [popupName, setPopupName] = useState('');
   const [popupError, setPopupError] = useState('');
 
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showRelics, setShowRelics] = useState(false);
+  const [relics, setRelics] = useState<Relic[]>([]);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
       setLoggedInName(localStorage.getItem('playerName') || '');
     }
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('playerName');
+      localStorage.removeItem('playerEmail');
+      setLoggedInName('');
+      setShowUserMenu(false);
+      window.location.reload();
+    }
+  };
+
+  const fetchRelics = async () => {
+    const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
+    if (!playerName) return;
+    setShowUserMenu(false);
+    try {
+      const data = await getPlayerRelics(playerName);
+      setRelics(data.relics ?? []);
+    } catch {
+      setRelics([]);
+    } finally {
+      setShowRelics(true);
+    }
+  };
 
   if (!mounted) return null;
 
@@ -97,15 +137,40 @@ export default function WorldMapOverlay() {
   return (
     <>
       {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-between gap-2 px-3 py-2 pointer-events-none">
-        {/* Left: player info */}
+      <div className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-end gap-2 px-3 py-2 pointer-events-none">
+        {/* Right: player info */}
         <div className="pointer-events-auto flex items-center gap-3">
           {isLoggedIn ? (
-            <div className="flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-sm font-bold text-black">
-                {loggedInName[0]?.toUpperCase()}
-              </div>
-              <span className="text-white font-semibold text-sm">{loggedInName}</span>
+            <div className="relative" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowUserMenu((v) => !v)}
+                className="flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10 hover:bg-black/70 transition-colors cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-sm font-bold text-black">
+                  {loggedInName[0]?.toUpperCase()}
+                </div>
+                <span className="text-white font-semibold text-sm">{loggedInName}</span>
+                <span className="text-white/60 text-xs ml-1">{showUserMenu ? '▲' : '▼'}</span>
+              </button>
+              {showUserMenu && (
+                <div className="absolute right-0 mt-1 w-40 bg-gray-900 border border-white/20 rounded-lg shadow-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={fetchRelics}
+                    className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    Your relics
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex gap-2">
@@ -163,6 +228,39 @@ export default function WorldMapOverlay() {
           </button>
         </div>
       </div>
+
+      {/* Relics modal */}
+      {showRelics && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => setShowRelics(false)}
+        >
+          <div
+            className="bg-gray-900 border border-white/20 text-white p-6 rounded-xl shadow-2xl max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold mb-4">Your relics</h3>
+            <ul className="list-disc pl-6 mb-4">
+              {relics.length > 0 ? (
+                relics.map((relic) => (
+                  <li key={String(relic.id)}>
+                    <strong>{relic.name} x{relic.count}</strong>
+                  </li>
+                ))
+              ) : (
+                <p className="text-white/60">You have no relics yet.</p>
+              )}
+            </ul>
+            <button
+              type="button"
+              onClick={() => setShowRelics(false)}
+              className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white font-semibold text-sm hover:bg-white/20 transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Name popup — shown when not logged in */}
       {showNamePopup && (
