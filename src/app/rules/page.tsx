@@ -15,9 +15,12 @@ export default function RulesPage() {
           alt="Tjuvpakk Rules"
           style={{ maxWidth: "800px", width: "100%", margin: "0 auto", display: "block" }}
         />
-        <div className="mt-4">
+        <div className="mt-4 flex gap-6">
           <Link href="/" className="underline text-blue-600" style={{ fontSize: "2rem" }}>
             ← Back to Home 🏠
+          </Link>
+          <Link href="/rules/p1" className="underline text-blue-600" style={{ fontSize: "2rem" }}>
+            Rules for Nerds 🤓
           </Link>
         </div>
       </div>
