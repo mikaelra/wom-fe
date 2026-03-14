@@ -1,14 +1,13 @@
 'use client';
 
 import { useThree, useFrame } from '@react-three/fiber';
-import { Environment, useGLTF } from '@react-three/drei';
+import { Environment } from '@react-three/drei';
 import { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import type { LobbyState } from '@/types/game';
 
-// Table center; gremlin sits on far side (−Z), player/cherub on near side (+Z)
+// Table center; gremlin sits on far side (−Z)
 const GREMLIN_POS: [number, number, number] = [0, 0.4, -1.15];
-const CHERUB_POS: [number, number, number] = [0, 0.4, 1.15];
 
 // Camera that frames the battle table
 function ForestCamera() {
@@ -91,41 +90,6 @@ function Stump({ position }: { position: [number, number, number] }) {
         <cylinderGeometry args={[0.22, 0.22, 0.02, 10]} />
         <meshStandardMaterial color="#4a2e14" roughness={0.9} />
       </mesh>
-    </group>
-  );
-}
-
-// Player character — cherub GLB model
-function CherubModel({
-  position,
-  rotation,
-}: {
-  position: [number, number, number];
-  rotation?: [number, number, number];
-}) {
-  const { scene } = useGLTF('/models/cherub-v01.glb');
-  const clone = useMemo(() => scene.clone(), [scene]);
-  const groupRef = useRef<THREE.Group>(null!);
-  const bobRef = useRef(0);
-
-  useEffect(() => {
-    clone.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        obj.castShadow = true;
-        obj.receiveShadow = true;
-      }
-    });
-  }, [clone]);
-
-  useFrame((_, delta) => {
-    if (!groupRef.current) return;
-    bobRef.current += delta * 1.5;
-    groupRef.current.position.y = position[1] + Math.sin(bobRef.current) * 0.05;
-  });
-
-  return (
-    <group ref={groupRef} position={position} rotation={rotation}>
-      <primitive object={clone} scale={0.5} />
     </group>
   );
 }
@@ -400,9 +364,6 @@ export default function GremlinScene({ state }: GremlinSceneProps) {
       {/* Gremlin — far side of table, facing the player */}
       <GremlinModel alive={gremlinAlive} position={GREMLIN_POS} />
 
-      {/* Player — cherub model, near side of table, facing the gremlin */}
-      <CherubModel position={CHERUB_POS} rotation={[0, Math.PI, 0]} />
-
       {/* Signpost flies in from the sky when the gremlin is defeated */}
       <WoodenSignpost show={!gremlinAlive} />
 
@@ -411,5 +372,3 @@ export default function GremlinScene({ state }: GremlinSceneProps) {
   );
 }
 
-// Preload cherub model
-useGLTF.preload('/models/cherub-v01.glb');
