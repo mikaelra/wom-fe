@@ -123,9 +123,13 @@ const LOST_SOUL_POSITIONS: [number, number, number][] = [
 function LostSoulModel({
   name,
   position,
+  showAttackButton,
+  onAttack,
 }: {
   name: string;
   position: [number, number, number];
+  showAttackButton?: boolean;
+  onAttack?: () => void;
 }) {
   const { scene } = useGLTF('/models/ghost.glb');
   const sceneClone = useMemo(() => scene.clone(), [scene]);
@@ -140,6 +144,28 @@ function LostSoulModel({
   return (
     <group ref={ref} position={position}>
       <primitive object={sceneClone} scale={0.4} />
+      {showAttackButton && (
+        <Html position={[0, 1.0, 0]} center distanceFactor={3}>
+          <button
+            onClick={onAttack}
+            style={{
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              padding: '3px 10px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              color: '#fca5a5',
+              background: 'rgba(127,29,29,0.85)',
+              border: '2px solid #b91c1c',
+              borderRadius: '6px',
+              whiteSpace: 'nowrap',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            ⚔ ATTACK
+          </button>
+        </Html>
+      )}
       <Html
         position={[0, 0.6, 0]}
         center
@@ -175,7 +201,14 @@ type LobbySceneProps = {
 export default function LobbyScene({ state, playerName, lobbyId }: LobbySceneProps) {
   const allPlayers = state?.players ?? [];
   const lostSouls = allPlayers.filter((p) => p.lost_soul);
-  const players = allPlayers.filter((p) => !p.lost_soul).slice(0, PLAYER_POSITIONS.length);
+  // Sort so current player is slot 0 (near camera) and boss is slot 1 (far side of table)
+  const players = allPlayers
+    .filter((p) => !p.lost_soul)
+    .sort((a, b) => {
+      const score = (p: typeof a) => (p.name === playerName ? 0 : p.boss ? 1 : 2);
+      return score(a) - score(b);
+    })
+    .slice(0, PLAYER_POSITIONS.length);
   const winner = state?.winner ?? state?.raidwinner ?? null;
 
   const myPlayer = state?.players.find((p) => p.name === playerName);
@@ -227,11 +260,14 @@ export default function LobbyScene({ state, playerName, lobbyId }: LobbyScenePro
 
       {lostSouls.map((soul, i) => {
         const pos = LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length];
+        const isDead = (soul.hp ?? 0) <= 0;
         return (
           <LostSoulModel
             key={soul.name}
             name={soul.name}
             position={pos}
+            showAttackButton={showAttackButtons && !isDead}
+            onAttack={() => handleAttack(soul.name)}
           />
         );
       })}
