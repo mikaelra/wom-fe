@@ -35,7 +35,7 @@ export default function LobbyPage() {
         camera={{ position: [33, 26, 33], fov: BASE_FOV }}
         style={{ position: 'absolute', inset: 0 }}
       >
-        <LobbyScene state={lobbyState} playerName={playerName} />
+        <LobbyScene state={lobbyState} playerName={playerName} lobbyId={lobbyId} />
       </Canvas>
       <LobbyOverlay lobbyId={lobbyId} onStateChange={setLobbyState} />
     </div>

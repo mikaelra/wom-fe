@@ -31,7 +31,6 @@ export default function LobbyOverlay({ lobbyId, onStateChange }: LobbyOverlayPro
   const [messages, setMessages] = useState<string[][]>([]);
   const [action, setAction] = useState('');
   const [resource, setResource] = useState('');
-  const [target, setTarget] = useState('');
   const [denyTarget, setDenyTarget] = useState('');
   const [replayVoted, setReplayVoted] = useState(false);
   const [replayLoading, setReplayLoading] = useState(false);
@@ -100,7 +99,6 @@ export default function LobbyOverlay({ lobbyId, onStateChange }: LobbyOverlayPro
 
   useEffect(() => {
     setDenyTarget('');
-    setTarget('');
     setAction('');
     setResource('');
     setMessagesExpanded(false);
@@ -153,7 +151,6 @@ export default function LobbyOverlay({ lobbyId, onStateChange }: LobbyOverlayPro
   }, [messages, messagesExpanded]);
 
   const myPlayer = state?.players.find((p) => p.name === playerName);
-  const otherPlayers = state?.players.filter((p) => p.name !== playerName && p.hp > 0 && !p.spectator) ?? [];
   const isAdmin = myPlayer?.admin ?? false;
   const boss = state?.players.find((p) => p.boss);
   const gameStarted = (state?.round ?? 0) > 0;
@@ -197,19 +194,8 @@ export default function LobbyOverlay({ lobbyId, onStateChange }: LobbyOverlayPro
 
   const handleAction = async (act: string) => {
     setAction(act);
-    if (act !== 'attack') {
-      try {
-        await submitChoice(lobbyId, { player: playerName, action: act, resource: '' });
-      } catch (e) {
-        alert(e instanceof Error ? e.message : 'API error');
-      }
-    }
-  };
-
-  const handleAttackTarget = async (chosen: string) => {
-    setTarget(chosen);
     try {
-      await submitChoice(lobbyId, { player: playerName, action: 'attack', target: chosen, resource: '' });
+      await submitChoice(lobbyId, { player: playerName, action: act, resource: '' });
     } catch (e) {
       alert(e instanceof Error ? e.message : 'API error');
     }
@@ -465,38 +451,6 @@ export default function LobbyOverlay({ lobbyId, onStateChange }: LobbyOverlayPro
             </div>
             <p className="text-red-300 text-xs mt-1">{Math.max(0, boss.hp)} HP</p>
           </div>
-        </div>
-      )}
-
-      {/* ATTACK button + target selector */}
-      {showActions && (
-        <div
-          className="absolute pointer-events-auto flex flex-col items-center gap-2"
-          style={{ top: '45%', left: '50%', transform: 'translate(-50%, -50%)' }}
-        >
-          <button
-            type="button"
-            onClick={() => handleAction('attack')}
-            className={`${btn} text-sm shadow-lg ${
-              action === 'attack'
-                ? 'bg-red-600 text-white border-red-400'
-                : 'bg-red-900/80 text-red-200 border-red-700 hover:bg-red-800/90'
-            }`}
-          >
-            ⚔ ATTACK
-          </button>
-          {action === 'attack' && (
-            <select
-              value={target}
-              onChange={(e) => { if (e.target.value) handleAttackTarget(e.target.value); }}
-              className="p-2 border-2 border-red-700 rounded-lg bg-black/80 text-white text-sm"
-            >
-              <option value="">Select target</option>
-              {otherPlayers.map((p) => (
-                <option key={p.name} value={p.name}>{p.name}</option>
-              ))}
-            </select>
-          )}
         </div>
       )}
 
