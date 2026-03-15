@@ -60,7 +60,7 @@ function PlayerWithName({
     <group position={position} rotation={rotation}>
       <PlayerV1
         url="/models/cherub-v01.glb"
-        scale={0.15}
+        scale={0.6}
         position={[0, 0, 0]}
         rotation={[0, 0, 0]}
         isAnimating={isAnimating}
