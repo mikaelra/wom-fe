@@ -51,9 +51,10 @@ function makeFresnelMat() {
 // --- Textured Earth globe + city markers in one shared rotating group ---
 interface GlobeProps {
   onCityClick: (city: City) => void;
+  athensRaidInfo?: { secondsUntil: number | null; bossName?: string };
 }
 
-function Globe({ onCityClick }: GlobeProps) {
+function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
   const groupRef = useRef<THREE.Group>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
 
@@ -132,6 +133,7 @@ function Globe({ onCityClick }: GlobeProps) {
           city={city}
           globeRadius={GLOBE_RADIUS}
           onClick={onCityClick}
+          raidInfo={city.name === 'Athens' ? athensRaidInfo : undefined}
         />
       ))}
     </group>
@@ -192,9 +194,10 @@ function Starfield() {
 // --- Main WorldMap scene ---
 interface WorldMapProps {
   onCityClick: (city: City) => void;
+  athensRaidInfo?: { secondsUntil: number | null; bossName?: string };
 }
 
-export default function WorldMap({ onCityClick }: WorldMapProps) {
+export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps) {
   return (
     <>
       <CameraRig />
@@ -209,7 +212,7 @@ export default function WorldMap({ onCityClick }: WorldMapProps) {
       <ambientLight intensity={0.05} />
 
       {/* Globe + city markers in one shared group so they rotate together */}
-      <Globe onCityClick={onCityClick} />
+      <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} />
 
       {/* Orbit controls */}
       <OrbitControls

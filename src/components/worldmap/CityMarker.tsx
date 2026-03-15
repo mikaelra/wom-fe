@@ -71,9 +71,11 @@ interface CityMarkerProps {
   city: City;
   globeRadius: number;
   onClick: (city: City) => void;
+  /** Raid info to display over Athens */
+  raidInfo?: { secondsUntil: number | null; bossName?: string };
 }
 
-export default function CityMarker({ city, globeRadius, onClick }: CityMarkerProps) {
+export default function CityMarker({ city, globeRadius, onClick, raidInfo }: CityMarkerProps) {
   const groupRef = useRef<THREE.Group>(null);
   const glowRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
@@ -161,9 +163,29 @@ export default function CityMarker({ city, globeRadius, onClick }: CityMarkerPro
             textShadow: '0 0 6px rgba(0,0,0,0.9)',
             whiteSpace: 'nowrap',
             transition: 'font-size 0.2s',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 2,
           }}
         >
           {city.name}
+          {raidInfo && (
+            <>
+              <span style={{ color: '#ffcc00', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
+                {raidInfo.bossName ?? 'Hades'}
+              </span>
+              {raidInfo.secondsUntil !== null && raidInfo.secondsUntil > 0 ? (
+                <span style={{ color: '#ff9966', fontSize: hovered ? 11 : 8 }}>
+                  {Math.floor(raidInfo.secondsUntil / 60)}m {raidInfo.secondsUntil % 60}s
+                </span>
+              ) : raidInfo.secondsUntil === 0 ? (
+                <span style={{ color: '#ff4444', fontSize: hovered ? 11 : 8, fontWeight: 900 }}>
+                  RAID ACTIVE
+                </span>
+              ) : null}
+            </>
+          )}
         </div>
       </Html>
     </group>

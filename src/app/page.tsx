@@ -3,7 +3,7 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Environment } from '@react-three/drei';
 import dynamic from 'next/dynamic';
-import { useState, useRef, useCallback, memo } from 'react';
+import { useState, useRef, useCallback, memo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import * as THREE from 'three';
 import Mountain from '@/components/mountain';
@@ -13,7 +13,7 @@ import HomeOverlay from '@/components/home/HomeOverlay';
 import WorldMap from '@/components/worldmap/WorldMap';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
-import { createGremlinLobby } from '@/lib/api';
+import { createGremlinLobby, getRaidLobby, getNextRaidTime } from '@/lib/api';
 
 // Dynamically import heavy 3D models
 const PlayerV1 = dynamic(() => import('../components/Playerv1'), { ssr: false });
@@ -173,7 +173,45 @@ export default function Page() {
   const [gremlinError, setGremlinError] = useState('');
   const [gremlinLoading, setGremlinLoading] = useState(false);
 
+  // Athens raid
+  const [showAthensPopup, setShowAthensPopup] = useState(false);
+  const [athensUsername, setAthensUsername] = useState('');
+  const [athensError, setAthensError] = useState('');
+  const [athensLoading, setAthensLoading] = useState(false);
+
+  // Raid countdown shown over Athens on the globe
+  const [athensRaidSecondsUntil, setAthensRaidSecondsUntil] = useState<number | null>(null);
+
   const router = useRouter();
+
+  // Poll next raid time while on the world map
+  useEffect(() => {
+    if (selectedCity) return;
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    getNextRaidTime()
+      .then((json) => {
+        if (cancelled) return;
+        const nextRT = new Date(json.start_time);
+        intervalId = setInterval(() => {
+          const diff = Math.floor((nextRT.getTime() - Date.now()) / 1000);
+          setAthensRaidSecondsUntil(diff <= 0 ? 0 : diff);
+        }, 1000);
+      })
+      .catch(() => {
+        if (!cancelled) setAthensRaidSecondsUntil(null);
+      });
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [selectedCity]);
+
+  const enterAthensRaid = useCallback((playerName: string) => {
+    getRaidLobby(playerName)
+      .then((data) => router.push(`/lobby/${data.lobby_id}`))
+      .catch((err) => alert(err instanceof Error ? err.message : 'Failed to enter raid.'));
+  }, [router]);
 
   const handleCityClick = useCallback((city: City) => {
     if (city.isVault) {
@@ -201,8 +239,20 @@ export default function Page() {
         .catch((err) => alert(err instanceof Error ? err.message : 'Failed to enter the forest.'));
       return;
     }
+    // Athens → go straight to the Hades raid
+    if (city.name === 'Athens') {
+      const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
+      if (!playerName) {
+        setAthensUsername('');
+        setAthensError('');
+        setShowAthensPopup(true);
+        return;
+      }
+      enterAthensRaid(playerName);
+      return;
+    }
     setSelectedCity(city);
-  }, [router]);
+  }, [router, enterAthensRaid]);
 
   const handleGremlinJoin = useCallback(async () => {
     const trimmed = gremlinUsername.trim();
@@ -224,6 +274,25 @@ export default function Page() {
     }
   }, [gremlinUsername, router]);
 
+  const handleAthensJoin = useCallback(async () => {
+    const trimmed = athensUsername.trim();
+    if (!trimmed) {
+      setAthensError('Please enter a username.');
+      return;
+    }
+    setAthensError('');
+    setAthensLoading(true);
+    try {
+      if (typeof window !== 'undefined') localStorage.setItem('playerName', trimmed);
+      setShowAthensPopup(false);
+      enterAthensRaid(trimmed);
+    } catch (err) {
+      setAthensError(err instanceof Error ? err.message : 'Failed to enter raid.');
+    } finally {
+      setAthensLoading(false);
+    }
+  }, [athensUsername, enterAthensRaid]);
+
   const handleBackToMap = useCallback(() => {
     setSelectedCity(null);
   }, []);
@@ -234,8 +303,56 @@ export default function Page() {
       <div style={{ width: '100%', height: '100vh', position: 'relative', overflow: 'hidden' }}>
         <WorldMapOverlay />
         <Canvas camera={{ position: [0, 2, 7], fov: 50 }}>
-          <WorldMap onCityClick={handleCityClick} />
+          <WorldMap
+            onCityClick={handleCityClick}
+            athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil, bossName: 'Hades' }}
+          />
         </Canvas>
+
+        {/* Athens raid login popup */}
+        {showAthensPopup && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+            onClick={() => setShowAthensPopup(false)}
+          >
+            <div
+              className="bg-gray-900 border border-red-700/60 text-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-xl font-bold mb-1 text-red-400">Enter the Hades Raid</h2>
+              <p className="text-sm text-white/60 mb-4">Choose a battle name to face Hades.</p>
+              <input
+                type="text"
+                placeholder="Your battle name"
+                value={athensUsername}
+                onChange={(e) => setAthensUsername(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAthensJoin()}
+                autoFocus
+                className="w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 focus:outline-none focus:border-red-500 mb-3"
+              />
+              {athensError && (
+                <p className="text-red-400 text-sm mb-3">{athensError}</p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleAthensJoin}
+                  disabled={athensLoading}
+                  className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {athensLoading ? 'Entering...' : 'Enter Raid'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAthensPopup(false)}
+                  className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Gremlin's Lair login popup */}
         {showGremlinPopup && (
