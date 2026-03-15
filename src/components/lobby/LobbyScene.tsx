@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
+import { submitChoice } from '@/lib/api';
 import {
   TABLE_POSITION,
   SCENE_CENTER,
@@ -43,6 +44,8 @@ function PlayerWithName({
   isAnimating,
   isDead,
   isWinner,
+  showAttackButton,
+  onAttack,
 }: {
   name: string;
   position: [number, number, number];
@@ -50,15 +53,41 @@ function PlayerWithName({
   isAnimating: boolean;
   isDead?: boolean;
   isWinner?: boolean;
+  showAttackButton?: boolean;
+  onAttack?: () => void;
 }) {
   return (
     <group position={position} rotation={rotation}>
       <PlayerV1
-        scale={0.15}
+        url="/models/cherub-v01.glb"
+        scale={0.6}
         position={[0, 0, 0]}
         rotation={[0, 0, 0]}
         isAnimating={isAnimating}
       />
+      {showAttackButton && (
+        <Html position={[0, 0.9, 0]} center distanceFactor={3}>
+          <button
+            onClick={onAttack}
+            style={{
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              padding: '8px 16px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: '#fca5a5',
+              background: 'rgba(127,29,29,0.85)',
+              border: '2px solid #b91c1c',
+              borderRadius: '8px',
+              whiteSpace: 'nowrap',
+              backdropFilter: 'blur(4px)',
+              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+            }}
+          >
+            ⚔ ATTACK
+          </button>
+        </Html>
+      )}
       <Html
         position={[0, 0.5, 0]}
         center
@@ -95,9 +124,13 @@ const LOST_SOUL_POSITIONS: [number, number, number][] = [
 function LostSoulModel({
   name,
   position,
+  showAttackButton,
+  onAttack,
 }: {
   name: string;
   position: [number, number, number];
+  showAttackButton?: boolean;
+  onAttack?: () => void;
 }) {
   const { scene } = useGLTF('/models/ghost.glb');
   const sceneClone = useMemo(() => scene.clone(), [scene]);
@@ -131,22 +164,70 @@ function LostSoulModel({
       >
         {name}
       </Html>
+      {showAttackButton && (
+        <Html position={[0, 0.75, 0]} center distanceFactor={3}>
+          <button
+            onClick={onAttack}
+            style={{
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              padding: '8px 16px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: '#fca5a5',
+              background: 'rgba(127,29,29,0.85)',
+              border: '2px solid #b91c1c',
+              borderRadius: '8px',
+              whiteSpace: 'nowrap',
+              backdropFilter: 'blur(4px)',
+              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+            }}
+          >
+            ⚔ ATTACK
+          </button>
+        </Html>
+      )}
     </group>
   );
 }
 
 useGLTF.preload('/models/ghost.glb');
+useGLTF.preload('/models/cherub-v01.glb');
 
 type LobbySceneProps = {
   state: LobbyState | null;
   playerName: string;
+  lobbyId: string;
 };
 
-export default function LobbyScene({ state, playerName }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId }: LobbySceneProps) {
   const allPlayers = state?.players ?? [];
   const lostSouls = allPlayers.filter((p) => p.lost_soul);
-  const players = allPlayers.filter((p) => !p.lost_soul).slice(0, PLAYER_POSITIONS.length);
+  // Sort so current player is slot 0 (near camera) and boss is slot 1 (far side of table)
+  const players = allPlayers
+    .filter((p) => !p.lost_soul)
+    .sort((a, b) => {
+      const score = (p: typeof a) => (p.name === playerName ? 0 : p.boss ? 1 : 2);
+      return score(a) - score(b);
+    })
+    .slice(0, PLAYER_POSITIONS.length);
   const winner = state?.winner ?? state?.raidwinner ?? null;
+
+  const myPlayer = state?.players.find((p) => p.name === playerName);
+  const gameOver = state?.gameover ?? false;
+  const isDenied = playerName === state?.deny_target;
+  const isAlive = (myPlayer?.hp ?? 0) > 0;
+  const gameStarted = (state?.round ?? 0) > 0;
+  const showAttackButtons = gameStarted && !gameOver && !isDenied && isAlive && !myPlayer?.spectator;
+
+  const handleAttack = async (targetName: string) => {
+    try {
+      await submitChoice(lobbyId, { player: playerName, action: 'attack', target: targetName, resource: '' });
+    } catch (e) {
+      console.error('Attack failed', e);
+    }
+  };
+
   return (
     <>
       <CameraFlyIn />
@@ -163,26 +244,36 @@ export default function LobbyScene({ state, playerName }: LobbySceneProps) {
         const { position, rotation } = slot;
         const isDead = (player.hp ?? 0) <= 0;
         const isWinner = winner === player.name;
+        const isOpponent = player.name !== playerName;
+        const isBoss = !!player.boss;
+        const playerRotation: [number, number, number] = player.name === playerName
+          ? [rotation[0], rotation[1] + Math.PI / 2, rotation[2]]
+          : rotation;
         return (
           <PlayerWithName
             key={player.name}
             name={player.name}
             position={position}
-            rotation={rotation}
+            rotation={playerRotation}
             isAnimating={true}
             isDead={isDead}
             isWinner={!!isWinner}
+            showAttackButton={showAttackButtons && isOpponent && !isDead && !isBoss}
+            onAttack={() => handleAttack(player.name)}
           />
         );
       })}
 
       {lostSouls.map((soul, i) => {
         const pos = LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length];
+        const isDead = (soul.hp ?? 0) <= 0;
         return (
           <LostSoulModel
             key={soul.name}
             name={soul.name}
             position={pos}
+            showAttackButton={showAttackButtons && !isDead}
+            onAttack={() => handleAttack(soul.name)}
           />
         );
       })}
