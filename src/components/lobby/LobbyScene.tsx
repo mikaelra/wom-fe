@@ -72,15 +72,16 @@ function PlayerWithName({
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
-              padding: '3px 10px',
-              fontSize: '12px',
+              padding: '8px 16px',
+              fontSize: '14px',
               fontWeight: 'bold',
               color: '#fca5a5',
               background: 'rgba(127,29,29,0.85)',
               border: '2px solid #b91c1c',
-              borderRadius: '6px',
+              borderRadius: '8px',
               whiteSpace: 'nowrap',
               backdropFilter: 'blur(4px)',
+              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
             }}
           >
             ⚔ ATTACK
@@ -145,21 +146,22 @@ function LostSoulModel({
     <group ref={ref} position={position}>
       <primitive object={sceneClone} scale={0.4} />
       {showAttackButton && (
-        <Html position={[0, 1.0, 0]} center distanceFactor={3}>
+        <Html position={[0, 0.93, 0]} center distanceFactor={3}>
           <button
             onClick={onAttack}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
-              padding: '3px 10px',
-              fontSize: '12px',
+              padding: '8px 16px',
+              fontSize: '14px',
               fontWeight: 'bold',
               color: '#fca5a5',
               background: 'rgba(127,29,29,0.85)',
               border: '2px solid #b91c1c',
-              borderRadius: '6px',
+              borderRadius: '8px',
               whiteSpace: 'nowrap',
               backdropFilter: 'blur(4px)',
+              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
             }}
           >
             ⚔ ATTACK
