@@ -37,7 +37,7 @@ function CameraFlyIn() {
   return null;
 }
 
-const CHAT_BUBBLE_DURATION_MS = 8000;
+const CHAT_BUBBLE_DURATION_MS = 4000;
 
 function PlayerWithName({
   name,
@@ -75,7 +75,10 @@ function PlayerWithName({
           <div style={{
             pointerEvents: 'none',
             userSelect: 'none',
-            maxWidth: '140px',
+            whiteSpace: 'nowrap',
+            maxWidth: '180px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
             padding: '5px 8px',
             background: 'rgba(255,255,255,0.92)',
             color: '#111',
@@ -83,7 +86,6 @@ function PlayerWithName({
             fontWeight: '500',
             borderRadius: '10px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-            wordBreak: 'break-word',
             textAlign: 'center',
             position: 'relative',
           }}>
