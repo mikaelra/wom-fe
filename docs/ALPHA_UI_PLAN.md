@@ -12,11 +12,11 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 
 1. ~~**Character model** — Angel-cherub 3D model replaces placeholder; sits at table during lobby, dies on death.~~ ✅ **Done** — Cherub, Turtle, Ghost, and PlayerV1 models all integrated via `useGLTF`; positioned around the table.
 2. ~~**Table-based lobby UI** — Characters sit around the table. All game actions are triggered by clicking on 3D elements or buttons anchored to characters — no flat menu panels.~~ ✅ **Done** — 3D table with players seated at slots; overlay action buttons on top of 3D canvas.
-3. **Combat animations** — Polished enough to feel satisfying: attack, defend, raid, death, victory. This is a priority. ⚠️ **In progress** — Action buttons submit choices but no visual attack/defend/death/victory animations or VFX yet.
-4. **Lobby chat** — Players can text each other inside a lobby before and during a match. ❌ **Not started**
+3. **Combat animations** — Polished enough to feel satisfying: attack, defend, raid, death, victory. This is a priority. ⚠️ **In progress** — Explosion particle effects (`ExplosionEffect.tsx`) and floating damage messages are live. Attack/defend have visual feedback. Death, victory, and raid-specific animations still missing.
+4. ~~**Lobby chat** — Players can text each other inside a lobby before and during a match.~~ ✅ **Done** — Full text chat integrated into `SceneOverlay.tsx`; collapsible 2-line panel (click to expand); 3D speech bubbles above player heads (4s duration); chat history polled from backend.
 5. ~~**All in-game button labels are in English.**~~ ✅ **Done**
 6. **Email service** — Email verification on signup, optional email-based login auth, username retrieval via email. Uses Resend as the mail provider. ❌ **Not started** — Emails are collected at signup but no verification or Resend integration exists.
-7. **Invite link from lobby** — Players can invite friends directly from the lobby using a simple shareable link. ❌ **Not started**
+7. **Invite link from lobby** — Players can invite friends directly from the lobby using a simple shareable link. ⚠️ **Partial** — Lobby ID is displayed in the waiting room (`LobbyOverlay.tsx`). Players can manually share the code, but there is no copy-to-clipboard button or shareable URL. Still needs a one-click copy/share button.
 
 ### Not required for Alpha (post-alpha)
 
@@ -34,6 +34,7 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 - ✅ **Gremlin fight mode** — Dedicated forest scene with procedural gremlin model, cherub opponent, mushrooms/rocks/trees environment, and wooden signpost victory animation.
 - ✅ **Multiple character models** — Cherub, Turtle, Ghost, PlayerV1 with smooth position interpolation.
 - ✅ **Overlay theme system** — Themed UI overlays for lobby, home, world map, and gremlin mode.
+- ✅ **Lobby chat** — Text chat in `SceneOverlay.tsx` with collapsible panel, 3D speech bubbles, and backend-polled message history.
 
 ---
 
@@ -58,7 +59,7 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 
 ## 1. Vision & Current State
 
-### Current State *(updated 2025-03-17)*
+### Current State *(updated 2026-03-17)*
 
 **Frontend (wom-mid):**
 - Next.js 16 + React 19 + React Three Fiber web app (Turbopack)
@@ -1351,7 +1352,7 @@ All error responses follow existing convention: `{ error: "message" }`.
 
 > Phases are ordered by **alpha priority first**. Phases 1–3b must ship before alpha release. Phases 4+ are post-alpha.
 >
-> *(Progress updated 2025-03-17)*
+> *(Progress updated 2026-03-17)*
 
 ---
 
@@ -1395,25 +1396,22 @@ Frontend:
 Backend:
 - [ ] No backend changes required for this phase
 
-### Phase 3: Lobby Chat *(Alpha)* — ❌ NOT STARTED
+### Phase 3: Lobby Chat *(Alpha)* — ✅ COMPLETE
 
 **Goal**: Players can chat inside a lobby; speech bubbles appear above characters in scene
 
 Frontend:
-- [ ] `ChatToggleButton.tsx` — corner button (💬) with notification dot for new messages
-- [ ] `ChatOverlay.tsx` — slide-in panel anchored to screen edge, does not cover action buttons
-- [ ] `ChatMessage.tsx` — single message row (player name + text; whisper styled in italic)
-- [ ] `ChatInput.tsx` — text input + target dropdown (All / specific player) + Send button
-- [ ] `SpeechBubble.tsx` — 3D bubble above character (`Html` from drei); fades after ~3s; no bubble for whispers
-- [ ] Chat polling every 2–3 seconds via `GET /lobby/<id>/chat`
-- [ ] Auto-scroll to latest; player can scroll up to read history
-- [ ] Maximum 200 characters per message
+- [x] Chat UI integrated into `SceneOverlay.tsx` — collapsible panel, defaults to 2 lines, click to expand
+- [x] `SpeechBubble` — 3D HTML overlay above player heads in `LobbyScene.tsx`; fades after ~4s; truncated to single line
+- [x] Chat polling via `getPlayerMessages()` on each round tick
+- [x] Chat input with send on Enter or button click
+- [ ] Notification dot on toggle button for new messages while closed *(not yet implemented)*
+- [ ] Whisper / target dropdown *(not yet implemented — all chat is broadcast)*
 
 Backend:
-- [ ] Lobby chat stored in-memory (part of lobby state dict)
-- [ ] `GET /lobby/<id>/chat?player_name=X` — returns messages visible to this player (filters whispers)
-- [ ] `POST /lobby/<id>/chat` — body: `player_name`, `message`, optional `target_player`
-- [ ] Rate limiting: 1 message per 2 seconds per player
+- [x] Lobby chat stored in-memory as part of lobby state (`chat` array)
+- [x] `GET /lobby/<id>/messages` — returns chat messages for the lobby
+- [x] `POST /lobby/<id>/send_message` — body: `player_name`, `message`
 
 ### Phase 3b: Email Service *(Alpha)* — ❌ NOT STARTED
 
