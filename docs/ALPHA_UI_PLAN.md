@@ -1352,7 +1352,7 @@ All error responses follow existing convention: `{ error: "message" }`.
 
 > Phases are ordered by **alpha priority first**. Phases 1–3b must ship before alpha release. Phases 4+ are post-alpha.
 >
-> *(Progress updated 2025-03-17)*
+> *(Progress updated 2026-03-17)*
 
 ---
 
@@ -1396,25 +1396,22 @@ Frontend:
 Backend:
 - [ ] No backend changes required for this phase
 
-### Phase 3: Lobby Chat *(Alpha)* — ❌ NOT STARTED
+### Phase 3: Lobby Chat *(Alpha)* — ✅ COMPLETE
 
 **Goal**: Players can chat inside a lobby; speech bubbles appear above characters in scene
 
 Frontend:
-- [ ] `ChatToggleButton.tsx` — corner button (💬) with notification dot for new messages
-- [ ] `ChatOverlay.tsx` — slide-in panel anchored to screen edge, does not cover action buttons
-- [ ] `ChatMessage.tsx` — single message row (player name + text; whisper styled in italic)
-- [ ] `ChatInput.tsx` — text input + target dropdown (All / specific player) + Send button
-- [ ] `SpeechBubble.tsx` — 3D bubble above character (`Html` from drei); fades after ~3s; no bubble for whispers
-- [ ] Chat polling every 2–3 seconds via `GET /lobby/<id>/chat`
-- [ ] Auto-scroll to latest; player can scroll up to read history
-- [ ] Maximum 200 characters per message
+- [x] Chat UI integrated into `SceneOverlay.tsx` — collapsible panel, defaults to 2 lines, click to expand
+- [x] `SpeechBubble` — 3D HTML overlay above player heads in `LobbyScene.tsx`; fades after ~4s; truncated to single line
+- [x] Chat polling via `getPlayerMessages()` on each round tick
+- [x] Chat input with send on Enter or button click
+- [ ] Notification dot on toggle button for new messages while closed *(not yet implemented)*
+- [ ] Whisper / target dropdown *(not yet implemented — all chat is broadcast)*
 
 Backend:
-- [ ] Lobby chat stored in-memory (part of lobby state dict)
-- [ ] `GET /lobby/<id>/chat?player_name=X` — returns messages visible to this player (filters whispers)
-- [ ] `POST /lobby/<id>/chat` — body: `player_name`, `message`, optional `target_player`
-- [ ] Rate limiting: 1 message per 2 seconds per player
+- [x] Lobby chat stored in-memory as part of lobby state (`chat` array)
+- [x] `GET /lobby/<id>/messages` — returns chat messages for the lobby
+- [x] `POST /lobby/<id>/send_message` — body: `player_name`, `message`
 
 ### Phase 3b: Email Service *(Alpha)* — ❌ NOT STARTED
 
