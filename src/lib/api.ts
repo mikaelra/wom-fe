@@ -156,6 +156,18 @@ export async function getPlayerMessages(
   return res.json();
 }
 
+export async function sendMessage(lobbyId: string, name: string, message: string): Promise<void> {
+  const res = await fetch(`${BACKEND_URL}/send_message/${lobbyId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, message }),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error((data as { error?: string }).error ?? "Failed to send message");
+  }
+}
+
 export async function requestReplay(lobbyId: string, player: string): Promise<{ next_lobby_id?: string }> {
   const res = await fetch(`${BACKEND_URL}/request_replay/${lobbyId}`, {
     method: "POST",

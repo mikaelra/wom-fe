@@ -13,6 +13,7 @@ import {
   submitDenyTarget,
   getPlayerMessages,
   requestReplay,
+  sendMessage,
 } from '@/lib/api';
 import type { LobbyState, Player } from '@/types/game';
 import FloatingMessage from '@/components/lobby/FloatingMessage';
@@ -71,6 +72,7 @@ export type SceneOverlayConfig = {
   showPlayerList?: boolean;
   showDenyPicker?: boolean;
   showFloatingMessages?: boolean;
+  showChat?: boolean;
   enableNextLobbyRedirect?: boolean;
   enableRaidTimer?: boolean;
   renderGameOver: (opts: GameOverRenderOpts) => ReactNode;
@@ -96,6 +98,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     showPlayerList = false,
     showDenyPicker = false,
     showFloatingMessages = false,
+    showChat = false,
     enableNextLobbyRedirect = false,
     enableRaidTimer = false,
     renderGameOver,
@@ -121,6 +124,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const lastMessagesFlat = useRef('');
   const messagesRef = useRef<HTMLUListElement>(null);
   const messagesWrapRef = useRef<HTMLDivElement>(null);
+  const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -317,6 +323,24 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       alert(e instanceof Error ? e.message : 'Failed to vote for replay');
     } finally {
       setReplayLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [state?.chat]);
+
+  const handleSendChat = async () => {
+    const msg = chatInput.trim();
+    if (!msg || !playerName) return;
+    setChatSending(true);
+    try {
+      await sendMessage(lobbyId, playerName, msg);
+      setChatInput('');
+    } catch {
+      // silently ignore send errors
+    } finally {
+      setChatSending(false);
     }
   };
 
@@ -618,6 +642,45 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                 className={`${btn} bg-amber-700/80 text-amber-200 border-amber-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 Deny
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chat panel (optional) */}
+      {showChat && (
+        <div
+          className="absolute pointer-events-auto"
+          style={{ bottom: '4%', left: '1%' }}
+        >
+          <div className="bg-black/80 backdrop-blur-sm rounded-xl border border-white/20 flex flex-col w-56 max-w-[56vw]">
+            <div className="overflow-y-auto max-h-32 px-2 pt-2 space-y-1">
+              {(state?.chat ?? []).map((m, i) => (
+                <div key={i} className="text-xs leading-tight break-words">
+                  <span className="text-blue-300 font-semibold">{m.sender}: </span>
+                  <span className="text-gray-200">{m.message}</span>
+                </div>
+              ))}
+              <div ref={chatEndRef} />
+            </div>
+            <div className="flex gap-1 p-1.5 border-t border-white/10">
+              <input
+                type="text"
+                maxLength={200}
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat(); }}
+                placeholder="Chat…"
+                className="flex-1 bg-black/60 text-white text-xs rounded px-2 py-1 border border-white/20 outline-none min-w-0"
+              />
+              <button
+                type="button"
+                disabled={chatSending || !chatInput.trim()}
+                onClick={handleSendChat}
+                className="text-xs text-blue-300 hover:text-blue-100 disabled:opacity-40 px-1"
+              >
+                ↵
               </button>
             </div>
           </div>

@@ -170,6 +170,7 @@ const lobbyConfig: SceneOverlayConfig = {
   showPlayerList: true,
   showDenyPicker: true,
   showFloatingMessages: true,
+  showChat: true,
   enableNextLobbyRedirect: true,
   enableRaidTimer: true,
   renderGameOver,

@@ -17,6 +17,12 @@ export interface Player {
   target?: string;
 }
 
+export interface ChatMessage {
+  sender: string;
+  message: string;
+  timestamp: string;
+}
+
 export interface LobbyState {
   round: number;
   players: Player[];
@@ -33,6 +39,7 @@ export interface LobbyState {
   replay_votes_count?: number;
   replay_votes_needed?: number;
   next_lobby_id?: string | null;
+  chat?: ChatMessage[];
 }
 
 export interface Relic {
