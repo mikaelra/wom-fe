@@ -10,17 +10,17 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 
 ### Must-have for Alpha
 
-1. **Character model** — Angel-cherub 3D model replaces placeholder; sits at table during lobby, dies on death. (Work in progress.)
-2. **Table-based lobby UI** — Characters sit around the table. All game actions are triggered by clicking on 3D elements or buttons anchored to characters — no flat menu panels.
-3. **Combat animations** — Polished enough to feel satisfying: attack, defend, raid, death, victory. This is a priority.
-4. **Lobby chat** — Players can text each other inside a lobby before and during a match.
-5. **All in-game button labels are in English.**
-6. **Email service** — Email verification on signup, optional email-based login auth, username retrieval via email. Uses Resend as the mail provider.
-7. **Invite link from lobby** — Players can invite friends directly from the lobby using a simple shareable link.
+1. ~~**Character model** — Angel-cherub 3D model replaces placeholder; sits at table during lobby, dies on death.~~ ✅ **Done** — Cherub, Turtle, Ghost, and PlayerV1 models all integrated via `useGLTF`; positioned around the table.
+2. ~~**Table-based lobby UI** — Characters sit around the table. All game actions are triggered by clicking on 3D elements or buttons anchored to characters — no flat menu panels.~~ ✅ **Done** — 3D table with players seated at slots; overlay action buttons on top of 3D canvas.
+3. **Combat animations** — Polished enough to feel satisfying: attack, defend, raid, death, victory. This is a priority. ⚠️ **In progress** — Action buttons submit choices but no visual attack/defend/death/victory animations or VFX yet.
+4. **Lobby chat** — Players can text each other inside a lobby before and during a match. ❌ **Not started**
+5. ~~**All in-game button labels are in English.**~~ ✅ **Done**
+6. **Email service** — Email verification on signup, optional email-based login auth, username retrieval via email. Uses Resend as the mail provider. ❌ **Not started** — Emails are collected at signup but no verification or Resend integration exists.
+7. **Invite link from lobby** — Players can invite friends directly from the lobby using a simple shareable link. ❌ **Not started**
 
 ### Not required for Alpha (post-alpha)
 
-- World map and city system
+- ~~World map and city system~~ ✅ **Done early** — 3D globe with city markers, Earth textures, Fresnel atmosphere, orbit controls, and city-specific overlays already built.
 - City chat
 - Matchmaking queues
 - DLC — Road to Olympus
@@ -28,7 +28,12 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 - App Store / Steam distribution
 - Purchasable stages
 
----
+### Already built (not originally in alpha must-haves)
+
+- ✅ **World map** — 3D globe with all 10 city markers, Earth textures (specular, bump, city lights, clouds), Fresnel atmosphere, orbit camera, starfield background.
+- ✅ **Gremlin fight mode** — Dedicated forest scene with procedural gremlin model, cherub opponent, mushrooms/rocks/trees environment, and wooden signpost victory animation.
+- ✅ **Multiple character models** — Cherub, Turtle, Ghost, PlayerV1 with smooth position interpolation.
+- ✅ **Overlay theme system** — Themed UI overlays for lobby, home, world map, and gremlin mode.
 
 ---
 
@@ -53,13 +58,16 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 
 ## 1. Vision & Current State
 
-### Current State
+### Current State *(updated 2025-03-17)*
 
 **Frontend (wom-mid):**
-- Next.js 15 + React Three Fiber web app
-- Single temple/mountain scene with table-based lobby
-- Three modes: PvP lobby, boss raid, gremlin solo fight
-- Overlay-based UI on top of 3D canvas
+- Next.js 16 + React 19 + React Three Fiber web app (Turbopack)
+- 3D world map (interactive globe with 10 sacred cities, Earth textures, atmospheric glow)
+- Table-based lobby with multiple character models (Cherub, Turtle, Ghost, PlayerV1)
+- Gremlin fight mode with dedicated forest scene, procedural gremlin model, and victory animation
+- PvP lobby and boss raid modes
+- Overlay-based UI on top of 3D canvas with theme system
+- Deployed on Netlify
 - Web-only, no mobile or desktop distribution
 
 **Backend (tjuvpakk-backend):**
@@ -763,7 +771,7 @@ Each of the 10 cities has a distinct arena environment:
 
 ### 8.10 Character Model — Angel Cherub
 
-> **Status: In progress.** A 3D-generated angel-cherub model is being created and will replace all placeholder player models.
+> **Status: Done.** Multiple character models are integrated: Cherub (`cherub-v01.glb`), Turtle (`turtlev01.glb`), Ghost (`ghost.glb`), and PlayerV1 (`playerv1.glb`). Models are loaded via `useGLTF` and positioned around the table. Animations (sitting, attack, death, victory) are still needed.
 
 #### Model specifications
 
@@ -1341,30 +1349,31 @@ All error responses follow existing convention: `{ error: "message" }`.
 
 ## 14. Implementation Phases
 
-> Phases are ordered by **alpha priority first**. Phases 1–3 must ship before alpha release. Phases 4–8 are post-alpha.
+> Phases are ordered by **alpha priority first**. Phases 1–3b must ship before alpha release. Phases 4+ are post-alpha.
+>
+> *(Progress updated 2025-03-17)*
 
 ---
 
-### Phase 1: Character Model & Table UI *(Alpha)*
+### Phase 1: Character Model & Table UI *(Alpha)* — ✅ COMPLETE
 
 **Goal**: Angel-cherub model in scene; table-centric action buttons; no flat menu panel
 
 Frontend:
-- [ ] Integrate angel-cherub 3D model (`useGLTF` / `useFBX`) for all players
-- [ ] Sitting animation as default idle state in lobby
-- [ ] Death animation on player elimination
-- [ ] `PlayerButtons.tsx` — overlay buttons anchored to each character in 3D space (`Html` from drei)
-  - [ ] "Attack" button visible on each enemy character during choice phase
-  - [ ] "Defend" button on own character
-  - [ ] "Get Life", "Get Gold", "Upgrade Strength" buttons in a row below Defend on own character
-- [ ] `TheWell.tsx` — 3D well in center of table; clickable to submit Raid
-- [ ] Remove / replace old flat action menu panel
-- [ ] All button labels in English
+- [x] Integrate character 3D models (`useGLTF`) — Cherub, Turtle, Ghost, PlayerV1 all available
+- [x] Smooth position interpolation animation when players appear
+- [x] Players positioned at fixed seat slots around the 3D table
+- [x] Overlay action buttons on top of 3D canvas (Attack, Defend, Get Life, Get Gold, Upgrade Strength)
+- [x] All button labels in English
+- [ ] `PlayerButtons.tsx` — overlay buttons anchored to each character in 3D space (`Html` from drei) *(buttons currently in overlay, not anchored to 3D characters)*
+- [ ] `TheWell.tsx` — 3D well in center of table; clickable to submit Raid *(raid is currently a button in the overlay)*
+- [ ] Sitting animation as default idle state in lobby *(models appear but no sitting animation)*
+- [ ] Death animation on player elimination *(dead players marked with ☠️ in overlay but no 3D animation)*
 
 Backend:
-- [ ] No backend changes required for this phase
+- [x] No backend changes required for this phase
 
-### Phase 2: Combat Animation Polish *(Alpha)*
+### Phase 2: Combat Animation Polish *(Alpha)* — ❌ NOT STARTED
 
 **Goal**: Combat animations feel alive and satisfying; execution phase has dramatic blackout
 
@@ -1386,7 +1395,7 @@ Frontend:
 Backend:
 - [ ] No backend changes required for this phase
 
-### Phase 3: Lobby Chat *(Alpha)*
+### Phase 3: Lobby Chat *(Alpha)* — ❌ NOT STARTED
 
 **Goal**: Players can chat inside a lobby; speech bubbles appear above characters in scene
 
@@ -1406,7 +1415,7 @@ Backend:
 - [ ] `POST /lobby/<id>/chat` — body: `player_name`, `message`, optional `target_player`
 - [ ] Rate limiting: 1 message per 2 seconds per player
 
-### Phase 3b: Email Service *(Alpha)*
+### Phase 3b: Email Service *(Alpha)* — ❌ NOT STARTED
 
 **Goal**: Verified emails, optional email-based login auth, username recovery
 
@@ -1426,15 +1435,30 @@ Backend:
 - [ ] `POST /verify_login_code` — validate login code, complete login
 - [ ] `POST /forgot_username` — email username if account exists (always returns same response)
 
+### Phase 3c: Invite Link *(Alpha)* — ❌ NOT STARTED
+
+**Goal**: Players can share a link to invite friends directly into their lobby
+
+Frontend:
+- [ ] "Copy Invite Link" button in lobby overlay (visible to all players)
+- [ ] Link format: `https://worldofmythos.com/lobby/<lobbyId>` (or deep link `worldofmythos://lobby/<lobbyId>`)
+- [ ] Clicking an invite link auto-fills the lobby code on the home/join screen
+- [ ] Optional: toast confirmation when link is copied to clipboard
+
+Backend:
+- [ ] No backend changes required — lobbies already support join-by-code; the link just encodes the lobby ID
+
 ---
 
-### Phase 4: Foundation — World Map & Cities *(post-alpha)*
+### Phase 4: Foundation — World Map & Cities *(post-alpha)* — ⚠️ PARTIALLY COMPLETE
 
 **Goal**: World map + cities + refactored navigation
 
 Frontend:
-- [ ] Build 3D world map scene with markers for all 10 cities
-- [ ] World map overlay (player info, navigation)
+- [x] Build 3D world map scene with markers for all 10 cities
+- [x] World map overlay (player info, navigation)
+- [x] Earth textures (specular, bump, city lights, clouds), Fresnel atmosphere, starfield
+- [x] Orbit controls for camera
 - [ ] City hub screen (template — Athens first)
 - [ ] Styx marker on Crete coast (DLC teaser, even before DLC is built)
 - [ ] Routing: `/` → world map, `/city/[cityId]` → city hub
@@ -1446,7 +1470,7 @@ Backend:
 - [ ] New endpoints: `GET /cities`, `GET /cities/<id>/leaderboards`
 - [ ] Begin modularizing `tjuvpakk_server.py` into route + model files
 
-### Phase 5: City Chat *(post-alpha)*
+### Phase 5: City Chat *(post-alpha)* — ❌ NOT STARTED
 
 **Goal**: City chat functional in City Hub
 
@@ -1459,7 +1483,7 @@ Backend:
 - [ ] City chat endpoints (`GET /cities/<id>/chat`, `POST /cities/<id>/chat`)
 - [ ] Rate limiting (1 msg / 2s per player), message length limit (200 chars)
 
-### Phase 6: Hades Raid *(Alpha — required)*
+### Phase 6: Hades Raid *(Alpha — required)* — ❌ NOT STARTED
 
 **Goal**: Hades appears as a fixed raid boss — 8 HP, 2 attacks — defeated by trained AI targeting ~70% win rate solo, ~20% with 2 players
 
@@ -1478,7 +1502,7 @@ Backend:
 - [ ] Hades Relic reward: stored on player record
 - [ ] `raid_wins` stat increment on Hades kill
 
-### Phase 7: Events & Stats *(post-alpha)*
+### Phase 7: Events & Stats *(post-alpha)* — ❌ NOT STARTED
 
 **Goal**: Gremlin events work, city stats are tracked
 
@@ -1494,7 +1518,7 @@ Backend:
 - [ ] City-scoped leaderboard query
 - [ ] Player city stats endpoint
 
-### Phase 8: Matchmaking *(post-alpha)*
+### Phase 8: Matchmaking *(post-alpha)* — ❌ NOT STARTED
 
 **Goal**: Players can queue for BR and team matches
 
@@ -1511,7 +1535,7 @@ Backend:
 - [ ] Combat engine: team rules (no friendly fire, team win condition)
 - [ ] Matchmaking endpoints (join, leave, status)
 
-### Phase 9: Per-City Arena Themes *(post-alpha)*
+### Phase 9: Per-City Arena Themes *(post-alpha)* — ❌ NOT STARTED
 
 **Goal**: Each city has a visually distinct arena environment
 
@@ -1519,7 +1543,7 @@ Frontend:
 - [ ] New arena 3D scenes — all 10 cities (see section 8.7)
 - [ ] Audio system + minimum sound effects
 
-### Phase 10: DLC — Road to Olympus
+### Phase 10: DLC — Road to Olympus — ❌ NOT STARTED
 
 **Goal**: Purchasable tower climb with Styx, Janus (co-op), and Zeus
 
@@ -1541,7 +1565,7 @@ Backend:
 - [ ] Combat engine: apply equipped relic effects
 - [ ] Purchase verification (stub for alpha, real IAP later)
 
-### Phase 11: Platform Distribution
+### Phase 11: Platform Distribution — ❌ NOT STARTED
 
 **Goal**: Ship on iOS, Android, and Steam
 
