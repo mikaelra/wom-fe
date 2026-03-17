@@ -302,7 +302,7 @@ export default function Page() {
     return (
       <div style={{ width: '100%', height: '100vh', position: 'relative', overflow: 'hidden' }}>
         <WorldMapOverlay />
-        <Canvas camera={{ position: [0, 2, 7], fov: 50 }}>
+        <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
           <WorldMap
             onCityClick={handleCityClick}
             athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil, bossName: 'Hades' }}

@@ -146,7 +146,7 @@ function CameraRig() {
   const initialized = useRef(false);
   useFrame(() => {
     if (!initialized.current) {
-      camera.position.set(0, 2, 7);
+      camera.position.set(0, 3, 10.5);
       camera.lookAt(0, 0, 0);
       initialized.current = true;
     }
