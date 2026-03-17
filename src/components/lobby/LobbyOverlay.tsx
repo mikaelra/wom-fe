@@ -562,21 +562,33 @@ export default function LobbyOverlay({ lobbyId, onStateChange }: LobbyOverlayPro
             <p className="text-yellow-400 font-bold text-xl leading-tight">{myPlayer.coins}</p>
             <p className="text-yellow-400/70 text-xs">💰 Get</p>
           </button>
-          <button
-            type="button"
-            disabled={!showActions}
-            onClick={() => handleResource('gain_attack')}
-            className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
-              ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-              ${resource === 'gain_attack'
-                ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
-                : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80 hover:shadow-[0_0_6px_rgba(59,130,246,0.3)]'
-              }`}
-          >
-            <p className="text-gray-400 text-xs uppercase tracking-wide">ATK</p>
-            <p className="text-blue-400 font-bold text-xl leading-tight">{myPlayer.attackDamage}</p>
-            <p className="text-blue-400/70 text-xs">⚔ Buy</p>
-          </button>
+          {(() => {
+            const cannotAffordAtk = myPlayer.coins < myPlayer.attackDamage;
+            return (
+              <button
+                type="button"
+                disabled={!showActions || cannotAffordAtk}
+                onClick={() => handleResource('gain_attack')}
+                className={`relative overflow-hidden backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
+                  ${!showActions || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                  ${resource === 'gain_attack'
+                    ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
+                    : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80 hover:shadow-[0_0_6px_rgba(59,130,246,0.3)]'
+                  }`}
+              >
+                <p className="text-gray-400 text-xs uppercase tracking-wide">ATK</p>
+                <p className="text-blue-400 font-bold text-xl leading-tight">{myPlayer.attackDamage}</p>
+                <p className="text-blue-400/70 text-xs">⚔ Buy</p>
+                {cannotAffordAtk && (
+                  <div className="absolute inset-0 pointer-events-none rounded-lg overflow-hidden">
+                    <svg className="w-full h-full" preserveAspectRatio="none">
+                      <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
+                    </svg>
+                  </div>
+                )}
+              </button>
+            );
+          })()}
         </div>
       )}
 
