@@ -371,6 +371,40 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           floatingMessages,
           onDoneFloating: (idx) => setFloatingMessages((prev) => prev.filter((_, i) => i !== idx)),
         })}
+        {showChat && (
+          <div className="fixed pointer-events-auto z-50" style={{ bottom: '4%', left: '1%' }}>
+            <div className="bg-black/80 backdrop-blur-sm rounded-xl border border-white/20 flex flex-col w-56 max-w-[56vw]">
+              <div className="overflow-y-auto max-h-32 px-2 pt-2 space-y-1">
+                {(state.chat ?? []).map((m, i) => (
+                  <div key={i} className="text-xs leading-tight break-words">
+                    <span className="text-blue-300 font-semibold">{m.sender}: </span>
+                    <span className="text-gray-200">{m.message}</span>
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+              <div className="flex gap-1 p-1.5 border-t border-white/10">
+                <input
+                  type="text"
+                  maxLength={200}
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat(); }}
+                  placeholder="Chat…"
+                  className="flex-1 bg-black/60 text-white text-xs rounded px-2 py-1 border border-white/20 outline-none min-w-0"
+                />
+                <button
+                  type="button"
+                  disabled={chatSending || !chatInput.trim()}
+                  onClick={handleSendChat}
+                  className="text-xs text-blue-300 hover:text-blue-100 disabled:opacity-40 px-1"
+                >
+                  ↵
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </>
     );
   }

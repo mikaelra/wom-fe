@@ -37,6 +37,8 @@ function CameraFlyIn() {
   return null;
 }
 
+const CHAT_BUBBLE_DURATION_MS = 8000;
+
 function PlayerWithName({
   name,
   position,
@@ -46,6 +48,7 @@ function PlayerWithName({
   isWinner,
   showAttackButton,
   onAttack,
+  chatBubble,
 }: {
   name: string;
   position: [number, number, number];
@@ -55,6 +58,7 @@ function PlayerWithName({
   isWinner?: boolean;
   showAttackButton?: boolean;
   onAttack?: () => void;
+  chatBubble?: string;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : '/models/cherub-v01.glb';
   return (
@@ -66,6 +70,38 @@ function PlayerWithName({
         rotation={[0, 0, 0]}
         isAnimating={isAnimating}
       />
+      {chatBubble && (
+        <Html position={[0, 1.3, 0]} center distanceFactor={3}>
+          <div style={{
+            pointerEvents: 'none',
+            userSelect: 'none',
+            maxWidth: '140px',
+            padding: '5px 8px',
+            background: 'rgba(255,255,255,0.92)',
+            color: '#111',
+            fontSize: '12px',
+            fontWeight: '500',
+            borderRadius: '10px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+            wordBreak: 'break-word',
+            textAlign: 'center',
+            position: 'relative',
+          }}>
+            {chatBubble}
+            <div style={{
+              position: 'absolute',
+              bottom: '-7px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 0,
+              height: 0,
+              borderLeft: '7px solid transparent',
+              borderRight: '7px solid transparent',
+              borderTop: '7px solid rgba(255,255,255,0.92)',
+            }} />
+          </div>
+        </Html>
+      )}
       {showAttackButton && (
         <Html position={[0, 0.9, 0]} center distanceFactor={3}>
           <button
@@ -222,6 +258,19 @@ export default function LobbyScene({ state, playerName, lobbyId }: LobbyScenePro
   const gameStarted = (state?.round ?? 0) > 0;
   const showAttackButtons = gameStarted && !gameOver && !isDenied && isAlive && !myPlayer?.spectator;
 
+  // Build a map of sender → latest message text if it's within CHAT_BUBBLE_DURATION_MS
+  const chatBubbles = useMemo(() => {
+    const now = Date.now();
+    const map = new Map<string, string>();
+    for (const msg of state?.chat ?? []) {
+      const age = now - new Date(msg.timestamp).getTime();
+      if (age < CHAT_BUBBLE_DURATION_MS) {
+        map.set(msg.sender, msg.message);
+      }
+    }
+    return map;
+  }, [state?.chat]);
+
   const handleAttack = async (targetName: string) => {
     try {
       await submitChoice(lobbyId, { player: playerName, action: 'attack', target: targetName, resource: '' });
@@ -262,6 +311,7 @@ export default function LobbyScene({ state, playerName, lobbyId }: LobbyScenePro
             isWinner={!!isWinner}
             showAttackButton={showAttackButtons && isOpponent && !isDead && !isBoss}
             onAttack={() => handleAttack(player.name)}
+            chatBubble={chatBubbles.get(player.name)}
           />
         );
       })}
