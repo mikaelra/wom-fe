@@ -5,6 +5,11 @@ import { Environment, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import type { LobbyState } from '@/types/game';
+import { useSunLighting } from '@/lib/sunLighting';
+
+// Gremlin's Lair — Black Forest, Germany
+const FOREST_LAT = 48.5;
+const FOREST_REAL_LNG = 8.2;
 
 // Table center; gremlin sits on far side (−Z), player/cherub on near side (+Z)
 const GREMLIN_POS: [number, number, number] = [0, 0.4, -1.15];
@@ -326,6 +331,15 @@ export default function GremlinScene({ state }: GremlinSceneProps) {
   const gremlin = state?.players.find((p) => p.gremlin || p.boss);
   const gremlinAlive = gremlin ? gremlin.hp > 0 : true;
 
+  const sun = useSunLighting(FOREST_LAT, FOREST_REAL_LNG);
+  // Blend the sun sky colour into the dark forest palette (keep it moody)
+  const forestBgColor = useMemo(() => {
+    const base = new THREE.Color('#0a2a0a');
+    const sky = new THREE.Color(sun.skyColor);
+    base.lerp(sky, sun.dayFactor * 0.25); // at most 25% bleed from the sky
+    return `#${base.getHexString()}`;
+  }, [sun.skyColor, sun.dayFactor]);
+
   const trees = useMemo(
     () =>
       [
@@ -354,14 +368,19 @@ export default function GremlinScene({ state }: GremlinSceneProps) {
     <>
       <ForestCamera />
 
-      {/* Lighting */}
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[5, 10, 5]} intensity={0.8} castShadow color="#ffffcc" />
+      {/* Lighting — sun-aware but dimmed for the dense forest canopy */}
+      <ambientLight intensity={sun.ambientIntensity * 0.6} color={sun.ambientColor} />
+      <directionalLight
+        position={sun.sunDirection}
+        intensity={sun.sunIntensity * 0.65}
+        castShadow
+        color={sun.sunColor}
+      />
       <pointLight position={[0, 2, 0]} intensity={0.5} color="#88ff88" />
 
-      {/* Dark forest sky + fog */}
-      <color attach="background" args={['#0a2a0a']} />
-      <fog attach="fog" args={['#0a2a0a', 8, 20]} />
+      {/* Dark forest sky + fog — tinted by sun position */}
+      <color attach="background" args={[forestBgColor]} />
+      <fog attach="fog" args={[forestBgColor, 8, 20]} />
 
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>

@@ -16,6 +16,11 @@ import {
   getResponsiveFov,
 } from '@/lib/sceneConstants';
 import type { LobbyState } from '@/types/game';
+import { useSunLighting } from '@/lib/sunLighting';
+
+// Athens coordinates — the lobby is always the Athens raid
+const ATHENS_LAT = 37.9838;
+const ATHENS_REAL_LNG = 23.73;
 
 
 function CameraFlyIn() {
@@ -281,12 +286,14 @@ export default function LobbyScene({ state, playerName, lobbyId }: LobbyScenePro
     }
   };
 
+  const sun = useSunLighting(ATHENS_LAT, ATHENS_REAL_LNG);
+
   return (
     <>
       <CameraFlyIn />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 10]} intensity={1.2} castShadow />
-      <color attach="background" args={['#87ceeb']} />
+      <ambientLight intensity={sun.ambientIntensity} color={sun.ambientColor} />
+      <directionalLight position={sun.sunDirection} intensity={sun.sunIntensity} color={sun.sunColor} castShadow />
+      <color attach="background" args={[sun.skyColor]} />
 
       <Mountain scale={150} position={[40, -282, 62]} />
       <Table position={TABLE_POSITION} scale={1.2} />

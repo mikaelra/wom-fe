@@ -13,6 +13,8 @@ export interface City {
   color: string;
   /** Short thematic label */
   tag: string;
+  /** Real-world longitude for solar position calculations (not globe-calibrated) */
+  realLng: number;
   /** If true, this marker launches the Gremlin fight instead of a city hub */
   isGremlin?: boolean;
   /** If true, clicking this marker navigates directly to the vault page */
@@ -42,11 +44,11 @@ export interface City {
  * Latitude values match real-world values without adjustment.
  */
 export const CITIES: City[] = [
-  { id: 3, name: "Athens", country: "Greece", lat: 37.9838, lng: -25, color: "#fa0202", tag: "Marble Columns" },
-  { id: 8, name: "Leaderboards", country: "Norway", lat: 59.9139, lng: -4, color: "#de340d", tag: "Viking Fjords", isLeaderboard: true },
-  { id: 13, name: "Rules", country: "North Pole", lat: 90, lng: 0, color: "#ffffff", tag: "The Rules", isRules: true },
-  { id: 11, name: "Gremlin's Lair", country: "Black Forest", lat: 48.5, lng: -5, color: "#22c55e", tag: "Dark Forest", isGremlin: true },
-  { id: 12, name: "The Vault", country: "South Pole", lat: -90, lng: 0, color: "#FFD700", tag: "The Vault", isVault: true },
+  { id: 3, name: "Athens", country: "Greece", lat: 37.9838, lng: -25, realLng: 23.73, color: "#fa0202", tag: "Marble Columns" },
+  { id: 8, name: "Leaderboards", country: "Norway", lat: 59.9139, lng: -4, realLng: 10.75, color: "#de340d", tag: "Viking Fjords", isLeaderboard: true },
+  { id: 13, name: "Rules", country: "North Pole", lat: 90, lng: 0, realLng: 0, color: "#ffffff", tag: "The Rules", isRules: true },
+  { id: 11, name: "Gremlin's Lair", country: "Black Forest", lat: 48.5, lng: -5, realLng: 8.2, color: "#22c55e", tag: "Dark Forest", isGremlin: true },
+  { id: 12, name: "The Vault", country: "South Pole", lat: -90, lng: 0, realLng: 0, color: "#FFD700", tag: "The Vault", isVault: true },
 ];
 
 /**

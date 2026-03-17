@@ -6,6 +6,7 @@ import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import CityMarker from './CityMarker';
 import { CITIES, type City } from '@/lib/cities';
+import { getGlobeSunDirection } from '@/lib/sunLighting';
 
 const GLOBE_RADIUS = 2.5;
 
@@ -191,6 +192,30 @@ function Starfield() {
   );
 }
 
+// --- Animated sun light that follows real-world sun position ---
+function GlobeSunLight() {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const lastUpdate = useRef(0);
+
+  useFrame((state) => {
+    const elapsed = state.clock.getElapsedTime();
+    if (!lightRef.current) return;
+    // Update every 2 seconds — the globe rotates slowly
+    if (elapsed - lastUpdate.current > 2) {
+      lastUpdate.current = elapsed;
+      const [x, y, z] = getGlobeSunDirection(new Date());
+      lightRef.current.position.set(x, y, z);
+    }
+  });
+
+  // Initial position
+  const initialPos = useMemo(() => getGlobeSunDirection(new Date()), []);
+
+  return (
+    <directionalLight ref={lightRef} position={initialPos} intensity={2.0} color={0xffffff} />
+  );
+}
+
 // --- Main WorldMap scene ---
 interface WorldMapProps {
   onCityClick: (city: City) => void;
@@ -206,8 +231,8 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
       <color attach="background" args={['#070b15']} />
       <Starfield />
 
-      {/* Sun-like directional light (same position as threejs-earth) */}
-      <directionalLight position={[-2, 0.5, 1.5]} intensity={2.0} color={0xffffff} />
+      {/* Sun light follows real-world sun position around the globe */}
+      <GlobeSunLight />
       {/* Tiny ambient so the dark side isn't pure black */}
       <ambientLight intensity={0.05} />
 

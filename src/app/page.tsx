@@ -14,6 +14,7 @@ import WorldMap from '@/components/worldmap/WorldMap';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
 import { createGremlinLobby, getRaidLobby, getNextRaidTime } from '@/lib/api';
+import { useSunLighting } from '@/lib/sunLighting';
 
 // Dynamically import heavy 3D models
 const PlayerV1 = dynamic(() => import('../components/Playerv1'), { ssr: false });
@@ -94,9 +95,11 @@ type Explosion = { id: number; position: [number, number, number] };
 // ---------- Temple scene (the existing arena) ----------
 interface TempleSceneProps {
   cityColor?: string;
+  lat: number;
+  realLng: number;
 }
 
-function TempleScene({ cityColor }: TempleSceneProps) {
+function TempleScene({ cityColor, lat, realLng }: TempleSceneProps) {
   const [targetPosition] = useState<[number, number, number] | null>(null);
   const [showPlayer] = useState(false);
   const [explosions, setExplosions] = useState<Explosion[]>([]);
@@ -114,6 +117,8 @@ function TempleScene({ cityColor }: TempleSceneProps) {
     setExplosions((prev) => prev.filter((e) => e.id !== id));
   };
 
+  const sun = useSunLighting(lat, realLng);
+
   return (
     <>
       <CameraAnimator
@@ -123,11 +128,11 @@ function TempleScene({ cityColor }: TempleSceneProps) {
         getFov={getResponsiveFov}
       />
 
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 10]} intensity={1.2} castShadow />
+      <ambientLight intensity={sun.ambientIntensity} color={sun.ambientColor} />
+      <directionalLight position={sun.sunDirection} intensity={sun.sunIntensity} color={sun.sunColor} castShadow />
 
-      {/* Sky color tinted by city */}
-      <color attach="background" args={[cityColor ? adjustSkyColor(cityColor) : '#87ceeb']} />
+      {/* Sky color tinted by city and sun position */}
+      <color attach="background" args={[cityColor ? adjustSkyColor(cityColor, sun.skyColor) : sun.skyColor]} />
 
       <Mountain scale={150} position={[40, -282, 62]} />
       <Table position={TABLE_POSITION} scale={1.2} onClick={handleTableClick} />
@@ -153,15 +158,15 @@ function TempleScene({ cityColor }: TempleSceneProps) {
 }
 
 /** Slightly tint the sky colour based on the city theme colour. */
-function adjustSkyColor(hex: string): string {
+function adjustSkyColor(hex: string, baseSky: string = '#87ceeb'): string {
   try {
     const c = new THREE.Color(hex);
-    // Mix 20% city colour into the default sky blue
-    const sky = new THREE.Color('#87ceeb');
+    // Mix 15% city colour into the sun-computed sky colour
+    const sky = new THREE.Color(baseSky);
     sky.lerp(c, 0.15);
     return `#${sky.getHexString()}`;
   } catch {
-    return '#87ceeb';
+    return baseSky;
   }
 }
 
@@ -408,7 +413,7 @@ export default function Page() {
     <div style={{ width: '100%', height: '100vh', position: 'relative' }}>
       <HomeOverlay city={selectedCity} onBackToMap={handleBackToMap} />
       <Canvas camera={{ position: [33, 26, 33], fov: BASE_FOV }}>
-        <TempleScene cityColor={selectedCity.color} />
+        <TempleScene cityColor={selectedCity.color} lat={selectedCity.lat} realLng={selectedCity.realLng} />
       </Canvas>
     </div>
   );
