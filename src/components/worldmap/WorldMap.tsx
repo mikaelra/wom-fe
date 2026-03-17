@@ -219,8 +219,8 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
         makeDefault
         enablePan={false}
         enableZoom
-        minDistance={4}
-        maxDistance={12}
+        minDistance={6}
+        maxDistance={18}
         autoRotate
         autoRotateSpeed={0.3}
         maxPolarAngle={Math.PI * 0.85}
