@@ -4,24 +4,36 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { Environment, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
+import { usePanOffset } from '@/lib/usePanOffset';
 import type { LobbyState } from '@/types/game';
 
 // Table center; gremlin sits on far side (−Z), player/cherub on near side (+Z)
 const GREMLIN_POS: [number, number, number] = [0, 0.4, -1.15];
 const CHERUB_POS: [number, number, number] = [0, 0.4, 1.15];
 
-// Camera that frames the battle table
+const FOREST_LOOKAT = new THREE.Vector3(0, 0.9, 0);
+
+// Camera that frames the battle table with drag-to-pan (30° limit, snaps back)
 function ForestCamera() {
   const { camera, size } = useThree();
   const pos = useRef(new THREE.Vector3(0, 8, 12));
+  const panOffset = usePanOffset();
 
   useFrame(() => {
     const aspect = size.width / size.height;
     const targetZ = aspect > 1.2 ? 5 : 6;
-    const target = new THREE.Vector3(0, 2.0, targetZ);
-    pos.current.lerp(target, 0.03);
-    camera.position.copy(pos.current);
-    camera.lookAt(0, 0.9, 0);
+    const baseTarget = new THREE.Vector3(0, 2.0, targetZ);
+    pos.current.lerp(baseTarget, 0.03);
+
+    // Apply pan offset by orbiting around the look-at point
+    const arm = pos.current.clone().sub(FOREST_LOOKAT);
+    arm.applyAxisAngle(new THREE.Vector3(0, 1, 0), panOffset.current.yaw);
+    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), arm).normalize();
+    arm.applyAxisAngle(right, panOffset.current.pitch);
+
+    camera.position.copy(FOREST_LOOKAT).add(arm);
+    camera.lookAt(FOREST_LOOKAT);
+
     if (camera instanceof THREE.PerspectiveCamera) {
       camera.fov = aspect > 1.5 ? 60 : 55;
       camera.updateProjectionMatrix();

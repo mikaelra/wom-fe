@@ -15,19 +15,32 @@ import {
   getCameraTargetPosition,
   getResponsiveFov,
 } from '@/lib/sceneConstants';
+import { usePanOffset } from '@/lib/usePanOffset';
 import type { LobbyState } from '@/types/game';
 
 
+const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
+
+// Camera with fly-in and drag-to-pan (30° limit, snaps back on release)
 function CameraFlyIn() {
   const { camera, size } = useThree();
   const currentPosition = useRef(new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z));
+  const panOffset = usePanOffset();
 
   useFrame(() => {
     const [x, y, z] = getCameraTargetPosition(size.width, size.height);
-    const target = new THREE.Vector3(x, y, z);
-    currentPosition.current.lerp(target, 0.025);
-    camera.position.copy(currentPosition.current);
-    camera.lookAt(...SCENE_CENTER);
+    const baseTarget = new THREE.Vector3(x, y, z);
+    currentPosition.current.lerp(baseTarget, 0.025);
+
+    // Apply pan offset by orbiting around the look-at point
+    const arm = currentPosition.current.clone().sub(LOBBY_LOOKAT);
+    arm.applyAxisAngle(new THREE.Vector3(0, 1, 0), panOffset.current.yaw);
+    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), arm).normalize();
+    arm.applyAxisAngle(right, panOffset.current.pitch);
+
+    camera.position.copy(LOBBY_LOOKAT).add(arm);
+    camera.lookAt(LOBBY_LOOKAT);
+
     if (camera instanceof THREE.PerspectiveCamera) {
       camera.fov = getResponsiveFov(size.width, size.height);
       camera.updateProjectionMatrix();

@@ -146,7 +146,7 @@ function CameraRig() {
   const initialized = useRef(false);
   useFrame(() => {
     if (!initialized.current) {
-      camera.position.set(0, 2, 7);
+      camera.position.set(0, 3, 10.5);
       camera.lookAt(0, 0, 0);
       initialized.current = true;
     }
@@ -219,8 +219,8 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
         makeDefault
         enablePan={false}
         enableZoom
-        minDistance={4}
-        maxDistance={12}
+        minDistance={6}
+        maxDistance={18}
         autoRotate
         autoRotateSpeed={0.3}
         maxPolarAngle={Math.PI * 0.85}
