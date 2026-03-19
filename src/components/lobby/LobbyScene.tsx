@@ -75,7 +75,7 @@ function PlayerWithName({
   chatBubble?: string;
   isBoss?: boolean;
 }) {
-  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hadesv01.glb' : '/models/cherub-v01.glb';
+  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hadesv01.glb' : '/models/frogv01.glb';
   return (
     <group position={position} rotation={rotation}>
       <PlayerV1
@@ -246,7 +246,7 @@ function LostSoulModel({
 }
 
 useGLTF.preload('/models/ghost.glb');
-useGLTF.preload('/models/cherub-v01.glb');
+useGLTF.preload('/models/frogv01.glb');
 useGLTF.preload('/models/turtlev01.glb');
 
 type LobbySceneProps = {

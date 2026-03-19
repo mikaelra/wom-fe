@@ -12,7 +12,7 @@ type Props = {
 };
 
 function ModelImpl({
-  url = '/models/cherub-v01.glb',
+  url = '/models/frogv01.glb',
   scale = 1,
   position = [0, 0, 0],
   rotation = [0, 0, 0],
@@ -33,4 +33,4 @@ function ModelImpl({
 
 export default memo(ModelImpl);
 
-useGLTF.preload('/models/cherub-v01.glb');
+useGLTF.preload('/models/frogv01.glb');

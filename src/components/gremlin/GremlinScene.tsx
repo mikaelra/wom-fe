@@ -107,7 +107,7 @@ function Stump({ position }: { position: [number, number, number] }) {
   );
 }
 
-// Player character — cherub GLB model
+// Player character — frog GLB model
 function CherubModel({
   position,
   rotation,
@@ -115,7 +115,7 @@ function CherubModel({
   position: [number, number, number];
   rotation?: [number, number, number];
 }) {
-  const { scene } = useGLTF('/models/cherub-v01.glb');
+  const { scene } = useGLTF('/models/frogv01.glb');
   const clone = useMemo(() => scene.clone(), [scene]);
   const groupRef = useRef<THREE.Group>(null!);
   const bobRef = useRef(0);
@@ -412,7 +412,7 @@ export default function GremlinScene({ state }: GremlinSceneProps) {
       {/* Gremlin — far side of table, facing the player */}
       <GremlinModel alive={gremlinAlive} position={GREMLIN_POS} />
 
-      {/* Player — cherub model, near side of table, facing the gremlin */}
+      {/* Player — frog model, near side of table, facing the gremlin */}
       <CherubModel position={CHERUB_POS} rotation={[0, Math.PI, 0]} />
 
       {/* Signpost flies in from the sky when the gremlin is defeated */}
@@ -423,5 +423,5 @@ export default function GremlinScene({ state }: GremlinSceneProps) {
   );
 }
 
-// Preload cherub model
-useGLTF.preload('/models/cherub-v01.glb');
+// Preload frog model
+useGLTF.preload('/models/frogv01.glb');
