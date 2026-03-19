@@ -62,6 +62,7 @@ function PlayerWithName({
   showAttackButton,
   onAttack,
   chatBubble,
+  isBoss,
 }: {
   name: string;
   position: [number, number, number];
@@ -72,8 +73,9 @@ function PlayerWithName({
   showAttackButton?: boolean;
   onAttack?: () => void;
   chatBubble?: string;
+  isBoss?: boolean;
 }) {
-  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : '/models/cherub-v01.glb';
+  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hadesv01.glb' : '/models/cherub-v01.glb';
   return (
     <group position={position} rotation={rotation}>
       <PlayerV1
@@ -322,6 +324,7 @@ export default function LobbyScene({ state, playerName, lobbyId }: LobbyScenePro
             isAnimating={true}
             isDead={isDead}
             isWinner={!!isWinner}
+            isBoss={isBoss}
             showAttackButton={showAttackButtons && isOpponent && !isDead && !isBoss}
             onAttack={() => handleAttack(player.name)}
             chatBubble={chatBubbles.get(player.name)}
