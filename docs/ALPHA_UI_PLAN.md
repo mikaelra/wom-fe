@@ -17,6 +17,8 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 5. ~~**All in-game button labels are in English.**~~ ✅ **Done**
 6. **Email service** — Email verification on signup, optional email-based login auth, username retrieval via email. Uses Resend as the mail provider. ❌ **Not started** — Emails are collected at signup but no verification or Resend integration exists.
 7. **Invite link from lobby** — Players can invite friends directly from the lobby using a simple shareable link. ⚠️ **Partial** — Lobby ID is displayed in the waiting room (`LobbyOverlay.tsx`). Players can manually share the code, but there is no copy-to-clipboard button or shareable URL. Still needs a one-click copy/share button.
+8. **Raid boss relic claiming** — When a player defeats a raid boss and earns a relic, they must choose: claim it by providing an email address (relic stored on account), or decline (no relic awarded). This encourages account creation for rare rewards. ❌ **Not started**
+9. **Claimed name protection** — When a name is claimed (player has email on file), guests cannot use that name. They must either log in with the correct email or choose a different name. ❌ **Not started** — Currently any player can enter any name regardless of whether it's claimed.
 
 ### Not required for Alpha (post-alpha)
 
@@ -307,6 +309,80 @@ Defeating Hades grants:
 - Spawns less frequently than Gremlins (e.g., once every 30–60 minutes)
 - Max 1 active Hades Raid globally at a time
 - Distinct visual treatment in world map notifications (red/purple, skull icon) to set it apart from Gremlin events
+
+---
+
+### 4.7 Raid Boss Relic Claiming
+
+When a player defeats a raid boss (Hades or any future boss) and earns a relic drop, the relic is **not automatically awarded**. Instead, a dialog prompts the player to choose:
+
+#### Claim Relic Dialog
+
+```
+┌──────────────────────────────────────────┐
+│                                           │
+│  🏆 RELIC EARNED!                        │
+│                                           │
+│  You have earned the Hades Relic!        │
+│  "Forged in the flames of the Underworld"│
+│                                           │
+│  To keep this relic, claim your name     │
+│  with an email address:                  │
+│                                           │
+│  ┌──────────────────────────────┐        │
+│  │ your.email@example.com       │        │
+│  └──────────────────────────────┘        │
+│                                           │
+│  [Claim Relic]     [No Thanks]           │
+│                                           │
+└──────────────────────────────────────────┘
+```
+
+**Behaviour:**
+- Shown immediately after a raid boss is defeated, if a relic was dropped
+- **"Claim Relic"**: player enters an email address → `POST /claim_relic` → relic stored on account. If the player doesn't have an account yet, one is created (name + email).
+- **"No Thanks"**: dialog closes, no relic is awarded, player continues as guest
+- This creates a natural incentive for players to claim names / create accounts
+
+#### Frontend Components
+
+| Component | Description |
+|-----------|-------------|
+| `ClaimRelicDialog.tsx` | Modal shown after raid boss defeat when a relic is available; email input + claim/decline buttons |
+
+### 4.8 Claimed Name Protection
+
+When a player has claimed a name with an email address, that name is reserved. If another player tries to use a claimed name without logging in, they are blocked.
+
+#### Name Taken Dialog
+
+```
+┌──────────────────────────────────────────┐
+│                                           │
+│  ⚠️ NAME TAKEN                           │
+│                                           │
+│  The name "Spartan99" has already been   │
+│  claimed by another player.              │
+│                                           │
+│  If this is your name, log in with       │
+│  your email to continue.                 │
+│                                           │
+│  [Go to Login]    [Choose Another Name]  │
+│                                           │
+└──────────────────────────────────────────┘
+```
+
+**Behaviour:**
+- Shown when a player tries to join a lobby, create a lobby, or perform any action with a name that exists in the database with a non-null email
+- **"Go to Login"**: navigates to the login page, pre-fills the name field
+- **"Choose Another Name"**: returns to the name entry screen so the player can pick a different name
+- The backend returns `{ error: "name_claimed" }` which the frontend interprets to show this dialog
+
+#### Frontend Components
+
+| Component | Description |
+|-----------|-------------|
+| `NameTakenDialog.tsx` | Modal shown when a claimed name is used without authentication; offers login or name change |
 
 ---
 
@@ -1413,6 +1489,23 @@ Backend:
 - [x] `GET /lobby/<id>/messages` — returns chat messages for the lobby
 - [x] `POST /lobby/<id>/send_message` — body: `player_name`, `message`
 
+### Phase 3a: Raid Boss Relic Claiming & Name Protection *(Alpha)* — ❌ NOT STARTED
+
+**Goal**: Players can claim relics from raid boss kills via email; claimed names are protected from unauthorized use
+
+Frontend:
+- [ ] `ClaimRelicDialog.tsx` — modal shown after raid boss defeat when a relic drop occurs; email input field, "Claim Relic" and "No Thanks" buttons
+- [ ] Integrate `ClaimRelicDialog` into post-raid reward flow — show when backend response includes `relic_available: true`
+- [ ] `NameTakenDialog.tsx` — modal shown when backend returns `{ error: "name_claimed" }`; offers "Go to Login" (navigates to login page with name pre-filled) and "Choose Another Name" (returns to name entry)
+- [ ] Integrate `NameTakenDialog` into all flows where a player name is submitted (lobby creation, lobby join, etc.)
+- [ ] Handle `name_claimed` error response in `src/lib/api.ts` across all relevant API calls
+
+Backend:
+- [ ] `POST /claim_relic` endpoint — accepts `player_name`, `email`, `relic_id`, `lobby_id`; stores relic on account; creates account if needed
+- [ ] Include `relic_available` and relic details in raid boss lobby completion response
+- [ ] `verify_player_access` middleware — checks if a name is claimed (has email) and rejects unauthenticated use with `{ error: "name_claimed" }`
+- [ ] Apply `verify_player_access` to all player-action endpoints
+
 ### Phase 3b: Email Service *(Alpha)* — ❌ NOT STARTED
 
 **Goal**: Verified emails, optional email-based login auth, username recovery
@@ -1623,6 +1716,7 @@ Setup:
 | GET | `/players/<name>/city_stats` | All city stat breakdowns |
 | GET | `/lobby/<id>/chat` | Fetch lobby chat messages |
 | POST | `/lobby/<id>/chat` | Send a lobby chat message |
+| POST | `/claim_relic` | Claim a raid boss relic by providing email |
 | POST | `/verify_email` | Verify signup email with 6-digit code |
 | POST | `/resend_verification` | Resend verification code (rate-limited) |
 | POST | `/verify_login_code` | Verify login code for email-auth users |
