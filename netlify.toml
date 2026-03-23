@@ -5,5 +5,8 @@
 [build.environment]
   NEXT_PUBLIC_BACKEND_URL = "https://tjuvpakk-backend.onrender.com"
 
+[context.deploy-preview]
+  command = "NEXT_PUBLIC_BACKEND_URL=https://tjuvpakk-backend-pr-${REVIEW_ID:?No preview backend available - REVIEW_ID is not set}.onrender.com npm run build"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
