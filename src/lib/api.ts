@@ -29,15 +29,25 @@ export async function joinLobby(
   name: string,
   email: string
 ): Promise<void> {
-  const res = await fetch(`${BACKEND_URL}/join_lobby/${joinCode}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email }),
+  return new Promise((resolve, reject) => {
+    const sock = getSocket();
+    sock.emit("join_lobby", { lobby_id: joinCode, name, email });
+
+    const onJoined = () => {
+      sock.off("joined_lobby", onJoined);
+      sock.off("error", onError);
+      resolve();
+    };
+
+    const onError = (data: { message: string }) => {
+      sock.off("joined_lobby", onJoined);
+      sock.off("error", onError);
+      reject(new Error(data.message));
+    };
+
+    sock.on("joined_lobby", onJoined);
+    sock.on("error", onError);
   });
-  if (!res.ok) {
-    const errorData = await res.json();
-    throw new Error((errorData as { error?: string }).error ?? "Join failed");
-  }
 }
 
 export async function getRaidLobby(playerName: string): Promise<{ lobby_id: string }> {
