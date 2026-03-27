@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
+  getState,
   getNextRaidTime,
   getPlayerMessages,
   requestReplay,
@@ -167,6 +168,17 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     onStateChange?.(state);
   }, [state, onStateChange]);
 
+  // Poll state while in the pre-game lobby (round === 0) so newly joined
+  // players appear without waiting for the next socket broadcast.
+  const gameStarted = (state?.round ?? 0) > 0;
+  useEffect(() => {
+    if (!lobbyId || gameStarted) return;
+    const interval = setInterval(() => {
+      getState(lobbyId).then(setState).catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [lobbyId, gameStarted]);
+
   useEffect(() => {
     if (!state?.round_end_time) {
       setSecondsLeft(null);
@@ -251,7 +263,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   const isAdmin = myPlayer?.admin ?? false;
   const enemy = state?.players.find((p) => p.boss);
-  const gameStarted = (state?.round ?? 0) > 0;
   const isDenied = playerName === state?.deny_target;
   const isChoosingDeny = showDenyPicker && state?.pending_deny === playerName;
   const eligibleTargets = state?.players.filter((p) => p.name !== playerName && p.hp > 0) ?? [];

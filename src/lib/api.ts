@@ -54,6 +54,12 @@ export async function getRaidLobby(playerName: string): Promise<{ lobby_id: stri
 }
 
 
+export async function getState(lobbyId: string): Promise<import("@/types/game").LobbyState> {
+  const res = await fetch(`${BACKEND_URL}/get_state/${lobbyId}`);
+  if (!res.ok) throw new Error(`get_state failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getNextRaidTime(): Promise<{ start_time: number }> {
   const res = await fetch(`${BACKEND_URL}/get_next_raid_time`);
   if (!res.ok) throw new Error("Failed to fetch next raid time");
