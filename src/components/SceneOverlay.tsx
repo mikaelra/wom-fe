@@ -4,16 +4,9 @@ import { useState, useEffect, useRef, ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  getState,
   getNextRaidTime,
-  startGame,
-  addDummy,
-  kickPlayer,
-  submitChoice,
-  submitDenyTarget,
   getPlayerMessages,
   requestReplay,
-  sendMessage,
   getSocket,
 } from '@/lib/api';
 import type { LobbyState, Player } from '@/types/game';
@@ -126,7 +119,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const messagesRef = useRef<HTMLUListElement>(null);
   const messagesWrapRef = useRef<HTMLDivElement>(null);
   const [chatInput, setChatInput] = useState('');
-  const [chatSending, setChatSending] = useState(false);
   const [chatExpanded, setChatExpanded] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -153,12 +145,21 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       setState(data);
     });
 
+    sock.on("chat_message", (msg) => {
+      setState((prev) =>
+        prev ? { ...prev, chat: [...(prev.chat ?? []), msg] } : prev
+      );
+    });
+
     sock.on("error", (data) => {
-      console.error("Socket error:", data.message);
+      alert(data.message);
     });
 
     return () => {
-      // Don't disconnect, as it's shared
+      sock.emit("leave_room", { lobby_id: lobbyId, name: playerName });
+      sock.off("state_update");
+      sock.off("chat_message");
+      sock.off("error");
     };
   }, [lobbyId, playerName]);
 
@@ -256,62 +257,36 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const eligibleTargets = state?.players.filter((p) => p.name !== playerName && p.hp > 0) ?? [];
   const showActions = !gameOver && !isDenied && isAlive && !myPlayer?.spectator && gameStarted;
 
-  const handleStartGame = async () => {
-    try {
-      await startGame(lobbyId, playerName);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to start game');
-    }
+  const handleStartGame = () => {
+    getSocket().emit('start_game', { lobby_id: lobbyId, admin: playerName });
   };
 
-  const handleAddDummy = async () => {
-    try {
-      await addDummy(lobbyId, playerName);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to add bot');
-    }
+  const handleAddDummy = () => {
+    getSocket().emit('add_dummy', { lobby_id: lobbyId, name: playerName });
   };
 
-  const handleKick = async (targetName: string) => {
-    try {
-      await kickPlayer(lobbyId, playerName, targetName);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to kick');
-    }
+  const handleKick = (targetName: string) => {
+    getSocket().emit('kick_player', { lobby_id: lobbyId, admin: playerName, target: targetName });
   };
 
-  const handleResource = async (resId: string) => {
-    try {
-      await submitChoice(lobbyId, { player: playerName, resource: resId, action: '' });
-      setResource(resId);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'API error');
-    }
+  const handleResource = (resId: string) => {
+    setResource(resId);
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, resource: resId, action: '' });
   };
 
-  const handleAction = async (act: string) => {
+  const handleAction = (act: string) => {
     setAction(act);
-    if (act === 'attack' && enemy) {
-      try {
-        await submitChoice(lobbyId, { player: playerName, action: 'attack', target: enemy.name, resource: '' });
-      } catch (e) {
-        alert(e instanceof Error ? e.message : 'API error');
-      }
-    } else {
-      try {
-        await submitChoice(lobbyId, { player: playerName, action: act, resource: '' });
-      } catch (e) {
-        alert(e instanceof Error ? e.message : 'API error');
-      }
-    }
+    getSocket().emit('submit_choice', {
+      lobby_id: lobbyId,
+      player: playerName,
+      action: act,
+      resource: '',
+      target: act === 'attack' && enemy ? enemy.name : undefined,
+    });
   };
 
-  const handleDeny = async () => {
-    try {
-      await submitDenyTarget(lobbyId, playerName, denyTarget);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to submit deny');
-    }
+  const handleDeny = () => {
+    getSocket().emit('submit_deny_target', { lobby_id: lobbyId, player: playerName, target: denyTarget });
   };
 
   const handleReplay = async () => {
@@ -321,9 +296,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       setReplayVoted(true);
       if (data.next_lobby_id) {
         setState((s) => (s ? { ...s, next_lobby_id: data.next_lobby_id } : s));
-      } else {
-        const updated = await getState(lobbyId);
-        setState(updated);
       }
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to vote for replay');
@@ -336,18 +308,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [state?.chat]);
 
-  const handleSendChat = async () => {
+  const handleSendChat = () => {
     const msg = chatInput.trim();
     if (!msg || !playerName) return;
-    setChatSending(true);
-    try {
-      await sendMessage(lobbyId, playerName, msg);
-      setChatInput('');
-    } catch {
-      // silently ignore send errors
-    } finally {
-      setChatSending(false);
-    }
+    getSocket().emit('send_message', { lobby_id: lobbyId, name: playerName, message: msg });
+    setChatInput('');
   };
 
   if (!state) {
@@ -420,7 +385,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                 />
                 <button
                   type="button"
-                  disabled={chatSending || !chatInput.trim()}
+                  disabled={!chatInput.trim()}
                   onClick={handleSendChat}
                   className="text-xs text-blue-300 hover:text-blue-100 disabled:opacity-40 px-1"
                 >
@@ -754,7 +719,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
               />
               <button
                 type="button"
-                disabled={chatSending || !chatInput.trim()}
+                disabled={!chatInput.trim()}
                 onClick={handleSendChat}
                 className="text-xs text-blue-300 hover:text-blue-100 disabled:opacity-40 px-1"
               >
