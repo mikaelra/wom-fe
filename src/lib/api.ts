@@ -60,7 +60,11 @@ export async function getRaidLobby(playerName: string): Promise<{ lobby_id: stri
     const errorData = await res.json();
     throw new Error((errorData as { error?: string }).error ?? "Failed to enter raid.");
   }
-  return res.json();
+  const data = await res.json();
+  // Emit join_lobby so the server broadcasts the updated player list to the room.
+  const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
+  getSocket().emit("join_lobby", { lobby_id: data.lobby_id, name: playerName, email });
+  return data;
 }
 
 
