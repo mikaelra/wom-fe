@@ -126,8 +126,8 @@ function PlayerWithName({
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
-              padding: '24px 48px',
-              fontSize: '42px',
+              padding: '8px 16px',
+              fontSize: '14px',
               fontWeight: 'bold',
               color: '#fca5a5',
               background: 'rgba(127,29,29,0.85)',
@@ -225,8 +225,8 @@ function LostSoulModel({
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
-              padding: '24px 48px',
-              fontSize: '42px',
+              padding: '8px 16px',
+              fontSize: '14px',
               fontWeight: 'bold',
               color: '#fca5a5',
               background: 'rgba(127,29,29,0.85)',
