@@ -1,6 +1,10 @@
-# Tjuvpakk Backend — API Routes
+# World of Mythos — API Reference
 
-A complete reference of all API endpoints, what they do, and what they require.
+A complete reference of all REST endpoints and Socket.IO events used by the frontend.
+
+The game uses a hybrid architecture:
+- **Socket.IO** for all real-time in-game communication (state updates, actions, chat)
+- **REST** for one-time operations (lobby creation, authentication, matchmaking, leaderboards, vault)
 
 ---
 
@@ -10,10 +14,41 @@ A complete reference of all API endpoints, what they do, and what they require.
 
 ---
 
-## Health Check / Documentation
+## Socket.IO Events
 
-### `GET /`
-Returns this API documentation as a styled HTML page.
+The frontend maintains a single Socket.IO connection per session (singleton in `src/lib/api.ts`). The server pushes state updates — no polling required.
+
+### Client → Server (Emits)
+
+| Event | Payload | Description |
+|---|---|---|
+| `join_room` | `{ lobby_id, name }` | Join a lobby room to receive state updates |
+| `leave_room` | `{ lobby_id, name }` | Leave a lobby room |
+| `join_lobby` | `{ lobby_id, name, email }` | Join an existing lobby (with validation) |
+| `start_game` | `{ lobby_id, admin }` | Admin starts the game |
+| `submit_choice` | `{ lobby_id, player, action, resource, target }` | Submit action + resource for the round |
+| `submit_deny_target` | `{ lobby_id, player, target }` | Deny a player's choices |
+| `kick_player` | `{ lobby_id, admin, target }` | Admin kicks a player |
+| `add_dummy` | `{ lobby_id, name }` | Admin adds a bot player |
+| `send_message` | `{ lobby_id, name, message }` | Send a lobby chat message |
+
+### Server → Client (Listeners)
+
+| Event | Payload | Description |
+|---|---|---|
+| `state_update` | `LobbyState` (full lobby state) | Pushed whenever lobby state changes — replaces polling |
+| `chat_message` | `{ sender, message, timestamp }` | New chat message; append to local chat array |
+| `joined_lobby` | `{ lobby_id, name }` | Acknowledgement after `join_lobby` |
+| `error` | `{ message }` | Validation/permission errors |
+
+---
+
+## REST Endpoints
+
+### Health Check
+
+#### `GET /`
+Returns API documentation as a styled HTML page.
 
 ---
 
@@ -60,6 +95,8 @@ Verifies that a name + email pair matches what is stored in the database.
 
 ## Lobby (`/routes/lobby.py`)
 
+> **Note:** Most in-game lobby actions (start game, submit choice, deny, kick, add bot, chat) have been migrated to Socket.IO emits. The REST endpoints below are kept as server-side shims but the frontend uses Socket.IO for these operations. See the Socket.IO Events section above.
+
 ### `POST /create_lobby`
 Creates a new game lobby. The creator becomes the admin.
 
@@ -83,6 +120,8 @@ Creates a new game lobby. The creator becomes the admin.
 ---
 
 ### `POST /join_lobby/<lobby_id>`
+> **Frontend uses Socket.IO:** `socket.emit('join_lobby', { lobby_id, name, email })` — listens for `joined_lobby` or `error` response.
+
 Joins an existing lobby as a player. Joining after round 1 has started results in spectator status.
 
 **URL parameter:** `lobby_id`
@@ -108,6 +147,8 @@ Joins an existing lobby as a player. Joining after round 1 has started results i
 ---
 
 ### `POST /kick_player/<lobby_id>`
+> **Frontend uses Socket.IO:** `socket.emit('kick_player', { lobby_id, admin, target })`
+
 Admin removes a player from the lobby before the game starts.
 
 **URL parameter:** `lobby_id`
@@ -131,6 +172,8 @@ Admin removes a player from the lobby before the game starts.
 ---
 
 ### `POST /start_game/<lobby_id>`
+> **Frontend uses Socket.IO:** `socket.emit('start_game', { lobby_id, admin })`
+
 Admin starts the game, advancing the lobby to round 1.
 
 **URL parameter:** `lobby_id`
@@ -152,7 +195,9 @@ Admin starts the game, advancing the lobby to round 1.
 
 ### `GET /get_state/<lobby_id>`
 
-**The primary polling endpoint.** Returns the complete current state of a lobby and also drives automatic game logic — making it the heartbeat of every active game session.
+> **Migrated to Socket.IO.** The frontend no longer polls this endpoint. Lobby state is pushed to clients via `state_update` Socket.IO events whenever state changes. The REST endpoint still exists on the backend and drives automatic game logic (round timeouts, AI moves, auto-starts).
+
+Returns the complete current state of a lobby and also drives automatic game logic — making it the heartbeat of every active game session.
 
 **URL parameter:** `lobby_id`
 
@@ -374,6 +419,8 @@ Returns a player's personal round-by-round history.
 ---
 
 ### `POST /submit_choice/<lobby_id>`
+> **Frontend uses Socket.IO:** `socket.emit('submit_choice', { lobby_id, player, action, resource, target })`
+
 Player submits their action and resource choice for the current round.
 
 **URL parameter:** `lobby_id`
@@ -402,6 +449,8 @@ Player submits their action and resource choice for the current round.
 ---
 
 ### `POST /submit_deny_target/<lobby_id>`
+> **Frontend uses Socket.IO:** `socket.emit('submit_deny_target', { lobby_id, player, target })`
+
 A player who has the "deny" ability chooses which other player to deny choices for this round.
 
 **URL parameter:** `lobby_id`
@@ -421,6 +470,8 @@ A player who has the "deny" ability chooses which other player to deny choices f
 ---
 
 ### `POST /add_dummy`
+> **Frontend uses Socket.IO:** `socket.emit('add_dummy', { lobby_id, name })`
+
 Admin adds an AI bot player to the lobby.
 
 **Request body:**
@@ -440,6 +491,8 @@ Admin adds an AI bot player to the lobby.
 ---
 
 ### `POST /send_message/<lobby_id>`
+> **Frontend uses Socket.IO:** `socket.emit('send_message', { lobby_id, name, message })`
+
 Sends a chat message to the lobby's shared chat.
 
 **URL parameter:** `lobby_id`

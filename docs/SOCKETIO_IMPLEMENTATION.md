@@ -1,5 +1,35 @@
 # Socket.IO Frontend Migration Guide
 
+<!-- IMPLEMENTATION STATUS (updated 2026-03-29)
+==============================================
+The core Socket.IO migration is COMPLETE. All in-game functionality uses Socket.IO.
+
+DONE:
+- [x] Step 1: socket.io-client installed (in package.json)
+- [x] Step 2: Socket wrapper — implemented as singleton in src/lib/api.ts (getSocket())
+        Note: No separate src/lib/socket.ts file was created; socket management lives in api.ts
+- [x] Step 3: Polling replaced — SceneOverlay listens for 'state_update' events, no setInterval
+- [x] Step 4: Action handlers migrated — all use socket.emit() (start_game, submit_choice,
+        submit_deny_target, kick_player, add_dummy)
+- [x] Step 5: Lobby chat migrated — send_message via socket emit, chat_message listener
+- [x] Step 8: Types — LobbyState and ChatMessage already match backend payload
+- [x] Step 9 (partial): Old REST functions removed for migrated actions (startGame, submitChoice,
+        submitDenyTarget, kickPlayer, addDummy, sendMessage are gone from api.ts)
+- [x] Step 7: Custom useSocket hook — implemented
+- [x] Step 11: GremlinOverlay — reuses SceneOverlay, inherits socket behavior
+
+NOT DONE:
+- [ ] Step 6: City chat (join_city, city_message) — city chat is a post-alpha feature
+
+REMAINING REST FUNCTIONS IN api.ts (intentionally kept):
+- getState — kept as fallback, not actively used by the frontend
+- getNextRaidTime — infrequent read, no benefit from socket
+- getPlayerRelics — infrequent read
+- getPlayerMessages — low-traffic read
+- requestReplay — one-time action
+- createLobby, createGremlinLobby, getRaidLobby — one-time matchmaking
+-->
+
 This document describes how to migrate the wom-mid frontend from HTTP polling to Socket.IO, matching the new backend implementation in `tjuvpakk-backend/sockets/`.
 
 ---

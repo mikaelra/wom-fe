@@ -61,21 +61,27 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 
 ## 1. Vision & Current State
 
-### Current State *(updated 2026-03-17)*
+### Current State *(updated 2026-03-29)*
 
 **Frontend (wom-mid):**
 - Next.js 16 + React 19 + React Three Fiber web app (Turbopack)
-- 3D world map (interactive globe with 10 sacred cities, Earth textures, atmospheric glow)
+- 3D world map (interactive globe with sacred city markers, Earth textures, atmospheric glow)
 - Table-based lobby with multiple character models (Cherub, Turtle, Ghost, PlayerV1)
 - Gremlin fight mode with dedicated forest scene, procedural gremlin model, and victory animation
 - PvP lobby and boss raid modes
+- **Socket.IO for real-time multiplayer** — state updates, action submission, and chat are all pushed via WebSocket (no polling)
 - Overlay-based UI on top of 3D canvas with theme system
+- Full lobby chat with 3D speech bubbles above player heads
+- Leaderboard page (monthly + all-time)
+- Vault unlock system
+- Login/signup authentication
 - Deployed on Netlify
 - Web-only, no mobile or desktop distribution
 
 **Backend (tjuvpakk-backend):**
-- Single-file Flask server (~2000 lines) with Supabase
+- Modularized Flask server with Socket.IO support and Supabase
 - In-memory lobby system with 40-second rounds
+- Socket.IO event handlers for all in-game actions (state updates pushed to clients)
 - Player accounts, stats (wins/kills/games/raid wins), relics, artifacts
 - Leaderboards (monthly + all-time), but no city-level granularity
 - No matchmaking — manual lobby creation/join only
@@ -1328,17 +1334,12 @@ The current app uses `useState` + localStorage. For alpha with more complex stat
 
 - **Zustand** for global client state (player session, queue status, current city)
 - Keep localStorage for auth tokens
-- Keep 2-second polling for lobby state (upgrade to WebSockets later if needed)
 
 ### 12.4 Real-time Considerations
 
-For matchmaking and events, polling every 2 seconds may feel sluggish. Options for alpha:
+> ✅ **Socket.IO is implemented.** The frontend uses Socket.IO for all in-game communication (state updates, actions, chat). No polling is used during gameplay. REST is only used for one-time operations (lobby creation, authentication, matchmaking, leaderboards, vault).
 
-1. **Keep polling** — simplest, works for alpha scale
-2. **Server-Sent Events (SSE)** — one-way push from server, lighter than WebSockets
-3. **WebSockets** — full duplex, best UX but more backend work
-
-Recommendation: **Keep polling for alpha**, add SSE for event notifications only.
+For matchmaking and event notifications (post-alpha features), Socket.IO can be extended with additional event types.
 
 ---
 
@@ -1428,7 +1429,7 @@ All error responses follow existing convention: `{ error: "message" }`.
 
 > Phases are ordered by **alpha priority first**. Phases 1–3b must ship before alpha release. Phases 4+ are post-alpha.
 >
-> *(Progress updated 2026-03-17)*
+> *(Progress updated 2026-03-29)*
 
 ---
 
