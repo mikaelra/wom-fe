@@ -529,7 +529,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
               <button
                 type="button"
                 onClick={() => handleAction('attack')}
-                className={`${btn} !px-24 !py-12 text-8xl backdrop-blur-sm shadow-lg mt-2 ${actionCue} ${
+                className={`${btn} text-sm backdrop-blur-sm shadow-lg mt-2 ${actionCue} ${
                   effectiveAction === 'attack'
                     ? 'bg-red-600 text-white border-red-400'
                     : 'bg-red-900/80 text-red-200 border-red-700 hover:bg-red-800/90'
