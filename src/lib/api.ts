@@ -1,5 +1,15 @@
 import { BACKEND_URL } from "@/config";
-import type { LobbyState, Relic } from "@/types/game";
+import type { Relic } from "@/types/game";
+import { io, Socket } from 'socket.io-client';
+
+let socket: Socket | null = null;
+
+export function getSocket(): Socket {
+  if (!socket) {
+    socket = io(BACKEND_URL);
+  }
+  return socket;
+}
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string }> {
   const res = await fetch(`${BACKEND_URL}/create_lobby`, {
@@ -19,15 +29,25 @@ export async function joinLobby(
   name: string,
   email: string
 ): Promise<void> {
-  const res = await fetch(`${BACKEND_URL}/join_lobby/${joinCode}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email }),
+  return new Promise((resolve, reject) => {
+    const sock = getSocket();
+    sock.emit("join_lobby", { lobby_id: joinCode, name, email });
+
+    const onJoined = () => {
+      sock.off("joined_lobby", onJoined);
+      sock.off("error", onError);
+      resolve();
+    };
+
+    const onError = (data: { message: string }) => {
+      sock.off("joined_lobby", onJoined);
+      sock.off("error", onError);
+      reject(new Error(data.message));
+    };
+
+    sock.on("joined_lobby", onJoined);
+    sock.on("error", onError);
   });
-  if (!res.ok) {
-    const errorData = await res.json();
-    throw new Error((errorData as { error?: string }).error ?? "Join failed");
-  }
 }
 
 export async function getRaidLobby(playerName: string): Promise<{ lobby_id: string }> {
@@ -40,6 +60,17 @@ export async function getRaidLobby(playerName: string): Promise<{ lobby_id: stri
     const errorData = await res.json();
     throw new Error((errorData as { error?: string }).error ?? "Failed to enter raid.");
   }
+  const data = await res.json();
+  // Emit join_lobby so the server broadcasts the updated player list to the room.
+  const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
+  getSocket().emit("join_lobby", { lobby_id: data.lobby_id, name: playerName, email });
+  return data;
+}
+
+
+export async function getState(lobbyId: string): Promise<import("@/types/game").LobbyState> {
+  const res = await fetch(`${BACKEND_URL}/get_state/${lobbyId}`);
+  if (!res.ok) throw new Error(`get_state failed: ${res.status}`);
   return res.json();
 }
 
@@ -72,80 +103,6 @@ export async function createGremlinLobby(playerName: string): Promise<{ lobby_id
   return res.json();
 }
 
-export async function getState(lobbyId: string): Promise<LobbyState> {
-  const res = await fetch(`${BACKEND_URL}/get_state/${lobbyId}`);
-  if (!res.ok) throw new Error(`get_state failed: ${res.status}`);
-  return res.json();
-}
-
-export async function startGame(lobbyId: string, admin: string): Promise<void> {
-  const res = await fetch(`${BACKEND_URL}/start_game/${lobbyId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ admin }),
-  });
-  if (!res.ok) {
-    const data = await res.json();
-    throw new Error((data as { error?: string }).error ?? "Failed to start game");
-  }
-}
-
-export async function addDummy(lobbyId: string, adminName: string): Promise<void> {
-  const res = await fetch(`${BACKEND_URL}/add_dummy`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: adminName, lobby_id: lobbyId }),
-  });
-  if (!res.ok) {
-    const data = await res.json();
-    throw new Error((data as { error?: string }).error ?? "Failed to add bot");
-  }
-}
-
-export async function kickPlayer(lobbyId: string, admin: string, target: string): Promise<void> {
-  const res = await fetch(`${BACKEND_URL}/kick_player/${lobbyId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ admin, target }),
-  });
-  if (!res.ok) {
-    const data = await res.json();
-    throw new Error((data as { error?: string }).error ?? "Failed to kick");
-  }
-}
-
-export async function submitChoice(
-  lobbyId: string,
-  payload: {
-    player: string;
-    resource?: string;
-    action?: string;
-    target?: string;
-  }
-): Promise<void> {
-  const res = await fetch(`${BACKEND_URL}/submit_choice/${lobbyId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const data = await res.json();
-    throw new Error((data as { error?: string }).error ?? "API error");
-  }
-}
-
-export async function submitDenyTarget(
-  lobbyId: string,
-  player: string,
-  target: string
-): Promise<void> {
-  const res = await fetch(`${BACKEND_URL}/submit_deny_target/${lobbyId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ player, target }),
-  });
-  if (!res.ok) throw new Error("Failed to submit deny");
-}
 
 export async function getPlayerMessages(
   lobbyId: string,
@@ -156,17 +113,6 @@ export async function getPlayerMessages(
   return res.json();
 }
 
-export async function sendMessage(lobbyId: string, name: string, message: string): Promise<void> {
-  const res = await fetch(`${BACKEND_URL}/send_message/${lobbyId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, message }),
-  });
-  if (!res.ok) {
-    const data = await res.json();
-    throw new Error((data as { error?: string }).error ?? "Failed to send message");
-  }
-}
 
 export async function requestReplay(lobbyId: string, player: string): Promise<{ next_lobby_id?: string }> {
   const res = await fetch(`${BACKEND_URL}/request_replay/${lobbyId}`, {

@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
-import { submitChoice } from '@/lib/api';
+import { getSocket } from '@/lib/api';
 import {
   TABLE_POSITION,
   SCENE_CENTER,
@@ -288,12 +288,8 @@ export default function LobbyScene({ state, playerName, lobbyId }: LobbyScenePro
     return map;
   }, [state?.chat]);
 
-  const handleAttack = async (targetName: string) => {
-    try {
-      await submitChoice(lobbyId, { player: playerName, action: 'attack', target: targetName, resource: '' });
-    } catch (e) {
-      console.error('Attack failed', e);
-    }
+  const handleAttack = (targetName: string) => {
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'attack', target: targetName, resource: '' });
   };
 
   return (

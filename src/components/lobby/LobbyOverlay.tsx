@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { io, Socket } from 'socket.io-client';
 import SceneOverlay, {
   type SceneOverlayConfig,
   type GameOverRenderOpts,
@@ -8,6 +10,7 @@ import SceneOverlay, {
 } from '@/components/SceneOverlay';
 import FloatingMessage from './FloatingMessage';
 import type { LobbyState } from '@/types/game';
+import { BACKEND_URL } from '@/config';
 
 type LobbyOverlayProps = {
   lobbyId: string;
@@ -130,7 +133,7 @@ function renderPreGame({
                 onClick={onAddDummy}
                 className={`${btn} bg-gray-600 text-white`}
               >
-                Add Random Bot
+                Add Bot
               </button>
             </div>
           )}
