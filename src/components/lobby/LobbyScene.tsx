@@ -2,7 +2,7 @@
 
 import { useThree, useFrame } from '@react-three/fiber';
 import { Html, Environment, useGLTF } from '@react-three/drei';
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
@@ -62,6 +62,7 @@ function PlayerWithName({
   showAttackButton,
   onAttack,
   isAttackSelected,
+  actionCue,
   chatBubble,
   isBoss,
 }: {
@@ -74,6 +75,7 @@ function PlayerWithName({
   showAttackButton?: boolean;
   onAttack?: () => void;
   isAttackSelected?: boolean;
+  actionCue?: string;
   chatBubble?: string;
   isBoss?: boolean;
 }) {
@@ -125,6 +127,7 @@ function PlayerWithName({
         <Html position={[0, 0.9, 0]} center distanceFactor={3}>
           <button
             onClick={onAttack}
+            className={actionCue}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
@@ -185,12 +188,14 @@ function LostSoulModel({
   showAttackButton,
   onAttack,
   isAttackSelected,
+  actionCue,
 }: {
   name: string;
   position: [number, number, number];
   showAttackButton?: boolean;
   onAttack?: () => void;
   isAttackSelected?: boolean;
+  actionCue?: string;
 }) {
   const { scene } = useGLTF('/models/ghost.glb');
   const sceneClone = useMemo(() => scene.clone(), [scene]);
@@ -228,6 +233,7 @@ function LostSoulModel({
         <Html position={[0, 0.75, 0]} center distanceFactor={3}>
           <button
             onClick={onAttack}
+            className={actionCue}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
@@ -267,6 +273,16 @@ type LobbySceneProps = {
 };
 
 export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect }: LobbySceneProps) {
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!state?.round_end_time) { setSecondsLeft(null); return; }
+    const endTime = new Date(state.round_end_time).getTime() / 1000;
+    const interval = setInterval(() => {
+      setSecondsLeft(Math.max(0, Math.floor(endTime - Date.now() / 1000)));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [state?.round_end_time]);
+
   const allPlayers = state?.players ?? [];
   const lostSouls = allPlayers.filter((p) => p.lost_soul);
   // Sort so current player is slot 0 (near camera) and boss is slot 1 (far side of table)
@@ -285,6 +301,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const isAlive = (myPlayer?.hp ?? 0) > 0;
   const gameStarted = (state?.round ?? 0) > 0;
   const showAttackButtons = gameStarted && !gameOver && !isDenied && isAlive && !myPlayer?.spectator;
+
+  const isGoldWarn = secondsLeft !== null && secondsLeft <= 10 && secondsLeft > 5;
+  const isRedWarn  = secondsLeft !== null && secondsLeft <= 5;
+  const actionCue  = !currentAction && showAttackButtons
+    ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '')
+    : '';
 
   // Build a map of sender → latest message text if it's within CHAT_BUBBLE_DURATION_MS
   const chatBubbles = useMemo(() => {
@@ -336,6 +358,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             showAttackButton={showAttackButtons && isOpponent && !isDead && !isBoss}
             onAttack={() => handleAttack(player.name)}
             isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
+            actionCue={actionCue}
             chatBubble={chatBubbles.get(player.name)}
           />
         );
@@ -352,6 +375,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             showAttackButton={showAttackButtons && !isDead}
             onAttack={() => handleAttack(soul.name)}
             isAttackSelected={currentAction === 'attack' && attackTarget === soul.name}
+            actionCue={actionCue}
           />
         );
       })}
