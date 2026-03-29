@@ -14,12 +14,18 @@ export default function LobbyPage() {
   const lobbyId = params?.lobbyId as string | undefined;
   const [lobbyState, setLobbyState] = useState<import('@/types/game').LobbyState | null>(null);
   const [playerName, setPlayerName] = useState('');
+  const [sharedAction, setSharedAction] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setPlayerName(localStorage.getItem('playerName') || '');
     }
   }, []);
+
+  // Reset shared action at the start of each new round
+  useEffect(() => {
+    setSharedAction('');
+  }, [lobbyState?.round]);
 
   if (!lobbyId) {
     return (
@@ -35,9 +41,9 @@ export default function LobbyPage() {
         camera={{ position: [33, 26, 33], fov: BASE_FOV }}
         style={{ position: 'absolute', inset: 0 }}
       >
-        <LobbyScene state={lobbyState} playerName={playerName} lobbyId={lobbyId} />
+        <LobbyScene state={lobbyState} playerName={playerName} lobbyId={lobbyId} currentAction={sharedAction} onAttackSelect={() => setSharedAction('attack')} />
       </Canvas>
-      <LobbyOverlay lobbyId={lobbyId} onStateChange={setLobbyState} />
+      <LobbyOverlay lobbyId={lobbyId} onStateChange={setLobbyState} externalAction={sharedAction} onActionChange={setSharedAction} />
     </div>
   );
 }

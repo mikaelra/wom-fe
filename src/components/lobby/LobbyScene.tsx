@@ -61,6 +61,7 @@ function PlayerWithName({
   isWinner,
   showAttackButton,
   onAttack,
+  isAttackSelected,
   chatBubble,
   isBoss,
 }: {
@@ -72,6 +73,7 @@ function PlayerWithName({
   isWinner?: boolean;
   showAttackButton?: boolean;
   onAttack?: () => void;
+  isAttackSelected?: boolean;
   chatBubble?: string;
   isBoss?: boolean;
 }) {
@@ -129,13 +131,15 @@ function PlayerWithName({
               padding: '16px 32px',
               fontSize: '28px',
               fontWeight: 'bold',
-              color: '#fca5a5',
-              background: 'rgba(127,29,29,0.85)',
-              border: '2px solid #b91c1c',
+              color: isAttackSelected ? '#ffffff' : '#fca5a5',
+              background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
+              border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
               borderRadius: '8px',
               whiteSpace: 'nowrap',
               backdropFilter: 'blur(4px)',
-              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+              boxShadow: isAttackSelected
+                ? '0 0 8px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
             }}
           >
             ⚔ ATTACK
@@ -180,11 +184,13 @@ function LostSoulModel({
   position,
   showAttackButton,
   onAttack,
+  isAttackSelected,
 }: {
   name: string;
   position: [number, number, number];
   showAttackButton?: boolean;
   onAttack?: () => void;
+  isAttackSelected?: boolean;
 }) {
   const { scene } = useGLTF('/models/ghost.glb');
   const sceneClone = useMemo(() => scene.clone(), [scene]);
@@ -228,13 +234,15 @@ function LostSoulModel({
               padding: '16px 32px',
               fontSize: '28px',
               fontWeight: 'bold',
-              color: '#fca5a5',
-              background: 'rgba(127,29,29,0.85)',
-              border: '2px solid #b91c1c',
+              color: isAttackSelected ? '#ffffff' : '#fca5a5',
+              background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
+              border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
               borderRadius: '8px',
               whiteSpace: 'nowrap',
               backdropFilter: 'blur(4px)',
-              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+              boxShadow: isAttackSelected
+                ? '0 0 8px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
             }}
           >
             ⚔ ATTACK
@@ -253,9 +261,11 @@ type LobbySceneProps = {
   state: LobbyState | null;
   playerName: string;
   lobbyId: string;
+  currentAction?: string;
+  onAttackSelect?: () => void;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, onAttackSelect }: LobbySceneProps) {
   const allPlayers = state?.players ?? [];
   const lostSouls = allPlayers.filter((p) => p.lost_soul);
   // Sort so current player is slot 0 (near camera) and boss is slot 1 (far side of table)
@@ -290,6 +300,7 @@ export default function LobbyScene({ state, playerName, lobbyId }: LobbyScenePro
 
   const handleAttack = (targetName: string) => {
     getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'attack', target: targetName, resource: '' });
+    onAttackSelect?.();
   };
 
   return (
@@ -323,6 +334,7 @@ export default function LobbyScene({ state, playerName, lobbyId }: LobbyScenePro
             isBoss={isBoss}
             showAttackButton={showAttackButtons && isOpponent && !isDead && !isBoss}
             onAttack={() => handleAttack(player.name)}
+            isAttackSelected={currentAction === 'attack'}
             chatBubble={chatBubbles.get(player.name)}
           />
         );
@@ -338,6 +350,7 @@ export default function LobbyScene({ state, playerName, lobbyId }: LobbyScenePro
             position={pos}
             showAttackButton={showAttackButtons && !isDead}
             onAttack={() => handleAttack(soul.name)}
+            isAttackSelected={currentAction === 'attack'}
           />
         );
       })}

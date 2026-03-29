@@ -80,9 +80,13 @@ type SceneOverlayProps = {
   config: SceneOverlayConfig;
   /** If provided, renders pre-game UI before the game starts instead of the game overlay */
   renderPreGame?: (opts: PreGameRenderOpts) => ReactNode;
+  /** Externally controlled action (e.g. set by the 3D scene attack button) */
+  externalAction?: string;
+  /** Called whenever the player selects an action, so callers can sync external state */
+  onActionChange?: (action: string) => void;
 };
 
-export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame }: SceneOverlayProps) {
+export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange }: SceneOverlayProps) {
   const {
     theme,
     backLabel,
@@ -268,7 +272,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const eligibleTargets = state?.players.filter((p) => p.name !== playerName && p.hp > 0) ?? [];
   const showActions = !gameOver && !isDenied && isAlive && !myPlayer?.spectator && gameStarted;
 
-  const needsAction   = action === '' && showActions;
+  const effectiveAction = externalAction !== undefined ? externalAction : action;
+
+  const needsAction   = effectiveAction === '' && showActions;
   const needsResource = resource === '' && showActions;
   const isGoldWarn    = secondsLeft !== null && secondsLeft <= 10 && secondsLeft > 5;
   const isRedWarn     = secondsLeft !== null && secondsLeft <= 5;
@@ -294,6 +300,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   const handleAction = (act: string) => {
     setAction(act);
+    onActionChange?.(act);
     getSocket().emit('submit_choice', {
       lobby_id: lobbyId,
       player: playerName,
@@ -523,7 +530,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                 type="button"
                 onClick={() => handleAction('attack')}
                 className={`${btn} !px-24 !py-12 text-8xl backdrop-blur-sm shadow-lg mt-2 ${actionCue} ${
-                  action === 'attack'
+                  effectiveAction === 'attack'
                     ? 'bg-red-600 text-white border-red-400'
                     : 'bg-red-900/80 text-red-200 border-red-700 hover:bg-red-800/90'
                 }`}
@@ -545,7 +552,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             type="button"
             onClick={() => handleAction('raid')}
             className={`${btn} text-sm backdrop-blur-sm shadow-lg ${actionCue} ${
-              action === 'raid'
+              effectiveAction === 'raid'
                 ? 'bg-purple-600 text-white border-purple-400'
                 : 'bg-purple-900/80 text-purple-200 border-purple-700 hover:bg-purple-800/90'
             }`}
@@ -582,7 +589,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             type="button"
             onClick={() => handleAction('defend')}
             className={`${btn} text-sm backdrop-blur-sm shadow-lg ${actionCue} ${
-              action === 'defend'
+              effectiveAction === 'defend'
                 ? 'bg-blue-600 text-white border-blue-400'
                 : 'bg-blue-900/80 text-blue-200 border-blue-700 hover:bg-blue-800/90'
             }`}

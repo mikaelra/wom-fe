@@ -15,6 +15,8 @@ import { BACKEND_URL } from '@/config';
 type LobbyOverlayProps = {
   lobbyId: string;
   onStateChange?: (state: LobbyState | null) => void;
+  externalAction?: string;
+  onActionChange?: (action: string) => void;
 };
 
 function renderGameOver({ state, playerName, btn, replayVoted, replayLoading, onReplay }: GameOverRenderOpts) {
@@ -179,13 +181,15 @@ const lobbyConfig: SceneOverlayConfig = {
   renderGameOver,
 };
 
-export default function LobbyOverlay({ lobbyId, onStateChange }: LobbyOverlayProps) {
+export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange }: LobbyOverlayProps) {
   return (
     <SceneOverlay
       lobbyId={lobbyId}
       onStateChange={onStateChange}
       config={lobbyConfig}
       renderPreGame={renderPreGame}
+      externalAction={externalAction}
+      onActionChange={onActionChange}
     />
   );
 }
