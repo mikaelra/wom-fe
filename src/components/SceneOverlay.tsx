@@ -442,15 +442,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
               >
                 💬
               </button>
-              <div style={{
-                position: 'absolute',
-                bottom: -7,
-                left: 5,
-                width: 0,
-                height: 0,
-                borderTop: '9px solid rgba(37,99,235,0.9)',
-                borderLeft: '9px solid transparent',
-              }} />
             </div>
           </div>
         )}
@@ -785,15 +776,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             >
               💬
             </button>
-            <div style={{
-              position: 'absolute',
-              bottom: -7,
-              left: 5,
-              width: 0,
-              height: 0,
-              borderTop: '9px solid rgba(37,99,235,0.9)',
-              borderLeft: '9px solid transparent',
-            }} />
           </div>
         </div>
       )}
