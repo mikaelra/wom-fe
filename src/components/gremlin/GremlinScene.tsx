@@ -70,7 +70,7 @@ function Tree({ position }: { position: [number, number, number] }) {
 function BattleTable() {
   const { scene } = useGLTF('/models/wellv01.glb');
   const sceneClone = useMemo(() => scene.clone(), [scene]);
-  return <primitive object={sceneClone} scale={0.1} />;
+  return <primitive object={sceneClone} scale={1 / 3.33} />;
 }
 
 // Tree-stump seat
