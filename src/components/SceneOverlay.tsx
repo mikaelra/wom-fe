@@ -125,6 +125,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [chatInput, setChatInput] = useState('');
   const [chatExpanded, setChatExpanded] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -333,11 +335,34 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [state?.chat]);
 
+  useEffect(() => {
+    if (!chatExpanded) return;
+    const handler = (e: MouseEvent | TouchEvent) => {
+      if (chatRef.current && !chatRef.current.contains(e.target as Node)) {
+        setChatExpanded(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [chatExpanded]);
+
   const handleSendChat = () => {
     const msg = chatInput.trim();
     if (!msg || !playerName) return;
     getSocket().emit('send_message', { lobby_id: lobbyId, name: playerName, message: msg });
     setChatInput('');
+  };
+
+  const handleChatBlur = () => {
+    closeTimerRef.current = setTimeout(() => setChatExpanded(false), 150);
+  };
+
+  const handleChatFocus = () => {
+    if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
   };
 
   if (!state) {
@@ -368,55 +393,55 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           onDoneFloating: (idx) => setFloatingMessages((prev) => prev.filter((_, i) => i !== idx)),
         })}
         {showChat && (
-          <div className="fixed pointer-events-auto z-50" style={{ bottom: '4%', left: '1%' }}>
-            <div className="bg-black/80 backdrop-blur-sm rounded-xl border border-white/20 flex flex-col w-56 max-w-[56vw]">
-              <button
-                type="button"
-                onClick={() => setChatExpanded((e) => !e)}
-                className="flex items-center justify-between px-2 py-1.5 text-xs text-gray-300 hover:text-white w-full text-left"
-              >
-                <span>💬 Chat</span>
-                <span>{chatExpanded ? '▲' : '▼'}</span>
-              </button>
-              {chatExpanded ? (
-                <div className="overflow-y-auto max-h-40 px-2 pb-1 space-y-1 border-t border-white/10">
+          <div
+            ref={chatRef}
+            className="fixed pointer-events-auto z-50"
+            style={{ bottom: '4%', left: '1%' }}
+          >
+            {chatExpanded && (
+              <div className="absolute bottom-14 left-0 w-72 max-w-[85vw] bg-black/85 backdrop-blur-sm rounded-xl border border-white/20 flex flex-col mb-1">
+                <div className="overflow-y-auto max-h-52 px-3 py-2 space-y-1">
                   {(state.chat ?? []).map((m, i) => (
-                    <div key={i} className="text-xs leading-tight break-words pt-1">
+                    <div key={i} className="text-xs leading-tight break-words">
                       <span className="text-blue-300 font-semibold">{m.sender}: </span>
                       <span className="text-gray-200">{m.message}</span>
                     </div>
                   ))}
                   <div ref={chatEndRef} />
                 </div>
-              ) : (
-                <div className="px-2 pb-1 space-y-1 border-t border-white/10">
-                  {(state.chat ?? []).slice(-2).map((m, i) => (
-                    <div key={i} className="text-xs leading-tight break-words pt-1">
-                      <span className="text-blue-300 font-semibold">{m.sender}: </span>
-                      <span className="text-gray-200">{m.message}</span>
-                    </div>
-                  ))}
+                <div className="flex gap-1 p-2 border-t border-white/10">
+                  <input
+                    type="text"
+                    maxLength={200}
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat(); }}
+                    onBlur={handleChatBlur}
+                    onFocus={handleChatFocus}
+                    placeholder="Chat…"
+                    className="flex-1 bg-black/60 text-white text-xs rounded px-2 py-1 border border-white/20 outline-none min-w-0"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    disabled={!chatInput.trim()}
+                    onClick={handleSendChat}
+                    className="text-xs text-blue-300 hover:text-blue-100 disabled:opacity-40 px-1"
+                  >
+                    ↵
+                  </button>
                 </div>
-              )}
-              <div className="flex gap-1 p-1.5 border-t border-white/10">
-                <input
-                  type="text"
-                  maxLength={200}
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat(); }}
-                  placeholder="Chat…"
-                  className="flex-1 bg-black/60 text-white text-xs rounded px-2 py-1 border border-white/20 outline-none min-w-0"
-                />
-                <button
-                  type="button"
-                  disabled={!chatInput.trim()}
-                  onClick={handleSendChat}
-                  className="text-xs text-blue-300 hover:text-blue-100 disabled:opacity-40 px-1"
-                >
-                  ↵
-                </button>
               </div>
+            )}
+            <div className="relative inline-block">
+              <button
+                type="button"
+                onClick={() => setChatExpanded((e) => !e)}
+                className="w-11 h-11 rounded-full bg-blue-600/90 hover:bg-blue-500/90 flex items-center justify-center shadow-lg border border-white/20 text-lg"
+                aria-label="Toggle chat"
+              >
+                💬
+              </button>
             </div>
           </div>
         )}
@@ -703,57 +728,54 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       {/* Chat panel (optional) */}
       {showChat && (
         <div
-          className="absolute pointer-events-auto"
+          ref={chatRef}
+          className="fixed pointer-events-auto z-50"
           style={{ bottom: '4%', left: '1%' }}
         >
-          <div className="bg-black/80 backdrop-blur-sm rounded-xl border border-white/20 flex flex-col w-56 max-w-[56vw]">
-            <button
-              type="button"
-              onClick={() => setChatExpanded((e) => !e)}
-              className="flex items-center justify-between px-2 py-1.5 text-xs text-gray-300 hover:text-white w-full text-left"
-            >
-              <span>💬 Chat</span>
-              <span>{chatExpanded ? '▲' : '▼'}</span>
-            </button>
-            {chatExpanded ? (
-              <div className="overflow-y-auto max-h-40 px-2 pb-1 space-y-1 border-t border-white/10">
+          {chatExpanded && (
+            <div className="absolute bottom-14 left-0 w-72 max-w-[85vw] bg-black/85 backdrop-blur-sm rounded-xl border border-white/20 flex flex-col mb-1">
+              <div className="overflow-y-auto max-h-52 px-3 py-2 space-y-1">
                 {(state?.chat ?? []).map((m, i) => (
-                  <div key={i} className="text-xs leading-tight break-words pt-1">
+                  <div key={i} className="text-xs leading-tight break-words">
                     <span className="text-blue-300 font-semibold">{m.sender}: </span>
                     <span className="text-gray-200">{m.message}</span>
                   </div>
                 ))}
                 <div ref={chatEndRef} />
               </div>
-            ) : (
-              <div className="px-2 pb-1 space-y-1 border-t border-white/10">
-                {(state?.chat ?? []).slice(-2).map((m, i) => (
-                  <div key={i} className="text-xs leading-tight break-words pt-1">
-                    <span className="text-blue-300 font-semibold">{m.sender}: </span>
-                    <span className="text-gray-200">{m.message}</span>
-                  </div>
-                ))}
+              <div className="flex gap-1 p-2 border-t border-white/10">
+                <input
+                  type="text"
+                  maxLength={200}
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat(); }}
+                  onBlur={handleChatBlur}
+                  onFocus={handleChatFocus}
+                  placeholder="Chat…"
+                  className="flex-1 bg-black/60 text-white text-xs rounded px-2 py-1 border border-white/20 outline-none min-w-0"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  disabled={!chatInput.trim()}
+                  onClick={handleSendChat}
+                  className="text-xs text-blue-300 hover:text-blue-100 disabled:opacity-40 px-1"
+                >
+                  ↵
+                </button>
               </div>
-            )}
-            <div className="flex gap-1 p-1.5 border-t border-white/10">
-              <input
-                type="text"
-                maxLength={200}
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSendChat(); }}
-                placeholder="Chat…"
-                className="flex-1 bg-black/60 text-white text-xs rounded px-2 py-1 border border-white/20 outline-none min-w-0"
-              />
-              <button
-                type="button"
-                disabled={!chatInput.trim()}
-                onClick={handleSendChat}
-                className="text-xs text-blue-300 hover:text-blue-100 disabled:opacity-40 px-1"
-              >
-                ↵
-              </button>
             </div>
+          )}
+          <div className="relative inline-block">
+            <button
+              type="button"
+              onClick={() => setChatExpanded((e) => !e)}
+              className="w-11 h-11 rounded-full bg-blue-600/90 hover:bg-blue-500/90 flex items-center justify-center shadow-lg border border-white/20 text-lg"
+              aria-label="Toggle chat"
+            >
+              💬
+            </button>
           </div>
         </div>
       )}
