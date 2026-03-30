@@ -142,8 +142,8 @@ function GremlinModel({
   });
 
   return (
-    <group ref={groupRef} position={position} rotation={[0, Math.PI, 0]}>
-      <primitive object={clone} scale={0.5} />
+    <group ref={groupRef} position={position} rotation={[0, 0, 0]}>
+      <primitive object={clone} scale={1.5} />
     </group>
   );
 }

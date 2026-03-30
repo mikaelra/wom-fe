@@ -23,7 +23,7 @@ function GremlinPinFigure() {
   });
 
   return (
-    <group ref={ref} position={[0, 0.28, 0]} scale={0.065}>
+    <group ref={ref} position={[0, 0.28, 0]} scale={0.78}>
       <primitive object={clone} />
     </group>
   );
