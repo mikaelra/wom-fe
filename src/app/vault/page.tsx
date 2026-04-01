@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { BACKEND_URL } from '@/config';
+
+const VaultScene = dynamic(() => import('@/components/vault/VaultScene'), { ssr: false });
 
 interface VaultResult {
   first: boolean;
@@ -43,20 +46,8 @@ export default function VaultPage() {
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-8">
-      <img
-        src="/images/vault.png"
-        alt="Background"
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          objectFit: 'cover',
-          zIndex: 0,
-        }}
-      />
+    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-8" style={{ background: '#0a0a1a', position: 'relative' }}>
+      <VaultScene />
       <div
         className="w-full max-w-3xl flex flex-col items-center rounded-2xl shadow-xl bg-white/80 backdrop-blur-sm transition-all duration-300 p-8"
         style={{ color: 'black', position: 'relative', zIndex: 1 }}
