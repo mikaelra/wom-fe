@@ -124,9 +124,12 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const messagesWrapRef = useRef<HTMLDivElement>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatExpanded, setChatExpanded] = useState(false);
+  const [unreadChat, setUnreadChat] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chatExpandedRef = useRef(chatExpanded);
+  useEffect(() => { chatExpandedRef.current = chatExpanded; }, [chatExpanded]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -155,6 +158,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       setState((prev) =>
         prev ? { ...prev, chat: [...(prev.chat ?? []), msg] } : prev
       );
+      if (!chatExpandedRef.current) setUnreadChat(true);
     });
 
     sock.on("error", (data) => {
@@ -436,12 +440,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             <div className="relative inline-block">
               <button
                 type="button"
-                onClick={() => setChatExpanded((e) => !e)}
+                onClick={() => { setChatExpanded((e) => !e); setUnreadChat(false); }}
                 className="w-11 h-11 rounded-full bg-blue-600/90 hover:bg-blue-500/90 flex items-center justify-center shadow-lg border border-white/20 text-lg"
                 aria-label="Toggle chat"
               >
                 💬
               </button>
+              {unreadChat && (
+                <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-orange-500 border border-white/60 pointer-events-none" />
+              )}
             </div>
           </div>
         )}
@@ -770,12 +777,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           <div className="relative inline-block">
             <button
               type="button"
-              onClick={() => setChatExpanded((e) => !e)}
+              onClick={() => { setChatExpanded((e) => !e); setUnreadChat(false); }}
               className="w-11 h-11 rounded-full bg-blue-600/90 hover:bg-blue-500/90 flex items-center justify-center shadow-lg border border-white/20 text-lg"
               aria-label="Toggle chat"
             >
               💬
             </button>
+            {unreadChat && (
+              <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-orange-500 border border-white/60 pointer-events-none" />
+            )}
           </div>
         </div>
       )}
