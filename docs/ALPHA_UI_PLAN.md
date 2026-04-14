@@ -22,7 +22,7 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 
 ### Not required for Alpha (post-alpha)
 
-- ~~World map and city system~~ ✅ **Done early** — 3D globe with city markers, Earth textures, Fresnel atmosphere, orbit controls, and city-specific overlays already built.
+- ~~World map and city system~~ ⚠️ **Partially done early** — 3D globe with 5 navigation markers (Athens, Leaderboards, Rules, Gremlin's Lair, The Vault), Earth textures, Fresnel atmosphere, and orbit controls are built. The markers are functional shortcuts to existing pages, not the full 10 sacred city hubs planned in section 3. City hubs, city-scoped overlays, and backend city wiring are not yet implemented.
 - City chat
 - Matchmaking queues
 - DLC — Road to Olympus
@@ -32,7 +32,7 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 
 ### Already built (not originally in alpha must-haves)
 
-- ✅ **World map** — 3D globe with all 10 city markers, Earth textures (specular, bump, city lights, clouds), Fresnel atmosphere, orbit camera, starfield background.
+- ⚠️ **World map** — 3D globe with 5 navigation markers (Athens, Leaderboards, Rules, Gremlin's Lair, The Vault), Earth textures (specular, bump, city lights, clouds), Fresnel atmosphere, orbit camera, starfield background. Current markers are functional shortcuts to existing pages; the full 10 sacred city hubs (section 3) are not yet implemented.
 - ✅ **Gremlin fight mode** — Dedicated forest scene with procedural gremlin model, cherub opponent, mushrooms/rocks/trees environment, and wooden signpost victory animation.
 - ✅ **Multiple character models** — Cherub, Turtle, Ghost, PlayerV1 with smooth position interpolation.
 - ✅ **Overlay theme system** — Themed UI overlays for lobby, home, world map, and gremlin mode.
@@ -1337,7 +1337,7 @@ The current app uses `useState` + localStorage. For alpha with more complex stat
 
 ### 12.4 Real-time Considerations
 
-> ✅ **Socket.IO is implemented.** The frontend uses Socket.IO for all in-game communication (state updates, actions, chat). No polling is used during gameplay. REST is only used for one-time operations (lobby creation, authentication, matchmaking, leaderboards, vault).
+> ✅ **Socket.IO is implemented.** The frontend uses Socket.IO for game state updates and action submission (no polling for those). **Lobby chat is an exception** — it uses REST polling via `getPlayerMessages()` on each round tick, not a Socket.IO push event. REST is also used for one-time operations (lobby creation, authentication, matchmaking, leaderboards, vault).
 
 For matchmaking and event notifications (post-alpha features), Socket.IO can be extended with additional event types.
 
@@ -1547,7 +1547,7 @@ Backend:
 **Goal**: World map + cities + refactored navigation
 
 Frontend:
-- [x] Build 3D world map scene with markers for all 10 cities
+- [~] Build 3D world map scene with markers for all 10 cities — ⚠️ **Partial**: 5 navigation shortcut markers exist (Athens, Leaderboards, Rules, Gremlin's Lair, The Vault); the remaining 8 sacred cities and city hub routing are not built
 - [x] World map overlay (player info, navigation)
 - [x] Earth textures (specular, bump, city lights, clouds), Fresnel atmosphere, starfield
 - [x] Orbit controls for camera
