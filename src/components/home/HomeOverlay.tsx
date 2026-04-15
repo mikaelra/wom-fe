@@ -3,7 +3,15 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createLobby, joinLobby, getRaidLobby, getNextRaidTime, getPlayerRelics } from '@/lib/api';
+import {
+  createLobby,
+  joinLobby,
+  getRaidLobby,
+  getNextRaidTime,
+  getPlayerRelics,
+  checkName,
+  logInUser,
+} from '@/lib/api';
 import type { Relic } from '@/types/game';
 import type { City } from '@/lib/cities';
 
@@ -17,6 +25,10 @@ interface HomeOverlayProps {
   onBackToMap?: () => void;
 }
 
+type PendingAction =
+  | { type: 'create' }
+  | { type: 'join'; joinCode: string };
+
 export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const router = useRouter();
   const [name, setName] = useState('');
@@ -28,6 +40,12 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const [loggedInName, setLoggedInName] = useState('');
   const [mounted, setMounted] = useState(false);
   const isLoggedIn = mounted && !!loggedInName;
+
+  // Email-login modal state for claimed names
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginEmailError, setLoginEmailError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -60,28 +78,100 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     };
   }, [mounted]);
 
+  const performCreate = async (trimmedName: string, email: string) => {
+    const data = await createLobby(trimmedName, email);
+    if (typeof window !== 'undefined') localStorage.setItem('playerName', trimmedName);
+    router.push(`/lobby/${data.lobby_id}`);
+  };
+
+  const performJoin = async (trimmedName: string, code: string, email: string) => {
+    await joinLobby(code, trimmedName, email);
+    if (typeof window !== 'undefined') localStorage.setItem('playerName', trimmedName);
+    router.push(`/lobby/${code}`);
+  };
+
   const handleCreate = async () => {
-    if (!name.trim()) return;
-    const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') || '' : '';
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') || '' : '';
     try {
-      const data = await createLobby(name.trim(), email);
-      if (typeof window !== 'undefined') localStorage.setItem('playerName', name.trim());
-      router.push(`/lobby/${data.lobby_id}`);
+      if (!isLoggedIn) {
+        const { claimed } = await checkName(trimmedName);
+        if (claimed) {
+          setPendingAction({ type: 'create' });
+          setLoginEmail('');
+          setLoginEmailError('');
+          return;
+        }
+      }
+      await performCreate(trimmedName, storedEmail);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Create lobby failed');
     }
   };
 
   const handleJoin = async () => {
-    if (!name.trim() || !joinCode.trim()) return;
-    const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') || '' : '';
+    const trimmedName = name.trim();
+    const trimmedCode = joinCode.trim();
+    if (!trimmedName || !trimmedCode) return;
+    const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') || '' : '';
     try {
-      await joinLobby(joinCode.trim(), name.trim(), email);
-      if (typeof window !== 'undefined') localStorage.setItem('playerName', name.trim());
-      router.push(`/lobby/${joinCode.trim()}`);
+      if (!isLoggedIn) {
+        const { claimed } = await checkName(trimmedName);
+        if (claimed) {
+          setPendingAction({ type: 'join', joinCode: trimmedCode });
+          setLoginEmail('');
+          setLoginEmailError('');
+          return;
+        }
+      }
+      await performJoin(trimmedName, trimmedCode, storedEmail);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Join failed');
     }
+  };
+
+  const handleLogin = async () => {
+    if (!pendingAction) return;
+    const trimmedName = name.trim();
+    const trimmedEmail = loginEmail.trim();
+    if (!trimmedName || !trimmedEmail) {
+      setLoginEmailError('Please enter your email.');
+      return;
+    }
+    setLoginEmailError('');
+    setLoginLoading(true);
+    try {
+      await logInUser(trimmedName, trimmedEmail);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('playerName', trimmedName);
+        localStorage.setItem('playerEmail', trimmedEmail);
+      }
+      const action = pendingAction;
+      setPendingAction(null);
+      setLoginEmail('');
+      setLoginEmailError('');
+      if (action.type === 'create') {
+        await performCreate(trimmedName, trimmedEmail);
+      } else {
+        await performJoin(trimmedName, action.joinCode, trimmedEmail);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message === 'Wrong email') {
+        setLoginEmailError('Wrong email');
+      } else {
+        setLoginEmailError(err instanceof Error ? err.message : 'Log in failed.');
+      }
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleChooseNewName = () => {
+    setPendingAction(null);
+    setLoginEmail('');
+    setLoginEmailError('');
+    setName('');
   };
 
   const handleEnterRaid = async () => {
@@ -207,6 +297,56 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Claimed-name email login modal */}
+      {pendingAction && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => {
+            if (!loginLoading) handleChooseNewName();
+          }}
+        >
+          <div
+            className="bg-white text-black p-6 rounded-xl shadow-xl max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-3 font-semibold">
+              This name is claimed. Type your email if you have claimed this username.
+            </p>
+            <input
+              type="email"
+              placeholder="email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+              autoFocus
+              className="w-full p-2 border-2 border-black rounded text-gray-800 mb-1"
+            />
+            <p className="text-xs text-gray-600 mb-3">email</p>
+            {loginEmailError && (
+              <p className="text-red-600 mb-3 font-semibold">{loginEmailError}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleLogin}
+                disabled={loginLoading}
+                className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
+              >
+                {loginLoading ? 'Logging in...' : 'Log in'}
+              </button>
+              <button
+                type="button"
+                onClick={handleChooseNewName}
+                disabled={loginLoading}
+                className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
+              >
+                Choose new name
+              </button>
+            </div>
           </div>
         </div>
       )}

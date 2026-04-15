@@ -13,7 +13,13 @@ import HomeOverlay from '@/components/home/HomeOverlay';
 import WorldMap from '@/components/worldmap/WorldMap';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
-import { createGremlinLobby, getRaidLobby, getNextRaidTime } from '@/lib/api';
+import {
+  createGremlinLobby,
+  getRaidLobby,
+  getNextRaidTime,
+  checkName,
+  logInUser,
+} from '@/lib/api';
 
 // Dynamically import heavy 3D models
 const PlayerV1 = dynamic(() => import('../components/Playerv1'), { ssr: false });
@@ -168,16 +174,24 @@ function adjustSkyColor(hex: string): string {
 // ========== Main page component ==========
 export default function Page() {
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
+
+  // Gremlin fight login popup state
   const [showGremlinPopup, setShowGremlinPopup] = useState(false);
   const [gremlinUsername, setGremlinUsername] = useState('');
   const [gremlinError, setGremlinError] = useState('');
   const [gremlinLoading, setGremlinLoading] = useState(false);
+  const [gremlinEmailMode, setGremlinEmailMode] = useState(false);
+  const [gremlinEmail, setGremlinEmail] = useState('');
+  const [gremlinEmailError, setGremlinEmailError] = useState('');
 
-  // Athens raid
+  // Athens raid login popup state
   const [showAthensPopup, setShowAthensPopup] = useState(false);
   const [athensUsername, setAthensUsername] = useState('');
   const [athensError, setAthensError] = useState('');
   const [athensLoading, setAthensLoading] = useState(false);
+  const [athensEmailMode, setAthensEmailMode] = useState(false);
+  const [athensEmail, setAthensEmail] = useState('');
+  const [athensEmailError, setAthensEmailError] = useState('');
 
   // Raid countdown shown over Athens on the globe
   const [athensRaidSecondsUntil, setAthensRaidSecondsUntil] = useState<number | null>(null);
@@ -213,6 +227,24 @@ export default function Page() {
       .catch((err) => alert(err instanceof Error ? err.message : 'Failed to enter raid.'));
   }, [router]);
 
+  const resetGremlinPopup = useCallback(() => {
+    setGremlinUsername('');
+    setGremlinError('');
+    setGremlinLoading(false);
+    setGremlinEmailMode(false);
+    setGremlinEmail('');
+    setGremlinEmailError('');
+  }, []);
+
+  const resetAthensPopup = useCallback(() => {
+    setAthensUsername('');
+    setAthensError('');
+    setAthensLoading(false);
+    setAthensEmailMode(false);
+    setAthensEmail('');
+    setAthensEmailError('');
+  }, []);
+
   const handleCityClick = useCallback((city: City) => {
     if (city.isVault) {
       router.push('/vault');
@@ -229,8 +261,7 @@ export default function Page() {
     if (city.isGremlin) {
       const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
       if (!playerName) {
-        setGremlinUsername('');
-        setGremlinError('');
+        resetGremlinPopup();
         setShowGremlinPopup(true);
         return;
       }
@@ -243,8 +274,7 @@ export default function Page() {
     if (city.name === 'Athens') {
       const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
       if (!playerName) {
-        setAthensUsername('');
-        setAthensError('');
+        resetAthensPopup();
         setShowAthensPopup(true);
         return;
       }
@@ -252,7 +282,15 @@ export default function Page() {
       return;
     }
     setSelectedCity(city);
-  }, [router, enterAthensRaid]);
+  }, [router, enterAthensRaid, resetGremlinPopup, resetAthensPopup]);
+
+  // ---- Gremlin fight handlers ------------------------------------------------
+  const proceedGremlin = useCallback(async (trimmed: string) => {
+    const data = await createGremlinLobby(trimmed);
+    if (typeof window !== 'undefined') localStorage.setItem('playerName', trimmed);
+    setShowGremlinPopup(false);
+    router.push(`/gremlin/${data.lobby_id}`);
+  }, [router]);
 
   const handleGremlinJoin = useCallback(async () => {
     const trimmed = gremlinUsername.trim();
@@ -263,16 +301,62 @@ export default function Page() {
     setGremlinError('');
     setGremlinLoading(true);
     try {
-      const data = await createGremlinLobby(trimmed);
-      if (typeof window !== 'undefined') localStorage.setItem('playerName', trimmed);
-      setShowGremlinPopup(false);
-      router.push(`/gremlin/${data.lobby_id}`);
+      const { claimed } = await checkName(trimmed);
+      if (claimed) {
+        setGremlinEmailMode(true);
+        setGremlinEmail('');
+        setGremlinEmailError('');
+        return;
+      }
+      await proceedGremlin(trimmed);
     } catch (err) {
       setGremlinError(err instanceof Error ? err.message : 'Failed to enter the forest.');
     } finally {
       setGremlinLoading(false);
     }
-  }, [gremlinUsername, router]);
+  }, [gremlinUsername, proceedGremlin]);
+
+  const handleGremlinLogin = useCallback(async () => {
+    const trimmedName = gremlinUsername.trim();
+    const trimmedEmail = gremlinEmail.trim();
+    if (!trimmedName || !trimmedEmail) {
+      setGremlinEmailError('Please enter your email.');
+      return;
+    }
+    setGremlinEmailError('');
+    setGremlinLoading(true);
+    try {
+      await logInUser(trimmedName, trimmedEmail);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('playerName', trimmedName);
+        localStorage.setItem('playerEmail', trimmedEmail);
+      }
+      await proceedGremlin(trimmedName);
+    } catch (err) {
+      if (err instanceof Error && err.message === 'Wrong email') {
+        setGremlinEmailError('Wrong email');
+      } else {
+        setGremlinEmailError(err instanceof Error ? err.message : 'Log in failed.');
+      }
+    } finally {
+      setGremlinLoading(false);
+    }
+  }, [gremlinUsername, gremlinEmail, proceedGremlin]);
+
+  const handleGremlinChooseNewName = useCallback(() => {
+    setGremlinEmailMode(false);
+    setGremlinEmail('');
+    setGremlinEmailError('');
+    setGremlinUsername('');
+    setGremlinError('');
+  }, []);
+
+  // ---- Athens raid handlers --------------------------------------------------
+  const proceedAthens = useCallback((trimmed: string) => {
+    if (typeof window !== 'undefined') localStorage.setItem('playerName', trimmed);
+    setShowAthensPopup(false);
+    enterAthensRaid(trimmed);
+  }, [enterAthensRaid]);
 
   const handleAthensJoin = useCallback(async () => {
     const trimmed = athensUsername.trim();
@@ -283,15 +367,55 @@ export default function Page() {
     setAthensError('');
     setAthensLoading(true);
     try {
-      if (typeof window !== 'undefined') localStorage.setItem('playerName', trimmed);
-      setShowAthensPopup(false);
-      enterAthensRaid(trimmed);
+      const { claimed } = await checkName(trimmed);
+      if (claimed) {
+        setAthensEmailMode(true);
+        setAthensEmail('');
+        setAthensEmailError('');
+        return;
+      }
+      proceedAthens(trimmed);
     } catch (err) {
       setAthensError(err instanceof Error ? err.message : 'Failed to enter raid.');
     } finally {
       setAthensLoading(false);
     }
-  }, [athensUsername, enterAthensRaid]);
+  }, [athensUsername, proceedAthens]);
+
+  const handleAthensLogin = useCallback(async () => {
+    const trimmedName = athensUsername.trim();
+    const trimmedEmail = athensEmail.trim();
+    if (!trimmedName || !trimmedEmail) {
+      setAthensEmailError('Please enter your email.');
+      return;
+    }
+    setAthensEmailError('');
+    setAthensLoading(true);
+    try {
+      await logInUser(trimmedName, trimmedEmail);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('playerName', trimmedName);
+        localStorage.setItem('playerEmail', trimmedEmail);
+      }
+      proceedAthens(trimmedName);
+    } catch (err) {
+      if (err instanceof Error && err.message === 'Wrong email') {
+        setAthensEmailError('Wrong email');
+      } else {
+        setAthensEmailError(err instanceof Error ? err.message : 'Log in failed.');
+      }
+    } finally {
+      setAthensLoading(false);
+    }
+  }, [athensUsername, athensEmail, proceedAthens]);
+
+  const handleAthensChooseNewName = useCallback(() => {
+    setAthensEmailMode(false);
+    setAthensEmail('');
+    setAthensEmailError('');
+    setAthensUsername('');
+    setAthensError('');
+  }, []);
 
   const handleBackToMap = useCallback(() => {
     setSelectedCity(null);
@@ -326,29 +450,79 @@ export default function Page() {
                 placeholder="Your battle name"
                 value={athensUsername}
                 onChange={(e) => setAthensUsername(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAthensJoin()}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  if (athensEmailMode) handleAthensLogin();
+                  else handleAthensJoin();
+                }}
                 autoFocus
-                className="w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 focus:outline-none focus:border-red-500 mb-3"
+                readOnly={athensEmailMode}
+                className={`w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 focus:outline-none focus:border-red-500 mb-3 ${athensEmailMode ? 'opacity-70' : ''}`}
               />
-              {athensError && (
+              {athensError && !athensEmailMode && (
                 <p className="text-red-400 text-sm mb-3">{athensError}</p>
               )}
+
+              {athensEmailMode && (
+                <>
+                  <p className="text-sm text-white/80 mb-2">
+                    This name is claimed. Type your email if you have claimed this username.
+                  </p>
+                  <input
+                    type="email"
+                    placeholder="email"
+                    value={athensEmail}
+                    onChange={(e) => setAthensEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAthensLogin()}
+                    autoFocus
+                    className="w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 focus:outline-none focus:border-red-500 mb-1"
+                  />
+                  <p className="text-xs text-white/50 mb-3">email</p>
+                  {athensEmailError && (
+                    <p className="text-red-500 text-sm mb-3 font-semibold">{athensEmailError}</p>
+                  )}
+                </>
+              )}
+
               <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={handleAthensJoin}
-                  disabled={athensLoading}
-                  className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {athensLoading ? 'Entering...' : 'Enter Raid'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAthensPopup(false)}
-                  className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
+                {athensEmailMode ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleAthensLogin}
+                      disabled={athensLoading}
+                      className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {athensLoading ? 'Logging in...' : 'Log in'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAthensChooseNewName}
+                      disabled={athensLoading}
+                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      Choose new name
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleAthensJoin}
+                      disabled={athensLoading}
+                      className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {athensLoading ? 'Entering...' : 'Enter Raid'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAthensPopup(false)}
+                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -371,29 +545,79 @@ export default function Page() {
                 placeholder="Your battle name"
                 value={gremlinUsername}
                 onChange={(e) => setGremlinUsername(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleGremlinJoin()}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  if (gremlinEmailMode) handleGremlinLogin();
+                  else handleGremlinJoin();
+                }}
                 autoFocus
-                className="w-full p-2 rounded-md bg-gray-800 border border-green-700/50 text-white placeholder-white/30 focus:outline-none focus:border-green-500 mb-3"
+                readOnly={gremlinEmailMode}
+                className={`w-full p-2 rounded-md bg-gray-800 border border-green-700/50 text-white placeholder-white/30 focus:outline-none focus:border-green-500 mb-3 ${gremlinEmailMode ? 'opacity-70' : ''}`}
               />
-              {gremlinError && (
+              {gremlinError && !gremlinEmailMode && (
                 <p className="text-red-400 text-sm mb-3">{gremlinError}</p>
               )}
+
+              {gremlinEmailMode && (
+                <>
+                  <p className="text-sm text-white/80 mb-2">
+                    This name is claimed. Type your email if you have claimed this username.
+                  </p>
+                  <input
+                    type="email"
+                    placeholder="email"
+                    value={gremlinEmail}
+                    onChange={(e) => setGremlinEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleGremlinLogin()}
+                    autoFocus
+                    className="w-full p-2 rounded-md bg-gray-800 border border-green-700/50 text-white placeholder-white/30 focus:outline-none focus:border-green-500 mb-1"
+                  />
+                  <p className="text-xs text-white/50 mb-3">email</p>
+                  {gremlinEmailError && (
+                    <p className="text-red-500 text-sm mb-3 font-semibold">{gremlinEmailError}</p>
+                  )}
+                </>
+              )}
+
               <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={handleGremlinJoin}
-                  disabled={gremlinLoading}
-                  className="flex-1 py-2 rounded-lg bg-green-700 hover:bg-green-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {gremlinLoading ? 'Entering...' : 'Join Battle'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowGremlinPopup(false)}
-                  className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
+                {gremlinEmailMode ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleGremlinLogin}
+                      disabled={gremlinLoading}
+                      className="flex-1 py-2 rounded-lg bg-green-700 hover:bg-green-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {gremlinLoading ? 'Logging in...' : 'Log in'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGremlinChooseNewName}
+                      disabled={gremlinLoading}
+                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      Choose new name
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleGremlinJoin}
+                      disabled={gremlinLoading}
+                      className="flex-1 py-2 rounded-lg bg-green-700 hover:bg-green-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {gremlinLoading ? 'Entering...' : 'Join Battle'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowGremlinPopup(false)}
+                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

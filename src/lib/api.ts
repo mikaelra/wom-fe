@@ -126,3 +126,41 @@ export async function requestReplay(lobbyId: string, player: string): Promise<{ 
   }
   return res.json();
 }
+
+/**
+ * Check whether a player name is already claimed (linked to an email).
+ * Returns { claimed: true } if the user must authenticate with their email
+ * before using the name, and { claimed: false } if the name is free to use.
+ */
+export async function checkName(name: string): Promise<{ claimed: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/check_name`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error((errorData as { error?: string }).error ?? "Failed to check name");
+  }
+  return res.json();
+}
+
+/**
+ * Verify that the given email matches the claimed name.
+ * Resolves on success, rejects with "Wrong email" on a 403 mismatch.
+ */
+export async function logInUser(name: string, email: string): Promise<{ success: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/log_in`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email }),
+  });
+  if (res.status === 403) {
+    throw new Error("Wrong email");
+  }
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error((errorData as { error?: string }).error ?? "Log in failed");
+  }
+  return res.json();
+}
