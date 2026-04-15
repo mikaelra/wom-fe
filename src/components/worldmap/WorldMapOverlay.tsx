@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createLobby, joinLobby, getPlayerRelics } from '@/lib/api';
+import { createLobby, joinLobby, getPlayerRelics, checkName, logInUser } from '@/lib/api';
 import type { Relic } from '@/types/game';
 
 export default function WorldMapOverlay() {
@@ -17,6 +17,10 @@ export default function WorldMapOverlay() {
   const [pendingAction, setPendingAction] = useState<'join' | 'create' | null>(null);
   const [popupName, setPopupName] = useState('');
   const [popupError, setPopupError] = useState('');
+  const [popupEmailMode, setPopupEmailMode] = useState(false);
+  const [popupEmail, setPopupEmail] = useState('');
+  const [popupEmailError, setPopupEmailError] = useState('');
+  const [popupLoading, setPopupLoading] = useState(false);
 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showRelics, setShowRelics] = useState(false);
@@ -96,13 +100,21 @@ export default function WorldMapOverlay() {
     }
   };
 
+  const openNamePopup = (action: 'join' | 'create') => {
+    setPendingAction(action);
+    setPopupName('');
+    setPopupError('');
+    setPopupEmailMode(false);
+    setPopupEmail('');
+    setPopupEmailError('');
+    setPopupLoading(false);
+    setShowNamePopup(true);
+  };
+
   const handleJoinLobby = () => {
     const name = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
     if (!name) {
-      setPendingAction('join');
-      setPopupName('');
-      setPopupError('');
-      setShowNamePopup(true);
+      openNamePopup('join');
       return;
     }
     doJoin(name);
@@ -111,10 +123,7 @@ export default function WorldMapOverlay() {
   const handleCreateLobby = () => {
     const name = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
     if (!name) {
-      setPendingAction('create');
-      setPopupName('');
-      setPopupError('');
-      setShowNamePopup(true);
+      openNamePopup('create');
       return;
     }
     doCreate(name);
@@ -126,12 +135,67 @@ export default function WorldMapOverlay() {
       setPopupError('Please enter a username.');
       return;
     }
-    setShowNamePopup(false);
-    if (pendingAction === 'join') {
-      await doJoin(trimmed);
-    } else {
-      await doCreate(trimmed);
+    setPopupError('');
+    setPopupLoading(true);
+    try {
+      const { claimed } = await checkName(trimmed);
+      if (claimed) {
+        setPopupEmailMode(true);
+        setPopupEmail('');
+        setPopupEmailError('');
+        return;
+      }
+      setShowNamePopup(false);
+      if (pendingAction === 'join') {
+        await doJoin(trimmed);
+      } else {
+        await doCreate(trimmed);
+      }
+    } catch (err) {
+      setPopupError(err instanceof Error ? err.message : 'Something went wrong.');
+    } finally {
+      setPopupLoading(false);
     }
+  };
+
+  const handlePopupLogin = async () => {
+    const trimmedName = popupName.trim();
+    const trimmedEmail = popupEmail.trim();
+    if (!trimmedName || !trimmedEmail) {
+      setPopupEmailError('Please enter your email.');
+      return;
+    }
+    setPopupEmailError('');
+    setPopupLoading(true);
+    try {
+      await logInUser(trimmedName, trimmedEmail);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('playerName', trimmedName);
+        localStorage.setItem('playerEmail', trimmedEmail);
+      }
+      setShowNamePopup(false);
+      if (pendingAction === 'join') {
+        await doJoin(trimmedName);
+      } else {
+        await doCreate(trimmedName);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message === 'Wrong email') {
+        setPopupEmailError('Wrong email');
+      } else {
+        setPopupEmailError(err instanceof Error ? err.message : 'Log in failed.');
+      }
+    } finally {
+      setPopupLoading(false);
+    }
+  };
+
+  const handlePopupChooseNewName = () => {
+    setPopupEmailMode(false);
+    setPopupEmail('');
+    setPopupEmailError('');
+    setPopupName('');
+    setPopupError('');
   };
 
   return (
@@ -266,7 +330,7 @@ export default function WorldMapOverlay() {
       {showNamePopup && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-          onClick={() => setShowNamePopup(false)}
+          onClick={() => { if (!popupLoading) setShowNamePopup(false); }}
         >
           <div
             className="bg-gray-900 border border-white/20 text-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4"
@@ -281,28 +345,80 @@ export default function WorldMapOverlay() {
               placeholder="Your battle name"
               value={popupName}
               onChange={(e) => setPopupName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()}
-              autoFocus
-              className="w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-3"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return;
+                if (popupEmailMode) handlePopupLogin();
+                else handleNameSubmit();
+              }}
+              autoFocus={!popupEmailMode}
+              readOnly={popupEmailMode}
+              className={`w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-3 ${popupEmailMode ? 'opacity-70' : ''}`}
             />
-            {popupError && (
+            {popupError && !popupEmailMode && (
               <p className="text-red-400 text-sm mb-3">{popupError}</p>
             )}
+
+            {popupEmailMode && (
+              <>
+                <p className="text-sm text-white/80 mb-2">
+                  This name is claimed. Type your email if you have claimed this username.
+                </p>
+                <input
+                  type="email"
+                  placeholder="email"
+                  value={popupEmail}
+                  onChange={(e) => setPopupEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePopupLogin()}
+                  autoFocus
+                  className="w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-1"
+                />
+                <p className="text-xs text-white/50 mb-3">email</p>
+                {popupEmailError && (
+                  <p className="text-red-500 text-sm mb-3 font-semibold">{popupEmailError}</p>
+                )}
+              </>
+            )}
+
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleNameSubmit}
-                className="flex-1 py-2 rounded-lg bg-white/20 hover:bg-white/30 font-bold text-white transition-colors cursor-pointer"
-              >
-                Continue
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowNamePopup(false)}
-                className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
+              {popupEmailMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handlePopupLogin}
+                    disabled={popupLoading}
+                    className="flex-1 py-2 rounded-lg bg-white/20 hover:bg-white/30 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {popupLoading ? 'Logging in...' : 'Log in'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePopupChooseNewName}
+                    disabled={popupLoading}
+                    className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Choose new name
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleNameSubmit}
+                    disabled={popupLoading}
+                    className="flex-1 py-2 rounded-lg bg-white/20 hover:bg-white/30 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {popupLoading ? 'Checking...' : 'Continue'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowNamePopup(false)}
+                    disabled={popupLoading}
+                    className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
