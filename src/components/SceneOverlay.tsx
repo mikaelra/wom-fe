@@ -162,7 +162,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     });
 
     sock.on("error", (data) => {
-      alert(data.message);
+      if (data.message !== "Name taken") {
+        alert(data.message);
+      }
     });
 
     return () => {
