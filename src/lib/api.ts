@@ -165,11 +165,11 @@ export async function logInUser(name: string, email: string): Promise<{ success:
   return res.json();
 }
 
-export async function getLoginSecurity(
+export async function getAlwaysVerifyEmailFlag(
   name: string,
   email: string
 ): Promise<{ always_verify_email: boolean }> {
-  const res = await fetch(`${BACKEND_URL}/get_login_security`, {
+  const res = await fetch(`${BACKEND_URL}/get_always_verify_email_flag`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email }),
@@ -181,12 +181,12 @@ export async function getLoginSecurity(
   return res.json();
 }
 
-export async function updateLoginSecurity(
+export async function updateAlwaysVerifyEmailFlag(
   name: string,
   email: string,
   alwaysVerifyEmail: boolean
 ): Promise<{ success: boolean; always_verify_email: boolean }> {
-  const res = await fetch(`${BACKEND_URL}/update_login_security`, {
+  const res = await fetch(`${BACKEND_URL}/update_always_verify_email_flag`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
