@@ -11,6 +11,7 @@ import {
   getPlayerRelics,
   checkName,
   logInUser,
+  verifyLoginCode,
 } from '@/lib/api';
 import type { Relic } from '@/types/game';
 import type { City } from '@/lib/cities';
@@ -46,6 +47,11 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginEmailError, setLoginEmailError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
+
+  // Verification-code step shown when always_verify_email is enabled.
+  const [codeMode, setCodeMode] = useState(false);
+  const [loginCode, setLoginCode] = useState('');
+  const [loginCodeError, setLoginCodeError] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -131,6 +137,29 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     }
   };
 
+  const completePendingAction = async (
+    trimmedName: string,
+    trimmedEmail: string
+  ) => {
+    const action = pendingAction;
+    setPendingAction(null);
+    setCodeMode(false);
+    setLoginCode('');
+    setLoginCodeError('');
+    setLoginEmail('');
+    setLoginEmailError('');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('playerName', trimmedName);
+      localStorage.setItem('playerEmail', trimmedEmail);
+    }
+    if (!action) return;
+    if (action.type === 'create') {
+      await performCreate(trimmedName, trimmedEmail);
+    } else {
+      await performJoin(trimmedName, action.joinCode, trimmedEmail);
+    }
+  };
+
   const handleLogin = async () => {
     if (!pendingAction) return;
     const trimmedName = name.trim();
@@ -142,20 +171,14 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     setLoginEmailError('');
     setLoginLoading(true);
     try {
-      await logInUser(trimmedName, trimmedEmail);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('playerName', trimmedName);
-        localStorage.setItem('playerEmail', trimmedEmail);
+      const result = await logInUser(trimmedName, trimmedEmail);
+      if (result.requires_code) {
+        setCodeMode(true);
+        setLoginCode('');
+        setLoginCodeError('');
+        return;
       }
-      const action = pendingAction;
-      setPendingAction(null);
-      setLoginEmail('');
-      setLoginEmailError('');
-      if (action.type === 'create') {
-        await performCreate(trimmedName, trimmedEmail);
-      } else {
-        await performJoin(trimmedName, action.joinCode, trimmedEmail);
-      }
+      await completePendingAction(trimmedName, trimmedEmail);
     } catch (err) {
       if (err instanceof Error && err.message === 'Wrong email') {
         setLoginEmailError('Wrong email');
@@ -167,8 +190,31 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     }
   };
 
+  const handleVerifyCode = async () => {
+    const trimmedName = name.trim();
+    const trimmedEmail = loginEmail.trim();
+    const trimmedCode = loginCode.trim();
+    if (!trimmedCode) {
+      setLoginCodeError('Please enter the code from your email.');
+      return;
+    }
+    setLoginCodeError('');
+    setLoginLoading(true);
+    try {
+      await verifyLoginCode(trimmedName, trimmedCode);
+      await completePendingAction(trimmedName, trimmedEmail);
+    } catch (err) {
+      setLoginCodeError(err instanceof Error ? err.message : 'Verification failed.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
   const handleChooseNewName = () => {
     setPendingAction(null);
+    setCodeMode(false);
+    setLoginCode('');
+    setLoginCodeError('');
     setLoginEmail('');
     setLoginEmailError('');
     setName('');
@@ -313,40 +359,89 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
             className="bg-white text-black p-6 rounded-xl shadow-xl max-w-md w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="mb-3 font-semibold">
-              This name is claimed. Type your email if you have claimed this username.
-            </p>
-            <input
-              type="email"
-              placeholder="email"
-              value={loginEmail}
-              onChange={(e) => setLoginEmail(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-              autoFocus
-              className="w-full p-2 border-2 border-black rounded text-gray-800 mb-1"
-            />
-            <p className="text-xs text-gray-600 mb-3">email</p>
-            {loginEmailError && (
-              <p className="text-red-600 mb-3 font-semibold">{loginEmailError}</p>
+            {!codeMode ? (
+              <>
+                <p className="mb-3 font-semibold">
+                  This name is claimed. Type your email if you have claimed this username.
+                </p>
+                <input
+                  type="email"
+                  placeholder="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                  autoFocus
+                  className="w-full p-2 border-2 border-black rounded text-gray-800 mb-1"
+                />
+                <p className="text-xs text-gray-600 mb-3">email</p>
+                {loginEmailError && (
+                  <p className="text-red-600 mb-3 font-semibold">{loginEmailError}</p>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleLogin}
+                    disabled={loginLoading}
+                    className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
+                  >
+                    {loginLoading ? 'Logging in...' : 'Log in'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleChooseNewName}
+                    disabled={loginLoading}
+                    className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
+                  >
+                    Choose new name
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="mb-3 font-semibold">Enter verification code</p>
+                <p className="text-sm text-gray-700 mb-3">
+                  We sent a 6-digit code to <strong>{loginEmail}</strong>.
+                </p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="6-digit code"
+                  value={loginCode}
+                  onChange={(e) =>
+                    setLoginCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                  }
+                  onKeyDown={(e) => e.key === 'Enter' && handleVerifyCode()}
+                  autoFocus
+                  className="w-full p-2 border-2 border-black rounded text-gray-800 mb-3 tracking-[0.3em] font-mono text-center"
+                />
+                {loginCodeError && (
+                  <p className="text-red-600 mb-3 font-semibold">{loginCodeError}</p>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleVerifyCode}
+                    disabled={loginLoading}
+                    className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
+                  >
+                    {loginLoading ? 'Verifying...' : 'Verify'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCodeMode(false);
+                      setLoginCode('');
+                      setLoginCodeError('');
+                    }}
+                    disabled={loginLoading}
+                    className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
             )}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleLogin}
-                disabled={loginLoading}
-                className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
-              >
-                {loginLoading ? 'Logging in...' : 'Log in'}
-              </button>
-              <button
-                type="button"
-                onClick={handleChooseNewName}
-                disabled={loginLoading}
-                className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
-              >
-                Choose new name
-              </button>
-            </div>
           </div>
         </div>
       )}

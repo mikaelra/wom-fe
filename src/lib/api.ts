@@ -149,7 +149,10 @@ export async function checkName(name: string): Promise<{ claimed: boolean }> {
  * Verify that the given email matches the claimed name.
  * Resolves on success, rejects with "Wrong email" on a 403 mismatch.
  */
-export async function logInUser(name: string, email: string): Promise<{ success: boolean }> {
+export async function logInUser(
+  name: string,
+  email: string
+): Promise<{ success: boolean; requires_code?: boolean; always_verify_email?: boolean }> {
   const res = await fetch(`${BACKEND_URL}/log_in`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -161,6 +164,31 @@ export async function logInUser(name: string, email: string): Promise<{ success:
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error((errorData as { error?: string }).error ?? "Log in failed");
+  }
+  return res.json();
+}
+
+export async function verifyLoginCode(
+  name: string,
+  code: string
+): Promise<{ success: boolean; always_verify_email?: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/verify_code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, code }),
+  });
+  if (res.status === 403) {
+    throw new Error("Wrong code");
+  }
+  if (res.status === 410) {
+    throw new Error("Code expired");
+  }
+  if (res.status === 429) {
+    throw new Error("Too many attempts");
+  }
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error((errorData as { error?: string }).error ?? "Verification failed");
   }
   return res.json();
 }

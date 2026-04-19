@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createLobby, joinLobby, getPlayerRelics, checkName, logInUser } from '@/lib/api';
+import { createLobby, joinLobby, getPlayerRelics, checkName, logInUser, verifyLoginCode } from '@/lib/api';
 import type { Relic } from '@/types/game';
 
 export default function WorldMapOverlay() {
@@ -21,6 +21,9 @@ export default function WorldMapOverlay() {
   const [popupEmail, setPopupEmail] = useState('');
   const [popupEmailError, setPopupEmailError] = useState('');
   const [popupLoading, setPopupLoading] = useState(false);
+  const [popupCodeMode, setPopupCodeMode] = useState(false);
+  const [popupCode, setPopupCode] = useState('');
+  const [popupCodeError, setPopupCodeError] = useState('');
 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showRelics, setShowRelics] = useState(false);
@@ -107,8 +110,24 @@ export default function WorldMapOverlay() {
     setPopupEmailMode(false);
     setPopupEmail('');
     setPopupEmailError('');
+    setPopupCodeMode(false);
+    setPopupCode('');
+    setPopupCodeError('');
     setPopupLoading(false);
     setShowNamePopup(true);
+  };
+
+  const completePopupLogin = async (trimmedName: string, trimmedEmail: string) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('playerName', trimmedName);
+      localStorage.setItem('playerEmail', trimmedEmail);
+    }
+    setShowNamePopup(false);
+    if (pendingAction === 'join') {
+      await doJoin(trimmedName);
+    } else {
+      await doCreate(trimmedName);
+    }
   };
 
   const handleJoinLobby = () => {
@@ -168,17 +187,14 @@ export default function WorldMapOverlay() {
     setPopupEmailError('');
     setPopupLoading(true);
     try {
-      await logInUser(trimmedName, trimmedEmail);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('playerName', trimmedName);
-        localStorage.setItem('playerEmail', trimmedEmail);
+      const result = await logInUser(trimmedName, trimmedEmail);
+      if (result.requires_code) {
+        setPopupCodeMode(true);
+        setPopupCode('');
+        setPopupCodeError('');
+        return;
       }
-      setShowNamePopup(false);
-      if (pendingAction === 'join') {
-        await doJoin(trimmedName);
-      } else {
-        await doCreate(trimmedName);
-      }
+      await completePopupLogin(trimmedName, trimmedEmail);
     } catch (err) {
       if (err instanceof Error && err.message === 'Wrong email') {
         setPopupEmailError('Wrong email');
@@ -190,10 +206,33 @@ export default function WorldMapOverlay() {
     }
   };
 
+  const handlePopupVerifyCode = async () => {
+    const trimmedName = popupName.trim();
+    const trimmedEmail = popupEmail.trim();
+    const trimmedCode = popupCode.trim();
+    if (!trimmedCode) {
+      setPopupCodeError('Please enter the code from your email.');
+      return;
+    }
+    setPopupCodeError('');
+    setPopupLoading(true);
+    try {
+      await verifyLoginCode(trimmedName, trimmedCode);
+      await completePopupLogin(trimmedName, trimmedEmail);
+    } catch (err) {
+      setPopupCodeError(err instanceof Error ? err.message : 'Verification failed.');
+    } finally {
+      setPopupLoading(false);
+    }
+  };
+
   const handlePopupChooseNewName = () => {
     setPopupEmailMode(false);
     setPopupEmail('');
     setPopupEmailError('');
+    setPopupCodeMode(false);
+    setPopupCode('');
+    setPopupCodeError('');
     setPopupName('');
     setPopupError('');
   };
@@ -354,18 +393,19 @@ export default function WorldMapOverlay() {
               onChange={(e) => setPopupName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key !== 'Enter') return;
-                if (popupEmailMode) handlePopupLogin();
+                if (popupCodeMode) handlePopupVerifyCode();
+                else if (popupEmailMode) handlePopupLogin();
                 else handleNameSubmit();
               }}
-              autoFocus={!popupEmailMode}
-              readOnly={popupEmailMode}
-              className={`w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-3 ${popupEmailMode ? 'opacity-70' : ''}`}
+              autoFocus={!popupEmailMode && !popupCodeMode}
+              readOnly={popupEmailMode || popupCodeMode}
+              className={`w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-3 ${popupEmailMode || popupCodeMode ? 'opacity-70' : ''}`}
             />
-            {popupError && !popupEmailMode && (
+            {popupError && !popupEmailMode && !popupCodeMode && (
               <p className="text-red-400 text-sm mb-3">{popupError}</p>
             )}
 
-            {popupEmailMode && (
+            {popupEmailMode && !popupCodeMode && (
               <>
                 <p className="text-sm text-white/80 mb-2">
                   This name is claimed. Type your email if you have claimed this username.
@@ -386,8 +426,55 @@ export default function WorldMapOverlay() {
               </>
             )}
 
+            {popupCodeMode && (
+              <>
+                <p className="text-sm text-white/80 mb-2">
+                  We sent a 6-digit code to <strong>{popupEmail}</strong>.
+                </p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="6-digit code"
+                  value={popupCode}
+                  onChange={(e) =>
+                    setPopupCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                  }
+                  onKeyDown={(e) => e.key === 'Enter' && handlePopupVerifyCode()}
+                  autoFocus
+                  className="w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-3 tracking-[0.3em] font-mono text-center"
+                />
+                {popupCodeError && (
+                  <p className="text-red-500 text-sm mb-3 font-semibold">{popupCodeError}</p>
+                )}
+              </>
+            )}
+
             <div className="flex gap-3">
-              {popupEmailMode ? (
+              {popupCodeMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handlePopupVerifyCode}
+                    disabled={popupLoading}
+                    className="flex-1 py-2 rounded-lg bg-white/20 hover:bg-white/30 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {popupLoading ? 'Verifying...' : 'Verify'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPopupCodeMode(false);
+                      setPopupCode('');
+                      setPopupCodeError('');
+                    }}
+                    disabled={popupLoading}
+                    className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Back
+                  </button>
+                </>
+              ) : popupEmailMode ? (
                 <>
                   <button
                     type="button"
