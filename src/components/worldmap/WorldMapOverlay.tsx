@@ -226,6 +226,13 @@ export default function WorldMapOverlay() {
                   >
                     Your relics
                   </button>
+                  <Link
+                    href="/settings"
+                    onClick={() => setShowUserMenu(false)}
+                    className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors cursor-pointer no-underline"
+                  >
+                    Settings
+                  </Link>
                   <button
                     type="button"
                     onClick={handleLogout}

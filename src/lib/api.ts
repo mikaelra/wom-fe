@@ -164,3 +164,40 @@ export async function logInUser(name: string, email: string): Promise<{ success:
   }
   return res.json();
 }
+
+export async function getSettings(
+  name: string,
+  email: string
+): Promise<{ always_verify_email: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/get_settings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error((errorData as { error?: string }).error ?? "Failed to load settings");
+  }
+  return res.json();
+}
+
+export async function updateSettings(
+  name: string,
+  email: string,
+  alwaysVerifyEmail: boolean
+): Promise<{ success: boolean; always_verify_email: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/update_settings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name,
+      email,
+      always_verify_email: alwaysVerifyEmail,
+    }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error((errorData as { error?: string }).error ?? "Failed to save settings");
+  }
+  return res.json();
+}
