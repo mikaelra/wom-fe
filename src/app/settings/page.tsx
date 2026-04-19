@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getSettings, updateSettings } from '@/lib/api';
+import { getLoginSecurity, updateLoginSecurity } from '@/lib/api';
 
 const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
@@ -48,7 +48,7 @@ export default function SettingsPage() {
       return;
     }
 
-    getSettings(name, email)
+    getLoginSecurity(name, email)
       .then((data) => {
         setServerValue(!!data.always_verify_email);
         setChecked(!!data.always_verify_email);
@@ -84,7 +84,7 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveError('');
     try {
-      const data = await updateSettings(playerName, playerEmail, next);
+      const data = await updateLoginSecurity(playerName, playerEmail, next);
       setServerValue(!!data.always_verify_email);
       setChecked(!!data.always_verify_email);
       setConfirming(false);

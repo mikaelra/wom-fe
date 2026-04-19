@@ -165,11 +165,11 @@ export async function logInUser(name: string, email: string): Promise<{ success:
   return res.json();
 }
 
-export async function getSettings(
+export async function getLoginSecurity(
   name: string,
   email: string
 ): Promise<{ always_verify_email: boolean }> {
-  const res = await fetch(`${BACKEND_URL}/get_settings`, {
+  const res = await fetch(`${BACKEND_URL}/get_login_security`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email }),
@@ -181,12 +181,12 @@ export async function getSettings(
   return res.json();
 }
 
-export async function updateSettings(
+export async function updateLoginSecurity(
   name: string,
   email: string,
   alwaysVerifyEmail: boolean
 ): Promise<{ success: boolean; always_verify_email: boolean }> {
-  const res = await fetch(`${BACKEND_URL}/update_settings`, {
+  const res = await fetch(`${BACKEND_URL}/update_login_security`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
