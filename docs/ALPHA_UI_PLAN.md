@@ -19,6 +19,8 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 7. **Invite link from lobby** — Players can invite friends directly from the lobby using a simple shareable link. ⚠️ **Partial** — Lobby ID is displayed in the waiting room (`LobbyOverlay.tsx`). Players can manually share the code, but there is no copy-to-clipboard button or shareable URL. Still needs a one-click copy/share button.
 8. **Raid boss relic claiming** — When a player defeats a raid boss and earns a relic, they must choose: claim it by providing an email address (relic stored on account), or decline (no relic awarded). This encourages account creation for rare rewards. ❌ **Not started**
 9. **Claimed name protection** — When a name is claimed (player has email on file), guests cannot use that name. They must either log in with the correct email or choose a different name. ❌ **Not started** — Currently any player can enter any name regardless of whether it's claimed.
+10. **Fix relic bug** — Investigate and fix the current relic issue (awarding, persistence, or display) so relics behave correctly on raid completion. ❌ **Not started**
+11. **Suggest account creation on raid win for name-only players** — When a player who has a name but no email connected defeats a raid, prompt them to create an account (attach email) so the relic and progress are persisted. ❌ **Not started**
 
 ### Not required for Alpha (post-alpha)
 
@@ -1492,9 +1494,11 @@ Backend:
 
 ### Phase 3a: Raid Boss Relic Claiming & Name Protection *(Alpha)* — ❌ NOT STARTED
 
-**Goal**: Players can claim relics from raid boss kills via email; claimed names are protected from unauthorized use
+**Goal**: Players can claim relics from raid boss kills via email; claimed names are protected from unauthorized use; existing name-only players are nudged to create an account on raid win
 
 Frontend:
+- [ ] **Fix relic bug** — triage and resolve the current relic defect (awarding, persistence, or display) so relics behave correctly end-to-end after a raid
+- [ ] **Account-creation suggestion on raid win** — if the defeating player has a name but no email on file, surface a "Create account to keep your relic" prompt in the post-raid flow (reuses `ClaimRelicDialog` email input path)
 - [ ] `ClaimRelicDialog.tsx` — modal shown after raid boss defeat when a relic drop occurs; email input field, "Claim Relic" and "No Thanks" buttons
 - [ ] Integrate `ClaimRelicDialog` into post-raid reward flow — show when backend response includes `relic_available: true`
 - [ ] `NameTakenDialog.tsx` — modal shown when backend returns `{ error: "name_claimed" }`; offers "Go to Login" (navigates to login page with name pre-filled) and "Choose Another Name" (returns to name entry)
