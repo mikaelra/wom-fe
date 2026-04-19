@@ -195,7 +195,7 @@ export default function LobbyPage() {
                 {emailMode && (
                   <>
                     <p className="text-sm text-gray-600 mb-2">
-                      This name is claimed. Enter your email to log in.
+                      This name is claimed. Enter your email to log in or pick a new name.
                     </p>
                     <input
                       type="email"
