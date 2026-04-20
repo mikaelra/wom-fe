@@ -405,7 +405,7 @@ export default function WorldMapOverlay() {
               <p className="text-red-400 text-sm mb-3">{popupError}</p>
             )}
 
-            {popupEmailMode && !popupCodeMode && (
+            {popupEmailMode && (
               <>
                 <p className="text-sm text-white/80 mb-2">
                   This name is claimed. Type your email if you have claimed this username.
@@ -415,12 +415,13 @@ export default function WorldMapOverlay() {
                   placeholder="email"
                   value={popupEmail}
                   onChange={(e) => setPopupEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handlePopupLogin()}
-                  autoFocus
-                  className="w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-1"
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !popupCodeMode) handlePopupLogin(); }}
+                  autoFocus={!popupCodeMode}
+                  readOnly={popupCodeMode}
+                  className={`w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-1 ${popupCodeMode ? 'opacity-60' : ''}`}
                 />
                 <p className="text-xs text-white/50 mb-3">email</p>
-                {popupEmailError && (
+                {popupEmailError && !popupCodeMode && (
                   <p className="text-red-500 text-sm mb-3 font-semibold">{popupEmailError}</p>
                 )}
               </>
@@ -442,8 +443,9 @@ export default function WorldMapOverlay() {
                   }
                   onKeyDown={(e) => e.key === 'Enter' && handlePopupVerifyCode()}
                   autoFocus
-                  className="w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-3 tracking-[0.3em] font-mono text-center"
+                  className="w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-1 tracking-[0.3em] font-mono text-center"
                 />
+                <p className="text-xs text-white/50 mb-3">6-digit code</p>
                 {popupCodeError && (
                   <p className="text-red-500 text-sm mb-3 font-semibold">{popupCodeError}</p>
                 )}

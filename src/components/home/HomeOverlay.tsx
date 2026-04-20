@@ -359,47 +359,27 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
             className="bg-white text-black p-6 rounded-xl shadow-xl max-w-md w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            {!codeMode ? (
+            <p className="mb-3 font-semibold">
+              This name is claimed. Type your email if you have claimed this username.
+            </p>
+            <input
+              type="email"
+              placeholder="email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !codeMode) handleLogin(); }}
+              autoFocus={!codeMode}
+              readOnly={codeMode}
+              className={`w-full p-2 border-2 border-black rounded text-gray-800 mb-1 ${codeMode ? 'opacity-60 bg-gray-100' : ''}`}
+            />
+            <p className="text-xs text-gray-600 mb-3">email</p>
+            {loginEmailError && !codeMode && (
+              <p className="text-red-600 mb-3 font-semibold">{loginEmailError}</p>
+            )}
+
+            {codeMode && (
               <>
-                <p className="mb-3 font-semibold">
-                  This name is claimed. Type your email if you have claimed this username.
-                </p>
-                <input
-                  type="email"
-                  placeholder="email"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  autoFocus
-                  className="w-full p-2 border-2 border-black rounded text-gray-800 mb-1"
-                />
-                <p className="text-xs text-gray-600 mb-3">email</p>
-                {loginEmailError && (
-                  <p className="text-red-600 mb-3 font-semibold">{loginEmailError}</p>
-                )}
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleLogin}
-                    disabled={loginLoading}
-                    className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
-                  >
-                    {loginLoading ? 'Logging in...' : 'Log in'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleChooseNewName}
-                    disabled={loginLoading}
-                    className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
-                  >
-                    Choose new name
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="mb-3 font-semibold">Enter verification code</p>
-                <p className="text-sm text-gray-700 mb-3">
+                <p className="text-sm text-gray-700 mb-2">
                   We sent a 6-digit code to <strong>{loginEmail}</strong>.
                 </p>
                 <input
@@ -413,12 +393,18 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
                   }
                   onKeyDown={(e) => e.key === 'Enter' && handleVerifyCode()}
                   autoFocus
-                  className="w-full p-2 border-2 border-black rounded text-gray-800 mb-3 tracking-[0.3em] font-mono text-center"
+                  className="w-full p-2 border-2 border-black rounded text-gray-800 mb-1 tracking-[0.3em] font-mono text-center"
                 />
+                <p className="text-xs text-gray-600 mb-3">6-digit code</p>
                 {loginCodeError && (
                   <p className="text-red-600 mb-3 font-semibold">{loginCodeError}</p>
                 )}
-                <div className="flex gap-3">
+              </>
+            )}
+
+            <div className="flex gap-3">
+              {codeMode ? (
+                <>
                   <button
                     type="button"
                     onClick={handleVerifyCode}
@@ -439,9 +425,28 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
                   >
                     Back
                   </button>
-                </div>
-              </>
-            )}
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleLogin}
+                    disabled={loginLoading}
+                    className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
+                  >
+                    {loginLoading ? 'Logging in...' : 'Log in'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleChooseNewName}
+                    disabled={loginLoading}
+                    className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
+                  >
+                    Choose new name
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

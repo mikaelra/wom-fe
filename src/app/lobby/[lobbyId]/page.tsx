@@ -6,7 +6,7 @@ import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import LobbyOverlay from '@/components/lobby/LobbyOverlay';
 import { BASE_FOV } from '@/lib/sceneConstants';
-import { getSocket, joinLobby, checkName, logInUser } from '@/lib/api';
+import { getSocket, joinLobby, checkName, logInUser, verifyLoginCode } from '@/lib/api';
 import type { LobbyState } from '@/types/game';
 
 const LobbyScene = dynamic(() => import('@/components/lobby/LobbyScene'), { ssr: false });
@@ -31,6 +31,11 @@ export default function LobbyPage() {
   const [emailMode, setEmailMode] = useState(false);
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
+
+  // Code verification step (when the user has always_verify_email enabled)
+  const [codeMode, setCodeMode] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeError, setCodeError] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -95,7 +100,13 @@ export default function LobbyPage() {
     setJoinLoading(true);
     setEmailError('');
     try {
-      await logInUser(name, trimmedEmail);
+      const result = await logInUser(name, trimmedEmail);
+      if (result.requires_code) {
+        setCodeMode(true);
+        setCode('');
+        setCodeError('');
+        return;
+      }
       await doJoin(name, trimmedEmail);
     } catch (e) {
       if (e instanceof Error && e.message === 'Wrong email') {
@@ -108,10 +119,33 @@ export default function LobbyPage() {
     }
   };
 
+  const handleVerifyCode = async () => {
+    const name = joinName.trim();
+    const trimmedEmail = email.trim();
+    const trimmedCode = code.trim();
+    if (!trimmedCode) {
+      setCodeError('Please enter the code from your email.');
+      return;
+    }
+    setJoinLoading(true);
+    setCodeError('');
+    try {
+      await verifyLoginCode(name, trimmedCode);
+      await doJoin(name, trimmedEmail);
+    } catch (e) {
+      setCodeError(e instanceof Error ? e.message : 'Verification failed.');
+    } finally {
+      setJoinLoading(false);
+    }
+  };
+
   const handleChooseNewName = () => {
     setEmailMode(false);
     setEmail('');
     setEmailError('');
+    setCodeMode(false);
+    setCode('');
+    setCodeError('');
     setJoinName('');
     setJoinError('');
   };
@@ -181,7 +215,11 @@ export default function LobbyPage() {
                   maxLength={30}
                   placeholder="Name"
                   value={joinName}
-                  onChange={(e) => { setJoinName(e.target.value); setEmailMode(false); }}
+                  onChange={(e) => {
+                    setJoinName(e.target.value);
+                    setEmailMode(false);
+                    setCodeMode(false);
+                  }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !emailMode) handleJoin(); }}
                   autoFocus={!emailMode}
                   readOnly={emailMode}
@@ -202,30 +240,84 @@ export default function LobbyPage() {
                       placeholder="Email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(); }}
-                      autoFocus
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !codeMode) handleLogin(); }}
+                      autoFocus={!codeMode}
+                      readOnly={codeMode}
+                      className={`w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${codeMode ? 'opacity-60 bg-gray-100' : ''}`}
                     />
-                    {emailError && (
+                    {emailError && !codeMode && (
                       <p className="text-red-500 text-sm font-semibold mb-3">{emailError}</p>
                     )}
+
+                    {/* Code step shown when always_verify_email is on */}
+                    {codeMode && (
+                      <>
+                        <p className="text-sm text-gray-600 mb-2">
+                          We sent a 6-digit code to <strong>{email}</strong>.
+                        </p>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          placeholder="6-digit code"
+                          value={code}
+                          onChange={(e) =>
+                            setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                          }
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleVerifyCode(); }}
+                          autoFocus
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 tracking-[0.3em] font-mono text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        {codeError && (
+                          <p className="text-red-500 text-sm font-semibold mb-3">{codeError}</p>
+                        )}
+                      </>
+                    )}
+
                     <div className="flex gap-2 mb-3">
-                      <button
-                        type="button"
-                        onClick={handleLogin}
-                        disabled={!email.trim() || joinLoading}
-                        className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {joinLoading ? 'Logging in…' : 'Log in'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleChooseNewName}
-                        disabled={joinLoading}
-                        className="flex-1 px-4 py-2 rounded-lg bg-gray-200 text-gray-700 font-bold hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        New name
-                      </button>
+                      {codeMode ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleVerifyCode}
+                            disabled={!code.trim() || joinLoading}
+                            className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {joinLoading ? 'Verifying…' : 'Verify'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCodeMode(false);
+                              setCode('');
+                              setCodeError('');
+                            }}
+                            disabled={joinLoading}
+                            className="flex-1 px-4 py-2 rounded-lg bg-gray-200 text-gray-700 font-bold hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Back
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleLogin}
+                            disabled={!email.trim() || joinLoading}
+                            className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {joinLoading ? 'Logging in…' : 'Log in'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleChooseNewName}
+                            disabled={joinLoading}
+                            className="flex-1 px-4 py-2 rounded-lg bg-gray-200 text-gray-700 font-bold hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            New name
+                          </button>
+                        </>
+                      )}
                     </div>
                   </>
                 )}
