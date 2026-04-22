@@ -10,6 +10,7 @@ import SceneOverlay, {
   type PreGameRenderOpts,
 } from '@/components/SceneOverlay';
 import FloatingMessage from './FloatingMessage';
+import BossSignupNudge from '@/components/BossSignupNudge';
 import type { LobbyState } from '@/types/game';
 import { BACKEND_URL } from '@/config';
 
@@ -269,14 +270,45 @@ const lobbyConfig: SceneOverlayConfig = {
 };
 
 export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange }: LobbyOverlayProps) {
+  const [localState, setLocalState] = useState<LobbyState | null>(null);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [playerName, setPlayerName] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setPlayerName(localStorage.getItem('playerName') ?? '');
+    }
+  }, []);
+
+  const handleStateChange = (s: LobbyState | null) => {
+    setLocalState(s);
+    onStateChange?.(s);
+  };
+
+  const myPlayer = localState?.players.find((p) => p.name === playerName);
+  const showNudge =
+    !nudgeDismissed &&
+    (localState?.gameover ?? false) &&
+    (localState?.boss_fight ?? false) &&
+    (myPlayer?.pending_relic_nudge ?? false);
+
   return (
-    <SceneOverlay
-      lobbyId={lobbyId}
-      onStateChange={onStateChange}
-      config={lobbyConfig}
-      renderPreGame={renderPreGame}
-      externalAction={externalAction}
-      onActionChange={onActionChange}
-    />
+    <>
+      <SceneOverlay
+        lobbyId={lobbyId}
+        onStateChange={handleStateChange}
+        config={lobbyConfig}
+        renderPreGame={renderPreGame}
+        externalAction={externalAction}
+        onActionChange={onActionChange}
+      />
+      {showNudge && (
+        <BossSignupNudge
+          lobbyId={lobbyId}
+          playerName={playerName}
+          onDismiss={() => setNudgeDismissed(true)}
+        />
+      )}
+    </>
   );
 }
