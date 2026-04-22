@@ -220,9 +220,12 @@ function renderPreGame({
               >
                 Add Bot
               </button>
-              <InviteSection lobbyId={lobbyId} />
             </div>
           )}
+
+          <div className="mb-4">
+            <InviteSection lobbyId={lobbyId} />
+          </div>
 
           {floatingMessages.map((msg, idx) => (
             <FloatingMessage
