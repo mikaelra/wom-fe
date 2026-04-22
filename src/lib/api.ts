@@ -209,12 +209,17 @@ export async function getAlwaysVerifyEmailFlag(
   return res.json();
 }
 
-export async function updateAlwaysVerifyEmailFlag(
+/**
+ * Ask the server to email a confirmation link to the user. The pending
+ * value is recorded server-side against a token; only clicking the link
+ * (and hitting `confirmToggleVerifyEmail`) will actually flip the flag.
+ */
+export async function requestToggleVerifyEmail(
   name: string,
   email: string,
   alwaysVerifyEmail: boolean
-): Promise<{ success: boolean; always_verify_email: boolean }> {
-  const res = await fetch(`${BACKEND_URL}/update_always_verify_email_flag`, {
+): Promise<{ success: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/request_toggle_verify_email`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -225,7 +230,28 @@ export async function updateAlwaysVerifyEmailFlag(
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error((errorData as { error?: string }).error ?? "Failed to save settings");
+    throw new Error((errorData as { error?: string }).error ?? "Failed to send email.");
+  }
+  return res.json();
+}
+
+export async function confirmToggleVerifyEmail(
+  token: string
+): Promise<{ success: boolean; always_verify_email: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/confirm_toggle_verify_email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (res.status === 410) {
+    throw new Error("Link expired");
+  }
+  if (res.status === 404) {
+    throw new Error("Invalid or expired link");
+  }
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error((errorData as { error?: string }).error ?? "Failed to confirm.");
   }
   return res.json();
 }

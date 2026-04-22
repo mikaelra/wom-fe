@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getAlwaysVerifyEmailFlag, updateAlwaysVerifyEmailFlag } from '@/lib/api';
+import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
 
 const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
@@ -26,13 +26,12 @@ export default function SettingsPage() {
 
   // The value currently stored on the server.
   const [serverValue, setServerValue] = useState(false);
-  // The value the user has clicked toward (pending confirmation).
+  // The value the user has clicked toward (pending email confirmation).
   const [checked, setChecked] = useState(false);
 
-  const [confirming, setConfirming] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [showToggled, setShowToggled] = useState(false);
+  const [awaitingEmail, setAwaitingEmail] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -61,41 +60,39 @@ export default function SettingsPage() {
 
   if (!mounted) return null;
 
-  const handleBoxClick = () => {
-    if (saving || loading || confirming) return;
-    // Flip visually and ask for confirmation. Commit to server only on Yes.
-    setChecked(!serverValue);
-    setConfirming(true);
-    setSaveError('');
-  };
-
-  const handleBack = () => {
-    setConfirming(false);
-    setChecked(serverValue);
-    setSaveError('');
-  };
-
-  const handleYes = async () => {
+  const sendToggleEmail = async (next: boolean) => {
     if (!playerName || !playerEmail) {
-      setSaveError('You must be logged in to change settings.');
+      setSendError('You must be logged in to change settings.');
       return;
     }
-    const next = !serverValue;
-    setSaving(true);
-    setSaveError('');
+    setSending(true);
+    setSendError('');
     try {
-      const data = await updateAlwaysVerifyEmailFlag(playerName, playerEmail, next);
-      setServerValue(!!data.always_verify_email);
-      setChecked(!!data.always_verify_email);
-      setConfirming(false);
-      setShowToggled(true);
-      window.setTimeout(() => setShowToggled(false), 1800);
+      await requestToggleVerifyEmail(playerName, playerEmail, next);
+      setAwaitingEmail(true);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save.');
+      setSendError(err instanceof Error ? err.message : 'Failed to send email.');
       setChecked(serverValue);
+      setAwaitingEmail(false);
     } finally {
-      setSaving(false);
+      setSending(false);
     }
+  };
+
+  const handleBoxClick = () => {
+    if (sending || loading || awaitingEmail) return;
+    const next = !serverValue;
+    setChecked(next);
+    sendToggleEmail(next);
+  };
+
+  const handleResend = () => {
+    if (sending) return;
+    sendToggleEmail(checked);
+  };
+
+  const handleRefresh = () => {
+    window.location.reload();
   };
 
   return (
@@ -131,7 +128,7 @@ export default function SettingsPage() {
                 type="checkbox"
                 checked={checked}
                 onChange={handleBoxClick}
-                disabled={saving || confirming}
+                disabled={sending || awaitingEmail}
                 className="w-5 h-5 accent-amber-500 cursor-pointer"
               />
               <span className="text-base font-semibold">
@@ -143,37 +140,37 @@ export default function SettingsPage() {
               {ALWAYS_VERIFY_EXPLANATION}
             </p>
 
-            {confirming && (
+            {awaitingEmail && (
               <div className="mt-5">
                 <p className="text-orange-400 font-semibold mb-3">
-                  Are you sure?
+                  Click the link sent to your email to confirm this verification
                 </p>
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={handleYes}
-                    disabled={saving}
+                    onClick={handleResend}
+                    disabled={sending}
                     className="px-4 py-2 rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 text-white font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    {saving ? 'Saving…' : 'Yes'}
+                    {sending ? 'Sending…' : 'Resend email'}
                   </button>
                   <button
                     type="button"
-                    onClick={handleBack}
-                    disabled={saving}
+                    onClick={handleRefresh}
+                    disabled={sending}
                     className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 border border-white/10 text-white font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    Back
+                    Refresh page
                   </button>
                 </div>
-                {saveError && (
-                  <p className="text-red-400 text-sm mt-3">{saveError}</p>
+                {sendError && (
+                  <p className="text-red-400 text-sm mt-3">{sendError}</p>
                 )}
               </div>
             )}
 
-            {showToggled && !confirming && (
-              <p className="text-green-400 font-semibold mt-5">Toggled!</p>
+            {!awaitingEmail && sendError && (
+              <p className="text-red-400 text-sm mt-5">{sendError}</p>
             )}
           </div>
         )}
