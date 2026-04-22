@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
@@ -20,6 +20,8 @@ export default function LobbyPage() {
   const [playerNameInit, setPlayerNameInit] = useState(false);
   const [sharedAction, setSharedAction] = useState('');
   const [sharedAttackTarget, setSharedAttackTarget] = useState('');
+
+  const hasAutoJoined = useRef(false);
 
   // Join form state (used when not logged in)
   const [previewState, setPreviewState] = useState<LobbyState | null>(null);
@@ -44,6 +46,20 @@ export default function LobbyPage() {
     }
   }, []);
 
+  // Reset the auto-join guard whenever the lobby changes (e.g. replay redirect).
+  useEffect(() => {
+    hasAutoJoined.current = false;
+  }, [lobbyId]);
+
+  // When the user is already logged in and arrives via an invite link, join the
+  // lobby automatically without showing the join form.
+  useEffect(() => {
+    if (!lobbyId || !playerNameInit || !playerName || hasAutoJoined.current) return;
+    hasAutoJoined.current = true;
+    const email = localStorage.getItem('playerEmail') ?? '';
+    joinLobby(lobbyId, playerName, email).catch(() => {});
+  }, [lobbyId, playerNameInit, playerName]);
+
   // Subscribe to socket state updates once the user has typed a name.
   // The server ignores join_room with an empty name, so we wait until
   // there is something to send.
@@ -66,6 +82,7 @@ export default function LobbyPage() {
   }, [lobbyState?.round]);
 
   const doJoin = async (name: string, emailForJoin = '') => {
+    hasAutoJoined.current = true; // prevent the auto-join effect from re-firing after setPlayerName
     await joinLobby(lobbyId!, name, emailForJoin);
     localStorage.setItem('playerName', name);
     if (emailForJoin) localStorage.setItem('playerEmail', emailForJoin);
