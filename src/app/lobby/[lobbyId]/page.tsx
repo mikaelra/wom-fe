@@ -189,7 +189,7 @@ export default function LobbyPage() {
 
       {showJoinOverlay && (
         <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/40 backdrop-blur-[2px]">
-          <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4">
+          <div className="bg-white backdrop-blur-sm rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4 text-gray-900">
             {gameAlreadyStarted ? (
               <>
                 <p className="text-gray-700 text-center mb-4">This game is already in progress.</p>
@@ -223,7 +223,7 @@ export default function LobbyPage() {
                   onKeyDown={(e) => { if (e.key === 'Enter' && !emailMode) handleJoin(); }}
                   autoFocus={!emailMode}
                   readOnly={emailMode}
-                  className={`w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${emailMode ? 'opacity-60 bg-gray-100' : ''}`}
+                  className={`w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${emailMode ? 'opacity-60 !bg-gray-100' : ''}`}
                 />
                 {joinError && !emailMode && (
                   <p className="text-red-500 text-sm mb-3">{joinError}</p>
@@ -266,7 +266,7 @@ export default function LobbyPage() {
                           }
                           onKeyDown={(e) => { if (e.key === 'Enter') handleVerifyCode(); }}
                           autoFocus
-                          className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 tracking-[0.3em] font-mono text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 bg-white text-gray-900 placeholder-gray-400 tracking-[0.3em] font-mono text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                         {codeError && (
                           <p className="text-red-500 text-sm font-semibold mb-3">{codeError}</p>
