@@ -61,12 +61,10 @@ export async function getRaidLobby(playerName: string): Promise<{ lobby_id: stri
     throw new Error((errorData as { error?: string }).error ?? "Failed to enter raid.");
   }
   const data = await res.json();
-  // Emit join_lobby so the server broadcasts the updated player list to the room.
   const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
   getSocket().emit("join_lobby", { lobby_id: data.lobby_id, name: playerName, email });
   return data;
 }
-
 
 export async function getState(lobbyId: string): Promise<import("@/types/game").LobbyState> {
   const res = await fetch(`${BACKEND_URL}/get_state/${lobbyId}`);
@@ -103,7 +101,6 @@ export async function createGremlinLobby(playerName: string): Promise<{ lobby_id
   return res.json();
 }
 
-
 export async function getPlayerMessages(
   lobbyId: string,
   playerName: string
@@ -112,7 +109,6 @@ export async function getPlayerMessages(
   if (!res.ok) return { messages: [] };
   return res.json();
 }
-
 
 export async function requestReplay(lobbyId: string, player: string): Promise<{ next_lobby_id?: string }> {
   const res = await fetch(`${BACKEND_URL}/request_replay/${lobbyId}`, {
@@ -127,11 +123,6 @@ export async function requestReplay(lobbyId: string, player: string): Promise<{ 
   return res.json();
 }
 
-/**
- * Check whether a player name is already claimed (linked to an email).
- * Returns { claimed: true } if the user must authenticate with their email
- * before using the name, and { claimed: false } if the name is free to use.
- */
 export async function checkName(name: string): Promise<{ claimed: boolean }> {
   const res = await fetch(`${BACKEND_URL}/check_name`, {
     method: "POST",
@@ -145,10 +136,6 @@ export async function checkName(name: string): Promise<{ claimed: boolean }> {
   return res.json();
 }
 
-/**
- * Verify that the given email matches the claimed name.
- * Resolves on success, rejects with "Wrong email" on a 403 mismatch.
- */
 export async function logInUser(
   name: string,
   email: string
@@ -177,15 +164,9 @@ export async function verifyLoginCode(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, code }),
   });
-  if (res.status === 403) {
-    throw new Error("Wrong code");
-  }
-  if (res.status === 410) {
-    throw new Error("Code expired");
-  }
-  if (res.status === 429) {
-    throw new Error("Too many attempts");
-  }
+  if (res.status === 403) throw new Error("Wrong code");
+  if (res.status === 410) throw new Error("Code expired");
+  if (res.status === 429) throw new Error("Too many attempts");
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error((errorData as { error?: string }).error ?? "Verification failed");
@@ -209,11 +190,6 @@ export async function getAlwaysVerifyEmailFlag(
   return res.json();
 }
 
-/**
- * Ask the server to email a confirmation link to the user. The pending
- * value is recorded server-side against a token; only clicking the link
- * (and hitting `confirmToggleVerifyEmail`) will actually flip the flag.
- */
 export async function requestToggleVerifyEmail(
   name: string,
   email: string,
@@ -222,11 +198,7 @@ export async function requestToggleVerifyEmail(
   const res = await fetch(`${BACKEND_URL}/request_toggle_verify_email`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name,
-      email,
-      always_verify_email: alwaysVerifyEmail,
-    }),
+    body: JSON.stringify({ name, email, always_verify_email: alwaysVerifyEmail }),
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
@@ -243,15 +215,28 @@ export async function confirmToggleVerifyEmail(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token }),
   });
-  if (res.status === 410) {
-    throw new Error("Link expired");
-  }
-  if (res.status === 404) {
-    throw new Error("Invalid or expired link");
-  }
+  if (res.status === 410) throw new Error("Link expired");
+  if (res.status === 404) throw new Error("Invalid or expired link");
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error((errorData as { error?: string }).error ?? "Failed to confirm.");
+  }
+  return res.json();
+}
+
+export async function claimPendingRelic(
+  lobbyId: string,
+  name: string,
+  email: string
+): Promise<{ success: boolean; relic_name: string }> {
+  const res = await fetch(`${BACKEND_URL}/claim_pending_relic`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lobby_id: lobbyId, name, email }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { error?: string }).error ?? "Failed to claim relic");
   }
   return res.json();
 }
