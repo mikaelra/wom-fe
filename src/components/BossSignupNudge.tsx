@@ -45,7 +45,7 @@ export default function BossSignupNudge({ lobbyId, playerName, onDismiss }: Prop
             <p className="text-green-400 font-bold text-lg mb-1">Relic claimed!</p>
             <p className="text-amber-300 text-sm mb-1">{claimedRelicName}</p>
             <p className="text-gray-400 text-sm mb-5">
-              Your name is now linked to your email. Find your relics in the vault.
+              Your name is now linked to your email. Find your relics in your profile on the home page.
             </p>
             <button
               type="button"
