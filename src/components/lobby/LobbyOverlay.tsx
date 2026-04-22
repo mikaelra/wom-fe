@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { QRCodeSVG } from 'qrcode.react';
 import SceneOverlay, {
   type SceneOverlayConfig,
   type GameOverRenderOpts,
@@ -18,6 +19,88 @@ type LobbyOverlayProps = {
   externalAction?: string;
   onActionChange?: (action: string) => void;
 };
+
+function InviteSection({ lobbyId }: { lobbyId: string }) {
+  const [showQR, setShowQR] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const lobbyUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/lobby/${lobbyId}`
+    : `/lobby/${lobbyId}`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(lobbyUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <>
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-sm font-semibold text-gray-600">Invite</span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            title={copied ? 'Copied!' : 'Copy lobby link'}
+            onClick={handleCopy}
+            className="p-2 rounded-lg border-2 border-black bg-gray-100 hover:bg-gray-200 cursor-pointer transition-colors"
+          >
+            {copied ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            )}
+          </button>
+          <button
+            type="button"
+            title="Show QR code"
+            onClick={() => setShowQR(true)}
+            className="p-2 rounded-lg border-2 border-black bg-gray-100 hover:bg-gray-200 cursor-pointer transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+              <rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none" />
+              <rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none" />
+              <rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none" />
+              <path d="M14 14h.01M17 14h.01M20 14h.01M14 17h.01M17 17h3M17 20h3" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {showQR && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setShowQR(false)}
+        >
+          <div
+            className="bg-white rounded-2xl p-8 shadow-2xl relative flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setShowQR(false)}
+              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold cursor-pointer transition-colors"
+            >
+              ✕
+            </button>
+            <h3 className="text-xl font-bold mb-5 text-gray-800">Scan to Join</h3>
+            <QRCodeSVG value={lobbyUrl} size={200} />
+            <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[200px]">{lobbyUrl}</p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 function renderGameOver({ state, playerName, btn, replayVoted, replayLoading, onReplay }: GameOverRenderOpts) {
   return (
@@ -122,7 +205,7 @@ function renderPreGame({
           </div>
 
           {isAdmin && (
-            <div className="flex flex-wrap gap-3 mb-4">
+            <div className="flex flex-wrap gap-3 mb-4 items-end">
               <button
                 type="button"
                 onClick={onStartGame}
@@ -137,6 +220,7 @@ function renderPreGame({
               >
                 Add Bot
               </button>
+              <InviteSection lobbyId={lobbyId} />
             </div>
           )}
 
