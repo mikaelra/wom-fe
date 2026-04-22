@@ -15,6 +15,7 @@ export interface Player {
   submittedAction?: string;
   submittedResource?: string;
   target?: string;
+  pending_relic_nudge?: boolean;
 }
 
 export interface ChatMessage {
