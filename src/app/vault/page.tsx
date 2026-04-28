@@ -237,7 +237,10 @@ function InsideVault({ vaultResult }: { vaultResult: VaultResult }) {
         ) : (
           <>
             <h2 style={{ fontSize: '24px', fontWeight: 'bold' }}>Welcome to the Vault!</h2>
-            {vaultResult.og_keyfinder === '' && (
+            <p style={{ marginTop: '20px' }}>You can share the vault code freely!</p>
+            <p>The code is &apos;{vaultCode}&apos; and &apos;{vaultResult.og_keyfinder}&apos;.</p>
+            <p>{vaultResult.seen_before} players have been in the vault before you.</p>
+            {!vaultResult.og_keyfinder && (
               <>
                 <p>Noone has claimed the name yet.</p>
                 <p>Now is your chance.</p>
@@ -270,13 +273,6 @@ function InsideVault({ vaultResult }: { vaultResult: VaultResult }) {
                   Submit Name
                 </button>
               </>
-            )}
-            <p style={{ marginTop: '20px' }}>You can share the vault code freely!</p>
-            <p>{vaultResult.seen_before} players have been in the vault before you.</p>
-            {vaultResult.og_keyfinder !== '' && (
-              <div>
-                <p>The code is &apos;{vaultCode}&apos; and &apos;{vaultResult.og_keyfinder}&apos;.</p>
-              </div>
             )}
             <img
               src="/images/artifacts/Elements.svg"
