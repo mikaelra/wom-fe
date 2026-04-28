@@ -59,16 +59,16 @@ export default function VaultPage() {
         <p>Everytime you win the raid, there is a 1 in 1000 chance to get the key.</p>
         <p>The first person to find the key, will have their name forever etched in this game.</p>
         <p>Their name will become an additional key to the artifact.</p>
-        <p>The key will be an 8 digit number.</p>
+        <p>The key will be a 7 digit number.</p>
         <p className="mt-4 font-bold">Do you have the key?</p>
 
         <input
           type="text"
           value={keycode}
           onChange={(e) => setKeycode(e.target.value)}
-          maxLength={8}
+          maxLength={12}
           className="mt-4 p-2 border rounded"
-          placeholder="Enter 8-digit code"
+          placeholder="Enter 7-digit code"
         />
         <button
           onClick={checkKeycode}
