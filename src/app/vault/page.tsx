@@ -11,6 +11,7 @@ interface VaultResult {
   first: boolean;
   seen_before?: number;
   og_keyfinder: string;
+  passkey?: string;
 }
 
 export default function VaultPage() {
@@ -104,6 +105,7 @@ function InsideVault({ vaultResult }: { vaultResult: VaultResult }) {
   const [error, setError] = useState('');
 
   const vaultCode = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('vault_code') || '' : '';
+  const numberCode = vaultResult.passkey || vaultCode;
 
   const handleNameSubmit = async () => {
     try {
@@ -237,9 +239,7 @@ function InsideVault({ vaultResult }: { vaultResult: VaultResult }) {
         ) : (
           <>
             <h2 style={{ fontSize: '24px', fontWeight: 'bold' }}>Welcome to the Vault!</h2>
-            <p style={{ marginTop: '20px' }}>The code is &apos;{vaultCode}&apos; and &apos;{vaultResult.og_keyfinder}&apos;.</p>
-            <p>{vaultResult.seen_before} players have been in the vault before you.</p>
-            {!vaultResult.og_keyfinder && (
+            {vaultResult.og_keyfinder === '' && (
               <>
                 <p>Noone has claimed the name yet.</p>
                 <p>Now is your chance.</p>
@@ -272,6 +272,12 @@ function InsideVault({ vaultResult }: { vaultResult: VaultResult }) {
                   Submit Name
                 </button>
               </>
+            )}
+            <p>{vaultResult.seen_before} players have been in the vault before you.</p>
+            {vaultResult.og_keyfinder !== '' && (
+              <div>
+                <p>The code is &apos;{numberCode}&apos; and &apos;{vaultResult.og_keyfinder}&apos;.</p>
+              </div>
             )}
             <img
               src="/images/artifacts/Elements.svg"
