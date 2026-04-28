@@ -15,8 +15,8 @@ import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
 import {
   createGremlinLobby,
-  getRaidLobby,
-  getNextRaidTime,
+  getBossfightLobby,
+  getNextBossfightTime,
   checkName,
   logInUser,
 } from '@/lib/api';
@@ -203,7 +203,7 @@ export default function Page() {
     if (selectedCity) return;
     let cancelled = false;
     let intervalId: ReturnType<typeof setInterval> | null = null;
-    getNextRaidTime()
+    getNextBossfightTime()
       .then((json) => {
         if (cancelled) return;
         const nextRT = new Date(json.start_time);
@@ -222,7 +222,7 @@ export default function Page() {
   }, [selectedCity]);
 
   const enterAthensRaid = useCallback((playerName: string) => {
-    getRaidLobby(playerName)
+    getBossfightLobby(playerName)
       .then((data) => router.push(`/lobby/${data.lobby_id}`))
       .catch((err) => alert(err instanceof Error ? err.message : 'Failed to enter raid.'));
   }, [router]);

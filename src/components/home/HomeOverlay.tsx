@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import {
   createLobby,
   joinLobby,
-  getRaidLobby,
-  getNextRaidTime,
+  getBossfightLobby,
+  getNextBossfightTime,
   getPlayerRelics,
   checkName,
   logInUser,
@@ -66,7 +66,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     if (!mounted) return;
     let cancelled = false;
     let intervalId: ReturnType<typeof setInterval> | null = null;
-    getNextRaidTime()
+    getNextBossfightTime()
       .then((json) => {
         if (cancelled) return;
         const nextRT = new Date(json.start_time);
@@ -227,7 +227,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
       return;
     }
     try {
-      const data = await getRaidLobby(playerName);
+      const data = await getBossfightLobby(playerName);
       router.push(`/lobby/${data.lobby_id}`);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to enter raid.');

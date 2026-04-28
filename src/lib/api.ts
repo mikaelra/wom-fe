@@ -50,15 +50,15 @@ export async function joinLobby(
   });
 }
 
-export async function getRaidLobby(playerName: string): Promise<{ lobby_id: string }> {
-  const res = await fetch(`${BACKEND_URL}/get_raid_lobby`, {
+export async function getBossfightLobby(playerName: string): Promise<{ lobby_id: string }> {
+  const res = await fetch(`${BACKEND_URL}/get_bossfight_lobby`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: playerName }),
   });
   if (!res.ok) {
     const errorData = await res.json();
-    throw new Error((errorData as { error?: string }).error ?? "Failed to enter raid.");
+    throw new Error((errorData as { error?: string }).error ?? "Failed to enter boss fight.");
   }
   const data = await res.json();
   const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
@@ -72,9 +72,9 @@ export async function getState(lobbyId: string): Promise<import("@/types/game").
   return res.json();
 }
 
-export async function getNextRaidTime(): Promise<{ start_time: number }> {
-  const res = await fetch(`${BACKEND_URL}/get_next_raid_time`);
-  if (!res.ok) throw new Error("Failed to fetch next raid time");
+export async function getNextBossfightTime(): Promise<{ start_time: number }> {
+  const res = await fetch(`${BACKEND_URL}/get_next_bossfight_time`);
+  if (!res.ok) throw new Error("Failed to fetch next boss fight time");
   return res.json();
 }
 

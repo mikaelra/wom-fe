@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  getNextRaidTime,
+  getNextBossfightTime,
   getPlayerMessages,
   requestReplay,
   getSocket,
@@ -246,7 +246,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   useEffect(() => {
     if (!enableRaidTimer || !isAlive) return;
-    getNextRaidTime()
+    getNextBossfightTime()
       .then((json) => setNextRaidTime(json.start_time))
       .catch(() => setNextRaidTime(null));
   }, [isAlive, enableRaidTimer]);
