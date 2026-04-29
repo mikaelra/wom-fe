@@ -5,6 +5,7 @@ import { Environment, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { usePanOffset } from '@/lib/usePanOffset';
+import { assignSkins, ALL_FROG_SKINS, skinUrl } from '@/lib/frogSkins';
 import type { LobbyState } from '@/types/game';
 
 // Table center; gremlin sits on far side (−Z), player/cherub on near side (+Z)
@@ -77,11 +78,13 @@ function BattleTable() {
 function CherubModel({
   position,
   rotation,
+  modelUrl,
 }: {
   position: [number, number, number];
   rotation?: [number, number, number];
+  modelUrl: string;
 }) {
-  const { scene } = useGLTF('/models/frogv01.glb');
+  const { scene } = useGLTF(modelUrl);
   const clone = useMemo(() => scene.clone(), [scene]);
   const groupRef = useRef<THREE.Group>(null!);
   const bobRef = useRef(0);
@@ -251,11 +254,19 @@ function WoodenSignpost({ show }: { show: boolean }) {
 
 type GremlinSceneProps = {
   state: LobbyState | null;
+  playerName?: string;
+  lobbyId?: string;
 };
 
-export default function GremlinScene({ state }: GremlinSceneProps) {
+export default function GremlinScene({ state, playerName, lobbyId = '' }: GremlinSceneProps) {
   const gremlin = state?.players.find((p) => p.gremlin || p.boss);
   const gremlinAlive = gremlin ? gremlin.hp > 0 : true;
+
+  const cherubSkinUrl = useMemo(() => {
+    const frogPlayers = (state?.players ?? []).filter((p) => !p.gremlin && !p.boss && !p.lost_soul && p.name !== 'TURTLE');
+    const skinMap = assignSkins(frogPlayers, lobbyId);
+    return (playerName ? skinMap.get(playerName) : undefined) ?? skinUrl('frog_green_v1');
+  }, [state?.players, playerName, lobbyId]);
 
   const trees = useMemo(
     () =>
@@ -328,7 +339,7 @@ export default function GremlinScene({ state }: GremlinSceneProps) {
       <GremlinModel alive={gremlinAlive} position={GREMLIN_POS} />
 
       {/* Player — frog model, near side of table, facing the gremlin */}
-      <CherubModel position={CHERUB_POS} rotation={[0, Math.PI, 0]} />
+      <CherubModel position={CHERUB_POS} rotation={[0, Math.PI, 0]} modelUrl={cherubSkinUrl} />
 
       {/* Signpost flies in from the sky when the gremlin is defeated */}
       <WoodenSignpost show={!gremlinAlive} />
@@ -339,6 +350,6 @@ export default function GremlinScene({ state }: GremlinSceneProps) {
 }
 
 // Preload models
-useGLTF.preload('/models/frogv01.glb');
 useGLTF.preload('/models/wellv02.glb');
 useGLTF.preload('/models/gremlinv01.glb');
+ALL_FROG_SKINS.forEach((s) => useGLTF.preload(skinUrl(s)));

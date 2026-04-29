@@ -12,6 +12,11 @@ export default function GremlinPage() {
   const params = useParams();
   const lobbyId = params?.lobbyId as string | undefined;
   const [lobbyState, setLobbyState] = useState<import('@/types/game').LobbyState | null>(null);
+  const [playerName, setPlayerName] = useState('');
+
+  useEffect(() => {
+    setPlayerName(localStorage.getItem('playerName') ?? '');
+  }, []);
 
   if (!lobbyId) {
     return (
@@ -28,7 +33,7 @@ export default function GremlinPage() {
         shadows
         style={{ position: 'absolute', inset: 0 }}
       >
-        <GremlinScene state={lobbyState} />
+        <GremlinScene state={lobbyState} playerName={playerName} lobbyId={lobbyId} />
       </Canvas>
       <GremlinOverlay lobbyId={lobbyId} onStateChange={setLobbyState} />
     </div>
