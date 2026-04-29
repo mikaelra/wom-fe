@@ -8,6 +8,7 @@ import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import { getSocket } from '@/lib/api';
+import { assignSkins, ALL_FROG_SKINS, skinUrl } from '@/lib/frogSkins';
 import {
   TABLE_POSITION,
   SCENE_CENTER,
@@ -65,6 +66,7 @@ function PlayerWithName({
   actionCue,
   chatBubble,
   isBoss,
+  frogSkinUrl,
 }: {
   name: string;
   position: [number, number, number];
@@ -78,8 +80,9 @@ function PlayerWithName({
   actionCue?: string;
   chatBubble?: string;
   isBoss?: boolean;
+  frogSkinUrl?: string;
 }) {
-  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hadesv01.glb' : '/models/frogv01.glb';
+  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hadesv01.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   return (
     <group position={position} rotation={rotation}>
       <PlayerV1
@@ -260,8 +263,8 @@ function LostSoulModel({
 }
 
 useGLTF.preload('/models/ghost.glb');
-useGLTF.preload('/models/frogv01.glb');
 useGLTF.preload('/models/turtlev01.glb');
+ALL_FROG_SKINS.forEach((s) => useGLTF.preload(skinUrl(s)));
 
 type LobbySceneProps = {
   state: LobbyState | null;
@@ -285,6 +288,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   const allPlayers = state?.players ?? [];
   const lostSouls = allPlayers.filter((p) => p.lost_soul);
+
+  // Compute skins for all frog players deterministically from their names so
+  // every client agrees without any server round-trip.
+  const skinMap = useMemo(() => {
+    const frogPlayers = allPlayers.filter((p) => !p.boss && !p.gremlin && !p.lost_soul && p.name !== 'TURTLE');
+    return assignSkins(frogPlayers);
+  }, [allPlayers]);
+
   // Sort so current player is slot 0 (near camera) and boss is slot 1 (far side of table)
   const players = allPlayers
     .filter((p) => !p.lost_soul)
@@ -355,6 +366,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             isDead={isDead}
             isWinner={!!isWinner}
             isBoss={isBoss}
+            frogSkinUrl={skinMap.get(player.name)}
             showAttackButton={showAttackButtons && isOpponent && !isDead && !isBoss}
             onAttack={() => handleAttack(player.name)}
             isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
