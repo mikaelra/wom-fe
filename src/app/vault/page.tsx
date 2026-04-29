@@ -11,6 +11,7 @@ interface VaultResult {
   first: boolean;
   seen_before?: number;
   og_keyfinder: string;
+  passkey?: string;
 }
 
 export default function VaultPage() {
@@ -104,6 +105,7 @@ function InsideVault({ vaultResult }: { vaultResult: VaultResult }) {
   const [error, setError] = useState('');
 
   const vaultCode = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('vault_code') || '' : '';
+  const numberCode = vaultResult.passkey || vaultCode;
 
   const handleNameSubmit = async () => {
     try {
@@ -271,11 +273,10 @@ function InsideVault({ vaultResult }: { vaultResult: VaultResult }) {
                 </button>
               </>
             )}
-            <p style={{ marginTop: '20px' }}>You can share the vault code freely!</p>
             <p>{vaultResult.seen_before} players have been in the vault before you.</p>
             {vaultResult.og_keyfinder !== '' && (
               <div>
-                <p>The code is &apos;{vaultCode}&apos; and &apos;{vaultResult.og_keyfinder}&apos;.</p>
+                <p>The code is &apos;{numberCode}&apos; and &apos;{vaultResult.og_keyfinder}&apos;.</p>
               </div>
             )}
             <img
