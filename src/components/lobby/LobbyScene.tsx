@@ -293,8 +293,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // every client agrees without any server round-trip.
   const skinMap = useMemo(() => {
     const frogPlayers = allPlayers.filter((p) => !p.boss && !p.gremlin && !p.lost_soul && p.name !== 'TURTLE');
-    return assignSkins(frogPlayers);
-  }, [allPlayers]);
+    return assignSkins(frogPlayers, lobbyId);
+  }, [allPlayers, lobbyId]);
 
   // Sort so current player is slot 0 (near camera) and boss is slot 1 (far side of table)
   const players = allPlayers

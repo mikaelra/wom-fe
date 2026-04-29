@@ -33,7 +33,7 @@ export default function GremlinPage() {
         shadows
         style={{ position: 'absolute', inset: 0 }}
       >
-        <GremlinScene state={lobbyState} playerName={playerName} />
+        <GremlinScene state={lobbyState} playerName={playerName} lobbyId={lobbyId} />
       </Canvas>
       <GremlinOverlay lobbyId={lobbyId} onStateChange={setLobbyState} />
     </div>

@@ -255,17 +255,18 @@ function WoodenSignpost({ show }: { show: boolean }) {
 type GremlinSceneProps = {
   state: LobbyState | null;
   playerName?: string;
+  lobbyId?: string;
 };
 
-export default function GremlinScene({ state, playerName }: GremlinSceneProps) {
+export default function GremlinScene({ state, playerName, lobbyId = '' }: GremlinSceneProps) {
   const gremlin = state?.players.find((p) => p.gremlin || p.boss);
   const gremlinAlive = gremlin ? gremlin.hp > 0 : true;
 
   const cherubSkinUrl = useMemo(() => {
     const frogPlayers = (state?.players ?? []).filter((p) => !p.gremlin && !p.boss && !p.lost_soul && p.name !== 'TURTLE');
-    const skinMap = assignSkins(frogPlayers);
+    const skinMap = assignSkins(frogPlayers, lobbyId);
     return (playerName ? skinMap.get(playerName) : undefined) ?? skinUrl('frog_green_v1');
-  }, [state?.players, playerName]);
+  }, [state?.players, playerName, lobbyId]);
 
   const trees = useMemo(
     () =>
