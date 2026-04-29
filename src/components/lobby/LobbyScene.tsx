@@ -53,6 +53,30 @@ function CameraFlyIn() {
 
 const CHAT_BUBBLE_DURATION_MS = 4000;
 
+function WinnerCrown({ worldPosition }: { worldPosition: [number, number, number] | null }) {
+  const { scene } = useGLTF('/models/crowns/crown_ld_v1.glb');
+  const crownScene = useMemo(() => scene.clone(), [scene]);
+  const ref = useRef<THREE.Group>(null);
+
+  useFrame((clockState) => {
+    if (ref.current && worldPosition) {
+      ref.current.position.y = worldPosition[1] + 1.05 + Math.sin(clockState.clock.elapsedTime * 2.2) * 0.06;
+      ref.current.rotation.y = clockState.clock.elapsedTime * 0.45;
+    }
+  });
+
+  if (!worldPosition) return null;
+
+  return (
+    <group
+      ref={ref}
+      position={[worldPosition[0], worldPosition[1] + 1.05, worldPosition[2]]}
+    >
+      <primitive object={crownScene} scale={0.35} />
+    </group>
+  );
+}
+
 function PlayerWithName({
   name,
   position,
@@ -264,6 +288,7 @@ function LostSoulModel({
 
 useGLTF.preload('/models/ghost.glb');
 useGLTF.preload('/models/turtlev01.glb');
+useGLTF.preload('/models/crowns/crown_ld_v1.glb');
 ALL_FROG_SKINS.forEach((s) => useGLTF.preload(skinUrl(s)));
 
 type LobbySceneProps = {
@@ -308,7 +333,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   const myPlayer = state?.players.find((p) => p.name === playerName);
   const gameOver = state?.gameover ?? false;
+  const isBossFight = !!state?.boss_fight;
   const isDenied = playerName === state?.deny_target;
+
+  // Compute world-space position for the crown (above winner's head, private lobbies only)
+  const crownPosition = useMemo((): [number, number, number] | null => {
+    if (!gameOver || isBossFight || !winner) return null;
+    const winnerIndex = players.findIndex((p) => p.name === winner);
+    if (winnerIndex < 0) return null;
+    const slot = PLAYER_POSITIONS[winnerIndex];
+    if (!slot) return null;
+    return slot.position;
+  }, [gameOver, isBossFight, winner, players]);
   const isAlive = (myPlayer?.hp ?? 0) > 0;
   const gameStarted = (state?.round ?? 0) > 0;
   const showAttackButtons = gameStarted && !gameOver && !isDenied && isAlive && !myPlayer?.spectator;
@@ -392,6 +428,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         );
       })}
 
+      <WinnerCrown worldPosition={crownPosition} />
       <Environment preset="sunset" />
     </>
   );
