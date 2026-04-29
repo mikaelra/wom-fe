@@ -53,6 +53,26 @@ function CameraFlyIn() {
 
 const CHAT_BUBBLE_DURATION_MS = 4000;
 
+function WinnerCrown() {
+  const { scene } = useGLTF('/models/crowns/crown_ld_v1.glb');
+  const crownScene = useMemo(() => scene.clone(), [scene]);
+  const ref = useRef<THREE.Group>(null);
+  const baseY = 1.05;
+
+  useFrame((state) => {
+    if (ref.current) {
+      ref.current.position.y = baseY + Math.sin(state.clock.elapsedTime * 2.2) * 0.06;
+      ref.current.rotation.y = state.clock.elapsedTime * 0.45;
+    }
+  });
+
+  return (
+    <group ref={ref} position={[0, baseY, 0]}>
+      <primitive object={crownScene} scale={0.35} />
+    </group>
+  );
+}
+
 function PlayerWithName({
   name,
   position,
@@ -60,6 +80,7 @@ function PlayerWithName({
   isAnimating,
   isDead,
   isWinner,
+  showCrown,
   showAttackButton,
   onAttack,
   isAttackSelected,
@@ -74,6 +95,7 @@ function PlayerWithName({
   isAnimating: boolean;
   isDead?: boolean;
   isWinner?: boolean;
+  showCrown?: boolean;
   showAttackButton?: boolean;
   onAttack?: () => void;
   isAttackSelected?: boolean;
@@ -92,6 +114,7 @@ function PlayerWithName({
         rotation={[0, 0, 0]}
         isAnimating={isAnimating}
       />
+      {showCrown && <WinnerCrown />}
       {chatBubble && (
         <Html position={[0, 1.3, 0]} center distanceFactor={3}>
           <div style={{
@@ -264,6 +287,7 @@ function LostSoulModel({
 
 useGLTF.preload('/models/ghost.glb');
 useGLTF.preload('/models/turtlev01.glb');
+useGLTF.preload('/models/crowns/crown_ld_v1.glb');
 ALL_FROG_SKINS.forEach((s) => useGLTF.preload(skinUrl(s)));
 
 type LobbySceneProps = {
@@ -308,6 +332,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   const myPlayer = state?.players.find((p) => p.name === playerName);
   const gameOver = state?.gameover ?? false;
+  const isBossFight = !!state?.boss_fight;
   const isDenied = playerName === state?.deny_target;
   const isAlive = (myPlayer?.hp ?? 0) > 0;
   const gameStarted = (state?.round ?? 0) > 0;
@@ -365,6 +390,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             isAnimating={true}
             isDead={isDead}
             isWinner={!!isWinner}
+            showCrown={!!isWinner && gameOver && !isBossFight}
             isBoss={isBoss}
             frogSkinUrl={skinMap.get(player.name)}
             showAttackButton={showAttackButtons && isOpponent && !isDead && !isBoss}
