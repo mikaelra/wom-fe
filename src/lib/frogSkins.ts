@@ -39,17 +39,19 @@ function hash(str: string): number {
 // Seeded from playerName + lobbyId so the result varies per lobby.
 // Returns -1 for common, 0 = silver, 1 = gold, 2 = rainbow, 3 = bling.
 //
-// Roll sequence (mirrors the spec):
-//   1-in-5  → if true, proceed; else common
-//   1-in-2  → if false, silver; if true, proceed
-//   1-in-5  → if false, gold; if true, proceed
-//   1-in-2  → if false, rainbow; if true, bling
+// Drop rates (single roll, mutually exclusive):
+//   1/100 → bling
+//   1/20  → rainbow
+//   1/10  → gold
+//   1/5   → silver
+//   rest  → common (64%)
 function rareTierFor(seed: string): number {
-  if (hash(seed + ':r1') >= 0.2) return -1; // 4/5 chance → common
-  if (hash(seed + ':r2') < 0.5) return 0;   // 1/2 chance → silver
-  if (hash(seed + ':r3') >= 0.2) return 1;  // 4/5 chance → gold
-  if (hash(seed + ':r4') < 0.5) return 2;   // 1/2 chance → rainbow
-  return 3;                                   // bling
+  const r = hash(seed + ':rare');
+  if (r < 0.01) return 3;  // 1/100 → bling
+  if (r < 0.06) return 2;  // 1/20  → rainbow (0.05 width)
+  if (r < 0.16) return 1;  // 1/10  → gold    (0.10 width)
+  if (r < 0.36) return 0;  // 1/5   → silver  (0.20 width)
+  return -1;                // common
 }
 
 // Assign a skin URL to every player in order.
