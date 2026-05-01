@@ -52,6 +52,7 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 8. [Combat Screen Overhaul](#8-combat-screen-overhaul)
 9. [Chat System](#9-chat-system)
 10. [Purchasable Stages (Merch)](#10-purchasable-stages-merch)
+10A. [Skin Inventory, Trading & Friend System](#10a-skin-inventory-trading--friend-system)
 11. [Distribution — App Stores & Steam](#11-distribution--app-stores--steam)
 12. [Technical Architecture Changes](#12-technical-architecture-changes)
 13. [Email Service](#13-email-service)
@@ -1139,6 +1140,338 @@ The frontend loads the 3D arena environment based on this. No changes to the com
 
 ---
 
+## 10A. Skin Inventory, Trading & Friend System
+
+### 10A.1 Concept
+
+The rare skins that players roll for when entering a lobby can also be **bought for real money**. The same skins are tradable between players, which implies a **friend system** with **chat**, **trading windows**, and **block/report controls**. Together these systems form a coherent monetization + social loop:
+
+> Play → roll a chance for a rare skin → finish the match to lock it into your account → set preferences or trade with friends → optionally buy skins outright in the shop.
+
+This should be **post-alpha**, but is targeted to ship **within the next 4 months** as it can secure a steady revenue stream while extending the social depth of the game.
+
+### 10A.2 Skin Tiers, Pricing & Drop Rates
+
+| Tier | Price (USD) | Source |
+|------|-------------|--------|
+| **Common** | Free | Always available — earned simply by playing through a game |
+| **Silver** | $5 | Rare lobby roll OR shop purchase |
+| **Gold** | $10 | Rare lobby roll OR shop purchase |
+| **Rainbow** | $50 | Rare lobby roll OR shop purchase |
+| **Bling** | $100 | Rare lobby roll OR shop purchase |
+
+The **Skin Shop** displays each rare tier alongside:
+- Price for direct purchase
+- Drop-rate information (how often you can earn this skin just by playing)
+- A spinning 3D preview
+- Ownership state (owned / not owned / quantity owned for stackable rares)
+
+### 10A.3 Inventory Model
+
+Today, **relics** (e.g., the coin from the Hades raid) are stored on a player's "inventory" on their account. The inventory model expands as follows:
+
+- **Buying a skin** → added to inventory immediately on purchase confirmation
+- **Rolling a rare skin in a lobby** → the player must **play through the entire match** to receive it; if they leave early, no skin is awarded
+- **Common skins** are not counted (no quantity counter) — once unlocked they exist as a single owned entry on the account
+- **Rare skins are stackable** — a player can own multiple of the same rare skin, which is what enables trading
+- All skin ownership is **locked to the account** (i.e., requires a claimed name with email, just like raid relics)
+
+### 10A.4 Profile Bar — New "Skins" Row
+
+The profile bar in the **top-right corner of the home page** gets a new entry:
+
+```
+┌────────────────────────────────────┐
+│  Profile                            │
+│  ─────────────────────────────────  │
+│  ▸ Account / Stats                  │
+│  ▸ Relics                           │
+│  ▸ Skins      ← NEW                 │
+│  ▸ Stages                           │
+│  ▸ Friends                          │
+│  ▸ Settings                         │
+└────────────────────────────────────┘
+```
+
+#### Skins Page Layout
+
+```
+┌────────────────────────────────────────────────────────┐
+│  MY SKINS                                       [Back]  │
+│                                                         │
+│  Unlocked through play:                                 │
+│  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐         │
+│  │ Sky  │ │Forest│ │ Lava │ │ Mist │ │ ... │         │
+│  │ ✅   │ │ ✅   │ │ ✅   │ │ ✅   │ │     │         │
+│  └──────┘ └──────┘ └──────┘ └──────┘ └──────┘         │
+│                                                         │
+│  PREFERENCES                                            │
+│  1st preference: [ Forest ▾ ]    [Clear]                │
+│  2nd preference: [ Lava   ▾ ]    [Clear]                │
+│  ☐ No preference (recommended — unlocks new skins)      │
+│                                                         │
+│  RARE SKINS                                             │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐          │
+│  │  🌀 3D     │ │  🌀 3D     │ │  🌀 3D     │          │
+│  │  spin      │ │  spin      │ │  spin      │          │
+│  │  Silver    │ │  Gold      │ │  Rainbow   │          │
+│  │  Owned x2  │ │  $10 [Buy] │ │  Locked 🔒 │          │
+│  │  [Buy More]│ │            │ │  $50 [Buy] │          │
+│  └────────────┘ └────────────┘ └────────────┘          │
+│  Drop rate: 1 in 50 lobbies (Silver)                    │
+│  Drop rate: 1 in 200 lobbies (Gold)                     │
+│  Drop rate: 1 in 1000 lobbies (Rainbow)                 │
+│  Drop rate: 1 in 5000 lobbies (Bling)                   │
+└────────────────────────────────────────────────────────┘
+```
+
+- **Unlocked skins appear at the top** with the option to set a 1st and 2nd preference (or none).
+- **Rare skins** are presented at the bottom with a **3D spinning preview**.
+- If a rare skin is **not owned**, the preview is **greyed out** and a **[Buy] button** is shown directly under it.
+- If it **is owned**, the preview is full-color and a **[Buy More] button** is still available (since rares are tradable and stackable).
+
+### 10A.5 Skin Preference & Assignment Logic
+
+When a player creates or joins a lobby:
+
+1. **If preferences are set**: the system checks whether the player's **1st preference** is already taken in the lobby. If not, they get it. Otherwise it falls through to the **2nd preference**. If both are taken, they are assigned a random skin.
+2. **If no preferences are set**: the player is randomly assigned a skin from the entire pool — including skins they don't yet own. **This is the ONLY path to unlocking new skins through play.** Setting a preference disables the chance to unlock new ones.
+
+This design **encourages new players to leave preferences off** (so they can collect skins) while letting **veteran players who already own most/all skins** lock in the look they want.
+
+The preference system relies on **per-account tracking of which skins the player has played with**, which must be persisted server-side and locked to the account.
+
+### 10A.6 Earning Skins Through Play
+
+| Skin type | Unlock condition |
+|-----------|------------------|
+| **Common** | Play through a full match while assigned that common skin (no early-leave credit) |
+| **Rare (Silver/Gold/Rainbow/Bling)** | Roll a rare on lobby entry **AND** play through to the end of the match |
+
+Quitting/disconnecting before the match ends forfeits the skin. This guards against players re-rolling for rares and dropping mid-match.
+
+### 10A.7 Friend System
+
+A **round friends button** sits at the **bottom-right of the screen**. Clicking it opens a panel:
+
+```
+┌────────────────────────────────────────────┐
+│  FRIENDS                            [×]    │
+│                                             │
+│  PENDING INVITES                            │
+│  ┌─────────────────────────────────────┐   │
+│  │ DragonSlayer42                      │   │
+│  │ [Accept] [Reject] [Block]           │   │
+│  └─────────────────────────────────────┘   │
+│                                             │
+│  INVITE A FRIEND                            │
+│  [ Username or email____________ ] [Send]   │
+│                                             │
+│  YOUR FRIENDS (3 online)                    │
+│  ● MythosKing   [Chat] [Trade]              │
+│  ● ShieldMage   [Chat] [Trade]              │
+│  ○ ForestSprite (offline) [Chat]            │
+│  ● ZeusFan99    [Chat] [Trade]              │
+│                                             │
+│  BLOCKED                                    │
+│  ▸ SpamBot007  [Unblock]                    │
+└────────────────────────────────────────────┘
+```
+
+- **Friend invites** can be **Accepted**, **Rejected**, or **Blocked** at the moment they arrive.
+- **Block list** suppresses all chat messages, trade invites, and future friend requests from the blocked account.
+- Clicking a friend opens a **chat thread** with them (1-to-1 DM persisted server-side) and exposes a **[Trade]** action when they are online.
+- Blocking is required because spam of chat and trading propositions is not wanted.
+
+### 10A.8 Trading System
+
+When a player invites another player to trade and they accept, a **trade window opens at both parties** simultaneously:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  TRADE WITH MythosKing                          [×]      │
+│  ─────────────────────────────────────────────────────   │
+│  YOU OFFER                  │   THEY OFFER               │
+│  ─────────────              │   ─────────────            │
+│  [+ Add skin/relic]         │   (waiting...)             │
+│                             │                            │
+│  • Silver Skin   x1  [-]    │                            │
+│  • Hades Coin    x2  [-]    │                            │
+│                             │                            │
+│  ─────────────────────────────────────────────────────   │
+│  Status: 🟡 You proposed — waiting on MythosKing         │
+│                                                          │
+│  [ Propose Trade ]   [ Cancel ]                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### Trade Lifecycle
+
+1. **Open** — both parties see an empty trade window.
+2. **Add items** — each party selects relics and/or skins from their inventory and chooses a quantity for each (rares are stackable, so quantities matter). Common skins cannot be traded (no stack count).
+3. **Propose** — both parties click **Propose Trade**. The offered items are now **locked** (cannot be modified without re-opening the trade).
+4. **Final accept / reject** — once both have proposed, both parties get a final **Accept** / **Reject** prompt. Only if **both Accept** does the trade execute atomically (server-side inventory swap).
+5. **Reject or modify** — either side can reject, which unlocks both offers and returns the window to the editing state, or close the window entirely.
+
+#### Rules
+
+- **Both sides must add at least one item** — a trade with an empty side is invalid regardless of magnitude on the other side. This prevents one-way "gift" exploits being used to launder accounts.
+- Trade execution is **atomic** at the backend — both inventories update or neither does. No partial state.
+- Trade history is logged server-side for moderation and chargeback investigations.
+
+### 10A.9 Frontend Components
+
+| Component | Description |
+|-----------|-------------|
+| `SkinShop.tsx` | Grid of rare skins with 3D spinning previews, prices, drop-rate info, [Buy] buttons |
+| `SkinShopRarePreview.tsx` | 3D spinning preview component (greyed out if not owned) |
+| `SkinsPage.tsx` | Profile sub-page: unlocked skins grid + preference selectors + rare skin section |
+| `SkinPreferencePicker.tsx` | 1st/2nd preference dropdowns + "no preference" toggle |
+| `ProfileBarSkinsRow.tsx` | New "Skins" entry in the top-right profile bar |
+| `FriendsButton.tsx` | Round button anchored bottom-right of the home page |
+| `FriendsPanel.tsx` | Invites + invite form + friend list + block list |
+| `FriendInviteCard.tsx` | One pending invite with Accept / Reject / Block actions |
+| `FriendChatThread.tsx` | 1-to-1 DM with a friend (persisted) |
+| `TradeInviteDialog.tsx` | Incoming trade-invite prompt |
+| `TradeWindow.tsx` | The two-sided trade UI with offer slots, propose/lock state, final accept/reject |
+| `InventoryItemPicker.tsx` | Modal for picking a relic or skin (with quantity) to add to a trade offer |
+| `BlockListEntry.tsx` | Row for blocked accounts with unblock action |
+
+### 10A.10 Backend Requirements
+
+#### New / Changed Tables
+
+```sql
+-- Skin catalogue
+CREATE TABLE skins (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  tier        TEXT NOT NULL,           -- 'common' | 'silver' | 'gold' | 'rainbow' | 'bling'
+  price_cents INTEGER,                 -- NULL for commons (not purchasable)
+  drop_rate   NUMERIC,                 -- e.g., 0.02 for 1-in-50
+  preview_3d  TEXT                     -- model path
+);
+
+-- Player-owned skins (stackable for rares; commons are unique per player)
+CREATE TABLE player_skins (
+  player_name TEXT NOT NULL,
+  skin_id     TEXT NOT NULL,
+  quantity    INTEGER NOT NULL DEFAULT 1,
+  acquired_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (player_name, skin_id)
+);
+
+-- Tracks which skins a player has actually played with (gates "no preference" pool)
+CREATE TABLE player_skin_history (
+  player_name  TEXT NOT NULL,
+  skin_id      TEXT NOT NULL,
+  first_played TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (player_name, skin_id)
+);
+
+-- Preferences
+ALTER TABLE players ADD COLUMN skin_pref_1 TEXT;
+ALTER TABLE players ADD COLUMN skin_pref_2 TEXT;
+
+-- Friends
+CREATE TABLE friendships (
+  player_a    TEXT NOT NULL,
+  player_b    TEXT NOT NULL,
+  status      TEXT NOT NULL,           -- 'pending' | 'accepted'
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (player_a, player_b)
+);
+
+CREATE TABLE blocks (
+  blocker     TEXT NOT NULL,
+  blocked     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (blocker, blocked)
+);
+
+-- Direct messages (friend chat)
+CREATE TABLE dm_messages (
+  id          BIGSERIAL PRIMARY KEY,
+  from_player TEXT NOT NULL,
+  to_player   TEXT NOT NULL,
+  body        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Trades
+CREATE TABLE trades (
+  id           BIGSERIAL PRIMARY KEY,
+  player_a     TEXT NOT NULL,
+  player_b     TEXT NOT NULL,
+  state        TEXT NOT NULL,          -- 'open' | 'a_proposed' | 'b_proposed' | 'both_proposed' | 'accepted' | 'rejected' | 'cancelled'
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  finalized_at TIMESTAMPTZ
+);
+
+CREATE TABLE trade_offers (
+  trade_id    BIGINT NOT NULL REFERENCES trades(id) ON DELETE CASCADE,
+  player_name TEXT NOT NULL,
+  item_kind   TEXT NOT NULL,           -- 'skin' | 'relic'
+  item_id     TEXT NOT NULL,
+  quantity    INTEGER NOT NULL,
+  PRIMARY KEY (trade_id, player_name, item_kind, item_id)
+);
+```
+
+#### New Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/skins` | List all skins with player ownership/quantity |
+| POST | `/skins/<id>/purchase` | Buy a skin (Silver/Gold/Rainbow/Bling) |
+| POST | `/players/<name>/skin_preferences` | Set 1st/2nd skin preference (or clear) |
+| POST | `/lobby/<id>/assign_skins` | Server-side skin assignment per lobby (uses preferences + roll for rares) |
+| POST | `/lobby/<id>/finalize_skin_award` | Awards rolled skin only if player completed match |
+| GET | `/friends` | List friends + pending invites + block list |
+| POST | `/friends/invite` | Send friend invite to a player |
+| POST | `/friends/<player>/accept` | Accept invite |
+| POST | `/friends/<player>/reject` | Reject invite |
+| POST | `/friends/<player>/block` | Block a player (also rejects/removes friendship) |
+| POST | `/friends/<player>/unblock` | Unblock |
+| GET | `/dms/<player>` | Fetch DM history with a friend |
+| POST | `/dms/<player>` | Send a DM to a friend (rejected if blocked or not friends) |
+| POST | `/trades/invite` | Invite a friend to trade |
+| POST | `/trades/<id>/offer` | Add/remove items from your side of the trade |
+| POST | `/trades/<id>/propose` | Lock your offer |
+| POST | `/trades/<id>/accept` | Final accept (only valid once both sides have proposed) |
+| POST | `/trades/<id>/reject` | Reject / unlock |
+| POST | `/trades/<id>/cancel` | Cancel trade window |
+
+#### Real-time Considerations
+
+Trade windows, friend invites, and DMs should be pushed via the **existing Socket.IO infrastructure** (see section 12.4). Events:
+- `friend:invite_received`
+- `friend:invite_accepted`
+- `dm:message`
+- `trade:invite`
+- `trade:state` (offer changed, side proposed, finalized, cancelled)
+
+Trade execution must use a **server-side transaction** to atomically swap inventory rows — never trust the client.
+
+### 10A.11 Anti-Abuse Notes
+
+- Block list is **enforced at every entry point**: chat send, DM send, trade invite, friend invite.
+- Trades require **both sides to add ≥1 item** (no one-sided gifting → harder to launder banned accounts).
+- Rare-skin awards require **match completion** (no roll-and-quit re-roll farming).
+- Skins purchased via real-money IAP are flagged with the originating order ID for chargeback handling.
+- Trade history is retained indefinitely for moderation.
+
+### 10A.12 Architecture Note
+
+The skin assignment logic runs **server-side at lobby start** so the client cannot manipulate it. The client only:
+- Reads which skins the player owns / has played with
+- Sends preference updates
+- Renders whatever skin assignment the server returns
+
+This mirrors the principle from section 10.7 (stages are client-side cosmetics) but inverts it: skins **affect what is rolled and earned**, so they must be authoritative on the server.
+
+---
+
 ## 11. Distribution — App Stores & Steam
 
 ### 11.1 Technology Choice
@@ -1674,6 +2007,41 @@ Setup:
 - [ ] Build scripts for all platforms
 - [ ] Submit to stores
 
+### Phase 12: Skins, Trading & Friend System *(post-alpha — target within 4 months of alpha)* — ❌ NOT STARTED
+
+**Goal**: Ship the rare-skin shop, account-locked skin inventory, friend system with chat, and player-to-player trading. Targeted to land within 4 months of alpha as a recurring revenue stream.
+
+Frontend:
+- [ ] `SkinShop.tsx` — grid of rare skins (Silver $5, Gold $10, Rainbow $50, Bling $100) with prices, drop-rate info, [Buy] buttons
+- [ ] `SkinShopRarePreview.tsx` — 3D spinning preview (greyed out if not owned)
+- [ ] `SkinsPage.tsx` — profile sub-page: unlocked skins grid + preference selectors + rare skin section
+- [ ] `SkinPreferencePicker.tsx` — 1st/2nd preference dropdowns + "no preference" toggle
+- [ ] `ProfileBarSkinsRow.tsx` — new "Skins" entry in the top-right profile bar
+- [ ] `FriendsButton.tsx` — round button anchored bottom-right of the home page
+- [ ] `FriendsPanel.tsx` — invites + invite form + friend list + block list
+- [ ] `FriendInviteCard.tsx` — Accept / Reject / Block actions
+- [ ] `FriendChatThread.tsx` — 1-to-1 DM with a friend
+- [ ] `TradeInviteDialog.tsx` — incoming trade-invite prompt
+- [ ] `TradeWindow.tsx` — two-sided trade UI with offer slots, propose/lock state, final accept/reject
+- [ ] `InventoryItemPicker.tsx` — modal for picking a relic or skin (with quantity) to add to a trade
+- [ ] `BlockListEntry.tsx` — row for blocked accounts with unblock action
+- [ ] Display rolled rare skin in lobby UI; gate award on match completion
+- [ ] Wire Socket.IO listeners for `friend:*`, `dm:message`, `trade:*` events
+
+Backend:
+- [ ] New tables: `skins`, `player_skins`, `player_skin_history`, `friendships`, `blocks`, `dm_messages`, `trades`, `trade_offers`
+- [ ] `players.skin_pref_1` and `players.skin_pref_2` columns
+- [ ] `GET /skins`, `POST /skins/<id>/purchase`
+- [ ] `POST /players/<name>/skin_preferences`
+- [ ] `POST /lobby/<id>/assign_skins` — server-side preference + roll logic
+- [ ] `POST /lobby/<id>/finalize_skin_award` — only awards if player completed match
+- [ ] Friend endpoints: invite / accept / reject / block / unblock / list
+- [ ] DM endpoints: fetch + send (rejected if blocked or not friends)
+- [ ] Trade endpoints: invite / offer / propose / accept / reject / cancel
+- [ ] Atomic server-side inventory swap on trade execution
+- [ ] Push real-time events for friends, DMs, and trades via Socket.IO
+- [ ] IAP integration with order-ID tracking for chargeback handling
+
 ---
 
 ## Appendix: New Route Map
@@ -1722,3 +2090,22 @@ Setup:
 | POST | `/resend_verification` | Resend verification code (rate-limited) |
 | POST | `/verify_login_code` | Verify login code for email-auth users |
 | POST | `/forgot_username` | Email username to address (anti-enumeration) |
+| GET | `/skins` | List all skins with player ownership/quantity |
+| POST | `/skins/<id>/purchase` | Buy a Silver/Gold/Rainbow/Bling skin |
+| POST | `/players/<name>/skin_preferences` | Set 1st/2nd skin preference (or clear) |
+| POST | `/lobby/<id>/assign_skins` | Server-side skin assignment per lobby (preferences + rare roll) |
+| POST | `/lobby/<id>/finalize_skin_award` | Awards rolled skin only if player completed match |
+| GET | `/friends` | List friends + pending invites + block list |
+| POST | `/friends/invite` | Send friend invite |
+| POST | `/friends/<player>/accept` | Accept invite |
+| POST | `/friends/<player>/reject` | Reject invite |
+| POST | `/friends/<player>/block` | Block player (and remove friendship) |
+| POST | `/friends/<player>/unblock` | Unblock player |
+| GET | `/dms/<player>` | Fetch DM history with a friend |
+| POST | `/dms/<player>` | Send DM to friend (rejected if blocked or not friends) |
+| POST | `/trades/invite` | Invite a friend to trade |
+| POST | `/trades/<id>/offer` | Add/remove items on your side of the trade |
+| POST | `/trades/<id>/propose` | Lock your offer |
+| POST | `/trades/<id>/accept` | Final accept (only valid once both proposed) |
+| POST | `/trades/<id>/reject` | Reject / unlock |
+| POST | `/trades/<id>/cancel` | Cancel trade window |
