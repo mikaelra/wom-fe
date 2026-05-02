@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { changeEmail, getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
+import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
 
 const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
@@ -32,12 +32,6 @@ export default function SettingsPage() {
   const [awaitingEmail, setAwaitingEmail] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
-
-  const [editingEmail, setEditingEmail] = useState(false);
-  const [emailDraft, setEmailDraft] = useState('');
-  const [savingEmail, setSavingEmail] = useState(false);
-  const [emailError, setEmailError] = useState('');
-  const [verifyBlockedError, setVerifyBlockedError] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -101,48 +95,6 @@ export default function SettingsPage() {
     window.location.reload();
   };
 
-  const handleChangeEmailClick = () => {
-    if (serverValue) {
-      setVerifyBlockedError('You must turn off email verification to change email');
-      return;
-    }
-    setVerifyBlockedError('');
-    setEmailError('');
-    setEmailDraft(playerEmail);
-    setEditingEmail(true);
-  };
-
-  const handleCancelEmail = () => {
-    setEditingEmail(false);
-    setEmailDraft('');
-    setEmailError('');
-  };
-
-  const handleConfirmEmail = async () => {
-    const next = emailDraft.trim();
-    if (!next) {
-      setEmailError('Email cannot be empty.');
-      return;
-    }
-    if (next === playerEmail) {
-      setEditingEmail(false);
-      return;
-    }
-    setSavingEmail(true);
-    setEmailError('');
-    try {
-      await changeEmail(playerName, playerEmail, next);
-      localStorage.setItem('playerEmail', next);
-      setPlayerEmail(next);
-      setEditingEmail(false);
-      setEmailDraft('');
-    } catch (err) {
-      setEmailError(err instanceof Error ? err.message : 'Failed to change email.');
-    } finally {
-      setSavingEmail(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
       <div className="w-full max-w-xl">
@@ -171,63 +123,6 @@ export default function SettingsPage() {
           </div>
         ) : (
           <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-            <div className="mb-6 pb-6 border-b border-white/10">
-              {editingEmail ? (
-                <>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-base font-semibold">Your email:</span>
-                    <input
-                      type="email"
-                      value={emailDraft}
-                      onChange={(e) => setEmailDraft(e.target.value)}
-                      disabled={savingEmail}
-                      autoFocus
-                      className="flex-1 min-w-[200px] bg-white/10 border border-white/20 text-white px-3 py-1.5 rounded-lg text-base focus:outline-none focus:border-white/40 disabled:opacity-50"
-                    />
-                  </div>
-                  <div className="flex gap-3 mt-3">
-                    <button
-                      type="button"
-                      onClick={handleConfirmEmail}
-                      disabled={savingEmail}
-                      className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 border border-green-500 text-white font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {savingEmail ? 'Saving…' : 'Confirm'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCancelEmail}
-                      disabled={savingEmail}
-                      className="px-4 py-2 rounded-lg bg-gray-500 hover:bg-gray-400 border border-gray-400 text-white font-semibold text-sm transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  {emailError && (
-                    <p className="text-red-400 text-sm mt-3">{emailError}</p>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className="text-base font-semibold">
-                    Your email: <span className="font-normal">{playerEmail}</span>
-                  </p>
-                  <div className="flex gap-3 mt-3">
-                    <button
-                      type="button"
-                      onClick={handleChangeEmailClick}
-                      className="px-4 py-2 rounded-lg bg-white hover:bg-gray-100 border border-white text-gray-900 font-semibold text-sm transition-colors cursor-pointer"
-                    >
-                      Change email
-                    </button>
-                  </div>
-                  {verifyBlockedError && (
-                    <p className="text-red-400 text-sm mt-3">{verifyBlockedError}</p>
-                  )}
-                </>
-              )}
-            </div>
-
             <label className="flex items-center gap-3 cursor-pointer select-none">
               <input
                 type="checkbox"
