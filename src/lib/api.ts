@@ -224,6 +224,25 @@ export async function confirmToggleVerifyEmail(
   return res.json();
 }
 
+export async function changeEmail(
+  name: string,
+  currentEmail: string,
+  newEmail: string
+): Promise<{ success: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/change_email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, current_email: currentEmail, new_email: newEmail }),
+  });
+  if (res.status === 403) throw new Error("Wrong credentials");
+  if (res.status === 409) throw new Error("Email already in use");
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error((errorData as { error?: string }).error ?? "Failed to change email.");
+  }
+  return res.json();
+}
+
 export async function claimPendingRelic(
   lobbyId: string,
   name: string,
