@@ -12,7 +12,7 @@ This document is the overarching design plan for the **World of Mythos Alpha** r
 
 1. ~~**Character model** — Angel-cherub 3D model replaces placeholder; sits at table during lobby, dies on death.~~ ✅ **Done** — Cherub, Turtle, Ghost, and PlayerV1 models all integrated via `useGLTF`; positioned around the table.
 2. ~~**Table-based lobby UI** — Characters sit around the table. All game actions are triggered by clicking on 3D elements or buttons anchored to characters — no flat menu panels.~~ ✅ **Done** — 3D table with players seated at slots; overlay action buttons on top of 3D canvas.
-3. **Combat animations** — Polished enough to feel satisfying: attack, defend, raid, death, victory. This is a priority. ⚠️ **In progress** — Explosion particle effects (`ExplosionEffect.tsx`) and floating damage messages are live. Attack/defend have visual feedback. Death, victory, and raid-specific animations still missing.
+3. **Combat animations** — Polished enough to feel satisfying: attack, defend, raid, death, victory. This is a priority. ⚠️ **In progress** — Explosion particle effects (`ExplosionEffect.tsx`) and floating damage messages are live. Attack/defend have visual feedback. Death, victory, and raid-specific animations still missing. **Alpha animation spec is now defined** — green lock-in aura (bright blink + 30% lingering), red last-player and ≤10s blinks, timer compression to 15s when one player remains, sword-swipe attack with reflect bounce-back, defender shield/smash/reflect animations, well-winner splash, and resource sprites (heart / coin / crossed swords at 61% of button width) rising over each resource button. See [§8.11 Combat Animations — Choice Phase, Lock-In & Action Resolution](#811-combat-animations--choice-phase-lock-in--action-resolution).
 4. ~~**Lobby chat** — Players can text each other inside a lobby before and during a match.~~ ✅ **Done** — Full text chat integrated into `SceneOverlay.tsx`; collapsible 2-line panel (click to expand); 3D speech bubbles above player heads (4s duration); chat history polled from backend.
 5. ~~**All in-game button labels are in English.**~~ ✅ **Done**
 6. **Email service** — Email verification on signup, optional email-based login auth, username retrieval via email. Uses Resend as the mail provider. ❌ **Not started** — Emails are collected at signup but no verification or Resend integration exists.
@@ -875,6 +875,114 @@ Each of the 10 cities has a distinct arena environment:
 - Animations driven by `AnimationMixer`; state machine maps game events → animation clips
 - Positioned around the table using fixed seat positions (same as existing `PlayersAtTable` layout)
 - HTML overlay buttons (`PlayerButtons.tsx`) are positioned in screen space relative to each character's 3D position using `Html` from `@react-three/drei`
+
+### 8.11 Combat Animations — Choice Phase, Lock-In & Action Resolution
+
+This section specifies the animations required for the alpha. They are split into three groups:
+
+1. **Lock-in feedback** (choice phase) — auras around players as they submit/withhold choices.
+2. **Action animations** (resolution) — what plays when Attack / Defend / Raid (the well) resolves.
+3. **Resource animations** (resolution) — what plays on the resource buttons when Get HP / Get Gold / Upgrade is chosen.
+
+All animations are **visible to every player** (not only the acting player), unless explicitly stated.
+
+#### 8.11.1 Lock-in aura (player has chosen both resource and action)
+
+A player must select two things to be considered "locked in":
+- **Resource** — Get HP, Get Gold, or Upgrade Weapon
+- **Action** — Attack, The Well (Raid), or Defend
+
+When both are selected and submitted:
+
+| Phase | Visual |
+|-------|--------|
+| **Initial blink** | A bright **green aura** flashes around the player |
+| **Lingering aura** | After the blink, a **weak green aura at ~30% of the initial strength** remains around the player for the rest of the choice phase |
+
+This aura is shown to **all players**, so everyone can see who has already locked in.
+
+#### 8.11.2 Last-player red aura (everyone except one is locked in)
+
+When **all players except one** have locked in both choices, the remaining player is highlighted with a red aura, on every player's screen:
+
+| Phase | Visual |
+|-------|--------|
+| **First blink** | A **strong red aura blink** around the unlocked player (one-time emphasis pulse) |
+| **Subsequent blinks** | Continues to blink at **~50% of the original strength** until that player locks in |
+
+#### 8.11.3 Low-time red aura (≤10 seconds left)
+
+When a player still has not locked in and the round timer is at **10 seconds or less**, the same red blinking aura is shown around that player. **The strong initial blink is omitted** — only the recurring 50%-strength blinks play.
+
+If both conditions trigger (last-player and low-time), the strong initial blink is only used once — for the last-player trigger.
+
+#### 8.11.4 Timer compression on last-player
+
+When all players except one have locked in their actions:
+- **The round timer immediately drops to 15 seconds** if the current value is higher than 15.
+- If the timer is already at or below 15, it is **left untouched**.
+
+This is a one-shot adjustment at the moment the second-to-last player locks in.
+
+#### 8.11.5 Action animations (start of resolution)
+
+These play at the start of the turn resolution for any player whose action was Attack, The Well, or Defend.
+
+##### Attack
+
+Played on the **target's** position:
+
+1. A **sword appears next to the target** and performs a **swipe** animation.
+2. **If the attack lands** (no successful block, no reflect):
+   - The target **blinks red**.
+   - **Blood squirts** from the target.
+3. **If the target defends and successfully blocks**:
+   - A **shield pops up** in front of the target (block-success animation).
+4. **If the target defends and reflects**:
+   - The sword **bounces off the shield** and travels back onto the **attacking player**, who then takes the hit (red blink + blood squirt on the original attacker).
+
+##### The Well (Raid)
+
+- The **winner of the well** sees a **splash from the well** play on their screen (and on all other players' screens, since well winners are public).
+- Losers/non-winners do not get the splash.
+
+##### Defend
+
+Played on the **defending player's** position. One animation pass per incoming attacker:
+
+1. A **sword for each attacker** swipes onto the defender's **shield**.
+2. **If the attack goes through** (block failed):
+   - The defender **blinks red** and **blood squirts**.
+3. **If the attack is blocked**:
+   - A **smash animation of the sword on the shield** plays.
+4. **If the attack is reflected**:
+   - The sword **flies back to the attacker**, who then takes the hit.
+   - **Frontend dependency:** the frontend must know **who the attacker was** for every reflect, so the sword can return to the correct character. The lobby/round payload must include attacker identity on every reflect outcome (currently this information is not always exposed to the defender — backend/payload change required).
+
+#### 8.11.6 Resource animations (resolution)
+
+Each resource animation plays as a sprite/GIF that **rises out of the corresponding button**, simultaneously **shrinking and fading away**.
+
+| Resource | Sprite | Notes |
+|----------|--------|-------|
+| **Get HP** | Small heart | Appears at the bottom of the **Get Life** button, rises up over the button, shrinks and fades simultaneously |
+| **Get Gold** | Coin | Same animation as the heart, on the **Get Gold** button |
+| **Upgrade Weapon** | Two crossed swords (GIF: the front and back swords swap places on each frame) | Same animation, on the **Upgrade Strength** button |
+
+##### Sprite sizing
+
+- **Width:** **61% of the button width**
+- **Height:** equal to the width (i.e. **same as the heart's height = 61% of the button width**) — applies to **all three** resource sprites (heart, coin, swords)
+
+##### Animation curve
+
+- Sprite spawns at the **bottom edge** of its button at full opacity and full size.
+- It travels **upward across/over the button**, while **scale shrinks toward 0** and **opacity fades to 0** simultaneously.
+- The animation finishes when the sprite is fully transparent (and effectively zero-sized) above the button.
+
+#### 8.11.7 Scope statement
+
+> **This is sufficient animation work for the alpha.** Death dissolves, victory confetti, boss intros, etc. listed in §8.3/§8.9 are still desired but are not blockers for the alpha if 8.11 is implemented.
 
 ---
 
