@@ -2,21 +2,27 @@
 export const TABLE_POSITION: [number, number, number] = [0, 3.15, 0];
 export const SCENE_CENTER: [number, number, number] = [0, 3.2, 0];
 
-export const MAX_PLAYERS = 12;
-const PLAYER_RADIUS = 1.4;
+export const MAX_PLAYERS = 24;
+const BASE_PLAYER_RADIUS = 1.4;
 const PLAYER_Y = 3.2;
+
+// Radius grows by 10% for every 6 players: 1–6 → base, 7–12 → +10%, 13–18 → +20%, etc.
+function playerRadius(count: number): number {
+  return BASE_PLAYER_RADIUS * (1 + Math.floor((count - 1) / 6) * 0.1);
+}
 
 // Returns `count` seats evenly distributed around The Well.
 // Slot 0 is at the near-camera side (z+), proceeding clockwise.
 // Call this with the live player count so spacing is always even.
 export function getPlayerPositions(count: number): { position: [number, number, number]; rotation: [number, number, number] }[] {
+  const radius = playerRadius(count);
   return Array.from({ length: count }, (_, i) => {
     const angle = (2 * Math.PI * i) / count;
     return {
       position: [
-        PLAYER_RADIUS * Math.sin(angle),
+        radius * Math.sin(angle),
         PLAYER_Y,
-        PLAYER_RADIUS * Math.cos(angle),
+        radius * Math.cos(angle),
       ] as [number, number, number],
       // LobbyScene adds another Math.PI/2 at render time, so storing angle + Math.PI/2
       // here produces a final rotation of angle + Math.PI — facing inward toward center.
@@ -28,12 +34,13 @@ export function getPlayerPositions(count: number): { position: [number, number, 
 // Position "in front of" each seat (further from table) for choice labels.
 export const CHOICE_LABEL_OFFSET = 0.6;
 export function getPlayerFrontPositions(count: number): [number, number, number][] {
+  const radius = playerRadius(count);
   return Array.from({ length: count }, (_, i) => {
     const angle = (2 * Math.PI * i) / count;
     return [
-      (PLAYER_RADIUS + CHOICE_LABEL_OFFSET) * Math.sin(angle),
+      (radius + CHOICE_LABEL_OFFSET) * Math.sin(angle),
       PLAYER_Y,
-      (PLAYER_RADIUS + CHOICE_LABEL_OFFSET) * Math.cos(angle),
+      (radius + CHOICE_LABEL_OFFSET) * Math.cos(angle),
     ] as [number, number, number];
   });
 }
