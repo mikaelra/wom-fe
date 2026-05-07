@@ -2,21 +2,48 @@
 export const TABLE_POSITION: [number, number, number] = [0, 3.15, 0];
 export const SCENE_CENTER: [number, number, number] = [0, 3.2, 0];
 
-export const PLAYER_POSITIONS: { position: [number, number, number]; rotation: [number, number, number] }[] = [
-  { position: [0, 3.2, 1.4], rotation: [0, Math.PI / 2, 0] },     // North
-  { position: [0, 3.2, -1.4], rotation: [0, -Math.PI / 2, 0] },  // South
-  { position: [1.4, 3.2, 0], rotation: [0, Math.PI, 0] },       // East
-  { position: [-1.4, 3.2, 0], rotation: [0, 0, 0] },            // West
-];
+export const MAX_PLAYERS = 24;
+const BASE_PLAYER_RADIUS = 1.4;
+const PLAYER_Y = 3.2;
 
-// Position "in front of" each seat (further from table) for choice labels
+// Radius grows by 10% for every 6 players: 1–6 → base, 7–12 → +10%, 13–18 → +20%, etc.
+function playerRadius(count: number): number {
+  return BASE_PLAYER_RADIUS * (1 + Math.floor((count - 1) / 6) * 0.15);
+}
+
+// Returns `count` seats evenly distributed around The Well.
+// Slot 0 is at the near-camera side (z+), proceeding clockwise.
+// Call this with the live player count so spacing is always even.
+export function getPlayerPositions(count: number): { position: [number, number, number]; rotation: [number, number, number] }[] {
+  const radius = playerRadius(count);
+  return Array.from({ length: count }, (_, i) => {
+    const angle = (2 * Math.PI * i) / count;
+    return {
+      position: [
+        radius * Math.sin(angle),
+        PLAYER_Y,
+        radius * Math.cos(angle),
+      ] as [number, number, number],
+      // LobbyScene adds another Math.PI/2 at render time, so storing angle + Math.PI/2
+      // here produces a final rotation of angle + Math.PI — facing inward toward center.
+      rotation: [0, angle + Math.PI / 2, 0] as [number, number, number],
+    };
+  });
+}
+
+// Position "in front of" each seat (further from table) for choice labels.
 export const CHOICE_LABEL_OFFSET = 0.6;
-export const PLAYER_FRONT_POSITIONS: [number, number, number][] = [
-  [0, 3.2, 1.4 + CHOICE_LABEL_OFFSET],   // North
-  [0, 3.2, -1.4 - CHOICE_LABEL_OFFSET],  // South
-  [1.4 + CHOICE_LABEL_OFFSET, 3.2, 0],  // East
-  [-1.4 - CHOICE_LABEL_OFFSET, 3.2, 0], // West
-];
+export function getPlayerFrontPositions(count: number): [number, number, number][] {
+  const radius = playerRadius(count);
+  return Array.from({ length: count }, (_, i) => {
+    const angle = (2 * Math.PI * i) / count;
+    return [
+      (radius + CHOICE_LABEL_OFFSET) * Math.sin(angle),
+      PLAYER_Y,
+      (radius + CHOICE_LABEL_OFFSET) * Math.cos(angle),
+    ] as [number, number, number];
+  });
+}
 
 export const BASE_FOV = 75;
 export function getResponsiveFov(width: number, height: number): number {
