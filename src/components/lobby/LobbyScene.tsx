@@ -333,7 +333,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const winner = state?.winner ?? state?.raidwinner ?? null;
 
   // Recompute seat positions each render so spacing is always even for the current player count.
-  const playerSlots = getPlayerPositions(players.length);
+  const PLAYER_POSITIONS = getPlayerPositions(players.length);
 
   const myPlayer = state?.players.find((p) => p.name === playerName);
   const gameOver = state?.gameover ?? false;
@@ -345,10 +345,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     if (!gameOver || isBossFight || !winner) return null;
     const winnerIndex = players.findIndex((p) => p.name === winner);
     if (winnerIndex < 0) return null;
-    const slot = playerSlots[winnerIndex];
+    const slot = PLAYER_POSITIONS[winnerIndex];
     if (!slot) return null;
     return slot.position;
-  }, [gameOver, isBossFight, winner, players, playerSlots]);
+  }, [gameOver, isBossFight, winner, players, PLAYER_POSITIONS]);
   const isAlive = (myPlayer?.hp ?? 0) > 0;
   const gameStarted = (state?.round ?? 0) > 0;
   const showAttackButtons = gameStarted && !gameOver && !isDenied && isAlive && !myPlayer?.spectator;
@@ -388,7 +388,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       <Table position={TABLE_POSITION} scale={1.2} />
 
       {players.map((player, i) => {
-        const slot = playerSlots[i];
+        const slot = PLAYER_POSITIONS[i];
         if (!slot) return null;
         const { position, rotation } = slot;
         const isDead = (player.hp ?? 0) <= 0;
