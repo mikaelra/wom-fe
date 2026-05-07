@@ -8,7 +8,7 @@ const PLAYER_Y = 3.2;
 
 // Radius grows by 10% for every 6 players: 1–6 → base, 7–12 → +10%, 13–18 → +20%, etc.
 function playerRadius(count: number): number {
-  return BASE_PLAYER_RADIUS * (1 + Math.floor((count - 1) / 6) * 0.1);
+  return BASE_PLAYER_RADIUS * (1 + Math.floor((count - 1) / 6) * 0.15);
 }
 
 // Returns `count` seats evenly distributed around The Well.
