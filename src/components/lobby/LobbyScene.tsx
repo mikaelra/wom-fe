@@ -12,7 +12,8 @@ import { assignSkins, ALL_FROG_SKINS, skinUrl } from '@/lib/frogSkins';
 import {
   TABLE_POSITION,
   SCENE_CENTER,
-  PLAYER_POSITIONS,
+  MAX_PLAYERS,
+  getPlayerPositions,
   getCameraTargetPosition,
   getResponsiveFov,
 } from '@/lib/sceneConstants';
@@ -328,8 +329,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       const score = (p: typeof a) => (p.name === playerName ? 0 : p.boss ? 1 : 2);
       return score(a) - score(b);
     })
-    .slice(0, PLAYER_POSITIONS.length);
+    .slice(0, MAX_PLAYERS);
   const winner = state?.winner ?? state?.raidwinner ?? null;
+
+  // Recompute seat positions each render so spacing is always even for the current player count.
+  const playerSlots = getPlayerPositions(players.length);
 
   const myPlayer = state?.players.find((p) => p.name === playerName);
   const gameOver = state?.gameover ?? false;
@@ -341,10 +345,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     if (!gameOver || isBossFight || !winner) return null;
     const winnerIndex = players.findIndex((p) => p.name === winner);
     if (winnerIndex < 0) return null;
-    const slot = PLAYER_POSITIONS[winnerIndex];
+    const slot = playerSlots[winnerIndex];
     if (!slot) return null;
     return slot.position;
-  }, [gameOver, isBossFight, winner, players]);
+  }, [gameOver, isBossFight, winner, players, playerSlots]);
   const isAlive = (myPlayer?.hp ?? 0) > 0;
   const gameStarted = (state?.round ?? 0) > 0;
   const showAttackButtons = gameStarted && !gameOver && !isDenied && isAlive && !myPlayer?.spectator;
@@ -384,7 +388,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       <Table position={TABLE_POSITION} scale={1.2} />
 
       {players.map((player, i) => {
-        const slot = PLAYER_POSITIONS[i];
+        const slot = playerSlots[i];
         if (!slot) return null;
         const { position, rotation } = slot;
         const isDead = (player.hp ?? 0) <= 0;
