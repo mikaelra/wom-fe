@@ -337,26 +337,26 @@ function PlayerWithName({
             userSelect: 'none',
             textAlign: 'center',
             background: 'rgba(0,0,0,0.75)',
-            border: '8px solid rgba(239,68,68,0.4)',
-            borderRadius: '80px',
-            padding: '48px 112px',
+            border: '4px solid rgba(239,68,68,0.4)',
+            borderRadius: '40px',
+            padding: '24px 56px',
             backdropFilter: 'blur(4px)',
-            minWidth: '960px',
+            minWidth: '480px',
           }}>
-            <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '104px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
+            <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '52px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
             {bossTitle && (
-              <p style={{ color: '#d1d5db', fontSize: '88px', margin: '8px 0 32px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
+              <p style={{ color: '#d1d5db', fontSize: '44px', margin: '4px 0 16px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
             )}
-            <div style={{ width: '100%', height: '48px', background: '#374151', borderRadius: '24px', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '24px', background: '#374151', borderRadius: '12px', overflow: 'hidden' }}>
               <div style={{
                 height: '100%',
                 width: `${Math.max(0, (bossHp / bossMaxHp) * 100)}%`,
                 background: '#ef4444',
-                borderRadius: '24px',
+                borderRadius: '12px',
                 transition: 'width 0.5s ease',
               }} />
             </div>
-            <p style={{ color: '#fca5a5', fontSize: '88px', margin: '24px 0 0', whiteSpace: 'nowrap' }}>
+            <p style={{ color: '#fca5a5', fontSize: '44px', margin: '12px 0 0', whiteSpace: 'nowrap' }}>
               {Math.max(0, bossHp)} / {bossMaxHp} HP
             </p>
             {showAttackButton && (
@@ -364,21 +364,21 @@ function PlayerWithName({
                 onClick={onAttack}
                 className={actionCue}
                 style={{
-                  marginTop: '40px',
+                  marginTop: '20px',
                   pointerEvents: 'auto',
                   cursor: 'pointer',
-                  padding: '56px 112px',
-                  fontSize: '96px',
+                  padding: '28px 56px',
+                  fontSize: '48px',
                   fontWeight: 'bold',
                   color: isAttackSelected ? '#ffffff' : '#fca5a5',
                   background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
-                  border: isAttackSelected ? '8px solid #fca5a5' : '8px solid #b91c1c',
-                  borderRadius: '40px',
+                  border: isAttackSelected ? '4px solid #fca5a5' : '4px solid #b91c1c',
+                  borderRadius: '20px',
                   whiteSpace: 'nowrap',
                   backdropFilter: 'blur(4px)',
                   boxShadow: isAttackSelected
-                    ? '0 0 64px rgba(239,68,68,0.6), 0 16px 24px -16px rgba(0,0,0,0.2)'
-                    : '0 40px 60px -12px rgba(0,0,0,0.3)',
+                    ? '0 0 32px rgba(239,68,68,0.6), 0 8px 12px -8px rgba(0,0,0,0.2)'
+                    : '0 20px 30px -6px rgba(0,0,0,0.3)',
                 }}
               >
                 ⚔ ATTACK
