@@ -337,53 +337,53 @@ function PlayerWithName({
             userSelect: 'none',
             textAlign: 'center',
             background: 'rgba(0,0,0,0.75)',
-            border: '4px solid rgba(239,68,68,0.4)',
-            borderRadius: '40px',
-            padding: '24px 56px',
+            border: '2px solid rgba(239,68,68,0.4)',
+            borderRadius: '20px',
+            padding: '12px 28px',
             backdropFilter: 'blur(4px)',
-            minWidth: '480px',
+            minWidth: '240px',
           }}>
-            <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '52px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
-            {bossTitle && (
-              <p style={{ color: '#d1d5db', fontSize: '44px', margin: '4px 0 16px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
-            )}
-            <div style={{ width: '100%', height: '24px', background: '#374151', borderRadius: '12px', overflow: 'hidden' }}>
-              <div style={{
-                height: '100%',
-                width: `${Math.max(0, (bossHp / bossMaxHp) * 100)}%`,
-                background: '#ef4444',
-                borderRadius: '12px',
-                transition: 'width 0.5s ease',
-              }} />
-            </div>
-            <p style={{ color: '#fca5a5', fontSize: '44px', margin: '12px 0 0', whiteSpace: 'nowrap' }}>
-              {Math.max(0, bossHp)} / {bossMaxHp} HP
-            </p>
             {showAttackButton && (
               <button
                 onClick={onAttack}
                 className={actionCue}
                 style={{
-                  marginTop: '20px',
+                  marginBottom: '10px',
                   pointerEvents: 'auto',
                   cursor: 'pointer',
-                  padding: '28px 56px',
-                  fontSize: '48px',
+                  padding: '14px 28px',
+                  fontSize: '24px',
                   fontWeight: 'bold',
                   color: isAttackSelected ? '#ffffff' : '#fca5a5',
                   background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
-                  border: isAttackSelected ? '4px solid #fca5a5' : '4px solid #b91c1c',
-                  borderRadius: '20px',
+                  border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
+                  borderRadius: '10px',
                   whiteSpace: 'nowrap',
                   backdropFilter: 'blur(4px)',
                   boxShadow: isAttackSelected
-                    ? '0 0 32px rgba(239,68,68,0.6), 0 8px 12px -8px rgba(0,0,0,0.2)'
-                    : '0 20px 30px -6px rgba(0,0,0,0.3)',
+                    ? '0 0 16px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                    : '0 10px 15px -3px rgba(0,0,0,0.3)',
                 }}
               >
                 ⚔ ATTACK
               </button>
             )}
+            <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '26px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
+            {bossTitle && (
+              <p style={{ color: '#d1d5db', fontSize: '22px', margin: '2px 0 8px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
+            )}
+            <div style={{ width: '100%', height: '12px', background: '#374151', borderRadius: '6px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.max(0, (bossHp / bossMaxHp) * 100)}%`,
+                background: '#ef4444',
+                borderRadius: '6px',
+                transition: 'width 0.5s ease',
+              }} />
+            </div>
+            <p style={{ color: '#fca5a5', fontSize: '22px', margin: '6px 0 0', whiteSpace: 'nowrap' }}>
+              {Math.max(0, bossHp)} / {bossMaxHp} HP
+            </p>
           </div>
         </Html>
       )}
