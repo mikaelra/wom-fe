@@ -85,7 +85,7 @@ function WellCrown({ worldPosition }: { worldPosition: [number, number, number] 
 
   useFrame((clockState) => {
     if (ref.current && worldPosition) {
-      ref.current.position.y = worldPosition[1] + 1.1 + Math.sin(clockState.clock.elapsedTime * 2.2) * 0.07;
+      ref.current.position.y = worldPosition[1] + 0.65 + Math.sin(clockState.clock.elapsedTime * 2.2) * 0.07;
       ref.current.rotation.y = clockState.clock.elapsedTime * 0.45;
     }
   });
@@ -93,7 +93,7 @@ function WellCrown({ worldPosition }: { worldPosition: [number, number, number] 
   if (!worldPosition) return null;
 
   return (
-    <group ref={ref} position={[worldPosition[0], worldPosition[1] + 1.1, worldPosition[2]]}>
+    <group ref={ref} position={[worldPosition[0], worldPosition[1] + 0.65, worldPosition[2]]}>
       <primitive object={crownScene} scale={0.2} />
     </group>
   );
@@ -113,15 +113,21 @@ function RoundOrderArrow({
 
   if (!visible || !fromPosition || !toPosition) return null;
 
-  const dx = toPosition[0] - fromPosition[0];
-  const dz = toPosition[2] - fromPosition[2];
+  // Offset the arrow outward from the table centre so it sits beside the frog, not inside it
+  const r = Math.sqrt(fromPosition[0] ** 2 + fromPosition[2] ** 2) || 1;
+  const outX = (fromPosition[0] / r) * 0.55;
+  const outZ = (fromPosition[2] / r) * 0.55;
+  const arrowX = fromPosition[0] + outX;
+  const arrowZ = fromPosition[2] + outZ;
+  const arrowY = fromPosition[1] + 0.3;
+
+  // Compute angle from the arrow's actual position toward the target player
+  const dx = toPosition[0] - arrowX;
+  const dz = toPosition[2] - arrowZ;
   const angle = Math.atan2(dx, dz);
 
   return (
-    <group
-      position={[fromPosition[0], fromPosition[1] + 0.5, fromPosition[2]]}
-      rotation={[0, angle, 0]}
-    >
+    <group position={[arrowX, arrowY, arrowZ]} rotation={[0, angle, 0]}>
       <primitive object={arrowScene} scale={0.5} />
     </group>
   );
@@ -375,7 +381,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     const round = state?.round ?? 0;
     if (round > 0 && raidwinnerRef.current) {
       setShowArrow(true);
-      const timer = setTimeout(() => setShowArrow(false), 3000);
+      const timer = setTimeout(() => setShowArrow(false), 5000);
       return () => clearTimeout(timer);
     }
   }, [state?.round]);
