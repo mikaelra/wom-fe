@@ -115,6 +115,9 @@ function PlayerWithName({
   actionCue,
   chatBubble,
   isBoss,
+  bossHp,
+  bossMaxHp,
+  bossTitle,
   frogSkinUrl,
   // own-player action UI
   showOwnActions,
@@ -137,6 +140,9 @@ function PlayerWithName({
   actionCue?: string;
   chatBubble?: string;
   isBoss?: boolean;
+  bossHp?: number;
+  bossMaxHp?: number;
+  bossTitle?: string;
   frogSkinUrl?: string;
   showOwnActions?: boolean;
   currentAction?: string;
@@ -323,6 +329,39 @@ function PlayerWithName({
           </div>
         </Html>
       )}
+      {/* Boss HP card — floats above the Hades model in world space */}
+      {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
+        <Html position={[0, 1.5, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+          <div style={{
+            pointerEvents: 'none',
+            userSelect: 'none',
+            textAlign: 'center',
+            background: 'rgba(0,0,0,0.75)',
+            border: '1px solid rgba(239,68,68,0.4)',
+            borderRadius: '10px',
+            padding: '6px 14px',
+            backdropFilter: 'blur(4px)',
+            minWidth: '120px',
+          }}>
+            <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '13px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
+            {bossTitle && (
+              <p style={{ color: '#d1d5db', fontSize: '11px', margin: '1px 0 4px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
+            )}
+            <div style={{ width: '100%', height: '6px', background: '#374151', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.max(0, (bossHp / bossMaxHp) * 100)}%`,
+                background: '#ef4444',
+                borderRadius: '3px',
+                transition: 'width 0.5s ease',
+              }} />
+            </div>
+            <p style={{ color: '#fca5a5', fontSize: '11px', margin: '3px 0 0', whiteSpace: 'nowrap' }}>
+              {Math.max(0, bossHp)} / {bossMaxHp} HP
+            </p>
+          </div>
+        </Html>
+      )}
       <Html
         position={[0, 0.5, 0]}
         center
@@ -435,6 +474,8 @@ function LostSoulModel({
     </group>
   );
 }
+
+const BOSS_MAX_HP = 8;
 
 useGLTF.preload('/models/lost_soul_v2.glb');
 useGLTF.preload('/models/hades_v2.glb');
@@ -637,6 +678,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             isDead={isDead}
             isWinner={!!isWinner}
             isBoss={isBoss}
+            bossHp={isBoss ? player.hp : undefined}
+            bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
+            bossTitle={isBoss ? player.title : undefined}
             frogSkinUrl={skinMap.get(player.name)}
             showAttackButton={showAttackButtons && isOpponent && !isDead && !isBoss}
             onAttack={() => handleAttack(player.name)}

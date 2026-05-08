@@ -72,6 +72,9 @@ export type SceneOverlayConfig = {
   /** When true the RAID/DEFEND/resource/nametag buttons are suppressed from the
    *  overlay — the 3D scene renders them anchored to the player model instead. */
   hidePlayerActionButtons?: boolean;
+  /** When true the enemy HP panel is not rendered here — the 3D scene renders it
+   *  anchored to the enemy model instead. */
+  suppressEnemyPanel?: boolean;
   renderGameOver: (opts: GameOverRenderOpts) => ReactNode;
   /** Render additional positioned elements (e.g. a "More monsters" button) */
   renderExtra?: (opts: { gameOver: boolean; btn: string }) => ReactNode;
@@ -103,6 +106,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     enableNextLobbyRedirect = false,
     enableRaidTimer = false,
     hidePlayerActionButtons = false,
+    suppressEnemyPanel = false,
     renderGameOver,
     renderExtra,
   } = config;
@@ -462,7 +466,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     );
   }
 
-  const showEnemy = !!enemy && (showEnemyAlways || !!state.boss_fight);
+  const showEnemy = !suppressEnemyPanel && !!enemy && (showEnemyAlways || !!state.boss_fight);
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10">
