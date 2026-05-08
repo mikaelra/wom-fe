@@ -6,7 +6,7 @@ import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
-import { CITIES, latLngToVec3, type City } from '@/lib/cities';
+import { CITIES, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
 
 const GLOBE_RADIUS = 2.5;
@@ -360,9 +360,10 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
 
 // ── Camera: orbits along the ecliptic plane ───────────────────────────────
 // camera.up = ecliptic north pole so OrbitControls autoRotates around that
-// axis, keeping the camera on (or near) the ecliptic as it pans 360°.
-// After a user drag the orbit continues on whatever small-circle path the
-// camera was left at, which is the "new path" the user asked for.
+// axis. The camera starts in the Sun's direction — the Sun is always on the
+// ecliptic, so this is automatically a valid ecliptic position. At r=13 with
+// the Sun at r=46 in the same direction, the Sun is hidden behind the Earth
+// and peeks out as the camera begins its slow 360° pan.
 
 function CameraRig() {
   const { camera } = useThree();
@@ -370,28 +371,11 @@ function CameraRig() {
   useFrame(() => {
     if (done.current) return;
     const obliquity = 23.436 * RAD;
-    // Ecliptic north pole — OrbitControls will autoRotate around this axis
     camera.up.set(0, Math.cos(obliquity), Math.sin(obliquity));
-
-    // Place camera ON the ecliptic, at the azimuth 15° east of Athens.
-    // Athens (~38°N) sits well above the ecliptic (max ±23.4°), so it will
-    // appear in the upper part of the frame while the ecliptic is the focus.
-    const athens = CITIES.find(c => c.name === 'Athens')!;
-    const [lx, , lz] = latLngToVec3(athens.lat, athens.lng, 1);
-    const er = Math.PI + gmstHours(new Date()) * (Math.PI / 12);
-    const wx = lx * Math.cos(er) + lz * Math.sin(er);
-    const wz = -lx * Math.sin(er) + lz * Math.cos(er);
-    // Azimuth 15° east of Athens in scene world space
-    const camAzimuth = Math.atan2(wz, wx) + 15 * RAD;
-    // Find the ecliptic point at that azimuth.
-    // ecliptic pos(λ) = (cos λ, sin λ · sin ε, −sin λ · cos ε)
-    // Its azimuth φ satisfies: λ = atan2(−sin φ / cos ε, cos φ)
-    const lambda = Math.atan2(-Math.sin(camAzimuth) / Math.cos(obliquity), Math.cos(camAzimuth));
-    camera.position.set(
-      Math.cos(lambda) * 13,
-      Math.sin(lambda) * Math.sin(obliquity) * 13,
-      -Math.sin(lambda) * Math.cos(obliquity) * 13,
-    );
+    // Sun is always exactly on the ecliptic — use it as the start position.
+    const sunEq = Astronomy.Equator(Astronomy.Body.Sun, new Date(), OBSERVER, false, true);
+    const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1);
+    camera.position.copy(sunDir.multiplyScalar(13));
     camera.lookAt(0, 0, 0);
     done.current = true;
   });
