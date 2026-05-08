@@ -12,7 +12,6 @@ const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
 const PLANET_R = 46;
 const RAD = Math.PI / 180;
-const TILT = -23.4 * RAD;
 
 // ── Inline astronomy (Schlyter / Meeus low-accuracy, ~1° error) ────────────
 
@@ -135,21 +134,7 @@ function glowTex(color: string, size = 128): THREE.CanvasTexture {
   const g = ctx.createRadialGradient(h, h, 0, h, h, h);
   g.addColorStop(0.00, '#ffffff');
   g.addColorStop(0.15, color);
-  g.addColorStop(0.45, color);
-  g.addColorStop(1.00, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, size, size);
-  return new THREE.CanvasTexture(c);
-}
-
-function dimTex(color: string, size = 64): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const ctx = c.getContext('2d')!;
-  const h = size / 2;
-  const g = ctx.createRadialGradient(h, h, 0, h, h, h);
-  g.addColorStop(0.00, '#ffffff');
-  g.addColorStop(0.25, color);
+  g.addColorStop(0.50, color);
   g.addColorStop(1.00, 'rgba(0,0,0,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
@@ -299,6 +284,11 @@ function Starfield() {
 }
 
 // ── Planets + sun-tracking directional light ───────────────────────────────
+//
+// Planet sizes are tuned so they’re clearly distinct against the starfield:
+//   Sun 8.0 > Moon 3.2 > Jupiter 2.6 > Venus 2.4 > Mars 2.0 > Saturn 1.8 > Mercury 1.4
+//
+// All planets use glowTex so they visibly pop with their characteristic colour.
 
 function PlanetsAndLight() {
   const now = useMemo(() => new Date(), []);
@@ -308,22 +298,23 @@ function PlanetsAndLight() {
   const groupRef   = useRef<THREE.Group>(null);
   const _worldPos  = useMemo(() => new THREE.Vector3(), []);
 
-  const texSun    = useMemo(() => sunTex(),              []);
-  const moonData  = useMemo(() => moonPosition(now),     [now]);
-  const texMoon   = useMemo(() => moonTex(moonData.phase), [moonData.phase]);
-  const texMerc   = useMemo(() => dimTex('#ffbb88'),     []);
-  const texVenus  = useMemo(() => glowTex('#aaffaa'),    []);
-  const texMars   = useMemo(() => dimTex('#ff6644'),     []);
-  const texJup    = useMemo(() => glowTex('#88bbff'),    []);
-  const texSat    = useMemo(() => dimTex('#cc9966'),     []);
+  const texSun    = useMemo(() => sunTex(),                         []);
+  const moonData  = useMemo(() => moonPosition(now),                [now]);
+  const texMoon   = useMemo(() => moonTex(moonData.phase),          [moonData.phase]);
+  // Distinct glow colours per planet
+  const texMerc   = useMemo(() => glowTex('#ff9955'),               []);
+  const texVenus  = useMemo(() => glowTex('#eeffcc'),               []);
+  const texMars   = useMemo(() => glowTex('#ff4422'),               []);
+  const texJup    = useMemo(() => glowTex('#aaccff'),               []);
+  const texSat    = useMemo(() => glowTex('#ddbb77'),               []);
 
-  const posSun  = useMemo(() => { const p = sunPosition(now);              return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
+  const posSun  = useMemo(() => { const p = sunPosition(now);               return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
   const posMoon = useMemo(() => raDecToVec3(moonData.ra, moonData.dec, PLANET_R), [moonData]);
-  const posMerc = useMemo(() => { const p = planetPosition('Mercury', now); return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
-  const posVen  = useMemo(() => { const p = planetPosition('Venus',   now); return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
-  const posMars = useMemo(() => { const p = planetPosition('Mars',    now); return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
-  const posJup  = useMemo(() => { const p = planetPosition('Jupiter', now); return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
-  const posSat  = useMemo(() => { const p = planetPosition('Saturn',  now); return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
+  const posMerc = useMemo(() => { const p = planetPosition('Mercury', now);  return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
+  const posVen  = useMemo(() => { const p = planetPosition('Venus',   now);  return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
+  const posMars = useMemo(() => { const p = planetPosition('Mars',    now);  return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
+  const posJup  = useMemo(() => { const p = planetPosition('Jupiter', now);  return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
+  const posSat  = useMemo(() => { const p = planetPosition('Saturn',  now);  return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
 
   useFrame(() => {
     if (sunSprite.current && lightRef.current) {
@@ -337,26 +328,39 @@ function PlanetsAndLight() {
     <>
       <directionalLight ref={lightRef} intensity={3.5} color={0xffffff} />
       <group ref={groupRef}>
-        <sprite ref={sunSprite} position={posSun} scale={[5.0, 5.0, 1]}>
+        {/* Sun — large, warm yellow */}
+        <sprite ref={sunSprite} position={posSun} scale={[8.0, 8.0, 1]}>
           <spriteMaterial map={texSun} transparent depthWrite={false} />
         </sprite>
-        <sprite position={posMoon} scale={[1.6, 1.6, 1]}>
+
+        {/* Moon — phase-correct grey disc */}
+        <sprite position={posMoon} scale={[3.2, 3.2, 1]}>
           <spriteMaterial map={texMoon} transparent depthWrite={false} />
         </sprite>
-        <sprite position={posMerc} scale={[0.28, 0.28, 1]}>
-          <spriteMaterial map={texMerc} transparent depthWrite={false} opacity={0.55} />
+
+        {/* Mercury — small, orange-tinted, close to sun */}
+        <sprite position={posMerc} scale={[1.4, 1.4, 1]}>
+          <spriteMaterial map={texMerc} transparent depthWrite={false} opacity={0.75} />
         </sprite>
-        <sprite position={posVen} scale={[0.65, 0.65, 1]}>
+
+        {/* Venus — bright, pale green-white */}
+        <sprite position={posVen} scale={[2.4, 2.4, 1]}>
           <spriteMaterial map={texVenus} transparent depthWrite={false} />
         </sprite>
-        <sprite position={posMars} scale={[0.38, 0.38, 1]}>
+
+        {/* Mars — medium, vivid red */}
+        <sprite position={posMars} scale={[2.0, 2.0, 1]}>
           <spriteMaterial map={texMars} transparent depthWrite={false} />
         </sprite>
-        <sprite position={posJup} scale={[0.75, 0.75, 1]}>
+
+        {/* Jupiter — largest planet, blue-white */}
+        <sprite position={posJup} scale={[2.6, 2.6, 1]}>
           <spriteMaterial map={texJup} transparent depthWrite={false} />
         </sprite>
-        <sprite position={posSat} scale={[0.32, 0.32, 1]}>
-          <spriteMaterial map={texSat} transparent depthWrite={false} opacity={0.75} />
+
+        {/* Saturn — golden-brown, slightly translucent */}
+        <sprite position={posSat} scale={[1.8, 1.8, 1]}>
+          <spriteMaterial map={texSat} transparent depthWrite={false} opacity={0.85} />
         </sprite>
       </group>
     </>
@@ -364,6 +368,15 @@ function PlanetsAndLight() {
 }
 
 // ── Globe ──────────────────────────────────────────────────────────────────
+//
+// NO axial-tilt rotation on the earth group.
+//
+// Reasoning: raDecToVec3 places sun/stars in the *equatorial* coordinate
+// system, where +Y is already Earth’s geographic north pole by definition.
+// Geographic latitude == equatorial declination, so the earth mesh needs no
+// extra tilt — the sun’s Dec (+18° in May) already encodes the seasonal
+// illumination angle.  Adding a Z-rotation would mis-align the two systems
+// and push the day/night terminator too far toward the north pole.
 
 interface GlobeProps {
   onCityClick: (city: City) => void;
@@ -408,45 +421,43 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
 
   const geo = useMemo(() => new THREE.IcosahedronGeometry(GLOBE_RADIUS, 12), []);
 
-  // Set earth orientation to match current Greenwich Mean Sidereal Time
+  // Align geographic longitude with the current Greenwich Mean Sidereal Time
   const earthRot = useMemo(() => Math.PI + gmstHours(new Date()) * (Math.PI / 12), []);
 
   // Clouds drift slowly relative to the surface
   useFrame(() => { if (cloudsRef.current) cloudsRef.current.rotation.y += 0.000075; });
 
   return (
-    // Outer group carries the axial tilt
-    <group rotation={[0, 0, TILT]}>
-      {/* Inner group locks surface + markers to GMST longitude */}
-      <group rotation={[0, earthRot, 0]}>
-        <mesh geometry={geo}>
-          <meshPhongMaterial
-            map={earthMap}
-            specularMap={specularMap}
-            bumpMap={bumpMap}
-            bumpScale={0.04 * GLOBE_RADIUS}
-          />
-        </mesh>
-        <mesh geometry={geo}>
-          <primitive object={lightsMat} attach="material" />
-        </mesh>
-        {CITIES.map((city) => (
-          <CityMarker
-            key={city.id}
-            city={city}
-            globeRadius={GLOBE_RADIUS}
-            onClick={onCityClick}
-            raidInfo={city.name === 'Athens' ? athensRaidInfo : undefined}
-          />
-        ))}
-      </group>
+    // Single group: GMST rotation only, no axial-tilt wrapper
+    <group rotation={[0, earthRot, 0]}>
+      <mesh geometry={geo}>
+        <meshPhongMaterial
+          map={earthMap}
+          specularMap={specularMap}
+          bumpMap={bumpMap}
+          bumpScale={0.04 * GLOBE_RADIUS}
+        />
+      </mesh>
 
-      {/* Clouds start at earthRot and then drift independently */}
-      <mesh ref={cloudsRef} geometry={geo} material={cloudsMat}
-            rotation={[0, earthRot, 0]} scale={1.003} />
+      <mesh geometry={geo}>
+        <primitive object={lightsMat} attach="material" />
+      </mesh>
+
+      {/* Clouds drift independently from the surface */}
+      <mesh ref={cloudsRef} geometry={geo} material={cloudsMat} scale={1.003} />
 
       {/* Fresnel glow — symmetric, no rotation needed */}
       <mesh geometry={geo} material={fresnelMat} scale={1.01} />
+
+      {CITIES.map((city) => (
+        <CityMarker
+          key={city.id}
+          city={city}
+          globeRadius={GLOBE_RADIUS}
+          onClick={onCityClick}
+          raidInfo={city.name === 'Athens' ? athensRaidInfo : undefined}
+        />
+      ))}
     </group>
   );
 }
