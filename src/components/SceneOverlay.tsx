@@ -69,6 +69,9 @@ export type SceneOverlayConfig = {
   showChat?: boolean;
   enableNextLobbyRedirect?: boolean;
   enableRaidTimer?: boolean;
+  /** When true the RAID/DEFEND/resource/nametag buttons are suppressed from the
+   *  overlay — the 3D scene renders them anchored to the player model instead. */
+  hidePlayerActionButtons?: boolean;
   renderGameOver: (opts: GameOverRenderOpts) => ReactNode;
   /** Render additional positioned elements (e.g. a "More monsters" button) */
   renderExtra?: (opts: { gameOver: boolean; btn: string }) => ReactNode;
@@ -99,6 +102,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     showChat = false,
     enableNextLobbyRedirect = false,
     enableRaidTimer = false,
+    hidePlayerActionButtons = false,
     renderGameOver,
     renderExtra,
   } = config;
@@ -576,8 +580,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         </div>
       )}
 
-      {/* RAID button */}
-      {showActions && (
+      {/* RAID button (hidden when 3D scene owns player action UI) */}
+      {!hidePlayerActionButtons && showActions && (
         <div
           className="absolute pointer-events-auto"
           style={{ top: '54%', left: '50%', transform: 'translate(-50%, -50%)' }}
@@ -599,8 +603,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       {/* Extra elements slot (e.g. scene-specific buttons) */}
       {renderExtra?.({ gameOver, btn })}
 
-      {/* Player nametag */}
-      {myPlayer && (
+      {/* Player nametag (hidden when 3D scene owns player action UI) */}
+      {!hidePlayerActionButtons && myPlayer && (
         <div
           className="absolute"
           style={{ top: '59%', left: '50%', transform: 'translate(-50%, -50%)' }}
@@ -613,8 +617,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         </div>
       )}
 
-      {/* DEFEND button */}
-      {showActions && (
+      {/* DEFEND button (hidden when 3D scene owns player action UI) */}
+      {!hidePlayerActionButtons && showActions && (
         <div
           className="absolute pointer-events-auto"
           style={{ top: '65%', left: '50%', transform: 'translateX(-50%)' }}
@@ -633,8 +637,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         </div>
       )}
 
-      {/* Resource stat cards */}
-      {myPlayer && !myPlayer.spectator && (
+      {/* Resource stat cards (hidden when 3D scene owns player action UI) */}
+      {!hidePlayerActionButtons && myPlayer && !myPlayer.spectator && (
         <div
           className="absolute flex gap-2 pointer-events-auto"
           style={{ top: '72%', left: '50%', transform: 'translateX(-50%)' }}

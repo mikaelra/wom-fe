@@ -266,6 +266,7 @@ const lobbyConfig: SceneOverlayConfig = {
   showChat: true,
   enableNextLobbyRedirect: true,
   enableRaidTimer: true,
+  hidePlayerActionButtons: true,
   renderGameOver,
 };
 

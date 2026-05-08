@@ -1,20 +1,23 @@
 import { useRef, useEffect } from 'react';
-import { useThree, useFrame } from '@react-three/fiber';
+import { useThree } from '@react-three/fiber';
 
-const MAX_ANGLE = Math.PI / 6; // 30 degrees
-const SENSITIVITY = 0.004;     // radians per pixel
-const SNAP_SPEED = 0.05;       // lerp factor per frame for snap-back
+const SENSITIVITY = 0.004;
+// Prevent the camera arm from going below the table (LOBBY_LOOKAT.y).
+// Pitch = 0 → initial position. Positive pitch tilts arm downward (camera lowers).
+// At ~0.60 rad the arm becomes horizontal; beyond that it dips below the lookat.
+const MAX_PITCH = 0.55;   // near-side floor cap (camera just above table level)
+const MIN_PITCH = -2.50;  // far-side floor cap (camera just above table from over the top)
 
 /**
  * Returns a ref with { yaw, pitch } offsets in radians.
- * - Drag to pan up to 30° in any direction.
- * - Releases slowly snap back to { yaw: 0, pitch: 0 }.
+ * - Drag to pan: yaw is unlimited (full 360° horizontal).
+ * - Pitch is capped so the camera cannot go below the table surface.
+ * - Position is retained when the pointer is released (no snap-back).
  */
 export function usePanOffset() {
   const { gl } = useThree();
   const drag = useRef({ active: false, lastX: 0, lastY: 0 });
-  const targetOffset = useRef({ yaw: 0, pitch: 0 });
-  const currentOffset = useRef({ yaw: 0, pitch: 0 });
+  const offset = useRef({ yaw: 0, pitch: 0 });
 
   useEffect(() => {
     const el = gl.domElement;
@@ -28,20 +31,13 @@ export function usePanOffset() {
       const dy = e.clientY - drag.current.lastY;
       drag.current.lastX = e.clientX;
       drag.current.lastY = e.clientY;
-      targetOffset.current.yaw = Math.max(
-        -MAX_ANGLE,
-        Math.min(MAX_ANGLE, targetOffset.current.yaw - dx * SENSITIVITY),
-      );
-      targetOffset.current.pitch = Math.max(
-        -MAX_ANGLE,
-        Math.min(MAX_ANGLE, targetOffset.current.pitch - dy * SENSITIVITY),
+      offset.current.yaw -= dx * SENSITIVITY;
+      offset.current.pitch = Math.max(
+        MIN_PITCH,
+        Math.min(MAX_PITCH, offset.current.pitch - dy * SENSITIVITY),
       );
     };
-    const onUp = () => {
-      drag.current.active = false;
-      targetOffset.current.yaw = 0;
-      targetOffset.current.pitch = 0;
-    };
+    const onUp = () => { drag.current.active = false; };
 
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointermove', onMove);
@@ -56,12 +52,5 @@ export function usePanOffset() {
     };
   }, [gl]);
 
-  useFrame(() => {
-    currentOffset.current.yaw +=
-      (targetOffset.current.yaw - currentOffset.current.yaw) * SNAP_SPEED;
-    currentOffset.current.pitch +=
-      (targetOffset.current.pitch - currentOffset.current.pitch) * SNAP_SPEED;
-  });
-
-  return currentOffset;
+  return offset;
 }

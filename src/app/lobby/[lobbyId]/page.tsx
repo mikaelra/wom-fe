@@ -192,6 +192,7 @@ export default function LobbyPage() {
           currentAction={sharedAction}
           attackTarget={sharedAttackTarget}
           onAttackSelect={(target) => { setSharedAction('attack'); setSharedAttackTarget(target); }}
+          onActionChange={setSharedAction}
         />
       </Canvas>
 
