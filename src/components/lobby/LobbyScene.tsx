@@ -78,6 +78,55 @@ function WinnerCrown({ worldPosition }: { worldPosition: [number, number, number
   );
 }
 
+function WellCrown({ worldPosition }: { worldPosition: [number, number, number] | null }) {
+  const { scene } = useGLTF('/models/well_crown_v1.glb');
+  const crownScene = useMemo(() => scene.clone(), [scene]);
+  const ref = useRef<THREE.Group>(null);
+
+  useFrame((clockState) => {
+    if (ref.current && worldPosition) {
+      ref.current.position.y = worldPosition[1] + 1.1 + Math.sin(clockState.clock.elapsedTime * 2.2) * 0.07;
+      ref.current.rotation.y = clockState.clock.elapsedTime * 0.45;
+    }
+  });
+
+  if (!worldPosition) return null;
+
+  return (
+    <group ref={ref} position={[worldPosition[0], worldPosition[1] + 1.1, worldPosition[2]]}>
+      <primitive object={crownScene} scale={0.4} />
+    </group>
+  );
+}
+
+function RoundOrderArrow({
+  fromPosition,
+  toPosition,
+  visible,
+}: {
+  fromPosition: [number, number, number] | null;
+  toPosition: [number, number, number] | null;
+  visible: boolean;
+}) {
+  const { scene } = useGLTF('/models/red_arrow_v1.glb');
+  const arrowScene = useMemo(() => scene.clone(), [scene]);
+
+  if (!visible || !fromPosition || !toPosition) return null;
+
+  const dx = toPosition[0] - fromPosition[0];
+  const dz = toPosition[2] - fromPosition[2];
+  const angle = Math.atan2(dx, dz);
+
+  return (
+    <group
+      position={[fromPosition[0], fromPosition[1] + 0.5, fromPosition[2]]}
+      rotation={[0, angle, 0]}
+    >
+      <primitive object={arrowScene} scale={0.5} />
+    </group>
+  );
+}
+
 function PlayerWithName({
   name,
   position,
@@ -107,7 +156,7 @@ function PlayerWithName({
   isBoss?: boolean;
   frogSkinUrl?: string;
 }) {
-  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hadesv01.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
+  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades_v2.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   return (
     <group position={position} rotation={rotation}>
       <PlayerV1
@@ -225,7 +274,7 @@ function LostSoulModel({
   isAttackSelected?: boolean;
   actionCue?: string;
 }) {
-  const { scene } = useGLTF('/models/ghost.glb');
+  const { scene } = useGLTF('/models/lost_soul_v2.glb');
   const sceneClone = useMemo(() => scene.clone(), [scene]);
   const ref = useRef<THREE.Group>(null);
 
@@ -287,9 +336,12 @@ function LostSoulModel({
   );
 }
 
-useGLTF.preload('/models/ghost.glb');
+useGLTF.preload('/models/lost_soul_v2.glb');
+useGLTF.preload('/models/hades_v2.glb');
 useGLTF.preload('/models/turtlev01.glb');
 useGLTF.preload('/models/crowns/crown_ld_v1.glb');
+useGLTF.preload('/models/well_crown_v1.glb');
+useGLTF.preload('/models/red_arrow_v1.glb');
 ALL_FROG_SKINS.forEach((s) => useGLTF.preload(skinUrl(s)));
 
 type LobbySceneProps = {
@@ -311,6 +363,31 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     }, 1000);
     return () => clearInterval(interval);
   }, [state?.round_end_time]);
+
+  // Track the well crown holder — persists across rounds when no one wins the well
+  const [wellCrownHolder, setWellCrownHolder] = useState<string | null>(null);
+  const wellCrownHolderRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (state?.well_winner != null) {
+      wellCrownHolderRef.current = state.well_winner;
+      setWellCrownHolder(state.well_winner);
+    }
+  }, [state?.well_winner]);
+
+  // Show the red arrow at each round start for 3 seconds (requires an active crown holder)
+  const [showArrow, setShowArrow] = useState(false);
+  const prevRound = useRef<number>(0);
+  useEffect(() => {
+    const round = state?.round ?? 0;
+    if (round > prevRound.current) {
+      prevRound.current = round;
+      if (wellCrownHolderRef.current) {
+        setShowArrow(true);
+        const timer = setTimeout(() => setShowArrow(false), 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [state?.round]);
 
   const allPlayers = state?.players ?? [];
   const lostSouls = allPlayers.filter((p) => p.lost_soul);
@@ -349,6 +426,22 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     if (!slot) return null;
     return slot.position;
   }, [gameOver, isBossFight, winner, players, PLAYER_POSITIONS]);
+  // Well crown hovers above the current well winner for everyone to see
+  const wellCrownPosition = useMemo((): [number, number, number] | null => {
+    if (!wellCrownHolder) return null;
+    const idx = players.findIndex((p) => p.name === wellCrownHolder);
+    if (idx < 0) return null;
+    return PLAYER_POSITIONS[idx]?.position ?? null;
+  }, [wellCrownHolder, players, PLAYER_POSITIONS]);
+
+  // Arrow points from crown holder toward the next player in seating order
+  const nextPlayerPosition = useMemo((): [number, number, number] | null => {
+    if (!wellCrownHolder || players.length < 2) return null;
+    const idx = players.findIndex((p) => p.name === wellCrownHolder);
+    if (idx < 0) return null;
+    return PLAYER_POSITIONS[(idx + 1) % players.length]?.position ?? null;
+  }, [wellCrownHolder, players, PLAYER_POSITIONS]);
+
   const isAlive = (myPlayer?.hp ?? 0) > 0;
   const gameStarted = (state?.round ?? 0) > 0;
   const showAttackButtons = gameStarted && !gameOver && !isDenied && isAlive && !myPlayer?.spectator;
@@ -433,6 +526,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       })}
 
       <WinnerCrown worldPosition={crownPosition} />
+      <WellCrown worldPosition={wellCrownPosition} />
+      <RoundOrderArrow fromPosition={wellCrownPosition} toPosition={nextPlayerPosition} visible={showArrow} />
       <Environment preset="sunset" />
     </>
   );
