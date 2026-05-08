@@ -4,6 +4,7 @@ import { useRef, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
+import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
 import { CITIES, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
@@ -13,103 +14,12 @@ const STAR_R = 50;
 const PLANET_R = 46;
 const RAD = Math.PI / 180;
 
-// ── Inline astronomy (Schlyter / Meeus low-accuracy, ~1° error) ────────────
+// Observer at Earth centre (geocentric) — same as threejs-earth
+const OBSERVER = new Astronomy.Observer(0, 0, 0);
 
-function jd(date: Date): number {
-  return date.getTime() / 86400000 + 2440587.5;
-}
-
-function obliquity(d: number): number {
-  return (23.439 - 3.56e-7 * d) * RAD;
-}
-
+// GMST in hours, used to align the earth texture with the real sky
 export function gmstHours(date: Date): number {
-  const d0 = jd(date) - 2451545.0;
-  return (((280.46061837 + 360.98564736629 * d0) % 360) + 360) % 360 / 15;
-}
-
-function ecl2eq(lon: number, lat: number, eps: number): { ra: number; dec: number } {
-  const ra = Math.atan2(
-    Math.sin(lon) * Math.cos(eps) - Math.tan(lat) * Math.sin(eps),
-    Math.cos(lon),
-  );
-  const dec = Math.asin(
-    Math.sin(lat) * Math.cos(eps) + Math.cos(lat) * Math.sin(eps) * Math.sin(lon),
-  );
-  return { ra: (((ra / RAD / 15) % 24) + 24) % 24, dec: dec / RAD };
-}
-
-function sunEcliptic(d: number): { lon: number; r: number } {
-  const g = (357.529 + 0.98560028 * d) * RAD;
-  const q = 280.459 + 0.98564736 * d;
-  const lon = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * RAD;
-  const r = 1.00014 - 0.01671 * Math.cos(g) - 0.00014 * Math.cos(2 * g);
-  return { lon, r };
-}
-
-function sunPosition(date: Date): { ra: number; dec: number } {
-  const d = jd(date) - 2451545.0;
-  const { lon } = sunEcliptic(d);
-  return ecl2eq(lon, 0, obliquity(d));
-}
-
-function solveKepler(M: number, e: number): number {
-  let E = M;
-  for (let i = 0; i < 10; i++) E = M + e * Math.sin(E);
-  return E;
-}
-
-// Schlyter orbital elements: [N0,Nd, i0,id, w0,wd, a, e0,ed, M0,Md]
-const ELEMS: Record<string, number[]> = {
-  Mercury: [48.3313,3.24587e-5, 7.0047,5.00e-8, 29.1241,1.01444e-5, 0.387098, 0.205635,5.59e-10, 168.6562,4.0923344368],
-  Venus:   [76.6799,2.46590e-5, 3.3946,2.75e-8, 54.8910,1.38374e-5, 0.723330, 0.006773,-1.302e-9, 48.0052,1.6021302244],
-  Mars:    [49.5574,2.11081e-5, 1.8497,-1.78e-8, 286.5016,2.92961e-5, 1.523688, 0.093405,2.516e-9, 18.6021,0.5240207766],
-  Jupiter: [100.4542,2.76854e-5, 1.3030,-1.557e-7, 273.8777,1.64505e-5, 5.20256, 0.048498,4.469e-9, 19.8950,0.0830853001],
-  Saturn:  [113.6634,2.38980e-5, 2.4886,-1.081e-7, 339.3939,2.97661e-5, 9.55475, 0.055546,-9.499e-9, 316.9670,0.0334442282],
-};
-
-function planetPosition(name: string, date: Date): { ra: number; dec: number } {
-  const d = jd(date) - 2451545.0;
-  const e = ELEMS[name];
-  const N   = (e[0] + e[1] * d) * RAD;
-  const inc = (e[2] + e[3] * d) * RAD;
-  const w   = (e[4] + e[5] * d) * RAD;
-  const a   = e[6];
-  const ec  = e[7] + e[8] * d;
-  const M   = ((e[9] + e[10] * d) % 360 + 360) % 360 * RAD;
-  const E   = solveKepler(M, ec);
-  const xv  = a * (Math.cos(E) - ec);
-  const yv  = a * Math.sqrt(1 - ec * ec) * Math.sin(E);
-  const v   = Math.atan2(yv, xv);
-  const r   = Math.hypot(xv, yv);
-  const xh  = r * (Math.cos(N) * Math.cos(v + w) - Math.sin(N) * Math.sin(v + w) * Math.cos(inc));
-  const yh  = r * (Math.sin(N) * Math.cos(v + w) + Math.cos(N) * Math.sin(v + w) * Math.cos(inc));
-  const zh  = r * (Math.sin(v + w) * Math.sin(inc));
-  const { lon: sLon, r: sR } = sunEcliptic(d);
-  const xg  = xh - sR * Math.cos(sLon);
-  const yg  = yh - sR * Math.sin(sLon);
-  const zg  = zh;
-  const eps = obliquity(d);
-  const xe  = xg;
-  const ye  = yg * Math.cos(eps) - zg * Math.sin(eps);
-  const ze  = yg * Math.sin(eps) + zg * Math.cos(eps);
-  return {
-    ra:  (((Math.atan2(ye, xe) / RAD / 15) % 24) + 24) % 24,
-    dec: Math.atan2(ze, Math.hypot(xe, ye)) / RAD,
-  };
-}
-
-function moonPosition(date: Date): { ra: number; dec: number; phase: number } {
-  const d   = jd(date) - 2451545.0;
-  const L   = ((218.316 + 13.176396  * d) % 360 + 360) % 360 * RAD;
-  const M   = ((134.963 + 13.064993  * d) % 360 + 360) % 360 * RAD;
-  const F   = ((93.272  + 13.229350  * d) % 360 + 360) % 360 * RAD;
-  const lon = L + 6.289 * Math.sin(M) * RAD;
-  const lat = 5.128 * Math.sin(F) * RAD;
-  const pos = ecl2eq(lon, lat, obliquity(d));
-  const { lon: sLon } = sunEcliptic(d);
-  const phase = (((lon - sLon) / RAD + 360) % 360) / 360;
-  return { ...pos, phase };
+  return Astronomy.SiderealTime(date);
 }
 
 // ── RA/Dec → THREE.Vector3 ─────────────────────────────────────────────────
@@ -285,36 +195,49 @@ function Starfield() {
 
 // ── Planets + sun-tracking directional light ───────────────────────────────
 //
+// Positions from astronomy-engine (VSOP87, same as threejs-earth).
 // Sizes relative to the brightest star band (0.55):
 //   Venus = Mars = 1.5× → 0.825
-//   Jupiter = 2× Venus → 1.65
+//   Jupiter = 2× Venus  → 1.65
 //   Saturn = Mercury = 0.8× Venus → 0.66
-//   Moon 3.2 | Sun 8.0  (kept large so they read clearly)
+//   Moon 3.2 | Sun 8.0
 
 function PlanetsAndLight() {
   const now = useMemo(() => new Date(), []);
 
-  const sunSprite  = useRef<THREE.Sprite>(null);
-  const lightRef   = useRef<THREE.DirectionalLight>(null);
-  const groupRef   = useRef<THREE.Group>(null);
-  const _worldPos  = useMemo(() => new THREE.Vector3(), []);
+  const sunSprite = useRef<THREE.Sprite>(null);
+  const lightRef  = useRef<THREE.DirectionalLight>(null);
+  const groupRef  = useRef<THREE.Group>(null);
+  const _worldPos = useMemo(() => new THREE.Vector3(), []);
 
-  const texSun    = useMemo(() => sunTex(),                         []);
-  const moonData  = useMemo(() => moonPosition(now),                [now]);
-  const texMoon   = useMemo(() => moonTex(moonData.phase),          [moonData.phase]);
-  const texMerc   = useMemo(() => glowTex('#ff9955'),               []);
-  const texVenus  = useMemo(() => glowTex('#aaffaa'),               []);
-  const texMars   = useMemo(() => glowTex('#ff4422'),               []);
-  const texJup    = useMemo(() => glowTex('#aaccff'),               []);
-  const texSat    = useMemo(() => glowTex('#ddbb77'),               []);
+  const texSun   = useMemo(() => sunTex(),             []);
+  const texMerc  = useMemo(() => glowTex('#ff9955'),   []);
+  const texVenus = useMemo(() => glowTex('#aaffaa'),   []);
+  const texMars  = useMemo(() => glowTex('#ff4422'),   []);
+  const texJup   = useMemo(() => glowTex('#aaccff'),   []);
+  const texSat   = useMemo(() => glowTex('#ddbb77'),   []);
 
-  const posSun  = useMemo(() => { const p = sunPosition(now);               return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
-  const posMoon = useMemo(() => raDecToVec3(moonData.ra, moonData.dec, PLANET_R), [moonData]);
-  const posMerc = useMemo(() => { const p = planetPosition('Mercury', now);  return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
-  const posVen  = useMemo(() => { const p = planetPosition('Venus',   now);  return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
-  const posMars = useMemo(() => { const p = planetPosition('Mars',    now);  return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
-  const posJup  = useMemo(() => { const p = planetPosition('Jupiter', now);  return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
-  const posSat  = useMemo(() => { const p = planetPosition('Saturn',  now);  return raDecToVec3(p.ra, p.dec, PLANET_R); }, [now]);
+  // astronomy-engine: Equator(body, date, observer, ofdate=false, aberration=true)
+  const moonPhase = useMemo(() => Astronomy.MoonPhase(now) / 360, [now]);
+  const texMoon   = useMemo(() => moonTex(moonPhase),              [moonPhase]);
+
+  const eq = useMemo(() => ({
+    sun:  Astronomy.Equator('Sun',     now, OBSERVER, false, true),
+    moon: Astronomy.Equator('Moon',    now, OBSERVER, false, true),
+    merc: Astronomy.Equator('Mercury', now, OBSERVER, false, true),
+    ven:  Astronomy.Equator('Venus',   now, OBSERVER, false, true),
+    mars: Astronomy.Equator('Mars',    now, OBSERVER, false, true),
+    jup:  Astronomy.Equator('Jupiter', now, OBSERVER, false, true),
+    sat:  Astronomy.Equator('Saturn',  now, OBSERVER, false, true),
+  }), [now]);
+
+  const posSun  = useMemo(() => raDecToVec3(eq.sun.ra,  eq.sun.dec,  PLANET_R), [eq]);
+  const posMoon = useMemo(() => raDecToVec3(eq.moon.ra, eq.moon.dec, PLANET_R), [eq]);
+  const posMerc = useMemo(() => raDecToVec3(eq.merc.ra, eq.merc.dec, PLANET_R), [eq]);
+  const posVen  = useMemo(() => raDecToVec3(eq.ven.ra,  eq.ven.dec,  PLANET_R), [eq]);
+  const posMars = useMemo(() => raDecToVec3(eq.mars.ra, eq.mars.dec, PLANET_R), [eq]);
+  const posJup  = useMemo(() => raDecToVec3(eq.jup.ra,  eq.jup.dec,  PLANET_R), [eq]);
+  const posSat  = useMemo(() => raDecToVec3(eq.sat.ra,  eq.sat.dec,  PLANET_R), [eq]);
 
   useFrame(() => {
     if (sunSprite.current && lightRef.current) {
@@ -362,14 +285,9 @@ function PlanetsAndLight() {
 
 // ── Globe ──────────────────────────────────────────────────────────────────
 //
-// NO axial-tilt rotation on the earth group.
-//
-// Reasoning: raDecToVec3 places sun/stars in the *equatorial* coordinate
-// system, where +Y is already Earth's geographic north pole by definition.
-// Geographic latitude == equatorial declination, so the earth mesh needs no
-// extra tilt — the sun's Dec (+18° in May) already encodes the seasonal
-// illumination angle.  Adding a Z-rotation would mis-align the two systems
-// and push the day/night terminator too far toward the north pole.
+// No axial-tilt rotation: raDecToVec3 places objects in the equatorial
+// coordinate system where +Y is already Earth's geographic north pole.
+// The sun's Dec encodes the seasonal illumination angle correctly.
 
 interface GlobeProps {
   onCityClick: (city: City) => void;
@@ -414,14 +332,11 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
 
   const geo = useMemo(() => new THREE.IcosahedronGeometry(GLOBE_RADIUS, 12), []);
 
-  // Align geographic longitude with the current Greenwich Mean Sidereal Time
   const earthRot = useMemo(() => Math.PI + gmstHours(new Date()) * (Math.PI / 12), []);
 
-  // Clouds drift slowly relative to the surface
   useFrame(() => { if (cloudsRef.current) cloudsRef.current.rotation.y += 0.000075; });
 
   return (
-    // Single group: GMST rotation only, no axial-tilt wrapper
     <group rotation={[0, earthRot, 0]}>
       <mesh geometry={geo}>
         <meshPhongMaterial
@@ -436,10 +351,8 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
         <primitive object={lightsMat} attach="material" />
       </mesh>
 
-      {/* Clouds drift independently from the surface */}
       <mesh ref={cloudsRef} geometry={geo} material={cloudsMat} scale={1.003} />
 
-      {/* Fresnel glow — symmetric, no rotation needed */}
       <mesh geometry={geo} material={fresnelMat} scale={1.01} />
 
       {CITIES.map((city) => (
