@@ -4,7 +4,7 @@ export const SCENE_CENTER: [number, number, number] = [0, 3.2, 0];
 
 export const MAX_PLAYERS = 24;
 const BASE_PLAYER_RADIUS = 1.4;
-const PLAYER_Y = 3.2;
+export const PLAYER_Y = 3.2;
 
 // Radius grows by 10% for every 6 players: 1–6 → base, 7–12 → +10%, 13–18 → +20%, etc.
 function playerRadius(count: number): number {
@@ -26,6 +26,36 @@ export function getPlayerPositions(count: number): { position: [number, number, 
       ] as [number, number, number],
       // LobbyScene adds another Math.PI/2 at render time, so storing angle + Math.PI/2
       // here produces a final rotation of angle + Math.PI — facing inward toward center.
+      rotation: [0, angle + Math.PI / 2, 0] as [number, number, number],
+    };
+  });
+}
+
+// Boss fight layout: Hades is fixed on the far side (z-), facing the players.
+export function getBossPosition(): { position: [number, number, number]; rotation: [number, number, number] } {
+  const angle = Math.PI; // far side (z-)
+  return {
+    position: [
+      BASE_PLAYER_RADIUS * Math.sin(angle),
+      PLAYER_Y,
+      BASE_PLAYER_RADIUS * Math.cos(angle),
+    ] as [number, number, number],
+    rotation: [0, angle + Math.PI / 2, 0] as [number, number, number],
+  };
+}
+
+// Returns `count` seats spread evenly across the near half of The Well (z+ side).
+// Players are centered so adding new ones doesn't move Hades.
+export function getBossPlayerPositions(count: number): { position: [number, number, number]; rotation: [number, number, number] }[] {
+  return Array.from({ length: count }, (_, i) => {
+    // Distribute across -π/2 … +π/2 with equal spacing, centered
+    const angle = count === 1 ? 0 : -Math.PI / 2 + (Math.PI * (i + 0.5)) / count;
+    return {
+      position: [
+        BASE_PLAYER_RADIUS * Math.sin(angle),
+        PLAYER_Y,
+        BASE_PLAYER_RADIUS * Math.cos(angle),
+      ] as [number, number, number],
       rotation: [0, angle + Math.PI / 2, 0] as [number, number, number],
     };
   });

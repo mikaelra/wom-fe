@@ -14,6 +14,8 @@ import {
   SCENE_CENTER,
   MAX_PLAYERS,
   getPlayerPositions,
+  getBossPosition,
+  getBossPlayerPositions,
   getCameraTargetPosition,
   getResponsiveFov,
 } from '@/lib/sceneConstants';
@@ -348,11 +350,12 @@ function PlayerWithName({
 }
 
 
+// Behind Hades who is fixed at [0, PLAYER_Y, -1.4] (far z- side)
 const LOST_SOUL_POSITIONS: [number, number, number][] = [
-  [-0.7, 4.2, -0.7],
-  [0.7, 4.2, -0.7],
-  [-0.7, 4.2, 0.7],
-  [0.7, 4.2, 0.7],
+  [-0.5, 4.2, -1.9],
+  [0.5, 4.2, -1.9],
+  [-0.3, 4.4, -2.3],
+  [0.3, 4.4, -2.3],
 ];
 
 function LostSoulModel({
@@ -472,6 +475,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const allPlayers = state?.players ?? [];
   const lostSouls = allPlayers.filter((p) => p.lost_soul);
 
+  const myPlayer = state?.players.find((p) => p.name === playerName);
+  const gameOver = state?.gameover ?? false;
+  const isBossFight = !!state?.boss_fight;
+  const isDenied = playerName === state?.deny_target;
+
   // Compute skins for all frog players deterministically from their names so
   // every client agrees without any server round-trip.
   const skinMap = useMemo(() => {
@@ -479,23 +487,31 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return assignSkins(frogPlayers, lobbyId);
   }, [allPlayers, lobbyId]);
 
-  // Sort so current player is slot 0 (near camera) and boss is slot 1 (far side of table)
+  // Sort so current player is first.
+  // In boss fights: boss is kept last (gets its own fixed far-side position) and non-boss
+  // players are secondarily sorted by name so their slots stay stable as new players join.
+  // Outside boss fights: boss goes to slot 1 (far side of the full circle).
   const players = allPlayers
     .filter((p) => !p.lost_soul)
     .sort((a, b) => {
-      const score = (p: typeof a) => (p.name === playerName ? 0 : p.boss ? 1 : 2);
-      return score(a) - score(b);
+      const score = (p: typeof a) => (p.name === playerName ? 0 : p.boss ? (isBossFight ? 999 : 1) : 2);
+      const diff = score(a) - score(b);
+      if (diff !== 0) return diff;
+      // Stable secondary sort by name so existing players keep their slots when new ones join
+      return a.name.localeCompare(b.name);
     })
     .slice(0, MAX_PLAYERS);
   const winner = state?.winner ?? state?.raidwinner ?? null;
 
-  // Recompute seat positions each render so spacing is always even for the current player count.
-  const PLAYER_POSITIONS = getPlayerPositions(players.length);
-
-  const myPlayer = state?.players.find((p) => p.name === playerName);
-  const gameOver = state?.gameover ?? false;
-  const isBossFight = !!state?.boss_fight;
-  const isDenied = playerName === state?.deny_target;
+  // Compute seat positions. In boss fights the boss is pinned to the far side and players
+  // spread across the near half, so adding a player never moves Hades.
+  const PLAYER_POSITIONS = (() => {
+    if (!isBossFight) return getPlayerPositions(players.length);
+    const bossSlot = getBossPosition();
+    const nonBossSlots = getBossPlayerPositions(players.filter((p) => !p.boss).length);
+    let nbi = 0;
+    return players.map((p) => (p.boss ? bossSlot : nonBossSlots[nbi++]));
+  })();
 
   // Compute world-space position for the crown (above winner's head, private lobbies only)
   const crownPosition = useMemo((): [number, number, number] | null => {
