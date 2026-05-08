@@ -99,36 +99,6 @@ function WellCrown({ worldPosition }: { worldPosition: [number, number, number] 
   );
 }
 
-function RoundOrderArrow({
-  fromPosition,
-  toPosition,
-  visible,
-}: {
-  fromPosition: [number, number, number] | null;
-  toPosition: [number, number, number] | null;
-  visible: boolean;
-}) {
-  const { scene } = useGLTF('/models/red_arrow_v1.glb');
-  const arrowScene = useMemo(() => scene.clone(), [scene]);
-
-  if (!visible || !fromPosition || !toPosition) return null;
-
-  // Place the arrow at the midpoint between the two frogs so it appears between them
-  const arrowX = (fromPosition[0] + toPosition[0]) / 2;
-  const arrowZ = (fromPosition[2] + toPosition[2]) / 2;
-  const arrowY = fromPosition[1] + 0.3;
-
-  // Point from the midpoint toward the target player
-  const dx = toPosition[0] - arrowX;
-  const dz = toPosition[2] - arrowZ;
-  const angle = Math.atan2(dx, dz);
-
-  return (
-    <group position={[arrowX, arrowY, arrowZ]} rotation={[Math.PI / 2, angle, 0]}>
-      <primitive object={arrowScene} scale={0.5} />
-    </group>
-  );
-}
 
 function PlayerWithName({
   name,
@@ -344,7 +314,6 @@ useGLTF.preload('/models/hades_v2.glb');
 useGLTF.preload('/models/turtlev01.glb');
 useGLTF.preload('/models/crowns/crown_ld_v1.glb');
 useGLTF.preload('/models/well_crown_v1.glb');
-useGLTF.preload('/models/red_arrow_v1.glb');
 ALL_FROG_SKINS.forEach((s) => useGLTF.preload(skinUrl(s)));
 
 type LobbySceneProps = {
@@ -367,21 +336,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return () => clearInterval(interval);
   }, [state?.round_end_time]);
 
-  // Track the well crown holder — raidwinner is who last won The Well (the 🏴 action)
-  // Use a ref so the round-start effect always reads the latest value without re-running
-  const raidwinnerRef = useRef<string | null>(null);
-  raidwinnerRef.current = state?.raidwinner ?? null;
-
-  // Show the red arrow at each round start for 3 seconds (requires an active crown holder)
-  const [showArrow, setShowArrow] = useState(false);
-  useEffect(() => {
-    const round = state?.round ?? 0;
-    if (round > 0 && raidwinnerRef.current) {
-      setShowArrow(true);
-      const timer = setTimeout(() => setShowArrow(false), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [state?.round]);
 
   const allPlayers = state?.players ?? [];
   const lostSouls = allPlayers.filter((p) => p.lost_soul);
@@ -431,19 +385,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return PLAYER_POSITIONS[idx]?.position ?? null;
   }, [wellCrownHolder, players, PLAYER_POSITIONS]);
 
-  // Arrow points toward the next player in state.players list order (same order as the UI list).
-  // Uses state.players (not the visually-sorted array) so "bottom of list → back to top" wraps correctly.
-  const nextPlayerPosition = useMemo((): [number, number, number] | null => {
-    if (!wellCrownHolder || players.length < 2) return null;
-    const list = (state?.players ?? []).filter((p) => !p.spectator && !p.lost_soul);
-    const holderIdx = list.findIndex((p) => p.name === wellCrownHolder);
-    if (holderIdx < 0) return null;
-    const nextName = list[(holderIdx + 1) % list.length]?.name;
-    if (!nextName) return null;
-    const seatIdx = players.findIndex((p) => p.name === nextName);
-    if (seatIdx < 0) return null;
-    return PLAYER_POSITIONS[seatIdx]?.position ?? null;
-  }, [wellCrownHolder, players, PLAYER_POSITIONS, state?.players]);
 
   const isAlive = (myPlayer?.hp ?? 0) > 0;
   const gameStarted = (state?.round ?? 0) > 0;
@@ -530,7 +471,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       <WinnerCrown worldPosition={crownPosition} />
       <WellCrown worldPosition={wellCrownPosition} />
-      <RoundOrderArrow fromPosition={wellCrownPosition} toPosition={nextPlayerPosition} visible={showArrow && players.filter((p) => (p.hp ?? 0) > 0).length > 2} />
       <Environment preset="sunset" />
     </>
   );
