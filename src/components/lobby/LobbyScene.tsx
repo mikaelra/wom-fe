@@ -94,7 +94,7 @@ function WellCrown({ worldPosition }: { worldPosition: [number, number, number] 
 
   return (
     <group ref={ref} position={[worldPosition[0], worldPosition[1] + 1.1, worldPosition[2]]}>
-      <primitive object={crownScene} scale={0.4} />
+      <primitive object={crownScene} scale={0.2} />
     </group>
   );
 }
@@ -371,16 +371,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   // Show the red arrow at each round start for 3 seconds (requires an active crown holder)
   const [showArrow, setShowArrow] = useState(false);
-  const prevRound = useRef<number>(0);
   useEffect(() => {
     const round = state?.round ?? 0;
-    if (round > prevRound.current) {
-      prevRound.current = round;
-      if (raidwinnerRef.current) {
-        setShowArrow(true);
-        const timer = setTimeout(() => setShowArrow(false), 3000);
-        return () => clearTimeout(timer);
-      }
+    if (round > 0 && raidwinnerRef.current) {
+      setShowArrow(true);
+      const timer = setTimeout(() => setShowArrow(false), 3000);
+      return () => clearTimeout(timer);
     }
   }, [state?.round]);
 
@@ -432,13 +428,19 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return PLAYER_POSITIONS[idx]?.position ?? null;
   }, [wellCrownHolder, players, PLAYER_POSITIONS]);
 
-  // Arrow points from crown holder toward the next player in seating order
+  // Arrow points toward the next player in state.players list order (same order as the UI list).
+  // Uses state.players (not the visually-sorted array) so "bottom of list → back to top" wraps correctly.
   const nextPlayerPosition = useMemo((): [number, number, number] | null => {
     if (!wellCrownHolder || players.length < 2) return null;
-    const idx = players.findIndex((p) => p.name === wellCrownHolder);
-    if (idx < 0) return null;
-    return PLAYER_POSITIONS[(idx + 1) % players.length]?.position ?? null;
-  }, [wellCrownHolder, players, PLAYER_POSITIONS]);
+    const list = (state?.players ?? []).filter((p) => !p.spectator && !p.lost_soul);
+    const holderIdx = list.findIndex((p) => p.name === wellCrownHolder);
+    if (holderIdx < 0) return null;
+    const nextName = list[(holderIdx + 1) % list.length]?.name;
+    if (!nextName) return null;
+    const seatIdx = players.findIndex((p) => p.name === nextName);
+    if (seatIdx < 0) return null;
+    return PLAYER_POSITIONS[seatIdx]?.position ?? null;
+  }, [wellCrownHolder, players, PLAYER_POSITIONS, state?.players]);
 
   const isAlive = (myPlayer?.hp ?? 0) > 0;
   const gameStarted = (state?.round ?? 0) > 0;
