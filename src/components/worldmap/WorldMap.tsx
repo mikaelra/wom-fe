@@ -285,10 +285,11 @@ function Starfield() {
 
 // ── Planets + sun-tracking directional light ───────────────────────────────
 //
-// Planet sizes are tuned so they’re clearly distinct against the starfield:
-//   Sun 8.0 > Moon 3.2 > Jupiter 2.6 > Venus 2.4 > Mars 2.0 > Saturn 1.8 > Mercury 1.4
-//
-// All planets use glowTex so they visibly pop with their characteristic colour.
+// Sizes relative to the brightest star band (0.55):
+//   Venus = Mars = 1.5× → 0.825
+//   Jupiter = 2× Venus → 1.65
+//   Saturn = Mercury = 0.8× Venus → 0.66
+//   Moon 3.2 | Sun 8.0  (kept large so they read clearly)
 
 function PlanetsAndLight() {
   const now = useMemo(() => new Date(), []);
@@ -301,9 +302,8 @@ function PlanetsAndLight() {
   const texSun    = useMemo(() => sunTex(),                         []);
   const moonData  = useMemo(() => moonPosition(now),                [now]);
   const texMoon   = useMemo(() => moonTex(moonData.phase),          [moonData.phase]);
-  // Distinct glow colours per planet
   const texMerc   = useMemo(() => glowTex('#ff9955'),               []);
-  const texVenus  = useMemo(() => glowTex('#eeffcc'),               []);
+  const texVenus  = useMemo(() => glowTex('#aaffaa'),               []);
   const texMars   = useMemo(() => glowTex('#ff4422'),               []);
   const texJup    = useMemo(() => glowTex('#aaccff'),               []);
   const texSat    = useMemo(() => glowTex('#ddbb77'),               []);
@@ -328,39 +328,32 @@ function PlanetsAndLight() {
     <>
       <directionalLight ref={lightRef} intensity={3.5} color={0xffffff} />
       <group ref={groupRef}>
-        {/* Sun — large, warm yellow */}
         <sprite ref={sunSprite} position={posSun} scale={[8.0, 8.0, 1]}>
           <spriteMaterial map={texSun} transparent depthWrite={false} />
         </sprite>
 
-        {/* Moon — phase-correct grey disc */}
         <sprite position={posMoon} scale={[3.2, 3.2, 1]}>
           <spriteMaterial map={texMoon} transparent depthWrite={false} />
         </sprite>
 
-        {/* Mercury — small, orange-tinted, close to sun */}
-        <sprite position={posMerc} scale={[1.4, 1.4, 1]}>
-          <spriteMaterial map={texMerc} transparent depthWrite={false} opacity={0.75} />
+        <sprite position={posMerc} scale={[0.66, 0.66, 1]}>
+          <spriteMaterial map={texMerc} transparent depthWrite={false} />
         </sprite>
 
-        {/* Venus — bright, pale green-white */}
-        <sprite position={posVen} scale={[2.4, 2.4, 1]}>
+        <sprite position={posVen} scale={[0.825, 0.825, 1]}>
           <spriteMaterial map={texVenus} transparent depthWrite={false} />
         </sprite>
 
-        {/* Mars — medium, vivid red */}
-        <sprite position={posMars} scale={[2.0, 2.0, 1]}>
+        <sprite position={posMars} scale={[0.825, 0.825, 1]}>
           <spriteMaterial map={texMars} transparent depthWrite={false} />
         </sprite>
 
-        {/* Jupiter — largest planet, blue-white */}
-        <sprite position={posJup} scale={[2.6, 2.6, 1]}>
+        <sprite position={posJup} scale={[1.65, 1.65, 1]}>
           <spriteMaterial map={texJup} transparent depthWrite={false} />
         </sprite>
 
-        {/* Saturn — golden-brown, slightly translucent */}
-        <sprite position={posSat} scale={[1.8, 1.8, 1]}>
-          <spriteMaterial map={texSat} transparent depthWrite={false} opacity={0.85} />
+        <sprite position={posSat} scale={[0.66, 0.66, 1]}>
+          <spriteMaterial map={texSat} transparent depthWrite={false} />
         </sprite>
       </group>
     </>
@@ -372,9 +365,9 @@ function PlanetsAndLight() {
 // NO axial-tilt rotation on the earth group.
 //
 // Reasoning: raDecToVec3 places sun/stars in the *equatorial* coordinate
-// system, where +Y is already Earth’s geographic north pole by definition.
+// system, where +Y is already Earth's geographic north pole by definition.
 // Geographic latitude == equatorial declination, so the earth mesh needs no
-// extra tilt — the sun’s Dec (+18° in May) already encodes the seasonal
+// extra tilt — the sun's Dec (+18° in May) already encodes the seasonal
 // illumination angle.  Adding a Z-rotation would mis-align the two systems
 // and push the day/night terminator too far toward the north pole.
 
