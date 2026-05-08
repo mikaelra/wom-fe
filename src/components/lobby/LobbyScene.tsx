@@ -216,7 +216,7 @@ function PlayerWithName({
       )}
       {/* DEFEND button — own player only */}
       {showOwnActions && (
-        <Html position={[0, 1.5, 0]} center distanceFactor={3}>
+        <Html position={[0, 0.9, 0]} center distanceFactor={3}>
           <button
             onClick={onDefend}
             className={actionCue}
@@ -243,7 +243,7 @@ function PlayerWithName({
       )}
       {/* HP / COINS / ATK resource cards — own player only */}
       {showOwnActions && myPlayerData && (
-        <Html position={[0, 2.2, 0]} center distanceFactor={3}>
+        <Html position={[0, 0.15, 0]} center distanceFactor={3}>
           <div style={{ display: 'flex', gap: '8px', pointerEvents: 'auto' }}>
             {/* HP */}
             <button
@@ -572,9 +572,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       <Mountain scale={150} position={[40, -282, 62]} />
       <Table position={TABLE_POSITION} scale={1.2} />
 
-      {/* WELL (raid) button — anchored above the table center */}
+      {/* WELL (raid) button — anchored to the well model at the table centre */}
       {showAttackButtons && (
-        <Html position={[0, 5.2, 0]} center distanceFactor={5}>
+        <Html position={[0, 3.9, 0]} center distanceFactor={3}>
           <button
             onClick={handleRaid}
             style={{
