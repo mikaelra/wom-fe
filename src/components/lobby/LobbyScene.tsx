@@ -124,7 +124,7 @@ function RoundOrderArrow({
   const angle = Math.atan2(dx, dz);
 
   return (
-    <group position={[arrowX, arrowY, arrowZ]} rotation={[0, angle, 0]}>
+    <group position={[arrowX, arrowY, arrowZ]} rotation={[Math.PI / 2, angle, 0]}>
       <primitive object={arrowScene} scale={0.5} />
     </group>
   );
