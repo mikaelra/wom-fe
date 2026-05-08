@@ -284,10 +284,6 @@ function PlanetsAndLight() {
 }
 
 // ── Globe ──────────────────────────────────────────────────────────────────
-//
-// No axial-tilt rotation: raDecToVec3 places objects in the equatorial
-// coordinate system where +Y is already Earth's geographic north pole.
-// The sun's Dec encodes the seasonal illumination angle correctly.
 
 interface GlobeProps {
   onCityClick: (city: City) => void;
@@ -368,14 +364,14 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
   );
 }
 
-// ── Camera: start at 45° elevation ────────────────────────────────────────
+// ── Camera: start at 45° elevation, 13.0 units out (2× the previous 6.5) ───────
 
 function CameraRig() {
   const { camera } = useThree();
   const done = useRef(false);
   useFrame(() => {
     if (done.current) return;
-    const r = 6.5;
+    const r = 13.0;
     camera.position.set(0, r * Math.sin(Math.PI / 4), r * Math.cos(Math.PI / 4));
     camera.lookAt(0, 0, 0);
     done.current = true;
