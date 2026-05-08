@@ -358,7 +358,8 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
   );
 }
 
-// ── Camera: start at 45° elevation, 13.0 units out ───────────────────────
+// ── Camera: start at 80° elevation (from north pole), 13.0 units out ────────
+// ── (north pole = 0°, south pole = 180°)                               ────────
 
 function CameraRig() {
   const { camera } = useThree();
@@ -366,7 +367,8 @@ function CameraRig() {
   useFrame(() => {
     if (done.current) return;
     const r = 13.0;
-    camera.position.set(0, r * Math.sin(Math.PI / 4), r * Math.cos(Math.PI / 4));
+    const elevation = (80 * Math.PI) / 180;
+    camera.position.set(0, r * Math.cos(elevation), r * Math.sin(elevation));
     camera.lookAt(0, 0, 0);
     done.current = true;
   });
