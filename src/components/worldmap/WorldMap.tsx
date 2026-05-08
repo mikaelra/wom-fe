@@ -375,7 +375,7 @@ function CameraRig() {
     // Sun is always exactly on the ecliptic — use it as the start position.
     const sunEq = Astronomy.Equator(Astronomy.Body.Sun, new Date(), OBSERVER, false, true);
     const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1);
-    camera.position.copy(sunDir.multiplyScalar(13));
+    camera.position.copy(sunDir.multiplyScalar(-13)); // anti-solar: Sun behind Earth
     camera.lookAt(0, 0, 0);
     done.current = true;
   });
