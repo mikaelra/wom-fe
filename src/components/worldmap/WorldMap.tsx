@@ -358,17 +358,22 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
   );
 }
 
-// ── Camera: start at 90° elevation (from north pole), 13.0 units out ────────
-// ── (north pole = 0°, south pole = 180°)                               ────────
+// ── Camera: orbits along the ecliptic plane ───────────────────────────────
+// camera.up = ecliptic north pole so OrbitControls autoRotates around that
+// axis, keeping the camera on (or near) the ecliptic as it pans 360°.
+// After a user drag the orbit continues on whatever small-circle path the
+// camera was left at, which is the "new path" the user asked for.
 
 function CameraRig() {
   const { camera } = useThree();
   const done = useRef(false);
   useFrame(() => {
     if (done.current) return;
-    const r = 13.0;
-    const elevation = (90 * Math.PI) / 180;
-    camera.position.set(0, r * Math.cos(elevation), r * Math.sin(elevation));
+    const obliquity = 23.436 * RAD;
+    // Ecliptic north pole in scene equatorial coords (RA=18h, Dec=66.56°)
+    camera.up.set(0, Math.cos(obliquity), Math.sin(obliquity));
+    // Start at the vernal-equinox direction — on the ecliptic, equatorial plane
+    camera.position.set(13, 0, 0);
     camera.lookAt(0, 0, 0);
     done.current = true;
   });
