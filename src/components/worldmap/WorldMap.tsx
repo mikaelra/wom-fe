@@ -194,13 +194,6 @@ function Starfield() {
 }
 
 // ── Planets + sun-tracking directional light ───────────────────────────────
-//
-// Positions from astronomy-engine (VSOP87, same as threejs-earth).
-// Sizes relative to the brightest star band (0.55):
-//   Venus = Mars = 1.5× → 0.825
-//   Jupiter = 2× Venus  → 1.65
-//   Saturn = Mercury = 0.8× Venus → 0.66
-//   Moon 3.2 | Sun 8.0
 
 function PlanetsAndLight() {
   const now = useMemo(() => new Date(), []);
@@ -220,7 +213,6 @@ function PlanetsAndLight() {
   const moonPhase = useMemo(() => Astronomy.MoonPhase(now) / 360, [now]);
   const texMoon   = useMemo(() => moonTex(moonPhase),              [moonPhase]);
 
-  // Use Body enum values — astronomy-engine v2 requires enum, not plain strings
   const eq = useMemo(() => ({
     sun:  Astronomy.Equator(Astronomy.Body.Sun,     now, OBSERVER, false, true),
     moon: Astronomy.Equator(Astronomy.Body.Moon,    now, OBSERVER, false, true),
@@ -249,7 +241,9 @@ function PlanetsAndLight() {
 
   return (
     <>
-      <directionalLight ref={lightRef} intensity={3.5} color={0xffffff} />
+      {/* Reduced from 3.5 — was clipping highlights and obscuring texture detail.
+          The cloud layer (AdditiveBlending) amplified the lit side further. */}
+      <directionalLight ref={lightRef} intensity={1.5} color={0xffffff} />
       <group ref={groupRef}>
         <sprite ref={sunSprite} position={posSun} scale={[8.0, 8.0, 1]}>
           <spriteMaterial map={texSun} transparent depthWrite={false} />
@@ -364,7 +358,7 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
   );
 }
 
-// ── Camera: start at 45° elevation, 13.0 units out (2× the previous 6.5) ───────
+// ── Camera: start at 45° elevation, 13.0 units out ───────────────────────
 
 function CameraRig() {
   const { camera } = useThree();
@@ -391,7 +385,8 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
     <>
       <CameraRig />
       <color attach="background" args={['#070b15']} />
-      <ambientLight intensity={0.05} />
+      {/* Raised from 0.05 so the dark side of the globe stays readable */}
+      <ambientLight intensity={0.12} />
 
       <Starfield />
       <PlanetsAndLight />
