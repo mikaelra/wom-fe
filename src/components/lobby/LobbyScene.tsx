@@ -244,15 +244,15 @@ function PlayerWithName({
       {/* HP / COINS / ATK resource cards — own player only */}
       {showOwnActions && myPlayerData && (
         <Html position={[0, -0.6, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
-          <div style={{ display: 'flex', gap: '8px', pointerEvents: 'auto' }}>
+          <div style={{ display: 'flex', gap: '10px', pointerEvents: 'auto' }}>
             {/* HP */}
             <button
               onClick={() => onResource?.('gain_hp')}
               className={resourceCue}
               style={{
                 cursor: 'pointer',
-                padding: '8px 12px',
-                minWidth: '62px',
+                padding: '10px 14px',
+                minWidth: '74px',
                 textAlign: 'center',
                 borderRadius: '8px',
                 backdropFilter: 'blur(4px)',
@@ -261,9 +261,9 @@ function PlayerWithName({
                 boxShadow: currentResource === 'gain_hp' ? '0 0 8px rgba(239,68,68,0.5)' : undefined,
               }}
             >
-              <p style={{ color: '#9ca3af', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>HP</p>
-              <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '20px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.hp}</p>
-              <p style={{ color: 'rgba(248,113,113,0.7)', fontSize: '10px', margin: 0 }}>❤ Get</p>
+              <p style={{ color: '#9ca3af', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>HP</p>
+              <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '24px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.hp}</p>
+              <p style={{ color: 'rgba(248,113,113,0.7)', fontSize: '12px', margin: 0 }}>❤ Get</p>
             </button>
             {/* COINS */}
             <button
@@ -271,8 +271,8 @@ function PlayerWithName({
               className={resourceCue}
               style={{
                 cursor: 'pointer',
-                padding: '8px 12px',
-                minWidth: '62px',
+                padding: '10px 14px',
+                minWidth: '74px',
                 textAlign: 'center',
                 borderRadius: '8px',
                 backdropFilter: 'blur(4px)',
@@ -281,9 +281,9 @@ function PlayerWithName({
                 boxShadow: currentResource === 'gain_coin' ? '0 0 8px rgba(234,179,8,0.5)' : undefined,
               }}
             >
-              <p style={{ color: '#9ca3af', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Coins</p>
-              <p style={{ color: '#facc15', fontWeight: 'bold', fontSize: '20px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.coins}</p>
-              <p style={{ color: 'rgba(250,204,21,0.7)', fontSize: '10px', margin: 0 }}>💰 Get</p>
+              <p style={{ color: '#9ca3af', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Coins</p>
+              <p style={{ color: '#facc15', fontWeight: 'bold', fontSize: '24px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.coins}</p>
+              <p style={{ color: 'rgba(250,204,21,0.7)', fontSize: '12px', margin: 0 }}>💰 Get</p>
             </button>
             {/* ATK */}
             {(() => {
@@ -307,9 +307,9 @@ function PlayerWithName({
                     overflow: 'hidden',
                   }}
                 >
-                  <p style={{ color: '#9ca3af', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>ATK</p>
-                  <p style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '20px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.attackDamage}</p>
-                  <p style={{ color: 'rgba(96,165,250,0.7)', fontSize: '10px', margin: 0 }}>⚔ Buy</p>
+                  <p style={{ color: '#9ca3af', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>ATK</p>
+                  <p style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '24px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.attackDamage}</p>
+                  <p style={{ color: 'rgba(96,165,250,0.7)', fontSize: '12px', margin: 0 }}>⚔ Buy</p>
                   {cannotAfford && (
                     <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', borderRadius: '8px' }} preserveAspectRatio="none">
                       <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
