@@ -217,18 +217,18 @@ function PlanetsAndLight() {
   const texJup   = useMemo(() => glowTex('#aaccff'),   []);
   const texSat   = useMemo(() => glowTex('#ddbb77'),   []);
 
-  // astronomy-engine: Equator(body, date, observer, ofdate=false, aberration=true)
   const moonPhase = useMemo(() => Astronomy.MoonPhase(now) / 360, [now]);
   const texMoon   = useMemo(() => moonTex(moonPhase),              [moonPhase]);
 
+  // Use Body enum values — astronomy-engine v2 requires enum, not plain strings
   const eq = useMemo(() => ({
-    sun:  Astronomy.Equator('Sun',     now, OBSERVER, false, true),
-    moon: Astronomy.Equator('Moon',    now, OBSERVER, false, true),
-    merc: Astronomy.Equator('Mercury', now, OBSERVER, false, true),
-    ven:  Astronomy.Equator('Venus',   now, OBSERVER, false, true),
-    mars: Astronomy.Equator('Mars',    now, OBSERVER, false, true),
-    jup:  Astronomy.Equator('Jupiter', now, OBSERVER, false, true),
-    sat:  Astronomy.Equator('Saturn',  now, OBSERVER, false, true),
+    sun:  Astronomy.Equator(Astronomy.Body.Sun,     now, OBSERVER, false, true),
+    moon: Astronomy.Equator(Astronomy.Body.Moon,    now, OBSERVER, false, true),
+    merc: Astronomy.Equator(Astronomy.Body.Mercury, now, OBSERVER, false, true),
+    ven:  Astronomy.Equator(Astronomy.Body.Venus,   now, OBSERVER, false, true),
+    mars: Astronomy.Equator(Astronomy.Body.Mars,    now, OBSERVER, false, true),
+    jup:  Astronomy.Equator(Astronomy.Body.Jupiter, now, OBSERVER, false, true),
+    sat:  Astronomy.Equator(Astronomy.Body.Saturn,  now, OBSERVER, false, true),
   }), [now]);
 
   const posSun  = useMemo(() => raDecToVec3(eq.sun.ra,  eq.sun.dec,  PLANET_R), [eq]);
