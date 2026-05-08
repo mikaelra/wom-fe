@@ -373,24 +373,25 @@ function CameraRig() {
     // Ecliptic north pole — OrbitControls will autoRotate around this axis
     camera.up.set(0, Math.cos(obliquity), Math.sin(obliquity));
 
-    // Place camera 15° to the right of Athens so the pin is immediately visible.
-    // "Right" = positive longitude direction in scene space (rotating around Y).
+    // Place camera ON the ecliptic, at the azimuth 15° east of Athens.
+    // Athens (~38°N) sits well above the ecliptic (max ±23.4°), so it will
+    // appear in the upper part of the frame while the ecliptic is the focus.
     const athens = CITIES.find(c => c.name === 'Athens')!;
-    // Athens in globe-local space (before earthRot)
-    const [lx, ly, lz] = latLngToVec3(athens.lat, athens.lng, 1);
-    // Apply the same earthRot the Globe component uses
+    const [lx, , lz] = latLngToVec3(athens.lat, athens.lng, 1);
     const er = Math.PI + gmstHours(new Date()) * (Math.PI / 12);
     const wx = lx * Math.cos(er) + lz * Math.sin(er);
-    const wy = ly;
     const wz = -lx * Math.sin(er) + lz * Math.cos(er);
-    // Rotate 15° around Y  (positive = rightward on the globe face)
-    const off = 15 * RAD;
-    const cx = wx * Math.cos(off) + wz * Math.sin(off);
-    const cy = wy;
-    const cz = -wx * Math.sin(off) + wz * Math.cos(off);
-    // Scale to camera distance
-    const len = Math.sqrt(cx * cx + cy * cy + cz * cz);
-    camera.position.set((cx / len) * 13, (cy / len) * 13, (cz / len) * 13);
+    // Azimuth 15° east of Athens in scene world space
+    const camAzimuth = Math.atan2(wz, wx) + 15 * RAD;
+    // Find the ecliptic point at that azimuth.
+    // ecliptic pos(λ) = (cos λ, sin λ · sin ε, −sin λ · cos ε)
+    // Its azimuth φ satisfies: λ = atan2(−sin φ / cos ε, cos φ)
+    const lambda = Math.atan2(-Math.sin(camAzimuth) / Math.cos(obliquity), Math.cos(camAzimuth));
+    camera.position.set(
+      Math.cos(lambda) * 13,
+      Math.sin(lambda) * Math.sin(obliquity) * 13,
+      -Math.sin(lambda) * Math.cos(obliquity) * 13,
+    );
     camera.lookAt(0, 0, 0);
     done.current = true;
   });
