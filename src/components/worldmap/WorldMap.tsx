@@ -358,15 +358,24 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
   );
 }
 
-// ── Camera: start at 45° elevation, 13.0 units out ───────────────────────
+// ── Camera: orbits along the ecliptic plane ───────────────────────────────
+// camera.up = ecliptic north pole so OrbitControls autoRotates around that
+// axis. The camera starts in the Sun's direction — the Sun is always on the
+// ecliptic, so this is automatically a valid ecliptic position. At r=13 with
+// the Sun at r=46 in the same direction, the Sun is hidden behind the Earth
+// and peeks out as the camera begins its slow 360° pan.
 
 function CameraRig() {
   const { camera } = useThree();
   const done = useRef(false);
   useFrame(() => {
     if (done.current) return;
-    const r = 13.0;
-    camera.position.set(0, r * Math.sin(Math.PI / 4), r * Math.cos(Math.PI / 4));
+    const obliquity = 23.436 * RAD;
+    camera.up.set(0, Math.cos(obliquity), Math.sin(obliquity));
+    // Sun is always exactly on the ecliptic — use it as the start position.
+    const sunEq = Astronomy.Equator(Astronomy.Body.Sun, new Date(), OBSERVER, false, true);
+    const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1);
+    camera.position.copy(sunDir.multiplyScalar(-13)); // anti-solar: Sun behind Earth
     camera.lookAt(0, 0, 0);
     done.current = true;
   });
