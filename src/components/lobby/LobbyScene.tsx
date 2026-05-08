@@ -18,12 +18,12 @@ import {
   getResponsiveFov,
 } from '@/lib/sceneConstants';
 import { usePanOffset } from '@/lib/usePanOffset';
-import type { LobbyState } from '@/types/game';
+import type { LobbyState, Player } from '@/types/game';
 
 
 const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
 
-// Camera with fly-in and drag-to-pan (30° limit, snaps back on release)
+// Camera with fly-in and drag-to-pan (full 360° yaw, large pitch range, no snap-back)
 function CameraFlyIn() {
   const { camera, size } = useThree();
   const currentPosition = useRef(new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z));
@@ -114,6 +114,14 @@ function PlayerWithName({
   chatBubble,
   isBoss,
   frogSkinUrl,
+  // own-player action UI
+  showOwnActions,
+  currentAction,
+  currentResource,
+  myPlayerData,
+  onDefend,
+  onResource,
+  resourceCue,
 }: {
   name: string;
   position: [number, number, number];
@@ -128,6 +136,13 @@ function PlayerWithName({
   chatBubble?: string;
   isBoss?: boolean;
   frogSkinUrl?: string;
+  showOwnActions?: boolean;
+  currentAction?: string;
+  currentResource?: string;
+  myPlayerData?: Player;
+  onDefend?: () => void;
+  onResource?: (res: string) => void;
+  resourceCue?: string;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades_v2.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   return (
@@ -140,7 +155,7 @@ function PlayerWithName({
         isAnimating={isAnimating}
       />
       {chatBubble && (
-        <Html position={[0, 1.3, 0]} center distanceFactor={3}>
+        <Html position={[0, 1.3, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <div style={{
             pointerEvents: 'none',
             userSelect: 'none',
@@ -174,7 +189,7 @@ function PlayerWithName({
         </Html>
       )}
       {showAttackButton && (
-        <Html position={[0, 0.9, 0]} center distanceFactor={3}>
+        <Html position={[0, 0.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={onAttack}
             className={actionCue}
@@ -199,10 +214,118 @@ function PlayerWithName({
           </button>
         </Html>
       )}
+      {/* DEFEND button — own player only */}
+      {showOwnActions && (
+        <Html position={[0, -0.1, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+          <button
+            onClick={onDefend}
+            className={actionCue}
+            style={{
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              padding: '14px 28px',
+              fontSize: '26px',
+              fontWeight: 'bold',
+              color: currentAction === 'defend' ? '#ffffff' : '#93c5fd',
+              background: currentAction === 'defend' ? 'rgba(37,99,235,0.95)' : 'rgba(30,27,75,0.85)',
+              border: currentAction === 'defend' ? '2px solid #93c5fd' : '2px solid #1d4ed8',
+              borderRadius: '8px',
+              whiteSpace: 'nowrap',
+              backdropFilter: 'blur(4px)',
+              boxShadow: currentAction === 'defend'
+                ? '0 0 8px rgba(59,130,246,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+            }}
+          >
+            🛡 DEFEND
+          </button>
+        </Html>
+      )}
+      {/* HP / COINS / ATK resource cards — own player only */}
+      {showOwnActions && myPlayerData && (
+        <Html position={[0, -0.6, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+          <div style={{ display: 'flex', gap: '10px', pointerEvents: 'auto' }}>
+            {/* HP */}
+            <button
+              onClick={() => onResource?.('gain_hp')}
+              className={resourceCue}
+              style={{
+                cursor: 'pointer',
+                padding: '10px 14px',
+                minWidth: '74px',
+                textAlign: 'center',
+                borderRadius: '8px',
+                backdropFilter: 'blur(4px)',
+                border: currentResource === 'gain_hp' ? '2px solid #f87171' : '2px solid rgba(239,68,68,0.5)',
+                background: currentResource === 'gain_hp' ? 'rgba(185,28,28,0.8)' : 'rgba(0,0,0,0.7)',
+                boxShadow: currentResource === 'gain_hp' ? '0 0 8px rgba(239,68,68,0.5)' : undefined,
+              }}
+            >
+              <p style={{ color: '#9ca3af', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>HP</p>
+              <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '24px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.hp}</p>
+              <p style={{ color: 'rgba(248,113,113,0.7)', fontSize: '12px', margin: 0 }}>❤ Get</p>
+            </button>
+            {/* COINS */}
+            <button
+              onClick={() => onResource?.('gain_coin')}
+              className={resourceCue}
+              style={{
+                cursor: 'pointer',
+                padding: '10px 14px',
+                minWidth: '74px',
+                textAlign: 'center',
+                borderRadius: '8px',
+                backdropFilter: 'blur(4px)',
+                border: currentResource === 'gain_coin' ? '2px solid #facc15' : '2px solid rgba(234,179,8,0.5)',
+                background: currentResource === 'gain_coin' ? 'rgba(161,98,7,0.8)' : 'rgba(0,0,0,0.7)',
+                boxShadow: currentResource === 'gain_coin' ? '0 0 8px rgba(234,179,8,0.5)' : undefined,
+              }}
+            >
+              <p style={{ color: '#9ca3af', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Coins</p>
+              <p style={{ color: '#facc15', fontWeight: 'bold', fontSize: '24px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.coins}</p>
+              <p style={{ color: 'rgba(250,204,21,0.7)', fontSize: '12px', margin: 0 }}>💰 Get</p>
+            </button>
+            {/* ATK */}
+            {(() => {
+              const cannotAfford = myPlayerData.coins < myPlayerData.attackDamage;
+              return (
+                <button
+                  onClick={() => !cannotAfford && onResource?.('gain_attack')}
+                  className={cannotAfford ? undefined : resourceCue}
+                  style={{
+                    cursor: cannotAfford ? 'not-allowed' : 'pointer',
+                    opacity: cannotAfford ? 0.6 : 1,
+                    padding: '8px 12px',
+                    minWidth: '62px',
+                    textAlign: 'center',
+                    borderRadius: '8px',
+                    backdropFilter: 'blur(4px)',
+                    border: currentResource === 'gain_attack' ? '2px solid #60a5fa' : '2px solid rgba(59,130,246,0.5)',
+                    background: currentResource === 'gain_attack' ? 'rgba(29,78,216,0.8)' : 'rgba(0,0,0,0.7)',
+                    boxShadow: currentResource === 'gain_attack' ? '0 0 8px rgba(59,130,246,0.5)' : undefined,
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <p style={{ color: '#9ca3af', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>ATK</p>
+                  <p style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '24px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.attackDamage}</p>
+                  <p style={{ color: 'rgba(96,165,250,0.7)', fontSize: '12px', margin: 0 }}>⚔ Buy</p>
+                  {cannotAfford && (
+                    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', borderRadius: '8px' }} preserveAspectRatio="none">
+                      <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })()}
+          </div>
+        </Html>
+      )}
       <Html
         position={[0, 0.5, 0]}
         center
         distanceFactor={3}
+        zIndexRange={[0, 0]}
         style={{
           pointerEvents: 'none',
           userSelect: 'none',
@@ -264,6 +387,7 @@ function LostSoulModel({
         position={[0, 0.6, 0]}
         center
         distanceFactor={3}
+        zIndexRange={[0, 0]}
         style={{
           pointerEvents: 'none',
           userSelect: 'none',
@@ -280,7 +404,7 @@ function LostSoulModel({
         {name}
       </Html>
       {showAttackButton && (
-        <Html position={[0, 0.75, 0]} center distanceFactor={3}>
+        <Html position={[0, 0.75, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={onAttack}
             className={actionCue}
@@ -323,10 +447,13 @@ type LobbySceneProps = {
   currentAction?: string;
   attackTarget?: string;
   onAttackSelect?: (target: string) => void;
+  onActionChange?: (action: string) => void;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange }: LobbySceneProps) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [localResource, setLocalResource] = useState('');
+
   useEffect(() => {
     if (!state?.round_end_time) { setSecondsLeft(null); return; }
     const endTime = new Date(state.round_end_time).getTime() / 1000;
@@ -335,6 +462,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     }, 1000);
     return () => clearInterval(interval);
   }, [state?.round_end_time]);
+
+  // Reset resource selection each round
+  useEffect(() => {
+    setLocalResource('');
+  }, [state?.round]);
 
 
   const allPlayers = state?.players ?? [];
@@ -395,6 +527,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const actionCue  = !currentAction && showAttackButtons
     ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '')
     : '';
+  const resourceCue = localResource === '' && showAttackButtons
+    ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '')
+    : '';
 
   // Build a map of sender → latest message text if it's within CHAT_BUBBLE_DURATION_MS
   const chatBubbles = useMemo(() => {
@@ -414,6 +549,21 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     onAttackSelect?.(targetName);
   };
 
+  const handleDefend = () => {
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'defend', resource: '' });
+    onActionChange?.('defend');
+  };
+
+  const handleRaid = () => {
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'raid', resource: '' });
+    onActionChange?.('raid');
+  };
+
+  const handleResource = (resId: string) => {
+    setLocalResource(resId);
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, resource: resId, action: '' });
+  };
+
   return (
     <>
       <CameraFlyIn />
@@ -424,6 +574,33 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       <Mountain scale={150} position={[40, -282, 62]} />
       <Table position={TABLE_POSITION} scale={1.2} />
 
+      {/* WELL (raid) button — anchored to the well model at the table centre */}
+      {showAttackButtons && (
+        <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+          <button
+            onClick={handleRaid}
+            style={{
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              padding: '14px 28px',
+              fontSize: '26px',
+              fontWeight: 'bold',
+              color: currentAction === 'raid' ? '#ffffff' : '#d8b4fe',
+              background: currentAction === 'raid' ? 'rgba(126,34,206,0.95)' : 'rgba(46,16,101,0.85)',
+              border: currentAction === 'raid' ? '2px solid #d8b4fe' : '2px solid #7e22ce',
+              borderRadius: '8px',
+              whiteSpace: 'nowrap',
+              backdropFilter: 'blur(4px)',
+              boxShadow: currentAction === 'raid'
+                ? '0 0 8px rgba(167,139,250,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+            }}
+          >
+            🏴 The Well
+          </button>
+        </Html>
+      )}
+
       {players.map((player, i) => {
         const slot = PLAYER_POSITIONS[i];
         if (!slot) return null;
@@ -432,6 +609,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         const isWinner = winner === player.name;
         const isOpponent = player.name !== playerName;
         const isBoss = !!player.boss;
+        const isOwnPlayer = player.name === playerName;
         const playerRotation: [number, number, number] = [rotation[0], rotation[1] + Math.PI / 2, rotation[2]];
         return (
           <PlayerWithName
@@ -449,6 +627,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
             actionCue={actionCue}
             chatBubble={chatBubbles.get(player.name)}
+            showOwnActions={isOwnPlayer && showAttackButtons && !isDead}
+            currentAction={currentAction}
+            currentResource={localResource}
+            myPlayerData={isOwnPlayer ? myPlayer : undefined}
+            onDefend={handleDefend}
+            onResource={handleResource}
+            resourceCue={resourceCue}
           />
         );
       })}
