@@ -113,15 +113,12 @@ function RoundOrderArrow({
 
   if (!visible || !fromPosition || !toPosition) return null;
 
-  // Offset the arrow outward from the table centre so it sits beside the frog, not inside it
-  const r = Math.sqrt(fromPosition[0] ** 2 + fromPosition[2] ** 2) || 1;
-  const outX = (fromPosition[0] / r) * 0.55;
-  const outZ = (fromPosition[2] / r) * 0.55;
-  const arrowX = fromPosition[0] + outX;
-  const arrowZ = fromPosition[2] + outZ;
+  // Place the arrow at the midpoint between the two frogs so it appears between them
+  const arrowX = (fromPosition[0] + toPosition[0]) / 2;
+  const arrowZ = (fromPosition[2] + toPosition[2]) / 2;
   const arrowY = fromPosition[1] + 0.3;
 
-  // Compute angle from the arrow's actual position toward the target player
+  // Point from the midpoint toward the target player
   const dx = toPosition[0] - arrowX;
   const dz = toPosition[2] - arrowZ;
   const angle = Math.atan2(dx, dz);
@@ -533,7 +530,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       <WinnerCrown worldPosition={crownPosition} />
       <WellCrown worldPosition={wellCrownPosition} />
-      <RoundOrderArrow fromPosition={wellCrownPosition} toPosition={nextPlayerPosition} visible={showArrow} />
+      <RoundOrderArrow fromPosition={wellCrownPosition} toPosition={nextPlayerPosition} visible={showArrow && players.filter((p) => (p.hp ?? 0) > 0).length > 2} />
       <Environment preset="sunset" />
     </>
   );
