@@ -6,7 +6,7 @@ import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
-import { CITIES, type City } from '@/lib/cities';
+import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
 
 const GLOBE_RADIUS = 2.5;
@@ -370,10 +370,27 @@ function CameraRig() {
   useFrame(() => {
     if (done.current) return;
     const obliquity = 23.436 * RAD;
-    // Ecliptic north pole in scene equatorial coords (RA=18h, Dec=66.56°)
+    // Ecliptic north pole — OrbitControls will autoRotate around this axis
     camera.up.set(0, Math.cos(obliquity), Math.sin(obliquity));
-    // Start at the vernal-equinox direction — on the ecliptic, equatorial plane
-    camera.position.set(13, 0, 0);
+
+    // Place camera 15° to the right of Athens so the pin is immediately visible.
+    // "Right" = positive longitude direction in scene space (rotating around Y).
+    const athens = CITIES.find(c => c.name === 'Athens')!;
+    // Athens in globe-local space (before earthRot)
+    const [lx, ly, lz] = latLngToVec3(athens.lat, athens.lng, 1);
+    // Apply the same earthRot the Globe component uses
+    const er = Math.PI + gmstHours(new Date()) * (Math.PI / 12);
+    const wx = lx * Math.cos(er) + lz * Math.sin(er);
+    const wy = ly;
+    const wz = -lx * Math.sin(er) + lz * Math.cos(er);
+    // Rotate 15° around Y  (positive = rightward on the globe face)
+    const off = 15 * RAD;
+    const cx = wx * Math.cos(off) + wz * Math.sin(off);
+    const cy = wy;
+    const cz = -wx * Math.sin(off) + wz * Math.cos(off);
+    // Scale to camera distance
+    const len = Math.sqrt(cx * cx + cy * cy + cz * cz);
+    camera.position.set((cx / len) * 13, (cy / len) * 13, (cz / len) * 13);
     camera.lookAt(0, 0, 0);
     done.current = true;
   });
