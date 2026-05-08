@@ -41,7 +41,6 @@ export interface LobbyState {
   replay_votes_needed?: number;
   next_lobby_id?: string | null;
   chat?: ChatMessage[];
-  well_winner?: string | null;
 }
 
 export interface Relic {

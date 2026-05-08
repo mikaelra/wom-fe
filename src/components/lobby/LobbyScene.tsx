@@ -364,15 +364,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return () => clearInterval(interval);
   }, [state?.round_end_time]);
 
-  // Track the well crown holder — persists across rounds when no one wins the well
-  const [wellCrownHolder, setWellCrownHolder] = useState<string | null>(null);
-  const wellCrownHolderRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (state?.well_winner != null) {
-      wellCrownHolderRef.current = state.well_winner;
-      setWellCrownHolder(state.well_winner);
-    }
-  }, [state?.well_winner]);
+  // Track the well crown holder — raidwinner is who last won The Well (the 🏴 action)
+  // Use a ref so the round-start effect always reads the latest value without re-running
+  const raidwinnerRef = useRef<string | null>(null);
+  raidwinnerRef.current = state?.raidwinner ?? null;
 
   // Show the red arrow at each round start for 3 seconds (requires an active crown holder)
   const [showArrow, setShowArrow] = useState(false);
@@ -381,7 +376,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     const round = state?.round ?? 0;
     if (round > prevRound.current) {
       prevRound.current = round;
-      if (wellCrownHolderRef.current) {
+      if (raidwinnerRef.current) {
         setShowArrow(true);
         const timer = setTimeout(() => setShowArrow(false), 3000);
         return () => clearTimeout(timer);
@@ -426,6 +421,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     if (!slot) return null;
     return slot.position;
   }, [gameOver, isBossFight, winner, players, PLAYER_POSITIONS]);
+  // raidwinner = who last won The Well; crown shows during gameplay (not on game-over screen)
+  const wellCrownHolder = (!gameOver && state?.raidwinner) ? state.raidwinner : null;
+
   // Well crown hovers above the current well winner for everyone to see
   const wellCrownPosition = useMemo((): [number, number, number] | null => {
     if (!wellCrownHolder) return null;
