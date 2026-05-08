@@ -36,11 +36,12 @@ function CameraFlyIn() {
     const baseTarget = new THREE.Vector3(x, y, z);
     currentPosition.current.lerp(baseTarget, 0.025);
 
-    // Apply pan offset by orbiting around the look-at point
+    // Apply pan offset by orbiting around the look-at point, then scale by zoom
     const arm = currentPosition.current.clone().sub(LOBBY_LOOKAT);
     arm.applyAxisAngle(new THREE.Vector3(0, 1, 0), panOffset.current.yaw);
     const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), arm).normalize();
     arm.applyAxisAngle(right, panOffset.current.pitch);
+    arm.multiplyScalar(panOffset.current.zoom);
 
     camera.position.copy(LOBBY_LOOKAT).add(arm);
     camera.lookAt(LOBBY_LOOKAT);
