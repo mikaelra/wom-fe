@@ -196,7 +196,7 @@ function PlayerWithName({
           </div>
         </Html>
       )}
-      {showAttackButton && (
+      {showAttackButton && !isBoss && (
         <Html position={[0, 0.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={onAttack}
@@ -329,36 +329,61 @@ function PlayerWithName({
           </div>
         </Html>
       )}
-      {/* Boss HP card — floats above the Hades model in world space */}
+      {/* Boss HP card — floats above the Hades model in world space, tracks with camera */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
         <Html position={[0, 1.5, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <div style={{
-            pointerEvents: 'none',
+            pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
             textAlign: 'center',
             background: 'rgba(0,0,0,0.75)',
-            border: '1px solid rgba(239,68,68,0.4)',
-            borderRadius: '10px',
-            padding: '6px 14px',
+            border: '8px solid rgba(239,68,68,0.4)',
+            borderRadius: '80px',
+            padding: '48px 112px',
             backdropFilter: 'blur(4px)',
-            minWidth: '120px',
+            minWidth: '960px',
           }}>
-            <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '13px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
+            <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '104px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
             {bossTitle && (
-              <p style={{ color: '#d1d5db', fontSize: '11px', margin: '1px 0 4px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
+              <p style={{ color: '#d1d5db', fontSize: '88px', margin: '8px 0 32px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
             )}
-            <div style={{ width: '100%', height: '6px', background: '#374151', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '48px', background: '#374151', borderRadius: '24px', overflow: 'hidden' }}>
               <div style={{
                 height: '100%',
                 width: `${Math.max(0, (bossHp / bossMaxHp) * 100)}%`,
                 background: '#ef4444',
-                borderRadius: '3px',
+                borderRadius: '24px',
                 transition: 'width 0.5s ease',
               }} />
             </div>
-            <p style={{ color: '#fca5a5', fontSize: '11px', margin: '3px 0 0', whiteSpace: 'nowrap' }}>
+            <p style={{ color: '#fca5a5', fontSize: '88px', margin: '24px 0 0', whiteSpace: 'nowrap' }}>
               {Math.max(0, bossHp)} / {bossMaxHp} HP
             </p>
+            {showAttackButton && (
+              <button
+                onClick={onAttack}
+                className={actionCue}
+                style={{
+                  marginTop: '40px',
+                  pointerEvents: 'auto',
+                  cursor: 'pointer',
+                  padding: '56px 112px',
+                  fontSize: '96px',
+                  fontWeight: 'bold',
+                  color: isAttackSelected ? '#ffffff' : '#fca5a5',
+                  background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
+                  border: isAttackSelected ? '8px solid #fca5a5' : '8px solid #b91c1c',
+                  borderRadius: '40px',
+                  whiteSpace: 'nowrap',
+                  backdropFilter: 'blur(4px)',
+                  boxShadow: isAttackSelected
+                    ? '0 0 64px rgba(239,68,68,0.6), 0 16px 24px -16px rgba(0,0,0,0.2)'
+                    : '0 40px 60px -12px rgba(0,0,0,0.3)',
+                }}
+              >
+                ⚔ ATTACK
+              </button>
+            )}
           </div>
         </Html>
       )}
@@ -682,7 +707,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
             bossTitle={isBoss ? player.title : undefined}
             frogSkinUrl={skinMap.get(player.name)}
-            showAttackButton={showAttackButtons && isOpponent && !isDead && !isBoss}
+            showAttackButton={showAttackButtons && isOpponent && !isDead}
             onAttack={() => handleAttack(player.name)}
             isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
             actionCue={actionCue}
