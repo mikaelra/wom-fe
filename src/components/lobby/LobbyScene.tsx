@@ -155,7 +155,7 @@ function PlayerWithName({
         isAnimating={isAnimating}
       />
       {chatBubble && (
-        <Html position={[0, 1.3, 0]} center distanceFactor={3}>
+        <Html position={[0, 1.3, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <div style={{
             pointerEvents: 'none',
             userSelect: 'none',
@@ -189,7 +189,7 @@ function PlayerWithName({
         </Html>
       )}
       {showAttackButton && (
-        <Html position={[0, 0.9, 0]} center distanceFactor={3}>
+        <Html position={[0, 0.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={onAttack}
             className={actionCue}
@@ -216,7 +216,7 @@ function PlayerWithName({
       )}
       {/* DEFEND button — own player only */}
       {showOwnActions && (
-        <Html position={[0, 0.9, 0]} center distanceFactor={3}>
+        <Html position={[0, -0.1, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={onDefend}
             className={actionCue}
@@ -243,7 +243,7 @@ function PlayerWithName({
       )}
       {/* HP / COINS / ATK resource cards — own player only */}
       {showOwnActions && myPlayerData && (
-        <Html position={[0, 0.15, 0]} center distanceFactor={3}>
+        <Html position={[0, -0.6, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <div style={{ display: 'flex', gap: '8px', pointerEvents: 'auto' }}>
             {/* HP */}
             <button
@@ -325,6 +325,7 @@ function PlayerWithName({
         position={[0, 0.5, 0]}
         center
         distanceFactor={3}
+        zIndexRange={[0, 0]}
         style={{
           pointerEvents: 'none',
           userSelect: 'none',
@@ -386,6 +387,7 @@ function LostSoulModel({
         position={[0, 0.6, 0]}
         center
         distanceFactor={3}
+        zIndexRange={[0, 0]}
         style={{
           pointerEvents: 'none',
           userSelect: 'none',
@@ -402,7 +404,7 @@ function LostSoulModel({
         {name}
       </Html>
       {showAttackButton && (
-        <Html position={[0, 0.75, 0]} center distanceFactor={3}>
+        <Html position={[0, 0.75, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={onAttack}
             className={actionCue}
@@ -574,7 +576,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       {/* WELL (raid) button — anchored to the well model at the table centre */}
       {showAttackButtons && (
-        <Html position={[0, 3.9, 0]} center distanceFactor={3}>
+        <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={handleRaid}
             style={{
