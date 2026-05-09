@@ -383,11 +383,14 @@ function makeEclipticPoints(radius: number, n = 256): THREE.Vector3[] {
 }
 
 function Ecliptic() {
+  const ref = useRef<THREE.LineLoop>(null);
   const geo = useMemo(() => {
     return new THREE.BufferGeometry().setFromPoints(makeEclipticPoints(STAR_R - 2));
   }, []);
+  // Match the rotation applied to PlanetsAndLight's group each frame.
+  useFrame(() => { if (ref.current) ref.current.rotation.y -= 0.0002; });
   return (
-    <lineLoop geometry={geo}>
+    <lineLoop ref={ref} geometry={geo}>
       <lineBasicMaterial color="#c8a020" opacity={0.28} transparent depthWrite={false} />
     </lineLoop>
   );
