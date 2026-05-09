@@ -297,7 +297,7 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
     '/textures/earth/8081_earthmap4k.jpg',
     '/textures/02_earthspec1k.jpg',
     '/textures/01_earthbump1k.jpg',
-    '/textures/03_earthlights1k.jpg',
+    '/textures/earth/8081_earthlights4k.jpg',
     '/textures/04_earthcloudmap.jpg',
     '/textures/05_earthcloudmaptrans.jpg',
   ]);
