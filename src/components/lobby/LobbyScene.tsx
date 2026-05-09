@@ -330,9 +330,10 @@ function PlayerWithName({
           </div>
         </Html>
       )}
-      {/* Boss HP card — floats above the Hades model in world space, tracks with camera */}
+      {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
+          zIndexRange is raised above lost-soul buttons ([0,0]) so clicks land here first. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html position={[0, 1.5, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+        <Html position={[0, 1.5, 0]} center distanceFactor={3} zIndexRange={[100, 100]}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
@@ -344,12 +345,28 @@ function PlayerWithName({
             backdropFilter: 'blur(4px)',
             minWidth: '240px',
           }}>
+            <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '26px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
+            {bossTitle && (
+              <p style={{ color: '#d1d5db', fontSize: '22px', margin: '2px 0 8px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
+            )}
+            <div style={{ width: '100%', height: '12px', background: '#374151', borderRadius: '6px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.max(0, (bossHp / bossMaxHp) * 100)}%`,
+                background: '#ef4444',
+                borderRadius: '6px',
+                transition: 'width 0.5s ease',
+              }} />
+            </div>
+            <p style={{ color: '#fca5a5', fontSize: '22px', margin: '6px 0 0', whiteSpace: 'nowrap' }}>
+              {Math.max(0, bossHp)} / {bossMaxHp} HP
+            </p>
             {showAttackButton && (
               <button
                 onClick={onAttack}
                 className={actionCue}
                 style={{
-                  marginBottom: '10px',
+                  marginTop: '10px',
                   pointerEvents: 'auto',
                   cursor: 'pointer',
                   padding: '14px 28px',
@@ -369,22 +386,6 @@ function PlayerWithName({
                 ⚔ ATTACK
               </button>
             )}
-            <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '26px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
-            {bossTitle && (
-              <p style={{ color: '#d1d5db', fontSize: '22px', margin: '2px 0 8px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
-            )}
-            <div style={{ width: '100%', height: '12px', background: '#374151', borderRadius: '6px', overflow: 'hidden' }}>
-              <div style={{
-                height: '100%',
-                width: `${Math.max(0, (bossHp / bossMaxHp) * 100)}%`,
-                background: '#ef4444',
-                borderRadius: '6px',
-                transition: 'width 0.5s ease',
-              }} />
-            </div>
-            <p style={{ color: '#fca5a5', fontSize: '22px', margin: '6px 0 0', whiteSpace: 'nowrap' }}>
-              {Math.max(0, bossHp)} / {bossMaxHp} HP
-            </p>
           </div>
         </Html>
       )}
