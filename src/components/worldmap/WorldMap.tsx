@@ -14,6 +14,12 @@ const STAR_R = 50;
 const PLANET_R = 46;
 const RAD = Math.PI / 180;
 
+// Axial tilt of the ecliptic relative to the celestial equator (J2000)
+const OBLIQUITY = 23.436 * RAD;
+// Ecliptic north pole in scene coordinates (RA=18h, Dec=66.564°)
+// x = cos(Dec)·cos(RA=270°) = 0, y = sin(Dec) = cos(ε), z = −cos(Dec)·sin(270°) = sin(ε)
+const ECLIPTIC_POLE = new THREE.Vector3(0, Math.cos(OBLIQUITY), Math.sin(OBLIQUITY));
+
 // Observer at Earth centre (geocentric) — same as threejs-earth
 const OBSERVER = new Astronomy.Observer(0, 0, 0);
 
@@ -360,24 +366,38 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
 
 // ── Camera: orbits along the ecliptic plane ───────────────────────────────
 // camera.up = ecliptic north pole so OrbitControls autoRotates around that
-// axis. The camera starts in the Sun's direction — the Sun is always on the
-// ecliptic, so this is automatically a valid ecliptic position. At r=13 with
-// the Sun at r=46 in the same direction, the Sun is hidden behind the Earth
-// and peeks out as the camera begins its slow 360° pan.
+// axis. We set it every frame because OrbitControls may re-enter its own
+// spherical system and needs a consistent "up" to orbit in the ecliptic plane.
+// The camera starts at the anti-solar point — the Sun is always on the
+// ecliptic, so its opposite direction is too. At r=13 with the Sun at r=46
+// in the same direction, the Sun is hidden behind the Earth and peeks out as
+// the camera begins its slow 360° pan.
+// Sky drift: planets, stars, and ecliptic all rotate their groups by this
+// delta every frame. The camera must apply the same rotation so it stays
+// locked to the ecliptic plane as the sky drifts.
+const SKY_DRIFT = -0.0002;
+const _driftQ   = new THREE.Quaternion();
+const _yAxis    = new THREE.Vector3(0, 1, 0);
 
 function CameraRig() {
   const { camera } = useThree();
-  const done = useRef(false);
+  const initialized = useRef(false);
   useFrame(() => {
-    if (done.current) return;
-    const obliquity = 23.436 * RAD;
-    camera.up.set(0, Math.cos(obliquity), Math.sin(obliquity));
-    // Sun is always exactly on the ecliptic — use it as the start position.
-    const sunEq = Astronomy.Equator(Astronomy.Body.Sun, new Date(), OBSERVER, false, true);
-    const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1);
-    camera.position.copy(sunDir.multiplyScalar(-13)); // anti-solar: Sun behind Earth
-    camera.lookAt(0, 0, 0);
-    done.current = true;
+    if (!initialized.current) {
+      const sunEq = Astronomy.Equator(Astronomy.Body.Sun, new Date(), OBSERVER, false, true);
+      const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1).normalize();
+      camera.position.copy(sunDir.multiplyScalar(-13));
+      camera.up.copy(ECLIPTIC_POLE);
+      camera.lookAt(0, 0, 0);
+      initialized.current = true;
+      return;
+    }
+
+    // Apply the same Y drift as the planet/ecliptic groups so the camera
+    // stays in the ecliptic plane and orbits around the correct pole.
+    _driftQ.setFromAxisAngle(_yAxis, SKY_DRIFT);
+    camera.position.applyQuaternion(_driftQ);
+    camera.up.applyQuaternion(_driftQ).normalize();
   });
   return null;
 }
