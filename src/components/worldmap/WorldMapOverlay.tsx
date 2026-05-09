@@ -5,8 +5,33 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createLobby, joinLobby, getPlayerRelics, checkName, logInUser, verifyLoginCode } from '@/lib/api';
 import type { Relic } from '@/types/game';
+import type { TextureQuality } from '@/utils/textureManager';
 
-export default function WorldMapOverlay() {
+const QUALITY_LABELS: Record<TextureQuality, string> = {
+  low:     'LD',
+  hd:      'HD',
+  extreme: 'EX',
+};
+
+const QUALITY_FULL: Record<TextureQuality, string> = {
+  low:     'Low (default)',
+  hd:      'HD',
+  extreme: 'Extreme',
+};
+
+const QUALITY_UPGRADE_LABEL: Record<TextureQuality, string> = {
+  low:     '',
+  hd:      'Upgrading to HD…',
+  extreme: 'Upgrading to Extreme…',
+};
+
+interface WorldMapOverlayProps {
+  quality: TextureQuality;
+  onQualityChange: (q: TextureQuality) => void;
+  isTextureLoading: boolean;
+}
+
+export default function WorldMapOverlay({ quality, onQualityChange, isTextureLoading }: WorldMapOverlayProps) {
   const router = useRouter();
   const [loggedInName, setLoggedInName] = useState('');
   const [mounted, setMounted] = useState(false);
@@ -30,6 +55,9 @@ export default function WorldMapOverlay() {
   const [relics, setRelics] = useState<Relic[]>([]);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
+  const [showResMenu, setShowResMenu] = useState(false);
+  const resMenuRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
@@ -41,6 +69,9 @@ export default function WorldMapOverlay() {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setShowUserMenu(false);
+      }
+      if (resMenuRef.current && !resMenuRef.current.contains(e.target as Node)) {
+        setShowResMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -239,8 +270,70 @@ export default function WorldMapOverlay() {
 
   return (
     <>
+      {/* Texture-loading overlay — shown while swapping to a higher quality */}
+      {isTextureLoading && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/70 backdrop-blur-sm rounded-xl px-6 py-4 border border-white/20 flex items-center gap-3 shadow-2xl">
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <span className="text-white text-sm font-medium tracking-wide">
+              {QUALITY_UPGRADE_LABEL[quality]}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-end gap-2 px-3 py-2 pointer-events-none">
+        {/* Right: resolution picker + player info */}
+        <div className="pointer-events-auto flex items-center gap-3">
+
+          {/* Resolution picker — always visible regardless of login state */}
+          <div className="relative" ref={resMenuRef}>
+            <button
+              type="button"
+              onClick={() => setShowResMenu((v) => !v)}
+              className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10 hover:bg-black/70 transition-colors cursor-pointer"
+              title="Texture resolution"
+            >
+              <span className="text-white/50 text-xs uppercase tracking-wider">Res</span>
+              <span className="text-white font-semibold text-xs">{QUALITY_LABELS[quality]}</span>
+              <span className="text-white/40 text-xs">{showResMenu ? '▲' : '▼'}</span>
+            </button>
+
+            {showResMenu && (
+              <div className="absolute right-0 mt-1 w-44 bg-gray-900 border border-white/20 rounded-lg shadow-xl overflow-hidden">
+                <div className="px-3 py-2 text-xs text-white/40 uppercase tracking-wider border-b border-white/10">
+                  Resolution
+                </div>
+                {(['low', 'hd', 'extreme'] as TextureQuality[]).map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => {
+                      onQualityChange(q);
+                      setShowResMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2.5 hover:bg-white/10 transition-colors cursor-pointer ${
+                      quality === q ? 'text-amber-400' : 'text-white/80'
+                    }`}
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        quality === q ? 'bg-amber-400' : 'bg-white/20'
+                      }`}
+                    />
+                    {QUALITY_FULL[q]}
+                    {quality === q && (
+                      <span className="ml-auto text-xs text-amber-400/70">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+
         {/* Right: player info */}
         <div className="pointer-events-auto flex items-center gap-3">
           {isLoggedIn ? (

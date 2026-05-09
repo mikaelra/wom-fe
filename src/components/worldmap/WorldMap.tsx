@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -8,6 +8,7 @@ import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
 import { CITIES, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
+import { textureManager, type TextureQuality } from '@/utils/textureManager';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
@@ -288,11 +289,16 @@ function PlanetsAndLight() {
 interface GlobeProps {
   onCityClick: (city: City) => void;
   athensRaidInfo?: { secondsUntil: number | null; bossName?: string };
+  quality?: TextureQuality;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
-function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
+function Globe({ onCityClick, athensRaidInfo, quality = 'low', onLoadingChange }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
+  // Ref to the earth mesh so we can grab its material imperatively
+  const earthMeshRef = useRef<THREE.Mesh>(null);
 
+  // useTexture suspends until low-res textures are ready — these are the baseline
   const [earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans] = useTexture([
     '/textures/earth/low-res/00_earthmap1k.jpg',
     '/textures/earth/low-res/02_earthspec1k.jpg',
@@ -304,43 +310,105 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
 
   const fresnelMat = useMemo(makeFresnelMat, []);
 
-  const lightsMat = useMemo(
-    () => new THREE.MeshBasicMaterial({
-      map: lightsMap,
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      depthWrite: false,
-    }),
-    [lightsMap],
-  );
+  // Create materials once imperatively so we can mutate their maps freely without
+  // R3F's reconciler overwriting our changes on re-renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const earthMat = useMemo(() => new THREE.MeshPhongMaterial({
+    map: earthMap,
+    specularMap,
+    bumpMap,
+    bumpScale: 0.04 * GLOBE_RADIUS,
+  }), []); // [] — intentional: created once with initial textures, mutated later
 
-  const cloudsMat = useMemo(
-    () => new THREE.MeshStandardMaterial({
-      map: cloudsMap,
-      alphaMap: cloudsTrans,
-      transparent: true,
-      opacity: 0.8,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    }),
-    [cloudsMap, cloudsTrans],
-  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const lightsMat = useMemo(() => new THREE.MeshBasicMaterial({
+    map: lightsMap,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    depthWrite: false,
+  }), []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const cloudsMat = useMemo(() => new THREE.MeshStandardMaterial({
+    map: cloudsMap,
+    alphaMap: cloudsTrans,
+    transparent: true,
+    opacity: 0.8,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  }), []);
 
   const geo = useMemo(() => new THREE.IcosahedronGeometry(GLOBE_RADIUS, 12), []);
-
   const earthRot = useMemo(() => Math.PI + gmstHours(new Date()) * (Math.PI / 12), []);
+
+  // Stable snapshot of the low-res textures for restoring when the user
+  // switches back to LD after having loaded a higher quality.
+  const baseRef = useRef({ earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans });
+
+  // Track which quality is currently applied so we skip no-op transitions
+  const loadedQualityRef = useRef<TextureQuality>('low');
+  // Monotonic generation counter — stale promise resolutions are silently dropped
+  const genRef = useRef(0);
+
+  useEffect(() => {
+    if (quality === loadedQualityRef.current) return;
+
+    const prevQuality = loadedQualityRef.current;
+    const gen = ++genRef.current;
+
+    // Helper: push a texture pack onto all three materials + mark needsUpdate
+    function applyPatch(patch: Partial<typeof baseRef.current>) {
+      const merged = { ...baseRef.current, ...patch };
+
+      earthMat.map         = merged.earthMap;
+      earthMat.specularMap = merged.specularMap;
+      earthMat.bumpMap     = merged.bumpMap;
+      earthMat.needsUpdate = true;
+
+      lightsMat.map         = merged.lightsMap;
+      lightsMat.needsUpdate = true;
+
+      cloudsMat.map         = merged.cloudsMap;
+      cloudsMat.alphaMap    = merged.cloudsTrans;
+      cloudsMat.needsUpdate = true;
+    }
+
+    if (quality === 'low') {
+      // Restore low-res instantly — no network request needed
+      applyPatch({});
+      if (prevQuality !== 'low') textureManager.dispose(prevQuality);
+      loadedQualityRef.current = 'low';
+      return;
+    }
+
+    onLoadingChange?.(true);
+
+    textureManager.getPatch(quality).then((patch) => {
+      // Drop the result if a newer switchResolution call is already in flight
+      if (gen !== genRef.current) return;
+
+      applyPatch(patch);
+
+      // Free VRAM of the previously loaded higher-quality pack
+      if (prevQuality !== 'low') textureManager.dispose(prevQuality);
+
+      loadedQualityRef.current = quality;
+      onLoadingChange?.(false);
+    }).catch(() => {
+      if (gen !== genRef.current) return;
+      // On error fall back to low-res silently
+      applyPatch({});
+      loadedQualityRef.current = 'low';
+      onLoadingChange?.(false);
+    });
+  }, [quality, earthMat, lightsMat, cloudsMat, onLoadingChange]);
 
   useFrame(() => { if (cloudsRef.current) cloudsRef.current.rotation.y += 0.000075; });
 
   return (
     <group rotation={[0, earthRot, 0]}>
-      <mesh geometry={geo}>
-        <meshPhongMaterial
-          map={earthMap}
-          specularMap={specularMap}
-          bumpMap={bumpMap}
-          bumpScale={0.04 * GLOBE_RADIUS}
-        />
+      <mesh ref={earthMeshRef} geometry={geo}>
+        <primitive object={earthMat} attach="material" />
       </mesh>
 
       <mesh geometry={geo}>
@@ -407,9 +475,11 @@ function CameraRig() {
 interface WorldMapProps {
   onCityClick: (city: City) => void;
   athensRaidInfo?: { secondsUntil: number | null; bossName?: string };
+  quality?: TextureQuality;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
-export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps) {
+export default function WorldMap({ onCityClick, athensRaidInfo, quality, onLoadingChange }: WorldMapProps) {
   return (
     <>
       <CameraRig />
@@ -419,7 +489,12 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
 
       <Starfield />
       <PlanetsAndLight />
-      <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} />
+      <Globe
+        onCityClick={onCityClick}
+        athensRaidInfo={athensRaidInfo}
+        quality={quality}
+        onLoadingChange={onLoadingChange}
+      />
 
       <OrbitControls
         makeDefault
@@ -437,3 +512,4 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
 }
 
 export { GLOBE_RADIUS };
+export type { TextureQuality };

@@ -13,6 +13,7 @@ import HomeOverlay from '@/components/home/HomeOverlay';
 import WorldMap from '@/components/worldmap/WorldMap';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
+import { getQualityCookie, setQualityCookie, type TextureQuality } from '@/utils/textureManager';
 import {
   createGremlinLobby,
   getBossfightLobby,
@@ -195,6 +196,19 @@ export default function Page() {
 
   // Raid countdown shown over Athens on the globe
   const [athensRaidSecondsUntil, setAthensRaidSecondsUntil] = useState<number | null>(null);
+
+  // Texture resolution — read from cookie on first render, persisted on change
+  const [textureQuality, setTextureQuality] = useState<TextureQuality>('low');
+  const [isTextureLoading, setIsTextureLoading] = useState(false);
+
+  useEffect(() => {
+    setTextureQuality(getQualityCookie());
+  }, []);
+
+  const handleQualityChange = useCallback((q: TextureQuality) => {
+    setQualityCookie(q);
+    setTextureQuality(q);
+  }, []);
 
   const router = useRouter();
 
@@ -425,11 +439,17 @@ export default function Page() {
   if (!selectedCity) {
     return (
       <div style={{ width: '100%', height: '100vh', position: 'relative', overflow: 'hidden' }}>
-        <WorldMapOverlay />
+        <WorldMapOverlay
+          quality={textureQuality}
+          onQualityChange={handleQualityChange}
+          isTextureLoading={isTextureLoading}
+        />
         <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
           <WorldMap
             onCityClick={handleCityClick}
             athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil, bossName: 'Hades' }}
+            quality={textureQuality}
+            onLoadingChange={setIsTextureLoading}
           />
         </Canvas>
 
