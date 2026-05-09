@@ -404,19 +404,32 @@ function Ecliptic() {
 // ecliptic, so its opposite direction is too. At r=13 with the Sun at r=46
 // in the same direction, the Sun is hidden behind the Earth and peeks out as
 // the camera begins its slow 360° pan.
+// Sky drift: planets, stars, and ecliptic all rotate their groups by this
+// delta every frame. The camera must apply the same rotation so it stays
+// locked to the ecliptic plane as the sky drifts.
+const SKY_DRIFT = -0.0002;
+const _driftQ   = new THREE.Quaternion();
+const _yAxis    = new THREE.Vector3(0, 1, 0);
+
 function CameraRig() {
   const { camera } = useThree();
   const initialized = useRef(false);
   useFrame(() => {
-    // Keep the orbit axis pinned to the ecliptic pole every frame.
-    camera.up.copy(ECLIPTIC_POLE);
+    if (!initialized.current) {
+      const sunEq = Astronomy.Equator(Astronomy.Body.Sun, new Date(), OBSERVER, false, true);
+      const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1).normalize();
+      camera.position.copy(sunDir.multiplyScalar(-13));
+      camera.up.copy(ECLIPTIC_POLE);
+      camera.lookAt(0, 0, 0);
+      initialized.current = true;
+      return;
+    }
 
-    if (initialized.current) return;
-    const sunEq = Astronomy.Equator(Astronomy.Body.Sun, new Date(), OBSERVER, false, true);
-    const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1).normalize();
-    camera.position.copy(sunDir.multiplyScalar(-13));
-    camera.lookAt(0, 0, 0);
-    initialized.current = true;
+    // Apply the same Y drift as the planet/ecliptic groups so the camera
+    // stays in the ecliptic plane and orbits around the correct pole.
+    _driftQ.setFromAxisAngle(_yAxis, SKY_DRIFT);
+    camera.position.applyQuaternion(_driftQ);
+    camera.up.applyQuaternion(_driftQ).normalize();
   });
   return null;
 }
