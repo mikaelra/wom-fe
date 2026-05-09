@@ -14,6 +14,8 @@ import {
   SCENE_CENTER,
   MAX_PLAYERS,
   getPlayerPositions,
+  getBossPosition,
+  getBossPlayerPositions,
   getCameraTargetPosition,
   getResponsiveFov,
 } from '@/lib/sceneConstants';
@@ -34,11 +36,12 @@ function CameraFlyIn() {
     const baseTarget = new THREE.Vector3(x, y, z);
     currentPosition.current.lerp(baseTarget, 0.025);
 
-    // Apply pan offset by orbiting around the look-at point
+    // Apply pan offset by orbiting around the look-at point, then scale by zoom
     const arm = currentPosition.current.clone().sub(LOBBY_LOOKAT);
     arm.applyAxisAngle(new THREE.Vector3(0, 1, 0), panOffset.current.yaw);
     const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), arm).normalize();
     arm.applyAxisAngle(right, panOffset.current.pitch);
+    arm.multiplyScalar(panOffset.current.zoom);
 
     camera.position.copy(LOBBY_LOOKAT).add(arm);
     camera.lookAt(LOBBY_LOOKAT);
@@ -113,6 +116,9 @@ function PlayerWithName({
   actionCue,
   chatBubble,
   isBoss,
+  bossHp,
+  bossMaxHp,
+  bossTitle,
   frogSkinUrl,
   // own-player action UI
   showOwnActions,
@@ -135,6 +141,9 @@ function PlayerWithName({
   actionCue?: string;
   chatBubble?: string;
   isBoss?: boolean;
+  bossHp?: number;
+  bossMaxHp?: number;
+  bossTitle?: string;
   frogSkinUrl?: string;
   showOwnActions?: boolean;
   currentAction?: string;
@@ -188,7 +197,7 @@ function PlayerWithName({
           </div>
         </Html>
       )}
-      {showAttackButton && (
+      {showAttackButton && !isBoss && (
         <Html position={[0, 0.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={onAttack}
@@ -321,6 +330,65 @@ function PlayerWithName({
           </div>
         </Html>
       )}
+      {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
+          zIndexRange is raised above lost-soul buttons ([0,0]) so clicks land here first. */}
+      {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
+        <Html position={[0, 1.5, 0]} center distanceFactor={3} zIndexRange={[100, 100]}>
+          <div style={{
+            pointerEvents: showAttackButton ? 'auto' : 'none',
+            userSelect: 'none',
+            textAlign: 'center',
+            background: 'rgba(0,0,0,0.75)',
+            border: '2px solid rgba(239,68,68,0.4)',
+            borderRadius: '20px',
+            padding: '12px 28px',
+            backdropFilter: 'blur(4px)',
+            minWidth: '240px',
+          }}>
+            <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '26px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
+            {bossTitle && (
+              <p style={{ color: '#d1d5db', fontSize: '22px', margin: '2px 0 8px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
+            )}
+            <div style={{ width: '100%', height: '12px', background: '#374151', borderRadius: '6px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.max(0, (bossHp / bossMaxHp) * 100)}%`,
+                background: '#ef4444',
+                borderRadius: '6px',
+                transition: 'width 0.5s ease',
+              }} />
+            </div>
+            <p style={{ color: '#fca5a5', fontSize: '22px', margin: '6px 0 0', whiteSpace: 'nowrap' }}>
+              {Math.max(0, bossHp)} / {bossMaxHp} HP
+            </p>
+            {showAttackButton && (
+              <button
+                onClick={onAttack}
+                className={actionCue}
+                style={{
+                  marginTop: '10px',
+                  pointerEvents: 'auto',
+                  cursor: 'pointer',
+                  padding: '14px 28px',
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: isAttackSelected ? '#ffffff' : '#fca5a5',
+                  background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
+                  border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
+                  borderRadius: '10px',
+                  whiteSpace: 'nowrap',
+                  backdropFilter: 'blur(4px)',
+                  boxShadow: isAttackSelected
+                    ? '0 0 16px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                    : '0 10px 15px -3px rgba(0,0,0,0.3)',
+                }}
+              >
+                ⚔ ATTACK
+              </button>
+            )}
+          </div>
+        </Html>
+      )}
       <Html
         position={[0, 0.5, 0]}
         center
@@ -348,11 +416,12 @@ function PlayerWithName({
 }
 
 
+// Behind Hades who is fixed at [0, PLAYER_Y, -1.4] (far z- side)
 const LOST_SOUL_POSITIONS: [number, number, number][] = [
-  [-0.7, 4.2, -0.7],
-  [0.7, 4.2, -0.7],
-  [-0.7, 4.2, 0.7],
-  [0.7, 4.2, 0.7],
+  [-0.5, 4.2, -1.9],
+  [0.5, 4.2, -1.9],
+  [-0.3, 4.4, -2.3],
+  [0.3, 4.4, -2.3],
 ];
 
 function LostSoulModel({
@@ -433,6 +502,8 @@ function LostSoulModel({
   );
 }
 
+const BOSS_MAX_HP = 8;
+
 useGLTF.preload('/models/lost_soul_v2.glb');
 useGLTF.preload('/models/hades_v2.glb');
 useGLTF.preload('/models/turtlev01.glb');
@@ -472,6 +543,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const allPlayers = state?.players ?? [];
   const lostSouls = allPlayers.filter((p) => p.lost_soul);
 
+  const myPlayer = state?.players.find((p) => p.name === playerName);
+  const gameOver = state?.gameover ?? false;
+  const isBossFight = !!state?.boss_fight;
+  const isDenied = playerName === state?.deny_target;
+
   // Compute skins for all frog players deterministically from their names so
   // every client agrees without any server round-trip.
   const skinMap = useMemo(() => {
@@ -479,23 +555,31 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return assignSkins(frogPlayers, lobbyId);
   }, [allPlayers, lobbyId]);
 
-  // Sort so current player is slot 0 (near camera) and boss is slot 1 (far side of table)
+  // Sort so current player is first.
+  // In boss fights: boss is kept last (gets its own fixed far-side position) and non-boss
+  // players are secondarily sorted by name so their slots stay stable as new players join.
+  // Outside boss fights: boss goes to slot 1 (far side of the full circle).
   const players = allPlayers
     .filter((p) => !p.lost_soul)
     .sort((a, b) => {
-      const score = (p: typeof a) => (p.name === playerName ? 0 : p.boss ? 1 : 2);
-      return score(a) - score(b);
+      const score = (p: typeof a) => (p.name === playerName ? 0 : p.boss ? (isBossFight ? 999 : 1) : 2);
+      const diff = score(a) - score(b);
+      if (diff !== 0) return diff;
+      // Stable secondary sort by name so existing players keep their slots when new ones join
+      return a.name.localeCompare(b.name);
     })
     .slice(0, MAX_PLAYERS);
   const winner = state?.winner ?? state?.raidwinner ?? null;
 
-  // Recompute seat positions each render so spacing is always even for the current player count.
-  const PLAYER_POSITIONS = getPlayerPositions(players.length);
-
-  const myPlayer = state?.players.find((p) => p.name === playerName);
-  const gameOver = state?.gameover ?? false;
-  const isBossFight = !!state?.boss_fight;
-  const isDenied = playerName === state?.deny_target;
+  // Compute seat positions. In boss fights the boss is pinned to the far side and players
+  // spread across the near half, so adding a player never moves Hades.
+  const PLAYER_POSITIONS = (() => {
+    if (!isBossFight) return getPlayerPositions(players.length);
+    const bossSlot = getBossPosition();
+    const nonBossSlots = getBossPlayerPositions(players.filter((p) => !p.boss).length);
+    let nbi = 0;
+    return players.map((p) => (p.boss ? bossSlot : nonBossSlots[nbi++]));
+  })();
 
   // Compute world-space position for the crown (above winner's head, private lobbies only)
   const crownPosition = useMemo((): [number, number, number] | null => {
@@ -621,8 +705,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             isDead={isDead}
             isWinner={!!isWinner}
             isBoss={isBoss}
+            bossHp={isBoss ? player.hp : undefined}
+            bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
+            bossTitle={isBoss ? player.title : undefined}
             frogSkinUrl={skinMap.get(player.name)}
-            showAttackButton={showAttackButtons && isOpponent && !isDead && !isBoss}
+            showAttackButton={showAttackButtons && isOpponent && !isDead}
             onAttack={() => handleAttack(player.name)}
             isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
             actionCue={actionCue}
