@@ -294,7 +294,7 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
   const [earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans] = useTexture([
-    '/textures/00_earthmap1k.jpg',
+    '/textures/earth/8081_earthmap4k.jpg',
     '/textures/02_earthspec1k.jpg',
     '/textures/01_earthbump1k.jpg',
     '/textures/03_earthlights1k.jpg',
