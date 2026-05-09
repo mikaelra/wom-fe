@@ -364,38 +364,6 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
   );
 }
 
-// ── Ecliptic great circle ─────────────────────────────────────────────────
-// Parametrize by ecliptic longitude λ ∈ [0, 2π) with latitude β = 0.
-// Convert to equatorial (RA, Dec) via standard ecliptic→equatorial rotation,
-// then to 3D with raDecToVec3.
-
-function makeEclipticPoints(radius: number, n = 256): THREE.Vector3[] {
-  const pts: THREE.Vector3[] = [];
-  for (let i = 0; i < n; i++) {
-    const λ = (i / n) * 2 * Math.PI;
-    // ecliptic→equatorial (β=0 simplifies sin δ = sin ε · sin λ)
-    const sinDec = Math.sin(OBLIQUITY) * Math.sin(λ);
-    const dec    = Math.asin(sinDec);
-    const ra     = Math.atan2(Math.sin(λ) * Math.cos(OBLIQUITY), Math.cos(λ));
-    pts.push(raDecToVec3(ra / (Math.PI / 12), dec / RAD, radius));
-  }
-  return pts;
-}
-
-function Ecliptic() {
-  const ref = useRef<THREE.LineLoop>(null);
-  const geo = useMemo(() => {
-    return new THREE.BufferGeometry().setFromPoints(makeEclipticPoints(STAR_R - 2));
-  }, []);
-  // Match the rotation applied to PlanetsAndLight's group each frame.
-  useFrame(() => { if (ref.current) ref.current.rotation.y -= 0.0002; });
-  return (
-    <lineLoop ref={ref} geometry={geo}>
-      <lineBasicMaterial color="#c8a020" opacity={0.28} transparent depthWrite={false} />
-    </lineLoop>
-  );
-}
-
 // ── Camera: orbits along the ecliptic plane ───────────────────────────────
 // camera.up = ecliptic north pole so OrbitControls autoRotates around that
 // axis. We set it every frame because OrbitControls may re-enter its own
@@ -450,7 +418,6 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
       <ambientLight intensity={0.12} />
 
       <Starfield />
-      <Ecliptic />
       <PlanetsAndLight />
       <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} />
 
