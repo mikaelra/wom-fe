@@ -14,6 +14,12 @@ const STAR_R = 50;
 const PLANET_R = 46;
 const RAD = Math.PI / 180;
 
+// Axial tilt of the ecliptic relative to the celestial equator (J2000)
+const OBLIQUITY = 23.436 * RAD;
+// Ecliptic north pole in scene coordinates (RA=18h, Dec=66.564°)
+// x = cos(Dec)·cos(RA=270°) = 0, y = sin(Dec) = cos(ε), z = −cos(Dec)·sin(270°) = sin(ε)
+const ECLIPTIC_POLE = new THREE.Vector3(0, Math.cos(OBLIQUITY), Math.sin(OBLIQUITY));
+
 // Observer at Earth centre (geocentric) — same as threejs-earth
 const OBSERVER = new Astronomy.Observer(0, 0, 0);
 
@@ -358,26 +364,56 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
   );
 }
 
+// ── Ecliptic great circle ─────────────────────────────────────────────────
+// Parametrize by ecliptic longitude λ ∈ [0, 2π) with latitude β = 0.
+// Convert to equatorial (RA, Dec) via standard ecliptic→equatorial rotation,
+// then to 3D with raDecToVec3.
+
+function makeEclipticPoints(radius: number, n = 256): THREE.Vector3[] {
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i < n; i++) {
+    const λ = (i / n) * 2 * Math.PI;
+    // ecliptic→equatorial (β=0 simplifies sin δ = sin ε · sin λ)
+    const sinDec = Math.sin(OBLIQUITY) * Math.sin(λ);
+    const dec    = Math.asin(sinDec);
+    const ra     = Math.atan2(Math.sin(λ) * Math.cos(OBLIQUITY), Math.cos(λ));
+    pts.push(raDecToVec3(ra / (Math.PI / 12), dec / RAD, radius));
+  }
+  return pts;
+}
+
+function Ecliptic() {
+  const geo = useMemo(() => {
+    return new THREE.BufferGeometry().setFromPoints(makeEclipticPoints(STAR_R - 2));
+  }, []);
+  return (
+    <lineLoop geometry={geo}>
+      <lineBasicMaterial color="#c8a020" opacity={0.28} transparent depthWrite={false} />
+    </lineLoop>
+  );
+}
+
 // ── Camera: orbits along the ecliptic plane ───────────────────────────────
 // camera.up = ecliptic north pole so OrbitControls autoRotates around that
-// axis. The camera starts in the Sun's direction — the Sun is always on the
-// ecliptic, so this is automatically a valid ecliptic position. At r=13 with
-// the Sun at r=46 in the same direction, the Sun is hidden behind the Earth
-// and peeks out as the camera begins its slow 360° pan.
-
+// axis. We set it every frame because OrbitControls may re-enter its own
+// spherical system and needs a consistent "up" to orbit in the ecliptic plane.
+// The camera starts at the anti-solar point — the Sun is always on the
+// ecliptic, so its opposite direction is too. At r=13 with the Sun at r=46
+// in the same direction, the Sun is hidden behind the Earth and peeks out as
+// the camera begins its slow 360° pan.
 function CameraRig() {
   const { camera } = useThree();
-  const done = useRef(false);
+  const initialized = useRef(false);
   useFrame(() => {
-    if (done.current) return;
-    const obliquity = 23.436 * RAD;
-    camera.up.set(0, Math.cos(obliquity), Math.sin(obliquity));
-    // Sun is always exactly on the ecliptic — use it as the start position.
+    // Keep the orbit axis pinned to the ecliptic pole every frame.
+    camera.up.copy(ECLIPTIC_POLE);
+
+    if (initialized.current) return;
     const sunEq = Astronomy.Equator(Astronomy.Body.Sun, new Date(), OBSERVER, false, true);
-    const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1);
-    camera.position.copy(sunDir.multiplyScalar(-13)); // anti-solar: Sun behind Earth
+    const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1).normalize();
+    camera.position.copy(sunDir.multiplyScalar(-13));
     camera.lookAt(0, 0, 0);
-    done.current = true;
+    initialized.current = true;
   });
   return null;
 }
@@ -398,6 +434,7 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
       <ambientLight intensity={0.12} />
 
       <Starfield />
+      <Ecliptic />
       <PlanetsAndLight />
       <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} />
 
