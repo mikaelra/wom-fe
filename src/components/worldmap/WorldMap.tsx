@@ -294,12 +294,12 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
   const [earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans] = useTexture([
-    '/textures/earth/low-res/00_earthmap1k.jpg',
-    '/textures/earth/low-res/02_earthspec1k.jpg',
-    '/textures/earth/low-res/01_earthbump1k.jpg',
-    '/textures/earth/low-res/03_earthlights1k.jpg',
-    '/textures/earth/low-res/04_earthcloudmap.jpg',
-    '/textures/earth/low-res/05_earthcloudmaptrans.jpg',
+    '/textures/earth/high-res/00_earthmap4k.jpg',
+    '/textures/earth/high-res/02_earthspec4k.jpg',
+    '/textures/earth/high-res/01_earthbump4k.jpg',
+    '/textures/earth/high-res/03_earthlights4k.jpg',
+    '/textures/earth/high-res/04_earthcloudmap.jpg',
+    '/textures/earth/high-res/05_earthcloudmaptrans.jpg',
   ]);
 
   const fresnelMat = useMemo(makeFresnelMat, []);

@@ -10,7 +10,7 @@ import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import ExplosionEffect from '@/components/ExplosionEffect';
 import HomeOverlay from '@/components/home/HomeOverlay';
-import WorldMap from '@/components/worldmap/WorldMap';
+const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
 import {
