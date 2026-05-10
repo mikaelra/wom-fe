@@ -192,6 +192,7 @@ export default function Page() {
   const [athensEmailMode, setAthensEmailMode] = useState(false);
   const [athensEmail, setAthensEmail] = useState('');
   const [athensEmailError, setAthensEmailError] = useState('');
+  const [athensSceneLoading, setAthensSceneLoading] = useState(false);
 
   // Raid countdown shown over Athens on the globe
   const [athensRaidSecondsUntil, setAthensRaidSecondsUntil] = useState<number | null>(null);
@@ -222,9 +223,13 @@ export default function Page() {
   }, [selectedCity]);
 
   const enterAthensRaid = useCallback((playerName: string) => {
+    setAthensSceneLoading(true);
     getBossfightLobby(playerName)
       .then((data) => router.push(`/lobby/${data.lobby_id}`))
-      .catch((err) => alert(err instanceof Error ? err.message : 'Failed to enter raid.'));
+      .catch((err) => {
+        setAthensSceneLoading(false);
+        alert(err instanceof Error ? err.message : 'Failed to enter raid.');
+      });
   }, [router]);
 
   const resetGremlinPopup = useCallback(() => {
@@ -432,6 +437,13 @@ export default function Page() {
             athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil, bossName: 'Hades' }}
           />
         </Canvas>
+
+        {/* Athens scene loading overlay */}
+        {athensSceneLoading && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 pointer-events-none">
+            <p className="text-white text-2xl font-bold tracking-widest animate-pulse">Loading...</p>
+          </div>
+        )}
 
         {/* Athens raid login popup */}
         {showAthensPopup && (
