@@ -243,7 +243,7 @@ export default function WorldMapOverlay() {
       <div className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-end gap-2 px-3 py-2 pointer-events-none">
         {/* Right: player info */}
         <div className="pointer-events-auto flex items-center gap-3">
-          {isLoggedIn ? (
+          {isLoggedIn && (
             <div className="relative" ref={userMenuRef}>
               <button
                 type="button"
@@ -281,21 +281,6 @@ export default function WorldMapOverlay() {
                   </button>
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <Link
-                href="/login"
-                className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-white/20 transition-colors"
-              >
-                Log In
-              </Link>
-              <Link
-                href="/signup"
-                className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-white/20 transition-colors"
-              >
-                Sign Up
-              </Link>
             </div>
           )}
         </div>
