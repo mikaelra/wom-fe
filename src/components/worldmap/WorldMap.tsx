@@ -73,37 +73,6 @@ function sunTex(size = 256): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
-function moonTex(phase: number, size = 128): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const ctx = c.getContext('2d')!;
-  const r = size * 0.42, cx = size / 2, cy = size / 2;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#1a1a2e';
-  ctx.fill();
-  const k  = Math.cos(phase * 2 * Math.PI);
-  const cp = (4 / 3) * r;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.clip();
-  ctx.beginPath();
-  if (phase < 0.5) {
-    ctx.moveTo(cx, cy - r);
-    ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false);
-    ctx.bezierCurveTo(cx + k * cp, cy + r, cx + k * cp, cy - r, cx, cy - r);
-  } else {
-    ctx.moveTo(cx, cy - r);
-    ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, true);
-    ctx.bezierCurveTo(cx - k * cp, cy + r, cx - k * cp, cy - r, cx, cy - r);
-  }
-  ctx.fillStyle = '#d4d0b8';
-  ctx.fill();
-  ctx.restore();
-  return new THREE.CanvasTexture(c);
-}
-
 // ── Fresnel atmosphere ─────────────────────────────────────────────────────
 
 function makeFresnelMat() {
@@ -216,8 +185,7 @@ function PlanetsAndLight() {
   const texJup   = useMemo(() => glowTex('#aaccff'),   []);
   const texSat   = useMemo(() => glowTex('#ddbb77'),   []);
 
-  const moonPhase = useMemo(() => Astronomy.MoonPhase(now) / 360, [now]);
-  const texMoon   = useMemo(() => moonTex(moonPhase),              [moonPhase]);
+  const moonMap = useTexture('/textures/moon/moonmap1k.jpg');
 
   const eq = useMemo(() => ({
     sun:  Astronomy.Equator(Astronomy.Body.Sun,     now, OBSERVER, false, true),
@@ -255,9 +223,10 @@ function PlanetsAndLight() {
           <spriteMaterial map={texSun} transparent depthWrite={false} />
         </sprite>
 
-        <sprite position={posMoon} scale={[3.2, 3.2, 1]}>
-          <spriteMaterial map={texMoon} transparent depthWrite={false} />
-        </sprite>
+        <mesh position={posMoon}>
+          <sphereGeometry args={[1.5, 32, 32]} />
+          <meshPhongMaterial map={moonMap} />
+        </mesh>
 
         <sprite position={posMerc} scale={[0.66, 0.66, 1]}>
           <spriteMaterial map={texMerc} transparent depthWrite={false} />
