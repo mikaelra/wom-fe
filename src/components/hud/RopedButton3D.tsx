@@ -57,7 +57,7 @@ function ButtonModel({ url, pressed, rotation = [0, 0, 0] }: ButtonModelProps) {
     groupRef.current.position.y += (target - groupRef.current.position.y) * 0.25;
 
     const spin = getGlobeSpin();
-    const targetTilt = -spin * 0.315;
+    const targetTilt = -spin * 0.21;
     // Snap rate scales with spin magnitude — faster spin → faster catch-up
     // and faster return to neutral.
     const rate = 2.5 + Math.abs(spin) * 6;
