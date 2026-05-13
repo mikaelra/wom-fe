@@ -309,7 +309,7 @@ export default function WorldMapOverlay() {
           <RopedInput3D width={410} height={70}>
             <input
               type="text"
-              placeholder="Lobby code"
+              placeholder="Enter lobby code..."
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleJoinLobby()}
