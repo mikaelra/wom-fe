@@ -9,6 +9,7 @@ import CityMarker from './CityMarker';
 import { CITIES, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
 import { isLowQuality } from '@/lib/deviceQuality';
+import { setGlobeSpin } from '@/lib/globeSpin';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
@@ -377,6 +378,39 @@ function CameraRig() {
   return null;
 }
 
+// ── Spin reporter ──────────────────────────────────────────────────────────
+// Reads OrbitControls' azimuthal angle each frame and publishes a smoothed
+// signed angular velocity to the shared store. The HUD buttons subscribe to
+// this to tilt opposite the user's drag and ease back to neutral.
+// The constant autoRotate baseline is subtracted so passive drift produces
+// no tilt.
+const AUTO_ROTATE_BASELINE = -0.4 * ((2 * Math.PI) / 60);
+
+function SpinReporter() {
+  const controlsAny = useThree((state) => state.controls);
+  const lastAngle = useRef<number | null>(null);
+  const smoothed = useRef(0);
+  useFrame((_, dt) => {
+    const ctrl = controlsAny as { getAzimuthalAngle?: () => number } | null;
+    if (!ctrl || typeof ctrl.getAzimuthalAngle !== 'function') return;
+    const a = ctrl.getAzimuthalAngle();
+    if (lastAngle.current === null) {
+      lastAngle.current = a;
+      return;
+    }
+    let d = a - lastAngle.current;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    lastAngle.current = a;
+    const instant = dt > 0 ? d / dt : 0;
+    const userInduced = instant - AUTO_ROTATE_BASELINE;
+    smoothed.current = smoothed.current * 0.75 + userInduced * 0.25;
+    if (Math.abs(smoothed.current) < 0.002) smoothed.current = 0;
+    setGlobeSpin(smoothed.current);
+  });
+  return null;
+}
+
 // ── WorldMap ───────────────────────────────────────────────────────────────
 
 interface WorldMapProps {
@@ -407,6 +441,7 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
         maxPolarAngle={Math.PI * 0.80}
         minPolarAngle={Math.PI * 0.10}
       />
+      <SpinReporter />
     </>
   );
 }

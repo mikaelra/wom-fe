@@ -1,15 +1,28 @@
 'use client';
 
-import { Suspense, forwardRef, ReactNode } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Suspense, forwardRef, useRef, ReactNode } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, Center } from '@react-three/drei';
+import * as THREE from 'three';
+import { getGlobeSpin } from '@/lib/globeSpin';
 
 function RopeFrame({ rotation = [0, 0, 0] as [number, number, number] }) {
   const { scene } = useGLTF('/models/buttons/rope-hd.glb');
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((_, dt) => {
+    if (!groupRef.current) return;
+    const spin = getGlobeSpin();
+    const targetTilt = -spin * 0.45;
+    const rate = 2.5 + Math.abs(spin) * 6;
+    const k = 1 - Math.exp(-rate * Math.max(dt, 0));
+    groupRef.current.rotation.y += (targetTilt - groupRef.current.rotation.y) * k;
+  });
   return (
-    <Center>
-      <primitive object={scene} rotation={rotation} />
-    </Center>
+    <group ref={groupRef}>
+      <Center>
+        <primitive object={scene} rotation={rotation} />
+      </Center>
+    </group>
   );
 }
 

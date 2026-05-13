@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState, ReactNode } from 'react
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, Center } from '@react-three/drei';
 import * as THREE from 'three';
+import { getGlobeSpin } from '@/lib/globeSpin';
 
 type ButtonModelProps = {
   url: string;
@@ -50,11 +51,18 @@ function ButtonModel({ url, pressed, rotation = [0, 0, 0] }: ButtonModelProps) {
   }, [cloned, pressed]);
 
   const groupRef = useRef<THREE.Group>(null);
-  useFrame(() => {
-    if (groupRef.current) {
-      const target = pressed ? -0.04 : 0;
-      groupRef.current.position.y += (target - groupRef.current.position.y) * 0.25;
-    }
+  useFrame((_, dt) => {
+    if (!groupRef.current) return;
+    const target = pressed ? -0.04 : 0;
+    groupRef.current.position.y += (target - groupRef.current.position.y) * 0.25;
+
+    const spin = getGlobeSpin();
+    const targetTilt = -spin * 0.45;
+    // Snap rate scales with spin magnitude — faster spin → faster catch-up
+    // and faster return to neutral.
+    const rate = 2.5 + Math.abs(spin) * 6;
+    const k = 1 - Math.exp(-rate * Math.max(dt, 0));
+    groupRef.current.rotation.y += (targetTilt - groupRef.current.rotation.y) * k;
   });
 
   return (
