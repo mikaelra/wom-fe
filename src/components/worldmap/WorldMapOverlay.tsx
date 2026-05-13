@@ -304,7 +304,7 @@ export default function WorldMapOverlay() {
       </div>
 
       {/* Bottom: lobby controls */}
-      <div className="absolute bottom-44 left-0 right-0 z-20 flex justify-center pointer-events-none">
+      <div className="absolute bottom-44 left-0 right-0 z-20 flex flex-col items-center gap-4 pointer-events-none">
         <div className="pointer-events-auto flex flex-wrap justify-center items-center px-3">
           <RopedInput3D width={410} height={70}>
             <input
@@ -313,10 +313,11 @@ export default function WorldMapOverlay() {
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleJoinLobby()}
-              className="w-full bg-transparent text-white placeholder-white/40 focus:outline-none text-sm font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+              style={{ backgroundColor: 'rgba(255,255,255,0.39)' }}
+              className="w-full h-full rounded text-white placeholder-white/70 focus:outline-none text-sm font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             />
           </RopedInput3D>
-          <span className="ml-[60px]">
+          <span className="ml-6">
             <RopedButton3D
               width={290}
               height={70}
@@ -328,18 +329,18 @@ export default function WorldMapOverlay() {
               Join Lobby
             </RopedButton3D>
           </span>
-          <span className="ml-[60px]">
-            <RopedButton3D
-              width={325}
-              height={70}
-              onClick={handleCreateLobby}
-              disabled={lobbyLoading && loadingAction !== 'create'}
-              loading={lobbyLoading && loadingAction === 'create'}
-              ariaLabel="Create lobby"
-            >
-              Create Lobby
-            </RopedButton3D>
-          </span>
+        </div>
+        <div className="pointer-events-auto flex justify-center">
+          <RopedButton3D
+            width={325}
+            height={70}
+            onClick={handleCreateLobby}
+            disabled={lobbyLoading && loadingAction !== 'create'}
+            loading={lobbyLoading && loadingAction === 'create'}
+            ariaLabel="Create lobby"
+          >
+            Create Lobby
+          </RopedButton3D>
         </div>
       </div>
 

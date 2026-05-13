@@ -17,11 +17,14 @@ type RopedInput3DProps = {
   width?: number;
   height?: number;
   modelRotation?: [number, number, number];
+  /** Inset of the inner content area from the canvas edges so it sits inside
+   *  the rope frame. CSS padding shorthand. */
+  innerPadding?: string;
   children: ReactNode;
 };
 
 const RopedInput3D = forwardRef<HTMLDivElement, RopedInput3DProps>(function RopedInput3D(
-  { width = 220, height = 70, modelRotation = [0, 0, 0], children },
+  { width = 220, height = 70, modelRotation = [0, 0, 0], innerPadding = '14px 70px', children },
   ref,
 ) {
   return (
@@ -44,7 +47,10 @@ const RopedInput3D = forwardRef<HTMLDivElement, RopedInput3DProps>(function Rope
           </Suspense>
         </Canvas>
       </div>
-      <div className="absolute inset-0 flex items-center justify-center px-6">
+      <div
+        className="absolute inset-0 flex items-center justify-center"
+        style={{ padding: innerPadding }}
+      >
         {children}
       </div>
     </div>
