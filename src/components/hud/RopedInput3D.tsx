@@ -12,7 +12,7 @@ function RopeFrame({ rotation = [0, 0, 0] as [number, number, number] }) {
   useFrame((_, dt) => {
     if (!groupRef.current) return;
     const spin = getGlobeSpin();
-    const targetTilt = -spin * 0.45;
+    const targetTilt = -spin * 0.315;
     const rate = 2.5 + Math.abs(spin) * 6;
     const k = 1 - Math.exp(-rate * Math.max(dt, 0));
     groupRef.current.rotation.y += (targetTilt - groupRef.current.rotation.y) * k;
