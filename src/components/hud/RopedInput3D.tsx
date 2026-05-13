@@ -1,0 +1,56 @@
+'use client';
+
+import { Suspense, forwardRef, ReactNode } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { useGLTF, Center } from '@react-three/drei';
+
+function RopeFrame({ rotation = [0, 0, 0] as [number, number, number] }) {
+  const { scene } = useGLTF('/models/buttons/rope-hd.glb');
+  return (
+    <Center>
+      <primitive object={scene} rotation={rotation} />
+    </Center>
+  );
+}
+
+type RopedInput3DProps = {
+  width?: number;
+  height?: number;
+  modelRotation?: [number, number, number];
+  children: ReactNode;
+};
+
+const RopedInput3D = forwardRef<HTMLDivElement, RopedInput3DProps>(function RopedInput3D(
+  { width = 220, height = 70, modelRotation = [0, 0, 0], children },
+  ref,
+) {
+  return (
+    <div
+      ref={ref}
+      className="relative inline-block select-none"
+      style={{ width, height }}
+    >
+      <div className="absolute inset-0 pointer-events-none">
+        <Canvas
+          camera={{ position: [0, 0, 3.2], fov: 35 }}
+          gl={{ alpha: true, antialias: true, premultipliedAlpha: false }}
+          style={{ background: 'transparent' }}
+        >
+          <ambientLight intensity={0.9} />
+          <directionalLight position={[2, 3, 4]} intensity={1.1} />
+          <directionalLight position={[-2, -1, 2]} intensity={0.4} />
+          <Suspense fallback={null}>
+            <RopeFrame rotation={modelRotation} />
+          </Suspense>
+        </Canvas>
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center px-6">
+        {children}
+      </div>
+    </div>
+  );
+});
+
+export default RopedInput3D;
+
+useGLTF.preload('/models/buttons/rope-hd.glb');
