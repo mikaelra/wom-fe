@@ -253,7 +253,7 @@ export default function WorldMapOverlay() {
           {isLoggedIn && (
             <div className="relative" ref={userMenuRef}>
               <RopedButton3D
-                width={190}
+                width={325}
                 height={70}
                 onClick={() => setShowUserMenu((v) => !v)}
                 ariaLabel="Open user menu"
@@ -306,7 +306,7 @@ export default function WorldMapOverlay() {
       {/* Bottom: lobby controls */}
       <div className="absolute bottom-44 left-0 right-0 z-20 flex justify-center pointer-events-none">
         <div className="pointer-events-auto flex flex-wrap justify-center items-center px-3">
-          <RopedInput3D width={240} height={70}>
+          <RopedInput3D width={410} height={70}>
             <input
               type="text"
               placeholder="Lobby code"
@@ -316,9 +316,9 @@ export default function WorldMapOverlay() {
               className="w-full bg-transparent text-white placeholder-white/40 focus:outline-none text-sm font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             />
           </RopedInput3D>
-          <span className="ml-9">
+          <span className="ml-[60px]">
             <RopedButton3D
-              width={170}
+              width={290}
               height={70}
               onClick={handleJoinLobby}
               disabled={lobbyLoading && loadingAction !== 'join'}
@@ -328,9 +328,9 @@ export default function WorldMapOverlay() {
               Join Lobby
             </RopedButton3D>
           </span>
-          <span className="ml-6">
+          <span className="ml-[60px]">
             <RopedButton3D
-              width={190}
+              width={325}
               height={70}
               onClick={handleCreateLobby}
               disabled={lobbyLoading && loadingAction !== 'create'}
