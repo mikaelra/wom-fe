@@ -32,7 +32,7 @@ const RopedInput3D = forwardRef<HTMLDivElement, RopedInput3DProps>(function Rope
     >
       <div className="absolute inset-0 pointer-events-none">
         <Canvas
-          camera={{ position: [0, 0, 3.2], fov: 35 }}
+          camera={{ position: [0, 0, 1.067], fov: 35 }}
           gl={{ alpha: true, antialias: true, premultipliedAlpha: false }}
           style={{ background: 'transparent' }}
         >
