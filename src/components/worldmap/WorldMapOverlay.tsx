@@ -313,8 +313,8 @@ export default function WorldMapOverlay() {
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleJoinLobby()}
-              style={{ backgroundColor: 'rgba(255,255,255,0.39)' }}
-              className="w-full h-full rounded text-white placeholder-white/70 focus:outline-none text-sm font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+              style={{ backgroundColor: 'rgba(255,255,255,0.39)', width: '70%' }}
+              className="h-full rounded text-white placeholder-white/70 focus:outline-none text-sm font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             />
           </RopedInput3D>
           <span className="ml-6">

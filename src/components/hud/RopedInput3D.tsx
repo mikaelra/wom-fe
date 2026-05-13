@@ -39,9 +39,9 @@ const RopedInput3D = forwardRef<HTMLDivElement, RopedInput3DProps>(function Rope
           gl={{ alpha: true, antialias: true, premultipliedAlpha: false }}
           style={{ background: 'transparent' }}
         >
-          <ambientLight intensity={0.9} />
-          <directionalLight position={[2, 3, 4]} intensity={1.1} />
-          <directionalLight position={[-2, -1, 2]} intensity={0.4} />
+          <ambientLight intensity={2.7} />
+          <directionalLight position={[2, 3, 4]} intensity={3.3} />
+          <directionalLight position={[-2, -1, 2]} intensity={1.2} />
           <Suspense fallback={null}>
             <RopeFrame rotation={modelRotation} />
           </Suspense>
