@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { getGlobeSpin } from '@/lib/globeSpin';
 
 function RopeFrame({ rotation = [0, 0, 0] as [number, number, number] }) {
-  const { scene } = useGLTF('/models/buttons/rope-hd.glb');
+  const { scene } = useGLTF('/models/buttons/roped_button-hd.glb');
   const groupRef = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
     if (!groupRef.current) return;
@@ -72,4 +72,4 @@ const RopedInput3D = forwardRef<HTMLDivElement, RopedInput3DProps>(function Rope
 
 export default RopedInput3D;
 
-useGLTF.preload('/models/buttons/rope-hd.glb');
+useGLTF.preload('/models/buttons/roped_button-hd.glb');
