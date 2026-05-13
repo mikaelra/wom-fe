@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, memo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -8,6 +8,7 @@ import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
 import { CITIES, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
+import { isLowQuality } from '@/lib/deviceQuality';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
@@ -112,7 +113,7 @@ function makeFresnelMat() {
 
 // ── Real starfield ─────────────────────────────────────────────────────────
 
-function Starfield() {
+const Starfield = memo(function Starfield() {
   const circleTex = useTexture('/textures/stars/circle.png');
 
   const bandGeos = useMemo(() => {
@@ -166,11 +167,11 @@ function Starfield() {
       )}
     </group>
   );
-}
+});
 
 // ── Planets + sun-tracking directional light ───────────────────────────────
 
-function PlanetsAndLight() {
+const PlanetsAndLight = memo(function PlanetsAndLight() {
   const now = useMemo(() => new Date(), []);
 
   const sunSprite = useRef<THREE.Sprite>(null);
@@ -185,6 +186,7 @@ function PlanetsAndLight() {
   const texJup   = useMemo(() => glowTex('#aaccff'),   []);
   const texSat   = useMemo(() => glowTex('#ddbb77'),   []);
 
+  // Already 1k — fine for both tiers.
   const moonMap = useTexture('/textures/moon/moonmap1k.jpg');
 
   const eq = useMemo(() => ({
@@ -250,7 +252,7 @@ function PlanetsAndLight() {
       </group>
     </>
   );
-}
+});
 
 // ── Globe ──────────────────────────────────────────────────────────────────
 
@@ -262,11 +264,15 @@ interface GlobeProps {
 function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
+  // Use 1k earth textures on low-end devices (~6 MB → ~640 KB), 4k otherwise.
+  // Cloud textures are the same file in both folders, so always pulled from high-res.
+  const earthDir = isLowQuality() ? 'low-res' : 'high-res';
+  const earthSuffix = isLowQuality() ? '1k' : '4k';
   const [earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans] = useTexture([
-    '/textures/earth/high-res/00_earthmap4k.jpg',
-    '/textures/earth/high-res/02_earthspec4k.jpg',
-    '/textures/earth/high-res/01_earthbump4k.jpg',
-    '/textures/earth/high-res/03_earthlights4k.jpg',
+    `/textures/earth/${earthDir}/00_earthmap${earthSuffix}.jpg`,
+    `/textures/earth/${earthDir}/02_earthspec${earthSuffix}.jpg`,
+    `/textures/earth/${earthDir}/01_earthbump${earthSuffix}.jpg`,
+    `/textures/earth/${earthDir}/03_earthlights${earthSuffix}.jpg`,
     '/textures/earth/high-res/04_earthcloudmap.jpg',
     '/textures/earth/high-res/05_earthcloudmaptrans.jpg',
   ]);
