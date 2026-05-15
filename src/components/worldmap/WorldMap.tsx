@@ -113,23 +113,39 @@ function makeFresnelMat() {
 // ── Real starfield ─────────────────────────────────────────────────────────
 
 function Starfield() {
-  const circleTex = useTexture('/textures/stars/circle.png');
+  const [circleTex, milkyWayTex] = useTexture([
+    '/textures/stars/circle.png',
+    '/textures/stars/MilkyWay-Stars.png',
+  ]);
+
+  // Fixed: horizontal flip via repeat + offset so the Milky Way is no longer mirrored
+  // (BackSide + sphere UVs cause the default image to appear flipped left↔right)
+  useMemo(() => {
+    milkyWayTex.wrapS = THREE.RepeatWrapping;
+    milkyWayTex.wrapT = THREE.RepeatWrapping; // good practice
+    milkyWayTex.repeat.x = -1;      // ← this un-mirrors the texture
+    milkyWayTex.offset.x = 1;       // ← compensates for the flip (keeps your previous alignment)
+    milkyWayTex.offset.y = 0;
+    milkyWayTex.needsUpdate = true;
+  }, [milkyWayTex]);
 
   const bandGeos = useMemo(() => {
     const BANDS = [
-      { maxMag: 0.0,       size: 0.55 },
-      { maxMag: 1.5,       size: 0.42 },
-      { maxMag: 2.5,       size: 0.30 },
-      { maxMag: 3.0,       size: 0.20 },
-      { maxMag: Infinity,  size: 0.13 },
+      { maxMag: 0.0, size: 0.55 },
+      { maxMag: 1.5, size: 0.42 },
+      { maxMag: 2.5, size: 0.30 },
+      { maxMag: 3.0, size: 0.20 },
+      { maxMag: Infinity, size: 0.13 },
     ];
-    const MIN_MAG = -1.46, MAX_MAG = 3.54;
+
+    const MIN_MAG = -1.46,
+      MAX_MAG = 3.54;
     const groups = BANDS.map(() => ({ verts: [] as number[], colors: [] as number[] }));
 
     for (const star of STAR_CATALOG) {
       const raH = star.ra[0] + star.ra[1] / 60;
       const pos = raDecToVec3(raH, star.dec, STAR_R);
-      const bi  = BANDS.findIndex(b => star.mag <= b.maxMag);
+      const bi = BANDS.findIndex((b) => star.mag <= b.maxMag);
       const intensity = 0.4 + 0.6 * (MAX_MAG - star.mag) / (MAX_MAG - MIN_MAG);
       groups[bi].verts.push(pos.x, pos.y, pos.z);
       groups[bi].colors.push(intensity, intensity, intensity);
@@ -140,16 +156,32 @@ function Starfield() {
       if (verts.length === 0) return null;
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-      geo.setAttribute('color',    new THREE.Float32BufferAttribute(colors, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
       return { geo, size: band.size };
     });
   }, []);
 
   const groupRef = useRef<THREE.Group>(null);
-  useFrame(() => { if (groupRef.current) groupRef.current.rotation.y -= 0.0002; });
+  useFrame(() => {
+    if (groupRef.current) groupRef.current.rotation.y -= 0.0002;
+  });
 
   return (
     <group ref={groupRef}>
+      <mesh
+        renderOrder={-1}
+        rotation={[0, 0, - Math.PI / 2]} // align Milky Way's vertical band with the ecliptic plane
+      >
+        <sphereGeometry args={[STAR_R, 64, 64]} />
+        <meshBasicMaterial
+          map={milkyWayTex}
+          side={THREE.BackSide}
+          depthWrite={false}
+          color={0x404040}
+        />
+      </mesh>
+
+      {/* your points stay unchanged */}
       {bandGeos.map((band, i) =>
         band ? (
           <points key={i} geometry={band.geo}>
@@ -162,7 +194,7 @@ function Starfield() {
               sizeAttenuation
             />
           </points>
-        ) : null,
+        ) : null
       )}
     </group>
   );
