@@ -307,9 +307,10 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
 interface GlobeProps {
   onCityClick: (city: City) => void;
   athensRaidInfo?: { secondsUntil: number | null; bossName?: string };
+  onReady?: () => void;
 }
 
-function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
+function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
   // Use 1k earth textures on low-end devices (~6 MB → ~640 KB), 4k otherwise.
@@ -324,6 +325,9 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
     '/textures/earth/high-res/04_earthcloudmap.jpg',
     '/textures/earth/high-res/05_earthcloudmaptrans.jpg',
   ]);
+
+  // Fires once after useTexture suspense resolves (textures are ready).
+  useEffect(() => { onReady?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fresnelMat = useMemo(makeFresnelMat, []);
 
@@ -444,9 +448,16 @@ interface WorldMapProps {
 
 export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps) {
   const [phase, setPhase] = useState(0);
+  // Flips to true once Globe signals its textures have finished loading.
+  // Planet timers only start after this so planets never appear before the earth.
+  const [globeReady, setGlobeReady] = useState(false);
 
+  // Phase 1: mount the Globe immediately.
+  useEffect(() => { setPhase(1); }, []);
+
+  // Phases 2-9: stagger planets then stars, starting only after the Globe is ready.
   useEffect(() => {
-    setPhase(1);
+    if (!globeReady) return;
     const timers = [
       setTimeout(() => setPhase(2), 200),
       setTimeout(() => setPhase(3), 400),
@@ -458,7 +469,7 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
       setTimeout(() => setPhase(9), 1600),
     ];
     return () => timers.forEach(clearTimeout);
-  }, []);
+  }, [globeReady]);
 
   return (
     <>
@@ -474,7 +485,7 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
           textures are ready without waiting for moon/star textures. */}
       {phase >= 1 && (
         <Suspense fallback={null}>
-          <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} />
+          <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} onReady={() => setGlobeReady(true)} />
         </Suspense>
       )}
 
