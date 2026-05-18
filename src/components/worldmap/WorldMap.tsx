@@ -121,6 +121,19 @@ useTexture.preload('/textures/stars/circle.png');
 const Starfield = memo(function Starfield() {
   const circleTex = useTexture('/textures/stars/circle.png');
 
+  // Reveal magnitude bands one at a time, brightest first.
+  // Starts at 1 so the brightest band (index 0) shows immediately on mount.
+  const [visibleBands, setVisibleBands] = useState(1);
+  useEffect(() => {
+    const timers = [
+      setTimeout(() => setVisibleBands(2), 400),
+      setTimeout(() => setVisibleBands(3), 800),
+      setTimeout(() => setVisibleBands(4), 1200),
+      setTimeout(() => setVisibleBands(5), 1600),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
   const bandGeos = useMemo(() => {
     const BANDS = [
       { maxMag: 0.0,       size: 0.55 },
@@ -157,7 +170,7 @@ const Starfield = memo(function Starfield() {
   return (
     <group ref={groupRef}>
       {bandGeos.map((band, i) =>
-        band ? (
+        band && i < visibleBands ? (
           <points key={i} geometry={band.geo}>
             <pointsMaterial
               size={band.size}
