@@ -158,7 +158,7 @@ function PlayerWithName({
     <group position={position} rotation={rotation}>
       <PlayerV1
         url={modelUrl}
-        scale={isBoss ? 1.8 : 0.6}
+        scale={isBoss ? 1.44 : 0.6}
         position={[0, 0, 0]}
         rotation={[0, 0, 0]}
         isAnimating={isAnimating}
