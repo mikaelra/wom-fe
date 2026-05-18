@@ -543,7 +543,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                   <span className={p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}>
                     {p.name}
                   </span>
-                  <span className="text-red-400 text-xs">{p.hp}hp</span>
                 </li>
               ))}
             </ul>
