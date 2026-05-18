@@ -159,7 +159,7 @@ function PlayerWithName({
       <PlayerV1
         url={modelUrl}
         scale={isBoss ? 1.44 : 0.6}
-        position={[0, 0, 0]}
+        position={[0, isBoss ? 0.216 : 0, 0]}
         rotation={[0, 0, 0]}
         isAnimating={isAnimating}
       />
