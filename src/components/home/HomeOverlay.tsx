@@ -37,6 +37,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const [secondsUntilNextRaid, setSecondsUntilNextRaid] = useState<number | null>(null);
   const [showRelics, setShowRelics] = useState(false);
   const [relics, setRelics] = useState<Relic[]>([]);
+  const [relicsLoading, setRelicsLoading] = useState(false);
 
   const [loggedInName, setLoggedInName] = useState('');
   const [mounted, setMounted] = useState(false);
@@ -237,13 +238,16 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const fetchRelics = async () => {
     const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
     if (!playerName) return;
+    setRelics([]);
+    setRelicsLoading(true);
+    setShowRelics(true);
     try {
       const data = await getPlayerRelics(playerName);
       setRelics(data.relics ?? []);
     } catch {
       setRelics([]);
     } finally {
-      setShowRelics(true);
+      setRelicsLoading(false);
     }
   };
 
@@ -326,7 +330,9 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
           >
             <h3 className="text-xl font-bold mb-4">Your relics</h3>
             <ul className="list-disc pl-6 mb-4">
-              {relics.length > 0 ? (
+              {relicsLoading ? (
+                <p className="text-black/60">Loading...</p>
+              ) : relics.length > 0 ? (
                 relics.map((relic) => (
                   <li key={String(relic.id)}>
                     <strong>{relic.name} x{relic.count}</strong>
