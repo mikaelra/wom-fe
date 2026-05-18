@@ -301,15 +301,15 @@ export default function WorldMapOverlay() {
             type="text"
             placeholder="Lobby code"
             value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value)}
+            onChange={(e) => setJoinCode(e.target.value.toLowerCase())}
             onKeyDown={(e) => e.key === 'Enter' && handleJoinLobby()}
             className="w-36 p-2 rounded-md bg-black/60 backdrop-blur-sm border border-white/30 text-white placeholder-white/40 focus:outline-none focus:border-white/60 text-sm"
           />
           <button
             type="button"
             onClick={handleJoinLobby}
-            disabled={lobbyLoading}
-            className="px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/30 text-white font-semibold text-sm hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
+            disabled={lobbyLoading || joinCode.trim().length < 3}
+            className="px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/30 text-white font-semibold text-sm hover:bg-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             Join Lobby
           </button>
