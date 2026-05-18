@@ -488,13 +488,14 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
               type="text"
               placeholder="Lobby code"
               value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
+              onChange={(e) => setJoinCode(e.target.value.toLowerCase())}
               className="w-40 p-2 rounded-md bg-gray-200 text-gray-800 border-2 border-black focus:outline-none"
             />
             <button
               type="button"
               onClick={handleJoin}
-              className={`${buttonBase} bg-gray-200 text-black`}
+              disabled={joinCode.trim().length < 3}
+              className={`${buttonBase} bg-gray-200 text-black disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               Join
             </button>
