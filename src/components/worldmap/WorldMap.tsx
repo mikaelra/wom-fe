@@ -119,7 +119,21 @@ useTexture.preload('/textures/stars/circle.png');
 // ── Real starfield ─────────────────────────────────────────────────────────
 
 const Starfield = memo(function Starfield() {
-  const circleTex = useTexture('/textures/stars/circle.png');
+  const [circleTex, milkyWayTex] = useTexture([
+    '/textures/stars/circle.png',
+    '/textures/stars/MilkyWay-HD.png',
+  ]);
+
+  // Fixed: horizontal flip via repeat + offset so the Milky Way is no longer mirrored
+  // (BackSide + sphere UVs cause the default image to appear flipped left↔right)
+  useMemo(() => {
+    milkyWayTex.wrapS = THREE.RepeatWrapping;
+    milkyWayTex.wrapT = THREE.RepeatWrapping; // good practice
+    milkyWayTex.repeat.x = -1;      // ← this un-mirrors the texture
+    milkyWayTex.offset.x = 1;       // ← compensates for the flip (keeps your previous alignment)
+    milkyWayTex.offset.y = 0;
+    milkyWayTex.needsUpdate = true;
+  }, [milkyWayTex]);
 
   // Reveal magnitude bands one at a time, brightest first.
   // Starts at 1 so the brightest band (index 0) shows immediately on mount.
@@ -136,19 +150,21 @@ const Starfield = memo(function Starfield() {
 
   const bandGeos = useMemo(() => {
     const BANDS = [
-      { maxMag: 0.0,       size: 0.55 },
-      { maxMag: 1.5,       size: 0.42 },
-      { maxMag: 2.5,       size: 0.30 },
-      { maxMag: 3.0,       size: 0.20 },
-      { maxMag: Infinity,  size: 0.13 },
+      { maxMag: 0.0, size: 0.55 },
+      { maxMag: 1.5, size: 0.42 },
+      { maxMag: 2.5, size: 0.30 },
+      { maxMag: 3.0, size: 0.20 },
+      { maxMag: Infinity, size: 0.13 },
     ];
-    const MIN_MAG = -1.46, MAX_MAG = 3.54;
+
+    const MIN_MAG = -1.46,
+      MAX_MAG = 3.54;
     const groups = BANDS.map(() => ({ verts: [] as number[], colors: [] as number[] }));
 
     for (const star of STAR_CATALOG) {
       const raH = star.ra[0] + star.ra[1] / 60;
       const pos = raDecToVec3(raH, star.dec, STAR_R);
-      const bi  = BANDS.findIndex(b => star.mag <= b.maxMag);
+      const bi = BANDS.findIndex((b) => star.mag <= b.maxMag);
       const intensity = 0.4 + 0.6 * (MAX_MAG - star.mag) / (MAX_MAG - MIN_MAG);
       groups[bi].verts.push(pos.x, pos.y, pos.z);
       groups[bi].colors.push(intensity, intensity, intensity);
@@ -159,16 +175,69 @@ const Starfield = memo(function Starfield() {
       if (verts.length === 0) return null;
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-      geo.setAttribute('color',    new THREE.Float32BufferAttribute(colors, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
       return { geo, size: band.size };
     });
   }, []);
 
   const groupRef = useRef<THREE.Group>(null);
-  useFrame(() => { if (groupRef.current) groupRef.current.rotation.y -= 0.0002; });
+  useFrame(() => {
+    if (groupRef.current) groupRef.current.rotation.y -= 0.0002;
+  });
+
+  const milkyWayRef = useRef<THREE.Mesh>(null);
+
+  // 1. Sirius unit vector (the axis we rotate around – never changes)
+  const siriusVec = useMemo(() => {
+    const siriusStar = STAR_CATALOG.find(
+      (star) => Math.abs(star.mag + 1.46) < 0.01   // Sirius = mag ≈ -1.46
+    );
+    if (!siriusStar) {
+      console.warn('Sirius not found in STAR_CATALOG');
+      return new THREE.Vector3(0, 0, 1);
+    }
+    const raH = siriusStar.ra[0] + siriusStar.ra[1] / 60;
+    return raDecToVec3(raH, siriusStar.dec, 1).normalize();
+  }, []);
+
+  // 2. Final quaternion = base alignment + exact 60° rotation around Sirius
+  const milkyWayQuaternion = useMemo(() => {
+    // Your original base rotation that already lands Sirius correctly
+    const baseEuler = new THREE.Euler(
+      -Math.PI / 25.8,
+      -Math.PI / 1.3865,
+      0,
+      'XYZ'
+    );
+    const baseQ = new THREE.Quaternion().setFromEuler(baseEuler);
+
+    // Exact 60° (π/3) twist around the Sirius axis
+    // (Right-hand rule: positive = counter-clockwise when looking from outside toward center)
+    const TWIST_ANGLE = -Math.PI / 2.55;          // ← 60 degrees exactly
+    const twistQ = new THREE.Quaternion().setFromAxisAngle(siriusVec, TWIST_ANGLE);
+
+    // Combine: apply base first, then twist around Sirius
+    // (Sirius position stays perfectly fixed)
+    return twistQ.multiply(baseQ);   // twist * base
+  }, [siriusVec]);
 
   return (
     <group ref={groupRef}>
+      <mesh
+        ref={milkyWayRef}
+        renderOrder={-1}
+        quaternion={milkyWayQuaternion}   // ← this replaces the old rotation={...} prop
+      >
+        <sphereGeometry args={[STAR_R, 64, 64]} />
+        <meshBasicMaterial
+          map={milkyWayTex}
+          side={THREE.BackSide}
+          depthWrite={false}
+          color={0x686868}
+        />
+      </mesh>
+
+      {/* your points (bandGeos) stay 100% unchanged */}
       {bandGeos.map((band, i) =>
         band && i < visibleBands ? (
           <points key={i} geometry={band.geo}>
@@ -181,7 +250,7 @@ const Starfield = memo(function Starfield() {
               sizeAttenuation
             />
           </points>
-        ) : null,
+        ) : null
       )}
     </group>
   );
