@@ -8,7 +8,7 @@ import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import { getSocket } from '@/lib/api';
-import { assignSkins, ALL_FROG_SKINS, skinUrl } from '@/lib/frogSkins';
+import { assignSkins, skinUrl } from '@/lib/frogSkins';
 import {
   TABLE_POSITION,
   SCENE_CENTER,
@@ -153,12 +153,12 @@ function PlayerWithName({
   onResource?: (res: string) => void;
   resourceCue?: string;
 }) {
-  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades_v2.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
+  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   return (
     <group position={position} rotation={rotation}>
       <PlayerV1
         url={modelUrl}
-        scale={isBoss ? 1.8 : 0.6}
+        scale={isBoss ? 1.44 : 0.6}
         position={[0, 0, 0]}
         rotation={[0, 0, 0]}
         isAnimating={isAnimating}
@@ -505,11 +505,12 @@ function LostSoulModel({
 const BOSS_MAX_HP = 8;
 
 useGLTF.preload('/models/lost_soul_v2.glb');
-useGLTF.preload('/models/hades_v2.glb');
+useGLTF.preload('/models/hades/hades_v3-ld.glb');
 useGLTF.preload('/models/turtlev01.glb');
 useGLTF.preload('/models/crowns/crown_ld_v1.glb');
 useGLTF.preload('/models/well_crown_v1.glb');
-ALL_FROG_SKINS.forEach((s) => useGLTF.preload(skinUrl(s)));
+// Frog skins are preloaded on-demand per lobby (see usePreloadLobbySkins below).
+// Previously we eagerly preloaded all 13 skins (~92 MB) on app start.
 
 type LobbySceneProps = {
   state: LobbyState | null;
@@ -554,6 +555,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     const frogPlayers = allPlayers.filter((p) => !p.boss && !p.gremlin && !p.lost_soul && p.name !== 'TURTLE');
     return assignSkins(frogPlayers, lobbyId);
   }, [allPlayers, lobbyId]);
+
+  // Preload only the skins actually used in this lobby (was: all 13 skins eagerly,
+  // ~92 MB). New skins are fetched on-demand when a player joins.
+  useEffect(() => {
+    for (const url of skinMap.values()) {
+      useGLTF.preload(url);
+    }
+  }, [skinMap]);
 
   // Sort so current player is first.
   // In boss fights: boss is kept last (gets its own fixed far-side position) and non-boss

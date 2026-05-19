@@ -530,9 +530,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         </div>
       </div>
 
-      {/* Player list — top right (optional) */}
+      {/* Player list — bottom right (optional) */}
       {showPlayerList && (
-        <div className="absolute top-12 right-4 pointer-events-auto z-20">
+        <div className="absolute bottom-4 right-4 pointer-events-auto z-20">
           <div className="bg-black/70 backdrop-blur-sm rounded-xl border border-white/20 p-3 text-white text-sm">
             <ul className="space-y-1">
               {state.players.filter((p) => !p.spectator).map((p) => (
@@ -543,7 +543,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                   <span className={p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}>
                     {p.name}
                   </span>
-                  <span className="text-red-400 text-xs">{p.hp}hp</span>
                 </li>
               ))}
             </ul>

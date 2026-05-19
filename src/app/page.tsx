@@ -174,6 +174,9 @@ function adjustSkyColor(hex: string): string {
 // ========== Main page component ==========
 export default function Page() {
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
+  // Defer Canvas mount by one paint frame so the UI controls render and become
+  // interactive before the WebGL context initialises.
+  const [sceneReady, setSceneReady] = useState(false);
 
   // Gremlin fight login popup state
   const [showGremlinPopup, setShowGremlinPopup] = useState(false);
@@ -198,6 +201,11 @@ export default function Page() {
   const [athensRaidSecondsUntil, setAthensRaidSecondsUntil] = useState<number | null>(null);
 
   const router = useRouter();
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setSceneReady(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   // Poll next raid time while on the world map
   useEffect(() => {
@@ -429,14 +437,16 @@ export default function Page() {
   // ---------- World Map view ----------
   if (!selectedCity) {
     return (
-      <div style={{ width: '100%', height: '100vh', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ width: '100%', height: '100vh', position: 'relative', overflow: 'hidden', background: '#070b15' }}>
         <WorldMapOverlay />
-        <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
-          <WorldMap
-            onCityClick={handleCityClick}
-            athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil, bossName: 'Hades' }}
-          />
-        </Canvas>
+        {sceneReady && (
+          <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
+            <WorldMap
+              onCityClick={handleCityClick}
+              athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil, bossName: 'Hades' }}
+            />
+          </Canvas>
+        )}
 
         {/* Athens scene loading overlay */}
         {athensSceneLoading && (
