@@ -118,7 +118,7 @@ useTexture.preload('/textures/stars/circle.png');
 
 // ── Real starfield ─────────────────────────────────────────────────────────
 
-function Starfield() {
+const Starfield = memo(function Starfield() {
   const [circleTex, milkyWayTex] = useTexture([
     '/textures/stars/circle.png',
     '/textures/stars/MilkyWay-HD.png',
