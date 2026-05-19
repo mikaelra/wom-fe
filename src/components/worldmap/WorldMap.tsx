@@ -115,7 +115,7 @@ function makeFresnelMat() {
 function Starfield() {
   const [circleTex, milkyWayTex] = useTexture([
     '/textures/stars/circle.png',
-    '/textures/stars/MilkyWay-Stars.png',
+    '/textures/stars/MilkyWay-HD.png',
   ]);
 
   // Fixed: horizontal flip via repeat + offset so the Milky Way is no longer mirrored
@@ -166,22 +166,59 @@ function Starfield() {
     if (groupRef.current) groupRef.current.rotation.y -= 0.0002;
   });
 
+  const milkyWayRef = useRef<THREE.Mesh>(null);
+
+  // 1. Sirius unit vector (the axis we rotate around – never changes)
+  const siriusVec = useMemo(() => {
+    const siriusStar = STAR_CATALOG.find(
+      (star) => Math.abs(star.mag + 1.46) < 0.01   // Sirius = mag ≈ -1.46
+    );
+    if (!siriusStar) {
+      console.warn('Sirius not found in STAR_CATALOG');
+      return new THREE.Vector3(0, 0, 1);
+    }
+    const raH = siriusStar.ra[0] + siriusStar.ra[1] / 60;
+    return raDecToVec3(raH, siriusStar.dec, 1).normalize();
+  }, []);
+
+  // 2. Final quaternion = base alignment + exact 60° rotation around Sirius
+  const milkyWayQuaternion = useMemo(() => {
+    // Your original base rotation that already lands Sirius correctly
+    const baseEuler = new THREE.Euler(
+      -Math.PI / 25.8,
+      -Math.PI / 1.3865,
+      0,
+      'XYZ'
+    );
+    const baseQ = new THREE.Quaternion().setFromEuler(baseEuler);
+
+    // Exact 60° (π/3) twist around the Sirius axis
+    // (Right-hand rule: positive = counter-clockwise when looking from outside toward center)
+    const TWIST_ANGLE = -Math.PI / 2.55;          // ← 60 degrees exactly
+    const twistQ = new THREE.Quaternion().setFromAxisAngle(siriusVec, TWIST_ANGLE);
+
+    // Combine: apply base first, then twist around Sirius
+    // (Sirius position stays perfectly fixed)
+    return twistQ.multiply(baseQ);   // twist * base
+  }, [siriusVec]);
+
   return (
     <group ref={groupRef}>
       <mesh
+        ref={milkyWayRef}
         renderOrder={-1}
-        rotation={[0, 0, - Math.PI / 2]} // align Milky Way's vertical band with the ecliptic plane
+        quaternion={milkyWayQuaternion}   // ← this replaces the old rotation={...} prop
       >
         <sphereGeometry args={[STAR_R, 64, 64]} />
         <meshBasicMaterial
           map={milkyWayTex}
           side={THREE.BackSide}
           depthWrite={false}
-          color={0x404040}
+          color={0x686868}
         />
       </mesh>
 
-      {/* your points stay unchanged */}
+      {/* your points (bandGeos) stay 100% unchanged */}
       {bandGeos.map((band, i) =>
         band ? (
           <points key={i} geometry={band.geo}>
