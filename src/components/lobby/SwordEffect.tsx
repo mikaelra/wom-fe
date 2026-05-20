@@ -130,7 +130,10 @@ export default function SwordEffect({
 
   return (
     <group ref={groupRef} position={[startPos.x, startPos.y, startPos.z]}>
-      <primitive object={sceneClone} scale={0.45} />
+      {/* 180° Y flip so the blade points toward the target after lookAt */}
+      <group rotation={[0, Math.PI, 0]}>
+        <primitive object={sceneClone} scale={0.45} />
+      </group>
     </group>
   );
 }

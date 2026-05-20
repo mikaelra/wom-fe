@@ -525,6 +525,7 @@ type StrikeEvent = {
   toPos:   [number, number, number];
   targetDefended: boolean;
   targetHit: boolean;
+  isIncoming: boolean;
   flybackPos?: [number, number, number];
 };
 
@@ -539,31 +540,29 @@ type ImpactShield = {
   rotY: number;
 };
 
-function HitFlash({ position }: { position: [number, number, number] }) {
+function AuraFlash({ position }: { position: [number, number, number] }) {
   const meshRef  = useRef<THREE.Mesh>(null);
   const spawnRef = useRef(performance.now());
+  const DURATION = 550;
 
   useFrame(() => {
     if (!meshRef.current) return;
-    const elapsed = (performance.now() - spawnRef.current) / 1000;
+    const t   = Math.min((performance.now() - spawnRef.current) / DURATION, 1);
     const mat = meshRef.current.material as THREE.MeshBasicMaterial;
-    if (elapsed < 0.12) {
-      mat.opacity = (elapsed / 0.12) * 0.75;
-    } else if (elapsed < 0.45) {
-      mat.opacity = ((0.45 - elapsed) / 0.33) * 0.75;
-    } else {
-      mat.opacity = 0;
-    }
+    // Expand: 0.35 → 1.75 world units
+    meshRef.current.scale.setScalar(0.35 + t * 1.4);
+    // Quick flash in, slow fade out
+    mat.opacity = t < 0.18 ? (t / 0.18) * 0.65 : ((1 - t) / 0.82) * 0.65;
   });
 
   return (
     <mesh
       ref={meshRef}
-      position={[position[0], position[1] + 0.3, position[2]]}
+      position={[position[0], position[1] + 0.45, position[2]]}
       renderOrder={20}
     >
-      <sphereGeometry args={[0.38, 8, 8]} />
-      <meshBasicMaterial color="#ff1111" transparent opacity={0} depthTest={false} depthWrite={false} />
+      <sphereGeometry args={[0.45, 12, 12]} />
+      <meshBasicMaterial color="#ff1100" transparent opacity={0} depthTest={false} depthWrite={false} />
     </mesh>
   );
 }
@@ -709,11 +708,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
     if (prev && state.round > (prev.round ?? 0) && state.round > 0) {
       const posMap = posMapRef.current;
-      const newStrikes: StrikeEvent[] = [];
-      const newFlashes: HitFlashEvent[] = [];
+      const newStrikes:       StrikeEvent[]    = [];
+      const newFlashes:       HitFlashEvent[]  = [];
+      const newImpactShields: ImpactShield[]   = [];
       const myPrev = prev.players.find((p) => p.name === playerName);
 
-      // Outgoing: local player attacked someone
+      // ── Outgoing: local player attacked someone ──────────────────────────
       if (myPrev?.submittedAction === 'attack' && myPrev.target) {
         const tgt    = myPrev.target;
         const myPos  = posMap.get(playerName);
@@ -725,12 +725,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           const tgtHit      = (tgtNew?.hp ?? Infinity) < (tgtPrev?.hp ?? Infinity);
           const fromPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
           const toPos:   [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
-          newStrikes.push({ id: `out-${Date.now()}`, fromPos, toPos, targetDefended: tgtDefended, targetHit: tgtHit });
-          if (tgtHit) newFlashes.push({ id: `fl-${tgt}-${Date.now()}`, position: tgtPos });
+          newStrikes.push({ id: `out-${Date.now()}`, fromPos, toPos, targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false });
         }
       }
 
-      // Incoming: local player's HP decreased
+      // ── Incoming: local player was attacked ──────────────────────────────
       const myPrevHp = myPrev?.hp ?? Infinity;
       const myNewHp  = state.players.find((p) => p.name === playerName)?.hp ?? Infinity;
       if (myNewHp < myPrevHp) {
@@ -748,18 +747,38 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           const flybackPos: [number, number, number] | undefined = atkPos
             ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
             : undefined;
-          newStrikes.push({ id: `in-${Date.now()}`, fromPos, toPos, targetDefended: iDef, targetHit: !iDef, flybackPos });
-          if (!iDef) newFlashes.push({ id: `fl-me-${Date.now()}`, position: myPos });
+          const strikeId = `in-${Date.now()}`;
+          newStrikes.push({ id: strikeId, fromPos, toPos, targetDefended: iDef, targetHit: !iDef, isIncoming: true, flybackPos });
+
+          // If I defended, show shield immediately so it's visible before the sword arrives
+          if (iDef && atkPos) {
+            const rotY  = Math.atan2(atkPos[0] - myPos[0], atkPos[2] - myPos[2]);
+            const defSid = `def-shield-${strikeId}`;
+            newImpactShields.push({ id: defSid, pos: toPos, rotY });
+            const fullDurMs = (0.28 + 0.22 + 0.30 + 0.55) * 1000 + 350; // matches SwordEffect timing
+            setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== defSid)), fullDurMs);
+          }
         }
       }
 
-      if (newStrikes.length) setStrikeEvents((ev) => [...ev, ...newStrikes]);
+      // ── Aura flash for every player who lost HP this round ───────────────
+      prev.players.forEach((prevP) => {
+        const newP = state.players.find((p) => p.name === prevP.name);
+        if (!newP) return;
+        if ((newP.hp ?? Infinity) < (prevP.hp ?? Infinity)) {
+          const pos = posMap.get(prevP.name);
+          if (pos) newFlashes.push({ id: `fl-${prevP.name}-${Date.now()}`, position: pos });
+        }
+      });
+
+      if (newStrikes.length)       setStrikeEvents((ev) => [...ev, ...newStrikes]);
+      if (newImpactShields.length) setImpactShields((s) => [...s, ...newImpactShields]);
       if (newFlashes.length) {
         setHitFlashEvents((ev) => [...ev, ...newFlashes]);
         newFlashes.forEach((f) =>
           setTimeout(
             () => setHitFlashEvents((ev) => ev.filter((h) => h.id !== f.id)),
-            600,
+            650,
           ),
         );
       }
@@ -921,7 +940,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           mode="execute"
           flybackPosition={ev.flybackPos}
           onStrike={() => {
-            if (ev.targetDefended) {
+            // For outgoing attacks: flash the shield at impact time.
+            // For incoming defended attacks the shield is already showing from animation start.
+            if (ev.targetDefended && !ev.isIncoming) {
               const rotY = Math.atan2(ev.fromPos[0] - ev.toPos[0], ev.fromPos[2] - ev.toPos[2]);
               const sid  = `shield-${ev.id}`;
               setImpactShields((s) => [...s, { id: sid, pos: ev.toPos, rotY }]);
@@ -937,9 +958,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         <ShieldEffect key={s.id} localSpace={false} worldPosition={s.pos} worldRotationY={s.rotY} />
       ))}
 
-      {/* Red hit-flash — brief sphere that blinks when a player takes damage */}
+      {/* Red aura — expands and fades around any character that takes damage */}
       {hitFlashEvents.map((f) => (
-        <HitFlash key={f.id} position={f.position} />
+        <AuraFlash key={f.id} position={f.position} />
       ))}
 
       <WinnerCrown worldPosition={crownPosition} />
