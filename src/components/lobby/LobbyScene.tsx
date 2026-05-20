@@ -743,8 +743,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           const baseToPos: [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
 
           // When blocked: sword stops at the shield, which floats in front of the
-          // defender (0.4 u toward the attacker). flyback carries the sword back.
-          const SHIELD_OFFSET = 0.4;
+          // defender (0.8 u toward the attacker). flyback carries the sword back.
+          const SHIELD_OFFSET = 0.8;
           let toPos = baseToPos;
           let flybackPos: [number, number, number] | undefined;
           if (tgtDefended) {

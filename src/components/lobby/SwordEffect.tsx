@@ -133,10 +133,13 @@ export default function SwordEffect({
 
   return (
     <group ref={groupRef} position={[startPos.x, startPos.y, startPos.z]}>
-      {/* 180° Y flip so the blade points toward the target after lookAt */}
-      {/* Extra 90° Z tilt in ready mode so the blade is oriented sideways */}
-      <group rotation={[0, Math.PI, mode === 'ready' ? Math.PI / 2 : 0]}>
-        <primitive object={sceneClone} scale={0.45} />
+      {/* Y flip so the blade points toward the target after lookAt.
+          For ready mode the inner group spins 90° around the model's own Z axis
+          before the flip so the rotation is unambiguous. */}
+      <group rotation={[0, Math.PI, 0]}>
+        <group rotation={[0, 0, mode === 'ready' ? Math.PI / 2 : 0]}>
+          <primitive object={sceneClone} scale={0.45} />
+        </group>
       </group>
     </group>
   );
