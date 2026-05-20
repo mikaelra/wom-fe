@@ -919,8 +919,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           fromPosition={ev.fromPos}
           toPosition={ev.toPos}
           mode="execute"
-          targetDefended={ev.targetDefended}
-          targetHit={ev.targetHit}
           flybackPosition={ev.flybackPos}
           onStrike={() => {
             if (ev.targetDefended) {
