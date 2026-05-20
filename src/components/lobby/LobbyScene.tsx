@@ -588,6 +588,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [hitFlashEvents, setHitFlashEvents] = useState<HitFlashEvent[]>([]);
   const [impactShields, setImpactShields] = useState<ImpactShield[]>([]);
 
+  // Track the last action the local player submitted.
+  // currentAction is reset to '' by the parent on round change BEFORE the
+  // round-transition effect runs, so we snapshot it here whenever it changes.
+  const lastActionRef = useRef({ action: '', target: '' });
+  useEffect(() => {
+    if (currentAction) {
+      lastActionRef.current = { action: currentAction, target: attackTarget ?? '' };
+    }
+  }, [currentAction, attackTarget]);
+
   useEffect(() => {
     if (!state?.round_end_time) { setSecondsLeft(null); return; }
     const endTime = new Date(state.round_end_time).getTime() / 1000;
@@ -714,15 +724,21 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       const myPrev = prev.players.find((p) => p.name === playerName);
 
       // ── Outgoing: local player attacked someone ──────────────────────────
-      if (myPrev?.submittedAction === 'attack' && myPrev.target) {
-        const tgt    = myPrev.target;
+      // Use lastActionRef (snapshotted before parent resets currentAction) instead of
+      // submittedAction which the server may not include in the new-round state.
+      const myAction = lastActionRef.current.action;
+      const myTarget = lastActionRef.current.target;
+      lastActionRef.current = { action: '', target: '' };
+      if (myAction === 'attack' && myTarget) {
+        const tgt    = myTarget;
         const myPos  = posMap.get(playerName);
         const tgtPos = posMap.get(tgt);
         if (myPos && tgtPos) {
           const tgtPrev     = prev.players.find((p) => p.name === tgt);
           const tgtNew      = state.players.find((p) => p.name === tgt);
-          const tgtDefended = tgtPrev?.submittedAction === 'defend';
           const tgtHit      = (tgtNew?.hp ?? Infinity) < (tgtPrev?.hp ?? Infinity);
+          // If target didn't lose HP when attacked, they defended/blocked
+          const tgtDefended = !tgtHit;
           const fromPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
           const toPos:   [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
           newStrikes.push({ id: `out-${Date.now()}`, fromPos, toPos, targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false });
