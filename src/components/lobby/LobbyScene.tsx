@@ -8,7 +8,7 @@ import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
-import SwordEffect from '@/components/lobby/SwordEffect';
+import SwordEffect, { HOLD_DUR, RETREAT_DUR, FLYBACK_DUR } from '@/components/lobby/SwordEffect';
 import { getSocket } from '@/lib/api';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
 import {
@@ -734,14 +734,31 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         const myPos  = posMap.get(playerName);
         const tgtPos = posMap.get(tgt);
         if (myPos && tgtPos) {
-          const tgtPrev     = prev.players.find((p) => p.name === tgt);
-          const tgtNew      = state.players.find((p) => p.name === tgt);
-          const tgtHit      = (tgtNew?.hp ?? Infinity) < (tgtPrev?.hp ?? Infinity);
-          // If target didn't lose HP when attacked, they defended/blocked
+          const tgtPrev = prev.players.find((p) => p.name === tgt);
+          const tgtNew  = state.players.find((p) => p.name === tgt);
+          const tgtHit  = (tgtNew?.hp ?? Infinity) < (tgtPrev?.hp ?? Infinity);
           const tgtDefended = !tgtHit;
+
           const fromPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
-          const toPos:   [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
-          newStrikes.push({ id: `out-${Date.now()}`, fromPos, toPos, targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false });
+          const baseToPos: [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
+
+          // When blocked: sword stops at the shield, which floats in front of the
+          // defender (0.4 u toward the attacker). flyback carries the sword back.
+          const SHIELD_OFFSET = 0.4;
+          let toPos = baseToPos;
+          let flybackPos: [number, number, number] | undefined;
+          if (tgtDefended) {
+            const dx = fromPos[0] - baseToPos[0];
+            const dz = fromPos[2] - baseToPos[2];
+            const len = Math.sqrt(dx * dx + dz * dz);
+            if (len > 0) {
+              toPos = [baseToPos[0] + (dx / len) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / len) * SHIELD_OFFSET];
+            }
+            // Fly back into the attacker's body (slightly past centre so it visually enters)
+            flybackPos = fromPos;
+          }
+
+          newStrikes.push({ id: `out-${Date.now()}`, fromPos, toPos, targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false, flybackPos });
         }
       }
 
@@ -956,13 +973,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           mode="execute"
           flybackPosition={ev.flybackPos}
           onStrike={() => {
-            // For outgoing attacks: flash the shield at impact time.
-            // For incoming defended attacks the shield is already showing from animation start.
             if (ev.targetDefended && !ev.isIncoming) {
+              // ev.toPos is already the shield position (in front of the defender).
               const rotY = Math.atan2(ev.fromPos[0] - ev.toPos[0], ev.fromPos[2] - ev.toPos[2]);
               const sid  = `shield-${ev.id}`;
               setImpactShields((s) => [...s, { id: sid, pos: ev.toPos, rotY }]);
-              setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), 700);
+              // Keep the shield visible through the retreat + flyback phases
+              const holdMs = (HOLD_DUR + RETREAT_DUR + FLYBACK_DUR) * 1000 + 200;
+              setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), holdMs);
             }
           }}
           onDone={() => setStrikeEvents((s) => s.filter((x) => x.id !== ev.id))}

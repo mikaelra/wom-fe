@@ -10,10 +10,10 @@ useGLTF.preload('/models/swords/sword_animation-ld.glb');
 // Distance the sword hovers from the target while in "ready" or pre-strike state
 const HOVER_DIST = 0.75;
 // Strike animation timing (seconds)
-const STRIKE_DUR  = 0.28;
-const HOLD_DUR    = 0.22;
-const RETREAT_DUR = 0.30;
-const FLYBACK_DUR = 0.55;
+const STRIKE_DUR       = 0.28;
+export const HOLD_DUR    = 0.22;
+export const RETREAT_DUR = 0.30;
+export const FLYBACK_DUR = 0.55;
 
 export type SwordEffectProps = {
   /** World-space position of the attacker (used to compute sword direction). */
@@ -113,7 +113,10 @@ export default function SwordEffect({
       // Retreat back to hover position
       const p = easeOut((t - STRIKE_DUR - HOLD_DUR) / RETREAT_DUR);
       group.position.lerpVectors(toVec, startPos, p);
-      if (!flybackVec) group.lookAt(toVec);
+      // If flying back, turn toward the return target during retreat so the
+      // direction is already correct when the flyback phase begins
+      if (flybackVec) group.lookAt(flybackVec);
+      else group.lookAt(toVec);
     } else if (flybackVec && t < STRIKE_DUR + HOLD_DUR + RETREAT_DUR + FLYBACK_DUR) {
       // Fly back to the attacker's position
       const p = easeIn((t - STRIKE_DUR - HOLD_DUR - RETREAT_DUR) / FLYBACK_DUR);
@@ -131,7 +134,8 @@ export default function SwordEffect({
   return (
     <group ref={groupRef} position={[startPos.x, startPos.y, startPos.z]}>
       {/* 180° Y flip so the blade points toward the target after lookAt */}
-      <group rotation={[0, Math.PI, 0]}>
+      {/* Extra 90° Z tilt in ready mode so the blade is oriented sideways */}
+      <group rotation={[0, Math.PI, mode === 'ready' ? Math.PI / 2 : 0]}>
         <primitive object={sceneClone} scale={0.45} />
       </group>
     </group>
