@@ -576,7 +576,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                   onClick={() => handleAction('attack')}
                   selected={effectiveAction === 'attack'}
                   modelUrl="/models/buttons/attack-hd.glb"
-                  modelScale={10}
                   imageUrl="/images/buttons/attack.png"
                   ariaLabel="Attack"
                   textClassName="text-white font-bold text-sm tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
@@ -638,7 +637,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             onClick={() => handleAction('defend')}
             selected={effectiveAction === 'defend'}
             modelUrl="/models/buttons/defend-hd.glb"
-            modelScale={10}
             imageUrl="/images/buttons/defend.png"
             ariaLabel="Defend"
             textClassName="text-white font-bold text-sm tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"

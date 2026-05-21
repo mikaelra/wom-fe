@@ -207,7 +207,6 @@ function PlayerWithName({
               onClick={onAttack}
               selected={isAttackSelected}
               modelUrl="/models/buttons/attack-hd.glb"
-              modelScale={10}
               imageUrl="/images/buttons/attack.png"
               ariaLabel="Attack"
               textClassName="text-white font-bold text-2xl tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
@@ -227,7 +226,6 @@ function PlayerWithName({
               onClick={onDefend}
               selected={currentAction === 'defend'}
               modelUrl="/models/buttons/defend-hd.glb"
-              modelScale={10}
               imageUrl="/images/buttons/defend.png"
               ariaLabel="Defend"
               textClassName="text-white font-bold text-2xl tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
