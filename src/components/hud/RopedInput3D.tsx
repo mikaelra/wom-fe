@@ -59,7 +59,7 @@ const RopedInput3D = forwardRef<HTMLDivElement, RopedInput3DProps>(function Rope
           aria-hidden="true"
           draggable={false}
           className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-          style={{ transform: 'scale(2.93, 1.55)' }}
+          style={{ transform: 'scale(2.93, 1.7)' }}
         />
       ) : (
         <div className="absolute inset-0 pointer-events-none">
