@@ -200,40 +200,32 @@ function PlayerWithName({
       )}
       {showAttackButton && !isBoss && (
         <Html position={[0, 0.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
-          <div style={{ transform: 'translate(300px, 600px)' }}>
-            <div className={actionCue} style={{ pointerEvents: 'auto' }}>
-              <RopedButton3D
-                width={870}
-                height={210}
-                onClick={onAttack}
-                selected={isAttackSelected}
-                modelUrl="/models/buttons/attack-hd.glb"
-                imageUrl="/images/buttons/attack.png"
-                imageScale={1.98}
-                canvasScale={3}
-                ariaLabel="Attack"
-              />
-            </div>
+          <div className={actionCue} style={{ pointerEvents: 'auto' }}>
+            <RopedButton3D
+              width={870}
+              height={210}
+              onClick={onAttack}
+              selected={isAttackSelected}
+              modelUrl="/models/buttons/attack-hd.glb"
+              imageUrl="/images/buttons/attack.png"
+              ariaLabel="Attack"
+            />
           </div>
         </Html>
       )}
       {/* DEFEND button — own player only */}
       {showOwnActions && (
         <Html position={[0, -0.1, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
-          <div style={{ transform: 'translate(435px, 0px)' }}>
-            <div className={actionCue} style={{ pointerEvents: 'auto' }}>
-              <RopedButton3D
-                width={870}
-                height={210}
-                onClick={onDefend}
-                selected={currentAction === 'defend'}
-                modelUrl="/models/buttons/defend-hd.glb"
-                imageUrl="/images/buttons/defend.png"
-                imageScale={1.98}
-                canvasScale={3}
-                ariaLabel="Defend"
-              />
-            </div>
+          <div className={actionCue} style={{ pointerEvents: 'auto' }}>
+            <RopedButton3D
+              width={870}
+              height={210}
+              onClick={onDefend}
+              selected={currentAction === 'defend'}
+              modelUrl="/models/buttons/defend-hd.glb"
+              imageUrl="/images/buttons/defend.png"
+              ariaLabel="Defend"
+            />
           </div>
         </Html>
       )}
