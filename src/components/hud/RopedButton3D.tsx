@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import { getGlobeSpin } from '@/lib/globeSpin';
 import { isLowQuality } from '@/lib/deviceQuality';
 
-const LD_IMAGE = '/models/buttons/rope_button-ld.png';
+const DEFAULT_MODEL = '/models/buttons/roped_button-hd.glb';
+const DEFAULT_IMAGE = '/models/buttons/rope_button-ld.png';
 
 type ButtonModelProps = {
   url: string;
@@ -81,11 +82,19 @@ type RopedButton3DProps = {
   onClick?: () => void;
   disabled?: boolean;
   loading?: boolean;
+  /** Render the model in its darkened/pressed state regardless of pointer
+   *  interaction. Used to indicate a sticky selection (e.g. action chosen
+   *  for the current round). */
+  selected?: boolean;
   width?: number;
   height?: number;
   modelRotation?: [number, number, number];
   textClassName?: string;
   ariaLabel?: string;
+  /** GLB model URL rendered on high-quality devices. */
+  modelUrl?: string;
+  /** PNG fallback rendered on low-quality devices. */
+  imageUrl?: string;
   children?: ReactNode;
 };
 
@@ -93,18 +102,21 @@ export default function RopedButton3D({
   onClick,
   disabled = false,
   loading = false,
+  selected = false,
   width = 170,
   height = 70,
   modelRotation = [0, 0, 0],
   textClassName = 'text-white font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]',
   ariaLabel,
+  modelUrl = DEFAULT_MODEL,
+  imageUrl = DEFAULT_IMAGE,
   children,
 }: RopedButton3DProps) {
   const [hover, setHover] = useState(false);
   const [active, setActive] = useState(false);
   const [lowQuality, setLowQuality] = useState(false);
   useEffect(() => { setLowQuality(isLowQuality()); }, []);
-  const pressed = !disabled && (active || hover || loading);
+  const pressed = !disabled && (active || hover || loading || selected);
 
   return (
     <button
@@ -121,7 +133,7 @@ export default function RopedButton3D({
     >
       {lowQuality ? (
         <img
-          src={LD_IMAGE}
+          src={imageUrl}
           alt=""
           aria-hidden="true"
           draggable={false}
@@ -143,7 +155,7 @@ export default function RopedButton3D({
             <directionalLight position={[-2, -1, 2]} intensity={0.4} />
             <Suspense fallback={null}>
               <ButtonModel
-                url="/models/buttons/roped_button-hd.glb"
+                url={modelUrl}
                 pressed={pressed}
                 rotation={modelRotation}
               />
@@ -160,4 +172,6 @@ export default function RopedButton3D({
   );
 }
 
-useGLTF.preload('/models/buttons/roped_button-hd.glb');
+useGLTF.preload(DEFAULT_MODEL);
+useGLTF.preload('/models/buttons/attack-hd.glb');
+useGLTF.preload('/models/buttons/defend-hd.glb');

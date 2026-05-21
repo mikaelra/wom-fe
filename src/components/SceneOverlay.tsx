@@ -11,6 +11,7 @@ import {
 } from '@/lib/api';
 import type { LobbyState, Player } from '@/types/game';
 import FloatingMessage from '@/components/lobby/FloatingMessage';
+import RopedButton3D from '@/components/hud/RopedButton3D';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -568,17 +569,20 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             </div>
             <p className={`${theme.enemyHpTextClass} text-xs mt-1`}>{Math.max(0, enemy!.hp)} / {enemyMaxHp} HP</p>
             {showActions && (
-              <button
-                type="button"
-                onClick={() => handleAction('attack')}
-                className={`${btn} text-sm backdrop-blur-sm shadow-lg mt-2 ${actionCue} ${
-                  effectiveAction === 'attack'
-                    ? 'bg-red-600 text-white border-red-400'
-                    : 'bg-red-900/80 text-red-200 border-red-700 hover:bg-red-800/90'
-                }`}
-              >
-                ⚔ ATTACK
-              </button>
+              <div className={`mt-2 inline-block ${actionCue}`}>
+                <RopedButton3D
+                  width={290}
+                  height={70}
+                  onClick={() => handleAction('attack')}
+                  selected={effectiveAction === 'attack'}
+                  modelUrl="/models/buttons/attack-hd.glb"
+                  imageUrl="/images/buttons/attack.png"
+                  ariaLabel="Attack"
+                  textClassName="text-white font-bold text-sm tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
+                >
+                  ⚔ ATTACK
+                </RopedButton3D>
+              </div>
             )}
           </div>
         </div>
@@ -624,20 +628,21 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       {/* DEFEND button (hidden when 3D scene owns player action UI) */}
       {!hidePlayerActionButtons && showActions && (
         <div
-          className="absolute pointer-events-auto"
+          className={`absolute pointer-events-auto ${actionCue}`}
           style={{ top: '65%', left: '50%', transform: 'translateX(-50%)' }}
         >
-          <button
-            type="button"
+          <RopedButton3D
+            width={290}
+            height={70}
             onClick={() => handleAction('defend')}
-            className={`${btn} text-sm backdrop-blur-sm shadow-lg ${actionCue} ${
-              effectiveAction === 'defend'
-                ? 'bg-blue-600 text-white border-blue-400'
-                : 'bg-blue-900/80 text-blue-200 border-blue-700 hover:bg-blue-800/90'
-            }`}
+            selected={effectiveAction === 'defend'}
+            modelUrl="/models/buttons/defend-hd.glb"
+            imageUrl="/images/buttons/defend.png"
+            ariaLabel="Defend"
+            textClassName="text-white font-bold text-sm tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
           >
             🛡 DEFEND
-          </button>
+          </RopedButton3D>
         </div>
       )}
 

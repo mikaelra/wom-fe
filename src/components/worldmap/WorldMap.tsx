@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo, memo } from 'react';
+import { useEffect, useRef, useMemo, memo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -390,6 +390,7 @@ function SpinReporter() {
   const controlsAny = useThree((state) => state.controls);
   const lastAngle = useRef<number | null>(null);
   const smoothed = useRef(0);
+  useEffect(() => () => setGlobeSpin(0), []);
   useFrame((_, dt) => {
     const ctrl = controlsAny as { getAzimuthalAngle?: () => number } | null;
     if (!ctrl || typeof ctrl.getAzimuthalAngle !== 'function') return;
