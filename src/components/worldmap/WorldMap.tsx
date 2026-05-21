@@ -6,7 +6,8 @@ import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
-import { CITIES, type City } from '@/lib/cities';
+import GlobeCrackleEffect from './GlobeCrackleEffect';
+import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
 import { isLowQuality } from '@/lib/deviceQuality';
 
@@ -395,6 +396,12 @@ interface GlobeProps {
 function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
+  // Epicenter for the crackle effect — Athens on the globe surface
+  const athensEpicenter = useMemo(() => {
+    const [x, y, z] = latLngToVec3(37.9838, -25, GLOBE_RADIUS);
+    return new THREE.Vector3(x, y, z);
+  }, []);
+
   // Use 1k earth textures on low-end devices (~6 MB → ~640 KB), 4k otherwise.
   // Cloud textures are the same file in both folders, so always pulled from high-res.
   const earthDir = isLowQuality() ? 'low-res' : 'high-res';
@@ -469,6 +476,9 @@ function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
           raidInfo={city.name === 'Athens' ? athensRaidInfo : undefined}
         />
       ))}
+
+      {/* Crackle electricity radiating from the sword's impact point */}
+      <GlobeCrackleEffect epicenter={athensEpicenter} radius={GLOBE_RADIUS} />
     </group>
   );
 }

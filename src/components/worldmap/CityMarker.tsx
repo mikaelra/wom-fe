@@ -31,22 +31,84 @@ function GremlinPinFigure() {
 
 useGLTF.preload('/models/gremlinv01.glb');
 
-// Sword model placed tilted 30° from the surface normal with 30% buried in the globe
+// Sword model with light blue glow, standing straight out from the globe
 function SwordPinFigure() {
   const { scene } = useGLTF('/models/swords/sword_ld_v1.glb');
   const clone = useMemo(() => scene.clone(), [scene]);
+  const spriteRef = useRef<THREE.Sprite>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
 
-  const yOffset = useMemo(() => {
+  const { yOffset, centerY, swordH } = useMemo(() => {
     const box = new THREE.Box3().setFromObject(clone);
-    const size = box.getSize(new THREE.Vector3());
-    // Shift model along its local Y so that 30% of its height is below y=0 (globe surface)
-    return -(box.min.y + size.y * 0.3);
+    const sz = box.getSize(new THREE.Vector3());
+    // Shift so 30% of model height is below the globe surface (y = 0 in group space)
+    const off = -(box.min.y + sz.y * 0.3);
+    // Centre of the visible portion above the surface: from y=0 to y=0.7*sz.y
+    const cY = sz.y * 0.35;
+    return { yOffset: off, centerY: cY, swordH: sz.y };
   }, [clone]);
 
+  // Radial-gradient canvas texture for the aura sprite
+  const glowMap = useMemo(() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const ctx = c.getContext('2d')!;
+    const h = 64;
+    const g = ctx.createRadialGradient(h, h, 0, h, h, h);
+    g.addColorStop(0.00, 'rgba(220, 245, 255, 1.0)');
+    g.addColorStop(0.25, 'rgba(110, 200, 255, 0.7)');
+    g.addColorStop(0.55, 'rgba( 50, 140, 255, 0.3)');
+    g.addColorStop(1.00, 'rgba(  0,  80, 200, 0.0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  }, []);
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    // Compound sine for organic pulsing
+    const pulse = 1.0 + 0.18 * Math.sin(t * 2.8) + 0.06 * Math.sin(t * 7.1);
+    if (spriteRef.current) {
+      const s = swordH * 0.7 * pulse;
+      spriteRef.current.scale.set(s, s, 1);
+    }
+    if (ringRef.current) {
+      const rs = 1.0 + 0.3 * Math.sin(t * 3.5);
+      ringRef.current.scale.setScalar(rs);
+      (ringRef.current.material as THREE.MeshBasicMaterial).opacity =
+        0.45 + 0.3 * Math.sin(t * 3.5);
+    }
+  });
+
   return (
-    // 30° tilt away from the surface normal
-    <group rotation={[0, 0, Math.PI / 6]}>
+    <group>
       <primitive object={clone} position={[0, yOffset, 0]} />
+
+      {/* Light blue aura sprite centred on the visible portion of the sword */}
+      <sprite ref={spriteRef} position={[0, centerY, 0]}>
+        <spriteMaterial
+          map={glowMap}
+          transparent
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </sprite>
+
+      {/* Pulsing impact ring at the globe surface */}
+      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.08, 0.2, 32]} />
+        <meshBasicMaterial
+          color="#4ae4ff"
+          transparent
+          opacity={0.55}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+
+      {/* Point light so nearby globe surface picks up the blue tint */}
+      <pointLight color="#6ec8ff" intensity={2.5} distance={3.5} decay={2} />
     </group>
   );
 }
