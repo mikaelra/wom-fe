@@ -8,7 +8,7 @@ import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
-import SwordEffect, { HOLD_DUR, RETREAT_DUR, FLYBACK_DUR } from '@/components/lobby/SwordEffect';
+import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, FLYBACK_DUR } from '@/components/lobby/SwordEffect';
 import { getSocket } from '@/lib/api';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
 import {
@@ -587,8 +587,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [strikeEvents,  setStrikeEvents]  = useState<StrikeEvent[]>([]);
   const [hitFlashEvents, setHitFlashEvents] = useState<HitFlashEvent[]>([]);
   const [impactShields, setImpactShields] = useState<ImpactShield[]>([]);
-  // Queue for incoming defended strikes that play one-after-another
-  const pendingIncomingRef = useRef<StrikeEvent[]>([]);
+  // Timeout IDs for staggered incoming defended strikes (cleared each new round)
+  const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // Track the last action the local player submitted.
   // currentAction is reset to '' by the parent on round change BEFORE the
@@ -719,8 +719,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     const prev = prevStateRef.current;
 
     if (prev && state.round > (prev.round ?? 0) && state.round > 0) {
-      // Discard any leftover queue from the previous round
-      pendingIncomingRef.current = [];
+      // Cancel any still-pending staggered strikes from the previous round
+      staggerTimeoutsRef.current.forEach(clearTimeout);
+      staggerTimeoutsRef.current = [];
 
       const posMap = posMapRef.current;
       const newStrikes:       StrikeEvent[]    = [];
@@ -780,13 +781,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       if (myPos) {
         if (myAction === 'defend' && incomingAttackers.length > 0) {
-          // Build all strike events first, then fire only the first one.
-          // Subsequent strikes are queued in pendingIncomingRef and started
-          // one-by-one as each preceding onDone fires.
           const SHIELD_OFFSET = 0.8;
-          const allDefStrikes: StrikeEvent[] = [];
+          // Total duration of one full strike + flyback cycle (ms)
+          const ONE_ANIM_MS = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR + FLYBACK_DUR) * 1000;
+          const GAP_MS      = 200;
 
-          for (const atk of incomingAttackers) {
+          incomingAttackers.forEach((atk, i) => {
             const atkPos  = posMap.get(atk.name);
             const fromPos: [number, number, number] = atkPos
               ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
@@ -800,29 +800,41 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               ? [baseToPos[0] + (dx / ld) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / ld) * SHIELD_OFFSET]
               : baseToPos;
 
-            allDefStrikes.push({
-              id:             `in-def-${atk.name}-${Date.now()}`,
+            const strike: StrikeEvent = {
+              id:             `in-def-${atk.name}-${Date.now()}-${i}`,
               fromPos,
               toPos:          shieldPos,
               targetDefended: true,
               targetHit:      false,
               isIncoming:     true,
               flybackPos:     atkPos ? fromPos : undefined,
-            });
-          }
+            };
 
-          if (allDefStrikes.length > 0) {
-            // Fire the first strike immediately with its pre-shown shield
-            const first    = allDefStrikes[0];
-            const firstSid = `def-shield-${first.id}`;
-            const firstRotY = Math.atan2(first.fromPos[0] - first.toPos[0], first.fromPos[2] - first.toPos[2]);
-            newStrikes.push(first);
-            newImpactShields.push({ id: firstSid, pos: first.toPos, rotY: firstRotY });
-            const fullDurMs = (HOLD_DUR + RETREAT_DUR + FLYBACK_DUR) * 1000 + 350;
-            setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== firstSid)), fullDurMs);
-            // Queue the rest to play sequentially after each onDone
-            pendingIncomingRef.current = allDefStrikes.slice(1);
-          }
+            const startDelay = i * (ONE_ANIM_MS + GAP_MS);
+            const shieldDur  = ONE_ANIM_MS + 350;
+            const rotY       = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
+
+            if (i === 0) {
+              // First strike fires with the initial batch
+              newStrikes.push(strike);
+              newImpactShields.push({ id: `def-shield-${strike.id}`, pos: shieldPos, rotY });
+              staggerTimeoutsRef.current.push(
+                setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== `def-shield-${strike.id}`)), shieldDur),
+              );
+            } else {
+              // Subsequent strikes fire after their predecessors finish
+              staggerTimeoutsRef.current.push(
+                setTimeout(() => {
+                  const sid = `def-shield-${strike.id}`;
+                  setStrikeEvents((s) => [...s, strike]);
+                  setImpactShields((s) => [...s, { id: sid, pos: shieldPos, rotY }]);
+                  staggerTimeoutsRef.current.push(
+                    setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), shieldDur),
+                  );
+                }, startDelay),
+              );
+            }
+          });
         } else if (hpLost) {
           // Not defending (or server has no attacker info) — single sword hit
           const attacker = incomingAttackers[0];
@@ -1033,21 +1045,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), holdMs);
             }
           }}
-          onDone={() => {
-            setStrikeEvents((s) => s.filter((x) => x.id !== ev.id));
-            // If this was an incoming defended strike, start the next queued one
-            if (ev.isIncoming && ev.targetDefended && pendingIncomingRef.current.length > 0) {
-              const [next, ...rest] = pendingIncomingRef.current;
-              pendingIncomingRef.current = rest;
-              setStrikeEvents((s) => [...s, next]);
-              // Show the shield for the next strike just as the sword begins
-              const sid    = `def-shield-${next.id}`;
-              const rotY   = Math.atan2(next.fromPos[0] - next.toPos[0], next.fromPos[2] - next.toPos[2]);
-              setImpactShields((s) => [...s, { id: sid, pos: next.toPos, rotY }]);
-              const fullDurMs = (HOLD_DUR + RETREAT_DUR + FLYBACK_DUR) * 1000 + 350;
-              setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), fullDurMs);
-            }
-          }}
+          onDone={() => setStrikeEvents((s) => s.filter((x) => x.id !== ev.id))}
         />
       ))}
 

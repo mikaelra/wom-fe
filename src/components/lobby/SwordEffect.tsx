@@ -10,10 +10,10 @@ useGLTF.preload('/models/swords/sword_animation-ld.glb');
 // Distance the sword hovers from the target while in "ready" or pre-strike state
 const HOVER_DIST = 0.75;
 // Strike animation timing (seconds)
-const STRIKE_DUR       = 0.28;
-export const HOLD_DUR    = 0.22;
-export const RETREAT_DUR = 0.30;
-export const FLYBACK_DUR = 0.55;
+export const STRIKE_DUR   = 0.28;
+export const HOLD_DUR     = 0.22;
+export const RETREAT_DUR  = 0.30;
+export const FLYBACK_DUR  = 0.55;
 
 export type SwordEffectProps = {
   /** World-space position of the attacker (used to compute sword direction). */
