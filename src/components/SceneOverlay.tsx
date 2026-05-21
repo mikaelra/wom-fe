@@ -535,8 +535,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         <div className="absolute bottom-4 right-4 pointer-events-auto z-20">
           <div className="bg-black/70 backdrop-blur-sm rounded-xl border border-white/20 p-3 text-white text-sm">
             <ul className="space-y-1">
-              {state.players.filter((p) => !p.spectator).map((p) => (
-                <li key={p.name} className={`flex items-center gap-1 ${p.hp <= 0 ? 'opacity-40' : ''}`}>
+              {state.players.filter((p) => !p.spectator).map((p, i) => (
+                <li key={`${p.name}-${i}`} className={`flex items-center gap-1 ${p.hp <= 0 ? 'opacity-40' : ''}`}>
                   {(state.winner === p.name || (!state.winner && state.raidwinner === p.name)) && <span>👑</span>}
                   {p.hp <= 0 && <span>☠️</span>}
                   {p.idle_rounds >= 2 && <span>👻</span>}
@@ -724,8 +724,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                 className="border border-gray-600 rounded-lg p-2 bg-black/80 text-white text-sm flex-1 min-w-[120px]"
               >
                 <option value="">Select player</option>
-                {eligibleTargets.map((p) => (
-                  <option key={p.name} value={p.name}>{p.name}</option>
+                {eligibleTargets.map((p, i) => (
+                  <option key={`${p.name}-${i}`} value={p.name}>{p.name}</option>
                 ))}
               </select>
               <button
