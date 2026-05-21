@@ -128,7 +128,7 @@ export default function RopedButton3D({
           className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-[filter,transform] duration-150"
           style={{
             filter: pressed ? 'brightness(0.65)' : 'brightness(1)',
-            transform: pressed ? 'translateY(2px)' : 'translateY(0)',
+            transform: pressed ? 'translateY(2px) scale(2.2)' : 'translateY(0) scale(2.2)',
           }}
         />
       ) : (
