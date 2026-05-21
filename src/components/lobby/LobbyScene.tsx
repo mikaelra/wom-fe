@@ -202,17 +202,14 @@ function PlayerWithName({
         <Html position={[0, 0.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <div className={actionCue} style={{ pointerEvents: 'auto' }}>
             <RopedButton3D
-              width={290}
-              height={70}
+              width={870}
+              height={210}
               onClick={onAttack}
               selected={isAttackSelected}
               modelUrl="/models/buttons/attack-hd.glb"
               imageUrl="/images/buttons/attack.png"
               ariaLabel="Attack"
-              textClassName="text-white font-bold text-2xl tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
-            >
-              ⚔ ATTACK
-            </RopedButton3D>
+            />
           </div>
         </Html>
       )}
@@ -221,17 +218,14 @@ function PlayerWithName({
         <Html position={[0, -0.1, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <div className={actionCue} style={{ pointerEvents: 'auto' }}>
             <RopedButton3D
-              width={290}
-              height={70}
+              width={870}
+              height={210}
               onClick={onDefend}
               selected={currentAction === 'defend'}
               modelUrl="/models/buttons/defend-hd.glb"
               imageUrl="/images/buttons/defend.png"
               ariaLabel="Defend"
-              textClassName="text-white font-bold text-2xl tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]"
-            >
-              🛡 DEFEND
-            </RopedButton3D>
+            />
           </div>
         </Html>
       )}
