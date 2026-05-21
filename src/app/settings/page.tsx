@@ -9,11 +9,7 @@ const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
   "we will send a one-time verification code to your registered email. You " +
   "will need to enter that code before your session is activated, even if " +
-  "you have already used this browser before. This adds an extra layer of " +
-  "security on top of your secret email: a stolen name or leaked device " +
-  "will not be enough to sign in — the attacker must also control your " +
-  "inbox. You can switch this off at any time from this page, but you will " +
-  "still need to confirm the change with your email.";
+  "you have already used this browser before.";
 
 export default function SettingsPage() {
   const router = useRouter();
