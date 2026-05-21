@@ -99,6 +99,12 @@ type RopedButton3DProps = {
   modelUrl?: string;
   /** PNG fallback rendered on low-quality devices. */
   imageUrl?: string;
+  /** CSS scale applied to the PNG fallback. */
+  imageScale?: number;
+  /** Size multiplier for the 3D canvas relative to the button box. Values >1
+   *  let the model render larger than the clickable area (it overflows,
+   *  centered), matching the PNG's overflow behaviour. */
+  canvasScale?: number;
   children?: ReactNode;
 };
 
@@ -115,6 +121,8 @@ export default function RopedButton3D({
   ariaLabel,
   modelUrl = DEFAULT_MODEL,
   imageUrl = DEFAULT_IMAGE,
+  imageScale = 2.2,
+  canvasScale = 1,
   children,
 }: RopedButton3DProps) {
   const [hover, setHover] = useState(false);
@@ -145,11 +153,22 @@ export default function RopedButton3D({
           className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-[filter,transform] duration-150"
           style={{
             filter: pressed ? 'brightness(0.65)' : 'brightness(1)',
-            transform: pressed ? 'translateY(2px) scale(2.2)' : 'translateY(0) scale(2.2)',
+            transform: pressed
+              ? `translateY(2px) scale(${imageScale})`
+              : `translateY(0) scale(${imageScale})`,
           }}
         />
       ) : (
-        <div className="absolute inset-0 pointer-events-none">
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            left: '50%',
+            top: '50%',
+            width: width * canvasScale,
+            height: height * canvasScale,
+            transform: 'translate(-50%, -50%)',
+          }}
+        >
           <Canvas
             camera={{ position: [0, 0, 1.067], fov: 35 }}
             gl={{ alpha: true, antialias: true, premultipliedAlpha: false }}
