@@ -31,6 +31,28 @@ function GremlinPinFigure() {
 
 useGLTF.preload('/models/gremlinv01.glb');
 
+// Sword model placed tilted 30° from the surface normal with 30% buried in the globe
+function SwordPinFigure() {
+  const { scene } = useGLTF('/models/swords/sword_ld_v1.glb');
+  const clone = useMemo(() => scene.clone(), [scene]);
+
+  const yOffset = useMemo(() => {
+    const box = new THREE.Box3().setFromObject(clone);
+    const size = box.getSize(new THREE.Vector3());
+    // Shift model along its local Y so that 30% of its height is below y=0 (globe surface)
+    return -(box.min.y + size.y * 0.3);
+  }, [clone]);
+
+  return (
+    // 30° tilt away from the surface normal
+    <group rotation={[0, 0, Math.PI / 6]}>
+      <primitive object={clone} position={[0, yOffset, 0]} />
+    </group>
+  );
+}
+
+useGLTF.preload('/models/swords/sword_ld_v1.glb');
+
 interface CityMarkerProps {
   city: City;
   globeRadius: number;
@@ -49,7 +71,7 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo }: Cit
   // Compute an "up" direction from globe center so the marker stands normal to the surface
   const up = new THREE.Vector3(...position).normalize();
 
-  // Animate the glow ring pulse
+  // Animate the glow ring pulse (only active when glowRef is attached — gremlin marker)
   useFrame(({ clock }) => {
     if (glowRef.current) {
       const s = 1 + 0.15 * Math.sin(clock.elapsedTime * 2 + city.id);
@@ -85,36 +107,29 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo }: Cit
         document.body.style.cursor = 'auto';
       }}
     >
-      {/* Pillar / pin */}
-      <mesh position={[0, 0.12, 0]}>
-        <cylinderGeometry args={[0.04, 0.06, 0.24, 8]} />
-        <meshStandardMaterial color={city.color} emissive={city.color} emissiveIntensity={hovered ? 1.2 : 0.5} />
-      </mesh>
-
-      {/* Glowing sphere on top — replaced by gremlin figure for Gremlin's Lair */}
       {city.isGremlin ? (
-        <GremlinPinFigure />
-      ) : (
-        <mesh position={[0, 0.32, 0]}>
-          <sphereGeometry args={[hovered ? 0.1 : 0.07, 16, 16]} />
-          <meshStandardMaterial
-            color={city.color}
-            emissive={city.color}
-            emissiveIntensity={hovered ? 2 : 1}
-            toneMapped={false}
-          />
-        </mesh>
-      )}
+        <>
+          {/* Pillar / pin */}
+          <mesh position={[0, 0.12, 0]}>
+            <cylinderGeometry args={[0.04, 0.06, 0.24, 8]} />
+            <meshStandardMaterial color={city.color} emissive={city.color} emissiveIntensity={hovered ? 1.2 : 0.5} />
+          </mesh>
 
-      {/* Pulsing glow ring at base */}
-      <mesh ref={glowRef} position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.08, 0.14, 24]} />
-        <meshBasicMaterial color={city.color} transparent opacity={hovered ? 0.7 : 0.35} side={THREE.DoubleSide} />
-      </mesh>
+          <GremlinPinFigure />
+
+          {/* Pulsing glow ring at base */}
+          <mesh ref={glowRef} position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.08, 0.14, 24]} />
+            <meshBasicMaterial color={city.color} transparent opacity={hovered ? 0.7 : 0.35} side={THREE.DoubleSide} />
+          </mesh>
+        </>
+      ) : (
+        <SwordPinFigure />
+      )}
 
       {/* Label (HTML overlay) */}
       <Html
-        position={[0, 0.5, 0]}
+        position={[0, 1.0, 0]}
         center
         distanceFactor={6}
         style={{ pointerEvents: 'none', userSelect: 'none' }}
