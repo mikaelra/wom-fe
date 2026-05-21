@@ -7,6 +7,9 @@ import * as THREE from 'three';
 // Pre-allocated buffer: 3 000 segments × 2 vertices × 3 floats
 const MAX_SEGS = 3000;
 
+// Crackles stop at 1/3 of the way around the globe (120° = 2π/3 from the epicenter)
+const MAX_ANGLE_COS = Math.cos((2 * Math.PI) / 3); // = -0.5
+
 // Deterministic LCG — re-seeded each burst so every crackle looks different
 function lcg(seed: number) {
   let s = seed >>> 0;
@@ -42,6 +45,8 @@ function buildCrackles(
 
   function branch(p: THREE.Vector3, d: THREE.Vector3, len: number, depth: number) {
     if (!depth || len < 0.06 || ptr + 6 > cap) return;
+    // Stop if the start point is already beyond the 1/3-around radius
+    if (p.clone().normalize().dot(N) < MAX_ANGLE_COS) return;
 
     const nSeg = 3 + (rng() * 4 | 0);
     const sl = len / nSeg;
@@ -63,6 +68,9 @@ function buildCrackles(
         .addScaledVector(nd, sl)
         .normalize()
         .multiplyScalar(radius * 1.003);
+
+      // Don't draw a segment that lands outside the radius limit
+      if (next.clone().normalize().dot(N) < MAX_ANGLE_COS) break;
 
       seg(cur, next);
       cur.copy(next);

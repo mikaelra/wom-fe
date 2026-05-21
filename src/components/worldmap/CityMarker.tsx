@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
@@ -31,84 +31,116 @@ function GremlinPinFigure() {
 
 useGLTF.preload('/models/gremlinv01.glb');
 
-// Sword model with light blue glow, standing straight out from the globe
-function SwordPinFigure() {
+interface SwordPinProps { hovered: boolean }
+
+function SwordPinFigure({ hovered }: SwordPinProps) {
   const { scene } = useGLTF('/models/swords/sword_ld_v1.glb');
   const clone = useMemo(() => scene.clone(), [scene]);
-  const spriteRef = useRef<THREE.Sprite>(null);
-  const ringRef = useRef<THREE.Mesh>(null);
+  const spriteRef = useRef<THREE.Sprite>(null!);
+  const ringRef = useRef<THREE.Mesh>(null!);
 
   const { yOffset, centerY, swordH } = useMemo(() => {
     const box = new THREE.Box3().setFromObject(clone);
     const sz = box.getSize(new THREE.Vector3());
-    // Shift so 30% of model height is below the globe surface (y = 0 in group space)
     const off = -(box.min.y + sz.y * 0.3);
-    // Centre of the visible portion above the surface: from y=0 to y=0.7*sz.y
-    const cY = sz.y * 0.35;
-    return { yOffset: off, centerY: cY, swordH: sz.y };
+    return { yOffset: off, centerY: sz.y * 0.35, swordH: sz.y };
   }, [clone]);
 
-  // Radial-gradient canvas texture for the aura sprite
+  // White radial-gradient texture — material color controls the hue entirely
   const glowMap = useMemo(() => {
     const c = document.createElement('canvas');
     c.width = c.height = 128;
     const ctx = c.getContext('2d')!;
     const h = 64;
     const g = ctx.createRadialGradient(h, h, 0, h, h, h);
-    g.addColorStop(0.00, 'rgba(220, 245, 255, 1.0)');
-    g.addColorStop(0.25, 'rgba(110, 200, 255, 0.7)');
-    g.addColorStop(0.55, 'rgba( 50, 140, 255, 0.3)');
-    g.addColorStop(1.00, 'rgba(  0,  80, 200, 0.0)');
+    g.addColorStop(0.00, 'rgba(255, 255, 255, 1.0)');
+    g.addColorStop(0.30, 'rgba(255, 255, 255, 0.7)');
+    g.addColorStop(0.60, 'rgba(255, 255, 255, 0.25)');
+    g.addColorStop(1.00, 'rgba(255, 255, 255, 0.0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 128, 128);
     return new THREE.CanvasTexture(c);
   }, []);
 
+  // Imperative materials — owned entirely by useFrame, no R3F reconciliation conflicts
+  const spriteMat = useMemo(() => new THREE.SpriteMaterial({
+    map: glowMap,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    color: new THREE.Color('#6ec8ff'),
+  }), [glowMap]);
+
+  const ringMat = useMemo(() => new THREE.MeshBasicMaterial({
+    color: new THREE.Color('#4ae4ff'),
+    transparent: true,
+    opacity: 0.55,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  }), []);
+
+  const pointLightObj = useMemo(() => {
+    const l = new THREE.PointLight(new THREE.Color('#6ec8ff'), 2.5, 3.5, 2);
+    return l;
+  }, []);
+
+  // Pre-created color targets — avoid per-frame allocations
+  const blueColor  = useMemo(() => new THREE.Color('#6ec8ff'), []);
+  const orangeColor = useMemo(() => new THREE.Color('#ff8800'), []);
+  const blueRing   = useMemo(() => new THREE.Color('#4ae4ff'), []);
+  const orangeRing = useMemo(() => new THREE.Color('#ff7700'), []);
+
+  useEffect(() => () => {
+    spriteMat.dispose();
+    ringMat.dispose();
+    glowMap.dispose();
+  }, [spriteMat, ringMat, glowMap]);
+
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    // Compound sine for organic pulsing
     const pulse = 1.0 + 0.18 * Math.sin(t * 2.8) + 0.06 * Math.sin(t * 7.1);
+
     if (spriteRef.current) {
       const s = swordH * 0.7 * pulse;
       spriteRef.current.scale.set(s, s, 1);
     }
+
     if (ringRef.current) {
       const rs = 1.0 + 0.3 * Math.sin(t * 3.5);
       ringRef.current.scale.setScalar(rs);
-      (ringRef.current.material as THREE.MeshBasicMaterial).opacity =
-        0.45 + 0.3 * Math.sin(t * 3.5);
+      ringMat.opacity = 0.45 + 0.3 * Math.sin(t * 3.5);
     }
+
+    // Smooth color transition on hover (lerp rate ≈ 0.12 per frame → ~0.3 s transition at 60 fps)
+    const rate = 0.12;
+    spriteMat.color.lerp(hovered ? orangeColor : blueColor, rate);
+    ringMat.color.lerp(hovered ? orangeRing : blueRing, rate);
+    pointLightObj.color.lerp(hovered ? orangeColor : blueColor, rate);
+    pointLightObj.intensity = THREE.MathUtils.lerp(
+      pointLightObj.intensity,
+      hovered ? 4.0 : 2.5,
+      rate,
+    );
   });
 
   return (
     <group>
       <primitive object={clone} position={[0, yOffset, 0]} />
 
-      {/* Light blue aura sprite centred on the visible portion of the sword */}
+      {/* Aura sprite centred on the visible portion of the sword */}
       <sprite ref={spriteRef} position={[0, centerY, 0]}>
-        <spriteMaterial
-          map={glowMap}
-          transparent
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
+        <primitive object={spriteMat} attach="material" />
       </sprite>
 
       {/* Pulsing impact ring at the globe surface */}
       <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.08, 0.2, 32]} />
-        <meshBasicMaterial
-          color="#4ae4ff"
-          transparent
-          opacity={0.55}
-          side={THREE.DoubleSide}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
+        <primitive object={ringMat} attach="material" />
       </mesh>
 
-      {/* Point light so nearby globe surface picks up the blue tint */}
-      <pointLight color="#6ec8ff" intensity={2.5} distance={3.5} decay={2} />
+      {/* Point light — tints nearby globe surface with the glow colour */}
+      <primitive object={pointLightObj} />
     </group>
   );
 }
@@ -186,7 +218,7 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo }: Cit
           </mesh>
         </>
       ) : (
-        <SwordPinFigure />
+        <SwordPinFigure hovered={hovered} />
       )}
 
       {/* Label (HTML overlay) */}
