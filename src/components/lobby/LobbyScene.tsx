@@ -765,32 +765,71 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       // ── Incoming: local player was attacked ──────────────────────────────
       const myPrevHp = myPrev?.hp ?? Infinity;
       const myNewHp  = state.players.find((p) => p.name === playerName)?.hp ?? Infinity;
-      if (myNewHp < myPrevHp) {
-        const myPos = posMap.get(playerName);
-        if (myPos) {
-          const attacker = prev.players.find(
-            (p) => p.submittedAction === 'attack' && p.target === playerName,
-          );
-          const atkPos  = attacker ? posMap.get(attacker.name) : undefined;
-          const iDef    = myPrev?.submittedAction === 'defend';
+      const hpLost   = myNewHp < myPrevHp;
+      const myPos    = posMap.get(playerName);
+
+      // All players whose submitted action was attacking me this round
+      const incomingAttackers = prev.players.filter(
+        (p) => p.submittedAction === 'attack' && p.target === playerName,
+      );
+
+      if (myPos) {
+        if (myAction === 'defend' && incomingAttackers.length > 0) {
+          // One sword per attacker: lunge → shield → fly back (if attacker known)
+          const SHIELD_OFFSET = 0.8;
+          for (const atk of incomingAttackers) {
+            const atkPos  = posMap.get(atk.name);
+            const fromPos: [number, number, number] = atkPos
+              ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
+              : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
+            const baseToPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
+
+            // Shield position in front of defender (toward the attacker)
+            const dx = fromPos[0] - baseToPos[0];
+            const dz = fromPos[2] - baseToPos[2];
+            const ld = Math.sqrt(dx * dx + dz * dz);
+            const shieldPos: [number, number, number] = ld > 0
+              ? [baseToPos[0] + (dx / ld) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / ld) * SHIELD_OFFSET]
+              : baseToPos;
+
+            const flybackPos: [number, number, number] | undefined = atkPos ? fromPos : undefined;
+            const strikeId = `in-def-${atk.name}-${Date.now()}`;
+
+            newStrikes.push({
+              id:             strikeId,
+              fromPos,
+              toPos:          shieldPos,
+              targetDefended: true,
+              targetHit:      false,
+              isIncoming:     true,
+              flybackPos,
+            });
+
+            // Pre-show the shield so it's already visible when the sword arrives
+            const rotY   = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
+            const defSid = `def-shield-${strikeId}`;
+            newImpactShields.push({ id: defSid, pos: shieldPos, rotY });
+            const fullDurMs = (HOLD_DUR + RETREAT_DUR + FLYBACK_DUR) * 1000 + 350;
+            setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== defSid)), fullDurMs);
+          }
+        } else if (hpLost) {
+          // Not defending (or server has no attacker info) — single sword hit
+          const attacker = incomingAttackers[0];
+          const atkPos   = attacker ? posMap.get(attacker.name) : undefined;
           const fromPos: [number, number, number] = atkPos
             ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
             : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
-          const toPos:   [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
-          const flybackPos: [number, number, number] | undefined = atkPos
-            ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
-            : undefined;
-          const strikeId = `in-${Date.now()}`;
-          newStrikes.push({ id: strikeId, fromPos, toPos, targetDefended: iDef, targetHit: !iDef, isIncoming: true, flybackPos });
-
-          // If I defended, show shield immediately so it's visible before the sword arrives
-          if (iDef && atkPos) {
-            const rotY  = Math.atan2(atkPos[0] - myPos[0], atkPos[2] - myPos[2]);
-            const defSid = `def-shield-${strikeId}`;
-            newImpactShields.push({ id: defSid, pos: toPos, rotY });
-            const fullDurMs = (0.28 + 0.22 + 0.30 + 0.55) * 1000 + 350; // matches SwordEffect timing
-            setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== defSid)), fullDurMs);
-          }
+          const toPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
+          const flybackPos: [number, number, number] | undefined = atkPos ? fromPos : undefined;
+          newStrikes.push({
+            id:             `in-${Date.now()}`,
+            fromPos,
+            toPos,
+            targetDefended: false,
+            targetHit:      true,
+            isIncoming:     true,
+            flybackPos,
+          });
         }
       }
 
