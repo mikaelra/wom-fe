@@ -527,6 +527,8 @@ type StrikeEvent = {
   targetHit: boolean;
   isIncoming: boolean;
   flybackPos?: [number, number, number];
+  // World-space position to aura-flash on strike (undefined = no flash)
+  flashPosition?: [number, number, number];
 };
 
 type HitFlashEvent = {
@@ -728,6 +730,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       const newFlashes:       HitFlashEvent[]  = [];
       const newImpactShields: ImpactShield[]   = [];
       const myPrev = prev.players.find((p) => p.name === playerName);
+      // Players whose aura-flash is triggered by a sword onStrike instead of immediately
+      const swordHandledFlashes = new Set<string>();
 
       // ── Outgoing: local player attacked someone ──────────────────────────
       // Use lastActionRef (snapshotted before parent resets currentAction) instead of
@@ -764,7 +768,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             flybackPos = fromPos;
           }
 
-          newStrikes.push({ id: `out-${Date.now()}`, fromPos, toPos, targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false, flybackPos });
+          // Defer the aura flash to onStrike so it syncs with sword impact
+          if (tgtHit) swordHandledFlashes.add(tgt);
+          newStrikes.push({
+            id: `out-${Date.now()}`, fromPos, toPos, targetDefended: tgtDefended,
+            targetHit: tgtHit, isIncoming: false, flybackPos,
+            flashPosition: tgtHit ? tgtPos : undefined,
+          });
         }
       }
 
@@ -844,6 +854,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
           const toPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
           const flybackPos: [number, number, number] | undefined = atkPos ? fromPos : undefined;
+          swordHandledFlashes.add(playerName);
           newStrikes.push({
             id:             `in-${Date.now()}`,
             fromPos,
@@ -852,12 +863,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             targetHit:      true,
             isIncoming:     true,
             flybackPos,
+            flashPosition:  myPos,
           });
         }
       }
 
       // ── Aura flash for every player who lost HP this round ───────────────
+      // Players with sword animations get their flash from onStrike instead.
       prev.players.forEach((prevP) => {
+        if (swordHandledFlashes.has(prevP.name)) return;
         const newP = state.players.find((p) => p.name === prevP.name);
         if (!newP) return;
         if ((newP.hp ?? Infinity) < (prevP.hp ?? Infinity)) {
@@ -1040,9 +1054,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               const rotY = Math.atan2(ev.fromPos[0] - ev.toPos[0], ev.fromPos[2] - ev.toPos[2]);
               const sid  = `shield-${ev.id}`;
               setImpactShields((s) => [...s, { id: sid, pos: ev.toPos, rotY }]);
-              // Keep the shield visible through the retreat + flyback phases
               const holdMs = (HOLD_DUR + RETREAT_DUR + FLYBACK_DUR) * 1000 + 200;
               setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), holdMs);
+            }
+            if (ev.flashPosition) {
+              const fid = `fl-sword-${ev.id}`;
+              setHitFlashEvents((s) => [...s, { id: fid, position: ev.flashPosition! }]);
+              setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
             }
           }}
           onDone={() => setStrikeEvents((s) => s.filter((x) => x.id !== ev.id))}
