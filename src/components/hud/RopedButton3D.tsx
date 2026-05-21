@@ -5,6 +5,9 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, Center } from '@react-three/drei';
 import * as THREE from 'three';
 import { getGlobeSpin } from '@/lib/globeSpin';
+import { isLowQuality } from '@/lib/deviceQuality';
+
+const LD_IMAGE = '/models/buttons/rope_button-ld.png';
 
 type ButtonModelProps = {
   url: string;
@@ -99,6 +102,8 @@ export default function RopedButton3D({
 }: RopedButton3DProps) {
   const [hover, setHover] = useState(false);
   const [active, setActive] = useState(false);
+  const [lowQuality, setLowQuality] = useState(false);
+  useEffect(() => { setLowQuality(isLowQuality()); }, []);
   const pressed = !disabled && (active || hover || loading);
 
   return (
@@ -114,24 +119,38 @@ export default function RopedButton3D({
       className="relative inline-block bg-transparent border-0 p-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 select-none"
       style={{ width, height }}
     >
-      <div className="absolute inset-0 pointer-events-none">
-        <Canvas
-          camera={{ position: [0, 0, 1.067], fov: 35 }}
-          gl={{ alpha: true, antialias: true, premultipliedAlpha: false }}
-          style={{ background: 'transparent' }}
-        >
-          <ambientLight intensity={0.9} />
-          <directionalLight position={[2, 3, 4]} intensity={1.1} />
-          <directionalLight position={[-2, -1, 2]} intensity={0.4} />
-          <Suspense fallback={null}>
-            <ButtonModel
-              url="/models/buttons/roped_button-hd.glb"
-              pressed={pressed}
-              rotation={modelRotation}
-            />
-          </Suspense>
-        </Canvas>
-      </div>
+      {lowQuality ? (
+        <img
+          src={LD_IMAGE}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-[filter,transform] duration-150"
+          style={{
+            filter: pressed ? 'brightness(0.65)' : 'brightness(1)',
+            transform: pressed ? 'translateY(2px)' : 'translateY(0)',
+          }}
+        />
+      ) : (
+        <div className="absolute inset-0 pointer-events-none">
+          <Canvas
+            camera={{ position: [0, 0, 1.067], fov: 35 }}
+            gl={{ alpha: true, antialias: true, premultipliedAlpha: false }}
+            style={{ background: 'transparent' }}
+          >
+            <ambientLight intensity={0.9} />
+            <directionalLight position={[2, 3, 4]} intensity={1.1} />
+            <directionalLight position={[-2, -1, 2]} intensity={0.4} />
+            <Suspense fallback={null}>
+              <ButtonModel
+                url="/models/buttons/roped_button-hd.glb"
+                pressed={pressed}
+                rotation={modelRotation}
+              />
+            </Suspense>
+          </Canvas>
+        </div>
+      )}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <span className={textClassName}>
           {loading ? 'Loading...' : children}
