@@ -14,9 +14,10 @@ type ButtonModelProps = {
   url: string;
   pressed: boolean;
   rotation?: [number, number, number];
+  scale?: number;
 };
 
-function ButtonModel({ url, pressed, rotation = [0, 0, 0] }: ButtonModelProps) {
+function ButtonModel({ url, pressed, rotation = [0, 0, 0], scale = 1 }: ButtonModelProps) {
   const { scene } = useGLTF(url);
   const cloned = useMemo(() => scene.clone(true), [scene]);
   const baseColors = useRef<Map<string, THREE.Color>>(new Map());
@@ -72,7 +73,7 @@ function ButtonModel({ url, pressed, rotation = [0, 0, 0] }: ButtonModelProps) {
   return (
     <group ref={groupRef} rotation={rotation}>
       <Center>
-        <primitive object={cloned} />
+        <primitive object={cloned} scale={scale} />
       </Center>
     </group>
   );
@@ -89,6 +90,9 @@ type RopedButton3DProps = {
   width?: number;
   height?: number;
   modelRotation?: [number, number, number];
+  /** Uniform scale applied to the GLB model (corrects models authored at a
+   *  different base scale than the default rope button). */
+  modelScale?: number;
   textClassName?: string;
   ariaLabel?: string;
   /** GLB model URL rendered on high-quality devices. */
@@ -106,6 +110,7 @@ export default function RopedButton3D({
   width = 170,
   height = 70,
   modelRotation = [0, 0, 0],
+  modelScale = 1,
   textClassName = 'text-white font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]',
   ariaLabel,
   modelUrl = DEFAULT_MODEL,
@@ -158,6 +163,7 @@ export default function RopedButton3D({
                 url={modelUrl}
                 pressed={pressed}
                 rotation={modelRotation}
+                scale={modelScale}
               />
             </Suspense>
           </Canvas>
