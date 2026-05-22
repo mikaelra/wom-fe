@@ -117,20 +117,22 @@ export default function RopedButton3D({
   imageUrl = DEFAULT_IMAGE,
   children,
 }: RopedButton3DProps) {
-  const [hover, setHover] = useState(false);
   const [active, setActive] = useState(false);
   const [lowQuality, setLowQuality] = useState(false);
   useEffect(() => { setLowQuality(isLowQuality()); }, []);
-  const pressed = !disabled && (active || hover || loading || selected);
+  // Darken only on actual press or sticky selection — never on hover. A
+  // hover-driven visual change makes touch browsers absorb the first tap as
+  // a synthetic hover (no click) and leaves the button stuck looking pressed.
+  const pressed = !disabled && (active || loading || selected);
 
   return (
     <button
       type="button"
       onClick={() => { if (!disabled && !loading) onClick?.(); }}
-      onPointerEnter={() => setHover(true)}
-      onPointerLeave={() => { setHover(false); setActive(false); }}
+      onPointerLeave={() => setActive(false)}
       onPointerDown={() => setActive(true)}
       onPointerUp={() => setActive(false)}
+      onPointerCancel={() => setActive(false)}
       disabled={disabled || loading}
       aria-label={ariaLabel}
       className="relative inline-block bg-transparent border-0 p-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 select-none"
