@@ -6,6 +6,7 @@ import { Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import type { City } from '@/lib/cities';
 import { latLngToVec3 } from '@/lib/cities';
+import { isLowQuality } from '@/lib/deviceQuality';
 
 // Gremlin GLB model that sits on top of the Gremlin's Lair pin
 function GremlinPinFigure() {
@@ -34,7 +35,8 @@ useGLTF.preload('/models/gremlinv01.glb');
 interface SwordPinProps { hovered: boolean }
 
 function SwordPinFigure({ hovered }: SwordPinProps) {
-  const { scene } = useGLTF('/models/swords/sword_ld_v1.glb');
+  const swordModel = isLowQuality() ? '/models/swords/sword_ld_v1.glb' : '/models/swords/sword_hd_v1.glb';
+  const { scene } = useGLTF(swordModel);
   const clone = useMemo(() => scene.clone(), [scene]);
   const spriteRef = useRef<THREE.Sprite>(null!);
   const ringRef = useRef<THREE.Mesh>(null!);
@@ -145,7 +147,7 @@ function SwordPinFigure({ hovered }: SwordPinProps) {
   );
 }
 
-useGLTF.preload('/models/swords/sword_ld_v1.glb');
+useGLTF.preload(isLowQuality() ? '/models/swords/sword_ld_v1.glb' : '/models/swords/sword_hd_v1.glb');
 
 interface CityMarkerProps {
   city: City;
