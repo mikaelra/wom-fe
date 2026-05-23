@@ -8,6 +8,7 @@ import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import { getSocket } from '@/lib/api';
+import { playResourceSound } from '@/lib/sounds';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
 import {
   TABLE_POSITION,
@@ -525,6 +526,7 @@ type LobbySceneProps = {
 export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange }: LobbySceneProps) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [localResource, setLocalResource] = useState('');
+  const pendingResourceRef = useRef('');
 
   useEffect(() => {
     if (!state?.round_end_time) { setSecondsLeft(null); return; }
@@ -535,8 +537,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return () => clearInterval(interval);
   }, [state?.round_end_time]);
 
-  // Reset resource selection each round
+  // Reset resource selection each round and play the gain sound
   useEffect(() => {
+    if (pendingResourceRef.current && (state?.round ?? 0) > 1) {
+      playResourceSound(pendingResourceRef.current);
+      pendingResourceRef.current = '';
+    }
     setLocalResource('');
   }, [state?.round]);
 
@@ -654,6 +660,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   const handleResource = (resId: string) => {
     setLocalResource(resId);
+    pendingResourceRef.current = resId;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, resource: resId, action: '' });
   };
 
