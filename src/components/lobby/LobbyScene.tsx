@@ -895,15 +895,24 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       if (newStrikes.length)       setStrikeEvents((ev) => [...ev, ...newStrikes]);
       if (newImpactShields.length) setImpactShields((s) => [...s, ...newImpactShields]);
-      if (newFlashes.length) {
-        setHitFlashEvents((ev) => [...ev, ...newFlashes]);
-        newFlashes.forEach((f) =>
-          setTimeout(
-            () => setHitFlashEvents((ev) => ev.filter((h) => h.id !== f.id)),
-            650,
-          ),
-        );
-      }
+      // Stagger fallback flashes so multiple HP losses (e.g. several attackers
+      // reflected by a common defender) blink in sequence instead of all at once.
+      // Tracked in staggerTimeoutsRef so they're cancelled on the next round.
+      const FLASH_STAGGER_MS = 450;
+      newFlashes.forEach((f, i) => {
+        const delay = i * FLASH_STAGGER_MS;
+        const show = () => {
+          setHitFlashEvents((ev) => [...ev, f]);
+          staggerTimeoutsRef.current.push(
+            setTimeout(() => setHitFlashEvents((ev) => ev.filter((h) => h.id !== f.id)), 650),
+          );
+        };
+        if (delay === 0) {
+          show();
+        } else {
+          staggerTimeoutsRef.current.push(setTimeout(show, delay));
+        }
+      });
     }
 
     prevStateRef.current = state;
