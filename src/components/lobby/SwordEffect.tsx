@@ -13,7 +13,11 @@ const HOVER_DIST = 0.75;
 export const STRIKE_DUR   = 0.28;
 export const HOLD_DUR     = 0.22;
 export const RETREAT_DUR  = 0.30;
-export const FLYBACK_DUR  = 0.55;
+export const BOUNCE_DUR   = 0.55;
+// Peak height (world units) of the bounce-back arch above the straight line
+const BOUNCE_ARCH_HEIGHT = 0.6;
+// Number of end-over-end tumbles during the bounce
+const BOUNCE_SPINS = 1.5;
 
 export type SwordEffectProps = {
   /** World-space position of the attacker (used to compute sword direction). */
@@ -23,8 +27,11 @@ export type SwordEffectProps = {
   /** 'ready' – hovers near target (pre-round selection feedback).
    *  'execute' – plays the full strike sequence. */
   mode: 'ready' | 'execute';
-  /** After impact, fly back to this position (the attacker) if known. */
-  flybackPosition?: [number, number, number];
+  /** What the sword does after the hold phase:
+   *  - 'retreat' (default): pull back to the hover position (normal successful hit)
+   *  - 'stop':              stay at impact and end (blocked, no reflect)
+   *  - 'bounce':            arch back to the attacker with a tumbling spin (blocked + reflected) */
+  postImpact?: 'retreat' | 'stop' | 'bounce';
   /** Called the frame the sword makes contact. */
   onStrike?: () => void;
   /** Called when the entire animation sequence finishes. */
@@ -38,7 +45,7 @@ export default function SwordEffect({
   fromPosition,
   toPosition,
   mode,
-  flybackPosition,
+  postImpact = 'retreat',
   onStrike,
   onDone,
 }: SwordEffectProps) {
@@ -52,18 +59,14 @@ export default function SwordEffect({
 
   const [fx, fy, fz] = fromPosition;
   const [tx, ty, tz] = toPosition;
-  const [bx, by, bz] = flybackPosition ?? [0, 0, 0];
-  const hasFlyback = !!flybackPosition;
 
-  const { startPos, toVec, flybackVec } = useMemo(() => {
+  const { startPos, toVec, fromVec } = useMemo(() => {
     const f = new THREE.Vector3(fx, fy, fz);
     const t = new THREE.Vector3(tx, ty, tz);
     const dir = f.clone().sub(t).normalize();
     const start = t.clone().addScaledVector(dir, HOVER_DIST);
-    const fb = hasFlyback ? new THREE.Vector3(bx, by, bz) : null;
-    return { startPos: start, toVec: t, flybackVec: fb };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fx, fy, fz, tx, ty, tz, bx, by, bz, hasFlyback]);
+    return { startPos: start, toVec: t, fromVec: f };
+  }, [fx, fy, fz, tx, ty, tz]);
 
   // Play the built-in strike animation only during execute mode
   useEffect(() => {
@@ -109,19 +112,20 @@ export default function SwordEffect({
         strikeCalledRef.current = true;
         onStrike?.();
       }
-    } else if (t < STRIKE_DUR + HOLD_DUR + RETREAT_DUR) {
-      // Retreat back to hover position
+    } else if (postImpact === 'bounce' && t < STRIKE_DUR + HOLD_DUR + BOUNCE_DUR) {
+      // Arch back toward the attacker after being blocked + reflected, tumbling end-over-end
+      const localT = (t - STRIKE_DUR - HOLD_DUR) / BOUNCE_DUR;
+      group.position.lerpVectors(toVec, fromVec, localT);
+      group.position.y += BOUNCE_ARCH_HEIGHT * Math.sin(localT * Math.PI);
+      // Face the destination, then tumble around the sword's local X axis
+      group.rotation.set(0, 0, 0);
+      group.lookAt(fromVec);
+      group.rotateX(localT * Math.PI * 2 * BOUNCE_SPINS);
+    } else if (postImpact === 'retreat' && t < STRIKE_DUR + HOLD_DUR + RETREAT_DUR) {
+      // Retreat back to hover position (normal successful hit)
       const p = easeOut((t - STRIKE_DUR - HOLD_DUR) / RETREAT_DUR);
       group.position.lerpVectors(toVec, startPos, p);
-      // If flying back, turn toward the return target during retreat so the
-      // direction is already correct when the flyback phase begins
-      if (flybackVec) group.lookAt(flybackVec);
-      else group.lookAt(toVec);
-    } else if (flybackVec && t < STRIKE_DUR + HOLD_DUR + RETREAT_DUR + FLYBACK_DUR) {
-      // Fly back to the attacker's position
-      const p = easeIn((t - STRIKE_DUR - HOLD_DUR - RETREAT_DUR) / FLYBACK_DUR);
-      group.position.lerpVectors(startPos, flybackVec, Math.min(1, p));
-      group.lookAt(flybackVec);
+      group.lookAt(toVec);
     } else {
       // Done
       if (!doneCalledRef.current) {
@@ -134,10 +138,10 @@ export default function SwordEffect({
   return (
     <group ref={groupRef} position={[startPos.x, startPos.y, startPos.z]}>
       {/* Y flip so the blade points toward the target after lookAt.
-          For ready mode the inner group spins 90° around the model's own Z axis
-          before the flip so the rotation is unambiguous. */}
+          The inner group spins 90° around the model's own Y axis so the
+          rotation matches the ready-state orientation. */}
       <group rotation={[0, 0, 0]}>
-        <group rotation={[0, mode === 'ready' ? Math.PI / 2 : 0, 0]}>
+        <group rotation={[0, Math.PI / 2, 0]}>
           <primitive object={sceneClone} scale={0.45} />
         </group>
       </group>

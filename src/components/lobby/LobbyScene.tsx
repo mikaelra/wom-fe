@@ -8,7 +8,7 @@ import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
-import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, FLYBACK_DUR } from '@/components/lobby/SwordEffect';
+import SwordEffect, { STRIKE_DUR, HOLD_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import { getSocket } from '@/lib/api';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
 import {
@@ -526,9 +526,12 @@ type StrikeEvent = {
   targetDefended: boolean;
   targetHit: boolean;
   isIncoming: boolean;
-  flybackPos?: [number, number, number];
+  // 'retreat' = normal hit, 'stop' = blocked no reflect, 'bounce' = blocked + reflected
+  postImpact: 'retreat' | 'stop' | 'bounce';
   // World-space position to aura-flash on strike (undefined = no flash)
   flashPosition?: [number, number, number];
+  // For bounce-back strikes: where to aura-flash when the bounce lands on the attacker
+  bounceFlashPos?: [number, number, number];
 };
 
 type HitFlashEvent = {
@@ -748,15 +751,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           const tgtNew  = state.players.find((p) => p.name === tgt);
           const tgtHit  = (tgtNew?.hp ?? Infinity) < (tgtPrev?.hp ?? Infinity);
           const tgtDefended = !tgtHit;
+          // Reflected when the attacker (me) loses HP from a blocked attack
+          const myCurHp = state.players.find((p) => p.name === playerName)?.hp ?? Infinity;
+          const reflected = tgtDefended && myCurHp < (myPrev?.hp ?? Infinity);
 
           const fromPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
           const baseToPos: [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
 
           // When blocked: sword stops at the shield, which floats in front of the
-          // defender (0.8 u toward the attacker). flyback carries the sword back.
+          // defender (0.8 u toward the attacker).
           const SHIELD_OFFSET = 0.8;
           let toPos = baseToPos;
-          let flybackPos: [number, number, number] | undefined;
           if (tgtDefended) {
             const dx = fromPos[0] - baseToPos[0];
             const dz = fromPos[2] - baseToPos[2];
@@ -764,16 +769,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             if (len > 0) {
               toPos = [baseToPos[0] + (dx / len) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / len) * SHIELD_OFFSET];
             }
-            // Fly back into the attacker's body (slightly past centre so it visually enters)
-            flybackPos = fromPos;
           }
 
-          // Defer the aura flash to onStrike so it syncs with sword impact
+          // Defer the aura flash to onStrike so it syncs with sword impact.
+          // For reflected attacks, defer the attacker's flash to the bounce-landing instead.
           if (tgtHit) swordHandledFlashes.add(tgt);
+          if (reflected) swordHandledFlashes.add(playerName);
           newStrikes.push({
             id: `out-${Date.now()}`, fromPos, toPos, targetDefended: tgtDefended,
-            targetHit: tgtHit, isIncoming: false, flybackPos,
+            targetHit: tgtHit, isIncoming: false,
+            postImpact: tgtDefended ? (reflected ? 'bounce' : 'stop') : 'retreat',
             flashPosition: tgtHit ? tgtPos : undefined,
+            bounceFlashPos: reflected ? myPos : undefined,
           });
         }
       }
@@ -792,8 +799,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       if (myPos) {
         if (myAction === 'defend' && incomingAttackers.length > 0) {
           const SHIELD_OFFSET = 0.8;
-          // Total duration of one full strike + flyback cycle (ms)
-          const ONE_ANIM_MS = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR + FLYBACK_DUR) * 1000;
+          // Total duration of one full strike + bounce cycle (ms)
+          const ONE_ANIM_MS = (STRIKE_DUR + HOLD_DUR + BOUNCE_DUR) * 1000;
           const GAP_MS      = 200;
 
           incomingAttackers.forEach((atk, i) => {
@@ -810,6 +817,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               ? [baseToPos[0] + (dx / ld) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / ld) * SHIELD_OFFSET]
               : baseToPos;
 
+            // Reflected when this specific attacker lost HP from their blocked attack
+            const atkNew  = state.players.find((p) => p.name === atk.name);
+            const atkReflected = (atkNew?.hp ?? Infinity) < (atk.hp ?? Infinity);
+            if (atkReflected) swordHandledFlashes.add(atk.name);
             const strike: StrikeEvent = {
               id:             `in-def-${atk.name}-${Date.now()}-${i}`,
               fromPos,
@@ -817,7 +828,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               targetDefended: true,
               targetHit:      false,
               isIncoming:     true,
-              flybackPos:     atkPos ? fromPos : undefined,
+              postImpact:     atkReflected ? 'bounce' : 'stop',
+              bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
             };
 
             const startDelay = i * (ONE_ANIM_MS + GAP_MS);
@@ -845,26 +857,27 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               );
             }
           });
-        } else if (hpLost) {
-          // Not defending (or server has no attacker info) — single sword hit
+        } else if (hpLost && incomingAttackers.length > 0) {
+          // Not defending — single sword hit from a real attacker.
+          // Damage from a reflected attack has no incomingAttackers, so no sword is shown
+          // (the red aura flash still fires via the HP-loss loop below).
           const attacker = incomingAttackers[0];
-          const atkPos   = attacker ? posMap.get(attacker.name) : undefined;
-          const fromPos: [number, number, number] = atkPos
-            ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
-            : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
-          const toPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
-          const flybackPos: [number, number, number] | undefined = atkPos ? fromPos : undefined;
-          swordHandledFlashes.add(playerName);
-          newStrikes.push({
-            id:             `in-${Date.now()}`,
-            fromPos,
-            toPos,
-            targetDefended: false,
-            targetHit:      true,
-            isIncoming:     true,
-            flybackPos,
-            flashPosition:  myPos,
-          });
+          const atkPos   = posMap.get(attacker.name);
+          if (atkPos) {
+            const fromPos: [number, number, number] = [atkPos[0], atkPos[1] + 0.3, atkPos[2]];
+            const toPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
+            swordHandledFlashes.add(playerName);
+            newStrikes.push({
+              id:             `in-${Date.now()}`,
+              fromPos,
+              toPos,
+              targetDefended: false,
+              targetHit:      true,
+              isIncoming:     true,
+              postImpact:     'retreat',
+              flashPosition:  myPos,
+            });
+          }
         }
       }
 
@@ -1047,14 +1060,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           fromPosition={ev.fromPos}
           toPosition={ev.toPos}
           mode="execute"
-          flybackPosition={ev.flybackPos}
+          postImpact={ev.postImpact}
           onStrike={() => {
             if (ev.targetDefended && !ev.isIncoming) {
               // ev.toPos is already the shield position (in front of the defender).
               const rotY = Math.atan2(ev.fromPos[0] - ev.toPos[0], ev.fromPos[2] - ev.toPos[2]);
               const sid  = `shield-${ev.id}`;
               setImpactShields((s) => [...s, { id: sid, pos: ev.toPos, rotY }]);
-              const holdMs = (HOLD_DUR + RETREAT_DUR + FLYBACK_DUR) * 1000 + 200;
+              const postDurSec = ev.postImpact === 'bounce' ? BOUNCE_DUR : 0;
+              const holdMs = (HOLD_DUR + postDurSec) * 1000 + 200;
               setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), holdMs);
             }
             if (ev.flashPosition) {
@@ -1063,7 +1077,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
             }
           }}
-          onDone={() => setStrikeEvents((s) => s.filter((x) => x.id !== ev.id))}
+          onDone={() => {
+            // Reflected attacks: fire the attacker's red aura when the bounce lands,
+            // not when the round transitions.
+            if (ev.postImpact === 'bounce' && ev.bounceFlashPos) {
+              const fid = `fl-bounce-${ev.id}`;
+              setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
+              setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
+            }
+            setStrikeEvents((s) => s.filter((x) => x.id !== ev.id));
+          }}
         />
       ))}
 
