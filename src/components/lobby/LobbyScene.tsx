@@ -9,7 +9,6 @@ import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import { getSocket } from '@/lib/api';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
-import RopedButton3D from '@/components/hud/RopedButton3D';
 import {
   TABLE_POSITION,
   SCENE_CENTER,
@@ -200,33 +199,55 @@ function PlayerWithName({
       )}
       {showAttackButton && !isBoss && (
         <Html position={[0, 0.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
-          <div className={actionCue} style={{ pointerEvents: 'auto' }}>
-            <RopedButton3D
-              width={870}
-              height={210}
-              onClick={onAttack}
-              selected={isAttackSelected}
-              modelUrl="/models/buttons/attack-hd.glb"
-              imageUrl="/images/buttons/attack.png"
-              ariaLabel="Attack"
-            />
-          </div>
+          <button
+            onClick={onAttack}
+            className={actionCue}
+            style={{
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              padding: '16px 32px',
+              fontSize: '28px',
+              fontWeight: 'bold',
+              color: isAttackSelected ? '#ffffff' : '#fca5a5',
+              background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
+              border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
+              borderRadius: '8px',
+              whiteSpace: 'nowrap',
+              backdropFilter: 'blur(4px)',
+              boxShadow: isAttackSelected
+                ? '0 0 8px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+            }}
+          >
+            ⚔ ATTACK
+          </button>
         </Html>
       )}
       {/* DEFEND button — own player only */}
       {showOwnActions && (
         <Html position={[0, -0.1, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
-          <div className={actionCue} style={{ pointerEvents: 'auto' }}>
-            <RopedButton3D
-              width={870}
-              height={210}
-              onClick={onDefend}
-              selected={currentAction === 'defend'}
-              modelUrl="/models/buttons/defend-hd.glb"
-              imageUrl="/images/buttons/defend.png"
-              ariaLabel="Defend"
-            />
-          </div>
+          <button
+            onClick={onDefend}
+            className={actionCue}
+            style={{
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              padding: '14px 28px',
+              fontSize: '26px',
+              fontWeight: 'bold',
+              color: currentAction === 'defend' ? '#ffffff' : '#93c5fd',
+              background: currentAction === 'defend' ? 'rgba(37,99,235,0.95)' : 'rgba(30,27,75,0.85)',
+              border: currentAction === 'defend' ? '2px solid #93c5fd' : '2px solid #1d4ed8',
+              borderRadius: '8px',
+              whiteSpace: 'nowrap',
+              backdropFilter: 'blur(4px)',
+              boxShadow: currentAction === 'defend'
+                ? '0 0 8px rgba(59,130,246,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+            }}
+          >
+            🛡 DEFEND
+          </button>
         </Html>
       )}
       {/* HP / COINS / ATK resource cards — own player only */}
