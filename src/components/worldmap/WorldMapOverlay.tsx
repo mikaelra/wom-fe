@@ -31,6 +31,7 @@ export default function WorldMapOverlay() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showRelics, setShowRelics] = useState(false);
   const [relics, setRelics] = useState<Relic[]>([]);
+  const [relicsLoading, setRelicsLoading] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,13 +65,16 @@ export default function WorldMapOverlay() {
     const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
     if (!playerName) return;
     setShowUserMenu(false);
+    setRelics([]);
+    setRelicsLoading(true);
+    setShowRelics(true);
     try {
       const data = await getPlayerRelics(playerName);
       setRelics(data.relics ?? []);
     } catch {
       setRelics([]);
     } finally {
-      setShowRelics(true);
+      setRelicsLoading(false);
     }
   };
 
@@ -356,7 +360,9 @@ export default function WorldMapOverlay() {
           >
             <h3 className="text-xl font-bold mb-4">Your relics</h3>
             <ul className="list-disc pl-6 mb-4">
-              {relics.length > 0 ? (
+              {relicsLoading ? (
+                <p className="text-white/60">Loading...</p>
+              ) : relics.length > 0 ? (
                 relics.map((relic) => (
                   <li key={String(relic.id)}>
                     <strong>{relic.name} x{relic.count}</strong>

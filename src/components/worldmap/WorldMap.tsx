@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useMemo, memo } from 'react';
+import { Suspense, useRef, useMemo, useState, useEffect, memo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -112,26 +112,60 @@ function makeFresnelMat() {
   });
 }
 
+// Preload async textures early so they are likely cached by the time their
+// phase is reached.
+useTexture.preload('/textures/moon/moonmap1k.jpg');
+useTexture.preload('/textures/stars/circle.png');
+
 // ── Real starfield ─────────────────────────────────────────────────────────
 
 const Starfield = memo(function Starfield() {
-  const circleTex = useTexture('/textures/stars/circle.png');
+  const [circleTex, milkyWayTex] = useTexture([
+    '/textures/stars/circle.png',
+    '/textures/stars/MilkyWay-HD.png',
+  ]);
+
+  // Fixed: horizontal flip via repeat + offset so the Milky Way is no longer mirrored
+  // (BackSide + sphere UVs cause the default image to appear flipped left↔right)
+  useMemo(() => {
+    milkyWayTex.wrapS = THREE.RepeatWrapping;
+    milkyWayTex.wrapT = THREE.RepeatWrapping; // good practice
+    milkyWayTex.repeat.x = -1;      // ← this un-mirrors the texture
+    milkyWayTex.offset.x = 1;       // ← compensates for the flip (keeps your previous alignment)
+    milkyWayTex.offset.y = 0;
+    milkyWayTex.needsUpdate = true;
+  }, [milkyWayTex]);
+
+  // Reveal magnitude bands one at a time, brightest first.
+  // Starts at 1 so the brightest band (index 0) shows immediately on mount.
+  const [visibleBands, setVisibleBands] = useState(1);
+  useEffect(() => {
+    const timers = [
+      setTimeout(() => setVisibleBands(2), 400),
+      setTimeout(() => setVisibleBands(3), 800),
+      setTimeout(() => setVisibleBands(4), 1200),
+      setTimeout(() => setVisibleBands(5), 1600),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, []);
 
   const bandGeos = useMemo(() => {
     const BANDS = [
-      { maxMag: 0.0,       size: 0.55 },
-      { maxMag: 1.5,       size: 0.42 },
-      { maxMag: 2.5,       size: 0.30 },
-      { maxMag: 3.0,       size: 0.20 },
-      { maxMag: Infinity,  size: 0.13 },
+      { maxMag: 0.0, size: 0.55 },
+      { maxMag: 1.5, size: 0.42 },
+      { maxMag: 2.5, size: 0.30 },
+      { maxMag: 3.0, size: 0.20 },
+      { maxMag: Infinity, size: 0.13 },
     ];
-    const MIN_MAG = -1.46, MAX_MAG = 3.54;
+
+    const MIN_MAG = -1.46,
+      MAX_MAG = 3.54;
     const groups = BANDS.map(() => ({ verts: [] as number[], colors: [] as number[] }));
 
     for (const star of STAR_CATALOG) {
       const raH = star.ra[0] + star.ra[1] / 60;
       const pos = raDecToVec3(raH, star.dec, STAR_R);
-      const bi  = BANDS.findIndex(b => star.mag <= b.maxMag);
+      const bi = BANDS.findIndex((b) => star.mag <= b.maxMag);
       const intensity = 0.4 + 0.6 * (MAX_MAG - star.mag) / (MAX_MAG - MIN_MAG);
       groups[bi].verts.push(pos.x, pos.y, pos.z);
       groups[bi].colors.push(intensity, intensity, intensity);
@@ -142,18 +176,71 @@ const Starfield = memo(function Starfield() {
       if (verts.length === 0) return null;
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-      geo.setAttribute('color',    new THREE.Float32BufferAttribute(colors, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
       return { geo, size: band.size };
     });
   }, []);
 
   const groupRef = useRef<THREE.Group>(null);
-  useFrame(() => { if (groupRef.current) groupRef.current.rotation.y -= 0.0002; });
+  useFrame(() => {
+    if (groupRef.current) groupRef.current.rotation.y -= 0.0002;
+  });
+
+  const milkyWayRef = useRef<THREE.Mesh>(null);
+
+  // 1. Sirius unit vector (the axis we rotate around – never changes)
+  const siriusVec = useMemo(() => {
+    const siriusStar = STAR_CATALOG.find(
+      (star) => Math.abs(star.mag + 1.46) < 0.01   // Sirius = mag ≈ -1.46
+    );
+    if (!siriusStar) {
+      console.warn('Sirius not found in STAR_CATALOG');
+      return new THREE.Vector3(0, 0, 1);
+    }
+    const raH = siriusStar.ra[0] + siriusStar.ra[1] / 60;
+    return raDecToVec3(raH, siriusStar.dec, 1).normalize();
+  }, []);
+
+  // 2. Final quaternion = base alignment + exact 60° rotation around Sirius
+  const milkyWayQuaternion = useMemo(() => {
+    // Your original base rotation that already lands Sirius correctly
+    const baseEuler = new THREE.Euler(
+      -Math.PI / 25.8,
+      -Math.PI / 1.3865,
+      0,
+      'XYZ'
+    );
+    const baseQ = new THREE.Quaternion().setFromEuler(baseEuler);
+
+    // Exact 60° (π/3) twist around the Sirius axis
+    // (Right-hand rule: positive = counter-clockwise when looking from outside toward center)
+    const TWIST_ANGLE = -Math.PI / 2.55;          // ← 60 degrees exactly
+    const twistQ = new THREE.Quaternion().setFromAxisAngle(siriusVec, TWIST_ANGLE);
+
+    // Combine: apply base first, then twist around Sirius
+    // (Sirius position stays perfectly fixed)
+    return twistQ.multiply(baseQ);   // twist * base
+  }, [siriusVec]);
 
   return (
     <group ref={groupRef}>
+      <mesh
+        ref={milkyWayRef}
+        renderOrder={-1}
+        quaternion={milkyWayQuaternion}   // ← this replaces the old rotation={...} prop
+      >
+        <sphereGeometry args={[STAR_R, 64, 64]} />
+        <meshBasicMaterial
+          map={milkyWayTex}
+          side={THREE.BackSide}
+          depthWrite={false}
+          color={0x686868}
+        />
+      </mesh>
+
+      {/* your points (bandGeos) stay 100% unchanged */}
       {bandGeos.map((band, i) =>
-        band ? (
+        band && i < visibleBands ? (
           <points key={i} geometry={band.geo}>
             <pointsMaterial
               size={band.size}
@@ -164,21 +251,65 @@ const Starfield = memo(function Starfield() {
               sizeAttenuation
             />
           </points>
-        ) : null,
+        ) : null
       )}
     </group>
   );
 });
 
-// ── Planets + sun-tracking directional light ───────────────────────────────
+// ── Moon mesh (separate component so it suspends independently) ────────────
 
-const PlanetsAndLight = memo(function PlanetsAndLight() {
-  const now = useMemo(() => new Date(), []);
+function MoonBody({ position }: { position: THREE.Vector3 }) {
+  const moonMap = useTexture('/textures/moon/moonmap1k.jpg');
+  return (
+    <mesh position={position}>
+      <sphereGeometry args={[1.5, 32, 32]} />
+      <meshPhongMaterial map={moonMap} />
+    </mesh>
+  );
+}
 
-  const sunSprite = useRef<THREE.Sprite>(null);
-  const lightRef  = useRef<THREE.DirectionalLight>(null);
-  const groupRef  = useRef<THREE.Group>(null);
-  const _worldPos = useMemo(() => new THREE.Vector3(), []);
+// ── Sun directional light (always on, drifts with the sky) ────────────────
+// Extracted from PlanetSprites so the Globe is lit before planets appear.
+
+const _sunDriftQ  = new THREE.Quaternion();
+const _sunDriftAx = new THREE.Vector3(0, 1, 0);
+const SKY_DRIFT   = -0.0002;
+
+function SunLight() {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const now      = useMemo(() => new Date(), []);
+  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Sun, now, OBSERVER, false, true), [now]);
+  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+
+  // Mirror the same Y-rotation the planet group applies each frame so the
+  // light stays aligned with the sun sprite's world position.
+  useFrame(() => {
+    if (lightRef.current) {
+      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
+      lightRef.current.position.applyQuaternion(_sunDriftQ);
+    }
+  });
+
+  return (
+    <directionalLight
+      ref={lightRef}
+      intensity={1.5}
+      color={0xffffff}
+      position={[initPos.x, initPos.y, initPos.z]}
+    />
+  );
+}
+
+// ── Planet sprites (progressive, inside a shared drifting group) ───────────
+//
+// phase mapping (matches WorldMap's outer phase counter):
+//   2 → Moon   3 → Mercury   4 → Venus   5 → Sun sprite
+//   6 → Mars   7 → Jupiter   8 → Saturn
+
+const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) {
+  const now      = useMemo(() => new Date(), []);
+  const groupRef = useRef<THREE.Group>(null);
 
   const texSun   = useMemo(() => sunTex(),             []);
   const texMerc  = useMemo(() => glowTex('#ff9955'),   []);
@@ -187,71 +318,70 @@ const PlanetsAndLight = memo(function PlanetsAndLight() {
   const texJup   = useMemo(() => glowTex('#aaccff'),   []);
   const texSat   = useMemo(() => glowTex('#ddbb77'),   []);
 
-  // Already 1k — fine for both tiers.
-  const moonMap = useTexture('/textures/moon/moonmap1k.jpg');
-
   const eq = useMemo(() => ({
-    sun:  Astronomy.Equator(Astronomy.Body.Sun,     now, OBSERVER, false, true),
     moon: Astronomy.Equator(Astronomy.Body.Moon,    now, OBSERVER, false, true),
     merc: Astronomy.Equator(Astronomy.Body.Mercury, now, OBSERVER, false, true),
     ven:  Astronomy.Equator(Astronomy.Body.Venus,   now, OBSERVER, false, true),
+    sun:  Astronomy.Equator(Astronomy.Body.Sun,     now, OBSERVER, false, true),
     mars: Astronomy.Equator(Astronomy.Body.Mars,    now, OBSERVER, false, true),
     jup:  Astronomy.Equator(Astronomy.Body.Jupiter, now, OBSERVER, false, true),
     sat:  Astronomy.Equator(Astronomy.Body.Saturn,  now, OBSERVER, false, true),
   }), [now]);
 
-  const posSun  = useMemo(() => raDecToVec3(eq.sun.ra,  eq.sun.dec,  PLANET_R), [eq]);
   const posMoon = useMemo(() => raDecToVec3(eq.moon.ra, eq.moon.dec, PLANET_R), [eq]);
   const posMerc = useMemo(() => raDecToVec3(eq.merc.ra, eq.merc.dec, PLANET_R), [eq]);
   const posVen  = useMemo(() => raDecToVec3(eq.ven.ra,  eq.ven.dec,  PLANET_R), [eq]);
+  const posSun  = useMemo(() => raDecToVec3(eq.sun.ra,  eq.sun.dec,  PLANET_R), [eq]);
   const posMars = useMemo(() => raDecToVec3(eq.mars.ra, eq.mars.dec, PLANET_R), [eq]);
   const posJup  = useMemo(() => raDecToVec3(eq.jup.ra,  eq.jup.dec,  PLANET_R), [eq]);
   const posSat  = useMemo(() => raDecToVec3(eq.sat.ra,  eq.sat.dec,  PLANET_R), [eq]);
 
-  useFrame(() => {
-    if (sunSprite.current && lightRef.current) {
-      sunSprite.current.getWorldPosition(_worldPos);
-      lightRef.current.position.copy(_worldPos);
-    }
-    if (groupRef.current) groupRef.current.rotation.y -= 0.0002;
-  });
+  useFrame(() => { if (groupRef.current) groupRef.current.rotation.y -= 0.0002; });
 
   return (
-    <>
-      {/* Reduced from 3.5 — was clipping highlights and obscuring texture detail.
-          The cloud layer (AdditiveBlending) amplified the lit side further. */}
-      <directionalLight ref={lightRef} intensity={1.5} color={0xffffff} />
-      <group ref={groupRef}>
-        <sprite ref={sunSprite} position={posSun} scale={[8.0, 8.0, 1]}>
-          <spriteMaterial map={texSun} transparent depthWrite={false} />
-        </sprite>
+    <group ref={groupRef}>
+      {phase >= 2 && (
+        <Suspense fallback={null}>
+          <MoonBody position={posMoon} />
+        </Suspense>
+      )}
 
-        <mesh position={posMoon}>
-          <sphereGeometry args={[1.5, 32, 32]} />
-          <meshPhongMaterial map={moonMap} />
-        </mesh>
-
+      {phase >= 3 && (
         <sprite position={posMerc} scale={[0.66, 0.66, 1]}>
           <spriteMaterial map={texMerc} transparent depthWrite={false} />
         </sprite>
+      )}
 
+      {phase >= 4 && (
         <sprite position={posVen} scale={[0.825, 0.825, 1]}>
           <spriteMaterial map={texVenus} transparent depthWrite={false} />
         </sprite>
+      )}
 
+      {phase >= 5 && (
+        <sprite position={posSun} scale={[8.0, 8.0, 1]}>
+          <spriteMaterial map={texSun} transparent depthWrite={false} />
+        </sprite>
+      )}
+
+      {phase >= 6 && (
         <sprite position={posMars} scale={[0.825, 0.825, 1]}>
           <spriteMaterial map={texMars} transparent depthWrite={false} />
         </sprite>
+      )}
 
+      {phase >= 7 && (
         <sprite position={posJup} scale={[1.65, 1.65, 1]}>
           <spriteMaterial map={texJup} transparent depthWrite={false} />
         </sprite>
+      )}
 
+      {phase >= 8 && (
         <sprite position={posSat} scale={[0.66, 0.66, 1]}>
           <spriteMaterial map={texSat} transparent depthWrite={false} />
         </sprite>
-      </group>
-    </>
+      )}
+    </group>
   );
 });
 
@@ -260,9 +390,10 @@ const PlanetsAndLight = memo(function PlanetsAndLight() {
 interface GlobeProps {
   onCityClick: (city: City) => void;
   athensRaidInfo?: { secondsUntil: number | null; bossName?: string };
+  onReady?: () => void;
 }
 
-function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
+function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
   // Use 1k earth textures on low-end devices (~6 MB → ~640 KB), 4k otherwise.
@@ -277,6 +408,9 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
     '/textures/earth/high-res/04_earthcloudmap.jpg',
     '/textures/earth/high-res/05_earthcloudmaptrans.jpg',
   ]);
+
+  // Fires once after useTexture suspense resolves (textures are ready).
+  useEffect(() => { onReady?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fresnelMat = useMemo(makeFresnelMat, []);
 
@@ -351,7 +485,6 @@ function Globe({ onCityClick, athensRaidInfo }: GlobeProps) {
 // Sky drift: planets, stars, and ecliptic all rotate their groups by this
 // delta every frame. The camera must apply the same rotation so it stays
 // locked to the ecliptic plane as the sky drifts.
-const SKY_DRIFT = -0.0002;
 const _driftQ   = new THREE.Quaternion();
 const _yAxis    = new THREE.Vector3(0, 1, 0);
 
@@ -413,6 +546,17 @@ function SpinReporter() {
 }
 
 // ── WorldMap ───────────────────────────────────────────────────────────────
+//
+// Progressive load phases (staggered with timers so the UI stays responsive):
+//   1 → Globe + SunLight
+//   2 → Moon
+//   3 → Mercury
+//   4 → Venus
+//   5 → Sun sprite
+//   6 → Mars
+//   7 → Jupiter
+//   8 → Saturn
+//   9 → Stars
 
 interface WorldMapProps {
   onCityClick: (city: City) => void;
@@ -420,6 +564,30 @@ interface WorldMapProps {
 }
 
 export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps) {
+  const [phase, setPhase] = useState(0);
+  // Flips to true once Globe signals its textures have finished loading.
+  // Planet timers only start after this so planets never appear before the earth.
+  const [globeReady, setGlobeReady] = useState(false);
+
+  // Phase 1: mount the Globe immediately.
+  useEffect(() => { setPhase(1); }, []);
+
+  // Phases 2-9: stagger planets then stars, starting only after the Globe is ready.
+  useEffect(() => {
+    if (!globeReady) return;
+    const timers = [
+      setTimeout(() => setPhase(2), 200),
+      setTimeout(() => setPhase(3), 400),
+      setTimeout(() => setPhase(4), 600),
+      setTimeout(() => setPhase(5), 800),
+      setTimeout(() => setPhase(6), 1000),
+      setTimeout(() => setPhase(7), 1200),
+      setTimeout(() => setPhase(8), 1400),
+      setTimeout(() => setPhase(9), 1600),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [globeReady]);
+
   return (
     <>
       <CameraRig />
@@ -427,9 +595,27 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
       {/* Raised from 0.05 so the dark side of the globe stays readable */}
       <ambientLight intensity={0.12} />
 
-      <Starfield />
-      <PlanetsAndLight />
-      <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} />
+      {/* Always-on directional light so the Globe is lit from phase 1. */}
+      {phase >= 1 && <SunLight />}
+
+      {/* Globe — wrapped in its own Suspense so it appears as soon as its
+          textures are ready without waiting for moon/star textures. */}
+      {phase >= 1 && (
+        <Suspense fallback={null}>
+          <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} onReady={() => setGlobeReady(true)} />
+        </Suspense>
+      )}
+
+      {/* Planets revealed one-by-one; each has its own Suspense so the moon
+          texture doesn't block the canvas-generated planet sprites. */}
+      {phase >= 1 && <PlanetSprites phase={phase} />}
+
+      {/* Stars last */}
+      {phase >= 9 && (
+        <Suspense fallback={null}>
+          <Starfield />
+        </Suspense>
+      )}
 
       <OrbitControls
         makeDefault

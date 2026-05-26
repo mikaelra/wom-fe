@@ -154,12 +154,12 @@ function PlayerWithName({
   onResource?: (res: string) => void;
   resourceCue?: string;
 }) {
-  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades_v2.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
+  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   return (
     <group position={position} rotation={rotation}>
       <PlayerV1
         url={modelUrl}
-        scale={isBoss ? 1.8 : 0.6}
+        scale={isBoss ? 1.44 : 0.6}
         position={[0, 0, 0]}
         rotation={[0, 0, 0]}
         isAnimating={isAnimating}
@@ -484,7 +484,7 @@ function LostSoulModel({
 const BOSS_MAX_HP = 8;
 
 useGLTF.preload('/models/lost_soul_v2.glb');
-useGLTF.preload('/models/hades_v2.glb');
+useGLTF.preload('/models/hades/hades_v3-ld.glb');
 useGLTF.preload('/models/turtlev01.glb');
 useGLTF.preload('/models/crowns/crown_ld_v1.glb');
 useGLTF.preload('/models/well_crown_v1.glb');
