@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createLobby, joinLobby, getPlayerRelics, checkName, logInUser, verifyLoginCode } from '@/lib/api';
 import type { Relic } from '@/types/game';
+import RopedButton3D from '@/components/hud/RopedButton3D';
+import RopedInput3D from '@/components/hud/RopedInput3D';
 
 export default function WorldMapOverlay() {
   const router = useRouter();
@@ -13,6 +15,7 @@ export default function WorldMapOverlay() {
 
   const [joinCode, setJoinCode] = useState('');
   const [lobbyLoading, setLobbyLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<'join' | 'create' | null>(null);
   const [showNamePopup, setShowNamePopup] = useState(false);
   const [pendingAction, setPendingAction] = useState<'join' | 'create' | null>(null);
   const [popupName, setPopupName] = useState('');
@@ -84,6 +87,7 @@ export default function WorldMapOverlay() {
     if (!code) return;
     const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') || '' : '';
     setLobbyLoading(true);
+    setLoadingAction('join');
     try {
       await joinLobby(code, name, email);
       if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
@@ -91,12 +95,14 @@ export default function WorldMapOverlay() {
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Join failed');
       setLobbyLoading(false);
+      setLoadingAction(null);
     }
   };
 
   const doCreate = async (name: string) => {
     const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') || '' : '';
     setLobbyLoading(true);
+    setLoadingAction('create');
     try {
       const data = await createLobby(name, email);
       if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
@@ -104,6 +110,7 @@ export default function WorldMapOverlay() {
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Create lobby failed');
       setLobbyLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -249,17 +256,19 @@ export default function WorldMapOverlay() {
         <div className="pointer-events-auto flex items-center gap-3">
           {isLoggedIn && (
             <div className="relative" ref={userMenuRef}>
-              <button
-                type="button"
+              <RopedButton3D
+                width={325}
+                height={70}
                 onClick={() => setShowUserMenu((v) => !v)}
-                className="flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10 hover:bg-black/70 transition-colors cursor-pointer"
+                ariaLabel="Open user menu"
+                textClassName="flex items-center gap-2 text-white font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-sm font-bold text-black">
+                <span className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-bold text-black">
                   {loggedInName[0]?.toUpperCase()}
-                </div>
-                <span className="text-white font-semibold text-sm">{loggedInName}</span>
-                <span className="text-white/60 text-xs ml-1">{showUserMenu ? '▲' : '▼'}</span>
-              </button>
+                </span>
+                <span>{loggedInName}</span>
+                <span className="text-white/70 text-xs">{showUserMenu ? '▲' : '▼'}</span>
+              </RopedButton3D>
               {showUserMenu && (
                 <div className="absolute right-0 mt-1 w-40 bg-gray-900 border border-white/20 rounded-lg shadow-xl overflow-hidden">
                   <button
@@ -299,32 +308,43 @@ export default function WorldMapOverlay() {
       </div>
 
       {/* Bottom: lobby controls */}
-      <div className="absolute bottom-44 left-0 right-0 z-20 flex justify-center pointer-events-none">
-        <div className="pointer-events-auto flex flex-wrap justify-center items-center gap-2 px-3">
-          <input
-            type="text"
-            placeholder="Lobby code"
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value.toLowerCase())}
-            onKeyDown={(e) => e.key === 'Enter' && handleJoinLobby()}
-            className="w-36 p-2 rounded-md bg-black/60 backdrop-blur-sm border border-white/30 text-white placeholder-white/40 focus:outline-none focus:border-white/60 text-sm"
-          />
-          <button
-            type="button"
-            onClick={handleJoinLobby}
-            disabled={lobbyLoading || joinCode.trim().length < 3}
-            className="px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/30 text-white font-semibold text-sm hover:bg-white/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-          >
-            Join Lobby
-          </button>
-          <button
-            type="button"
+      <div className="absolute bottom-44 left-0 right-0 z-20 flex flex-col items-center gap-4 pointer-events-none">
+        <div className="pointer-events-auto flex flex-wrap justify-center items-center px-3">
+          <RopedInput3D width={410} height={70}>
+            <input
+              type="text"
+              placeholder="Enter lobby code..."
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleJoinLobby()}
+              style={{ width: '70%' }}
+              className="h-full bg-transparent text-white placeholder-white/70 focus:outline-none text-sm font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+            />
+          </RopedInput3D>
+          <span className="ml-6">
+            <RopedButton3D
+              width={290}
+              height={70}
+              onClick={handleJoinLobby}
+              disabled={lobbyLoading && loadingAction !== 'join'}
+              loading={lobbyLoading && loadingAction === 'join'}
+              ariaLabel="Join lobby"
+            >
+              Join Lobby
+            </RopedButton3D>
+          </span>
+        </div>
+        <div className="pointer-events-auto flex justify-center">
+          <RopedButton3D
+            width={325}
+            height={70}
             onClick={handleCreateLobby}
-            disabled={lobbyLoading}
-            className="px-5 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/30 text-white font-semibold text-sm hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
+            disabled={lobbyLoading && loadingAction !== 'create'}
+            loading={lobbyLoading && loadingAction === 'create'}
+            ariaLabel="Create lobby"
           >
-            {lobbyLoading ? 'Loading...' : 'Create Lobby'}
-          </button>
+            Create Lobby
+          </RopedButton3D>
         </div>
       </div>
 
