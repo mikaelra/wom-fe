@@ -8,7 +8,7 @@ import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
-import SwordEffect, { STRIKE_DUR, HOLD_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
+import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import { getSocket } from '@/lib/api';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
 import {
@@ -858,17 +858,21 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             }
           });
         } else if (hpLost && incomingAttackers.length > 0) {
-          // Not defending — single sword hit from a real attacker.
-          // Damage from a reflected attack has no incomingAttackers, so no sword is shown
-          // (the red aura flash still fires via the HP-loss loop below).
-          const attacker = incomingAttackers[0];
-          const atkPos   = posMap.get(attacker.name);
-          if (atkPos) {
-            const fromPos: [number, number, number] = [atkPos[0], atkPos[1] + 0.3, atkPos[2]];
+          // Not defending — sequential sword hits from all attackers.
+          // Damage from reflected attacks has no incomingAttackers so no sword is shown there.
+          const ONE_ANIM_MS = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR) * 1000;
+          const GAP_MS      = 200;
+          swordHandledFlashes.add(playerName);
+
+          incomingAttackers.forEach((atk, i) => {
+            const atkPos  = posMap.get(atk.name);
+            const fromPos: [number, number, number] = atkPos
+              ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
+              : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
             const toPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
-            swordHandledFlashes.add(playerName);
-            newStrikes.push({
-              id:             `in-${Date.now()}`,
+
+            const strike: StrikeEvent = {
+              id:             `in-${atk.name}-${Date.now()}-${i}`,
               fromPos,
               toPos,
               targetDefended: false,
@@ -876,8 +880,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               isIncoming:     true,
               postImpact:     'retreat',
               flashPosition:  myPos,
-            });
-          }
+            };
+
+            const startDelay = i * (ONE_ANIM_MS + GAP_MS);
+
+            if (i === 0) {
+              newStrikes.push(strike);
+            } else {
+              staggerTimeoutsRef.current.push(
+                setTimeout(() => setStrikeEvents((s) => [...s, strike]), startDelay),
+              );
+            }
+          });
         }
       }
 
@@ -897,21 +911,20 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       if (newImpactShields.length) setImpactShields((s) => [...s, ...newImpactShields]);
       // Stagger fallback flashes so multiple HP losses (e.g. several attackers
       // reflected by a common defender) blink in sequence instead of all at once.
+      // Base delay matches sword impact time so these fire after the strike, not at round start.
       // Tracked in staggerTimeoutsRef so they're cancelled on the next round.
       const FLASH_STAGGER_MS = 450;
+      const SWORD_IMPACT_MS  = (STRIKE_DUR + HOLD_DUR) * 1000;
       newFlashes.forEach((f, i) => {
-        const delay = i * FLASH_STAGGER_MS;
-        const show = () => {
-          setHitFlashEvents((ev) => [...ev, f]);
-          staggerTimeoutsRef.current.push(
-            setTimeout(() => setHitFlashEvents((ev) => ev.filter((h) => h.id !== f.id)), 650),
-          );
-        };
-        if (delay === 0) {
-          show();
-        } else {
-          staggerTimeoutsRef.current.push(setTimeout(show, delay));
-        }
+        const delay = SWORD_IMPACT_MS + i * FLASH_STAGGER_MS;
+        staggerTimeoutsRef.current.push(
+          setTimeout(() => {
+            setHitFlashEvents((ev) => [...ev, f]);
+            staggerTimeoutsRef.current.push(
+              setTimeout(() => setHitFlashEvents((ev) => ev.filter((h) => h.id !== f.id)), 650),
+            );
+          }, delay),
+        );
       });
     }
 
