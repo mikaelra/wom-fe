@@ -263,7 +263,7 @@ const lobbyConfig: SceneOverlayConfig = {
   showEnemyAlways: false,
   showPlayerList: true,
   showDenyPicker: true,
-  showFloatingMessages: true,
+  showFloatingMessages: false,
   showChat: true,
   enableNextLobbyRedirect: true,
   enableRaidTimer: true,

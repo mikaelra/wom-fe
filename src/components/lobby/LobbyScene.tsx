@@ -7,6 +7,8 @@ import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
+import ShieldEffect from '@/components/lobby/ShieldEffect';
+import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import { getSocket } from '@/lib/api';
 import { playResourceSound } from '@/lib/sounds';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
@@ -129,6 +131,7 @@ function PlayerWithName({
   onDefend,
   onResource,
   resourceCue,
+  showShield,
 }: {
   name: string;
   position: [number, number, number];
@@ -153,6 +156,7 @@ function PlayerWithName({
   onDefend?: () => void;
   onResource?: (res: string) => void;
   resourceCue?: string;
+  showShield?: boolean;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   return (
@@ -164,6 +168,7 @@ function PlayerWithName({
         rotation={[0, 0, 0]}
         isAnimating={isAnimating}
       />
+      {showShield && <ShieldEffect />}
       {chatBubble && (
         <Html position={[0, 1.3, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <div style={{
@@ -510,8 +515,63 @@ useGLTF.preload('/models/hades/hades_v3-ld.glb');
 useGLTF.preload('/models/turtlev01.glb');
 useGLTF.preload('/models/crowns/crown_ld_v1.glb');
 useGLTF.preload('/models/well_crown_v1.glb');
+useGLTF.preload('/models/shields/shield_animation-ld.glb');
+useGLTF.preload('/models/swords/sword_animation-ld.glb');
 // Frog skins are preloaded on-demand per lobby (see usePreloadLobbySkins below).
 // Previously we eagerly preloaded all 13 skins (~92 MB) on app start.
+
+type StrikeEvent = {
+  id: string;
+  fromPos: [number, number, number];
+  toPos:   [number, number, number];
+  targetDefended: boolean;
+  targetHit: boolean;
+  isIncoming: boolean;
+  // 'retreat' = normal hit, 'stop' = blocked no reflect, 'bounce' = blocked + reflected
+  postImpact: 'retreat' | 'stop' | 'bounce';
+  // World-space position to aura-flash on strike (undefined = no flash)
+  flashPosition?: [number, number, number];
+  // For bounce-back strikes: where to aura-flash when the bounce lands on the attacker
+  bounceFlashPos?: [number, number, number];
+};
+
+type HitFlashEvent = {
+  id: string;
+  position: [number, number, number];
+};
+
+type ImpactShield = {
+  id:   string;
+  pos:  [number, number, number];
+  rotY: number;
+};
+
+function AuraFlash({ position }: { position: [number, number, number] }) {
+  const meshRef  = useRef<THREE.Mesh>(null);
+  const spawnRef = useRef(performance.now());
+  const DURATION = 550;
+
+  useFrame(() => {
+    if (!meshRef.current) return;
+    const t   = Math.min((performance.now() - spawnRef.current) / DURATION, 1);
+    const mat = meshRef.current.material as THREE.MeshBasicMaterial;
+    // Expand: 0.35 → 1.75 world units
+    meshRef.current.scale.setScalar(0.35 + t * 1.4);
+    // Quick flash in, slow fade out
+    mat.opacity = t < 0.18 ? (t / 0.18) * 0.65 : ((1 - t) / 0.82) * 0.65;
+  });
+
+  return (
+    <mesh
+      ref={meshRef}
+      position={[position[0], position[1] + 0.45, position[2]]}
+      renderOrder={20}
+    >
+      <sphereGeometry args={[0.45, 12, 12]} />
+      <meshBasicMaterial color="#ff1100" transparent opacity={0} depthTest={false} depthWrite={false} />
+    </mesh>
+  );
+}
 
 type LobbySceneProps = {
   state: LobbyState | null;
@@ -527,6 +587,25 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [localResource, setLocalResource] = useState('');
   const pendingResourceRef = useRef('');
+
+  // ----- Animation state -----
+  const prevStateRef  = useRef<LobbyState | null>(null);
+  const posMapRef     = useRef(new Map<string, [number, number, number]>());
+  const [strikeEvents,  setStrikeEvents]  = useState<StrikeEvent[]>([]);
+  const [hitFlashEvents, setHitFlashEvents] = useState<HitFlashEvent[]>([]);
+  const [impactShields, setImpactShields] = useState<ImpactShield[]>([]);
+  // Timeout IDs for staggered incoming defended strikes (cleared each new round)
+  const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Track the last action the local player submitted.
+  // currentAction is reset to '' by the parent on round change BEFORE the
+  // round-transition effect runs, so we snapshot it here whenever it changes.
+  const lastActionRef = useRef({ action: '', target: '' });
+  useEffect(() => {
+    if (currentAction) {
+      lastActionRef.current = { action: currentAction, target: attackTarget ?? '' };
+    }
+  }, [currentAction, attackTarget]);
 
   useEffect(() => {
     if (!state?.round_end_time) { setSecondsLeft(null); return; }
@@ -596,6 +675,20 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return players.map((p) => (p.boss ? bossSlot : nonBossSlots[nbi++]));
   })();
 
+  // Keep posMapRef up-to-date each render (synchronous ref write — no re-render triggered).
+  // This is read by the round-transition effect below.
+  {
+    const m = new Map<string, [number, number, number]>();
+    players.forEach((p, i) => {
+      const slot = PLAYER_POSITIONS[i];
+      if (slot) m.set(p.name, slot.position);
+    });
+    lostSouls.forEach((soul, i) => {
+      m.set(soul.name, LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length]);
+    });
+    posMapRef.current = m;
+  }
+
   // Compute world-space position for the crown (above winner's head, private lobbies only)
   const crownPosition = useMemo((): [number, number, number] | null => {
     if (!gameOver || isBossFight || !winner) return null;
@@ -629,6 +722,220 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const resourceCue = localResource === '' && showAttackButtons
     ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '')
     : '';
+
+  // Detect round transitions and spawn 3D animation events.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!state) { prevStateRef.current = null; return; }
+    const prev = prevStateRef.current;
+
+    if (prev && state.round > (prev.round ?? 0) && state.round > 0) {
+      // Cancel any still-pending staggered strikes from the previous round
+      staggerTimeoutsRef.current.forEach(clearTimeout);
+      staggerTimeoutsRef.current = [];
+
+      const posMap = posMapRef.current;
+      const newStrikes:       StrikeEvent[]    = [];
+      const newFlashes:       HitFlashEvent[]  = [];
+      const newImpactShields: ImpactShield[]   = [];
+      const myPrev = prev.players.find((p) => p.name === playerName);
+      // Players whose aura-flash is triggered by a sword onStrike instead of immediately
+      const swordHandledFlashes = new Set<string>();
+
+      // ── Outgoing: local player attacked someone ──────────────────────────
+      // Use lastActionRef (snapshotted before parent resets currentAction) instead of
+      // submittedAction which the server may not include in the new-round state.
+      const myAction = lastActionRef.current.action;
+      const myTarget = lastActionRef.current.target;
+      lastActionRef.current = { action: '', target: '' };
+      if (myAction === 'attack' && myTarget) {
+        const tgt    = myTarget;
+        const myPos  = posMap.get(playerName);
+        const tgtPos = posMap.get(tgt);
+        if (myPos && tgtPos) {
+          const tgtPrev = prev.players.find((p) => p.name === tgt);
+          const tgtNew  = state.players.find((p) => p.name === tgt);
+          const tgtHit  = (tgtNew?.hp ?? Infinity) < (tgtPrev?.hp ?? Infinity);
+          const tgtDefended = !tgtHit;
+          // Reflected when the attacker (me) loses HP from a blocked attack
+          const myCurHp = state.players.find((p) => p.name === playerName)?.hp ?? Infinity;
+          const reflected = tgtDefended && myCurHp < (myPrev?.hp ?? Infinity);
+
+          const fromPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
+          const baseToPos: [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
+
+          // When blocked: sword stops at the shield, which floats in front of the
+          // defender (0.8 u toward the attacker).
+          const SHIELD_OFFSET = 0.8;
+          let toPos = baseToPos;
+          if (tgtDefended) {
+            const dx = fromPos[0] - baseToPos[0];
+            const dz = fromPos[2] - baseToPos[2];
+            const len = Math.sqrt(dx * dx + dz * dz);
+            if (len > 0) {
+              toPos = [baseToPos[0] + (dx / len) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / len) * SHIELD_OFFSET];
+            }
+          }
+
+          // Defer the aura flash to onStrike so it syncs with sword impact.
+          // For reflected attacks, defer the attacker's flash to the bounce-landing instead.
+          if (tgtHit) swordHandledFlashes.add(tgt);
+          if (reflected) swordHandledFlashes.add(playerName);
+          newStrikes.push({
+            id: `out-${Date.now()}`, fromPos, toPos, targetDefended: tgtDefended,
+            targetHit: tgtHit, isIncoming: false,
+            postImpact: tgtDefended ? (reflected ? 'bounce' : 'stop') : 'retreat',
+            flashPosition: tgtHit ? tgtPos : undefined,
+            bounceFlashPos: reflected ? myPos : undefined,
+          });
+        }
+      }
+
+      // ── Incoming: local player was attacked ──────────────────────────────
+      const myPrevHp = myPrev?.hp ?? Infinity;
+      const myNewHp  = state.players.find((p) => p.name === playerName)?.hp ?? Infinity;
+      const hpLost   = myNewHp < myPrevHp;
+      const myPos    = posMap.get(playerName);
+
+      // All players whose submitted action was attacking me this round
+      const incomingAttackers = prev.players.filter(
+        (p) => p.submittedAction === 'attack' && p.target === playerName,
+      );
+
+      if (myPos) {
+        if (myAction === 'defend' && incomingAttackers.length > 0) {
+          const SHIELD_OFFSET = 0.8;
+          // Total duration of one full strike + bounce cycle (ms)
+          const ONE_ANIM_MS = (STRIKE_DUR + HOLD_DUR + BOUNCE_DUR) * 1000;
+          const GAP_MS      = 200;
+
+          incomingAttackers.forEach((atk, i) => {
+            const atkPos  = posMap.get(atk.name);
+            const fromPos: [number, number, number] = atkPos
+              ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
+              : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
+            const baseToPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
+
+            const dx = fromPos[0] - baseToPos[0];
+            const dz = fromPos[2] - baseToPos[2];
+            const ld = Math.sqrt(dx * dx + dz * dz);
+            const shieldPos: [number, number, number] = ld > 0
+              ? [baseToPos[0] + (dx / ld) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / ld) * SHIELD_OFFSET]
+              : baseToPos;
+
+            // Reflected when this specific attacker lost HP from their blocked attack
+            const atkNew  = state.players.find((p) => p.name === atk.name);
+            const atkReflected = (atkNew?.hp ?? Infinity) < (atk.hp ?? Infinity);
+            if (atkReflected) swordHandledFlashes.add(atk.name);
+            const strike: StrikeEvent = {
+              id:             `in-def-${atk.name}-${Date.now()}-${i}`,
+              fromPos,
+              toPos:          shieldPos,
+              targetDefended: true,
+              targetHit:      false,
+              isIncoming:     true,
+              postImpact:     atkReflected ? 'bounce' : 'stop',
+              bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
+            };
+
+            const startDelay = i * (ONE_ANIM_MS + GAP_MS);
+            const shieldDur  = ONE_ANIM_MS + 350;
+            const rotY       = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
+
+            if (i === 0) {
+              // First strike fires with the initial batch
+              newStrikes.push(strike);
+              newImpactShields.push({ id: `def-shield-${strike.id}`, pos: shieldPos, rotY });
+              staggerTimeoutsRef.current.push(
+                setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== `def-shield-${strike.id}`)), shieldDur),
+              );
+            } else {
+              // Subsequent strikes fire after their predecessors finish
+              staggerTimeoutsRef.current.push(
+                setTimeout(() => {
+                  const sid = `def-shield-${strike.id}`;
+                  setStrikeEvents((s) => [...s, strike]);
+                  setImpactShields((s) => [...s, { id: sid, pos: shieldPos, rotY }]);
+                  staggerTimeoutsRef.current.push(
+                    setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), shieldDur),
+                  );
+                }, startDelay),
+              );
+            }
+          });
+        } else if (hpLost && incomingAttackers.length > 0) {
+          // Not defending — sequential sword hits from all attackers.
+          // Damage from reflected attacks has no incomingAttackers so no sword is shown there.
+          const ONE_ANIM_MS = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR) * 1000;
+          const GAP_MS      = 200;
+          swordHandledFlashes.add(playerName);
+
+          incomingAttackers.forEach((atk, i) => {
+            const atkPos  = posMap.get(atk.name);
+            const fromPos: [number, number, number] = atkPos
+              ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
+              : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
+            const toPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
+
+            const strike: StrikeEvent = {
+              id:             `in-${atk.name}-${Date.now()}-${i}`,
+              fromPos,
+              toPos,
+              targetDefended: false,
+              targetHit:      true,
+              isIncoming:     true,
+              postImpact:     'retreat',
+              flashPosition:  myPos,
+            };
+
+            const startDelay = i * (ONE_ANIM_MS + GAP_MS);
+
+            if (i === 0) {
+              newStrikes.push(strike);
+            } else {
+              staggerTimeoutsRef.current.push(
+                setTimeout(() => setStrikeEvents((s) => [...s, strike]), startDelay),
+              );
+            }
+          });
+        }
+      }
+
+      // ── Aura flash for every player who lost HP this round ───────────────
+      // Players with sword animations get their flash from onStrike instead.
+      prev.players.forEach((prevP) => {
+        if (swordHandledFlashes.has(prevP.name)) return;
+        const newP = state.players.find((p) => p.name === prevP.name);
+        if (!newP) return;
+        if ((newP.hp ?? Infinity) < (prevP.hp ?? Infinity)) {
+          const pos = posMap.get(prevP.name);
+          if (pos) newFlashes.push({ id: `fl-${prevP.name}-${Date.now()}`, position: pos });
+        }
+      });
+
+      if (newStrikes.length)       setStrikeEvents((ev) => [...ev, ...newStrikes]);
+      if (newImpactShields.length) setImpactShields((s) => [...s, ...newImpactShields]);
+      // Stagger fallback flashes so multiple HP losses (e.g. several attackers
+      // reflected by a common defender) blink in sequence instead of all at once.
+      // Base delay matches sword impact time so these fire after the strike, not at round start.
+      // Tracked in staggerTimeoutsRef so they're cancelled on the next round.
+      const FLASH_STAGGER_MS = 450;
+      const SWORD_IMPACT_MS  = (STRIKE_DUR + HOLD_DUR) * 1000;
+      newFlashes.forEach((f, i) => {
+        const delay = SWORD_IMPACT_MS + i * FLASH_STAGGER_MS;
+        staggerTimeoutsRef.current.push(
+          setTimeout(() => {
+            setHitFlashEvents((ev) => [...ev, f]);
+            staggerTimeoutsRef.current.push(
+              setTimeout(() => setHitFlashEvents((ev) => ev.filter((h) => h.id !== f.id)), 650),
+            );
+          }, delay),
+        );
+      });
+    }
+
+    prevStateRef.current = state;
+  }, [state, playerName]); // posMapRef is a stable ref — no dep needed
 
   // Build a map of sender → latest message text if it's within CHAT_BUBBLE_DURATION_MS
   const chatBubbles = useMemo(() => {
@@ -737,6 +1044,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             onDefend={handleDefend}
             onResource={handleResource}
             resourceCue={resourceCue}
+            showShield={isOwnPlayer && currentAction === 'defend'}
           />
         );
       })}
@@ -756,6 +1064,70 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           />
         );
       })}
+
+      {/* Ready sword — floats near the attack target while local player has it selected */}
+      {currentAction === 'attack' && attackTarget && (() => {
+        const myPos  = posMapRef.current.get(playerName);
+        const tgtPos = posMapRef.current.get(attackTarget);
+        if (!myPos || !tgtPos) return null;
+        const fp: [number, number, number] = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
+        const tp: [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
+        return (
+          <SwordEffect
+            key={`ready-${attackTarget}`}
+            fromPosition={fp}
+            toPosition={tp}
+            mode="ready"
+          />
+        );
+      })()}
+
+      {/* Executing sword strike animations (triggered at round transition) */}
+      {strikeEvents.map((ev) => (
+        <SwordEffect
+          key={ev.id}
+          fromPosition={ev.fromPos}
+          toPosition={ev.toPos}
+          mode="execute"
+          postImpact={ev.postImpact}
+          onStrike={() => {
+            if (ev.targetDefended && !ev.isIncoming) {
+              // ev.toPos is already the shield position (in front of the defender).
+              const rotY = Math.atan2(ev.fromPos[0] - ev.toPos[0], ev.fromPos[2] - ev.toPos[2]);
+              const sid  = `shield-${ev.id}`;
+              setImpactShields((s) => [...s, { id: sid, pos: ev.toPos, rotY }]);
+              const postDurSec = ev.postImpact === 'bounce' ? BOUNCE_DUR : 0;
+              const holdMs = (HOLD_DUR + postDurSec) * 1000 + 200;
+              setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), holdMs);
+            }
+            if (ev.flashPosition) {
+              const fid = `fl-sword-${ev.id}`;
+              setHitFlashEvents((s) => [...s, { id: fid, position: ev.flashPosition! }]);
+              setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
+            }
+          }}
+          onDone={() => {
+            // Reflected attacks: fire the attacker's red aura when the bounce lands,
+            // not when the round transitions.
+            if (ev.postImpact === 'bounce' && ev.bounceFlashPos) {
+              const fid = `fl-bounce-${ev.id}`;
+              setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
+              setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
+            }
+            setStrikeEvents((s) => s.filter((x) => x.id !== ev.id));
+          }}
+        />
+      ))}
+
+      {/* Impact shield — appears at the target's position when a defended player is struck */}
+      {impactShields.map((s) => (
+        <ShieldEffect key={s.id} localSpace={false} worldPosition={s.pos} worldRotationY={s.rotY} />
+      ))}
+
+      {/* Red aura — expands and fades around any character that takes damage */}
+      {hitFlashEvents.map((f) => (
+        <AuraFlash key={f.id} position={f.position} />
+      ))}
 
       <WinnerCrown worldPosition={crownPosition} />
       <WellCrown worldPosition={wellCrownPosition} />
