@@ -2,7 +2,7 @@
 
 import { useThree, useFrame } from '@react-three/fiber';
 import { Html, Environment, useGLTF } from '@react-three/drei';
-import { useRef, useMemo, useState, useEffect } from 'react';
+import { useRef, useMemo, useState, useEffect, Suspense } from 'react';
 import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
@@ -978,160 +978,175 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       <directionalLight position={[10, 10, 10]} intensity={1.2} castShadow />
       <color attach="background" args={['#87ceeb']} />
 
-      <Mountain scale={150} position={[40, -282, 62]} />
-      <Table position={TABLE_POSITION} scale={1.2} />
+      {/* Stage 1: Mountain — background scenery, loads first */}
+      <Suspense fallback={null}>
+        <Mountain scale={150} position={[40, -282, 62]} />
+      </Suspense>
 
-      {/* WELL (raid) button — anchored to the well model at the table centre */}
-      {showAttackButtons && (
-        <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
-          <button
-            onClick={handleRaid}
-            style={{
-              pointerEvents: 'auto',
-              cursor: 'pointer',
-              padding: '14px 28px',
-              fontSize: '26px',
-              fontWeight: 'bold',
-              color: currentAction === 'raid' ? '#ffffff' : '#d8b4fe',
-              background: currentAction === 'raid' ? 'rgba(126,34,206,0.95)' : 'rgba(46,16,101,0.85)',
-              border: currentAction === 'raid' ? '2px solid #d8b4fe' : '2px solid #7e22ce',
-              borderRadius: '8px',
-              whiteSpace: 'nowrap',
-              backdropFilter: 'blur(4px)',
-              boxShadow: currentAction === 'raid'
-                ? '0 0 8px rgba(167,139,250,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-            }}
-          >
-            🏴 The Well
-          </button>
-        </Html>
-      )}
+      {/* Stage 2: Player characters (frogs, Hades, turtle, lost souls) */}
+      <Suspense fallback={null}>
+        {players.map((player, i) => {
+          const slot = PLAYER_POSITIONS[i];
+          if (!slot) return null;
+          const { position, rotation } = slot;
+          const isDead = (player.hp ?? 0) <= 0;
+          const isWinner = winner === player.name;
+          const isOpponent = player.name !== playerName;
+          const isBoss = !!player.boss;
+          const isOwnPlayer = player.name === playerName;
+          const playerRotation: [number, number, number] = [rotation[0], rotation[1] + Math.PI / 2, rotation[2]];
+          return (
+            <PlayerWithName
+              key={player.name}
+              name={player.name}
+              position={position}
+              rotation={playerRotation}
+              isAnimating={true}
+              isDead={isDead}
+              isWinner={!!isWinner}
+              isBoss={isBoss}
+              bossHp={isBoss ? player.hp : undefined}
+              bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
+              bossTitle={isBoss ? player.title : undefined}
+              frogSkinUrl={skinMap.get(player.name)}
+              showAttackButton={showAttackButtons && isOpponent && !isDead}
+              onAttack={() => handleAttack(player.name)}
+              isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
+              actionCue={actionCue}
+              chatBubble={chatBubbles.get(player.name)}
+              showOwnActions={isOwnPlayer && showAttackButtons && !isDead}
+              currentAction={currentAction}
+              currentResource={localResource}
+              myPlayerData={isOwnPlayer ? myPlayer : undefined}
+              onDefend={handleDefend}
+              onResource={handleResource}
+              resourceCue={resourceCue}
+              showShield={isOwnPlayer && currentAction === 'defend'}
+            />
+          );
+        })}
 
-      {players.map((player, i) => {
-        const slot = PLAYER_POSITIONS[i];
-        if (!slot) return null;
-        const { position, rotation } = slot;
-        const isDead = (player.hp ?? 0) <= 0;
-        const isWinner = winner === player.name;
-        const isOpponent = player.name !== playerName;
-        const isBoss = !!player.boss;
-        const isOwnPlayer = player.name === playerName;
-        const playerRotation: [number, number, number] = [rotation[0], rotation[1] + Math.PI / 2, rotation[2]];
-        return (
-          <PlayerWithName
-            key={player.name}
-            name={player.name}
-            position={position}
-            rotation={playerRotation}
-            isAnimating={true}
-            isDead={isDead}
-            isWinner={!!isWinner}
-            isBoss={isBoss}
-            bossHp={isBoss ? player.hp : undefined}
-            bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
-            bossTitle={isBoss ? player.title : undefined}
-            frogSkinUrl={skinMap.get(player.name)}
-            showAttackButton={showAttackButtons && isOpponent && !isDead}
-            onAttack={() => handleAttack(player.name)}
-            isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
-            actionCue={actionCue}
-            chatBubble={chatBubbles.get(player.name)}
-            showOwnActions={isOwnPlayer && showAttackButtons && !isDead}
-            currentAction={currentAction}
-            currentResource={localResource}
-            myPlayerData={isOwnPlayer ? myPlayer : undefined}
-            onDefend={handleDefend}
-            onResource={handleResource}
-            resourceCue={resourceCue}
-            showShield={isOwnPlayer && currentAction === 'defend'}
-          />
-        );
-      })}
+        {lostSouls.map((soul, i) => {
+          const pos = LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length];
+          const isDead = (soul.hp ?? 0) <= 0;
+          return (
+            <LostSoulModel
+              key={soul.name}
+              name={soul.name}
+              position={pos}
+              showAttackButton={showAttackButtons && !isDead}
+              onAttack={() => handleAttack(soul.name)}
+              isAttackSelected={currentAction === 'attack' && attackTarget === soul.name}
+              actionCue={actionCue}
+            />
+          );
+        })}
+      </Suspense>
 
-      {lostSouls.map((soul, i) => {
-        const pos = LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length];
-        const isDead = (soul.hp ?? 0) <= 0;
-        return (
-          <LostSoulModel
-            key={soul.name}
-            name={soul.name}
-            position={pos}
-            showAttackButton={showAttackButtons && !isDead}
-            onAttack={() => handleAttack(soul.name)}
-            isAttackSelected={currentAction === 'attack' && attackTarget === soul.name}
-            actionCue={actionCue}
-          />
-        );
-      })}
+      {/* Stage 3: Well model + raid button */}
+      <Suspense fallback={null}>
+        <Table position={TABLE_POSITION} scale={1.2} />
+        {showAttackButtons && (
+          <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+            <button
+              onClick={handleRaid}
+              style={{
+                pointerEvents: 'auto',
+                cursor: 'pointer',
+                padding: '14px 28px',
+                fontSize: '26px',
+                fontWeight: 'bold',
+                color: currentAction === 'raid' ? '#ffffff' : '#d8b4fe',
+                background: currentAction === 'raid' ? 'rgba(126,34,206,0.95)' : 'rgba(46,16,101,0.85)',
+                border: currentAction === 'raid' ? '2px solid #d8b4fe' : '2px solid #7e22ce',
+                borderRadius: '8px',
+                whiteSpace: 'nowrap',
+                backdropFilter: 'blur(4px)',
+                boxShadow: currentAction === 'raid'
+                  ? '0 0 8px rgba(167,139,250,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                  : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+              }}
+            >
+              🏴 The Well
+            </button>
+          </Html>
+        )}
+      </Suspense>
 
-      {/* Ready sword — floats near the attack target while local player has it selected */}
-      {currentAction === 'attack' && attackTarget && (() => {
-        const myPos  = posMapRef.current.get(playerName);
-        const tgtPos = posMapRef.current.get(attackTarget);
-        if (!myPos || !tgtPos) return null;
-        const fp: [number, number, number] = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
-        const tp: [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
-        return (
+      {/* Stage 4: Well/lobby crown (floats above current well winner) */}
+      <Suspense fallback={null}>
+        <WellCrown worldPosition={wellCrownPosition} />
+      </Suspense>
+
+      {/* Stage 5: Sword and shield combat effects */}
+      <Suspense fallback={null}>
+        {currentAction === 'attack' && attackTarget && (() => {
+          const myPos  = posMapRef.current.get(playerName);
+          const tgtPos = posMapRef.current.get(attackTarget);
+          if (!myPos || !tgtPos) return null;
+          const fp: [number, number, number] = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
+          const tp: [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
+          return (
+            <SwordEffect
+              key={`ready-${attackTarget}`}
+              fromPosition={fp}
+              toPosition={tp}
+              mode="ready"
+            />
+          );
+        })()}
+
+        {strikeEvents.map((ev) => (
           <SwordEffect
-            key={`ready-${attackTarget}`}
-            fromPosition={fp}
-            toPosition={tp}
-            mode="ready"
+            key={ev.id}
+            fromPosition={ev.fromPos}
+            toPosition={ev.toPos}
+            mode="execute"
+            postImpact={ev.postImpact}
+            onStrike={() => {
+              if (ev.targetDefended && !ev.isIncoming) {
+                const rotY = Math.atan2(ev.fromPos[0] - ev.toPos[0], ev.fromPos[2] - ev.toPos[2]);
+                const sid  = `shield-${ev.id}`;
+                setImpactShields((s) => [...s, { id: sid, pos: ev.toPos, rotY }]);
+                const postDurSec = ev.postImpact === 'bounce' ? BOUNCE_DUR : 0;
+                const holdMs = (HOLD_DUR + postDurSec) * 1000 + 200;
+                setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), holdMs);
+              }
+              if (ev.flashPosition) {
+                const fid = `fl-sword-${ev.id}`;
+                setHitFlashEvents((s) => [...s, { id: fid, position: ev.flashPosition! }]);
+                setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
+              }
+            }}
+            onDone={() => {
+              if (ev.postImpact === 'bounce' && ev.bounceFlashPos) {
+                const fid = `fl-bounce-${ev.id}`;
+                setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
+                setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
+              }
+              setStrikeEvents((s) => s.filter((x) => x.id !== ev.id));
+            }}
           />
-        );
-      })()}
+        ))}
 
-      {/* Executing sword strike animations (triggered at round transition) */}
-      {strikeEvents.map((ev) => (
-        <SwordEffect
-          key={ev.id}
-          fromPosition={ev.fromPos}
-          toPosition={ev.toPos}
-          mode="execute"
-          postImpact={ev.postImpact}
-          onStrike={() => {
-            if (ev.targetDefended && !ev.isIncoming) {
-              // ev.toPos is already the shield position (in front of the defender).
-              const rotY = Math.atan2(ev.fromPos[0] - ev.toPos[0], ev.fromPos[2] - ev.toPos[2]);
-              const sid  = `shield-${ev.id}`;
-              setImpactShields((s) => [...s, { id: sid, pos: ev.toPos, rotY }]);
-              const postDurSec = ev.postImpact === 'bounce' ? BOUNCE_DUR : 0;
-              const holdMs = (HOLD_DUR + postDurSec) * 1000 + 200;
-              setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), holdMs);
-            }
-            if (ev.flashPosition) {
-              const fid = `fl-sword-${ev.id}`;
-              setHitFlashEvents((s) => [...s, { id: fid, position: ev.flashPosition! }]);
-              setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
-            }
-          }}
-          onDone={() => {
-            // Reflected attacks: fire the attacker's red aura when the bounce lands,
-            // not when the round transitions.
-            if (ev.postImpact === 'bounce' && ev.bounceFlashPos) {
-              const fid = `fl-bounce-${ev.id}`;
-              setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
-              setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
-            }
-            setStrikeEvents((s) => s.filter((x) => x.id !== ev.id));
-          }}
-        />
-      ))}
+        {impactShields.map((s) => (
+          <ShieldEffect key={s.id} localSpace={false} worldPosition={s.pos} worldRotationY={s.rotY} />
+        ))}
+      </Suspense>
 
-      {/* Impact shield — appears at the target's position when a defended player is struck */}
-      {impactShields.map((s) => (
-        <ShieldEffect key={s.id} localSpace={false} worldPosition={s.pos} worldRotationY={s.rotY} />
-      ))}
-
-      {/* Red aura — expands and fades around any character that takes damage */}
+      {/* Red aura — pure geometry, no model; renders immediately */}
       {hitFlashEvents.map((f) => (
         <AuraFlash key={f.id} position={f.position} />
       ))}
 
-      <WinnerCrown worldPosition={crownPosition} />
-      <WellCrown worldPosition={wellCrownPosition} />
-      <Environment preset="sunset" />
+      {/* Stage 6: Game-winning crown */}
+      <Suspense fallback={null}>
+        <WinnerCrown worldPosition={crownPosition} />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <Environment preset="sunset" />
+      </Suspense>
     </>
   );
 }
