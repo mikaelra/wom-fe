@@ -254,6 +254,16 @@ export default function WorldMapOverlay() {
       <div className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-end gap-2 px-3 py-2 pointer-events-none">
         {/* Right: player info */}
         <div className="pointer-events-auto flex items-center gap-3">
+          {!isLoggedIn && (
+            <RopedButton3D
+              width={200}
+              height={70}
+              onClick={() => router.push('/login')}
+              ariaLabel="Log in"
+            >
+              Log in
+            </RopedButton3D>
+          )}
           {isLoggedIn && (
             <div className="relative" ref={userMenuRef}>
               <RopedButton3D
@@ -308,7 +318,7 @@ export default function WorldMapOverlay() {
       </div>
 
       {/* Bottom: lobby controls */}
-      <div className="absolute bottom-44 left-0 right-0 z-20 flex flex-col items-center gap-4 pointer-events-none">
+      <div className="absolute bottom-8 left-0 right-0 z-20 flex flex-col items-center gap-4 pointer-events-none">
         <div className="pointer-events-auto flex flex-wrap justify-center items-center px-3">
           <RopedInput3D width={410} height={70}>
             <input
@@ -321,7 +331,7 @@ export default function WorldMapOverlay() {
               className="h-full bg-transparent text-white placeholder-white/70 focus:outline-none text-sm font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             />
           </RopedInput3D>
-          <span className="ml-6">
+          <span>
             <RopedButton3D
               width={290}
               height={70}

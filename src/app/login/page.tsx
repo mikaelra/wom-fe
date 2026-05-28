@@ -145,11 +145,14 @@ export default function LoginPage() {
           </>
         )}
 
-        <p className="mt-4 text-center">
+        <div className="mt-4 flex justify-between">
           <Link href="/" className="text-blue-600 underline">
             ← Back to Home
           </Link>
-        </p>
+          <Link href="/signup" className="text-blue-600 underline">
+            Create user
+          </Link>
+        </div>
       </div>
     </div>
   );
