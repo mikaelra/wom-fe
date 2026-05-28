@@ -254,6 +254,16 @@ export default function WorldMapOverlay() {
       <div className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-end gap-2 px-3 py-2 pointer-events-none">
         {/* Right: player info */}
         <div className="pointer-events-auto flex items-center gap-3">
+          {!isLoggedIn && (
+            <RopedButton3D
+              width={200}
+              height={70}
+              onClick={() => router.push('/login')}
+              ariaLabel="Log in"
+            >
+              Log in
+            </RopedButton3D>
+          )}
           {isLoggedIn && (
             <div className="relative" ref={userMenuRef}>
               <RopedButton3D
