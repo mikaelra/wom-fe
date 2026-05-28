@@ -319,14 +319,16 @@ export default function WorldMapOverlay() {
 
       {/* Bottom: lobby controls */}
       <div className="absolute bottom-8 left-0 right-0 z-20 flex flex-col items-center gap-4 pointer-events-none">
-        <div className="pointer-events-auto flex flex-wrap justify-center items-center px-3">
+        <form
+          className="pointer-events-auto flex flex-wrap justify-center items-center px-3"
+          onSubmit={(e) => { e.preventDefault(); handleJoinLobby(); }}
+        >
           <RopedInput3D width={410} height={70}>
             <input
               type="text"
               placeholder="Enter lobby code..."
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleJoinLobby()}
               style={{ width: '70%' }}
               className="h-full bg-transparent text-white placeholder-white/70 focus:outline-none text-sm font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             />
@@ -343,7 +345,7 @@ export default function WorldMapOverlay() {
               Join Lobby
             </RopedButton3D>
           </span>
-        </div>
+        </form>
         <div className="pointer-events-auto flex justify-center">
           <RopedButton3D
             width={325}
