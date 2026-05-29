@@ -28,10 +28,14 @@ import type { LobbyState, Player } from '@/types/game';
 
 const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
 
-// Camera with fly-in and drag-to-pan (full 360° yaw, large pitch range, no snap-back)
+// Camera controller — snaps to target immediately on mount so Html buttons appear in the
+// correct screen position before any models load, then tracks resize / pan smoothly.
 function CameraFlyIn() {
   const { camera, size } = useThree();
-  const currentPosition = useRef(new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z));
+  // Start at the target position (not the Canvas default [33,26,33]) so there is no fly-in
+  // delay and Html elements are projected correctly on the very first frame.
+  const [tx, ty, tz] = getCameraTargetPosition(size.width, size.height);
+  const currentPosition = useRef(new THREE.Vector3(tx, ty, tz));
   const panOffset = usePanOffset();
 
   useFrame(() => {
@@ -106,6 +110,28 @@ function WellCrown({ worldPosition }: { worldPosition: [number, number, number] 
 }
 
 
+// Holds only the GLB-dependent parts of a player slot so it can be Suspense-wrapped
+// independently of the HTML UI (names / action buttons) rendered by PlayerWithName.
+function PlayerModelLayer({ modelUrl, isBoss, isAnimating, showShield }: {
+  modelUrl: string;
+  isBoss: boolean;
+  isAnimating: boolean;
+  showShield?: boolean;
+}) {
+  return (
+    <>
+      <PlayerV1
+        url={modelUrl}
+        scale={isBoss ? 1.44 : 0.6}
+        position={[0, 0, 0]}
+        rotation={[0, 0, 0]}
+        isAnimating={isAnimating}
+      />
+      {showShield && <ShieldEffect />}
+    </>
+  );
+}
+
 function PlayerWithName({
   name,
   position,
@@ -161,14 +187,10 @@ function PlayerWithName({
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   return (
     <group position={position} rotation={rotation}>
-      <PlayerV1
-        url={modelUrl}
-        scale={isBoss ? 1.44 : 0.6}
-        position={[0, 0, 0]}
-        rotation={[0, 0, 0]}
-        isAnimating={isAnimating}
-      />
-      {showShield && <ShieldEffect />}
+      {/* 3D model — lazy; suspends until GLB is ready */}
+      <Suspense fallback={null}>
+        <PlayerModelLayer modelUrl={modelUrl} isBoss={!!isBoss} isAnimating={isAnimating} showShield={showShield} />
+      </Suspense>
       {chatBubble && (
         <Html position={[0, 1.3, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <div style={{
@@ -430,6 +452,13 @@ const LOST_SOUL_POSITIONS: [number, number, number][] = [
   [0.3, 4.4, -2.3],
 ];
 
+// GLB-only sub-component so Suspense can wrap the model without blocking the HTML labels.
+function LostSoulMesh() {
+  const { scene } = useGLTF('/models/lost_soul_v2.glb');
+  const sceneClone = useMemo(() => scene.clone(), [scene]);
+  return <primitive object={sceneClone} scale={0.4} />;
+}
+
 function LostSoulModel({
   name,
   position,
@@ -445,8 +474,6 @@ function LostSoulModel({
   isAttackSelected?: boolean;
   actionCue?: string;
 }) {
-  const { scene } = useGLTF('/models/lost_soul_v2.glb');
-  const sceneClone = useMemo(() => scene.clone(), [scene]);
   const ref = useRef<THREE.Group>(null);
 
   useFrame((state) => {
@@ -457,7 +484,10 @@ function LostSoulModel({
 
   return (
     <group ref={ref} position={position}>
-      <primitive object={sceneClone} scale={0.4} />
+      {/* 3D model — lazy; name label and attack button render immediately */}
+      <Suspense fallback={null}>
+        <LostSoulMesh />
+      </Suspense>
       <Html
         position={[0, 0.6, 0]}
         center
@@ -983,94 +1013,96 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         <Mountain scale={150} position={[40, -282, 62]} />
       </Suspense>
 
-      {/* Stage 2: Player characters (frogs, Hades, turtle, lost souls) */}
-      <Suspense fallback={null}>
-        {players.map((player, i) => {
-          const slot = PLAYER_POSITIONS[i];
-          if (!slot) return null;
-          const { position, rotation } = slot;
-          const isDead = (player.hp ?? 0) <= 0;
-          const isWinner = winner === player.name;
-          const isOpponent = player.name !== playerName;
-          const isBoss = !!player.boss;
-          const isOwnPlayer = player.name === playerName;
-          const playerRotation: [number, number, number] = [rotation[0], rotation[1] + Math.PI / 2, rotation[2]];
-          return (
-            <PlayerWithName
-              key={player.name}
-              name={player.name}
-              position={position}
-              rotation={playerRotation}
-              isAnimating={true}
-              isDead={isDead}
-              isWinner={!!isWinner}
-              isBoss={isBoss}
-              bossHp={isBoss ? player.hp : undefined}
-              bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
-              bossTitle={isBoss ? player.title : undefined}
-              frogSkinUrl={skinMap.get(player.name)}
-              showAttackButton={showAttackButtons && isOpponent && !isDead}
-              onAttack={() => handleAttack(player.name)}
-              isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
-              actionCue={actionCue}
-              chatBubble={chatBubbles.get(player.name)}
-              showOwnActions={isOwnPlayer && showAttackButtons && !isDead}
-              currentAction={currentAction}
-              currentResource={localResource}
-              myPlayerData={isOwnPlayer ? myPlayer : undefined}
-              onDefend={handleDefend}
-              onResource={handleResource}
-              resourceCue={resourceCue}
-              showShield={isOwnPlayer && currentAction === 'defend'}
-            />
-          );
-        })}
+      {/* Player names, action buttons, and resource cards — immediate, no model dependency.
+          Each PlayerWithName handles its own internal Suspense for the GLB. */}
+      {players.map((player, i) => {
+        const slot = PLAYER_POSITIONS[i];
+        if (!slot) return null;
+        const { position, rotation } = slot;
+        const isDead = (player.hp ?? 0) <= 0;
+        const isWinner = winner === player.name;
+        const isOpponent = player.name !== playerName;
+        const isBoss = !!player.boss;
+        const isOwnPlayer = player.name === playerName;
+        const playerRotation: [number, number, number] = [rotation[0], rotation[1] + Math.PI / 2, rotation[2]];
+        return (
+          <PlayerWithName
+            key={player.name}
+            name={player.name}
+            position={position}
+            rotation={playerRotation}
+            isAnimating={true}
+            isDead={isDead}
+            isWinner={!!isWinner}
+            isBoss={isBoss}
+            bossHp={isBoss ? player.hp : undefined}
+            bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
+            bossTitle={isBoss ? player.title : undefined}
+            frogSkinUrl={skinMap.get(player.name)}
+            showAttackButton={showAttackButtons && isOpponent && !isDead}
+            onAttack={() => handleAttack(player.name)}
+            isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
+            actionCue={actionCue}
+            chatBubble={chatBubbles.get(player.name)}
+            showOwnActions={isOwnPlayer && showAttackButtons && !isDead}
+            currentAction={currentAction}
+            currentResource={localResource}
+            myPlayerData={isOwnPlayer ? myPlayer : undefined}
+            onDefend={handleDefend}
+            onResource={handleResource}
+            resourceCue={resourceCue}
+            showShield={isOwnPlayer && currentAction === 'defend'}
+          />
+        );
+      })}
 
-        {lostSouls.map((soul, i) => {
-          const pos = LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length];
-          const isDead = (soul.hp ?? 0) <= 0;
-          return (
-            <LostSoulModel
-              key={soul.name}
-              name={soul.name}
-              position={pos}
-              showAttackButton={showAttackButtons && !isDead}
-              onAttack={() => handleAttack(soul.name)}
-              isAttackSelected={currentAction === 'attack' && attackTarget === soul.name}
-              actionCue={actionCue}
-            />
-          );
-        })}
-      </Suspense>
+      {/* Lost soul names + attack buttons — immediate; mesh loads lazily inside LostSoulModel */}
+      {lostSouls.map((soul, i) => {
+        const pos = LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length];
+        const isDead = (soul.hp ?? 0) <= 0;
+        return (
+          <LostSoulModel
+            key={soul.name}
+            name={soul.name}
+            position={pos}
+            showAttackButton={showAttackButtons && !isDead}
+            onAttack={() => handleAttack(soul.name)}
+            isAttackSelected={currentAction === 'attack' && attackTarget === soul.name}
+            actionCue={actionCue}
+          />
+        );
+      })}
 
-      {/* Stage 3: Well model + raid button */}
+      {/* Well (raid) button — immediate; the Table GLB loads separately below */}
+      {showAttackButtons && (
+        <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+          <button
+            onClick={handleRaid}
+            style={{
+              pointerEvents: 'auto',
+              cursor: 'pointer',
+              padding: '14px 28px',
+              fontSize: '26px',
+              fontWeight: 'bold',
+              color: currentAction === 'raid' ? '#ffffff' : '#d8b4fe',
+              background: currentAction === 'raid' ? 'rgba(126,34,206,0.95)' : 'rgba(46,16,101,0.85)',
+              border: currentAction === 'raid' ? '2px solid #d8b4fe' : '2px solid #7e22ce',
+              borderRadius: '8px',
+              whiteSpace: 'nowrap',
+              backdropFilter: 'blur(4px)',
+              boxShadow: currentAction === 'raid'
+                ? '0 0 8px rgba(167,139,250,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+            }}
+          >
+            🏴 The Well
+          </button>
+        </Html>
+      )}
+
+      {/* Stage 2: Well/Table model */}
       <Suspense fallback={null}>
         <Table position={TABLE_POSITION} scale={1.2} />
-        {showAttackButtons && (
-          <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
-            <button
-              onClick={handleRaid}
-              style={{
-                pointerEvents: 'auto',
-                cursor: 'pointer',
-                padding: '14px 28px',
-                fontSize: '26px',
-                fontWeight: 'bold',
-                color: currentAction === 'raid' ? '#ffffff' : '#d8b4fe',
-                background: currentAction === 'raid' ? 'rgba(126,34,206,0.95)' : 'rgba(46,16,101,0.85)',
-                border: currentAction === 'raid' ? '2px solid #d8b4fe' : '2px solid #7e22ce',
-                borderRadius: '8px',
-                whiteSpace: 'nowrap',
-                backdropFilter: 'blur(4px)',
-                boxShadow: currentAction === 'raid'
-                  ? '0 0 8px rgba(167,139,250,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                  : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-              }}
-            >
-              🏴 The Well
-            </button>
-          </Html>
-        )}
       </Suspense>
 
       {/* Stage 4: Well/lobby crown (floats above current well winner) */}
