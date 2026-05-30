@@ -116,6 +116,7 @@ function makeFresnelMat() {
 // Preload async textures early so they are likely cached by the time their
 // phase is reached.
 useTexture.preload('/textures/moon/moonmap1k.jpg');
+useTexture.preload('/textures/sun/sunmap.jpg');
 useTexture.preload('/textures/stars/circle.png');
 
 // ── Real starfield ─────────────────────────────────────────────────────────
@@ -270,6 +271,42 @@ function MoonBody({ position }: { position: THREE.Vector3 }) {
   );
 }
 
+// ── Sun mesh — bright sphere with an additive-blended texture overlay ─────
+// Inner sphere holds the brightness; the outer textured shell only ADDS
+// light, so the core stays bright and texture detail blooms on top.
+
+function SunBody({ position }: { position: THREE.Vector3 }) {
+  const sunMap = useTexture('/textures/sun/sunmap.jpg');
+  return (
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[2, 32, 32]} />
+        <meshBasicMaterial color={0xfff7c2} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[2.01, 64, 64]} />
+        <meshBasicMaterial
+          map={sunMap}
+          transparent
+          opacity={1}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[2.5, 32, 32]} />
+        <meshBasicMaterial
+          color={0xf58e27}
+          transparent
+          opacity={0.4}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 // ── Sun directional light (always on, drifts with the sky) ────────────────
 // Extracted from PlanetSprites so the Globe is lit before planets appear.
 
@@ -360,9 +397,14 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
       )}
 
       {phase >= 5 && (
-        <sprite position={posSun} scale={[8.0, 8.0, 1]}>
-          <spriteMaterial map={texSun} transparent depthWrite={false} />
-        </sprite>
+        <>
+          <Suspense fallback={null}>
+            <SunBody position={posSun} />
+          </Suspense>
+          <sprite position={posSun} scale={[8.0, 8.0, 1]}>
+            <spriteMaterial map={texSun} transparent depthWrite={false} />
+          </sprite>
+        </>
       )}
 
       {phase >= 6 && (
