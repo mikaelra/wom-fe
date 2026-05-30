@@ -10,6 +10,7 @@ import GlobeCrackleEffect from './GlobeCrackleEffect';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
 import { isLowQuality } from '@/lib/deviceQuality';
+import { isSlowNetwork } from '@/lib/networkQuality';
 import { setGlobeSpin } from '@/lib/globeSpin';
 
 const GLOBE_RADIUS = 2.5;
@@ -113,19 +114,36 @@ function makeFresnelMat() {
   });
 }
 
+// Pick lower-res assets when either the device is underpowered or the network
+// is slow. Both signals converge on "ship smaller textures".
+const lowResAssets = (): boolean => isLowQuality() || isSlowNetwork();
+
+const jupiterTexturePath = (): string =>
+  lowResAssets() ? '/textures/jupiter/jupiter2_1k.jpg' : '/textures/jupiter/jupiter2_4k.jpg';
+
+const milkyWayTexturePath = (): string =>
+  lowResAssets() ? '/textures/stars/MilkyWay-HD.png' : '/textures/stars/MilkyWay-extreme.png';
+
 // Preload async textures early so they are likely cached by the time their
 // phase is reached.
 useTexture.preload('/textures/moon/moonmap1k.jpg');
 useTexture.preload('/textures/sun/sunmap.jpg');
 useTexture.preload('/textures/venus/venusmap.jpg');
+useTexture.preload('/textures/mercury/mercurymap.jpg');
+useTexture.preload('/textures/mercury/mercurybump.jpg');
+useTexture.preload('/textures/mars/marsmap1k.jpg');
+useTexture.preload('/textures/saturn/saturnmap.jpg');
+useTexture.preload('/textures/saturn/saturnringcolor.jpg');
+useTexture.preload('/textures/saturn/saturnringpattern.gif');
 useTexture.preload('/textures/stars/circle.png');
+useTexture.preload(jupiterTexturePath());
 
 // ── Real starfield ─────────────────────────────────────────────────────────
 
 const Starfield = memo(function Starfield() {
   const [circleTex, milkyWayTex] = useTexture([
     '/textures/stars/circle.png',
-    '/textures/stars/MilkyWay-HD.png',
+    milkyWayTexturePath(),
   ]);
 
   // Fixed: horizontal flip via repeat + offset so the Milky Way is no longer mirrored
@@ -308,6 +326,143 @@ function SunBody({ position }: { position: THREE.Vector3 }) {
   );
 }
 
+// ── Jupiter mesh — textured planet body ───────────────────────────────────
+
+function JupiterBody({ position }: { position: THREE.Vector3 }) {
+  const jupiterMap = useTexture(jupiterTexturePath());
+  return (
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[0.5, 32, 32]} />
+        <meshPhongMaterial map={jupiterMap} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[0.64, 32, 32]} />
+        <meshBasicMaterial
+          color={0x008296}
+          transparent
+          opacity={0.4}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+// ── Mercury mesh — textured planet body with bump map + amber glow shell ──
+
+function MercuryBody({ position }: { position: THREE.Vector3 }) {
+  const [mercuryMap, mercuryBump] = useTexture([
+    '/textures/mercury/mercurymap.jpg',
+    '/textures/mercury/mercurybump.jpg',
+  ]);
+  return (
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[0.20, 32, 32]} />
+        <meshPhongMaterial map={mercuryMap} bumpMap={mercuryBump} bumpScale={0.01} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[0.26, 32, 32]} />
+        <meshBasicMaterial
+          color={0xDB9504}
+          transparent
+          opacity={0.4}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+// ── Mars mesh — textured planet body with a red additive glow shell ──────
+
+function MarsBody({ position }: { position: THREE.Vector3 }) {
+  const marsMap = useTexture('/textures/mars/marsmap1k.jpg');
+  return (
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[0.25, 32, 32]} />
+        <meshPhongMaterial map={marsMap} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[0.32, 32, 32]} />
+        <meshBasicMaterial
+          color={0xFF0000}
+          transparent
+          opacity={0.4}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+// ── Saturn mesh — body + glow shell + barely-visible alpha-masked rings ──
+//
+// Ring trick: default RingGeometry UVs are a flat projection, which mangles
+// strip-style ring textures. We rewrite the UVs so U = radial position across
+// the ring (0 at inner edge, 1 at outer) and V = 0.5. That wraps the strip
+// radially the way the asset expects. The pattern GIF is bound as alphaMap so
+// real ring divisions (gaps, density variations) come through for free; low
+// opacity multiplies the whole thing down to a faint, atmospheric look.
+
+function SaturnBody({ position }: { position: THREE.Vector3 }) {
+  const [saturnMap, ringColor, ringAlpha] = useTexture([
+    '/textures/saturn/saturnmap.jpg',
+    '/textures/saturn/saturnringcolor.jpg',
+    '/textures/saturn/saturnringpattern.gif',
+  ]);
+
+  const RING_INNER = 0.27;
+  const RING_OUTER = 0.65;
+
+  const ringGeo = useMemo(() => {
+    const geo = new THREE.RingGeometry(RING_INNER, RING_OUTER, 96, 1);
+    const pos = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      const u = (v.length() - RING_INNER) / (RING_OUTER - RING_INNER);
+      geo.attributes.uv.setXY(i, u, 0.5);
+    }
+    geo.attributes.uv.needsUpdate = true;
+    return geo;
+  }, []);
+
+  return (
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[0.20, 32, 32]} />
+        <meshPhongMaterial map={saturnMap} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[0.26, 32, 32]} />
+        <meshBasicMaterial
+          color={0xA16300}
+          transparent
+          opacity={0.4}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh geometry={ringGeo} rotation={[-Math.PI / 2 + 10 * RAD, 0, 30 * RAD]}>
+        <meshBasicMaterial
+          map={ringColor}
+          alphaMap={ringAlpha}
+          transparent
+          opacity={0.25}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 // ── Venus mesh — textured planet body with a green additive glow shell ───
 
 function VenusBody({ position }: { position: THREE.Vector3 }) {
@@ -389,6 +544,137 @@ function VenusLight() {
   );
 }
 
+// ── Jupiter directional light (weak teal, drifts with the sky) ────────────
+
+function JupiterLight() {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const now      = useMemo(() => new Date(), []);
+  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Jupiter, now, OBSERVER, false, true), [now]);
+  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+
+  useFrame(() => {
+    if (lightRef.current) {
+      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
+      lightRef.current.position.applyQuaternion(_sunDriftQ);
+    }
+  });
+
+  return (
+    <directionalLight
+      ref={lightRef}
+      intensity={0.1}
+      color={0x008296}
+      position={[initPos.x, initPos.y, initPos.z]}
+    />
+  );
+}
+
+// ── Mercury directional light (weak amber, drifts with the sky) ──────────
+
+function MercuryLight() {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const now      = useMemo(() => new Date(), []);
+  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Mercury, now, OBSERVER, false, true), [now]);
+  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+
+  useFrame(() => {
+    if (lightRef.current) {
+      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
+      lightRef.current.position.applyQuaternion(_sunDriftQ);
+    }
+  });
+
+  return (
+    <directionalLight
+      ref={lightRef}
+      intensity={0.06}
+      color={0xFFBC03}
+      position={[initPos.x, initPos.y, initPos.z]}
+    />
+  );
+}
+
+// ── Mars directional light (weak red, drifts with the sky) ───────────────
+
+function MarsLight() {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const now      = useMemo(() => new Date(), []);
+  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Mars, now, OBSERVER, false, true), [now]);
+  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+
+  useFrame(() => {
+    if (lightRef.current) {
+      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
+      lightRef.current.position.applyQuaternion(_sunDriftQ);
+    }
+  });
+
+  return (
+    <directionalLight
+      ref={lightRef}
+      intensity={0.07}
+      color={0xFF0000}
+      position={[initPos.x, initPos.y, initPos.z]}
+    />
+  );
+}
+
+// ── Saturn directional light (very weak amber, drifts with the sky) ──────
+
+function SaturnLight() {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const now      = useMemo(() => new Date(), []);
+  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Saturn, now, OBSERVER, false, true), [now]);
+  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+
+  useFrame(() => {
+    if (lightRef.current) {
+      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
+      lightRef.current.position.applyQuaternion(_sunDriftQ);
+    }
+  });
+
+  return (
+    <directionalLight
+      ref={lightRef}
+      intensity={0.03}
+      color={0xA16300}
+      position={[initPos.x, initPos.y, initPos.z]}
+    />
+  );
+}
+
+// ── Moon directional light (subtle purple, scales with lunar phase) ───────
+// Intensity is 0.10 at new moon, 0.25 at full moon, linear in illuminated
+// fraction. Computed once at mount — fine for a session-length scene.
+
+function MoonLight() {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const now      = useMemo(() => new Date(), []);
+  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Moon, now, OBSERVER, false, true), [now]);
+  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+  const intensity = useMemo(() => {
+    const illum = Astronomy.Illumination(Astronomy.Body.Moon, now);
+    return 0.05 + 0.05 * illum.phase_fraction;
+  }, [now]);
+
+  useFrame(() => {
+    if (lightRef.current) {
+      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
+      lightRef.current.position.applyQuaternion(_sunDriftQ);
+    }
+  });
+
+  return (
+    <directionalLight
+      ref={lightRef}
+      intensity={intensity}
+      color={0xA300B5}
+      position={[initPos.x, initPos.y, initPos.z]}
+    />
+  );
+}
+
 // ── Planet sprites (progressive, inside a shared drifting group) ───────────
 //
 // phase mapping (matches WorldMap's outer phase counter):
@@ -435,9 +721,14 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
       )}
 
       {phase >= 3 && (
-        <sprite position={posMerc} scale={[0.66, 0.66, 1]}>
-          <spriteMaterial map={texMerc} transparent depthWrite={false} />
-        </sprite>
+        <>
+          <Suspense fallback={null}>
+            <MercuryBody position={posMerc} />
+          </Suspense>
+          <sprite position={posMerc} scale={[0.66, 0.66, 1]}>
+            <spriteMaterial map={texMerc} transparent depthWrite={false} />
+          </sprite>
+        </>
       )}
 
       {phase >= 4 && (
@@ -463,21 +754,36 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
       )}
 
       {phase >= 6 && (
-        <sprite position={posMars} scale={[0.825, 0.825, 1]}>
-          <spriteMaterial map={texMars} transparent depthWrite={false} />
-        </sprite>
+        <>
+          <Suspense fallback={null}>
+            <MarsBody position={posMars} />
+          </Suspense>
+          <sprite position={posMars} scale={[0.825, 0.825, 1]}>
+            <spriteMaterial map={texMars} transparent depthWrite={false} />
+          </sprite>
+        </>
       )}
 
       {phase >= 7 && (
-        <sprite position={posJup} scale={[1.65, 1.65, 1]}>
-          <spriteMaterial map={texJup} transparent depthWrite={false} />
-        </sprite>
+        <>
+          <Suspense fallback={null}>
+            <JupiterBody position={posJup} />
+          </Suspense>
+          <sprite position={posJup} scale={[1.65, 1.65, 1]}>
+            <spriteMaterial map={texJup} transparent depthWrite={false} />
+          </sprite>
+        </>
       )}
 
       {phase >= 8 && (
-        <sprite position={posSat} scale={[0.66, 0.66, 1]}>
-          <spriteMaterial map={texSat} transparent depthWrite={false} />
-        </sprite>
+        <>
+          <Suspense fallback={null}>
+            <SaturnBody position={posSat} />
+          </Suspense>
+          <sprite position={posSat} scale={[0.66, 0.66, 1]}>
+            <spriteMaterial map={texSat} transparent depthWrite={false} />
+          </sprite>
+        </>
       )}
     </group>
   );
@@ -500,10 +806,11 @@ function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
     return new THREE.Vector3(x, y, z);
   }, []);
 
-  // Use 1k earth textures on low-end devices (~6 MB → ~640 KB), 4k otherwise.
-  // Cloud textures are the same file in both folders, so always pulled from high-res.
-  const earthDir = isLowQuality() ? 'low-res' : 'high-res';
-  const earthSuffix = isLowQuality() ? '1k' : '4k';
+  // Use 1k earth textures on low-end devices or slow networks (~6 MB → ~640 KB),
+  // 4k otherwise. Cloud textures are the same file in both folders, so always
+  // pulled from high-res.
+  const earthDir = lowResAssets() ? 'low-res' : 'high-res';
+  const earthSuffix = lowResAssets() ? '1k' : '4k';
   const [earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans] = useTexture([
     `/textures/earth/${earthDir}/00_earthmap${earthSuffix}.jpg`,
     `/textures/earth/${earthDir}/02_earthspec${earthSuffix}.jpg`,
@@ -533,7 +840,7 @@ function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
       map: cloudsMap,
       alphaMap: cloudsTrans,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.4,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     }),
@@ -704,7 +1011,12 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
 
       {/* Always-on directional light so the Globe is lit from phase 1. */}
       {phase >= 1 && <SunLight />}
+      {phase >= 2 && <MoonLight />}
+      {phase >= 3 && <MercuryLight />}
       {phase >= 4 && <VenusLight />}
+      {phase >= 6 && <MarsLight />}
+      {phase >= 7 && <JupiterLight />}
+      {phase >= 8 && <SaturnLight />}
 
       {/* Globe — wrapped in its own Suspense so it appears as soon as its
           textures are ready without waiting for moon/star textures. */}
