@@ -32,6 +32,20 @@ export function gmstHours(date: Date): number {
   return Astronomy.SiderealTime(date);
 }
 
+// Retrograde = geocentric ecliptic longitude moving westward (decreasing) over
+// time. Sample two points one hour apart and check the sign of Δlongitude,
+// unwrapping the 0/360° seam.
+function isRetrograde(body: Astronomy.Body, date: Date): boolean {
+  const t1 = new Astronomy.AstroTime(date);
+  const t2 = t1.AddDays(1 / 24);
+  const lon1 = Astronomy.Ecliptic(Astronomy.GeoVector(body, t1, true)).elon;
+  const lon2 = Astronomy.Ecliptic(Astronomy.GeoVector(body, t2, true)).elon;
+  let d = lon2 - lon1;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d < 0;
+}
+
 // ── RA/Dec → THREE.Vector3 ─────────────────────────────────────────────────
 
 function raDecToVec3(raHours: number, decDeg: number, radius: number): THREE.Vector3 {
@@ -357,6 +371,7 @@ function MercuryBody({ position }: { position: THREE.Vector3 }) {
     '/textures/mercury/mercurymap.jpg',
     '/textures/mercury/mercurybump.jpg',
   ]);
+  const retrograde = useMemo(() => isRetrograde(Astronomy.Body.Mercury, new Date()), []);
   return (
     <group position={position}>
       <mesh>
@@ -366,7 +381,7 @@ function MercuryBody({ position }: { position: THREE.Vector3 }) {
       <mesh>
         <sphereGeometry args={[0.26, 32, 32]} />
         <meshBasicMaterial
-          color={0xDB9504}
+          color={retrograde ? 0xCE70FF : 0xDB9504}
           transparent
           opacity={0.4}
           blending={THREE.AdditiveBlending}
@@ -576,6 +591,7 @@ function MercuryLight() {
   const now      = useMemo(() => new Date(), []);
   const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Mercury, now, OBSERVER, false, true), [now]);
   const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+  const retrograde = useMemo(() => isRetrograde(Astronomy.Body.Mercury, now), [now]);
 
   useFrame(() => {
     if (lightRef.current) {
@@ -588,7 +604,7 @@ function MercuryLight() {
     <directionalLight
       ref={lightRef}
       intensity={0.06}
-      color={0xFFBC03}
+      color={retrograde ? 0xCE70FF : 0xFFBC03}
       position={[initPos.x, initPos.y, initPos.z]}
     />
   );
