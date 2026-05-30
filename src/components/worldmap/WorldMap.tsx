@@ -117,6 +117,7 @@ function makeFresnelMat() {
 // phase is reached.
 useTexture.preload('/textures/moon/moonmap1k.jpg');
 useTexture.preload('/textures/sun/sunmap.jpg');
+useTexture.preload('/textures/venus/venusmap.jpg');
 useTexture.preload('/textures/stars/circle.png');
 
 // ── Real starfield ─────────────────────────────────────────────────────────
@@ -307,6 +308,30 @@ function SunBody({ position }: { position: THREE.Vector3 }) {
   );
 }
 
+// ── Venus mesh — textured planet body with a green additive glow shell ───
+
+function VenusBody({ position }: { position: THREE.Vector3 }) {
+  const venusMap = useTexture('/textures/venus/venusmap.jpg');
+  return (
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[0.25, 32, 32]} />
+        <meshBasicMaterial map={venusMap} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[0.32, 32, 32]} />
+        <meshBasicMaterial
+          color={0xAB9D00}
+          transparent
+          opacity={0.4}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
+  );
+}
+
 // ── Sun directional light (always on, drifts with the sky) ────────────────
 // Extracted from PlanetSprites so the Globe is lit before planets appear.
 
@@ -334,6 +359,31 @@ function SunLight() {
       ref={lightRef}
       intensity={1.5}
       color={0xffffff}
+      position={[initPos.x, initPos.y, initPos.z]}
+    />
+  );
+}
+
+// ── Venus directional light (very weak, drifts with the sky) ──────────────
+
+function VenusLight() {
+  const lightRef = useRef<THREE.DirectionalLight>(null);
+  const now      = useMemo(() => new Date(), []);
+  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Venus, now, OBSERVER, false, true), [now]);
+  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+
+  useFrame(() => {
+    if (lightRef.current) {
+      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
+      lightRef.current.position.applyQuaternion(_sunDriftQ);
+    }
+  });
+
+  return (
+    <directionalLight
+      ref={lightRef}
+      intensity={0.075}
+      color={0xAB9D00}
       position={[initPos.x, initPos.y, initPos.z]}
     />
   );
@@ -391,9 +441,14 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
       )}
 
       {phase >= 4 && (
-        <sprite position={posVen} scale={[0.825, 0.825, 1]}>
-          <spriteMaterial map={texVenus} transparent depthWrite={false} />
-        </sprite>
+        <>
+          <Suspense fallback={null}>
+            <VenusBody position={posVen} />
+          </Suspense>
+          <sprite position={posVen} scale={[0.825, 0.825, 1]}>
+            <spriteMaterial map={texVenus} transparent depthWrite={false} />
+          </sprite>
+        </>
       )}
 
       {phase >= 5 && (
@@ -649,6 +704,7 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
 
       {/* Always-on directional light so the Globe is lit from phase 1. */}
       {phase >= 1 && <SunLight />}
+      {phase >= 4 && <VenusLight />}
 
       {/* Globe — wrapped in its own Suspense so it appears as soon as its
           textures are ready without waiting for moon/star textures. */}
