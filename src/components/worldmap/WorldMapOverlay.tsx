@@ -328,7 +328,7 @@ export default function WorldMapOverlay() {
               type="text"
               placeholder="Enter lobby code..."
               value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
+              onChange={(e) => setJoinCode(e.target.value.toLowerCase())}
               style={{ width: '70%' }}
               className="h-full bg-transparent text-white placeholder-white/70 focus:outline-none text-sm font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             />

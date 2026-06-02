@@ -1,3 +1,8 @@
+// Prevent resource sounds from interrupting background music on mobile (iOS/Android)
+if (typeof navigator !== 'undefined' && 'audioSession' in navigator) {
+  (navigator as any).audioSession.type = 'ambient';
+}
+
 const RESOURCE_SOUNDS: Record<string, string> = {
   gain_hp: '/sounds/resources/GainHP.wav',
   gain_coin: '/sounds/resources/GainGold.wav',

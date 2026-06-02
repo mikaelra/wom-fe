@@ -496,7 +496,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
               Round <span key={state.round} className="round-zoom">{state.round}</span>
             </span>
             {secondsLeft !== null && secondsLeft <= 20 && !gameOver && (
-              <span className={`font-semibold ${secondsLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-yellow-400'}`}>
+              <span key={secondsLeft <= 10 ? 'red' : 'yellow'} className={`font-semibold ${secondsLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-yellow-400'}`}>
                 {secondsLeft}s
               </span>
             )}
