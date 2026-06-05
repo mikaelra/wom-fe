@@ -183,13 +183,11 @@ export default function SettingsPage() {
               className="w-5 h-5 accent-amber-500 cursor-pointer"
             />
             <span className="text-base font-semibold">
-              Show the in-game welcome tour
+              Show the in-game tutorial
             </span>
           </label>
           <p className="text-sm text-white/70 mt-3 leading-relaxed">
-            A short guided tour appears when a game starts, with tips pointing at the
-            health, action and resource buttons and The Well. You can also turn it off from
-            inside the tour.
+            Enabling this will show the in-game tutorial in a game. Can be turned off in game.
           </p>
         </div>
       </div>
