@@ -9,7 +9,7 @@ import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
-import InGameGuide from '@/components/lobby/InGameGuide';
+import InGameGuide, { type GuideTarget } from '@/components/lobby/InGameGuide';
 import { getSocket, getPlayerMessages } from '@/lib/api';
 import { parseCombatMessages } from '@/lib/parseCombatMessages';
 import { playResourceSound } from '@/lib/sounds';
@@ -160,6 +160,7 @@ function PlayerWithName({
   onResource,
   resourceCue,
   showShield,
+  highlight,
 }: {
   name: string;
   position: [number, number, number];
@@ -185,8 +186,17 @@ function PlayerWithName({
   onResource?: (res: string) => void;
   resourceCue?: string;
   showShield?: boolean;
+  highlight?: GuideTarget[];
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
+  // Welcome-tour highlights — blink the real button(s) the current slide points at.
+  const GUIDE_BLINK = 'warn-blink-gold';
+  const hl = highlight ?? [];
+  const hlAttack = hl.includes('attack') ? GUIDE_BLINK : '';
+  const hlDefend = hl.includes('defend') ? GUIDE_BLINK : '';
+  const hlHp = hl.includes('hp') ? GUIDE_BLINK : '';
+  const hlCoins = hl.includes('coins') ? GUIDE_BLINK : '';
+  const hlAtk = hl.includes('atk') ? GUIDE_BLINK : '';
   return (
     <group position={position} rotation={rotation}>
       {/* 3D model — lazy; suspends until GLB is ready */}
@@ -231,7 +241,7 @@ function PlayerWithName({
         <Html position={[0, 0.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={onAttack}
-            className={actionCue}
+            className={`${actionCue} ${hlAttack}`}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
@@ -258,7 +268,7 @@ function PlayerWithName({
         <Html position={[0, -0.1, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={onDefend}
-            className={actionCue}
+            className={`${actionCue} ${hlDefend}`}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
@@ -287,7 +297,7 @@ function PlayerWithName({
             {/* HP */}
             <button
               onClick={() => onResource?.('gain_hp')}
-              className={resourceCue}
+              className={`${resourceCue} ${hlHp}`}
               style={{
                 cursor: 'pointer',
                 padding: '10px 14px',
@@ -307,7 +317,7 @@ function PlayerWithName({
             {/* COINS */}
             <button
               onClick={() => onResource?.('gain_coin')}
-              className={resourceCue}
+              className={`${resourceCue} ${hlCoins}`}
               style={{
                 cursor: 'pointer',
                 padding: '10px 14px',
@@ -330,7 +340,7 @@ function PlayerWithName({
               return (
                 <button
                   onClick={() => !cannotAfford && onResource?.('gain_attack')}
-                  className={cannotAfford ? undefined : resourceCue}
+                  className={`${cannotAfford ? '' : resourceCue} ${hlAtk}`}
                   style={{
                     cursor: cannotAfford ? 'not-allowed' : 'pointer',
                     opacity: cannotAfford ? 0.6 : 1,
@@ -618,6 +628,7 @@ type LobbySceneProps = {
 export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange }: LobbySceneProps) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [localResource, setLocalResource] = useState('');
+  const [guideHighlight, setGuideHighlight] = useState<GuideTarget[]>([]);
   const pendingResourceRef = useRef('');
 
   // ----- Animation state -----
@@ -983,6 +994,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             onResource={handleResource}
             resourceCue={resourceCue}
             showShield={isOwnPlayer && currentAction === 'defend'}
+            highlight={guideHighlight}
           />
         );
       })}
@@ -1009,6 +1021,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={handleRaid}
+            className={guideHighlight.includes('well') ? 'warn-blink-gold' : ''}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
@@ -1035,6 +1048,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       <InGameGuide
         ownPosition={PLAYER_POSITIONS[players.findIndex((p) => p.name === playerName)]?.position ?? null}
         gameStarted={gameStarted && !!myPlayer}
+        onHighlightChange={setGuideHighlight}
       />
 
       {/* Stage 2: Well/Table model */}

@@ -8,41 +8,32 @@ import GuideBubble from './GuideBubble';
 
 type Vec3 = [number, number, number];
 
-// Where each tip anchors. Vertical offsets are rotation-agnostic, so anchoring
-// at `ownPos + (0, dy, 0)` lands beside the player's own buttons regardless of
-// seat/camera. 'well' anchors to the absolute world position of The Well button.
-type Anchor = 'above' | 'attack' | 'defend' | 'resources' | 'well';
+// Buttons the guide can highlight (blink) on a given slide. Each maps to a real
+// in-game button rendered in LobbyScene.
+export type GuideTarget = 'attack' | 'defend' | 'well' | 'hp' | 'coins' | 'atk';
 
 type Step = {
   text: ReactNode;
-  anchor: Anchor;
-  marker: boolean; // draw a pulsing highlight ring at the anchor
+  highlights: GuideTarget[];
 };
 
-// Inline styled tokens for the ATK / GOLD step.
-const ATK = <strong style={{ color: '#2563eb' }}>⚔ ATK</strong>;
-const GOLD = <strong style={{ color: '#d97706' }}>💰 GOLD</strong>;
-
 const STEPS: Step[] = [
-  { text: 'Welcome to World of Mythos! Be the last one standing!', anchor: 'above', marker: false },
-  { text: 'This is your health. When it reaches 0 or lower, you are out.', anchor: 'resources', marker: true },
-  { text: 'Each turn you must do one main action and one resource action.', anchor: 'above', marker: false },
-  { text: 'The main actions are ATTACK, WELL or DEFEND.', anchor: 'attack', marker: true },
-  { text: 'The resource actions are Gain 1 HP, Gain 1 Gold or upgrade ATK.', anchor: 'resources', marker: true },
-  { text: 'How much damage you do to enemies is determined by your ATK.', anchor: 'resources', marker: true },
-  { text: <>To upgrade your {ATK}, you need to spend your current {ATK} value in {GOLD}.</>, anchor: 'resources', marker: true },
-  { text: 'Choosing DEFEND gives you a 50% chance to block all incoming attacks…', anchor: 'defend', marker: true },
-  { text: '…and a 10% chance of REFLECTING the attack back to your attacker!', anchor: 'defend', marker: true },
-  { text: 'The WELL is where you go to play the game of chance.', anchor: 'well', marker: true },
-  { text: 'One player wins among all those who chose the WELL.', anchor: 'well', marker: true },
-  { text: 'That player STARTS each round, shown with the crown, and gets a random prize.', anchor: 'well', marker: true },
-  { text: 'The prize can be some gold, information and many more things.', anchor: 'well', marker: true },
-  { text: 'You might get lucky and find the poisoned dagger.', anchor: 'well', marker: true },
-  { text: 'Good luck!', anchor: 'above', marker: false },
+  { text: 'Welcome to World of Mythos! Be the last one standing!', highlights: [] },
+  { text: 'This is your health. When it reaches 0 or lower, you are out.', highlights: ['hp'] },
+  { text: 'Each turn you must do one main action and one resource action.', highlights: [] },
+  { text: 'The main actions are ATTACK, WELL or DEFEND.', highlights: ['attack', 'well', 'defend'] },
+  { text: 'The resource actions are Gain 1 HP, Gain 1 Gold or upgrade ATK.', highlights: ['hp', 'coins', 'atk'] },
+  { text: 'How much damage you do to enemies is determined by your ATK.', highlights: ['atk'] },
+  { text: 'To upgrade your ATK, you need to spend your current ATK value in GOLD.', highlights: ['coins', 'atk'] },
+  { text: 'Choosing DEFEND gives you a 50% chance to block all incoming attacks…', highlights: ['defend'] },
+  { text: '…and a 10% chance of REFLECTING the attack back to your attacker!', highlights: ['defend'] },
+  { text: 'The WELL is where you go to play the game of chance.', highlights: ['well'] },
+  { text: 'One player wins among all those who chose the WELL.', highlights: ['well'] },
+  { text: 'That player STARTS each round, shown with the crown, and gets a random prize.', highlights: ['well'] },
+  { text: 'The prize can be some gold, information and many more things.', highlights: ['well'] },
+  { text: 'You might get lucky and find the poisoned dagger.', highlights: ['well'] },
+  { text: 'Good luck!', highlights: [] },
 ];
-
-// NOTE: per-step `anchor`/`marker` data is kept above for re-adding element
-// highlights one at a time later. No highlight markers render for now.
 
 // Every bubble card sits just to the left of the player. Screen-left in world
 // space for a camera orbited by `yaw` about the scene centre is (-cos yaw, 0,
@@ -59,9 +50,10 @@ function cardPos(ownPosition: Vec3 | null): Vec3 {
 type Props = {
   ownPosition: Vec3 | null;
   gameStarted: boolean;
+  onHighlightChange?: (highlights: GuideTarget[]) => void;
 };
 
-export default function InGameGuide({ ownPosition, gameStarted }: Props) {
+export default function InGameGuide({ ownPosition, gameStarted, onHighlightChange }: Props) {
   const { enabled, setEnabled, mounted } = useGuideEnabled();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
@@ -87,7 +79,15 @@ export default function InGameGuide({ ownPosition, gameStarted }: Props) {
     if (step === STEPS.length - 1) setDontShowAgain(true);
   }, [step]);
 
-  if (!mounted || !enabled || !open || !gameStarted) return null;
+  // Tell LobbyScene which real buttons to blink for the current slide.
+  const visible = mounted && enabled && open && gameStarted;
+  useEffect(() => {
+    onHighlightChange?.(visible ? STEPS[step].highlights : []);
+  }, [visible, step, onHighlightChange]);
+  // Clear highlights when the guide unmounts.
+  useEffect(() => () => onHighlightChange?.([]), [onHighlightChange]);
+
+  if (!visible) return null;
 
   const current = STEPS[step];
   const card = cardPos(ownPosition);
