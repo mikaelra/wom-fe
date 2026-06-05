@@ -129,6 +129,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [raidSecs, setRaidSecs] = useState<number | null>(null);
   const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [messagesOverflow, setMessagesOverflow] = useState(false);
+  const [messagesHidden, setMessagesHidden] = useState(false);
   const lastMessagesFlat = useRef('');
   const messagesRef = useRef<HTMLUListElement>(null);
   const messagesWrapRef = useRef<HTMLDivElement>(null);
@@ -286,7 +287,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       setMessagesOverflow(list.scrollHeight > wrap.clientHeight + 2);
     }, 50);
     return () => clearTimeout(t);
-  }, [messages, messagesExpanded]);
+  }, [messages, messagesExpanded, messagesHidden]);
 
   const isAdmin = myPlayer?.admin ?? false;
   const enemy = state?.players.find((p) => p.boss);
@@ -578,25 +579,38 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
           {messages.length > 0 && (
             <div className={`mt-2 border-t ${theme.msgBorderClass} pt-2`}>
-              <div
-                ref={messagesWrapRef}
-                className={`overflow-hidden transition-all duration-300 ${messagesExpanded ? '' : 'max-h-[4.5rem]'}`}
-              >
-                <ul ref={messagesRef} className="text-sm space-y-1">
-                  {messages.map((m, i) => (
-                    <li key={i} className={theme.msgTextClass}>{Array.isArray(m) ? m.join(' ') : m}</li>
-                  ))}
-                </ul>
-              </div>
-              {(messagesOverflow || messagesExpanded) && (
+              {!messagesHidden && (
+                <div
+                  ref={messagesWrapRef}
+                  className={`overflow-hidden transition-all duration-300 ${messagesExpanded ? '' : 'max-h-[4.5rem]'}`}
+                >
+                  <ul ref={messagesRef} className="text-sm space-y-1">
+                    {messages.map((m, i) => (
+                      <li key={i} className={theme.msgTextClass}>{Array.isArray(m) ? m.join(' ') : m}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="mt-1 flex justify-between items-center">
+                {!messagesHidden && (messagesOverflow || messagesExpanded) ? (
+                  <button
+                    type="button"
+                    onClick={() => setMessagesExpanded((e) => !e)}
+                    className={`text-xs ${theme.showMoreClass} pointer-events-auto`}
+                  >
+                    {messagesExpanded ? '▲ Show less' : '▼ Show more'}
+                  </button>
+                ) : (
+                  <span />
+                )}
                 <button
                   type="button"
-                  onClick={() => setMessagesExpanded((e) => !e)}
-                  className={`mt-1 text-xs ${theme.showMoreClass} pointer-events-auto`}
+                  onClick={() => setMessagesHidden((h) => !h)}
+                  className={`text-xs ${theme.showMoreClass} pointer-events-auto`}
                 >
-                  {messagesExpanded ? '▲ Show less' : '▼ Show more'}
+                  {messagesHidden ? 'Show' : 'Hide'}
                 </button>
-              )}
+              </div>
             </div>
           )}
 
