@@ -736,7 +736,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       {/* Deny target picker (optional) */}
       {isChoosingDeny && (
         <div
-          className="absolute pointer-events-auto"
+          className="absolute pointer-events-auto z-30"
           style={{ bottom: '4%', left: '50%', transform: 'translateX(-50%)' }}
         >
           <div className="bg-black/80 backdrop-blur-sm rounded-xl border border-amber-500/30 p-4 text-white">
