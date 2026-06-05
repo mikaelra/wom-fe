@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
+import { INITIAL_CAMERA_YAW } from '@/lib/sceneConstants';
 
 const SENSITIVITY = 0.004;
 // Prevent the camera arm from going below the table (LOBBY_LOOKAT.y).
@@ -22,7 +23,7 @@ const MAX_ZOOM = 3.0;
 export function usePanOffset() {
   const { gl } = useThree();
   const drag = useRef({ active: false, lastX: 0, lastY: 0 });
-  const offset = useRef({ yaw: 0, pitch: 0, zoom: 1 });
+  const offset = useRef({ yaw: INITIAL_CAMERA_YAW, pitch: 0, zoom: 1 });
 
   useEffect(() => {
     const el = gl.domElement;

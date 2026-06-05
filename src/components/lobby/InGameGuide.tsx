@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Html } from '@react-three/drei';
-import { SCENE_CENTER } from '@/lib/sceneConstants';
+import { SCENE_CENTER, INITIAL_CAMERA_YAW } from '@/lib/sceneConstants';
 import { useGuideEnabled } from '@/lib/useGuideEnabled';
 import GuideBubble from './GuideBubble';
 
@@ -48,6 +48,18 @@ function anchorPos(anchor: Anchor, ownPosition: Vec3 | null): Vec3 {
   return [base[0], base[1] + dy, base[2]];
 }
 
+// Every bubble card sits just to the left of the player. Screen-left in world
+// space for a camera orbited by `yaw` about the scene centre is (-cos yaw, 0,
+// sin yaw); we use INITIAL_CAMERA_YAW so the cards track the opened-up space.
+const LEFT_DIST = 1.4; // how far left of the player the card floats
+const CARD_LIFT = 0.4; // small upward nudge so it clears the player model
+function cardPos(ownPosition: Vec3 | null): Vec3 {
+  const base = ownPosition ?? SCENE_CENTER;
+  const lx = -Math.cos(INITIAL_CAMERA_YAW);
+  const lz = Math.sin(INITIAL_CAMERA_YAW);
+  return [base[0] + lx * LEFT_DIST, base[1] + CARD_LIFT, base[2] + lz * LEFT_DIST];
+}
+
 type Props = {
   ownPosition: Vec3 | null;
   gameStarted: boolean;
@@ -83,7 +95,7 @@ export default function InGameGuide({ ownPosition, gameStarted }: Props) {
 
   const current = STEPS[step];
   const marker = anchorPos(current.anchor, ownPosition);
-  const card: Vec3 = [marker[0], marker[1] + 0.75, marker[2]];
+  const card = cardPos(ownPosition);
 
   const handleClose = () => {
     setOpen(false);
