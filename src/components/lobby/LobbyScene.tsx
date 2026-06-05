@@ -9,13 +9,10 @@ import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
-import InGameGuide, { type GuideGlow, type GuideHighlights } from '@/components/lobby/InGameGuide';
-
-// Map a tour glow colour to its CSS class.
-const guideGlowClass = (g?: GuideGlow) => (g === 'blue' ? 'guide-glow-blue' : g === 'gold' ? 'guide-glow-gold' : '');
+import InGameGuide from '@/components/lobby/InGameGuide';
+import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket, getPlayerMessages } from '@/lib/api';
 import { parseCombatMessages } from '@/lib/parseCombatMessages';
-import { playResourceSound } from '@/lib/sounds';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
 import {
   TABLE_POSITION,
@@ -28,7 +25,7 @@ import {
   getResponsiveFov,
 } from '@/lib/sceneConstants';
 import { usePanOffset } from '@/lib/usePanOffset';
-import type { LobbyState, Player } from '@/types/game';
+import type { LobbyState } from '@/types/game';
 
 
 const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
@@ -157,11 +154,7 @@ function PlayerWithName({
   // own-player action UI
   showOwnActions,
   currentAction,
-  currentResource,
-  myPlayerData,
   onDefend,
-  onResource,
-  resourceCue,
   showShield,
   highlight,
 }: {
@@ -183,11 +176,7 @@ function PlayerWithName({
   frogSkinUrl?: string;
   showOwnActions?: boolean;
   currentAction?: string;
-  currentResource?: string;
-  myPlayerData?: Player;
   onDefend?: () => void;
-  onResource?: (res: string) => void;
-  resourceCue?: string;
   showShield?: boolean;
   highlight?: GuideHighlights;
 }) {
@@ -196,9 +185,6 @@ function PlayerWithName({
   const hl = highlight ?? {};
   const hlAttack = guideGlowClass(hl.attack);
   const hlDefend = guideGlowClass(hl.defend);
-  const hlHp = guideGlowClass(hl.hp);
-  const hlCoins = guideGlowClass(hl.coins);
-  const hlAtk = guideGlowClass(hl.atk);
   return (
     <group position={position} rotation={rotation}>
       {/* 3D model — lazy; suspends until GLB is ready */}
@@ -292,90 +278,13 @@ function PlayerWithName({
           </button>
         </Html>
       )}
-      {/* HP / COINS / ATK resource cards — own player only */}
-      {showOwnActions && myPlayerData && (
-        <Html position={[0, -0.6, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
-          <div style={{ display: 'flex', gap: '10px', pointerEvents: 'auto' }}>
-            {/* HP */}
-            <button
-              onClick={() => onResource?.('gain_hp')}
-              className={`${resourceCue} ${hlHp}`}
-              style={{
-                cursor: 'pointer',
-                padding: '10px 14px',
-                minWidth: '74px',
-                textAlign: 'center',
-                borderRadius: '8px',
-                backdropFilter: 'blur(4px)',
-                border: currentResource === 'gain_hp' ? '2px solid #f87171' : '2px solid rgba(239,68,68,0.5)',
-                background: currentResource === 'gain_hp' ? 'rgba(185,28,28,0.8)' : 'rgba(0,0,0,0.7)',
-                boxShadow: currentResource === 'gain_hp' ? '0 0 8px rgba(239,68,68,0.5)' : undefined,
-              }}
-            >
-              <p style={{ color: '#9ca3af', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>HP</p>
-              <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '24px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.hp}</p>
-              <p style={{ color: 'rgba(248,113,113,0.7)', fontSize: '12px', margin: 0 }}>❤ Get</p>
-            </button>
-            {/* COINS */}
-            <button
-              onClick={() => onResource?.('gain_coin')}
-              className={`${resourceCue} ${hlCoins}`}
-              style={{
-                cursor: 'pointer',
-                padding: '10px 14px',
-                minWidth: '74px',
-                textAlign: 'center',
-                borderRadius: '8px',
-                backdropFilter: 'blur(4px)',
-                border: currentResource === 'gain_coin' ? '2px solid #facc15' : '2px solid rgba(234,179,8,0.5)',
-                background: currentResource === 'gain_coin' ? 'rgba(161,98,7,0.8)' : 'rgba(0,0,0,0.7)',
-                boxShadow: currentResource === 'gain_coin' ? '0 0 8px rgba(234,179,8,0.5)' : undefined,
-              }}
-            >
-              <p style={{ color: '#9ca3af', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Coins</p>
-              <p style={{ color: '#facc15', fontWeight: 'bold', fontSize: '24px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.coins}</p>
-              <p style={{ color: 'rgba(250,204,21,0.7)', fontSize: '12px', margin: 0 }}>💰 Get</p>
-            </button>
-            {/* ATK */}
-            {(() => {
-              const cannotAfford = myPlayerData.coins < myPlayerData.attackDamage;
-              return (
-                <button
-                  onClick={() => !cannotAfford && onResource?.('gain_attack')}
-                  className={`${cannotAfford ? '' : resourceCue} ${hlAtk}`}
-                  style={{
-                    cursor: cannotAfford ? 'not-allowed' : 'pointer',
-                    opacity: cannotAfford ? 0.6 : 1,
-                    padding: '8px 12px',
-                    minWidth: '62px',
-                    textAlign: 'center',
-                    borderRadius: '8px',
-                    backdropFilter: 'blur(4px)',
-                    border: currentResource === 'gain_attack' ? '2px solid #60a5fa' : '2px solid rgba(59,130,246,0.5)',
-                    background: currentResource === 'gain_attack' ? 'rgba(29,78,216,0.8)' : 'rgba(0,0,0,0.7)',
-                    boxShadow: currentResource === 'gain_attack' ? '0 0 8px rgba(59,130,246,0.5)' : undefined,
-                    position: 'relative',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <p style={{ color: '#9ca3af', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>ATK</p>
-                  <p style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '24px', lineHeight: 1.2, margin: 0 }}>{myPlayerData.attackDamage}</p>
-                  <p style={{ color: 'rgba(96,165,250,0.7)', fontSize: '12px', margin: 0 }}>⚔ Buy</p>
-                  {cannotAfford && (
-                    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', borderRadius: '8px' }} preserveAspectRatio="none">
-                      <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
-                    </svg>
-                  )}
-                </button>
-              );
-            })()}
-          </div>
-        </Html>
-      )}
       {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
-          zIndexRange is raised above lost-soul buttons ([0,0]) so clicks land here first. */}
+          zIndexRange sits above the lost-soul/action buttons ([0,0]) so clicks land here
+          first, but stays below the CSS overlay panels (waiting lobby + round messages,
+          which use Tailwind z-10/z-20) so the card renders beneath them rather than
+          covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html position={[0, 1.5, 0]} center distanceFactor={3} zIndexRange={[100, 100]}>
+        <Html position={[0, 1.5, 0]} center distanceFactor={3} zIndexRange={[5, 5]}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
@@ -625,13 +534,14 @@ type LobbySceneProps = {
   attackTarget?: string;
   onAttackSelect?: (target: string) => void;
   onActionChange?: (action: string) => void;
+  /** Welcome-tour highlights, lifted to the page so the overlay can glow the
+   *  resource cards too. The 3D scene uses it for attack/defend/well. */
+  guideHighlight?: GuideHighlights;
+  onGuideHighlightChange?: (h: GuideHighlights) => void;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {}, onGuideHighlightChange }: LobbySceneProps) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  const [localResource, setLocalResource] = useState('');
-  const [guideHighlight, setGuideHighlight] = useState<GuideHighlights>({});
-  const pendingResourceRef = useRef('');
 
   // ----- Animation state -----
   const prevStateRef  = useRef<LobbyState | null>(null);
@@ -651,16 +561,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     }, 1000);
     return () => clearInterval(interval);
   }, [state?.round_end_time]);
-
-  // Reset resource selection each round and play the gain sound
-  useEffect(() => {
-    if (pendingResourceRef.current && (state?.round ?? 0) > 1) {
-      playResourceSound(pendingResourceRef.current);
-      pendingResourceRef.current = '';
-    }
-    setLocalResource('');
-  }, [state?.round]);
-
 
   const allPlayers = state?.players ?? [];
   const lostSouls = allPlayers.filter((p) => p.lost_soul);
@@ -753,9 +653,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const isGoldWarn = secondsLeft !== null && secondsLeft <= 10 && secondsLeft > 5;
   const isRedWarn  = secondsLeft !== null && secondsLeft <= 5;
   const actionCue  = !currentAction && showAttackButtons
-    ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '')
-    : '';
-  const resourceCue = localResource === '' && showAttackButtons
     ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '')
     : '';
 
@@ -939,12 +836,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     onActionChange?.('raid');
   };
 
-  const handleResource = (resId: string) => {
-    setLocalResource(resId);
-    pendingResourceRef.current = resId;
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, resource: resId, action: '' });
-  };
-
   return (
     <>
       <CameraFlyIn />
@@ -990,11 +881,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             chatBubble={chatBubbles.get(player.name)}
             showOwnActions={isOwnPlayer && showAttackButtons && !isDead}
             currentAction={currentAction}
-            currentResource={localResource}
-            myPlayerData={isOwnPlayer ? myPlayer : undefined}
             onDefend={handleDefend}
-            onResource={handleResource}
-            resourceCue={resourceCue}
             showShield={isOwnPlayer && currentAction === 'defend'}
             highlight={guideHighlight}
           />
@@ -1023,7 +910,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={handleRaid}
-            className={guideGlowClass(guideHighlight.well)}
+            className={guideGlowClass(guideHighlight?.well)}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
@@ -1050,7 +937,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       <InGameGuide
         ownPosition={PLAYER_POSITIONS[players.findIndex((p) => p.name === playerName)]?.position ?? null}
         gameStarted={gameStarted && !!myPlayer}
-        onHighlightChange={setGuideHighlight}
+        onHighlightChange={onGuideHighlightChange}
       />
 
       {/* Stage 2: Well/Table model */}

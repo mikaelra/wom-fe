@@ -4,16 +4,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Html } from '@react-three/drei';
 import { SCENE_CENTER, INITIAL_CAMERA_YAW } from '@/lib/sceneConstants';
 import { useGuideEnabled } from '@/lib/useGuideEnabled';
+import type { GuideHighlights } from '@/lib/guideHighlights';
 import GuideBubble from './GuideBubble';
 
 type Vec3 = [number, number, number];
-
-// Buttons the guide can highlight (blink) on a given slide. Each maps to a real
-// in-game button rendered in LobbyScene.
-export type GuideTarget = 'attack' | 'defend' | 'well' | 'hp' | 'coins' | 'atk';
-// Glow colour for a highlighted button.
-export type GuideGlow = 'blue' | 'gold';
-export type GuideHighlights = Partial<Record<GuideTarget, GuideGlow>>;
 
 type Step = {
   text: ReactNode;

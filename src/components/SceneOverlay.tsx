@@ -11,6 +11,8 @@ import {
 } from '@/lib/api';
 import type { LobbyState, Player } from '@/types/game';
 import FloatingMessage from '@/components/lobby/FloatingMessage';
+import { playResourceSound } from '@/lib/sounds';
+import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -90,9 +92,11 @@ type SceneOverlayProps = {
   externalAction?: string;
   /** Called whenever the player selects an action, so callers can sync external state */
   onActionChange?: (action: string) => void;
+  /** Welcome-tour highlights — glows the matching resource cards. */
+  guideHighlight?: GuideHighlights;
 };
 
-export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange }: SceneOverlayProps) {
+export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, guideHighlight }: SceneOverlayProps) {
   const {
     theme,
     backLabel,
@@ -117,6 +121,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [messages, setMessages] = useState<string[][]>([]);
   const [action, setAction] = useState('');
   const [resource, setResource] = useState('');
+  const pendingResourceRef = useRef('');
   const [denyTarget, setDenyTarget] = useState('');
   const [replayVoted, setReplayVoted] = useState(false);
   const [replayLoading, setReplayLoading] = useState(false);
@@ -127,9 +132,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [raidSecs, setRaidSecs] = useState<number | null>(null);
   const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [messagesOverflow, setMessagesOverflow] = useState(false);
+  const [messagesHidden, setMessagesHidden] = useState(false);
   const lastMessagesFlat = useRef('');
   const messagesRef = useRef<HTMLUListElement>(null);
-  const messagesWrapRef = useRef<HTMLDivElement>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatExpanded, setChatExpanded] = useState(false);
   const [unreadChat, setUnreadChat] = useState(false);
@@ -222,6 +227,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   }, [gameOver, state?.next_lobby_id, lobbyId, router, enableNextLobbyRedirect]);
 
   useEffect(() => {
+    // Play the gain sound for the resource picked last round, then reset selection.
+    if (pendingResourceRef.current && (state?.round ?? 0) > 1) {
+      playResourceSound(pendingResourceRef.current);
+      pendingResourceRef.current = '';
+    }
     setDenyTarget('');
     setAction('');
     setResource('');
@@ -270,16 +280,28 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     return () => clearInterval(interval);
   }, [nextRaidTime, enableRaidTimer]);
 
-  // Detect if messages overflow the collapsed container
+  // Detect if messages overflow the collapsed container. We compare the
+  // list's natural height against the fixed collapsed limit (the max-h-[4.5rem]
+  // on the wrapper) so the result is correct whether the panel is currently
+  // expanded or collapsed. Re-measure via ResizeObserver and once web fonts
+  // settle, otherwise a stale snapshot can leave "Show more" showing when
+  // there is nothing more to reveal.
   useEffect(() => {
-    if (!messagesWrapRef.current || !messagesRef.current) return;
-    const wrap = messagesWrapRef.current;
     const list = messagesRef.current;
-    const t = setTimeout(() => {
-      setMessagesOverflow(list.scrollHeight > wrap.clientHeight + 2);
-    }, 50);
-    return () => clearTimeout(t);
-  }, [messages, messagesExpanded]);
+    if (!list) return;
+
+    const measure = () => {
+      const rootFont = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const collapsedLimit = rootFont * 4.5; // matches max-h-[4.5rem]
+      setMessagesOverflow(list.scrollHeight > collapsedLimit + 2);
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(list);
+    document.fonts?.ready.then(measure).catch(() => {});
+    return () => ro.disconnect();
+  }, [messages, messagesHidden]);
 
   const isAdmin = myPlayer?.admin ?? false;
   const enemy = state?.players.find((p) => p.boss);
@@ -311,6 +333,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   const handleResource = (resId: string) => {
     setResource(resId);
+    pendingResourceRef.current = resId;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, resource: resId, action: '' });
   };
 
@@ -377,6 +400,72 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   const handleChatFocus = () => {
     if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
+  };
+
+  // HP / Coins / ATK cards. Rendered at the top-of-arena position when the
+  // overlay owns the action UI, and pinned to the bottom of the screen when the
+  // 3D scene owns the player buttons (lobby) — see render sites below.
+  const renderResourceCards = (player: Player) => {
+    const cannotAffordAtk = player.coins < player.attackDamage;
+    return (
+      <>
+        <button
+          type="button"
+          disabled={!showActions}
+          onClick={() => handleResource('gain_hp')}
+          className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
+            ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+            ${resourceCue} ${guideGlowClass(guideHighlight?.hp)}
+            ${resource === 'gain_hp'
+              ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+              : 'bg-black/70 border-red-500/50 hover:bg-red-950/80 hover:border-red-400/80 hover:shadow-[0_0_6px_rgba(239,68,68,0.3)]'
+            }`}
+        >
+          <p className="text-gray-400 text-xs uppercase tracking-wide">HP</p>
+          <p className="text-red-400 font-bold text-xl leading-tight">{player.hp}</p>
+          <p className="text-red-400/70 text-xs">❤ Get</p>
+        </button>
+        <button
+          type="button"
+          disabled={!showActions}
+          onClick={() => handleResource('gain_coin')}
+          className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
+            ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+            ${resourceCue} ${guideGlowClass(guideHighlight?.coins)}
+            ${resource === 'gain_coin'
+              ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
+              : 'bg-black/70 border-yellow-500/50 hover:bg-yellow-950/80 hover:border-yellow-400/80 hover:shadow-[0_0_6px_rgba(234,179,8,0.3)]'
+            }`}
+        >
+          <p className="text-gray-400 text-xs uppercase tracking-wide">Coins</p>
+          <p className="text-yellow-400 font-bold text-xl leading-tight">{player.coins}</p>
+          <p className="text-yellow-400/70 text-xs">💰 Get</p>
+        </button>
+        <button
+          type="button"
+          disabled={!showActions || cannotAffordAtk}
+          onClick={() => handleResource('gain_attack')}
+          className={`relative overflow-hidden backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
+            ${!showActions || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+            ${cannotAffordAtk ? '' : resourceCue} ${guideGlowClass(guideHighlight?.atk)}
+            ${resource === 'gain_attack'
+              ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
+              : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80 hover:shadow-[0_0_6px_rgba(59,130,246,0.3)]'
+            }`}
+        >
+          <p className="text-gray-400 text-xs uppercase tracking-wide">ATK</p>
+          <p className="text-blue-400 font-bold text-xl leading-tight">{player.attackDamage}</p>
+          <p className="text-blue-400/70 text-xs">⚔ Buy</p>
+          {cannotAffordAtk && (
+            <div className="absolute inset-0 pointer-events-none rounded-lg overflow-hidden">
+              <svg className="w-full h-full" preserveAspectRatio="none">
+                <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
+              </svg>
+            </div>
+          )}
+        </button>
+      </>
+    );
   };
 
   if (!state) {
@@ -504,25 +593,37 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
           {messages.length > 0 && (
             <div className={`mt-2 border-t ${theme.msgBorderClass} pt-2`}>
-              <div
-                ref={messagesWrapRef}
-                className={`overflow-hidden transition-all duration-300 ${messagesExpanded ? '' : 'max-h-[4.5rem]'}`}
-              >
-                <ul ref={messagesRef} className="text-sm space-y-1">
-                  {messages.map((m, i) => (
-                    <li key={i} className={theme.msgTextClass}>{Array.isArray(m) ? m.join(' ') : m}</li>
-                  ))}
-                </ul>
-              </div>
-              {(messagesOverflow || messagesExpanded) && (
+              {!messagesHidden && (
+                <div
+                  className={`overflow-hidden transition-all duration-300 ${messagesExpanded ? '' : 'max-h-[4.5rem]'}`}
+                >
+                  <ul ref={messagesRef} className="text-sm space-y-1">
+                    {messages.map((m, i) => (
+                      <li key={i} className={theme.msgTextClass}>{Array.isArray(m) ? m.join(' ') : m}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="mt-1 flex justify-between items-center">
+                {!messagesHidden && (messagesOverflow || messagesExpanded) ? (
+                  <button
+                    type="button"
+                    onClick={() => setMessagesExpanded((e) => !e)}
+                    className={`text-xs ${theme.showMoreClass} pointer-events-auto`}
+                  >
+                    {messagesExpanded ? '▲ Show less' : '▼ Show more'}
+                  </button>
+                ) : (
+                  <span />
+                )}
                 <button
                   type="button"
-                  onClick={() => setMessagesExpanded((e) => !e)}
-                  className={`mt-1 text-xs ${theme.showMoreClass} pointer-events-auto`}
+                  onClick={() => setMessagesHidden((h) => !h)}
+                  className={`text-xs ${theme.showMoreClass} pointer-events-auto`}
                 >
-                  {messagesExpanded ? '▲ Show less' : '▼ Show more'}
+                  {messagesHidden ? 'Show' : 'Hide'}
                 </button>
-              )}
+              </div>
             </div>
           )}
 
@@ -532,15 +633,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
       {/* Player list — bottom right (optional) */}
       {showPlayerList && (
-        <div className="absolute bottom-4 right-4 pointer-events-auto z-20">
-          <div className="bg-black/70 backdrop-blur-sm rounded-xl border border-white/20 p-3 text-white text-sm">
+        <div className="absolute bottom-4 right-4 pointer-events-auto z-20 max-w-[calc(50%-7.5rem)] sm:max-w-none">
+          <div className="bg-black/70 backdrop-blur-sm rounded-xl border border-white/20 p-2 sm:p-3 text-white text-sm">
             <ul className="space-y-1">
               {state.players.filter((p) => !p.spectator).map((p, i) => (
                 <li key={`${p.name}-${i}`} className={`flex items-center gap-1 ${p.hp <= 0 ? 'opacity-40' : ''}`}>
-                  {(state.winner === p.name || (!state.winner && state.raidwinner === p.name)) && <span>👑</span>}
-                  {p.hp <= 0 && <span>☠️</span>}
-                  {p.idle_rounds >= 2 && <span>👻</span>}
-                  <span className={p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}>
+                  {(state.winner === p.name || (!state.winner && state.raidwinner === p.name)) && <span className="shrink-0">👑</span>}
+                  {p.hp <= 0 && <span className="shrink-0">☠️</span>}
+                  {p.idle_rounds >= 2 && <span className="shrink-0">👻</span>}
+                  <span className={`truncate min-w-0 ${p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}`}>
                     {p.name}
                   </span>
                 </li>
@@ -646,73 +747,23 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           className="absolute flex gap-2 pointer-events-auto"
           style={{ top: '72%', left: '50%', transform: 'translateX(-50%)' }}
         >
-          <button
-            type="button"
-            disabled={!showActions}
-            onClick={() => handleResource('gain_hp')}
-            className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
-              ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-              ${resourceCue}
-              ${resource === 'gain_hp'
-                ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
-                : 'bg-black/70 border-red-500/50 hover:bg-red-950/80 hover:border-red-400/80 hover:shadow-[0_0_6px_rgba(239,68,68,0.3)]'
-              }`}
-          >
-            <p className="text-gray-400 text-xs uppercase tracking-wide">HP</p>
-            <p className="text-red-400 font-bold text-xl leading-tight">{myPlayer.hp}</p>
-            <p className="text-red-400/70 text-xs">❤ Get</p>
-          </button>
-          <button
-            type="button"
-            disabled={!showActions}
-            onClick={() => handleResource('gain_coin')}
-            className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
-              ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-              ${resourceCue}
-              ${resource === 'gain_coin'
-                ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
-                : 'bg-black/70 border-yellow-500/50 hover:bg-yellow-950/80 hover:border-yellow-400/80 hover:shadow-[0_0_6px_rgba(234,179,8,0.3)]'
-              }`}
-          >
-            <p className="text-gray-400 text-xs uppercase tracking-wide">Coins</p>
-            <p className="text-yellow-400 font-bold text-xl leading-tight">{myPlayer.coins}</p>
-            <p className="text-yellow-400/70 text-xs">💰 Get</p>
-          </button>
-          {(() => {
-            const cannotAffordAtk = myPlayer.coins < myPlayer.attackDamage;
-            return (
-              <button
-                type="button"
-                disabled={!showActions || cannotAffordAtk}
-                onClick={() => handleResource('gain_attack')}
-                className={`relative overflow-hidden backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
-                  ${!showActions || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
-                  ${cannotAffordAtk ? '' : resourceCue}
-                  ${resource === 'gain_attack'
-                    ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
-                    : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80 hover:shadow-[0_0_6px_rgba(59,130,246,0.3)]'
-                  }`}
-              >
-                <p className="text-gray-400 text-xs uppercase tracking-wide">ATK</p>
-                <p className="text-blue-400 font-bold text-xl leading-tight">{myPlayer.attackDamage}</p>
-                <p className="text-blue-400/70 text-xs">⚔ Buy</p>
-                {cannotAffordAtk && (
-                  <div className="absolute inset-0 pointer-events-none rounded-lg overflow-hidden">
-                    <svg className="w-full h-full" preserveAspectRatio="none">
-                      <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
-                    </svg>
-                  </div>
-                )}
-              </button>
-            );
-          })()}
+          {renderResourceCards(myPlayer)}
+        </div>
+      )}
+
+      {/* Resource stat cards — bottom center. Used when the 3D scene owns the
+          player action buttons (lobby): the cards live on this screen-fixed
+          overlay layer so they stay put regardless of the camera. */}
+      {hidePlayerActionButtons && myPlayer && !myPlayer.spectator && (
+        <div className="absolute flex gap-2 pointer-events-auto z-20 bottom-6 left-1/2 -translate-x-1/2">
+          {renderResourceCards(myPlayer)}
         </div>
       )}
 
       {/* Deny target picker (optional) */}
       {isChoosingDeny && (
         <div
-          className="absolute pointer-events-auto"
+          className="absolute pointer-events-auto z-30"
           style={{ bottom: '4%', left: '50%', transform: 'translateX(-50%)' }}
         >
           <div className="bg-black/80 backdrop-blur-sm rounded-xl border border-amber-500/30 p-4 text-white">
