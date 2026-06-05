@@ -9,6 +9,8 @@ import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
+import InGameGuide from '@/components/lobby/InGameGuide';
+import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket, getPlayerMessages } from '@/lib/api';
 import { parseCombatMessages } from '@/lib/parseCombatMessages';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
@@ -154,6 +156,7 @@ function PlayerWithName({
   currentAction,
   onDefend,
   showShield,
+  highlight,
 }: {
   name: string;
   position: [number, number, number];
@@ -175,8 +178,13 @@ function PlayerWithName({
   currentAction?: string;
   onDefend?: () => void;
   showShield?: boolean;
+  highlight?: GuideHighlights;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
+  // Welcome-tour highlights — glow the real button(s) the current slide points at.
+  const hl = highlight ?? {};
+  const hlAttack = guideGlowClass(hl.attack);
+  const hlDefend = guideGlowClass(hl.defend);
   return (
     <group position={position} rotation={rotation}>
       {/* 3D model — lazy; suspends until GLB is ready */}
@@ -221,7 +229,7 @@ function PlayerWithName({
         <Html position={[0, 0.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={onAttack}
-            className={actionCue}
+            className={`${actionCue} ${hlAttack}`}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
@@ -248,7 +256,7 @@ function PlayerWithName({
         <Html position={[0, -0.1, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={onDefend}
-            className={actionCue}
+            className={`${actionCue} ${hlDefend}`}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
@@ -526,9 +534,13 @@ type LobbySceneProps = {
   attackTarget?: string;
   onAttackSelect?: (target: string) => void;
   onActionChange?: (action: string) => void;
+  /** Welcome-tour highlights, lifted to the page so the overlay can glow the
+   *  resource cards too. The 3D scene uses it for attack/defend/well. */
+  guideHighlight?: GuideHighlights;
+  onGuideHighlightChange?: (h: GuideHighlights) => void;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {}, onGuideHighlightChange }: LobbySceneProps) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   // ----- Animation state -----
@@ -871,6 +883,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             currentAction={currentAction}
             onDefend={handleDefend}
             showShield={isOwnPlayer && currentAction === 'defend'}
+            highlight={guideHighlight}
           />
         );
       })}
@@ -897,6 +910,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={handleRaid}
+            className={guideGlowClass(guideHighlight?.well)}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
@@ -918,6 +932,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           </button>
         </Html>
       )}
+
+      {/* In-game welcome tour — bubbles anchored beside the elements they describe */}
+      <InGameGuide
+        ownPosition={PLAYER_POSITIONS[players.findIndex((p) => p.name === playerName)]?.position ?? null}
+        gameStarted={gameStarted && !!myPlayer}
+        onHighlightChange={onGuideHighlightChange}
+      />
 
       {/* Stage 2: Well/Table model */}
       <Suspense fallback={null}>

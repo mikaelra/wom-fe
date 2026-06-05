@@ -10,6 +10,7 @@ import SceneOverlay, {
   type PreGameRenderOpts,
 } from '@/components/SceneOverlay';
 import FloatingMessage from './FloatingMessage';
+import type { GuideHighlights } from '@/lib/guideHighlights';
 import BossSignupNudge from '@/components/BossSignupNudge';
 import type { LobbyState } from '@/types/game';
 import { BACKEND_URL } from '@/config';
@@ -19,6 +20,7 @@ type LobbyOverlayProps = {
   onStateChange?: (state: LobbyState | null) => void;
   externalAction?: string;
   onActionChange?: (action: string) => void;
+  guideHighlight?: GuideHighlights;
 };
 
 function InviteSection({ lobbyId }: { lobbyId: string }) {
@@ -271,7 +273,7 @@ const lobbyConfig: SceneOverlayConfig = {
   renderGameOver,
 };
 
-export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange }: LobbyOverlayProps) {
+export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, guideHighlight }: LobbyOverlayProps) {
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [playerName, setPlayerName] = useState('');
@@ -303,6 +305,7 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
         renderPreGame={renderPreGame}
         externalAction={externalAction}
         onActionChange={onActionChange}
+        guideHighlight={guideHighlight}
       />
       {showNudge && (
         <BossSignupNudge

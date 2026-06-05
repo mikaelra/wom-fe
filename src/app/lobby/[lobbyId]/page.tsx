@@ -8,6 +8,7 @@ import LobbyOverlay from '@/components/lobby/LobbyOverlay';
 import { BASE_FOV } from '@/lib/sceneConstants';
 import { getSocket, joinLobby, checkName, logInUser, verifyLoginCode } from '@/lib/api';
 import type { LobbyState } from '@/types/game';
+import type { GuideHighlights } from '@/lib/guideHighlights';
 
 const LobbyScene = dynamic(() => import('@/components/lobby/LobbyScene'), { ssr: false });
 
@@ -20,6 +21,7 @@ export default function LobbyPage() {
   const [playerNameInit, setPlayerNameInit] = useState(false);
   const [sharedAction, setSharedAction] = useState('');
   const [sharedAttackTarget, setSharedAttackTarget] = useState('');
+  const [guideHighlight, setGuideHighlight] = useState<GuideHighlights>({});
 
   const hasAutoJoined = useRef(false);
 
@@ -193,6 +195,8 @@ export default function LobbyPage() {
           attackTarget={sharedAttackTarget}
           onAttackSelect={(target) => { setSharedAction('attack'); setSharedAttackTarget(target); }}
           onActionChange={setSharedAction}
+          guideHighlight={guideHighlight}
+          onGuideHighlightChange={setGuideHighlight}
         />
       </Canvas>
 
@@ -202,6 +206,7 @@ export default function LobbyPage() {
           onStateChange={setLobbyState}
           externalAction={sharedAction}
           onActionChange={setSharedAction}
+          guideHighlight={guideHighlight}
         />
       )}
 

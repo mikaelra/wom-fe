@@ -76,6 +76,12 @@ export function getPlayerFrontPositions(count: number): [number, number, number]
 }
 
 export const BASE_FOV = 75;
+
+// Initial horizontal orbit of the lobby camera. Rotating the start angle ~30°
+// opens up empty space on the player's left where the welcome-tour bubbles sit.
+// Flip the sign to turn the other way; the bubble placement follows this value.
+export const INITIAL_CAMERA_YAW = -Math.PI / 6;
+
 export function getResponsiveFov(width: number, height: number): number {
   const aspect = width / height;
   return aspect > 1.5 ? 82 : aspect > 1 ? 78 : 75;

@@ -12,6 +12,7 @@ import {
 import type { LobbyState, Player } from '@/types/game';
 import FloatingMessage from '@/components/lobby/FloatingMessage';
 import { playResourceSound } from '@/lib/sounds';
+import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -91,9 +92,11 @@ type SceneOverlayProps = {
   externalAction?: string;
   /** Called whenever the player selects an action, so callers can sync external state */
   onActionChange?: (action: string) => void;
+  /** Welcome-tour highlights — glows the matching resource cards. */
+  guideHighlight?: GuideHighlights;
 };
 
-export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange }: SceneOverlayProps) {
+export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, guideHighlight }: SceneOverlayProps) {
   const {
     theme,
     backLabel,
@@ -412,7 +415,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           onClick={() => handleResource('gain_hp')}
           className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
             ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-            ${resourceCue}
+            ${resourceCue} ${guideGlowClass(guideHighlight?.hp)}
             ${resource === 'gain_hp'
               ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
               : 'bg-black/70 border-red-500/50 hover:bg-red-950/80 hover:border-red-400/80 hover:shadow-[0_0_6px_rgba(239,68,68,0.3)]'
@@ -428,7 +431,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           onClick={() => handleResource('gain_coin')}
           className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
             ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-            ${resourceCue}
+            ${resourceCue} ${guideGlowClass(guideHighlight?.coins)}
             ${resource === 'gain_coin'
               ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
               : 'bg-black/70 border-yellow-500/50 hover:bg-yellow-950/80 hover:border-yellow-400/80 hover:shadow-[0_0_6px_rgba(234,179,8,0.3)]'
@@ -444,7 +447,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           onClick={() => handleResource('gain_attack')}
           className={`relative overflow-hidden backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
             ${!showActions || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
-            ${cannotAffordAtk ? '' : resourceCue}
+            ${cannotAffordAtk ? '' : resourceCue} ${guideGlowClass(guideHighlight?.atk)}
             ${resource === 'gain_attack'
               ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
               : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80 hover:shadow-[0_0_6px_rgba(59,130,246,0.3)]'
