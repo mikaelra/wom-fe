@@ -9,6 +9,7 @@ import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
+import InGameGuide from '@/components/lobby/InGameGuide';
 import { getSocket, getPlayerMessages } from '@/lib/api';
 import { parseCombatMessages } from '@/lib/parseCombatMessages';
 import { playResourceSound } from '@/lib/sounds';
@@ -1029,6 +1030,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           </button>
         </Html>
       )}
+
+      {/* In-game welcome tour — bubbles anchored beside the elements they describe */}
+      <InGameGuide
+        ownPosition={PLAYER_POSITIONS[players.findIndex((p) => p.name === playerName)]?.position ?? null}
+        gameStarted={gameStarted && !!myPlayer}
+      />
 
       {/* Stage 2: Well/Table model */}
       <Suspense fallback={null}>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
+import { useGuideEnabled } from '@/lib/useGuideEnabled';
 
 const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
@@ -16,6 +17,8 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [playerEmail, setPlayerEmail] = useState('');
+
+  const { enabled: guideEnabled, setEnabled: setGuideEnabled } = useGuideEnabled();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -170,6 +173,25 @@ export default function SettingsPage() {
             )}
           </div>
         )}
+
+        <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mt-6">
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={guideEnabled}
+              onChange={() => setGuideEnabled(!guideEnabled)}
+              className="w-5 h-5 accent-amber-500 cursor-pointer"
+            />
+            <span className="text-base font-semibold">
+              Show the in-game welcome tour
+            </span>
+          </label>
+          <p className="text-sm text-white/70 mt-3 leading-relaxed">
+            A short guided tour appears when a game starts, with tips pointing at the
+            health, action and resource buttons and The Well. You can also turn it off from
+            inside the tour.
+          </p>
+        </div>
       </div>
     </div>
   );
