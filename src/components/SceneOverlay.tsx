@@ -606,15 +606,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
       {/* Player list — bottom right (optional) */}
       {showPlayerList && (
-        <div className="absolute bottom-4 right-4 pointer-events-auto z-20">
-          <div className="bg-black/70 backdrop-blur-sm rounded-xl border border-white/20 p-3 text-white text-sm">
+        <div className="absolute bottom-4 right-4 pointer-events-auto z-20 max-w-[calc(50%-7.5rem)] sm:max-w-none">
+          <div className="bg-black/70 backdrop-blur-sm rounded-xl border border-white/20 p-2 sm:p-3 text-white text-sm">
             <ul className="space-y-1">
               {state.players.filter((p) => !p.spectator).map((p, i) => (
                 <li key={`${p.name}-${i}`} className={`flex items-center gap-1 ${p.hp <= 0 ? 'opacity-40' : ''}`}>
-                  {(state.winner === p.name || (!state.winner && state.raidwinner === p.name)) && <span>👑</span>}
-                  {p.hp <= 0 && <span>☠️</span>}
-                  {p.idle_rounds >= 2 && <span>👻</span>}
-                  <span className={p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}>
+                  {(state.winner === p.name || (!state.winner && state.raidwinner === p.name)) && <span className="shrink-0">👑</span>}
+                  {p.hp <= 0 && <span className="shrink-0">☠️</span>}
+                  {p.idle_rounds >= 2 && <span className="shrink-0">👻</span>}
+                  <span className={`truncate min-w-0 ${p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}`}>
                     {p.name}
                   </span>
                 </li>
