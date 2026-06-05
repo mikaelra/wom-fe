@@ -271,9 +271,12 @@ function PlayerWithName({
         </Html>
       )}
       {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
-          zIndexRange is raised above lost-soul buttons ([0,0]) so clicks land here first. */}
+          zIndexRange sits above the lost-soul/action buttons ([0,0]) so clicks land here
+          first, but stays below the CSS overlay panels (waiting lobby + round messages,
+          which use Tailwind z-10/z-20) so the card renders beneath them rather than
+          covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html position={[0, 1.5, 0]} center distanceFactor={3} zIndexRange={[100, 100]}>
+        <Html position={[0, 1.5, 0]} center distanceFactor={3} zIndexRange={[5, 5]}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
