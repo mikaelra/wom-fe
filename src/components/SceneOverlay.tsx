@@ -129,9 +129,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [raidSecs, setRaidSecs] = useState<number | null>(null);
   const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [messagesOverflow, setMessagesOverflow] = useState(false);
+  const [messagesHidden, setMessagesHidden] = useState(false);
   const lastMessagesFlat = useRef('');
   const messagesRef = useRef<HTMLUListElement>(null);
-  const messagesWrapRef = useRef<HTMLDivElement>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatExpanded, setChatExpanded] = useState(false);
   const [unreadChat, setUnreadChat] = useState(false);
@@ -277,16 +277,28 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     return () => clearInterval(interval);
   }, [nextRaidTime, enableRaidTimer]);
 
-  // Detect if messages overflow the collapsed container
+  // Detect if messages overflow the collapsed container. We compare the
+  // list's natural height against the fixed collapsed limit (the max-h-[4.5rem]
+  // on the wrapper) so the result is correct whether the panel is currently
+  // expanded or collapsed. Re-measure via ResizeObserver and once web fonts
+  // settle, otherwise a stale snapshot can leave "Show more" showing when
+  // there is nothing more to reveal.
   useEffect(() => {
-    if (!messagesWrapRef.current || !messagesRef.current) return;
-    const wrap = messagesWrapRef.current;
     const list = messagesRef.current;
-    const t = setTimeout(() => {
-      setMessagesOverflow(list.scrollHeight > wrap.clientHeight + 2);
-    }, 50);
-    return () => clearTimeout(t);
-  }, [messages, messagesExpanded]);
+    if (!list) return;
+
+    const measure = () => {
+      const rootFont = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const collapsedLimit = rootFont * 4.5; // matches max-h-[4.5rem]
+      setMessagesOverflow(list.scrollHeight > collapsedLimit + 2);
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(list);
+    document.fonts?.ready.then(measure).catch(() => {});
+    return () => ro.disconnect();
+  }, [messages, messagesHidden]);
 
   const isAdmin = myPlayer?.admin ?? false;
   const enemy = state?.players.find((p) => p.boss);
@@ -578,25 +590,37 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
           {messages.length > 0 && (
             <div className={`mt-2 border-t ${theme.msgBorderClass} pt-2`}>
-              <div
-                ref={messagesWrapRef}
-                className={`overflow-hidden transition-all duration-300 ${messagesExpanded ? '' : 'max-h-[4.5rem]'}`}
-              >
-                <ul ref={messagesRef} className="text-sm space-y-1">
-                  {messages.map((m, i) => (
-                    <li key={i} className={theme.msgTextClass}>{Array.isArray(m) ? m.join(' ') : m}</li>
-                  ))}
-                </ul>
-              </div>
-              {(messagesOverflow || messagesExpanded) && (
+              {!messagesHidden && (
+                <div
+                  className={`overflow-hidden transition-all duration-300 ${messagesExpanded ? '' : 'max-h-[4.5rem]'}`}
+                >
+                  <ul ref={messagesRef} className="text-sm space-y-1">
+                    {messages.map((m, i) => (
+                      <li key={i} className={theme.msgTextClass}>{Array.isArray(m) ? m.join(' ') : m}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="mt-1 flex justify-between items-center">
+                {!messagesHidden && (messagesOverflow || messagesExpanded) ? (
+                  <button
+                    type="button"
+                    onClick={() => setMessagesExpanded((e) => !e)}
+                    className={`text-xs ${theme.showMoreClass} pointer-events-auto`}
+                  >
+                    {messagesExpanded ? '▲ Show less' : '▼ Show more'}
+                  </button>
+                ) : (
+                  <span />
+                )}
                 <button
                   type="button"
-                  onClick={() => setMessagesExpanded((e) => !e)}
-                  className={`mt-1 text-xs ${theme.showMoreClass} pointer-events-auto`}
+                  onClick={() => setMessagesHidden((h) => !h)}
+                  className={`text-xs ${theme.showMoreClass} pointer-events-auto`}
                 >
-                  {messagesExpanded ? '▲ Show less' : '▼ Show more'}
+                  {messagesHidden ? 'Show' : 'Hide'}
                 </button>
-              )}
+              </div>
             </div>
           )}
 
