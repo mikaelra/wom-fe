@@ -41,12 +41,8 @@ const STEPS: Step[] = [
   { text: 'Good luck!', anchor: 'above', marker: false },
 ];
 
-function anchorPos(anchor: Anchor, ownPosition: Vec3 | null): Vec3 {
-  if (anchor === 'well') return [0, 3.9, 0];
-  const base = ownPosition ?? SCENE_CENTER;
-  const dy = anchor === 'above' ? 1.6 : anchor === 'attack' ? 0.9 : anchor === 'defend' ? -0.1 : -0.6;
-  return [base[0], base[1] + dy, base[2]];
-}
+// NOTE: per-step `anchor`/`marker` data is kept above for re-adding element
+// highlights one at a time later. No highlight markers render for now.
 
 // Every bubble card sits just to the left of the player. Screen-left in world
 // space for a camera orbited by `yaw` about the scene centre is (-cos yaw, 0,
@@ -94,7 +90,6 @@ export default function InGameGuide({ ownPosition, gameStarted }: Props) {
   if (!mounted || !enabled || !open || !gameStarted) return null;
 
   const current = STEPS[step];
-  const marker = anchorPos(current.anchor, ownPosition);
   const card = cardPos(ownPosition);
 
   const handleClose = () => {
@@ -103,29 +98,19 @@ export default function InGameGuide({ ownPosition, gameStarted }: Props) {
   };
 
   return (
-    <>
-      {current.marker && (
-        <Html position={marker} center distanceFactor={3} zIndexRange={[150, 150]}>
-          <span
-            style={{ pointerEvents: 'none' }}
-            className="block w-12 h-12 rounded-full bg-amber-400/30 ring-4 ring-amber-400/80 animate-ping"
-          />
-        </Html>
-      )}
-      <Html position={card} center distanceFactor={3.5} zIndexRange={[200, 200]}>
-        <GuideBubble
-          text={current.text}
-          stepIndex={step}
-          totalSteps={STEPS.length}
-          isLast={step === STEPS.length - 1}
-          dontShowAgain={dontShowAgain}
-          onPrev={() => setStep((s) => Math.max(0, s - 1))}
-          onNext={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
-          onRestart={() => setStep(0)}
-          onClose={handleClose}
-          onToggleDontShow={setDontShowAgain}
-        />
-      </Html>
-    </>
+    <Html position={card} center distanceFactor={4.55} zIndexRange={[200, 200]}>
+      <GuideBubble
+        text={current.text}
+        stepIndex={step}
+        totalSteps={STEPS.length}
+        isLast={step === STEPS.length - 1}
+        dontShowAgain={dontShowAgain}
+        onPrev={() => setStep((s) => Math.max(0, s - 1))}
+        onNext={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
+        onRestart={() => setStep(0)}
+        onClose={handleClose}
+        onToggleDontShow={setDontShowAgain}
+      />
+    </Html>
   );
 }
