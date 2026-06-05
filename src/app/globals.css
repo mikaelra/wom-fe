@@ -43,3 +43,23 @@ body {
 
 .warn-blink-gold { animation: blink-gold 0.8s ease-in-out infinite; }
 .warn-blink-red  { animation: blink-red  0.5s ease-in-out infinite; }
+
+/* Dedicated welcome-tour glows — ~3x the strength of the warning blink above. */
+@keyframes guide-glow-blue {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0); }
+  50%       { box-shadow:
+                0 0 0 6px rgba(59, 130, 246, 1),
+                0 0 36px 15px rgba(59, 130, 246, 0.75),
+                0 0 84px 30px rgba(59, 130, 246, 0.45); }
+}
+
+@keyframes guide-glow-gold {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0); }
+  50%       { box-shadow:
+                0 0 0 6px rgba(234, 179, 8, 1),
+                0 0 36px 15px rgba(234, 179, 8, 0.75),
+                0 0 84px 30px rgba(234, 179, 8, 0.45); }
+}
+
+.guide-glow-blue { animation: guide-glow-blue 0.8s ease-in-out infinite; }
+.guide-glow-gold { animation: guide-glow-gold 0.8s ease-in-out infinite; }

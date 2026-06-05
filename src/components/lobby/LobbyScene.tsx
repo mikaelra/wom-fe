@@ -9,7 +9,10 @@ import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
-import InGameGuide, { type GuideTarget } from '@/components/lobby/InGameGuide';
+import InGameGuide, { type GuideGlow, type GuideHighlights } from '@/components/lobby/InGameGuide';
+
+// Map a tour glow colour to its CSS class.
+const guideGlowClass = (g?: GuideGlow) => (g === 'blue' ? 'guide-glow-blue' : g === 'gold' ? 'guide-glow-gold' : '');
 import { getSocket, getPlayerMessages } from '@/lib/api';
 import { parseCombatMessages } from '@/lib/parseCombatMessages';
 import { playResourceSound } from '@/lib/sounds';
@@ -186,17 +189,16 @@ function PlayerWithName({
   onResource?: (res: string) => void;
   resourceCue?: string;
   showShield?: boolean;
-  highlight?: GuideTarget[];
+  highlight?: GuideHighlights;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
-  // Welcome-tour highlights — blink the real button(s) the current slide points at.
-  const GUIDE_BLINK = 'warn-blink-gold';
-  const hl = highlight ?? [];
-  const hlAttack = hl.includes('attack') ? GUIDE_BLINK : '';
-  const hlDefend = hl.includes('defend') ? GUIDE_BLINK : '';
-  const hlHp = hl.includes('hp') ? GUIDE_BLINK : '';
-  const hlCoins = hl.includes('coins') ? GUIDE_BLINK : '';
-  const hlAtk = hl.includes('atk') ? GUIDE_BLINK : '';
+  // Welcome-tour highlights — glow the real button(s) the current slide points at.
+  const hl = highlight ?? {};
+  const hlAttack = guideGlowClass(hl.attack);
+  const hlDefend = guideGlowClass(hl.defend);
+  const hlHp = guideGlowClass(hl.hp);
+  const hlCoins = guideGlowClass(hl.coins);
+  const hlAtk = guideGlowClass(hl.atk);
   return (
     <group position={position} rotation={rotation}>
       {/* 3D model — lazy; suspends until GLB is ready */}
@@ -628,7 +630,7 @@ type LobbySceneProps = {
 export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange }: LobbySceneProps) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [localResource, setLocalResource] = useState('');
-  const [guideHighlight, setGuideHighlight] = useState<GuideTarget[]>([]);
+  const [guideHighlight, setGuideHighlight] = useState<GuideHighlights>({});
   const pendingResourceRef = useRef('');
 
   // ----- Animation state -----
@@ -1021,7 +1023,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={handleRaid}
-            className={guideHighlight.includes('well') ? 'warn-blink-gold' : ''}
+            className={guideGlowClass(guideHighlight.well)}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',

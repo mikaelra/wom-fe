@@ -11,28 +11,31 @@ type Vec3 = [number, number, number];
 // Buttons the guide can highlight (blink) on a given slide. Each maps to a real
 // in-game button rendered in LobbyScene.
 export type GuideTarget = 'attack' | 'defend' | 'well' | 'hp' | 'coins' | 'atk';
+// Glow colour for a highlighted button.
+export type GuideGlow = 'blue' | 'gold';
+export type GuideHighlights = Partial<Record<GuideTarget, GuideGlow>>;
 
 type Step = {
   text: ReactNode;
-  highlights: GuideTarget[];
+  highlights: GuideHighlights;
 };
 
 const STEPS: Step[] = [
-  { text: 'Welcome to World of Mythos! Be the last one standing!', highlights: [] },
-  { text: 'This is your health. When it reaches 0 or lower, you are out.', highlights: ['hp'] },
-  { text: 'Each turn you must do one main action and one resource action.', highlights: [] },
-  { text: 'The main actions are ATTACK, WELL or DEFEND.', highlights: ['attack', 'well', 'defend'] },
-  { text: 'The resource actions are Gain 1 HP, Gain 1 Gold or upgrade ATK.', highlights: ['hp', 'coins', 'atk'] },
-  { text: 'How much damage you do to enemies is determined by your ATK.', highlights: ['atk'] },
-  { text: 'To upgrade your ATK, you need to spend your current ATK value in GOLD.', highlights: ['coins', 'atk'] },
-  { text: 'Choosing DEFEND gives you a 50% chance to block all incoming attacks…', highlights: ['defend'] },
-  { text: '…and a 10% chance of REFLECTING the attack back to your attacker!', highlights: ['defend'] },
-  { text: 'The WELL is where you go to play the game of chance.', highlights: ['well'] },
-  { text: 'One player wins among all those who chose the WELL.', highlights: ['well'] },
-  { text: 'That player STARTS each round, shown with the crown, and gets a random prize.', highlights: ['well'] },
-  { text: 'The prize can be some gold, information and many more things.', highlights: ['well'] },
-  { text: 'You might get lucky and find the poisoned dagger.', highlights: ['well'] },
-  { text: 'Good luck!', highlights: [] },
+  { text: 'Welcome to World of Mythos! Be the last one standing!', highlights: {} },
+  { text: 'This is your health. When it reaches 0 or lower, you are out.', highlights: { hp: 'blue' } },
+  { text: 'Each turn you must do one main action and one resource action.', highlights: {} },
+  { text: 'The main actions are ATTACK, WELL or DEFEND.', highlights: { attack: 'blue', well: 'blue', defend: 'blue' } },
+  { text: 'The resource actions are Gain 1 HP, Gain 1 Gold or upgrade ATK.', highlights: { hp: 'blue', coins: 'blue', atk: 'blue' } },
+  { text: 'How much damage you do to enemies is determined by your ATK.', highlights: { atk: 'blue' } },
+  { text: 'To upgrade your ATK, you need to spend your current ATK value in GOLD.', highlights: { coins: 'gold', atk: 'blue' } },
+  { text: 'Choosing DEFEND gives you a 50% chance to block all incoming attacks…', highlights: { defend: 'blue' } },
+  { text: '…and a 10% chance of REFLECTING the attack back to your attacker!', highlights: { defend: 'blue' } },
+  { text: 'The WELL is where you go to play the game of chance.', highlights: { well: 'blue' } },
+  { text: 'One player wins among all those who chose the WELL.', highlights: { well: 'blue' } },
+  { text: 'That player STARTS each round, shown with the crown, and gets a random prize.', highlights: { well: 'blue' } },
+  { text: 'The prize can be some gold, information and many more things.', highlights: { well: 'blue' } },
+  { text: 'You might get lucky and find the poisoned dagger.', highlights: { well: 'blue' } },
+  { text: 'Good luck!', highlights: {} },
 ];
 
 // Every bubble card sits just to the left of the player. Screen-left in world
@@ -50,7 +53,7 @@ function cardPos(ownPosition: Vec3 | null): Vec3 {
 type Props = {
   ownPosition: Vec3 | null;
   gameStarted: boolean;
-  onHighlightChange?: (highlights: GuideTarget[]) => void;
+  onHighlightChange?: (highlights: GuideHighlights) => void;
 };
 
 export default function InGameGuide({ ownPosition, gameStarted, onHighlightChange }: Props) {
@@ -82,10 +85,10 @@ export default function InGameGuide({ ownPosition, gameStarted, onHighlightChang
   // Tell LobbyScene which real buttons to blink for the current slide.
   const visible = mounted && enabled && open && gameStarted;
   useEffect(() => {
-    onHighlightChange?.(visible ? STEPS[step].highlights : []);
+    onHighlightChange?.(visible ? STEPS[step].highlights : {});
   }, [visible, step, onHighlightChange]);
   // Clear highlights when the guide unmounts.
-  useEffect(() => () => onHighlightChange?.([]), [onHighlightChange]);
+  useEffect(() => () => onHighlightChange?.({}), [onHighlightChange]);
 
   if (!visible) return null;
 
