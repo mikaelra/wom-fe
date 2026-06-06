@@ -91,7 +91,7 @@ function WinnerCrown({ worldPosition }: { worldPosition: [number, number, number
 }
 
 function WellCrown({ worldPosition }: { worldPosition: [number, number, number] | null }) {
-  const { scene } = useGLTF('/models/well/well_crown_v1.glb');
+  const { scene } = useGLTF('/models/crowns/well_crown_v1.glb');
   const crownScene = useMemo(() => scene.clone(), [scene]);
   const ref = useRef<THREE.Group>(null);
 
@@ -467,7 +467,7 @@ useGLTF.preload('/models/lost_soul_v2.glb');
 useGLTF.preload('/models/hades/hades_v3-ld.glb');
 useGLTF.preload('/models/turtlev01.glb');
 useGLTF.preload('/models/crowns/crown_ld_v1.glb');
-useGLTF.preload('/models/well/well_crown_v1.glb');
+useGLTF.preload('/models/crowns/well_crown_v1.glb');
 useGLTF.preload('/models/shields/shield_animation-ld.glb');
 useGLTF.preload('/models/swords/sword_animation-ld.glb');
 // Frog skins are preloaded on-demand per lobby (see usePreloadLobbySkins below).
