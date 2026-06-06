@@ -942,7 +942,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       {/* Stage 2: Well/Table model */}
       <Suspense fallback={null}>
-        <Table position={TABLE_POSITION} scale={1.2} />
+        <Table position={TABLE_POSITION} scale={4.8} />
       </Suspense>
 
       {/* Stage 4: Well/lobby crown (floats above current well winner) */}
