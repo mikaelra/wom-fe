@@ -3,6 +3,9 @@
 import { useGLTF } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
 import { useMemo } from 'react';
+import { getQualityTier } from '@/lib/deviceQuality';
+
+const WELL_MODEL = getQualityTier() === 'high' ? '/models/well/well-hd.glb' : '/models/well/wellv02.glb';
 
 type Props = {
   position?: [number, number, number];
@@ -11,7 +14,7 @@ type Props = {
 };
 
 function Table({ position = [0, 0, 0], scale = 1, onClick }: Props) {
-  const { scene } = useGLTF('/models/wellv02.glb');
+  const { scene } = useGLTF(WELL_MODEL);
   const sceneClone = useMemo(() => scene.clone(), [scene]);
 
   const handleClick = (e: ThreeEvent<PointerEvent>) => {
@@ -33,6 +36,6 @@ function Table({ position = [0, 0, 0], scale = 1, onClick }: Props) {
   );
 }
 
-useGLTF.preload('/models/wellv02.glb');
+useGLTF.preload(WELL_MODEL);
 
 export default Table;
