@@ -24,6 +24,7 @@ export default function LobbyPage() {
   const [guideHighlight, setGuideHighlight] = useState<GuideHighlights>({});
 
   const hasAutoJoined = useRef(false);
+  const [hasJoined, setHasJoined] = useState(false);
 
   // Join form state (used when not logged in)
   const [previewState, setPreviewState] = useState<LobbyState | null>(null);
@@ -48,9 +49,10 @@ export default function LobbyPage() {
     }
   }, []);
 
-  // Reset the auto-join guard whenever the lobby changes (e.g. replay redirect).
+  // Reset the auto-join guard and join state whenever the lobby changes (e.g. replay redirect).
   useEffect(() => {
     hasAutoJoined.current = false;
+    setHasJoined(false);
   }, [lobbyId]);
 
   // When the user is already logged in and arrives via an invite link, join the
@@ -59,7 +61,9 @@ export default function LobbyPage() {
     if (!lobbyId || !playerNameInit || !playerName || hasAutoJoined.current) return;
     hasAutoJoined.current = true;
     const email = localStorage.getItem('playerEmail') ?? '';
-    joinLobby(lobbyId, playerName, email).catch(() => {});
+    joinLobby(lobbyId, playerName, email)
+      .then(() => setHasJoined(true))
+      .catch(() => setHasJoined(true));
   }, [lobbyId, playerNameInit, playerName]);
 
   // Subscribe to socket state updates once the user has typed a name.
@@ -88,6 +92,7 @@ export default function LobbyPage() {
     await joinLobby(lobbyId!, name, emailForJoin);
     localStorage.setItem('playerName', name);
     if (emailForJoin) localStorage.setItem('playerEmail', emailForJoin);
+    setHasJoined(true);
     setPlayerName(name);
   };
 
@@ -200,7 +205,7 @@ export default function LobbyPage() {
         />
       </Canvas>
 
-      {playerName && (
+      {playerName && hasJoined && (
         <LobbyOverlay
           lobbyId={lobbyId}
           onStateChange={setLobbyState}
