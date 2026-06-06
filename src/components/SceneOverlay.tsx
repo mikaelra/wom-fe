@@ -160,8 +160,20 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   useEffect(() => {
     if (!lobbyId || !playerName) return;
     const sock = getSocket();
+    const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
 
-    sock.emit("join_room", { lobby_id: lobbyId, name: playerName });
+    const rejoin = () => {
+      sock.emit("join_lobby", { lobby_id: lobbyId, name: playerName, email });
+    };
+
+    const onJoinedLobby = () => {
+      sock.emit("join_room", { lobby_id: lobbyId, name: playerName });
+    };
+
+    sock.on("joined_lobby", onJoinedLobby);
+    sock.on("connect", rejoin);
+
+    rejoin();
 
     sock.on("state_update", (data) => {
       setState(data);
@@ -181,6 +193,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     });
 
     return () => {
+      sock.off("joined_lobby", onJoinedLobby);
+      sock.off("connect", rejoin);
       sock.emit("leave_room", { lobby_id: lobbyId, name: playerName });
       sock.off("state_update");
       sock.off("chat_message");
