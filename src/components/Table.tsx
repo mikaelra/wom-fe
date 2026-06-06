@@ -7,7 +7,7 @@ import { getQualityTier } from '@/lib/deviceQuality';
 
 const isHighTier = getQualityTier() === 'high';
 const WELL_MODEL = isHighTier ? '/models/well/well-hd.glb' : '/models/well/wellv02.glb';
-const WELL_SCALE_MULTIPLIER = isHighTier ? 4 : 1;
+const WELL_SCALE_MULTIPLIER = isHighTier ? 8 : 1;
 
 type Props = {
   position?: [number, number, number];
