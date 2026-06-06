@@ -7,6 +7,9 @@ import * as THREE from 'three';
 import { usePanOffset } from '@/lib/usePanOffset';
 import { assignSkins, ALL_FROG_SKINS, skinUrl } from '@/lib/frogSkins';
 import type { LobbyState } from '@/types/game';
+import { getQualityTier } from '@/lib/deviceQuality';
+
+const WELL_MODEL = getQualityTier() === 'high' ? '/models/well/well-hd.glb' : '/models/well/wellv02.glb';
 
 // Table center; gremlin sits on far side (−Z), player/cherub on near side (+Z)
 const GREMLIN_POS: [number, number, number] = [0, 0.4, -1.15];
@@ -69,7 +72,7 @@ function Tree({ position }: { position: [number, number, number] }) {
 }
 
 function BattleTable() {
-  const { scene } = useGLTF('/models/wellv02.glb');
+  const { scene } = useGLTF(WELL_MODEL);
   const sceneClone = useMemo(() => scene.clone(), [scene]);
   return <primitive object={sceneClone} scale={1 / 9.99} />;
 }
@@ -350,6 +353,6 @@ export default function GremlinScene({ state, playerName, lobbyId = '' }: Gremli
 }
 
 // Preload models
-useGLTF.preload('/models/wellv02.glb');
+useGLTF.preload(WELL_MODEL);
 useGLTF.preload('/models/gremlinv01.glb');
 ALL_FROG_SKINS.forEach((s) => useGLTF.preload(skinUrl(s)));

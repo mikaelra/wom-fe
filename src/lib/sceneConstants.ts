@@ -3,7 +3,7 @@ export const TABLE_POSITION: [number, number, number] = [0, 3.15, 0];
 export const SCENE_CENTER: [number, number, number] = [0, 3.2, 0];
 
 export const MAX_PLAYERS = 24;
-const BASE_PLAYER_RADIUS = 1.4;
+const BASE_PLAYER_RADIUS = 2.1;
 export const PLAYER_Y = 3.2;
 
 // Radius grows by 10% for every 6 players: 1–6 → base, 7–12 → +10%, 13–18 → +20%, etc.
