@@ -5,7 +5,9 @@ import { ThreeEvent } from '@react-three/fiber';
 import { useMemo } from 'react';
 import { getQualityTier } from '@/lib/deviceQuality';
 
-const WELL_MODEL = getQualityTier() === 'high' ? '/models/well/well-hd.glb' : '/models/well/wellv02.glb';
+const isHighTier = getQualityTier() === 'high';
+const WELL_MODEL = isHighTier ? '/models/well/well-hd.glb' : '/models/well/wellv02.glb';
+const WELL_SCALE_MULTIPLIER = isHighTier ? 4 : 1;
 
 type Props = {
   position?: [number, number, number];
@@ -25,7 +27,7 @@ function Table({ position = [0, 0, 0], scale = 1, onClick }: Props) {
   return (
     <group
       position={position}
-      scale={scale / 9.99}
+      scale={scale * WELL_SCALE_MULTIPLIER / 9.99}
       onClick={handleClick}
       onPointerDown={(e) => e.stopPropagation()}
       onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
