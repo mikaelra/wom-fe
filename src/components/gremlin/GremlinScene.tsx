@@ -7,9 +7,8 @@ import * as THREE from 'three';
 import { usePanOffset } from '@/lib/usePanOffset';
 import { assignSkins, ALL_FROG_SKINS, skinUrl } from '@/lib/frogSkins';
 import type { LobbyState } from '@/types/game';
-import { getQualityTier } from '@/lib/deviceQuality';
 
-const WELL_MODEL = getQualityTier() === 'high' ? '/models/well/well-hd.glb' : '/models/well/wellv02.glb';
+const WELL_MODEL = '/models/well/wellv02.glb';
 
 // Table center; gremlin sits on far side (−Z), player/cherub on near side (+Z)
 const GREMLIN_POS: [number, number, number] = [0, 0.4, -1.15];
