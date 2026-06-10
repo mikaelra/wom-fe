@@ -847,7 +847,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           NOTE: the model's origin sits on one of its corner columns rather than its
           center, so position/scale will likely need tweaking to frame it nicely. */}
       <Suspense fallback={null}>
-        <Temple scale={1} position={[0, 0, 0]} />
+        <Temple scale={1} position={[0, 4, 0]} />
       </Suspense>
 
       {/* Player names, action buttons, and resource cards — immediate, no model dependency.
