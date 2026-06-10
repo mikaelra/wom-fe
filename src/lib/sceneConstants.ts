@@ -1,5 +1,5 @@
 // Shared 3D scene layout for home and lobby
-export const TABLE_POSITION: [number, number, number] = [0, 2.75, 0];
+export const TABLE_POSITION: [number, number, number] = [0, 2.55, 0];
 export const SCENE_CENTER: [number, number, number] = [0, 3.2, 0];
 
 export const MAX_PLAYERS = 24;
