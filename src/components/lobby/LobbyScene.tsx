@@ -909,7 +909,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       {/* Well (raid) button — immediate; the Table GLB loads separately below */}
       {showAttackButtons && (
-        <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+        <Html position={[0, 3.3, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={handleRaid}
             className={guideGlowClass(guideHighlight?.well)}
