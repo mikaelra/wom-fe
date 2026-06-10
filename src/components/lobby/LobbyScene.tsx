@@ -31,6 +31,12 @@ import type { LobbyState } from '@/types/game';
 
 const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
 
+// ── Sea & sky tuning ────────────────────────────────────────────────────────
+// Single source of truth — edit these to move the water / sun. (Don't also set
+// the same props on <SeaAndSky/> below, or the prop would override these.)
+const SEA_LEVEL = 3;                       // water height; lower = sea drops
+const SUN_POSITION: [number, number, number] = [100, 20, 100]; // sun direction
+
 // Camera controller — snaps to target immediately on mount so Html buttons appear in the
 // correct screen position before any models load, then tracks resize / pan smoothly.
 function CameraFlyIn() {
@@ -845,7 +851,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       {/* Sky dome + sea plane — the sea horizon sits where they meet in the distance.
           Tweak seaLevel to line the water up with the temple/player base. */}
-      <SeaAndSky seaLevel={3} sunPosition={[100, 20, 100]} />
+      <SeaAndSky seaLevel={SEA_LEVEL} sunPosition={SUN_POSITION} />
 
       {/* Stage 1: Temple — background scenery, loads first.
           NOTE: the model's origin sits on one of its corner columns rather than its
