@@ -37,7 +37,7 @@ export function getBossPosition(): { position: [number, number, number]; rotatio
   return {
     position: [
       BASE_PLAYER_RADIUS * Math.sin(angle),
-      PLAYER_Y,
+      PLAYER_Y + 0.65,
       BASE_PLAYER_RADIUS * Math.cos(angle),
     ] as [number, number, number],
     rotation: [0, angle + Math.PI / 2, 0] as [number, number, number],
