@@ -4,7 +4,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { Html, Environment, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, useState, useEffect, Suspense } from 'react';
 import * as THREE from 'three';
-import Mountain from '@/components/mountain';
+import Temple from '@/components/temple';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
@@ -843,9 +843,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       <directionalLight position={[10, 10, 10]} intensity={1.2} castShadow />
       <color attach="background" args={['#87ceeb']} />
 
-      {/* Stage 1: Mountain — background scenery, loads first */}
+      {/* Stage 1: Temple — background scenery, loads first.
+          NOTE: the model's origin sits on one of its corner columns rather than its
+          center, so position/scale will likely need tweaking to frame it nicely. */}
       <Suspense fallback={null}>
-        <Mountain scale={150} position={[40, -282, 62]} />
+        <Temple scale={1} position={[0, 0, 0]} />
       </Suspense>
 
       {/* Player names, action buttons, and resource cards — immediate, no model dependency.
