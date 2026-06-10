@@ -34,7 +34,7 @@ const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
 // ── Sea & sky tuning ────────────────────────────────────────────────────────
 // Single source of truth — edit these to move the water / sun. (Don't also set
 // the same props on <SeaAndSky/> below, or the prop would override these.)
-const SEA_LEVEL = 3;                       // water height; lower = sea drops
+const SEA_LEVEL = 2;                       // water height; lower = sea drops
 const SUN_POSITION: [number, number, number] = [100, 20, 100]; // sun direction
 
 // Camera controller — snaps to target immediately on mount so Html buttons appear in the

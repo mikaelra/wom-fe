@@ -16,7 +16,7 @@ type Props = {
 // meets the sky dome in the distance reads as the sea horizon, and the sun in
 // the sky gives the scene a bright outdoor feel.
 export default function SeaAndSky({
-  seaLevel = 3,
+  seaLevel = -1,
   sunPosition = [100, 20, 100],
   seaColor = '#3b7fb5',
 }: Props) {
