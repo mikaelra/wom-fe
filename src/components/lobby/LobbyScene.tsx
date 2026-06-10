@@ -4,7 +4,8 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { Html, Environment, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, useState, useEffect, Suspense } from 'react';
 import * as THREE from 'three';
-import Mountain from '@/components/mountain';
+import Temple from '@/components/temple';
+import SeaAndSky from '@/components/lobby/SeaAndSky';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
@@ -29,6 +30,12 @@ import type { LobbyState } from '@/types/game';
 
 
 const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
+
+// ── Sea & sky tuning ────────────────────────────────────────────────────────
+// Single source of truth — edit these to move the water / sun. (Don't also set
+// the same props on <SeaAndSky/> below, or the prop would override these.)
+const SEA_LEVEL = 2;                       // water height; lower = sea drops
+const SUN_POSITION: [number, number, number] = [100, 20, 100]; // sun direction
 
 // Camera controller — snaps to target immediately on mount so Html buttons appear in the
 // correct screen position before any models load, then tracks resize / pan smoothly.
@@ -841,11 +848,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       <CameraFlyIn />
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 10]} intensity={1.2} castShadow />
-      <color attach="background" args={['#87ceeb']} />
 
-      {/* Stage 1: Mountain — background scenery, loads first */}
+      {/* Sky dome + sea plane — the sea horizon sits where they meet in the distance.
+          Tweak seaLevel to line the water up with the temple/player base. */}
+      <SeaAndSky seaLevel={SEA_LEVEL} sunPosition={SUN_POSITION} />
+
+      {/* Stage 1: Temple — background scenery, loads first.
+          NOTE: the model's origin sits on one of its corner columns rather than its
+          center, so position/scale will likely need tweaking to frame it nicely. */}
       <Suspense fallback={null}>
-        <Mountain scale={150} position={[40, -282, 62]} />
+        <Temple scale={1} position={[0, 4, 0]} />
       </Suspense>
 
       {/* Player names, action buttons, and resource cards — immediate, no model dependency.
@@ -907,7 +919,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       {/* Well (raid) button — immediate; the Table GLB loads separately below */}
       {showAttackButtons && (
-        <Html position={[0, 3.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+        <Html position={[0, 3.3, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
           <button
             onClick={handleRaid}
             className={guideGlowClass(guideHighlight?.well)}

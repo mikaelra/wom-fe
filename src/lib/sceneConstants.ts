@@ -1,5 +1,5 @@
 // Shared 3D scene layout for home and lobby
-export const TABLE_POSITION: [number, number, number] = [0, 3.15, 0];
+export const TABLE_POSITION: [number, number, number] = [0, 2.55, 0];
 export const SCENE_CENTER: [number, number, number] = [0, 3.2, 0];
 
 export const MAX_PLAYERS = 24;
@@ -37,7 +37,7 @@ export function getBossPosition(): { position: [number, number, number]; rotatio
   return {
     position: [
       BASE_PLAYER_RADIUS * Math.sin(angle),
-      PLAYER_Y,
+      PLAYER_Y + 0.65,
       BASE_PLAYER_RADIUS * Math.cos(angle),
     ] as [number, number, number],
     rotation: [0, angle + Math.PI / 2, 0] as [number, number, number],
