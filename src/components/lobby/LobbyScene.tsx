@@ -5,6 +5,7 @@ import { Html, Environment, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, useState, useEffect, Suspense } from 'react';
 import * as THREE from 'three';
 import Temple from '@/components/temple';
+import SeaAndSky from '@/components/lobby/SeaAndSky';
 import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
@@ -841,7 +842,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       <CameraFlyIn />
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 10]} intensity={1.2} castShadow />
-      <color attach="background" args={['#87ceeb']} />
+
+      {/* Sky dome + sea plane — the sea horizon sits where they meet in the distance.
+          Tweak seaLevel to line the water up with the temple/player base. */}
+      <SeaAndSky seaLevel={3} sunPosition={[100, 20, 100]} />
 
       {/* Stage 1: Temple — background scenery, loads first.
           NOTE: the model's origin sits on one of its corner columns rather than its

@@ -37,11 +37,7 @@ export function getBossPosition(): { position: [number, number, number]; rotatio
   return {
     position: [
       BASE_PLAYER_RADIUS * Math.sin(angle),
-<<<<<<< HEAD
       PLAYER_Y + 0.65,
-=======
-      PLAYER_Y + 1.5, // raised above the other players
->>>>>>> refs/remotes/origin/claude/nifty-allen-p8ieid
       BASE_PLAYER_RADIUS * Math.cos(angle),
     ] as [number, number, number],
     rotation: [0, angle + Math.PI / 2, 0] as [number, number, number],
