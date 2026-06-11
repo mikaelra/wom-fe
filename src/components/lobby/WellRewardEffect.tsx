@@ -33,13 +33,25 @@ export const WELL_REWARD_MODELS: Record<WellRewardType, string> = {
 // Per-reward presentation tuning. Kept here so size/rotation refinement is a
 // one-line change once the models are seen in-scene.
 export const WELL_REWARD_SCALE: Record<WellRewardType, number> = {
-  gold:      0.3,
-  health:    0.3,
+  gold:      0.24,
+  health:    0.24,
   sword:     0.3,
   instakill: 0.3,
   deny:      0.3,
   info:      0.3,
-  steal:     0.3,
+  steal:     0.24,
+};
+
+// Base orientation (radians) applied to each model. The travel tumble spins on
+// top of this, and it's what the model rests at after landing.
+export const WELL_REWARD_ROTATION: Record<WellRewardType, [number, number, number]> = {
+  gold:      [0, 0, 0],
+  health:    [0, 0, 0],
+  sword:     [0, 0, 0],
+  instakill: [0, 0, 0],
+  deny:      [0, Math.PI / 2, 0],
+  info:      [0, 0, 0],
+  steal:     [0, 0, 0],
 };
 
 export function preloadWellRewardModels() {
@@ -160,7 +172,11 @@ export default function WellRewardEffect({
 
   return (
     <group ref={groupRef} position={fromPosition}>
-      <primitive object={sceneClone} scale={scale ?? WELL_REWARD_SCALE[type]} />
+      <primitive
+        object={sceneClone}
+        scale={scale ?? WELL_REWARD_SCALE[type]}
+        rotation={WELL_REWARD_ROTATION[type]}
+      />
     </group>
   );
 }

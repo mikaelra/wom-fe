@@ -49,8 +49,13 @@ export function parseWellReward(messages: (string | string[])[]): WellRewardComp
       continue;
     }
 
-    // ── Resource rewards: "You got [+]N 💰 / N ❤ / +N ⚔" (possibly combined) ──
-    if (/You got/i.test(line)) {
+    // ── Resource rewards from the well ─────────────────────────────────────
+    // The SAME resources (hp/gold/atk) can be gained from the resource buttons,
+    // which must NOT trigger this animation. Well grants are distinguished by a
+    // whimsical prefix emoji that the button gains don't use, so we anchor on
+    // those prefixes rather than the generic "You got … 💰/❤/⚔" text:
+    //   📦 2_gold · 🤕 2_hp · ☘ 1_hp_1_gold · 🔫 1_atkdmg · ♦ 2_hp_2_gold
+    if (/[📦🤕☘🔫♦]/u.test(line)) {
       const sword  = line.match(/\+?(\d+)\s*⚔/);
       const gold   = line.match(/(\d+)\s*💰/);
       const health = line.match(/(\d+)\s*❤/);
