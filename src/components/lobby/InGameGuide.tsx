@@ -35,8 +35,10 @@ const STEPS: Step[] = [
 // Every bubble card sits just to the left of the player. Screen-left in world
 // space for a camera orbited by `yaw` about the scene centre is (-cos yaw, 0,
 // sin yaw); we use INITIAL_CAMERA_YAW so the cards track the opened-up space.
-const LEFT_DIST = 1.4; // how far left of the player the card floats
-const CARD_LIFT = 0.4; // small upward nudge so it clears the player model
+// Scaled up ~15% in step with the camera pulling 15% further back (see
+// getCameraTargetPosition) so the card keeps the same on-screen placement.
+const LEFT_DIST = 1.61; // how far left of the player the card floats
+const CARD_LIFT = 0.46; // small upward nudge so it clears the player model
 function cardPos(ownPosition: Vec3 | null): Vec3 {
   const base = ownPosition ?? SCENE_CENTER;
   const lx = -Math.cos(INITIAL_CAMERA_YAW);
@@ -95,7 +97,7 @@ export default function InGameGuide({ ownPosition, gameStarted, onHighlightChang
   };
 
   return (
-    <Html position={card} center distanceFactor={4.55} zIndexRange={[200, 200]}>
+    <Html position={card} center distanceFactor={5.23} zIndexRange={[200, 200]}>
       <GuideBubble
         text={current.text}
         stepIndex={step}
