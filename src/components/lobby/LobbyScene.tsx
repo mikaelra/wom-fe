@@ -291,7 +291,7 @@ function PlayerWithName({
           which use Tailwind z-10/z-20) so the card renders beneath them rather than
           covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html position={[0, -0.5, 0]} center distanceFactor={3.45} zIndexRange={[5, 5]}>
+        <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
