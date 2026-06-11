@@ -1,10 +1,19 @@
 import type { WellRewardType } from '@/components/lobby/WellRewardEffect';
 
+/** For 'steal': how many coins were taken from a given player. */
+export interface WellStealVictim {
+  name: string;
+  amount: number;
+}
+
 export interface WellRewardComponent {
   /** Which reward model to animate. */
   type: WellRewardType;
   /** How many model instances to spawn (e.g. +2 HP → 2 hearts). */
   count: number;
+  /** For 'steal' only: per-player coin counts, so one coin flies from each
+   *  player for every coin stolen from them. */
+  victims?: WellStealVictim[];
 }
 
 /**
@@ -29,13 +38,29 @@ export interface WellRewardComponent {
 export function parseWellReward(messages: (string | string[])[]): WellRewardComponent[] {
   const lines = messages.flat();
   const out: WellRewardComponent[] = [];
+  const stealVictims: WellStealVictim[] = [];
+  let steal = false;
 
   for (const line of lines) {
-    // ── Special / single-instance rewards ──────────────────────────────────
+    // ── Steal-all! ─────────────────────────────────────────────────────────
+    // Headline "🏴‍☠️Steal-all!🏴‍☠️" marks the reward; the winner also gets one
+    // "💸 You stole N 💰 from <name>." line per victim — that's where the
+    // per-player coin counts come from (victims see different lines, so only the
+    // winner produces these).
     if (/Steal-all!/i.test(line)) {
-      out.push({ type: 'steal', count: 1 });
+      steal = true;
       continue;
     }
+    const v = line.match(/You stole (\d+)\s*💰 from (.+)\.\s*$/);
+    if (v) {
+      steal = true;
+      // A broke player yields 0 — no coin should fly from them.
+      const amount = parseInt(v[1], 10);
+      stealVictims.push({ name: v[2].trim(), amount: Number.isFinite(amount) ? amount : 0 });
+      continue;
+    }
+
+    // ── Special / single-instance rewards ──────────────────────────────────
     if (/poisoned dagger/i.test(line)) {
       out.push({ type: 'instakill', count: 1 });
       continue;
@@ -64,6 +89,8 @@ export function parseWellReward(messages: (string | string[])[]): WellRewardComp
       if (health) out.push({ type: 'health', count: Math.max(1, parseInt(health[1], 10)) });
     }
   }
+
+  if (steal) out.unshift({ type: 'steal', count: 1, victims: stealVictims });
 
   return out;
 }

@@ -21,7 +21,7 @@ export type WellRewardType =
 export const WELL_REWARD_MODELS: Record<WellRewardType, string> = {
   gold:      '/models/well/rewards/gold-ld.glb',
   health:    '/models/well/rewards/health-ld.glb',
-  sword:     '/models/well/rewards/sword_ld_v1.glb',
+  sword:     '/models/well/rewards/sword-ld.glb',
   instakill: '/models/well/rewards/instakill-ld.glb',
   deny:      '/models/well/rewards/deny-ld.glb',
   info:      '/models/well/rewards/info-ld.glb',

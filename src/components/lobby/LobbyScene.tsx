@@ -516,14 +516,17 @@ const WELL_SPOUT_POSITION: [number, number, number] = [0, 3.45, 0];
 // Stagger between successive reward instances (seconds).
 const WELL_REWARD_STAGGER = 0.18;
 
+// A steal source: one player's seat plus how many coins were stolen from them.
+type StealSource = { pos: [number, number, number]; count: number };
+
 // Build the per-instance reward animations for a won well result. A result can
 // contain several components (e.g. 2 gold + 2 hp), each spawning `count` models.
 //  - simple rewards: models arch from the well onto the winner.
-//  - 'steal': one coin flies from every *other* player to the winner.
+//  - 'steal': one coin flies from each player to the winner, one per coin stolen.
 function buildWellRewardEvents(
   components: WellRewardComponent[],
   winnerPos: [number, number, number],
-  otherPositions: [number, number, number][],
+  stealSources: StealSource[],
 ): WellRewardEvent[] {
   const land: [number, number, number] = [winnerPos[0], winnerPos[1] + 0.5, winnerPos[2]];
   const stamp = Date.now();
@@ -532,15 +535,24 @@ function buildWellRewardEvents(
 
   for (const reward of components) {
     if (reward.type === 'steal') {
-      const sources = otherPositions.length ? otherPositions : [WELL_SPOUT_POSITION];
-      sources.forEach((src, i) => {
-        events.push({
-          id:   `well-steal-${stamp}-${i}`,
-          type: 'steal',
-          fromPos: [src[0], src[1] + 0.3, src[2]],
-          toPos:   land,
-          delay:   seq++ * WELL_REWARD_STAGGER,
-        });
+      // Fall back to the well only if we somehow have no player sources.
+      const sources: StealSource[] = stealSources.length
+        ? stealSources
+        : [{ pos: WELL_SPOUT_POSITION, count: Math.max(1, reward.count) }];
+      sources.forEach((src, si) => {
+        const from: [number, number, number] = [src.pos[0], src.pos[1] + 0.3, src.pos[2]];
+        const coins = Math.max(0, src.count); // broke players yield no coin
+        for (let i = 0; i < coins; i++) {
+          // Spread coins from the same player so they don't perfectly overlap.
+          const jitter = coins > 1 ? (i - (coins - 1) / 2) * 0.15 : 0;
+          events.push({
+            id:   `well-steal-${stamp}-${si}-${i}`,
+            type: 'steal',
+            fromPos: [from[0] + jitter, from[1], from[2]],
+            toPos:   [land[0] + jitter, land[1], land[2]],
+            delay:   seq++ * WELL_REWARD_STAGGER,
+          });
+        }
       });
       continue;
     }
@@ -876,11 +888,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       if (myPos && state.raidwinner === playerName) {
         const components = parseWellReward(json.messages ?? []);
         if (components.length) {
-          const otherPositions = state.players
-            .filter((p) => p.name !== playerName && (p.hp ?? 0) > 0)
-            .map((p) => posMap.get(p.name))
-            .filter((p): p is [number, number, number] => !!p);
-          const rewardEvents = buildWellRewardEvents(components, myPos, otherPositions);
+          // For steal: one coin per stolen coin, flying from each victim's seat.
+          const stealVictims = components.find((c) => c.type === 'steal')?.victims ?? [];
+          const stealSources = stealVictims
+            .map((v) => ({ pos: posMap.get(v.name), count: v.amount }))
+            .filter((s): s is { pos: [number, number, number]; count: number } => !!s.pos);
+          const rewardEvents = buildWellRewardEvents(components, myPos, stealSources);
           if (rewardEvents.length) setWellRewardEvents((ev) => [...ev, ...rewardEvents]);
         }
       }
@@ -911,10 +924,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     const fire = () => {
       const myPos = posMapRef.current.get(playerName);
       if (!myPos) return;
-      const otherPositions = Array.from(posMapRef.current.entries())
+      // Fake steal sources: every other player coughs up `count` coins (default 1).
+      const stealCount = components.find((c) => c.type === 'steal')?.count ?? 1;
+      const stealSources = Array.from(posMapRef.current.entries())
         .filter(([name]) => name !== playerName)
-        .map(([, pos]) => pos);
-      setWellRewardEvents((ev) => [...ev, ...buildWellRewardEvents(components, myPos, otherPositions)]);
+        .map(([, pos]) => ({ pos, count: stealCount }));
+      setWellRewardEvents((ev) => [...ev, ...buildWellRewardEvents(components, myPos, stealSources)]);
     };
     fire();
     const interval = setInterval(fire, 4000);
