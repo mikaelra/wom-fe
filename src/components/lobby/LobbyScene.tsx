@@ -233,7 +233,7 @@ function PlayerWithName({
         </Html>
       )}
       {showAttackButton && !isBoss && (
-        <Html position={[0, 0.9, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+        <Html position={[0, 0.9, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
           <button
             onClick={onAttack}
             className={`${actionCue} ${hlAttack}`}
@@ -260,7 +260,7 @@ function PlayerWithName({
       )}
       {/* DEFEND button — own player only */}
       {showOwnActions && (
-        <Html position={[0, -0.1, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+        <Html position={[0, -0.1, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
           <button
             onClick={onDefend}
             className={`${actionCue} ${hlDefend}`}
@@ -291,7 +291,7 @@ function PlayerWithName({
           which use Tailwind z-10/z-20) so the card renders beneath them rather than
           covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html position={[0, -0.5, 0]} center distanceFactor={3} zIndexRange={[5, 5]}>
+        <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
@@ -439,7 +439,7 @@ function LostSoulModel({
         {name}
       </Html>
       {showAttackButton && (
-        <Html position={[0, 0.75, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+        <Html position={[0, 0.75, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
           <button
             onClick={onAttack}
             className={actionCue}
@@ -919,7 +919,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       {/* Well (raid) button — immediate; the Table GLB loads separately below */}
       {showAttackButtons && (
-        <Html position={[0, 3.3, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
+        <Html position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
           <button
             onClick={handleRaid}
             className={guideGlowClass(guideHighlight?.well)}

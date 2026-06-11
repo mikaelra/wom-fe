@@ -88,7 +88,7 @@ export function getResponsiveFov(width: number, height: number): number {
 }
 export function getCameraTargetPosition(width: number, height: number): [number, number, number] {
   const aspect = width / height;
-  const dist = aspect > 1.5 ? 3.2 : 3.5;
-  const elevation = aspect > 1 ? 2.2 : 2.5;
+  const dist = aspect > 1.5 ? 3.68 : 4.03;
+  const elevation = aspect > 1 ? 2.53 : 2.88;
   return [0, SCENE_CENTER[1] + elevation, dist];
 }
