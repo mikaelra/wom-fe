@@ -1,13 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Html } from '@react-three/drei';
-import { SCENE_CENTER, INITIAL_CAMERA_YAW } from '@/lib/sceneConstants';
 import { useGuideEnabled } from '@/lib/useGuideEnabled';
 import type { GuideHighlights } from '@/lib/guideHighlights';
 import GuideBubble from './GuideBubble';
-
-type Vec3 = [number, number, number];
 
 type Step = {
   text: ReactNode;
@@ -32,27 +28,12 @@ const STEPS: Step[] = [
   { text: 'Good luck!', highlights: {} },
 ];
 
-// Every bubble card sits just to the left of the player. Screen-left in world
-// space for a camera orbited by `yaw` about the scene centre is (-cos yaw, 0,
-// sin yaw); we use INITIAL_CAMERA_YAW so the cards track the opened-up space.
-// Scaled up ~15% in step with the camera pulling 15% further back (see
-// getCameraTargetPosition) so the card keeps the same on-screen placement.
-const LEFT_DIST = 1.61; // how far left of the player the card floats
-const CARD_LIFT = 0.46; // small upward nudge so it clears the player model
-function cardPos(ownPosition: Vec3 | null): Vec3 {
-  const base = ownPosition ?? SCENE_CENTER;
-  const lx = -Math.cos(INITIAL_CAMERA_YAW);
-  const lz = Math.sin(INITIAL_CAMERA_YAW);
-  return [base[0] + lx * LEFT_DIST, base[1] + CARD_LIFT, base[2] + lz * LEFT_DIST];
-}
-
 type Props = {
-  ownPosition: Vec3 | null;
   gameStarted: boolean;
   onHighlightChange?: (highlights: GuideHighlights) => void;
 };
 
-export default function InGameGuide({ ownPosition, gameStarted, onHighlightChange }: Props) {
+export default function InGameGuide({ gameStarted, onHighlightChange }: Props) {
   const { enabled, setEnabled, mounted } = useGuideEnabled();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
@@ -89,27 +70,35 @@ export default function InGameGuide({ ownPosition, gameStarted, onHighlightChang
   if (!visible) return null;
 
   const current = STEPS[step];
-  const card = cardPos(ownPosition);
 
   const handleClose = () => {
     setOpen(false);
     if (dontShowAgain) setEnabled(false);
   };
 
+  // Screen-fixed overlay card. It lives in the same UI layer as the round
+  // messages (top) and resource cards (bottom), floating just above the
+  // resource cards and nudged a little to the left. `max-w-[90vw]` plus the
+  // clamped left offset keep the whole card inside a narrow phone viewport.
   return (
-    <Html position={card} center distanceFactor={5.23} zIndexRange={[200, 200]}>
-      <GuideBubble
-        text={current.text}
-        stepIndex={step}
-        totalSteps={STEPS.length}
-        isLast={step === STEPS.length - 1}
-        dontShowAgain={dontShowAgain}
-        onPrev={() => setStep((s) => Math.max(0, s - 1))}
-        onNext={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
-        onRestart={() => setStep(0)}
-        onClose={handleClose}
-        onToggleDontShow={setDontShowAgain}
-      />
-    </Html>
+    <div className="absolute inset-0 pointer-events-none z-30">
+      <div
+        className="absolute pointer-events-none"
+        style={{ bottom: '7rem', left: 'max(0.75rem, calc(50% - 11rem))' }}
+      >
+        <GuideBubble
+          text={current.text}
+          stepIndex={step}
+          totalSteps={STEPS.length}
+          isLast={step === STEPS.length - 1}
+          dontShowAgain={dontShowAgain}
+          onPrev={() => setStep((s) => Math.max(0, s - 1))}
+          onNext={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
+          onRestart={() => setStep(0)}
+          onClose={handleClose}
+          onToggleDontShow={setDontShowAgain}
+        />
+      </div>
+    </div>
   );
 }
