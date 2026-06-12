@@ -8,6 +8,10 @@ import type { WellGlow } from '@/lib/parseWellReward';
 // A coloured glow that flashes under the well. On a win it's keyed to reward
 // rarity (blue / purple / gold); when you choose the well but lose, a small red
 // glow plays in the same spot. Common rewards pass no glow at all.
+//
+// Note: this deliberately uses additive emissive discs and NO dynamic light.
+// Mounting/unmounting a light at runtime forces three.js to recompile every
+// material's shader, which stutters — the discs give the glow look for free.
 
 export type WellGlowColor = WellGlow | 'red';
 
@@ -20,6 +24,7 @@ const GLOW_HEX: Record<WellGlowColor, string> = {
 
 const DURATION = 1.5;        // seconds
 const DEFAULT_RADIUS = 1.5;  // disc radius under the well
+const DEFAULT_BLINKS = 3;    // flashes over the duration
 
 type Props = {
   /** World-space position under the well (disc lies flat here). */
@@ -29,15 +34,25 @@ type Props = {
   radius?: number;
   /** Brightness multiplier (1 = full); used to dim the red loss glow. */
   intensity?: number;
+  /** Number of flashes over the duration. */
+  blinks?: number;
   onDone?: () => void;
 };
 
-export default function WellGlowEffect({ position, color, radius = DEFAULT_RADIUS, intensity = 1, onDone }: Props) {
-  const discRef  = useRef<THREE.Mesh>(null);
-  const lightRef = useRef<THREE.PointLight>(null);
+export default function WellGlowEffect({
+  position,
+  color,
+  radius = DEFAULT_RADIUS,
+  intensity = 1,
+  blinks = DEFAULT_BLINKS,
+  onDone,
+}: Props) {
+  const coreRef  = useRef<THREE.Mesh>(null);
+  const haloRef  = useRef<THREE.Mesh>(null);
   const startRef = useRef<number | null>(null);
   const doneRef  = useRef(false);
   const hex = GLOW_HEX[color];
+  const freq = (2 * Math.PI * blinks) / DURATION;
 
   useFrame(() => {
     if (startRef.current === null) startRef.current = performance.now() / 1000;
@@ -45,14 +60,14 @@ export default function WellGlowEffect({ position, color, radius = DEFAULT_RADIU
 
     // Flashing envelope: pulses while decaying over the duration.
     const decay = Math.max(0, 1 - t / DURATION);
-    const pulse = 0.55 + 0.45 * Math.sin(t * 13);
+    const pulse = 0.55 + 0.45 * Math.sin(t * freq);
     const env   = decay * pulse;
 
-    if (discRef.current) {
-      (discRef.current.material as THREE.MeshBasicMaterial).opacity = 0.85 * env * intensity;
+    if (coreRef.current) {
+      (coreRef.current.material as THREE.MeshBasicMaterial).opacity = 0.9 * env * intensity;
     }
-    if (lightRef.current) {
-      lightRef.current.intensity = 6 * env * intensity;
+    if (haloRef.current) {
+      (haloRef.current.material as THREE.MeshBasicMaterial).opacity = 0.4 * env * intensity;
     }
 
     if (t >= DURATION && !doneRef.current) {
@@ -63,9 +78,9 @@ export default function WellGlowEffect({ position, color, radius = DEFAULT_RADIU
 
   return (
     <group position={position}>
-      {/* Flat glowing disc on the ground beneath the well */}
-      <mesh ref={discRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={18}>
-        <circleGeometry args={[radius, 48]} />
+      {/* Bright core disc */}
+      <mesh ref={coreRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={18}>
+        <circleGeometry args={[radius, 40]} />
         <meshBasicMaterial
           color={hex}
           transparent
@@ -75,8 +90,18 @@ export default function WellGlowEffect({ position, color, radius = DEFAULT_RADIU
           blending={THREE.AdditiveBlending}
         />
       </mesh>
-      {/* Soft light so the glow tints the well itself */}
-      <pointLight ref={lightRef} color={hex} intensity={0} distance={4} position={[0, 0.4, 0]} />
+      {/* Soft outer halo so it reads as a glow without a dynamic light */}
+      <mesh ref={haloRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} renderOrder={17}>
+        <circleGeometry args={[radius * 1.7, 40]} />
+        <meshBasicMaterial
+          color={hex}
+          transparent
+          opacity={0}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
     </group>
   );
 }

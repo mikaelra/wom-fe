@@ -1226,7 +1226,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       {wellWinFx.map((fx) => (
         <group key={fx.id}>
           {fx.splash && <WellSplashEffect position={WELL_SPLASH_POSITION} />}
-          {fx.glow && <WellGlowEffect position={WELL_GLOW_POSITION} color={fx.glow} radius={fx.glowRadius} intensity={fx.glowIntensity} />}
+          {fx.glow && <WellGlowEffect position={WELL_GLOW_POSITION} color={fx.glow} radius={fx.glowRadius} intensity={fx.glowIntensity} blinks={fx.glow === 'red' ? 2 : undefined} />}
         </group>
       ))}
 
