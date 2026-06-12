@@ -52,16 +52,16 @@ export default function WellGlowEffect({
   const startRef = useRef<number | null>(null);
   const doneRef  = useRef(false);
   const hex = GLOW_HEX[color];
-  const freq = (2 * Math.PI * blinks) / DURATION;
 
   useFrame(() => {
     if (startRef.current === null) startRef.current = performance.now() / 1000;
     const t = performance.now() / 1000 - startRef.current;
 
-    // Flashing envelope: pulses while decaying over the duration.
-    const decay = Math.max(0, 1 - t / DURATION);
-    const pulse = 0.55 + 0.45 * Math.sin(t * freq);
-    const env   = decay * pulse;
+    // Distinct blinks: |sin| gives `blinks` humps that each go fully 0 → 1 → 0,
+    // so the disc visibly switches off between flashes (no dynamic light now).
+    // A mild fade keeps later blinks dimmer.
+    const phase = (Math.PI * blinks * t) / DURATION; // 0 → π·blinks over the duration
+    const env   = Math.abs(Math.sin(phase)) * (1 - 0.3 * Math.min(1, t / DURATION));
 
     if (coreRef.current) {
       (coreRef.current.material as THREE.MeshBasicMaterial).opacity = 0.9 * env * intensity;
