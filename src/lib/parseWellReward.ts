@@ -16,6 +16,30 @@ export interface WellRewardComponent {
   victims?: WellStealVictim[];
 }
 
+/** Rarity glow colour under the well. null = common (no glow). */
+export type WellGlow = 'blue' | 'purple' | 'gold';
+
+/**
+ * Rarity glow for a parsed well result, from the deck odds:
+ *   rarity 5 → no glow   2_gold · 2_hp · 1_hp_1_gold · reveal_info
+ *   rarity 3 → blue      1_atkdmg · deny_choice · 2_hp_2_gold
+ *   rarity 2 → purple    steal_gold
+ *   rarity 1 → gold      instakill
+ * The 1_hp_1_gold (rarity 5) vs 2_hp_2_gold (rarity 3) pair share component
+ * types, so they're told apart by their counts (1+1 vs 2+2).
+ */
+export function glowForReward(components: WellRewardComponent[]): WellGlow | null {
+  const has = (t: WellRewardType) => components.some((c) => c.type === t);
+  if (has('steal'))     return 'purple';
+  if (has('instakill')) return 'gold';
+  if (has('deny'))      return 'blue';   // deny_choice
+  if (has('sword'))     return 'blue';   // 1_atkdmg
+  const gold   = components.find((c) => c.type === 'gold');
+  const health = components.find((c) => c.type === 'health');
+  if (gold && health && gold.count >= 2 && health.count >= 2) return 'blue'; // 2_hp_2_gold
+  return null; // 2_gold · 2_hp · 1_hp_1_gold · reveal_info
+}
+
 /**
  * Parse the well-winner's personal messages and return the reward(s) to
  * animate. The well only animates for the player who won it, so this is run on

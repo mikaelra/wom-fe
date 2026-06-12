@@ -11,11 +11,13 @@ import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
+import WellSplashEffect from '@/components/lobby/WellSplashEffect';
+import WellGlowEffect from '@/components/lobby/WellGlowEffect';
 import InGameGuide from '@/components/lobby/InGameGuide';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket, getPlayerMessages } from '@/lib/api';
 import { parseCombatMessages } from '@/lib/parseCombatMessages';
-import { parseWellReward, type WellRewardComponent } from '@/lib/parseWellReward';
+import { parseWellReward, glowForReward, type WellRewardComponent, type WellGlow } from '@/lib/parseWellReward';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
 import {
   TABLE_POSITION,
@@ -511,8 +513,20 @@ type WellRewardEvent = {
   delay:   number;
 };
 
+// Splash + rarity glow that play on the well when you win it.
+type WellWinFx = {
+  id: string;
+  glow: WellGlow | null; // null = common reward, no glow
+};
+
 // Where rewards spout out of the well (center of the table, just above the rim).
 const WELL_SPOUT_POSITION: [number, number, number] = [0, 3.45, 0];
+// Where the splash erupts (well mouth) and where the rarity glow lies (under it).
+const WELL_SPLASH_POSITION: [number, number, number] = [0, 3.4, 0];
+const WELL_GLOW_POSITION:   [number, number, number] = [0, 2.95, 0];
+// Lifetime of the splash/glow before removal (ms) — also how long incoming
+// attacks wait when a win has no flying reward models (e.g. a 0-coin steal).
+const WELL_FX_DURATION = 1600;
 // Stagger between successive reward instances (seconds).
 const WELL_REWARD_STAGGER = 0.18;
 
@@ -631,6 +645,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [hitFlashEvents, setHitFlashEvents] = useState<HitFlashEvent[]>([]);
   const [impactShields, setImpactShields] = useState<ImpactShield[]>([]);
   const [wellRewardEvents, setWellRewardEvents] = useState<WellRewardEvent[]>([]);
+  const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
   // Timeout IDs for staggered incoming defended strikes (cleared each new round)
   const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -801,17 +816,26 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       if (myPos && state.raidwinner === playerName) {
         const components = parseWellReward(json.messages ?? []);
         if (components.length) {
+          // Splash + rarity glow on the well itself.
+          const fxId = `wellfx-${Date.now()}`;
+          setWellWinFx((fx) => [...fx, { id: fxId, glow: glowForReward(components) }]);
+          staggerTimeoutsRef.current.push(
+            setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== fxId)), WELL_FX_DURATION),
+          );
+
           // For steal: one coin per stolen coin, flying from each victim's seat.
           const stealVictims = components.find((c) => c.type === 'steal')?.victims ?? [];
           const stealSources = stealVictims
             .map((v) => ({ pos: posMap.get(v.name), count: v.amount }))
             .filter((s): s is { pos: [number, number, number]; count: number } => !!s.pos);
           const rewardEvents = buildWellRewardEvents(components, myPos, stealSources);
-          if (rewardEvents.length) {
-            setWellRewardEvents((ev) => [...ev, ...rewardEvents]);
-            const maxDelay = Math.max(...rewardEvents.map((e) => e.delay));
-            wellDelayMs = (maxDelay + WELL_REWARD_FLIGHT_DUR) * 1000;
-          }
+          const rewardDurMs = rewardEvents.length
+            ? (Math.max(...rewardEvents.map((e) => e.delay)) + WELL_REWARD_FLIGHT_DUR) * 1000
+            : 0;
+          if (rewardEvents.length) setWellRewardEvents((ev) => [...ev, ...rewardEvents]);
+          // Hold incoming attacks until both the splash/glow and any reward
+          // models have finished.
+          wellDelayMs = Math.max(rewardDurMs, WELL_FX_DURATION);
         }
       }
 
@@ -932,6 +956,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     const fire = () => {
       const myPos = posMapRef.current.get(playerName);
       if (!myPos) return;
+      // Splash + rarity glow on the well.
+      const fxId = `wellfx-dbg-${Date.now()}`;
+      setWellWinFx((fx) => [...fx, { id: fxId, glow: glowForReward(components) }]);
+      setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== fxId)), WELL_FX_DURATION);
       // Fake steal sources: every other player coughs up `count` coins (default 1).
       const stealCount = components.find((c) => c.type === 'steal')?.count ?? 1;
       const stealSources = Array.from(posMapRef.current.entries())
@@ -1158,6 +1186,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           />
         ))}
       </Suspense>
+
+      {/* Well-win splash + rarity glow — pure geometry/particles, render immediately */}
+      {wellWinFx.map((fx) => (
+        <group key={fx.id}>
+          <WellSplashEffect position={WELL_SPLASH_POSITION} />
+          {fx.glow && <WellGlowEffect position={WELL_GLOW_POSITION} color={fx.glow} />}
+        </group>
+      ))}
 
       {/* Red aura — pure geometry, no model; renders immediately */}
       {hitFlashEvents.map((f) => (
