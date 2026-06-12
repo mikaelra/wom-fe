@@ -521,9 +521,11 @@ type WellWinFx = {
   splash: boolean;
   glow: WellGlowColor | null;
   glowRadius?: number;
+  glowIntensity?: number;
 };
-// Radius of the small red "you chose the well but lost" glow.
+// Size + brightness of the small red "you chose the well but lost" glow.
 const WELL_LOSS_GLOW_RADIUS = 0.9;
+const WELL_LOSS_GLOW_INTENSITY = 0.33;
 
 // Where rewards spout out of the well (center of the table, just above the rim).
 const WELL_SPOUT_POSITION: [number, number, number] = [0, 2.4, 0];
@@ -548,7 +550,7 @@ function buildWellRewardEvents(
   winnerPos: [number, number, number],
   stealSources: StealSource[],
 ): WellRewardEvent[] {
-  const land: [number, number, number] = [winnerPos[0], winnerPos[1] - 0.5, winnerPos[2]];
+  const land: [number, number, number] = [winnerPos[0], winnerPos[1], winnerPos[2]];
   const stamp = Date.now();
   const events: WellRewardEvent[] = [];
   let seq = 0; // running index so every instance staggers off the same clock
@@ -779,7 +781,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     // The win case is handled below once we've fetched the reward messages.
     if (currentActionRef.current === 'raid' && !state.boss_fight && state.raidwinner !== playerName) {
       const lossId = `wellloss-${Date.now()}`;
-      setWellWinFx((fx) => [...fx, { id: lossId, splash: false, glow: 'red', glowRadius: WELL_LOSS_GLOW_RADIUS }]);
+      setWellWinFx((fx) => [...fx, { id: lossId, splash: false, glow: 'red', glowRadius: WELL_LOSS_GLOW_RADIUS, glowIntensity: WELL_LOSS_GLOW_INTENSITY }]);
       staggerTimeoutsRef.current.push(
         setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== lossId)), WELL_FX_DURATION),
       );
@@ -985,7 +987,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       if (!myPos) return;
       if (showLoss) {
         const lossId = `wellloss-dbg-${Date.now()}`;
-        setWellWinFx((fx) => [...fx, { id: lossId, splash: false, glow: 'red', glowRadius: WELL_LOSS_GLOW_RADIUS }]);
+        setWellWinFx((fx) => [...fx, { id: lossId, splash: false, glow: 'red', glowRadius: WELL_LOSS_GLOW_RADIUS, glowIntensity: WELL_LOSS_GLOW_INTENSITY }]);
         setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== lossId)), WELL_FX_DURATION);
       }
       if (!components.length) return;
@@ -1224,7 +1226,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       {wellWinFx.map((fx) => (
         <group key={fx.id}>
           {fx.splash && <WellSplashEffect position={WELL_SPLASH_POSITION} />}
-          {fx.glow && <WellGlowEffect position={WELL_GLOW_POSITION} color={fx.glow} radius={fx.glowRadius} />}
+          {fx.glow && <WellGlowEffect position={WELL_GLOW_POSITION} color={fx.glow} radius={fx.glowRadius} intensity={fx.glowIntensity} />}
         </group>
       ))}
 

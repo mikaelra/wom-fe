@@ -27,10 +27,12 @@ type Props = {
   color: WellGlowColor;
   /** Disc radius; defaults to the full rarity-glow size. */
   radius?: number;
+  /** Brightness multiplier (1 = full); used to dim the red loss glow. */
+  intensity?: number;
   onDone?: () => void;
 };
 
-export default function WellGlowEffect({ position, color, radius = DEFAULT_RADIUS, onDone }: Props) {
+export default function WellGlowEffect({ position, color, radius = DEFAULT_RADIUS, intensity = 1, onDone }: Props) {
   const discRef  = useRef<THREE.Mesh>(null);
   const lightRef = useRef<THREE.PointLight>(null);
   const startRef = useRef<number | null>(null);
@@ -47,10 +49,10 @@ export default function WellGlowEffect({ position, color, radius = DEFAULT_RADIU
     const env   = decay * pulse;
 
     if (discRef.current) {
-      (discRef.current.material as THREE.MeshBasicMaterial).opacity = 0.85 * env;
+      (discRef.current.material as THREE.MeshBasicMaterial).opacity = 0.85 * env * intensity;
     }
     if (lightRef.current) {
-      lightRef.current.intensity = 6 * env;
+      lightRef.current.intensity = 6 * env * intensity;
     }
 
     if (t >= DURATION && !doneRef.current) {
