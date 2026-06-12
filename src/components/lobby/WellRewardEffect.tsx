@@ -33,13 +33,13 @@ export const WELL_REWARD_MODELS: Record<WellRewardType, string> = {
 // Per-reward presentation tuning. Kept here so size/rotation refinement is a
 // one-line change once the models are seen in-scene.
 export const WELL_REWARD_SCALE: Record<WellRewardType, number> = {
-  gold:      0.24,
-  health:    0.24,
+  gold:      0.144, // 60% of the previous 0.24
+  health:    0.204, // 85% of the previous 0.24
   sword:     0.3,
   instakill: 0.3,
   deny:      0.3,
   info:      0.3,
-  steal:     0.24,
+  steal:     0.144, // steal coins match the gold coin size
 };
 
 // Base orientation (radians) applied to each model. The travel tumble spins on
@@ -49,7 +49,9 @@ export const WELL_REWARD_ROTATION: Record<WellRewardType, [number, number, numbe
   health:    [0, 0, 0],
   sword:     [0, 0, 0],
   instakill: [0, 0, 0],
-  deny:      [0, Math.PI / 2, 0],
+  // Stand the deny model upright (it ships lying down) so it spins in the air
+  // like the instakill model — tilt 90° on X rather than the previous Y spin.
+  deny:      [Math.PI / 2, 0, 0],
   info:      [0, 0, 0],
   steal:     [0, 0, 0],
 };
@@ -62,8 +64,9 @@ export function preloadWellRewardModels() {
 
 // ── Animation timing (seconds) ────────────────────────────────────────────────
 const TRAVEL_DUR = 0.85; // arch from source → target
-const HOLD_DUR   = 0.45; // sit on the winner
-const FADE_DUR   = 0.45; // shrink + fade away
+const HOLD_DUR   = 0.45; // rest on the winner, then disappear instantly
+// Total lifetime of one reward instance (no fade-out — it pops away after HOLD).
+export const WELL_REWARD_FLIGHT_DUR = TRAVEL_DUR + HOLD_DUR;
 // Peak height of the arch above the straight line between source and target.
 const ARCH_HEIGHT = 1.4;
 // End-over-end tumbles while travelling.
@@ -82,7 +85,7 @@ export type WellRewardEffectProps = {
   delay?: number;
   /** Optional scale override; defaults to the per-type tuning above. */
   scale?: number;
-  /** Called once the whole sequence (travel + hold + fade) has finished. */
+  /** Called once the sequence (travel + hold) has finished. */
   onDone?: () => void;
 };
 
@@ -96,20 +99,7 @@ export default function WellRewardEffect({
 }: WellRewardEffectProps) {
   const url = WELL_REWARD_MODELS[type];
   const { scene } = useGLTF(url);
-
-  // Clone the scene AND its materials so opacity changes during fade are local
-  // to this instance and don't bleed onto the shared cached materials.
-  const sceneClone = useMemo(() => {
-    const clone = scene.clone(true);
-    clone.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        obj.material = Array.isArray(obj.material)
-          ? obj.material.map((m) => m.clone())
-          : obj.material.clone();
-      }
-    });
-    return clone;
-  }, [scene]);
+  const sceneClone = useMemo(() => scene.clone(), [scene]);
 
   const groupRef       = useRef<THREE.Group>(null);
   const tRef           = useRef(0);
@@ -122,17 +112,6 @@ export default function WellRewardEffect({
     toVec:   new THREE.Vector3(tx, ty, tz),
   }), [fx, fy, fz, tx, ty, tz]);
 
-  // Collect the cloned materials once so the fade phase can drive their opacity.
-  const materials = useMemo(() => {
-    const mats: THREE.Material[] = [];
-    sceneClone.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach((m) => mats.push(m));
-      }
-    });
-    return mats;
-  }, [sceneClone]);
-
   useEffect(() => {
     if (groupRef.current) groupRef.current.position.copy(fromVec);
   }, [fromVec]);
@@ -142,7 +121,7 @@ export default function WellRewardEffect({
     if (!group) return;
 
     tRef.current += delta;
-    let t = tRef.current - delay;
+    const t = tRef.current - delay;
     if (t < 0) { group.visible = false; return; }
     group.visible = true;
 
@@ -153,17 +132,9 @@ export default function WellRewardEffect({
       group.position.y += ARCH_HEIGHT * Math.sin(localT * Math.PI);
       group.rotation.y = localT * Math.PI * 2 * TRAVEL_SPINS;
     } else if (t < TRAVEL_DUR + HOLD_DUR) {
-      // Rest on the winner, gently bobbing.
+      // Rest on the winner, gently bobbing — then it's removed instantly (no fade).
       group.position.copy(toVec);
       group.position.y += Math.sin((t - TRAVEL_DUR) * 6) * 0.04;
-    } else if (t < TRAVEL_DUR + HOLD_DUR + FADE_DUR) {
-      // Shrink + fade out where it landed. The model scale lives on the child
-      // <primitive>, so the group only needs to scale 1 → 0 on top of it.
-      const localT = (t - TRAVEL_DUR - HOLD_DUR) / FADE_DUR;
-      const k = 1 - localT;
-      group.position.copy(toVec);
-      group.scale.setScalar(k);
-      materials.forEach((m) => { m.transparent = true; m.opacity = k; });
     } else if (!doneCalledRef.current) {
       doneCalledRef.current = true;
       onDone?.();

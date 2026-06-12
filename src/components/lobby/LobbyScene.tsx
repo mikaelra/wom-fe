@@ -10,7 +10,7 @@ import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
-import WellRewardEffect, { preloadWellRewardModels, type WellRewardType } from '@/components/lobby/WellRewardEffect';
+import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
 import InGameGuide from '@/components/lobby/InGameGuide';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket, getPlayerMessages } from '@/lib/api';
@@ -793,13 +793,36 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         }
       }
 
+      // ── Well reward: only for the player who actually won the well ────────
+      // (steal *victims* also receive a "Steal-all!" line, so gate on raidwinner.)
+      // Spawned first; incoming attacks below are delayed until it finishes so
+      // the two don't play at once and confuse the player.
+      let wellDelayMs = 0;
+      if (myPos && state.raidwinner === playerName) {
+        const components = parseWellReward(json.messages ?? []);
+        if (components.length) {
+          // For steal: one coin per stolen coin, flying from each victim's seat.
+          const stealVictims = components.find((c) => c.type === 'steal')?.victims ?? [];
+          const stealSources = stealVictims
+            .map((v) => ({ pos: posMap.get(v.name), count: v.amount }))
+            .filter((s): s is { pos: [number, number, number]; count: number } => !!s.pos);
+          const rewardEvents = buildWellRewardEvents(components, myPos, stealSources);
+          if (rewardEvents.length) {
+            setWellRewardEvents((ev) => [...ev, ...rewardEvents]);
+            const maxDelay = Math.max(...rewardEvents.map((e) => e.delay));
+            wellDelayMs = (maxDelay + WELL_REWARD_FLIGHT_DUR) * 1000;
+          }
+        }
+      }
+
       // ── Incoming: local player was attacked ──────────────────────────────
       if (myPos && combat.incoming.length > 0) {
         const SHIELD_OFFSET = 0.8;
         const ONE_DEF_MS    = (STRIKE_DUR + HOLD_DUR + BOUNCE_DUR)  * 1000;
         const ONE_HIT_MS    = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR) * 1000;
         const GAP_MS        = 200;
-        let staggerMs       = 0;
+        // Start after the well animation so incoming swords don't overlap it.
+        let staggerMs       = wellDelayMs;
 
         combat.incoming.forEach((inc, i) => {
           const atkPos  = inc.attacker ? posMap.get(inc.attacker) : undefined;
@@ -871,7 +894,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       combat.witnessedEliminations.forEach((we, i) => {
         const victimPos = posMap.get(we.victim);
         if (!victimPos) return;
-        const delay = SWORD_IMPACT_MS + i * 450;
+        const delay = wellDelayMs + SWORD_IMPACT_MS + i * 450;
         staggerTimeoutsRef.current.push(
           setTimeout(() => {
             const f = { id: `fl-${we.victim}-${Date.now()}`, position: victimPos };
@@ -882,21 +905,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           }, delay),
         );
       });
-
-      // ── Well reward: only for the player who actually won the well ────────
-      // (steal *victims* also receive a "Steal-all!" line, so gate on raidwinner.)
-      if (myPos && state.raidwinner === playerName) {
-        const components = parseWellReward(json.messages ?? []);
-        if (components.length) {
-          // For steal: one coin per stolen coin, flying from each victim's seat.
-          const stealVictims = components.find((c) => c.type === 'steal')?.victims ?? [];
-          const stealSources = stealVictims
-            .map((v) => ({ pos: posMap.get(v.name), count: v.amount }))
-            .filter((s): s is { pos: [number, number, number]; count: number } => !!s.pos);
-          const rewardEvents = buildWellRewardEvents(components, myPos, stealSources);
-          if (rewardEvents.length) setWellRewardEvents((ev) => [...ev, ...rewardEvents]);
-        }
-      }
 
       if (newStrikes.length)       setStrikeEvents((ev) => [...ev, ...newStrikes]);
       if (newImpactShields.length) setImpactShields((s) => [...s, ...newImpactShields]);
