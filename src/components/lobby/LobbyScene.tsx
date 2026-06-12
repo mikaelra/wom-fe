@@ -920,7 +920,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         <Html position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
           <button
             onClick={handleRaid}
-            className={guideGlowClass(guideHighlight?.well)}
+            className={`${actionCue} ${guideGlowClass(guideHighlight?.well)}`}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',

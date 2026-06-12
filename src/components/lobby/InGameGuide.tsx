@@ -31,7 +31,7 @@ const STEPS: Step[] = [
   { text: 'One player wins among all those who chose the WELL.', highlights: { well: 'blue' } },
   { text: 'That player STARTS each round, shown with the crown, and gets a random prize.', highlights: { well: 'blue' } },
   { text: 'The prize can be some gold, information and many more things.', highlights: { well: 'blue' } },
-  { text: 'You might get lucky and find the poisoned dagger.', highlights: { well: 'blue' } },
+  { text: 'You might get lucky and find the poisoned dagger.', highlights: { well: 'gold' } },
   { text: 'World of Mythos is a social game, so don’t forget that you can team up, lie or scheme when playing.', highlights: {} },
   { text: 'Good luck!', highlights: {} },
 ];
