@@ -12,7 +12,7 @@ import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
 import WellSplashEffect from '@/components/lobby/WellSplashEffect';
-import WellGlowEffect, { type WellGlowColor } from '@/components/lobby/WellGlowEffect';
+import WellGlowEffect, { WellGlowLight, type WellGlowColor } from '@/components/lobby/WellGlowEffect';
 import InGameGuide from '@/components/lobby/InGameGuide';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket, getPlayerMessages } from '@/lib/api';
@@ -522,6 +522,7 @@ type WellWinFx = {
   glow: WellGlowColor | null;
   glowRadius?: number;
   glowIntensity?: number;
+  glowStartMs?: number; // performance.now() at spawn — drives the persistent light
 };
 // Size + brightness of the small red "you chose the well but lost" glow.
 const WELL_LOSS_GLOW_RADIUS = 0.9;
@@ -781,7 +782,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     // The win case is handled below once we've fetched the reward messages.
     if (currentActionRef.current === 'raid' && !state.boss_fight && state.raidwinner !== playerName) {
       const lossId = `wellloss-${Date.now()}`;
-      setWellWinFx((fx) => [...fx, { id: lossId, splash: false, glow: 'red', glowRadius: WELL_LOSS_GLOW_RADIUS, glowIntensity: WELL_LOSS_GLOW_INTENSITY }]);
+      setWellWinFx((fx) => [...fx, { id: lossId, splash: false, glow: 'red', glowRadius: WELL_LOSS_GLOW_RADIUS, glowIntensity: WELL_LOSS_GLOW_INTENSITY, glowStartMs: performance.now() }]);
       staggerTimeoutsRef.current.push(
         setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== lossId)), WELL_FX_DURATION),
       );
@@ -841,7 +842,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         if (components.length) {
           // Splash + rarity glow on the well itself.
           const fxId = `wellfx-${Date.now()}`;
-          setWellWinFx((fx) => [...fx, { id: fxId, splash: true, glow: glowForReward(components) }]);
+          setWellWinFx((fx) => [...fx, { id: fxId, splash: true, glow: glowForReward(components), glowStartMs: performance.now() }]);
           staggerTimeoutsRef.current.push(
             setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== fxId)), WELL_FX_DURATION),
           );
@@ -987,13 +988,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       if (!myPos) return;
       if (showLoss) {
         const lossId = `wellloss-dbg-${Date.now()}`;
-        setWellWinFx((fx) => [...fx, { id: lossId, splash: false, glow: 'red', glowRadius: WELL_LOSS_GLOW_RADIUS, glowIntensity: WELL_LOSS_GLOW_INTENSITY }]);
+        setWellWinFx((fx) => [...fx, { id: lossId, splash: false, glow: 'red', glowRadius: WELL_LOSS_GLOW_RADIUS, glowIntensity: WELL_LOSS_GLOW_INTENSITY, glowStartMs: performance.now() }]);
         setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== lossId)), WELL_FX_DURATION);
       }
       if (!components.length) return;
       // Splash + rarity glow on the well.
       const fxId = `wellfx-dbg-${Date.now()}`;
-      setWellWinFx((fx) => [...fx, { id: fxId, splash: true, glow: glowForReward(components) }]);
+      setWellWinFx((fx) => [...fx, { id: fxId, splash: true, glow: glowForReward(components), glowStartMs: performance.now() }]);
       setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== fxId)), WELL_FX_DURATION);
       // Fake steal sources: every other player coughs up `count` coins (default 1).
       const stealCount = components.find((c) => c.type === 'steal')?.count ?? 1;
@@ -1229,6 +1230,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           {fx.glow && <WellGlowEffect position={WELL_GLOW_POSITION} color={fx.glow} radius={fx.glowRadius} intensity={fx.glowIntensity} blinks={fx.glow === 'red' ? 2 : undefined} />}
         </group>
       ))}
+      {/* Single persistent light driven by the active glow — mounted once so it
+          never recompiles material shaders (the source of the earlier stutter). */}
+      <WellGlowLight
+        position={[WELL_GLOW_POSITION[0], WELL_GLOW_POSITION[1] + 0.4, WELL_GLOW_POSITION[2]]}
+        glows={wellWinFx
+          .filter((f) => f.glow && f.glowStartMs != null)
+          .map((f) => ({ glow: f.glow!, startMs: f.glowStartMs!, intensity: f.glowIntensity, blinks: f.glow === 'red' ? 2 : 3 }))}
+      />
 
       {/* Red aura — pure geometry, no model; renders immediately */}
       {hitFlashEvents.map((f) => (
