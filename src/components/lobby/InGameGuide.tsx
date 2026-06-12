@@ -8,12 +8,19 @@ import GuideBubble from './GuideBubble';
 type Step = {
   text: ReactNode;
   highlights: GuideHighlights;
+  // When set, the slide alternates between `highlights` and `altHighlights`
+  // every blink so the two button groups flash in turn (every other).
+  altHighlights?: GuideHighlights;
 };
 
 const STEPS: Step[] = [
   { text: 'Welcome to World of Mythos! Be the last one standing!', highlights: {} },
   { text: 'This is your health. When it reaches 0 or lower, you are out.', highlights: { hp: 'blue' } },
-  { text: 'Each turn you must do one main action and one resource action.', highlights: {} },
+  {
+    text: 'Each turn you must do one main action and one resource action.',
+    highlights: { attack: 'blue', well: 'blue', defend: 'blue' },
+    altHighlights: { hp: 'blue', coins: 'blue', atk: 'blue' },
+  },
   { text: 'The main actions are ATTACK, WELL or DEFEND.', highlights: { attack: 'blue', well: 'blue', defend: 'blue' } },
   { text: 'The resource actions are Gain 1 HP, Gain 1 Gold or upgrade ATK.', highlights: { hp: 'blue', coins: 'blue', atk: 'blue' } },
   { text: 'How much damage you do to enemies is determined by your ATK.', highlights: { atk: 'blue' } },
@@ -25,6 +32,7 @@ const STEPS: Step[] = [
   { text: 'That player STARTS each round, shown with the crown, and gets a random prize.', highlights: { well: 'blue' } },
   { text: 'The prize can be some gold, information and many more things.', highlights: { well: 'blue' } },
   { text: 'You might get lucky and find the poisoned dagger.', highlights: { well: 'blue' } },
+  { text: 'World of Mythos is a social game, so don’t forget that you can team up, lie or scheme when playing.', highlights: {} },
   { text: 'Good luck!', highlights: {} },
 ];
 
@@ -38,6 +46,8 @@ export default function InGameGuide({ gameStarted, onHighlightChange }: Props) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  // Toggles every blink on slides that alternate two button groups.
+  const [altPhase, setAltPhase] = useState(false);
   const shownThisGameRef = useRef(false);
 
   // Auto-open once per game while enabled; re-arm for the next game.
@@ -59,11 +69,23 @@ export default function InGameGuide({ gameStarted, onHighlightChange }: Props) {
     if (step === STEPS.length - 1) setDontShowAgain(true);
   }, [step]);
 
-  // Tell LobbyScene which real buttons to blink for the current slide.
+  // On slides that alternate two button groups, flip phase in step with the
+  // 0.8s blink so the groups flash every other. Reset to the first group on
+  // every slide change.
   const visible = mounted && enabled && open && gameStarted;
   useEffect(() => {
-    onHighlightChange?.(visible ? STEPS[step].highlights : {});
-  }, [visible, step, onHighlightChange]);
+    setAltPhase(false);
+    if (!visible || !STEPS[step].altHighlights) return;
+    const id = setInterval(() => setAltPhase((p) => !p), 800);
+    return () => clearInterval(id);
+  }, [visible, step]);
+
+  // Tell LobbyScene which real buttons to blink for the current slide.
+  useEffect(() => {
+    const cur = STEPS[step];
+    const eff = altPhase && cur.altHighlights ? cur.altHighlights : cur.highlights;
+    onHighlightChange?.(visible ? eff : {});
+  }, [visible, step, altPhase, onHighlightChange]);
   // Clear highlights when the guide unmounts.
   useEffect(() => () => onHighlightChange?.({}), [onHighlightChange]);
 
