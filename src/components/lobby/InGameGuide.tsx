@@ -25,7 +25,7 @@ const STEPS: Step[] = [
   { text: 'The resource actions are Gain 1 HP, Gain 1 Gold or upgrade ATK.', highlights: { hp: 'blue', coins: 'blue', atk: 'blue' } },
   { text: 'How much damage you do to enemies is determined by your ATK.', highlights: { atk: 'blue' } },
   { text: 'To upgrade your ATK, you need to spend your current ATK value in GOLD.', highlights: { coins: 'gold', atk: 'blue' } },
-  { text: 'Choosing DEFEND gives you a 50% chance to block all incoming attacks…', highlights: { defend: 'blue' } },
+  { text: 'Choosing DEFEND gives you a 50% chance to each incoming attack…', highlights: { defend: 'blue' } },
   { text: '…and a 10% chance of REFLECTING the attack back to your attacker!', highlights: { defend: 'blue' } },
   { text: 'The WELL is where you go to play the game of chance.', highlights: { well: 'blue' } },
   { text: 'One player wins among all those who chose the WELL.', highlights: { well: 'blue' } },
