@@ -520,10 +520,10 @@ type WellWinFx = {
 };
 
 // Where rewards spout out of the well (center of the table, just above the rim).
-const WELL_SPOUT_POSITION: [number, number, number] = [0, 3.45, 0];
+const WELL_SPOUT_POSITION: [number, number, number] = [0, 2.4, 0];
 // Where the splash erupts (well mouth) and where the rarity glow lies (under it).
-const WELL_SPLASH_POSITION: [number, number, number] = [0, 3.4, 0];
-const WELL_GLOW_POSITION:   [number, number, number] = [0, 2.95, 0];
+const WELL_SPLASH_POSITION: [number, number, number] = [0, 2.4, 0];
+const WELL_GLOW_POSITION:   [number, number, number] = [0, 2.3, 0];
 // Lifetime of the splash/glow before removal (ms) — also how long incoming
 // attacks wait when a win has no flying reward models (e.g. a 0-coin steal).
 const WELL_FX_DURATION = 1600;
