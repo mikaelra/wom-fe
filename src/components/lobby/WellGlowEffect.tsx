@@ -5,26 +5,32 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { WellGlow } from '@/lib/parseWellReward';
 
-// A coloured glow that flashes under the well, keyed to the rarity of the
-// reward won (blue / purple / gold). Common rewards pass no glow at all.
+// A coloured glow that flashes under the well. On a win it's keyed to reward
+// rarity (blue / purple / gold); when you choose the well but lose, a small red
+// glow plays in the same spot. Common rewards pass no glow at all.
 
-const GLOW_HEX: Record<WellGlow, string> = {
+export type WellGlowColor = WellGlow | 'red';
+
+const GLOW_HEX: Record<WellGlowColor, string> = {
   blue:   '#3b82f6',
   purple: '#a855f7',
   gold:   '#fcd34d',
+  red:    '#ef4444',
 };
 
-const DURATION = 1.5;  // seconds
-const RADIUS   = 1.5;  // disc radius under the well
+const DURATION = 1.5;        // seconds
+const DEFAULT_RADIUS = 1.5;  // disc radius under the well
 
 type Props = {
   /** World-space position under the well (disc lies flat here). */
   position: [number, number, number];
-  color: WellGlow;
+  color: WellGlowColor;
+  /** Disc radius; defaults to the full rarity-glow size. */
+  radius?: number;
   onDone?: () => void;
 };
 
-export default function WellGlowEffect({ position, color, onDone }: Props) {
+export default function WellGlowEffect({ position, color, radius = DEFAULT_RADIUS, onDone }: Props) {
   const discRef  = useRef<THREE.Mesh>(null);
   const lightRef = useRef<THREE.PointLight>(null);
   const startRef = useRef<number | null>(null);
@@ -57,7 +63,7 @@ export default function WellGlowEffect({ position, color, onDone }: Props) {
     <group position={position}>
       {/* Flat glowing disc on the ground beneath the well */}
       <mesh ref={discRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={18}>
-        <circleGeometry args={[RADIUS, 48]} />
+        <circleGeometry args={[radius, 48]} />
         <meshBasicMaterial
           color={hex}
           transparent
