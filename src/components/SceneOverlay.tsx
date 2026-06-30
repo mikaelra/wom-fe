@@ -14,6 +14,7 @@ import FloatingMessage from '@/components/lobby/FloatingMessage';
 import { playResourceSound } from '@/lib/sounds';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import ResourceCard from '@/components/ResourceCard';
+import { useStagedResources } from '@/lib/useStagedResources';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -277,6 +278,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const myPlayer = state?.players.find((p) => p.name === playerName);
   const isAlive = (myPlayer?.hp ?? 0) > 0;
 
+  // Staged display values for the resource cards: holds back a Well reward at
+  // round start and ticks it up when the reward lands (Phase 2). Falls back to
+  // the player's real values for every other case.
+  const stagedResources = useStagedResources(state, playerName, lobbyId);
+
   useEffect(() => {
     if (!enableRaidTimer || !isAlive) return;
     getNextBossfightTime()
@@ -422,10 +428,13 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   // 3D scene owns the player buttons (lobby) — see render sites below.
   const renderResourceCards = (player: Player) => {
     const cannotAffordAtk = player.coins < player.attackDamage;
+    // Displayed values may be staged (Well tick-up); affordability still uses
+    // the player's real values.
+    const shown = stagedResources ?? player;
     return (
       <>
         <ResourceCard
-          value={player.hp}
+          value={shown.hp}
           label="HP"
           sublabel="❤ Get"
           valueClass="text-red-400"
@@ -440,7 +449,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             }`}
         />
         <ResourceCard
-          value={player.coins}
+          value={shown.coins}
           label="Coins"
           sublabel="💰 Get"
           valueClass="text-yellow-400"
@@ -455,7 +464,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             }`}
         />
         <ResourceCard
-          value={player.attackDamage}
+          value={shown.attackDamage}
           label="ATK"
           sublabel="⚔ Buy"
           valueClass="text-blue-400"
