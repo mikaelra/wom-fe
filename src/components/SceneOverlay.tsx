@@ -13,6 +13,8 @@ import type { LobbyState, Player } from '@/types/game';
 import FloatingMessage from '@/components/lobby/FloatingMessage';
 import { playResourceSound } from '@/lib/sounds';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
+import ResourceCard from '@/components/ResourceCard';
+import { useStagedResources } from '@/lib/useStagedResources';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -77,6 +79,10 @@ export type SceneOverlayConfig = {
   /** When true the enemy HP panel is not rendered here — the 3D scene renders it
    *  anchored to the enemy model instead. */
   suppressEnemyPanel?: boolean;
+  /** When true, incoming combat damage is peeled off the HP card per attack
+   *  (synced to the 3D sword strikes via the resourceFx bus). Lobby/PvP only;
+   *  the gremlin scene doesn't emit strike events so it leaves this off. */
+  stageCombatDamage?: boolean;
   renderGameOver: (opts: GameOverRenderOpts) => ReactNode;
   /** Render additional positioned elements (e.g. a "More monsters" button) */
   renderExtra?: (opts: { gameOver: boolean; btn: string }) => ReactNode;
@@ -111,6 +117,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     enableRaidTimer = false,
     hidePlayerActionButtons = false,
     suppressEnemyPanel = false,
+    stageCombatDamage = false,
     renderGameOver,
     renderExtra,
   } = config;
@@ -276,6 +283,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const myPlayer = state?.players.find((p) => p.name === playerName);
   const isAlive = (myPlayer?.hp ?? 0) > 0;
 
+  // Staged display values for the resource cards: holds back a Well reward at
+  // round start and ticks it up when the reward lands (Phase 2). Falls back to
+  // the player's real values for every other case.
+  const stagedResources = useStagedResources(state, playerName, lobbyId, { stageCombat: stageCombatDamage });
+
   useEffect(() => {
     if (!enableRaidTimer || !isAlive) return;
     getNextBossfightTime()
@@ -421,63 +433,66 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   // 3D scene owns the player buttons (lobby) — see render sites below.
   const renderResourceCards = (player: Player) => {
     const cannotAffordAtk = player.coins < player.attackDamage;
+    // Displayed values may be staged (Well tick-up); affordability still uses
+    // the player's real values.
+    const shown = stagedResources ?? player;
     return (
       <>
-        <button
-          type="button"
+        <ResourceCard
+          value={shown.hp}
+          label="HP"
+          sublabel="❤ Get"
+          valueClass="text-red-400"
+          sublabelClass="text-red-400/70"
+          anim={stagedResources?.hpAnim ?? 'bounce'}
+          blockPulse={stagedResources?.hpBlockPulse ?? 0}
           disabled={!showActions}
           onClick={() => handleResource('gain_hp')}
-          className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
-            ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+          className={`${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
             ${resourceCue} ${guideGlowClass(guideHighlight?.hp)}
             ${resource === 'gain_hp'
               ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
               : 'bg-black/70 border-red-500/50 hover:bg-red-950/80 hover:border-red-400/80 hover:shadow-[0_0_6px_rgba(239,68,68,0.3)]'
             }`}
-        >
-          <p className="text-gray-400 text-xs uppercase tracking-wide">HP</p>
-          <p className="text-red-400 font-bold text-xl leading-tight">{player.hp}</p>
-          <p className="text-red-400/70 text-xs">❤ Get</p>
-        </button>
-        <button
-          type="button"
+        />
+        <ResourceCard
+          value={shown.coins}
+          label="Coins"
+          sublabel="💰 Get"
+          valueClass="text-yellow-400"
+          sublabelClass="text-yellow-400/70"
           disabled={!showActions}
           onClick={() => handleResource('gain_coin')}
-          className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
-            ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+          className={`${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
             ${resourceCue} ${guideGlowClass(guideHighlight?.coins)}
             ${resource === 'gain_coin'
               ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
               : 'bg-black/70 border-yellow-500/50 hover:bg-yellow-950/80 hover:border-yellow-400/80 hover:shadow-[0_0_6px_rgba(234,179,8,0.3)]'
             }`}
-        >
-          <p className="text-gray-400 text-xs uppercase tracking-wide">Coins</p>
-          <p className="text-yellow-400 font-bold text-xl leading-tight">{player.coins}</p>
-          <p className="text-yellow-400/70 text-xs">💰 Get</p>
-        </button>
-        <button
-          type="button"
+        />
+        <ResourceCard
+          value={shown.attackDamage}
+          label="ATK"
+          sublabel="⚔ Buy"
+          valueClass="text-blue-400"
+          sublabelClass="text-blue-400/70"
           disabled={!showActions || cannotAffordAtk}
           onClick={() => handleResource('gain_attack')}
-          className={`relative overflow-hidden backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
+          className={`relative overflow-hidden
             ${!showActions || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
             ${cannotAffordAtk ? '' : resourceCue} ${guideGlowClass(guideHighlight?.atk)}
             ${resource === 'gain_attack'
               ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
               : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80 hover:shadow-[0_0_6px_rgba(59,130,246,0.3)]'
             }`}
-        >
-          <p className="text-gray-400 text-xs uppercase tracking-wide">ATK</p>
-          <p className="text-blue-400 font-bold text-xl leading-tight">{player.attackDamage}</p>
-          <p className="text-blue-400/70 text-xs">⚔ Buy</p>
-          {cannotAffordAtk && (
+          overlay={cannotAffordAtk && (
             <div className="absolute inset-0 pointer-events-none rounded-lg overflow-hidden">
               <svg className="w-full h-full" preserveAspectRatio="none">
                 <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
               </svg>
             </div>
           )}
-        </button>
+        />
       </>
     );
   };

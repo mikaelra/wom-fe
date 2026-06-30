@@ -17,6 +17,7 @@ import InGameGuide from '@/components/lobby/InGameGuide';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket, getPlayerMessages } from '@/lib/api';
 import { parseCombatMessages } from '@/lib/parseCombatMessages';
+import { emitHpFx, type HpFxEvent } from '@/lib/resourceFx';
 import { parseWellReward, glowForReward, type WellRewardComponent } from '@/lib/parseWellReward';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
 import {
@@ -498,6 +499,8 @@ type StrikeEvent = {
   flashPosition?: [number, number, number];
   // For bounce-back strikes: where to aura-flash when the bounce lands on the attacker
   bounceFlashPos?: [number, number, number];
+  // For incoming strikes: HP-card feedback to emit at the impact moment.
+  incomingFx?: HpFxEvent;
 };
 
 type HitFlashEvent = {
@@ -880,6 +883,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
           const isDefended   = inc.outcome === 'blocked' || inc.outcome === 'reflected_back' || inc.outcome === 'instakill_blocked';
           const atkReflected = inc.outcome === 'reflected_back';
+          const incomingFx: HpFxEvent = isDefended
+            ? { kind: 'block' }
+            : inc.outcome === 'instakill'
+              ? { kind: 'kill' }
+              : { kind: 'hit', damage: inc.damage ?? 1 };
 
           let toPos = baseToPos;
           if (isDefended) {
@@ -900,6 +908,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             postImpact:     isDefended ? (atkReflected ? 'bounce' : 'stop') : 'retreat',
             flashPosition:  !isDefended         ? myPos  : undefined,
             bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
+            incomingFx,
           };
 
           const ONE_ANIM_MS = isDefended ? ONE_DEF_MS : ONE_HIT_MS;
@@ -1185,6 +1194,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                 const fid = `fl-sword-${ev.id}`;
                 setHitFlashEvents((s) => [...s, { id: fid, position: ev.flashPosition! }]);
                 setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
+              }
+              // Signal the HP card to react at the exact impact moment (drop +
+              // shake on a hit, blue aura on a block) — incoming attacks only.
+              if (ev.isIncoming && ev.incomingFx) {
+                emitHpFx(ev.incomingFx);
               }
             }}
             onDone={() => {

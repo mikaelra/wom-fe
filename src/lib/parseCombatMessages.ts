@@ -11,6 +11,7 @@ export interface IncomingCombat {
   attacker: string | null; // null = anonymous
   outcome: IncomingOutcome;
   attackerDied: boolean;
+  damage?: number; // HP lost (only set for 'hit')
 }
 
 export interface ParsedCombat {
@@ -128,16 +129,17 @@ export function parseCombatMessages(messages: string[][]): ParsedCombat {
     }
 
     // "⚔ Someone attacked you. You lost ❤<dmg>." (anonymous, 50%)
-    if (/^⚔ Someone attacked you\. You lost ❤\d+\.$/.test(line)) {
-      result.incoming.push({ attacker: null, outcome: 'hit', attackerDied: false });
+    const incHitAnonMatch = line.match(/^⚔ Someone attacked you\. You lost ❤(\d+)\.$/);
+    if (incHitAnonMatch) {
+      result.incoming.push({ attacker: null, outcome: 'hit', attackerDied: false, damage: parseInt(incHitAnonMatch[1], 10) });
       i++;
       continue;
     }
 
     // "⚔ <attacker> attacked you. You lost ❤<dmg>." (named, 50%)
-    const incHitNamedMatch = line.match(/^⚔ (.+) attacked you\. You lost ❤\d+\.$/);
+    const incHitNamedMatch = line.match(/^⚔ (.+) attacked you\. You lost ❤(\d+)\.$/);
     if (incHitNamedMatch) {
-      result.incoming.push({ attacker: incHitNamedMatch[1], outcome: 'hit', attackerDied: false });
+      result.incoming.push({ attacker: incHitNamedMatch[1], outcome: 'hit', attackerDied: false, damage: parseInt(incHitNamedMatch[2], 10) });
       i++;
       continue;
     }
