@@ -63,33 +63,3 @@ body {
 
 .guide-glow-blue { animation: guide-glow-blue 0.8s ease-in-out infinite; }
 .guide-glow-gold { animation: guide-glow-gold 0.8s ease-in-out infinite; }
-
-/* Resource-gain animation: a small sprite flies up out of the button, dips back
-   down, then disappears (bottom is % of the button height). */
-@keyframes resource-fly {
-  0%   { bottom: 0%;  opacity: 0; }
-  14%  { opacity: 1; }
-  72%  { bottom: 83%; opacity: 1; }
-  100% { bottom: 76%; opacity: 1; }
-}
-.resource-fly-sprite { animation: resource-fly 0.65s ease-out forwards; }
-
-/* One-shot button blink when the resource lands (pink / yellow / blue). */
-@keyframes resource-blink-pink {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(244, 114, 182, 0); background-color: rgba(244,114,182,0); }
-  45%      { box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.95), 0 0 18px 6px rgba(244, 114, 182, 0.5);
-             background-color: rgba(244, 114, 182, 0.4); }
-}
-@keyframes resource-blink-yellow {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0); background-color: rgba(234,179,8,0); }
-  45%      { box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.95), 0 0 18px 6px rgba(234, 179, 8, 0.5);
-             background-color: rgba(234, 179, 8, 0.4); }
-}
-@keyframes resource-blink-blue {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0); background-color: rgba(59,130,246,0); }
-  45%      { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.95), 0 0 18px 6px rgba(59, 130, 246, 0.5);
-             background-color: rgba(59, 130, 246, 0.4); }
-}
-.resource-blink-pink   { animation: resource-blink-pink   0.5s ease-in-out; }
-.resource-blink-yellow { animation: resource-blink-yellow 0.5s ease-in-out; }
-.resource-blink-blue   { animation: resource-blink-blue   0.5s ease-in-out; }

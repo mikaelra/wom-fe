@@ -16,14 +16,6 @@ import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
-// Resource-gain animation metadata: the sprite that flies over each button, the
-// one-shot blink colour, and which player stat the button shows.
-const RESOURCE_META: Record<string, { emoji: string; blinkClass: string; stat: 'hp' | 'coins' | 'attackDamage' }> = {
-  gain_hp:     { emoji: '🧪', blinkClass: 'resource-blink-pink',   stat: 'hp' },
-  gain_coin:   { emoji: '💰', blinkClass: 'resource-blink-yellow', stat: 'coins' },
-  gain_attack: { emoji: '⚔️', blinkClass: 'resource-blink-blue',   stat: 'attackDamage' },
-};
-
 export type SceneOverlayTheme = {
   accentColorClass: string;   // Round label color, e.g. 'text-green-400'
   panelBorderClass: string;   // Main panel border, e.g. 'border-green-500/30'
@@ -130,13 +122,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [action, setAction] = useState('');
   const [resource, setResource] = useState('');
   const pendingResourceRef = useRef('');
-  // Resource-gain animation: a sprite flying over the chosen button, a one-shot
-  // button blink, and a frozen stat value so the number only ticks up once the
-  // sprite lands.
-  const [resourceAnim, setResourceAnim] = useState<{ resource: string; key: number } | null>(null);
-  const [resourceBlink, setResourceBlink] = useState<string | null>(null);
-  const [statFreeze, setStatFreeze] = useState<Partial<Record<'hp' | 'coins' | 'attackDamage', number>>>({});
-  const prevStatsRef = useRef<{ hp: number; coins: number; attackDamage: number } | null>(null);
   const [denyTarget, setDenyTarget] = useState('');
   const [replayVoted, setReplayVoted] = useState(false);
   const [replayLoading, setReplayLoading] = useState(false);
@@ -256,21 +241,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   }, [gameOver, state?.next_lobby_id, lobbyId, router, enableNextLobbyRedirect]);
 
   useEffect(() => {
-    // Resource picked last round just resolved — play the sound and the
-    // flask/coin/weapon fly-in over the matching button.
-    const me = state?.players.find((p) => p.name === playerName);
-    const cur = me ? { hp: me.hp, coins: me.coins, attackDamage: me.attackDamage } : null;
-    const res = pendingResourceRef.current;
-    if (res && (state?.round ?? 0) > 1 && cur && RESOURCE_META[res]) {
-      playResourceSound(res);
-      const { stat } = RESOURCE_META[res];
-      // Hold the previous number until the sprite lands, then it ticks up.
-      const old = prevStatsRef.current ? prevStatsRef.current[stat] : cur[stat];
-      setStatFreeze({ [stat]: old });
-      setResourceAnim({ resource: res, key: Date.now() });
+    // Play the gain sound for the resource picked last round, then reset selection.
+    if (pendingResourceRef.current && (state?.round ?? 0) > 1) {
+      playResourceSound(pendingResourceRef.current);
       pendingResourceRef.current = '';
     }
-    prevStatsRef.current = cur; // baseline for next round's "old" value
     setDenyTarget('');
     setAction('');
     setResource('');
@@ -376,17 +351,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, resource: resId, action: '' });
   };
 
-  // Sprite finished flying: reveal the new number and blink the button once.
-  const handleResourceAnimEnd = () => {
-    const res = resourceAnim?.resource;
-    setResourceAnim(null);
-    setStatFreeze({});
-    if (res) {
-      setResourceBlink(res);
-      setTimeout(() => setResourceBlink((b) => (b === res ? null : b)), 550);
-    }
-  };
-
   const handleAction = (act: string) => {
     setAction(act);
     onActionChange?.(act);
@@ -455,94 +419,65 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   // HP / Coins / ATK cards. Rendered at the top-of-arena position when the
   // overlay owns the action UI, and pinned to the bottom of the screen when the
   // 3D scene owns the player buttons (lobby) — see render sites below.
-  // A flask/coin/weapon sprite that flies up out of the button when its resource
-  // is gained, then disappears (handler reveals the number + blinks the button).
-  const renderResourceSprite = (resId: string) =>
-    resourceAnim?.resource === resId ? (
-      <span
-        key={resourceAnim.key}
-        onAnimationEnd={handleResourceAnimEnd}
-        className="resource-fly-sprite"
-        style={{
-          position: 'absolute', left: '50%', bottom: 0, transform: 'translateX(-50%)',
-          fontSize: '22px', lineHeight: 1, pointerEvents: 'none', zIndex: 10,
-        }}
-      >
-        {RESOURCE_META[resId].emoji}
-      </span>
-    ) : null;
-
   const renderResourceCards = (player: Player) => {
     const cannotAffordAtk = player.coins < player.attackDamage;
     return (
       <>
-        <div className="relative">
-          <button
-            type="button"
-            disabled={!showActions}
-            onClick={() => handleResource('gain_hp')}
-            className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
-              ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-              ${resourceCue} ${guideGlowClass(guideHighlight?.hp)}
-              ${resourceBlink === 'gain_hp' ? RESOURCE_META.gain_hp.blinkClass : ''}
-              ${resource === 'gain_hp'
-                ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
-                : 'bg-black/70 border-red-500/50 hover:bg-red-950/80 hover:border-red-400/80 hover:shadow-[0_0_6px_rgba(239,68,68,0.3)]'
-              }`}
-          >
-            <p className="text-gray-400 text-xs uppercase tracking-wide">HP</p>
-            <p className="text-red-400 font-bold text-xl leading-tight">{statFreeze.hp ?? player.hp}</p>
-            <p className="text-red-400/70 text-xs">❤ Get</p>
-          </button>
-          {renderResourceSprite('gain_hp')}
-        </div>
-        <div className="relative">
-          <button
-            type="button"
-            disabled={!showActions}
-            onClick={() => handleResource('gain_coin')}
-            className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
-              ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-              ${resourceCue} ${guideGlowClass(guideHighlight?.coins)}
-              ${resourceBlink === 'gain_coin' ? RESOURCE_META.gain_coin.blinkClass : ''}
-              ${resource === 'gain_coin'
-                ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
-                : 'bg-black/70 border-yellow-500/50 hover:bg-yellow-950/80 hover:border-yellow-400/80 hover:shadow-[0_0_6px_rgba(234,179,8,0.3)]'
-              }`}
-          >
-            <p className="text-gray-400 text-xs uppercase tracking-wide">Coins</p>
-            <p className="text-yellow-400 font-bold text-xl leading-tight">{statFreeze.coins ?? player.coins}</p>
-            <p className="text-yellow-400/70 text-xs">💰 Get</p>
-          </button>
-          {renderResourceSprite('gain_coin')}
-        </div>
-        <div className="relative">
-          <button
-            type="button"
-            disabled={!showActions || cannotAffordAtk}
-            onClick={() => handleResource('gain_attack')}
-            className={`relative overflow-hidden backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
-              ${!showActions || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
-              ${cannotAffordAtk ? '' : resourceCue} ${guideGlowClass(guideHighlight?.atk)}
-              ${resourceBlink === 'gain_attack' ? RESOURCE_META.gain_attack.blinkClass : ''}
-              ${resource === 'gain_attack'
-                ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
-                : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80 hover:shadow-[0_0_6px_rgba(59,130,246,0.3)]'
-              }`}
-          >
-            <p className="text-gray-400 text-xs uppercase tracking-wide">ATK</p>
-            <p className="text-blue-400 font-bold text-xl leading-tight">{statFreeze.attackDamage ?? player.attackDamage}</p>
-            <p className="text-blue-400/70 text-xs">⚔ Buy</p>
-            {cannotAffordAtk && (
-              <div className="absolute inset-0 pointer-events-none rounded-lg overflow-hidden">
-                <svg className="w-full h-full" preserveAspectRatio="none">
-                  <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
-                </svg>
-              </div>
-            )}
-          </button>
-          {renderResourceSprite('gain_attack')}
-        </div>
+        <button
+          type="button"
+          disabled={!showActions}
+          onClick={() => handleResource('gain_hp')}
+          className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
+            ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+            ${resourceCue} ${guideGlowClass(guideHighlight?.hp)}
+            ${resource === 'gain_hp'
+              ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+              : 'bg-black/70 border-red-500/50 hover:bg-red-950/80 hover:border-red-400/80 hover:shadow-[0_0_6px_rgba(239,68,68,0.3)]'
+            }`}
+        >
+          <p className="text-gray-400 text-xs uppercase tracking-wide">HP</p>
+          <p className="text-red-400 font-bold text-xl leading-tight">{player.hp}</p>
+          <p className="text-red-400/70 text-xs">❤ Get</p>
+        </button>
+        <button
+          type="button"
+          disabled={!showActions}
+          onClick={() => handleResource('gain_coin')}
+          className={`backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
+            ${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+            ${resourceCue} ${guideGlowClass(guideHighlight?.coins)}
+            ${resource === 'gain_coin'
+              ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
+              : 'bg-black/70 border-yellow-500/50 hover:bg-yellow-950/80 hover:border-yellow-400/80 hover:shadow-[0_0_6px_rgba(234,179,8,0.3)]'
+            }`}
+        >
+          <p className="text-gray-400 text-xs uppercase tracking-wide">Coins</p>
+          <p className="text-yellow-400 font-bold text-xl leading-tight">{player.coins}</p>
+          <p className="text-yellow-400/70 text-xs">💰 Get</p>
+        </button>
+        <button
+          type="button"
+          disabled={!showActions || cannotAffordAtk}
+          onClick={() => handleResource('gain_attack')}
+          className={`relative overflow-hidden backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150
+            ${!showActions || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+            ${cannotAffordAtk ? '' : resourceCue} ${guideGlowClass(guideHighlight?.atk)}
+            ${resource === 'gain_attack'
+              ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
+              : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80 hover:shadow-[0_0_6px_rgba(59,130,246,0.3)]'
+            }`}
+        >
+          <p className="text-gray-400 text-xs uppercase tracking-wide">ATK</p>
+          <p className="text-blue-400 font-bold text-xl leading-tight">{player.attackDamage}</p>
+          <p className="text-blue-400/70 text-xs">⚔ Buy</p>
+          {cannotAffordAtk && (
+            <div className="absolute inset-0 pointer-events-none rounded-lg overflow-hidden">
+              <svg className="w-full h-full" preserveAspectRatio="none">
+                <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
+              </svg>
+            </div>
+          )}
+        </button>
       </>
     );
   };
