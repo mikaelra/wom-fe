@@ -10,9 +10,14 @@ import Table from '@/components/Table';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
+import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
+import WellSplashEffect from '@/components/lobby/WellSplashEffect';
+import WellGlowEffect, { WellGlowLight, type WellGlowColor } from '@/components/lobby/WellGlowEffect';
+import InGameGuide from '@/components/lobby/InGameGuide';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket, getPlayerMessages } from '@/lib/api';
 import { parseCombatMessages } from '@/lib/parseCombatMessages';
+import { parseWellReward, glowForReward, type WellRewardComponent } from '@/lib/parseWellReward';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
 import {
   TABLE_POSITION,
@@ -476,6 +481,7 @@ useGLTF.preload('/models/crowns/crown_ld_v1.glb');
 useGLTF.preload('/models/crowns/well_crown_v1.glb');
 useGLTF.preload('/models/shields/shield_animation-ld.glb');
 useGLTF.preload('/models/swords/sword_animation-ld.glb');
+preloadWellRewardModels();
 // Frog skins are preloaded on-demand per lobby (see usePreloadLobbySkins below).
 // Previously we eagerly preloaded all 13 skins (~92 MB) on app start.
 
@@ -498,6 +504,98 @@ type HitFlashEvent = {
   id: string;
   position: [number, number, number];
 };
+
+type WellRewardEvent = {
+  id: string;
+  type: WellRewardType;
+  fromPos: [number, number, number];
+  toPos:   [number, number, number];
+  delay:   number;
+};
+
+// Splash + glow that play on the well. A win shows a splash plus the rarity
+// glow (or none for common rewards); choosing the well but losing shows just a
+// small red glow.
+type WellWinFx = {
+  id: string;
+  splash: boolean;
+  glow: WellGlowColor | null;
+  glowRadius?: number;
+  glowIntensity?: number;
+  glowStartMs?: number; // performance.now() at spawn — drives the persistent light
+};
+// Size + brightness of the small red "you chose the well but lost" glow.
+const WELL_LOSS_GLOW_RADIUS = 0.9;
+const WELL_LOSS_GLOW_INTENSITY = 0.33;
+
+// Where rewards spout out of the well (center of the table, just above the rim).
+const WELL_SPOUT_POSITION: [number, number, number] = [0, 2.4, 0];
+// Where the splash erupts (well mouth) and where the rarity glow lies (under it).
+const WELL_SPLASH_POSITION: [number, number, number] = [0, 2.4, 0];
+const WELL_GLOW_POSITION:   [number, number, number] = [0, 2.3, 0];
+// Lifetime of the splash/glow before removal (ms) — also how long incoming
+// attacks wait when a win has no flying reward models (e.g. a 0-coin steal).
+const WELL_FX_DURATION = 1600;
+// Stagger between successive reward instances (seconds).
+const WELL_REWARD_STAGGER = 0.18;
+
+// A steal source: one player's seat plus how many coins were stolen from them.
+type StealSource = { pos: [number, number, number]; count: number };
+
+// Build the per-instance reward animations for a won well result. A result can
+// contain several components (e.g. 2 gold + 2 hp), each spawning `count` models.
+//  - simple rewards: models arch from the well onto the winner.
+//  - 'steal': one coin flies from each player to the winner, one per coin stolen.
+function buildWellRewardEvents(
+  components: WellRewardComponent[],
+  winnerPos: [number, number, number],
+  stealSources: StealSource[],
+): WellRewardEvent[] {
+  const land: [number, number, number] = [winnerPos[0], winnerPos[1], winnerPos[2]];
+  const stamp = Date.now();
+  const events: WellRewardEvent[] = [];
+  let seq = 0; // running index so every instance staggers off the same clock
+
+  for (const reward of components) {
+    if (reward.type === 'steal') {
+      // Fall back to the well only if we somehow have no player sources.
+      const sources: StealSource[] = stealSources.length
+        ? stealSources
+        : [{ pos: WELL_SPOUT_POSITION, count: Math.max(1, reward.count) }];
+      sources.forEach((src, si) => {
+        const from: [number, number, number] = [src.pos[0], src.pos[1] + 0.3, src.pos[2]];
+        const coins = Math.max(0, src.count); // broke players yield no coin
+        for (let i = 0; i < coins; i++) {
+          // Spread coins from the same player so they don't perfectly overlap.
+          const jitter = coins > 1 ? (i - (coins - 1) / 2) * 0.15 : 0;
+          events.push({
+            id:   `well-steal-${stamp}-${si}-${i}`,
+            type: 'steal',
+            fromPos: [from[0] + jitter, from[1], from[2]],
+            toPos:   [land[0] + jitter, land[1], land[2]],
+            delay:   seq++ * WELL_REWARD_STAGGER,
+          });
+        }
+      });
+      continue;
+    }
+
+    const n = Math.max(1, reward.count);
+    for (let i = 0; i < n; i++) {
+      // Spread multiples slightly so they don't perfectly overlap on landing.
+      const jitter = n > 1 ? (i - (n - 1) / 2) * 0.18 : 0;
+      events.push({
+        id:   `well-${reward.type}-${stamp}-${i}`,
+        type: reward.type,
+        fromPos: WELL_SPOUT_POSITION,
+        toPos:   [land[0] + jitter, land[1], land[2] + jitter],
+        delay:   seq++ * WELL_REWARD_STAGGER,
+      });
+    }
+  }
+
+  return events;
+}
 
 type ImpactShield = {
   id:   string;
@@ -554,8 +652,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [strikeEvents,  setStrikeEvents]  = useState<StrikeEvent[]>([]);
   const [hitFlashEvents, setHitFlashEvents] = useState<HitFlashEvent[]>([]);
   const [impactShields, setImpactShields] = useState<ImpactShield[]>([]);
+  const [wellRewardEvents, setWellRewardEvents] = useState<WellRewardEvent[]>([]);
+  const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
   // Timeout IDs for staggered incoming defended strikes (cleared each new round)
   const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Mirrors the local player's chosen action. The parent clears currentAction on
+  // the new round, but child effects run before the parent's, so when the
+  // round-transition effect fires this still holds the resolved round's choice.
+  const currentActionRef = useRef(currentAction);
+  currentActionRef.current = currentAction;
 
 
   useEffect(() => {
@@ -672,6 +777,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     staggerTimeoutsRef.current.forEach(clearTimeout);
     staggerTimeoutsRef.current = [];
 
+    // Chose The Well but didn't win → small red glow under the well (PvP only).
+    // The win case is handled below once we've fetched the reward messages.
+    if (currentActionRef.current === 'raid' && !state.boss_fight && state.raidwinner !== playerName) {
+      const lossId = `wellloss-${Date.now()}`;
+      setWellWinFx((fx) => [...fx, { id: lossId, splash: false, glow: 'red', glowRadius: WELL_LOSS_GLOW_RADIUS, glowIntensity: WELL_LOSS_GLOW_INTENSITY, glowStartMs: performance.now() }]);
+      staggerTimeoutsRef.current.push(
+        setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== lossId)), WELL_FX_DURATION),
+      );
+    }
+
     let cancelled = false;
 
     getPlayerMessages(lobbyId, playerName).then((json) => {
@@ -716,13 +831,45 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         }
       }
 
+      // ── Well reward: only for the player who actually won the well ────────
+      // (steal *victims* also receive a "Steal-all!" line, so gate on raidwinner.)
+      // Spawned first; incoming attacks below are delayed until it finishes so
+      // the two don't play at once and confuse the player.
+      let wellDelayMs = 0;
+      if (myPos && state.raidwinner === playerName) {
+        const components = parseWellReward(json.messages ?? []);
+        if (components.length) {
+          // Splash + rarity glow on the well itself.
+          const fxId = `wellfx-${Date.now()}`;
+          setWellWinFx((fx) => [...fx, { id: fxId, splash: true, glow: glowForReward(components), glowStartMs: performance.now() }]);
+          staggerTimeoutsRef.current.push(
+            setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== fxId)), WELL_FX_DURATION),
+          );
+
+          // For steal: one coin per stolen coin, flying from each victim's seat.
+          const stealVictims = components.find((c) => c.type === 'steal')?.victims ?? [];
+          const stealSources = stealVictims
+            .map((v) => ({ pos: posMap.get(v.name), count: v.amount }))
+            .filter((s): s is { pos: [number, number, number]; count: number } => !!s.pos);
+          const rewardEvents = buildWellRewardEvents(components, myPos, stealSources);
+          const rewardDurMs = rewardEvents.length
+            ? (Math.max(...rewardEvents.map((e) => e.delay)) + WELL_REWARD_FLIGHT_DUR) * 1000
+            : 0;
+          if (rewardEvents.length) setWellRewardEvents((ev) => [...ev, ...rewardEvents]);
+          // Hold incoming attacks until both the splash/glow and any reward
+          // models have finished.
+          wellDelayMs = Math.max(rewardDurMs, WELL_FX_DURATION);
+        }
+      }
+
       // ── Incoming: local player was attacked ──────────────────────────────
       if (myPos && combat.incoming.length > 0) {
         const SHIELD_OFFSET = 0.8;
         const ONE_DEF_MS    = (STRIKE_DUR + HOLD_DUR + BOUNCE_DUR)  * 1000;
         const ONE_HIT_MS    = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR) * 1000;
         const GAP_MS        = 200;
-        let staggerMs       = 0;
+        // Start after the well animation so incoming swords don't overlap it.
+        let staggerMs       = wellDelayMs;
 
         combat.incoming.forEach((inc, i) => {
           const atkPos  = inc.attacker ? posMap.get(inc.attacker) : undefined;
@@ -794,7 +941,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       combat.witnessedEliminations.forEach((we, i) => {
         const victimPos = posMap.get(we.victim);
         if (!victimPos) return;
-        const delay = SWORD_IMPACT_MS + i * 450;
+        const delay = wellDelayMs + SWORD_IMPACT_MS + i * 450;
         staggerTimeoutsRef.current.push(
           setTimeout(() => {
             const f = { id: `fl-${we.victim}-${Date.now()}`, position: victimPos };
@@ -812,6 +959,53 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
     return () => { cancelled = true; };
   }, [state, playerName, lobbyId]); // posMapRef is a stable ref — no dep needed
+
+  // ── Debug: preview well-reward animations without a live game ─────────────
+  // Append `?welltest=<types>` to the lobby URL to loop the animation(s) onto
+  // your own player for size/rotation tuning. Examples:
+  //   ?welltest=gold              ?welltest=steal       ?welltest=loss
+  //   ?welltest=health:2,gold:2   ?welltest=sword,deny,info,instakill
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = new URLSearchParams(window.location.search).get('welltest');
+    if (!raw) return;
+
+    // `loss` previews the red "chose the well but lost" glow; the rest are reward types.
+    const tokens = raw.split(',').map((p) => p.trim()).filter(Boolean);
+    const showLoss = tokens.includes('loss');
+    const components: WellRewardComponent[] = tokens
+      .filter((t) => t !== 'loss')
+      .map((part) => {
+        const [type, count] = part.split(':');
+        return { type: type as WellRewardType, count: count ? parseInt(count, 10) : 1 };
+      })
+      .filter((c) => !!c.type);
+    if (!components.length && !showLoss) return;
+
+    const fire = () => {
+      const myPos = posMapRef.current.get(playerName);
+      if (!myPos) return;
+      if (showLoss) {
+        const lossId = `wellloss-dbg-${Date.now()}`;
+        setWellWinFx((fx) => [...fx, { id: lossId, splash: false, glow: 'red', glowRadius: WELL_LOSS_GLOW_RADIUS, glowIntensity: WELL_LOSS_GLOW_INTENSITY, glowStartMs: performance.now() }]);
+        setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== lossId)), WELL_FX_DURATION);
+      }
+      if (!components.length) return;
+      // Splash + rarity glow on the well.
+      const fxId = `wellfx-dbg-${Date.now()}`;
+      setWellWinFx((fx) => [...fx, { id: fxId, splash: true, glow: glowForReward(components), glowStartMs: performance.now() }]);
+      setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== fxId)), WELL_FX_DURATION);
+      // Fake steal sources: every other player coughs up `count` coins (default 1).
+      const stealCount = components.find((c) => c.type === 'steal')?.count ?? 1;
+      const stealSources = Array.from(posMapRef.current.entries())
+        .filter(([name]) => name !== playerName)
+        .map(([, pos]) => ({ pos, count: stealCount }));
+      setWellRewardEvents((ev) => [...ev, ...buildWellRewardEvents(components, myPos, stealSources)]);
+    };
+    fire();
+    const interval = setInterval(fire, 4000);
+    return () => clearInterval(interval);
+  }, [playerName]);
 
   // Build a map of sender → latest message text if it's within CHAT_BUBBLE_DURATION_MS
   const chatBubbles = useMemo(() => {
@@ -1007,7 +1201,35 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         {impactShields.map((s) => (
           <ShieldEffect key={s.id} localSpace={false} worldPosition={s.pos} worldRotationY={s.rotY} />
         ))}
+
+        {/* Well rewards arching out of the well onto the winner */}
+        {wellRewardEvents.map((ev) => (
+          <WellRewardEffect
+            key={ev.id}
+            type={ev.type}
+            fromPosition={ev.fromPos}
+            toPosition={ev.toPos}
+            delay={ev.delay}
+            onDone={() => setWellRewardEvents((s) => s.filter((x) => x.id !== ev.id))}
+          />
+        ))}
       </Suspense>
+
+      {/* Well splash + rarity/loss glow — pure geometry/particles, render immediately */}
+      {wellWinFx.map((fx) => (
+        <group key={fx.id}>
+          {fx.splash && <WellSplashEffect position={WELL_SPLASH_POSITION} />}
+          {fx.glow && <WellGlowEffect position={WELL_GLOW_POSITION} color={fx.glow} radius={fx.glowRadius} intensity={fx.glowIntensity} blinks={fx.glow === 'red' ? 2 : undefined} />}
+        </group>
+      ))}
+      {/* Single persistent light driven by the active glow — mounted once so it
+          never recompiles material shaders (the source of the earlier stutter). */}
+      <WellGlowLight
+        position={[WELL_GLOW_POSITION[0], WELL_GLOW_POSITION[1] + 0.4, WELL_GLOW_POSITION[2]]}
+        glows={wellWinFx
+          .filter((f) => f.glow && f.glowStartMs != null)
+          .map((f) => ({ glow: f.glow!, startMs: f.glowStartMs!, intensity: f.glowIntensity, blinks: f.glow === 'red' ? 2 : 3 }))}
+      />
 
       {/* Red aura — pure geometry, no model; renders immediately */}
       {hitFlashEvents.map((f) => (
