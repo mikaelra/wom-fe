@@ -270,6 +270,7 @@ const lobbyConfig: SceneOverlayConfig = {
   enableNextLobbyRedirect: true,
   enableRaidTimer: true,
   hidePlayerActionButtons: true,
+  stageCombatDamage: true,
   renderGameOver,
 };
 

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { LobbyState } from '@/types/game';
 import { getPlayerMessages } from '@/lib/api';
 import { parseWellReward, type WellRewardComponent } from '@/lib/parseWellReward';
+import { parseCombatMessages } from '@/lib/parseCombatMessages';
+import { onHpFx } from '@/lib/resourceFx';
 
 export interface Resources {
   hp: number;
@@ -9,10 +11,22 @@ export interface Resources {
   attackDamage: number;
 }
 
+export interface StagedResources extends Resources {
+  /** Animation kind for the latest HP value change. */
+  hpAnim: 'bounce' | 'shake';
+  /** Counter incremented on each blocked/reflected incoming attack. */
+  hpBlockPulse: number;
+}
+
 // When the local player wins the Well, the reward is held back at round start
 // and revealed ~this long later — lined up with the moment the 3D reward model
 // lands on the player (WellRewardEffect.tsx TRAVEL_DUR = 0.85s).
 const WELL_REVEAL_DELAY_MS = 850;
+
+// Upper bound on one incoming strike's lifetime + gap, mirroring LobbyScene
+// (ONE_DEF_MS 1050 + GAP_MS 200). Used only to size the safety-reconcile timer.
+const PER_ATTACK_MAX_MS = 1250;
+const RECONCILE_BUFFER_MS = 1500;
 
 /** Sum a parsed well result into per-resource stat gains. */
 function wellStatDelta(components: WellRewardComponent[]): Resources {
@@ -31,13 +45,20 @@ function wellStatDelta(components: WellRewardComponent[]): Resources {
 
 /**
  * Computes the resource values to *display* on the local player's stat cards,
- * staging the Well reward as its own delayed step.
+ * staging each per-round change as its own animated beat:
  *
- * On a round where the local player won the Well, the affected card(s) are first
- * shown without the well reward (the income/other bounce at round start), then
- * tick up by the well amount ~WELL_REVEAL_DELAY_MS later — synced to the 3D
- * reward model landing on the player. Every other case returns the player's real
- * values immediately (Phase 1 behaviour, one bounce on any change).
+ *   1. income/other  — a bounce at round start (Phase 1)
+ *   2. Well reward    — a delayed tick-up, synced to the reward model landing (Phase 2)
+ *   3. combat damage  — peeled one incoming attack at a time, each a red shake in
+ *                       sync with its sword strike; blocks pulse the border blue (Phase 3)
+ *
+ * The Well win is known synchronously (state.raidwinner); the amounts come from
+ * the player's messages (async). Combat impact *timing* is driven by the 3D
+ * scene via the resourceFx bus (LobbyScene emits at each strike's impact), while
+ * the amounts/baseline are computed here from the same messages.
+ *
+ * Combat staging only runs when `stageCombat` is set (the lobby/PvP path);
+ * gremlin mode leaves it off and keeps the Phase 1/2 behaviour.
  *
  * Returns null when there is no local player (cards aren't rendered then).
  */
@@ -45,70 +66,161 @@ export function useStagedResources(
   state: LobbyState | null,
   playerName: string,
   lobbyId: string,
-): Resources | null {
+  options?: { stageCombat?: boolean },
+): StagedResources | null {
+  const stageCombat = options?.stageCombat ?? false;
+
   const me = state?.players.find((p) => p.name === playerName);
   const final: Resources | null = me
     ? { hp: me.hp, coins: me.coins, attackDamage: me.attackDamage }
     : null;
 
-  // When non-null, the value to show instead of `final`.
-  const [held, setHeld] = useState<Resources | null>(null);
+  // When non-null, the value to show instead of `final` (an in-progress stage).
+  const [override, setOverride] = useState<Resources | null>(null);
+  const [hpAnim, setHpAnim] = useState<'bounce' | 'shake'>('bounce');
+  const [hpBlockPulse, setHpBlockPulse] = useState(0);
 
-  const prevRoundRef = useRef(state?.round ?? 0);
+  const prevRoundRef = useRef(0);
   const lastFinalRef = useRef<Resources | null>(final);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevFinalAtRoundRef = useRef<Resources | null>(null);
+  // True only while combat-peel events should be applied (between the staged
+  // baseline being set and the safety reconcile). Guards stale/late bus events.
+  const combatActiveRef = useRef(false);
 
-  // Render-phase: on a round transition where we won the Well, freeze the cards
-  // at last round's values so they don't flash the final number before the
-  // staged reveal runs. (Calling setState during render, guarded by a changed
-  // value, is the supported "adjust state when a prop changes" React pattern.)
-  if (state && state.round > prevRoundRef.current) {
+  // Render-phase: on a round transition, freeze the relevant cards so they don't
+  // flash their final number before the staged reveal runs. HP is frozen at the
+  // previous value whenever it will be staged (Well win or combat); coins/atk are
+  // frozen at the previous value only on a Well win, otherwise shown immediately
+  // so their income bounce stays snappy. (Calling setState during render, guarded
+  // by a changed round, is the supported "adjust state on prop change" pattern.)
+  if (state && final && state.round > prevRoundRef.current) {
     const prevRound = prevRoundRef.current;
     prevRoundRef.current = state.round;
-    if (prevRound > 0 && state.raidwinner === playerName) {
-      setHeld(lastFinalRef.current);
+    const prev = lastFinalRef.current;
+    prevFinalAtRoundRef.current = prev;
+    lastFinalRef.current = final;
+    combatActiveRef.current = false;
+
+    const wonWell = state.raidwinner === playerName;
+    if (prevRound > 0 && prev && (wonWell || stageCombat)) {
+      setOverride({
+        hp: prev.hp, // staged for Well and/or combat
+        coins: wonWell ? prev.coins : final.coins,
+        attackDamage: wonWell ? prev.attackDamage : final.attackDamage,
+      });
+      setHpAnim('bounce');
     } else {
-      setHeld(null);
+      setOverride(null);
     }
   }
 
-  // Keep the previous committed final values for the next freeze.
+  // Async staged reveal: parse the round's messages and run the income → well →
+  // (combat window opens) timeline. Combat decrements themselves arrive via the bus.
   useEffect(() => {
-    lastFinalRef.current = final;
-  });
-
-  // Async staged reveal for a Well win: fetch the reward, show the pre-well
-  // value (first bounce), then reveal the full total after the delay (tick-up).
-  useEffect(() => {
-    if (!state || !final || state.raidwinner !== playerName) return;
+    if (!state || state.round <= 0) return;
+    const p = state.players.find((x) => x.name === playerName);
+    if (!p) return;
+    const finalNow: Resources = { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage };
+    const wonWell = state.raidwinner === playerName;
+    if (!wonWell && !stageCombat) return; // nothing to stage
 
     let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
     getPlayerMessages(lobbyId, playerName)
       .then((json) => {
         if (cancelled) return;
-        const delta = wellStatDelta(parseWellReward(json.messages ?? []));
-        if (delta.hp === 0 && delta.coins === 0 && delta.attackDamage === 0) {
-          setHeld(null); // No stat reward — reveal final now (Phase 1 behaviour).
-          return;
+        const msgs = json.messages ?? [];
+        const wellDelta = wellStatDelta(parseWellReward(msgs));
+
+        let combatLoss = 0;
+        let hasKill = false;
+        let incomingCount = 0;
+        if (stageCombat) {
+          const combat = parseCombatMessages(msgs);
+          incomingCount = combat.incoming.length;
+          for (const inc of combat.incoming) {
+            if (inc.outcome === 'hit') combatLoss += inc.damage ?? 1;
+            else if (inc.outcome === 'instakill') hasKill = true;
+          }
         }
-        setHeld({
-          hp: final.hp - delta.hp,
-          coins: final.coins - delta.coins,
-          attackDamage: final.attackDamage - delta.attackDamage,
-        });
-        timerRef.current = setTimeout(() => setHeld(null), WELL_REVEAL_DELAY_MS);
+
+        // Baseline = pre-well, pre-combat values. For HP this is finalHp +
+        // combatLoss − wellHp, which equals prevHp + income (so it bounces only
+        // if income raised it, then gets peeled down by the attacks). An
+        // instakill has no recoverable per-hit number, so fall back to the
+        // previous HP and let the kill drop it to 0.
+        const prev = prevFinalAtRoundRef.current;
+        const baseline: Resources = {
+          hp: hasKill ? prev?.hp ?? finalNow.hp : finalNow.hp + combatLoss - wellDelta.hp,
+          coins: finalNow.coins - wellDelta.coins,
+          attackDamage: finalNow.attackDamage - wellDelta.attackDamage,
+        };
+        setHpAnim('bounce');
+        setOverride(baseline);
+        combatActiveRef.current = stageCombat;
+
+        const wellActive = wellDelta.hp !== 0 || wellDelta.coins !== 0 || wellDelta.attackDamage !== 0;
+        if (wellActive) {
+          timers.push(
+            setTimeout(() => {
+              if (cancelled) return;
+              setHpAnim('bounce');
+              setOverride({
+                hp: baseline.hp + wellDelta.hp,
+                coins: baseline.coins + wellDelta.coins,
+                attackDamage: baseline.attackDamage + wellDelta.attackDamage,
+              });
+            }, WELL_REVEAL_DELAY_MS),
+          );
+        }
+
+        // Safety net: snap to the real state after the combat window, covering
+        // bus events missed while the 3D frame loop was paused (background tab).
+        const reconcileMs =
+          (wonWell ? WELL_REVEAL_DELAY_MS + 1000 : 0) +
+          incomingCount * PER_ATTACK_MAX_MS +
+          RECONCILE_BUFFER_MS;
+        timers.push(
+          setTimeout(() => {
+            if (cancelled) return;
+            combatActiveRef.current = false;
+            setOverride(null);
+          }, reconcileMs),
+        );
       })
       .catch(() => {
-        if (!cancelled) setHeld(null);
+        if (!cancelled) {
+          combatActiveRef.current = false;
+          setOverride(null);
+        }
       });
 
     return () => {
       cancelled = true;
-      if (timerRef.current) clearTimeout(timerRef.current);
+      combatActiveRef.current = false;
+      timers.forEach(clearTimeout);
     };
     // Re-run once per round. Other deps are stable for the round's lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.round]);
+  }, [state?.round, stageCombat]);
 
-  return held ?? final;
+  // Apply per-attack combat feedback as the 3D strikes land (driven by the bus).
+  useEffect(() => {
+    return onHpFx((e) => {
+      if (!combatActiveRef.current) return;
+      if (e.kind === 'block') {
+        setHpBlockPulse((n) => n + 1);
+        return;
+      }
+      setHpAnim('shake');
+      setOverride((o) =>
+        o ? { ...o, hp: e.kind === 'kill' ? 0 : Math.max(0, o.hp - e.damage) } : o,
+      );
+    });
+  }, []);
+
+  if (!final) return null;
+  const values = override ?? final;
+  return { ...values, hpAnim, hpBlockPulse };
 }

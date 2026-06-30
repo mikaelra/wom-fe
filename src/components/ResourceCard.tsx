@@ -19,6 +19,10 @@ type ResourceCardProps = {
   onClick: () => void;
   /** Optional overlay (e.g. ATK "can't afford" diagonal line). */
   overlay?: ReactNode;
+  /** Animation kind for the next value change: a gain bounce or a hit shake. */
+  anim?: 'bounce' | 'shake';
+  /** Increment to flash a blue "blocked" aura on the card (no value change). */
+  blockPulse?: number;
 };
 
 const BASE_CLASS =
@@ -43,18 +47,26 @@ export default function ResourceCard({
   disabled,
   onClick,
   overlay,
+  anim = 'bounce',
+  blockPulse = 0,
 }: ResourceCardProps) {
   const [displayValue, setDisplayValue] = useState(value);
   const [bounceCount, setBounceCount] = useState(0);
   const prevValueRef = useRef(value);
   const swapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Animation class for the current value change (read at change time so the
+  // parent can set `anim` together with the new value).
+  const animRef = useRef(anim);
+  animRef.current = anim;
+  const [animClass, setAnimClass] = useState('resource-bounce');
 
   useEffect(() => {
     if (value === prevValueRef.current) return;
     prevValueRef.current = value;
 
-    // Retrigger the bounce animation (key-remount) and swap the number after
-    // the bounce's rise.
+    // Retrigger the animation (key-remount) with the kind for this change, and
+    // swap the number after the animation's rise.
+    setAnimClass(animRef.current === 'shake' ? 'resource-shake' : 'resource-bounce');
     setBounceCount((c) => c + 1);
     if (swapTimerRef.current) clearTimeout(swapTimerRef.current);
     swapTimerRef.current = setTimeout(() => setDisplayValue(value), SWAP_DELAY_MS);
@@ -64,18 +76,26 @@ export default function ResourceCard({
     };
   }, [value]);
 
+  // The button is keyed by bounceCount so each value change remounts it and
+  // restarts the bounce/shake. The block aura lives as a sibling in this wrapper
+  // (keyed by blockPulse) so it animates only on a block — not on every remount.
   return (
-    <button
-      key={bounceCount}
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`${BASE_CLASS} ${bounceCount > 0 ? 'resource-bounce' : ''} ${className}`}
-    >
-      <p className="text-gray-400 text-xs uppercase tracking-wide">{label}</p>
-      <p className={`${valueClass} font-bold text-xl leading-tight`}>{displayValue}</p>
-      <p className={`${sublabelClass} text-xs`}>{sublabel}</p>
-      {overlay}
-    </button>
+    <div className="relative inline-flex">
+      <button
+        key={bounceCount}
+        type="button"
+        disabled={disabled}
+        onClick={onClick}
+        className={`${BASE_CLASS} ${bounceCount > 0 ? animClass : ''} ${className}`}
+      >
+        <p className="text-gray-400 text-xs uppercase tracking-wide">{label}</p>
+        <p className={`${valueClass} font-bold text-xl leading-tight`}>{displayValue}</p>
+        <p className={`${sublabelClass} text-xs`}>{sublabel}</p>
+        {overlay}
+      </button>
+      {blockPulse > 0 && (
+        <span key={blockPulse} className="resource-block-aura pointer-events-none absolute inset-0 rounded-lg" />
+      )}
+    </div>
   );
 }

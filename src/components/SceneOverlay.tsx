@@ -79,6 +79,10 @@ export type SceneOverlayConfig = {
   /** When true the enemy HP panel is not rendered here — the 3D scene renders it
    *  anchored to the enemy model instead. */
   suppressEnemyPanel?: boolean;
+  /** When true, incoming combat damage is peeled off the HP card per attack
+   *  (synced to the 3D sword strikes via the resourceFx bus). Lobby/PvP only;
+   *  the gremlin scene doesn't emit strike events so it leaves this off. */
+  stageCombatDamage?: boolean;
   renderGameOver: (opts: GameOverRenderOpts) => ReactNode;
   /** Render additional positioned elements (e.g. a "More monsters" button) */
   renderExtra?: (opts: { gameOver: boolean; btn: string }) => ReactNode;
@@ -113,6 +117,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     enableRaidTimer = false,
     hidePlayerActionButtons = false,
     suppressEnemyPanel = false,
+    stageCombatDamage = false,
     renderGameOver,
     renderExtra,
   } = config;
@@ -281,7 +286,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   // Staged display values for the resource cards: holds back a Well reward at
   // round start and ticks it up when the reward lands (Phase 2). Falls back to
   // the player's real values for every other case.
-  const stagedResources = useStagedResources(state, playerName, lobbyId);
+  const stagedResources = useStagedResources(state, playerName, lobbyId, { stageCombat: stageCombatDamage });
 
   useEffect(() => {
     if (!enableRaidTimer || !isAlive) return;
@@ -439,6 +444,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabel="❤ Get"
           valueClass="text-red-400"
           sublabelClass="text-red-400/70"
+          anim={stagedResources?.hpAnim ?? 'bounce'}
+          blockPulse={stagedResources?.hpBlockPulse ?? 0}
           disabled={!showActions}
           onClick={() => handleResource('gain_hp')}
           className={`${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
