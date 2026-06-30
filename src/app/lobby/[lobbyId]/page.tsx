@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import LobbyOverlay from '@/components/lobby/LobbyOverlay';
+import InGameGuide from '@/components/lobby/InGameGuide';
 import { BASE_FOV } from '@/lib/sceneConstants';
 import { getSocket, joinLobby, checkName, logInUser, verifyLoginCode } from '@/lib/api';
 import type { LobbyState } from '@/types/game';
@@ -201,18 +202,25 @@ export default function LobbyPage() {
           onAttackSelect={(target) => { setSharedAction('attack'); setSharedAttackTarget(target); }}
           onActionChange={setSharedAction}
           guideHighlight={guideHighlight}
-          onGuideHighlightChange={setGuideHighlight}
         />
       </Canvas>
 
       {playerName && hasJoined && (
-        <LobbyOverlay
-          lobbyId={lobbyId}
-          onStateChange={setLobbyState}
-          externalAction={sharedAction}
-          onActionChange={setSharedAction}
-          guideHighlight={guideHighlight}
-        />
+        <>
+          <LobbyOverlay
+            lobbyId={lobbyId}
+            onStateChange={setLobbyState}
+            externalAction={sharedAction}
+            onActionChange={setSharedAction}
+            guideHighlight={guideHighlight}
+          />
+          {/* In-game welcome tour — floats in the UI overlay layer just above
+              the resource cards (lives outside the 3D canvas now). */}
+          <InGameGuide
+            gameStarted={(lobbyState?.round ?? 0) > 0 && lobbyState?.players?.some((p) => p.name === playerName) === true}
+            onHighlightChange={setGuideHighlight}
+          />
+        </>
       )}
 
       {showJoinOverlay && (

@@ -641,10 +641,9 @@ type LobbySceneProps = {
   /** Welcome-tour highlights, lifted to the page so the overlay can glow the
    *  resource cards too. The 3D scene uses it for attack/defend/well. */
   guideHighlight?: GuideHighlights;
-  onGuideHighlightChange?: (h: GuideHighlights) => void;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {}, onGuideHighlightChange }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {} }: LobbySceneProps) {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   // ----- Animation state -----
@@ -1115,7 +1114,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         <Html position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
           <button
             onClick={handleRaid}
-            className={guideGlowClass(guideHighlight?.well)}
+            className={`${actionCue} ${guideGlowClass(guideHighlight?.well)}`}
             style={{
               pointerEvents: 'auto',
               cursor: 'pointer',
@@ -1137,13 +1136,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           </button>
         </Html>
       )}
-
-      {/* In-game welcome tour — bubbles anchored beside the elements they describe */}
-      <InGameGuide
-        ownPosition={PLAYER_POSITIONS[players.findIndex((p) => p.name === playerName)]?.position ?? null}
-        gameStarted={gameStarted && !!myPlayer}
-        onHighlightChange={onGuideHighlightChange}
-      />
 
       {/* Stage 2: Well/Table model */}
       <Suspense fallback={null}>
