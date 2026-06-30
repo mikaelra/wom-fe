@@ -14,6 +14,8 @@ type Props = {
   position?: [number, number, number];
   rotation?: [number, number, number];
   isAnimating?: boolean;
+  /** When true the model is desaturated to a lifeless gray (player eliminated). */
+  isDead?: boolean;
 };
 
 function PlayerV1Impl({
@@ -22,6 +24,7 @@ function PlayerV1Impl({
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   isAnimating = false,
+  isDead = false,
 }: Props) {
   const { scene } = useGLTF(url);
   const sceneClone = useMemo(() => scene.clone(), [scene]); // Each instance needs its own clone
@@ -56,7 +59,47 @@ function PlayerV1Impl({
       }
     });
   }, [sceneClone, isAnimating, initialPosition]);
-  
+
+  // Death desaturation. Materials are shared across scene.clone() instances, so
+  // we must clone the material before recolouring or every player on the same
+  // skin would turn gray too. The original material is stashed per-mesh so the
+  // model can be restored if the player comes back (e.g. a new round).
+  useEffect(() => {
+    sceneClone.traverse((obj: THREE.Object3D) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const orig = (obj.userData.origMaterial ?? obj.material) as
+        | THREE.Material
+        | THREE.Material[];
+      obj.userData.origMaterial = orig;
+
+      if (isDead) {
+        const gray = (m: THREE.Material) => {
+          const c = m.clone() as THREE.Material & {
+            color?: THREE.Color;
+            map?: THREE.Texture | null;
+            emissive?: THREE.Color;
+            emissiveMap?: THREE.Texture | null;
+            vertexColors?: boolean;
+            metalness?: number;
+            roughness?: number;
+          };
+          c.map = null;
+          c.emissiveMap = null;
+          if (c.color) c.color.set('#6f6f6f');
+          if (c.emissive) c.emissive.set('#000000');
+          if ('vertexColors' in c) c.vertexColors = false;
+          if ('metalness' in c) c.metalness = 0;
+          if ('roughness' in c) c.roughness = 1;
+          c.needsUpdate = true;
+          return c;
+        };
+        obj.material = Array.isArray(orig) ? orig.map(gray) : gray(orig);
+      } else {
+        obj.material = orig;
+      }
+    });
+  }, [sceneClone, isDead]);
+
   return (
     <primitive
       ref={modelRef}

@@ -5,6 +5,10 @@ export interface OutgoingCombat {
   target: string;
   outcome: OutgoingOutcome;
   attackerDied: boolean;
+  /** True when this attack eliminated the target and granted +1 ⚔ + their coins. */
+  eliminated?: boolean;
+  /** Coins received from the kill (the eliminated player's purse). */
+  coinsReceived?: number;
 }
 
 export interface IncomingCombat {
@@ -12,6 +16,8 @@ export interface IncomingCombat {
   outcome: IncomingOutcome;
   attackerDied: boolean;
   damage?: number; // HP lost (only set for 'hit')
+  /** Coins received when a reflected attack eliminated the attacker (kill by me). */
+  coinsReceived?: number;
 }
 
 export interface ParsedCombat {
@@ -55,9 +61,15 @@ export function parseCombatMessages(messages: string[][]): ParsedCombat {
     }
 
     // "💀 You eliminated <target>. You receive their 💰(<coins>) and +1 ⚔. 💀"
-    const outElimMatch = line.match(/^💀 You eliminated (.+)\. You receive their 💰\(\d+\) and \+1 ⚔\. 💀$/);
+    const outElimMatch = line.match(/^💀 You eliminated (.+)\. You receive their 💰\((\d+)\) and \+1 ⚔\. 💀$/);
     if (outElimMatch) {
-      result.outgoing = { target: outElimMatch[1], outcome: 'hit', attackerDied: false };
+      result.outgoing = {
+        target: outElimMatch[1],
+        outcome: 'hit',
+        attackerDied: false,
+        eliminated: true,
+        coinsReceived: parseInt(outElimMatch[2], 10),
+      };
       i++;
       continue;
     }
@@ -90,10 +102,11 @@ export function parseCombatMessages(messages: string[][]): ParsedCombat {
         i++;
         if (i < lines.length) {
           // If attacker died from reflection we learn their name here
-          const killMatch = lines[i].match(/^💀 You eliminated (.+) with your 🛡\. You receive their 💰\(\d+\) and \+1 ⚔\. 💀$/);
+          const killMatch = lines[i].match(/^💀 You eliminated (.+) with your 🛡\. You receive their 💰\((\d+)\) and \+1 ⚔\. 💀$/);
           if (killMatch) {
             inc.attackerDied = true;
             inc.attacker = killMatch[1];
+            inc.coinsReceived = parseInt(killMatch[2], 10);
             i++;
           }
         }
@@ -111,9 +124,10 @@ export function parseCombatMessages(messages: string[][]): ParsedCombat {
         inc.outcome = 'reflected_back';
         i++;
         if (i < lines.length) {
-          const killMatch = lines[i].match(/^💀 You eliminated (.+) with your 🛡\. You receive their 💰\(\d+\) and \+1 ⚔\. 💀$/);
+          const killMatch = lines[i].match(/^💀 You eliminated (.+) with your 🛡\. You receive their 💰\((\d+)\) and \+1 ⚔\. 💀$/);
           if (killMatch) {
             inc.attackerDied = true;
+            inc.coinsReceived = parseInt(killMatch[2], 10);
             i++;
           }
         }

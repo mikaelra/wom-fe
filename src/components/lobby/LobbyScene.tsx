@@ -13,6 +13,7 @@ import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/co
 import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
 import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight, type WellGlowColor } from '@/components/lobby/WellGlowEffect';
+import KillFireEffect from '@/components/lobby/KillFireEffect';
 import InGameGuide from '@/components/lobby/InGameGuide';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket, getPlayerMessages } from '@/lib/api';
@@ -126,10 +127,11 @@ function WellCrown({ worldPosition }: { worldPosition: [number, number, number] 
 
 // Holds only the GLB-dependent parts of a player slot so it can be Suspense-wrapped
 // independently of the HTML UI (names / action buttons) rendered by PlayerWithName.
-function PlayerModelLayer({ modelUrl, isBoss, isAnimating, showShield }: {
+function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield }: {
   modelUrl: string;
   isBoss: boolean;
   isAnimating: boolean;
+  isDead?: boolean;
   showShield?: boolean;
 }) {
   return (
@@ -140,6 +142,7 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, showShield }: {
         position={[0, 0, 0]}
         rotation={[0, 0, 0]}
         isAnimating={isAnimating}
+        isDead={isDead}
       />
       {showShield && <ShieldEffect />}
     </>
@@ -201,7 +204,7 @@ function PlayerWithName({
     <group position={position} rotation={rotation}>
       {/* 3D model — lazy; suspends until GLB is ready */}
       <Suspense fallback={null}>
-        <PlayerModelLayer modelUrl={modelUrl} isBoss={!!isBoss} isAnimating={isAnimating} showShield={showShield} />
+        <PlayerModelLayer modelUrl={modelUrl} isBoss={!!isBoss} isAnimating={isAnimating} isDead={isDead} showShield={showShield} />
       </Suspense>
       {chatBubble && (
         <Html position={[0, 1.3, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
@@ -516,6 +519,20 @@ type WellRewardEvent = {
   delay:   number;
 };
 
+// A fiery red glow that erupts under a character when a kill is made. Seen by the
+// killer (under themselves), the witness and the victim (under the killer).
+type KillFireEvent = {
+  id:  string;
+  pos: [number, number, number];
+};
+
+// Text shown to the lone witness of a kill, naming the killer in a fiery style.
+type KillBanner = {
+  id:     string;
+  killer: string;
+  pos:    [number, number, number];
+};
+
 // Splash + glow that play on the well. A win shows a splash plus the rarity
 // glow (or none for common rewards); choosing the well but losing shows just a
 // small red glow.
@@ -657,6 +674,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [impactShields, setImpactShields] = useState<ImpactShield[]>([]);
   const [wellRewardEvents, setWellRewardEvents] = useState<WellRewardEvent[]>([]);
   const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
+  const [killFireEvents, setKillFireEvents] = useState<KillFireEvent[]>([]);
+  const [killBanners, setKillBanners] = useState<KillBanner[]>([]);
   // Timeout IDs for staggered incoming defended strikes (cleared each new round)
   const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   // Mirrors the local player's chosen action. The parent clears currentAction on
@@ -779,6 +798,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
     staggerTimeoutsRef.current.forEach(clearTimeout);
     staggerTimeoutsRef.current = [];
+    // Clear any lingering kill effects from the previous round (their removal
+    // timeouts were just cancelled above).
+    setKillFireEvents([]);
+    setKillBanners([]);
 
     // Chose The Well but didn't win → small red glow under the well (PvP only).
     // The win case is handled below once we've fetched the reward messages.
@@ -800,6 +823,71 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       const newStrikes:       StrikeEvent[]  = [];
       const newImpactShields: ImpactShield[] = [];
+
+      // ── Kill animation helpers ───────────────────────────────────────────
+      // A fiery red glow erupts under the killer (seen by killer, witness and
+      // victim); the killer additionally sees the victim's coins fly over and
+      // their ATK/coin cards tick up. `staggerTimeoutsRef` clears all of these
+      // on the next round transition.
+      const SWORD_IMPACT_MS = (STRIKE_DUR + HOLD_DUR) * 1000;
+      // Coins land ~one travel-arc after launch (WellRewardEffect TRAVEL_DUR).
+      const KILL_LOOT_LAND_MS = 850;
+      const myNowHp = state.players.find((p) => p.name === playerName)?.hp ?? 1;
+      const iDied   = myNowHp <= 0;
+      const killStamp = Date.now();
+      let killSeq = 0;
+
+      const scheduleKillFire = (pos: [number, number, number], atMs: number) => {
+        const id = `killfire-${killStamp}-${killSeq++}`;
+        staggerTimeoutsRef.current.push(
+          setTimeout(() => setKillFireEvents((e) => [...e, { id, pos }]), Math.max(0, atMs)),
+        );
+      };
+
+      const scheduleKillBanner = (killer: string, pos: [number, number, number], atMs: number) => {
+        const id = `killbanner-${killStamp}-${killSeq++}`;
+        staggerTimeoutsRef.current.push(
+          setTimeout(() => {
+            setKillBanners((b) => [...b, { id, killer, pos }]);
+            staggerTimeoutsRef.current.push(
+              setTimeout(() => setKillBanners((b) => b.filter((x) => x.id !== id)), 2600),
+            );
+          }, Math.max(0, atMs)),
+        );
+      };
+
+      // Killer only: fling the victim's coins over and tick up the ATK/coin cards.
+      const scheduleKillLoot = (
+        fromPos: [number, number, number],
+        toPos: [number, number, number],
+        coins: number,
+        atMs: number,
+      ) => {
+        if (coins > 0) {
+          staggerTimeoutsRef.current.push(
+            setTimeout(() => {
+              const from: [number, number, number] = [fromPos[0], fromPos[1] + 0.3, fromPos[2]];
+              const evs: WellRewardEvent[] = [];
+              for (let c = 0; c < coins; c++) {
+                const jitter = coins > 1 ? (c - (coins - 1) / 2) * 0.15 : 0;
+                evs.push({
+                  id:   `kill-coin-${killStamp}-${killSeq++}`,
+                  type: 'steal',
+                  fromPos: [from[0] + jitter, from[1], from[2]],
+                  toPos:   [toPos[0] + jitter, toPos[1], toPos[2]],
+                  delay:   c * WELL_REWARD_STAGGER,
+                });
+              }
+              setWellRewardEvents((ev) => [...ev, ...evs]);
+            }, Math.max(0, atMs)),
+          );
+        }
+        // Reveal the gained coins (+ the +1 ATK) on the resource cards once the
+        // coins have arrived — staged like the Well reward (see useStagedResources).
+        staggerTimeoutsRef.current.push(
+          setTimeout(() => emitHpFx({ kind: 'killgain', coins, atk: 1 }), Math.max(0, atMs) + KILL_LOOT_LAND_MS),
+        );
+      };
 
       // ── Outgoing: local player attacked someone ──────────────────────────
       if (combat.outgoing) {
@@ -831,6 +919,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             flashPosition:  tgtHit    ? tgtPos : undefined,
             bounceFlashPos: reflected ? myPos  : undefined,
           });
+
+          // Kill! At the moment the blow lands: fiery glow under me (the killer,
+          // symbolising my +1 ATK) and the victim's coins arch over to me.
+          if (combat.outgoing.eliminated) {
+            scheduleKillFire(myPos, SWORD_IMPACT_MS);
+            scheduleKillLoot(tgtPos, myPos, combat.outgoing.coinsReceived ?? 0, SWORD_IMPACT_MS);
+          }
         }
       }
 
@@ -915,6 +1010,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           const delay       = staggerMs;
           staggerMs += ONE_ANIM_MS + GAP_MS;
 
+          // Reflection kill: my shield bounced the attack back and finished the
+          // attacker. I'm the killer — fiery glow under me + their coins fly over.
+          if (atkReflected && inc.attackerDied && inc.coinsReceived != null && atkPos) {
+            scheduleKillFire(myPos, delay + ONE_DEF_MS);
+            scheduleKillLoot(atkPos, myPos, inc.coinsReceived, delay + ONE_DEF_MS);
+          }
+          // I was killed by this blow: I see the fiery glow erupt under my killer
+          // (no coins — those go to them, not me).
+          if (iDied && !isDefended && atkPos && (inc.outcome === 'hit' || inc.outcome === 'instakill')) {
+            scheduleKillFire(atkPos, delay + SWORD_IMPACT_MS);
+          }
+
           if (delay === 0) {
             newStrikes.push(strike);
             if (isDefended) {
@@ -945,21 +1052,29 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         });
       }
 
-      // ── Witnessed eliminations: flash on the victim ───────────────────────
-      const SWORD_IMPACT_MS = (STRIKE_DUR + HOLD_DUR) * 1000;
+      // ── Witnessed eliminations ────────────────────────────────────────────
+      // The lone witness sees a fiery glow erupt under the killer plus a banner
+      // naming them, and a red flash on the victim — but no coins (those are the
+      // killer's alone).
       combat.witnessedEliminations.forEach((we, i) => {
         const victimPos = posMap.get(we.victim);
-        if (!victimPos) return;
+        const killerPos = posMap.get(we.attacker);
         const delay = wellDelayMs + SWORD_IMPACT_MS + i * 450;
-        staggerTimeoutsRef.current.push(
-          setTimeout(() => {
-            const f = { id: `fl-${we.victim}-${Date.now()}`, position: victimPos };
-            setHitFlashEvents((ev) => [...ev, f]);
-            staggerTimeoutsRef.current.push(
-              setTimeout(() => setHitFlashEvents((ev) => ev.filter((h) => h.id !== f.id)), 650),
-            );
-          }, delay),
-        );
+        if (victimPos) {
+          staggerTimeoutsRef.current.push(
+            setTimeout(() => {
+              const f = { id: `fl-${we.victim}-${Date.now()}`, position: victimPos };
+              setHitFlashEvents((ev) => [...ev, f]);
+              staggerTimeoutsRef.current.push(
+                setTimeout(() => setHitFlashEvents((ev) => ev.filter((h) => h.id !== f.id)), 650),
+              );
+            }, delay),
+          );
+        }
+        if (killerPos) {
+          scheduleKillFire(killerPos, delay);
+          scheduleKillBanner(we.attacker, killerPos, delay);
+        }
       });
 
       if (newStrikes.length)       setStrikeEvents((ev) => [...ev, ...newStrikes]);
@@ -1248,6 +1363,29 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       {/* Red aura — pure geometry, no model; renders immediately */}
       {hitFlashEvents.map((f) => (
         <AuraFlash key={f.id} position={f.position} />
+      ))}
+
+      {/* Fiery red glow under a character when a kill is made (ATK surge) */}
+      {killFireEvents.map((k) => (
+        <KillFireEffect
+          key={k.id}
+          position={k.pos}
+          onDone={() => setKillFireEvents((e) => e.filter((x) => x.id !== k.id))}
+        />
+      ))}
+
+      {/* Witness banner — names the killer in a fiery style above their head */}
+      {killBanners.map((b) => (
+        <Html
+          key={b.id}
+          position={[b.pos[0], b.pos[1] + 0.95, b.pos[2]]}
+          center
+          distanceFactor={3}
+          zIndexRange={[0, 0]}
+          style={{ pointerEvents: 'none', userSelect: 'none' }}
+        >
+          <div className="kill-witness-banner">💀 {b.killer} got a kill! 🔥</div>
+        </Html>
       ))}
 
       {/* Stage 6: Game-winning crown */}
