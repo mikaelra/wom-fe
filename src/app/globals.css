@@ -63,3 +63,13 @@ body {
 
 .guide-glow-blue { animation: guide-glow-blue 0.8s ease-in-out infinite; }
 .guide-glow-gold { animation: guide-glow-gold 0.8s ease-in-out infinite; }
+
+/* Resource card feedback: a small bounce whenever an HP/Coins/ATK value
+   changes. Retriggered via the React key-remount trick (see ResourceCard). */
+@keyframes resource-bounce {
+  0%   { transform: translateY(0)    scale(1);    }
+  35%  { transform: translateY(-6px) scale(1.12); }
+  60%  { transform: translateY(0)    scale(0.97); }
+  100% { transform: translateY(0)    scale(1);    }
+}
+.resource-bounce { animation: resource-bounce 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
