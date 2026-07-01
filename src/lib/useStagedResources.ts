@@ -103,11 +103,11 @@ export function useStagedResources(
 
     const wonWell = state.raidwinner === playerName;
     if (prevRound > 0 && prev && (wonWell || stageCombat)) {
-      setOverride({
-        hp: prev.hp, // staged for Well and/or combat
-        coins: wonWell ? prev.coins : final.coins,
-        attackDamage: wonWell ? prev.attackDamage : final.attackDamage,
-      });
+      // Freeze every card at the previous value, then let the async pass below
+      // reveal each gain as its own beat. Coins/ATK are held back too (not just
+      // HP) so a kill's looted coins + the +1 ATK tick up when the kill lands
+      // rather than appearing instantly at round start.
+      setOverride({ hp: prev.hp, coins: prev.coins, attackDamage: prev.attackDamage });
       setHpAnim('bounce');
     } else {
       setOverride(null);
@@ -136,12 +136,26 @@ export function useStagedResources(
         let combatLoss = 0;
         let hasKill = false;
         let incomingCount = 0;
+        // Gains from kills *I* made this round: their coins + the +1 ATK. Held
+        // back from the baseline and revealed when the kill lands (killgain bus
+        // event from LobbyScene), so the cards tick up in sync with the 3D fx.
+        let killCoins = 0;
+        let killAtk = 0;
         if (stageCombat) {
           const combat = parseCombatMessages(msgs);
           incomingCount = combat.incoming.length;
           for (const inc of combat.incoming) {
             if (inc.outcome === 'hit') combatLoss += inc.damage ?? 1;
             else if (inc.outcome === 'instakill') hasKill = true;
+            // Reflection kill: my shield finished the attacker → I gain coins + ATK.
+            if (inc.attackerDied && inc.coinsReceived != null) {
+              killCoins += inc.coinsReceived;
+              killAtk += 1;
+            }
+          }
+          if (combat.outgoing?.eliminated) {
+            killCoins += combat.outgoing.coinsReceived ?? 0;
+            killAtk += 1;
           }
         }
 
@@ -153,8 +167,8 @@ export function useStagedResources(
         const prev = prevFinalAtRoundRef.current;
         const baseline: Resources = {
           hp: hasKill ? prev?.hp ?? finalNow.hp : finalNow.hp + combatLoss - wellDelta.hp,
-          coins: finalNow.coins - wellDelta.coins,
-          attackDamage: finalNow.attackDamage - wellDelta.attackDamage,
+          coins: finalNow.coins - wellDelta.coins - killCoins,
+          attackDamage: finalNow.attackDamage - wellDelta.attackDamage - killAtk,
         };
         setHpAnim('bounce');
         setOverride(baseline);
@@ -211,6 +225,13 @@ export function useStagedResources(
       if (!combatActiveRef.current) return;
       if (e.kind === 'block') {
         setHpBlockPulse((n) => n + 1);
+        return;
+      }
+      // A kill I made: tick the Coins + ATK cards up to reflect the loot/ATK gain.
+      if (e.kind === 'killgain') {
+        setOverride((o) =>
+          o ? { ...o, coins: o.coins + e.coins, attackDamage: o.attackDamage + e.atk } : o,
+        );
         return;
       }
       setHpAnim('shake');

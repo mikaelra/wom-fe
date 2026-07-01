@@ -14,6 +14,8 @@ type Props = {
   position?: [number, number, number];
   rotation?: [number, number, number];
   isAnimating?: boolean;
+  /** When true the model is desaturated to a lifeless gray (player eliminated). */
+  isDead?: boolean;
 };
 
 function PlayerV1Impl({
@@ -22,6 +24,7 @@ function PlayerV1Impl({
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   isAnimating = false,
+  isDead = false,
 }: Props) {
   const { scene } = useGLTF(url);
   const sceneClone = useMemo(() => scene.clone(), [scene]); // Each instance needs its own clone
@@ -32,7 +35,13 @@ function PlayerV1Impl({
     () => new THREE.Vector3(position[0], 50, position[2]),
     [position[0], position[2]]
   );
-  const targetPosition = useMemo(() => new THREE.Vector3(...position), [position[0], position[1], position[2]]);
+  // When dead the character tips onto its side; drop it 0.5 on Y so the fallen
+  // pose settles toward the ground rather than floating.
+  const deadYOffset = isDead ? -0.5 : 0;
+  const targetPosition = useMemo(
+    () => new THREE.Vector3(position[0], position[1] + deadYOffset, position[2]),
+    [position[0], position[1], position[2], deadYOffset],
+  );
 
   useFrame((_, delta) => {
     if (isAnimating && modelRef.current) {
@@ -56,14 +65,52 @@ function PlayerV1Impl({
       }
     });
   }, [sceneClone, isAnimating, initialPosition]);
-  
+
+  // Death look: keep the character's texture but blend 50% gray into it and make
+  // it 30% opaque, so a dead player reads as a faded ghost of themselves rather
+  // than a flat gray statue. Materials are shared across scene.clone() instances,
+  // so we clone before altering or every player on the same skin would fade too.
+  // The original material is stashed per-mesh so the model restores if the player
+  // comes back (e.g. a new round).
+  useEffect(() => {
+    sceneClone.traverse((obj: THREE.Object3D) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const orig = (obj.userData.origMaterial ?? obj.material) as
+        | THREE.Material
+        | THREE.Material[];
+      obj.userData.origMaterial = orig;
+
+      if (isDead) {
+        const fade = (m: THREE.Material) => {
+          const c = m.clone();
+          c.transparent = true;
+          c.opacity = 0.3;        // 30% opaque
+          c.depthWrite = false;
+          // Mix 50% mid-gray into the final shaded colour (keeps the texture).
+          c.onBeforeCompile = (shader) => {
+            shader.fragmentShader = shader.fragmentShader.replace(
+              '#include <dithering_fragment>',
+              '#include <dithering_fragment>\n\tgl_FragColor.rgb = mix( gl_FragColor.rgb, vec3( 0.5 ), 0.5 );',
+            );
+          };
+          c.needsUpdate = true;
+          return c;
+        };
+        obj.material = Array.isArray(orig) ? orig.map(fade) : fade(orig);
+      } else {
+        obj.material = orig;
+      }
+    });
+  }, [sceneClone, isDead]);
+
   return (
     <primitive
       ref={modelRef}
       object={sceneClone}
       scale={scale}
-      {...(isAnimating ? {} : { position })}
-      rotation={rotation}
+      {...(isAnimating ? {} : { position: [position[0], position[1] + deadYOffset, position[2]] as [number, number, number] })}
+      // On death, tip the character 90° onto its side (a fallen/knocked-over pose).
+      rotation={isDead ? [rotation[0], rotation[1], rotation[2] + Math.PI / 2] : rotation}
     />
   );
 }

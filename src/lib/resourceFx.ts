@@ -9,7 +9,8 @@
 export type HpFxEvent =
   | { kind: 'hit'; damage: number } // shake the HP card and drop it by `damage`
   | { kind: 'kill' }                // shake the HP card and drop it to 0 (instakill)
-  | { kind: 'block' };              // pulse the HP card border blue, no number change
+  | { kind: 'block' }               // pulse the HP card border blue, no number change
+  | { kind: 'killgain'; coins: number; atk: number }; // tick up Coins/ATK after a kill
 
 type Listener = (e: HpFxEvent) => void;
 
