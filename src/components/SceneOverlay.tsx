@@ -169,15 +169,17 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     const sock = getSocket();
     const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
 
+    // join_room is what actually subscribes this socket to the lobby's
+    // broadcast room, so it must fire on every (re)connect regardless of
+    // whether join_lobby succeeds or reports "Name taken" (the common case
+    // for anyone who already joined earlier). Gating it behind a successful
+    // "joined_lobby" response left reconnecting clients silently stuck
+    // outside the room with no further state_update broadcasts.
     const rejoin = () => {
       sock.emit("join_lobby", { lobby_id: lobbyId, name: playerName, email });
-    };
-
-    const onJoinedLobby = () => {
       sock.emit("join_room", { lobby_id: lobbyId, name: playerName });
     };
 
-    sock.on("joined_lobby", onJoinedLobby);
     sock.on("connect", rejoin);
 
     rejoin();
@@ -200,7 +202,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     });
 
     return () => {
-      sock.off("joined_lobby", onJoinedLobby);
       sock.off("connect", rejoin);
       sock.emit("leave_room", { lobby_id: lobbyId, name: playerName });
       sock.off("state_update");
