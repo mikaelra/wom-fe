@@ -169,16 +169,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     const sock = getSocket();
     const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
 
-    // Temporary diagnostics for tracking down a report of stale rematch vote
-    // counts on some clients. Logs socket lifecycle events and a summary of
-    // every state_update actually received, so it's visible from the browser
-    // console whether broadcasts are arriving at all, and what transport
-    // (websocket vs long-polling) the connection ended up on.
-    const logTransport = (label: string) => {
-      const transport = sock.io.engine?.transport?.name ?? 'unknown';
-      console.log(`[socket] ${label} — id=${sock.id} transport=${transport} lobby=${lobbyId}`);
-    };
-
     // join_room is what actually subscribes this socket to the lobby's
     // broadcast room, so it must fire on every (re)connect regardless of
     // whether join_lobby succeeds or reports "Name taken" (the common case
@@ -186,7 +176,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     // "joined_lobby" response left reconnecting clients silently stuck
     // outside the room with no further state_update broadcasts.
     const rejoin = () => {
-      logTransport('connect');
       sock.emit("join_lobby", { lobby_id: lobbyId, name: playerName, email });
       sock.emit("join_room", { lobby_id: lobbyId, name: playerName });
     };
@@ -195,22 +184,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
     rejoin();
 
-    const onDisconnect = (reason: string) => {
-      console.log(`[socket] disconnect — reason=${reason} lobby=${lobbyId}`);
-    };
-    sock.on("disconnect", onDisconnect);
-
-    const onUpgrade = (transport: { name: string }) => {
-      console.log(`[socket] transport upgraded to ${transport.name}`);
-    };
-    sock.io.engine?.on?.('upgrade', onUpgrade);
-
     sock.on("state_update", (data) => {
-      console.log(
-        `[socket] state_update received — round=${data.round} gameover=${data.gameover} ` +
-        `replay_votes=${JSON.stringify(data.replay_votes)} count=${data.replay_votes_count}/${data.replay_votes_needed} ` +
-        `next_lobby_id=${data.next_lobby_id} at ${new Date().toISOString()}`
-      );
       setState(data);
     });
 
@@ -229,8 +203,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
     return () => {
       sock.off("connect", rejoin);
-      sock.off("disconnect", onDisconnect);
-      sock.io.engine?.off?.('upgrade', onUpgrade);
       sock.emit("leave_room", { lobby_id: lobbyId, name: playerName });
       sock.off("state_update");
       sock.off("chat_message");
