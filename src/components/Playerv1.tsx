@@ -60,10 +60,12 @@ function PlayerV1Impl({
     });
   }, [sceneClone, isAnimating, initialPosition]);
 
-  // Death desaturation. Materials are shared across scene.clone() instances, so
-  // we must clone the material before recolouring or every player on the same
-  // skin would turn gray too. The original material is stashed per-mesh so the
-  // model can be restored if the player comes back (e.g. a new round).
+  // Death look: keep the character's texture but blend 50% gray into it and make
+  // it 30% opaque, so a dead player reads as a faded ghost of themselves rather
+  // than a flat gray statue. Materials are shared across scene.clone() instances,
+  // so we clone before altering or every player on the same skin would fade too.
+  // The original material is stashed per-mesh so the model restores if the player
+  // comes back (e.g. a new round).
   useEffect(() => {
     sceneClone.traverse((obj: THREE.Object3D) => {
       if (!(obj instanceof THREE.Mesh)) return;
@@ -73,27 +75,22 @@ function PlayerV1Impl({
       obj.userData.origMaterial = orig;
 
       if (isDead) {
-        const gray = (m: THREE.Material) => {
-          const c = m.clone() as THREE.Material & {
-            color?: THREE.Color;
-            map?: THREE.Texture | null;
-            emissive?: THREE.Color;
-            emissiveMap?: THREE.Texture | null;
-            vertexColors?: boolean;
-            metalness?: number;
-            roughness?: number;
+        const fade = (m: THREE.Material) => {
+          const c = m.clone();
+          c.transparent = true;
+          c.opacity = 0.3;        // 30% opaque
+          c.depthWrite = false;
+          // Mix 50% mid-gray into the final shaded colour (keeps the texture).
+          c.onBeforeCompile = (shader) => {
+            shader.fragmentShader = shader.fragmentShader.replace(
+              '#include <dithering_fragment>',
+              '#include <dithering_fragment>\n\tgl_FragColor.rgb = mix( gl_FragColor.rgb, vec3( 0.5 ), 0.5 );',
+            );
           };
-          c.map = null;
-          c.emissiveMap = null;
-          if (c.color) c.color.set('#6f6f6f');
-          if (c.emissive) c.emissive.set('#000000');
-          if ('vertexColors' in c) c.vertexColors = false;
-          if ('metalness' in c) c.metalness = 0;
-          if ('roughness' in c) c.roughness = 1;
           c.needsUpdate = true;
           return c;
         };
-        obj.material = Array.isArray(orig) ? orig.map(gray) : gray(orig);
+        obj.material = Array.isArray(orig) ? orig.map(fade) : fade(orig);
       } else {
         obj.material = orig;
       }
@@ -106,7 +103,8 @@ function PlayerV1Impl({
       object={sceneClone}
       scale={scale}
       {...(isAnimating ? {} : { position })}
-      rotation={rotation}
+      // On death, tip the character 90° onto its side (a fallen/knocked-over pose).
+      rotation={isDead ? [rotation[0], rotation[1], rotation[2] + Math.PI / 2] : rotation}
     />
   );
 }
