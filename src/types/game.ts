@@ -37,6 +37,7 @@ export interface LobbyState {
   boss_fight: boolean | null;
   gremlin_fight?: boolean | null;
   gameover: boolean | null;
+  replay_votes?: string[];
   replay_votes_count?: number;
   replay_votes_needed?: number;
   next_lobby_id?: string | null;

@@ -110,15 +110,24 @@ export async function getPlayerMessages(
   return res.json();
 }
 
-export async function requestReplay(lobbyId: string, player: string): Promise<{ next_lobby_id?: string }> {
+export async function requestReplay(
+  lobbyId: string,
+  player: string,
+  vote: boolean
+): Promise<{
+  replay_votes?: string[];
+  replay_votes_count?: number;
+  replay_votes_needed?: number;
+  next_lobby_id?: string | null;
+}> {
   const res = await fetch(`${BACKEND_URL}/request_replay/${lobbyId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ player }),
+    body: JSON.stringify({ player, vote }),
   });
   if (!res.ok) {
     const data = await res.json();
-    throw new Error((data as { error?: string }).error ?? "Failed to vote");
+    throw new Error((data as { error?: string }).error ?? "Failed to update rematch vote");
   }
   return res.json();
 }

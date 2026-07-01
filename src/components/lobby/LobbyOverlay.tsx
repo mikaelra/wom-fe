@@ -105,7 +105,20 @@ function InviteSection({ lobbyId }: { lobbyId: string }) {
   );
 }
 
-function renderGameOver({ state, playerName, btn, replayVoted, replayLoading, onReplay }: GameOverRenderOpts) {
+function AnimatedDots() {
+  const [count, setCount] = useState(1);
+  useEffect(() => {
+    const interval = setInterval(() => setCount((c) => (c % 3) + 1), 400);
+    return () => clearInterval(interval);
+  }, []);
+  return <>{'.'.repeat(count)}</>;
+}
+
+function renderGameOver({ state, playerName, btn, replayVoted, replayLoading, onReplayToggle }: GameOverRenderOpts) {
+  const votes = state.replay_votes_count ?? 0;
+  const needed = state.replay_votes_needed ?? 0;
+  const allVoted = needed > 0 && votes >= needed;
+
   return (
     <div className="mt-3 text-center">
       <p className="text-xl font-bold mb-2">
@@ -119,20 +132,25 @@ function renderGameOver({ state, playerName, btn, replayVoted, replayLoading, on
         <Link href="/" className="text-blue-400 hover:underline font-medium">
           ← Back to Home
         </Link>
-        {typeof state.replay_votes_needed === 'number' && state.replay_votes_needed > 0 && (
-          <>
-            <p className="text-sm text-gray-400">
-              {state.replay_votes_count ?? 0} / {state.replay_votes_needed} ready to replay
-            </p>
-            <button
-              type="button"
-              disabled={replayVoted || replayLoading}
-              onClick={onReplay}
-              className={`${btn} bg-green-600 text-white border-green-500 disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {replayVoted ? 'Voted to replay' : replayLoading ? '…' : 'Replay'}
-            </button>
-          </>
+        {needed > 0 && (
+          <div className="flex flex-col items-center gap-1 mt-1">
+            <span className="text-orange-400 font-bold text-lg">Rematch?</span>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={replayVoted}
+                disabled={replayLoading || allVoted}
+                onChange={(e) => onReplayToggle(e.target.checked)}
+                className="w-5 h-5 accent-orange-500 cursor-pointer disabled:cursor-not-allowed"
+              />
+              <span className="text-sm text-gray-400">{votes} / {needed}</span>
+            </label>
+            {allVoted && (
+              <p className="text-orange-400 text-sm mt-1">
+                Creating new lobby<AnimatedDots />
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>
