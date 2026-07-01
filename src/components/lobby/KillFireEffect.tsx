@@ -18,11 +18,12 @@ export const KILL_FIRE_DURATION = 1.8; // seconds
 // Vertical offset of the whole effect relative to the character position it's
 // spawned at. Negative moves it DOWN (toward the character's feet / the ground).
 // Tweak this to line the splash up with the base of the character.
-export const KILL_FIRE_Y_OFFSET = -1;
+export const KILL_FIRE_Y_OFFSET = -0.5;
 
-const SPLASH_SPIKES = 11;       // flat spikes radiating from the disc rim
+const SPLASH_SPIKES = 33;       // spikes radiating from the disc rim
 const SPIKE_INNER_R = 0.75;     // where each spike's base sits (near the rim)
-const SPIKE_WIDTH = 0.14;       // base width of each spike
+const SPIKE_WIDTH = 0.14 / 3;   // base width of each spike
+const SPIKE_TILT = Math.PI / 6; // spikes angle upward 30° from the ground
 const DISC_RADIUS = 0.95;       // ground glow radius
 const COLOR_HOT = new THREE.Color('#ffd24d');  // spike tip / flare peak
 const COLOR_COOL = new THREE.Color('#e01b00');  // spike base / disc
@@ -75,7 +76,7 @@ export default function KillFireEffect({ position, onDone }: KillFireEffectProps
         angle: (i / SPLASH_SPIKES) * Math.PI * 2,
         phase: Math.random() * Math.PI * 2,
         speed: 7 + Math.random() * 5,
-        reach: 0.5 + Math.random() * 0.45,
+        reach: (0.5 + Math.random() * 0.45) / 3,
       })),
     [],
   );
@@ -133,6 +134,7 @@ export default function KillFireEffect({ position, onDone }: KillFireEffectProps
             ref={(m) => { spikeRefs.current[i] = m; }}
             geometry={spikeGeom}
             position={[SPIKE_INNER_R, 0.01, 0]}
+            rotation={[0, 0, SPIKE_TILT]}
             renderOrder={19}
           >
             <meshBasicMaterial

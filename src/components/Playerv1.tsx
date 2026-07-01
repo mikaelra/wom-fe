@@ -35,7 +35,13 @@ function PlayerV1Impl({
     () => new THREE.Vector3(position[0], 50, position[2]),
     [position[0], position[2]]
   );
-  const targetPosition = useMemo(() => new THREE.Vector3(...position), [position[0], position[1], position[2]]);
+  // When dead the character tips onto its side; drop it 0.5 on Y so the fallen
+  // pose settles toward the ground rather than floating.
+  const deadYOffset = isDead ? -0.5 : 0;
+  const targetPosition = useMemo(
+    () => new THREE.Vector3(position[0], position[1] + deadYOffset, position[2]),
+    [position[0], position[1], position[2], deadYOffset],
+  );
 
   useFrame((_, delta) => {
     if (isAnimating && modelRef.current) {
@@ -102,7 +108,7 @@ function PlayerV1Impl({
       ref={modelRef}
       object={sceneClone}
       scale={scale}
-      {...(isAnimating ? {} : { position })}
+      {...(isAnimating ? {} : { position: [position[0], position[1] + deadYOffset, position[2]] as [number, number, number] })}
       // On death, tip the character 90° onto its side (a fallen/knocked-over pose).
       rotation={isDead ? [rotation[0], rotation[1], rotation[2] + Math.PI / 2] : rotation}
     />
