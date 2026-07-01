@@ -1131,6 +1131,81 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return () => clearInterval(interval);
   }, [playerName]);
 
+  // ── Debug: preview the kill animations without a live game ─────────────────
+  // Append `?killtest=<roles>` to the lobby URL to loop the kill fx onto the
+  // scene every 4s. Roles are comma-separated (default `killer`):
+  //   killer  — fiery glow under you + a victim's coins fly to you (?killtest=killer:4 for 4 coins)
+  //   witness — fiery glow under the killer + a banner naming them
+  //   victim  — fiery glow under your killer (no coins)
+  // e.g. ?killtest=killer   ?killtest=witness   ?killtest=killer:5,witness
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = new URLSearchParams(window.location.search).get('killtest');
+    if (raw == null) return;
+    const roles = raw.split(',').map((p) => p.trim()).filter(Boolean);
+    if (!roles.length) roles.push('killer');
+
+    const SWORD_IMPACT_MS = (STRIKE_DUR + HOLD_DUR) * 1000;
+
+    const fire = () => {
+      const myPos = posMapRef.current.get(playerName);
+      if (!myPos) return;
+      // Borrow another seat as the "other" character; fall back to an offset spot.
+      const otherEntry = Array.from(posMapRef.current.entries()).find(([n]) => n !== playerName);
+      const otherPos: [number, number, number] = otherEntry?.[1] ?? [myPos[0] + 2.2, myPos[1], myPos[2]];
+      const otherName = otherEntry?.[0] ?? 'Rival';
+      const stamp = Date.now();
+      let seq = 0;
+
+      const spawnFire = (pos: [number, number, number], atMs: number) => {
+        const id = `killfire-dbg-${stamp}-${seq++}`;
+        setTimeout(() => setKillFireEvents((e) => [...e, { id, pos }]), atMs);
+      };
+      const spawnCoins = (from: [number, number, number], to: [number, number, number], coins: number, atMs: number) => {
+        if (coins <= 0) return;
+        setTimeout(() => {
+          const f: [number, number, number] = [from[0], from[1] + 0.3, from[2]];
+          const evs: WellRewardEvent[] = [];
+          for (let c = 0; c < coins; c++) {
+            const jitter = coins > 1 ? (c - (coins - 1) / 2) * 0.15 : 0;
+            evs.push({
+              id:   `kill-coin-dbg-${stamp}-${seq++}`,
+              type: 'steal',
+              fromPos: [f[0] + jitter, f[1], f[2]],
+              toPos:   [to[0] + jitter, to[1], to[2]],
+              delay:   c * WELL_REWARD_STAGGER,
+            });
+          }
+          setWellRewardEvents((ev) => [...ev, ...evs]);
+        }, atMs);
+      };
+      const spawnBanner = (killer: string, pos: [number, number, number], atMs: number) => {
+        const id = `killbanner-dbg-${stamp}-${seq++}`;
+        setTimeout(() => {
+          setKillBanners((b) => [...b, { id, killer, pos }]);
+          setTimeout(() => setKillBanners((b) => b.filter((x) => x.id !== id)), 2600);
+        }, atMs);
+      };
+
+      for (const role of roles) {
+        const [kind, countStr] = role.split(':');
+        if (kind === 'witness') {
+          spawnFire(otherPos, SWORD_IMPACT_MS);
+          spawnBanner(otherName, otherPos, SWORD_IMPACT_MS);
+        } else if (kind === 'victim') {
+          spawnFire(otherPos, SWORD_IMPACT_MS);
+        } else { // killer (default)
+          const coins = countStr ? Math.max(0, parseInt(countStr, 10)) : 3;
+          spawnFire(myPos, SWORD_IMPACT_MS);
+          spawnCoins(otherPos, myPos, coins, SWORD_IMPACT_MS);
+        }
+      }
+    };
+    fire();
+    const interval = setInterval(fire, 4000);
+    return () => clearInterval(interval);
+  }, [playerName]);
+
   // Build a map of sender → latest message text if it's within CHAT_BUBBLE_DURATION_MS
   const chatBubbles = useMemo(() => {
     const now = Date.now();
