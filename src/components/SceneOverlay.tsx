@@ -40,7 +40,7 @@ export type GameOverRenderOpts = {
   btn: string;
   replayVoted: boolean;
   replayLoading: boolean;
-  onReplay: () => void;
+  onReplayToggle: (checked: boolean) => void;
 };
 
 export type PreGameRenderOpts = {
@@ -130,8 +130,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [resource, setResource] = useState('');
   const pendingResourceRef = useRef('');
   const [denyTarget, setDenyTarget] = useState('');
-  const [replayVoted, setReplayVoted] = useState(false);
   const [replayLoading, setReplayLoading] = useState(false);
+  const [readyToRedirect, setReadyToRedirect] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [floatingMessages, setFloatingMessages] = useState<string[]>([]);
   const [nextRaidTime, setNextRaidTime] = useState<number | null>(null);
@@ -159,7 +159,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   useEffect(() => {
     setState(null);
-    setReplayVoted(false);
+    setReadyToRedirect(false);
     setFloatingMessages([]);
     setMessages([]);
   }, [lobbyId]);
@@ -240,12 +240,28 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   const gameOver = state?.gameover ?? false;
 
+  const allVotedForRematch =
+    typeof state?.replay_votes_needed === 'number' &&
+    state.replay_votes_needed > 0 &&
+    (state?.replay_votes_count ?? 0) >= state.replay_votes_needed;
+
+  // Show the "Creating new lobby…" animation for a couple of seconds once
+  // everyone has voted, before actually navigating to the new lobby.
+  useEffect(() => {
+    if (!allVotedForRematch) {
+      setReadyToRedirect(false);
+      return;
+    }
+    const timer = setTimeout(() => setReadyToRedirect(true), 2500);
+    return () => clearTimeout(timer);
+  }, [allVotedForRematch]);
+
   useEffect(() => {
     if (!enableNextLobbyRedirect) return;
-    if (gameOver && state?.next_lobby_id && state.next_lobby_id !== lobbyId) {
+    if (gameOver && readyToRedirect && state?.next_lobby_id && state.next_lobby_id !== lobbyId) {
       router.replace(`/lobby/${state.next_lobby_id}`);
     }
-  }, [gameOver, state?.next_lobby_id, lobbyId, router, enableNextLobbyRedirect]);
+  }, [gameOver, readyToRedirect, state?.next_lobby_id, lobbyId, router, enableNextLobbyRedirect]);
 
   useEffect(() => {
     // Play the gain sound for the resource picked last round, then reset selection.
@@ -379,16 +395,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     getSocket().emit('submit_deny_target', { lobby_id: lobbyId, player: playerName, target: denyTarget });
   };
 
-  const handleReplay = async () => {
+  const replayVoted = state?.replay_votes?.includes(playerName) ?? false;
+
+  const handleReplayToggle = async (checked: boolean) => {
     setReplayLoading(true);
     try {
-      const data = await requestReplay(lobbyId, playerName);
-      setReplayVoted(true);
-      if (data.next_lobby_id) {
-        setState((s) => (s ? { ...s, next_lobby_id: data.next_lobby_id } : s));
-      }
+      const data = await requestReplay(lobbyId, playerName, checked);
+      setState((s) => (s ? { ...s, ...data } : s));
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to vote for replay');
+      alert(e instanceof Error ? e.message : 'Failed to update rematch vote');
     } finally {
       setReplayLoading(false);
     }
@@ -656,7 +671,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             </div>
           )}
 
-          {gameOver && renderGameOver({ state, playerName, enemy, btn, replayVoted, replayLoading, onReplay: handleReplay })}
+          {gameOver && renderGameOver({ state, playerName, enemy, btn, replayVoted, replayLoading, onReplayToggle: handleReplayToggle })}
         </div>
       </div>
 
