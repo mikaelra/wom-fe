@@ -214,17 +214,23 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     onStateChange?.(state);
   }, [state, onStateChange]);
 
-  // While waiting in the pre-game lobby, periodically re-emit join_room so the
-  // server sends back the current state. This catches new players joining when
-  // the server doesn't broadcast state_update to existing room members on join.
+  // While waiting in the pre-game lobby, and again once the game is over and
+  // players are deciding on a rematch, periodically re-emit join_room so the
+  // server sends back the current state. This is a low-frequency polling
+  // fallback for whenever the live state_update broadcast doesn't reach this
+  // socket (e.g. a dropped/zombied connection) — both of these are idle,
+  // low-traffic windows where a silently missed broadcast would otherwise
+  // leave the UI stuck indefinitely with no other event to self-correct it.
   const gameStarted = (state?.round ?? 0) > 0;
+  const awaitingRematch = state?.gameover ?? false;
   useEffect(() => {
-    if (!lobbyId || !playerName || gameStarted) return;
+    if (!lobbyId || !playerName) return;
+    if (gameStarted && !awaitingRematch) return;
     const interval = setInterval(() => {
       getSocket().emit("join_room", { lobby_id: lobbyId, name: playerName });
     }, 3000);
     return () => clearInterval(interval);
-  }, [lobbyId, playerName, gameStarted]);
+  }, [lobbyId, playerName, gameStarted, awaitingRematch]);
 
   useEffect(() => {
     if (!state?.round_end_time) {
