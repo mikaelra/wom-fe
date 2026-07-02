@@ -30,7 +30,10 @@ function PlayerV1Impl({
   const sceneClone = useMemo(() => scene.clone(), [scene]); // Each instance needs its own clone
   const modelRef = useRef<THREE.Group>(null!);
 
-  // Set an initial "off-screen" position if animating (memoized for stable ref in useEffect deps)
+  // Set an initial "off-screen" position if animating (memoized for stable ref in useEffect deps).
+  // Depends on the individual scalars rather than `position` itself since callers pass a
+  // fresh array literal every render, which would defeat the memoization.
+  /* eslint-disable react-hooks/exhaustive-deps */
   const initialPosition = useMemo(
     () => new THREE.Vector3(position[0], 50, position[2]),
     [position[0], position[2]]
@@ -42,6 +45,7 @@ function PlayerV1Impl({
     () => new THREE.Vector3(position[0], position[1] + deadYOffset, position[2]),
     [position[0], position[1], position[2], deadYOffset],
   );
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   useFrame((_, delta) => {
     if (isAnimating && modelRef.current) {

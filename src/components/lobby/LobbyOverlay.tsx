@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
 import { QRCodeSVG } from 'qrcode.react';
 import SceneOverlay, {
   type SceneOverlayConfig,
@@ -13,7 +12,6 @@ import FloatingMessage from './FloatingMessage';
 import type { GuideHighlights } from '@/lib/guideHighlights';
 import BossSignupNudge from '@/components/BossSignupNudge';
 import type { LobbyState } from '@/types/game';
-import { BACKEND_URL } from '@/config';
 
 type LobbyOverlayProps = {
   lobbyId: string;
@@ -114,7 +112,7 @@ function AnimatedDots() {
   return <>{'.'.repeat(count)}</>;
 }
 
-function renderGameOver({ state, playerName, btn, replayVoted, replayLoading, onReplayToggle }: GameOverRenderOpts) {
+function renderGameOver({ state, playerName, replayVoted, replayLoading, onReplayToggle }: GameOverRenderOpts) {
   const votes = state.replay_votes_count ?? 0;
   const needed = state.replay_votes_needed ?? 0;
   const allVoted = needed > 0 && votes >= needed;

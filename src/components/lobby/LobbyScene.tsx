@@ -14,7 +14,6 @@ import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type
 import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight, type WellGlowColor } from '@/components/lobby/WellGlowEffect';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
-import InGameGuide from '@/components/lobby/InGameGuide';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket, getPlayerMessages } from '@/lib/api';
 import { parseCombatMessages } from '@/lib/parseCombatMessages';
@@ -694,7 +693,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return () => clearInterval(interval);
   }, [state?.round_end_time]);
 
-  const allPlayers = state?.players ?? [];
+  const allPlayers = useMemo(() => state?.players ?? [], [state?.players]);
   const lostSouls = allPlayers.filter((p) => p.lost_soul);
 
   const myPlayer = state?.players.find((p) => p.name === playerName);

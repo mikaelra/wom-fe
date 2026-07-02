@@ -4,8 +4,23 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BACKEND_URL } from '@/config';
 
+type LeaderboardPlayer = {
+  name: string;
+  wins?: number;
+  kills?: number;
+  played_games?: number;
+  raid_wins?: number;
+};
+
+type LeaderboardData = {
+  top_wins: LeaderboardPlayer[];
+  top_kills: LeaderboardPlayer[];
+  top_played: LeaderboardPlayer[];
+  top_raid_wins: LeaderboardPlayer[];
+};
+
 export default function LeaderboardsPage() {
-  const [leaderboard, setLeaderboard] = useState<any>(null);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
   const [leaderboardType, setLeaderboardType] = useState<'all-time' | 'monthly'>('monthly');
 
   useEffect(() => {
@@ -83,7 +98,15 @@ export default function LeaderboardsPage() {
   );
 }
 
-function LeaderboardSection({ title, players, statKey }: { title: string; players: any[]; statKey: string }) {
+function LeaderboardSection({
+  title,
+  players,
+  statKey,
+}: {
+  title: string;
+  players: LeaderboardPlayer[];
+  statKey: keyof LeaderboardPlayer;
+}) {
   return (
     <div className="mb-8 w-full">
       <h2 className="text-2xl font-semibold mb-4">{title}</h2>
