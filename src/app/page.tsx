@@ -153,7 +153,8 @@ function TempleScene({ cityColor }: TempleSceneProps) {
         maxPolarAngle={Math.PI / 2.1}
       />
 
-      <Environment preset="sunset" />
+      {/* Self-hosted — preset="sunset" fetched this exact file from a CDN at runtime */}
+      <Environment files="/hdri/venice_sunset_1k.hdr" />
     </>
   );
 }

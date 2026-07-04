@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
@@ -87,6 +87,12 @@ export default function LobbyPage() {
     setSharedAction('');
     setSharedAttackTarget('');
   }, [lobbyState?.round]);
+
+  // Stable identity — flows into memo()ed scene components via LobbyScene.
+  const handleAttackSelect = useCallback((target: string) => {
+    setSharedAction('attack');
+    setSharedAttackTarget(target);
+  }, []);
 
   const doJoin = async (name: string, emailForJoin = '') => {
     hasAutoJoined.current = true; // prevent the auto-join effect from re-firing after setPlayerName
@@ -191,6 +197,10 @@ export default function LobbyPage() {
     <div style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden' }}>
       <Canvas
         camera={{ position: [33, 26, 33], fov: BASE_FOV }}
+        // Cap resolution at 2x — rendering at DPR 3 on phones triples the pixel
+        // count for no visible gain and is the main fill-rate cost of the scene.
+        dpr={[1, 2]}
+        gl={{ powerPreference: 'high-performance' }}
         style={{ position: 'absolute', inset: 0 }}
       >
         <LobbyScene
@@ -199,7 +209,7 @@ export default function LobbyPage() {
           lobbyId={lobbyId}
           currentAction={sharedAction}
           attackTarget={sharedAttackTarget}
-          onAttackSelect={(target) => { setSharedAction('attack'); setSharedAttackTarget(target); }}
+          onAttackSelect={handleAttackSelect}
           onActionChange={setSharedAction}
           guideHighlight={guideHighlight}
         />

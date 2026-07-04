@@ -36,7 +36,6 @@ export default function SeaAndSky({
       <mesh
         position={[0, seaLevel, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
       >
         <planeGeometry args={[6000, 6000]} />
         <meshStandardMaterial
