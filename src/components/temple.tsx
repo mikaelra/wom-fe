@@ -24,14 +24,12 @@ function Temple({
 }: Props) {
   const { scene } = useGLTF(url);
 
-  // Skygger på + ensfarget materiale over hele modellen
+  // Ensfarget materiale over hele modellen. (Ingen skyggeflagg — ingen Canvas
+  // som bruker tempelet har shadow maps på, så de var døde.)
   useEffect(() => {
     const tint = new THREE.Color(color);
     scene.traverse((obj: THREE.Object3D) => {
       if (obj instanceof THREE.Mesh) {
-        obj.castShadow = true;
-        obj.receiveShadow = true;
-
         const apply = (mat: THREE.Material) => {
           const m = mat.clone(); // klon for å unngå å endre delt materiale
           if ('color' in m && m.color instanceof THREE.Color) {

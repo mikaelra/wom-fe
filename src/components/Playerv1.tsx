@@ -47,24 +47,37 @@ function PlayerV1Impl({
   );
   /* eslint-enable react-hooks/exhaustive-deps */
 
+  // Once the model has converged on its target we stop moving it entirely, so
+  // idle players cost nothing per frame. Reset whenever the target changes
+  // (e.g. death drops the model by 0.5 on Y).
+  const settledRef = useRef(false);
+  useEffect(() => { settledRef.current = false; }, [targetPosition]);
+
   useFrame((_, delta) => {
-    if (isAnimating && modelRef.current) {
-      // Smoothly interpolate the model's position towards the target
-      modelRef.current.position.lerp(targetPosition, delta * 1.5);
+    if (!isAnimating || settledRef.current || !modelRef.current) return;
+    const pos = modelRef.current.position;
+    // damp() is frame-rate independent (the old lerp(t, delta * 1.5) moved
+    // faster on high-refresh displays); lambda 1.5 matches the old 60 fps feel.
+    pos.x = THREE.MathUtils.damp(pos.x, targetPosition.x, 1.5, delta);
+    pos.y = THREE.MathUtils.damp(pos.y, targetPosition.y, 1.5, delta);
+    pos.z = THREE.MathUtils.damp(pos.z, targetPosition.z, 1.5, delta);
+    if (pos.distanceToSquared(targetPosition) < 1e-6) {
+      pos.copy(targetPosition);
+      settledRef.current = true;
     }
   });
 
-  // Optional: enable shadows if desired
   useEffect(() => {
     // Set initial position when component mounts if we are animating
     if (isAnimating && modelRef.current) {
       modelRef.current.position.copy(initialPosition);
     }
 
+    // No castShadow/receiveShadow here: no lobby/home Canvas enables shadow
+    // maps, so the flags were dead weight (see gremlin scene for a Canvas that
+    // does use shadows — it has its own models).
     sceneClone.traverse((obj: THREE.Object3D) => {
       if (obj instanceof THREE.Mesh) {
-        obj.castShadow = true;
-        obj.receiveShadow = true;
         obj.renderOrder = 10;
       }
     });

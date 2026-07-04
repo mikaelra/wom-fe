@@ -2,7 +2,7 @@
 
 import { useThree, useFrame } from '@react-three/fiber';
 import { Html, Environment, useGLTF } from '@react-three/drei';
-import { useRef, useMemo, useState, useEffect, Suspense } from 'react';
+import { useRef, useMemo, useState, useEffect, useCallback, memo, Suspense, type CSSProperties } from 'react';
 import * as THREE from 'three';
 import Temple from '@/components/temple';
 import SeaAndSky from '@/components/lobby/SeaAndSky';
@@ -35,6 +35,12 @@ import type { LobbyState } from '@/types/game';
 
 
 const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+// Scratch vectors reused by CameraFlyIn's frame loop — allocating these per
+// frame caused steady GC pressure (periodic hitches).
+const camTarget = new THREE.Vector3();
+const camArm    = new THREE.Vector3();
+const camRight  = new THREE.Vector3();
 
 // ── Sea & sky tuning ────────────────────────────────────────────────────────
 // Single source of truth — edit these to move the water / sun. (Don't also set
@@ -52,24 +58,28 @@ function CameraFlyIn() {
   const currentPosition = useRef(new THREE.Vector3(tx, ty, tz));
   const panOffset = usePanOffset();
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const [x, y, z] = getCameraTargetPosition(size.width, size.height);
-    const baseTarget = new THREE.Vector3(x, y, z);
-    currentPosition.current.lerp(baseTarget, 0.025);
+    camTarget.set(x, y, z);
+    // Frame-rate independent ease toward the target (0.025/frame at 60 fps ≈ lambda 1.5)
+    currentPosition.current.lerp(camTarget, 1 - Math.exp(-1.5 * delta));
 
     // Apply pan offset by orbiting around the look-at point, then scale by zoom
-    const arm = currentPosition.current.clone().sub(LOBBY_LOOKAT);
-    arm.applyAxisAngle(new THREE.Vector3(0, 1, 0), panOffset.current.yaw);
-    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), arm).normalize();
-    arm.applyAxisAngle(right, panOffset.current.pitch);
-    arm.multiplyScalar(panOffset.current.zoom);
+    camArm.copy(currentPosition.current).sub(LOBBY_LOOKAT);
+    camArm.applyAxisAngle(WORLD_UP, panOffset.current.yaw);
+    camRight.crossVectors(WORLD_UP, camArm).normalize();
+    camArm.applyAxisAngle(camRight, panOffset.current.pitch);
+    camArm.multiplyScalar(panOffset.current.zoom);
 
-    camera.position.copy(LOBBY_LOOKAT).add(arm);
+    camera.position.copy(LOBBY_LOOKAT).add(camArm);
     camera.lookAt(LOBBY_LOOKAT);
 
     if (camera instanceof THREE.PerspectiveCamera) {
-      camera.fov = getResponsiveFov(size.width, size.height);
-      camera.updateProjectionMatrix();
+      const fov = getResponsiveFov(size.width, size.height);
+      if (camera.fov !== fov) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
     }
   });
 
@@ -78,49 +88,65 @@ function CameraFlyIn() {
 
 const CHAT_BUBBLE_DURATION_MS = 4000;
 
-function WinnerCrown({ worldPosition }: { worldPosition: [number, number, number] | null }) {
-  const { scene } = useGLTF('/models/crowns/crown_ld_v1.glb');
+// ── Per-player HTML stack ───────────────────────────────────────────────────
+// Chat bubble, ATTACK, name and DEFEND used to be four separate drei <Html>
+// mounts per player — each one is reprojected to screen space and written to
+// the DOM every frame. They now share ONE <Html> root anchored at the name
+// (world y 0.5, distanceFactor 3.45) with the other elements absolutely
+// positioned around it in pre-scale pixels. ~230px ≈ 1 world unit here, so the
+// offsets below mirror the old world-space anchors (bubble 1.3, attack 0.9,
+// defend −0.1).
+const STACK_BUBBLE_Y = -184;
+const STACK_ATTACK_Y = -92;
+const STACK_DEFEND_Y = 138;
+
+function stackItem(dy: number, interactive = false): CSSProperties {
+  return {
+    position: 'absolute',
+    left: 0,
+    top: dy,
+    transform: 'translate(-50%, -50%)',
+    whiteSpace: 'nowrap',
+    pointerEvents: interactive ? 'auto' : 'none',
+    userSelect: 'none',
+  };
+}
+
+// Inner components mount only while a crown is visible, so the bobbing
+// useFrame (and the GLB clone) costs nothing the rest of the game.
+function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale }: {
+  url: string;
+  worldPosition: [number, number, number];
+  yOffset: number;
+  bobAmp: number;
+  scale: number;
+}) {
+  const { scene } = useGLTF(url);
   const crownScene = useMemo(() => scene.clone(), [scene]);
   const ref = useRef<THREE.Group>(null);
 
   useFrame((clockState) => {
-    if (ref.current && worldPosition) {
-      ref.current.position.y = worldPosition[1] + 1.05 + Math.sin(clockState.clock.elapsedTime * 2.2) * 0.06;
+    if (ref.current) {
+      ref.current.position.y = worldPosition[1] + yOffset + Math.sin(clockState.clock.elapsedTime * 2.2) * bobAmp;
       ref.current.rotation.y = clockState.clock.elapsedTime * 0.45;
     }
   });
 
-  if (!worldPosition) return null;
-
   return (
-    <group
-      ref={ref}
-      position={[worldPosition[0], worldPosition[1] + 1.05, worldPosition[2]]}
-    >
-      <primitive object={crownScene} scale={0.35} />
+    <group ref={ref} position={[worldPosition[0], worldPosition[1] + yOffset, worldPosition[2]]}>
+      <primitive object={crownScene} scale={scale} />
     </group>
   );
 }
 
-function WellCrown({ worldPosition }: { worldPosition: [number, number, number] | null }) {
-  const { scene } = useGLTF('/models/crowns/well_crown_v1.glb');
-  const crownScene = useMemo(() => scene.clone(), [scene]);
-  const ref = useRef<THREE.Group>(null);
-
-  useFrame((clockState) => {
-    if (ref.current && worldPosition) {
-      ref.current.position.y = worldPosition[1] + 0.65 + Math.sin(clockState.clock.elapsedTime * 2.2) * 0.07;
-      ref.current.rotation.y = clockState.clock.elapsedTime * 0.45;
-    }
-  });
-
+function WinnerCrown({ worldPosition }: { worldPosition: [number, number, number] | null }) {
   if (!worldPosition) return null;
+  return <BobbingCrown url="/models/crowns/crown_ld_v1.glb" worldPosition={worldPosition} yOffset={1.05} bobAmp={0.06} scale={0.35} />;
+}
 
-  return (
-    <group ref={ref} position={[worldPosition[0], worldPosition[1] + 0.65, worldPosition[2]]}>
-      <primitive object={crownScene} scale={0.2} />
-    </group>
-  );
+function WellCrown({ worldPosition }: { worldPosition: [number, number, number] | null }) {
+  if (!worldPosition) return null;
+  return <BobbingCrown url="/models/crowns/well_crown_v1.glb" worldPosition={worldPosition} yOffset={0.65} bobAmp={0.07} scale={0.2} />;
 }
 
 
@@ -148,7 +174,7 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield }:
   );
 }
 
-function PlayerWithName({
+const PlayerWithName = memo(function PlayerWithName({
   name,
   position,
   rotation,
@@ -179,7 +205,8 @@ function PlayerWithName({
   isDead?: boolean;
   isWinner?: boolean;
   showAttackButton?: boolean;
-  onAttack?: () => void;
+  /** Called with this player's name — stable across renders so memo() holds. */
+  onAttack?: (name: string) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
   chatBubble?: string;
@@ -200,98 +227,112 @@ function PlayerWithName({
   const hlAttack = guideGlowClass(hl.attack);
   const hlDefend = guideGlowClass(hl.defend);
   return (
-    <group position={position} rotation={rotation}>
+    <group position={position} rotation={[rotation[0], rotation[1] + Math.PI / 2, rotation[2]]}>
       {/* 3D model — lazy; suspends until GLB is ready */}
       <Suspense fallback={null}>
         <PlayerModelLayer modelUrl={modelUrl} isBoss={!!isBoss} isAnimating={isAnimating} isDead={isDead} showShield={showShield} />
       </Suspense>
-      {chatBubble && (
-        <Html position={[0, 1.3, 0]} center distanceFactor={3} zIndexRange={[0, 0]}>
-          <div style={{
-            pointerEvents: 'none',
-            userSelect: 'none',
-            whiteSpace: 'nowrap',
-            maxWidth: '180px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            padding: '5px 8px',
-            background: 'rgba(255,255,255,0.92)',
-            color: '#111',
-            fontSize: '12px',
-            fontWeight: '500',
-            borderRadius: '10px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-            textAlign: 'center',
-            position: 'relative',
-          }}>
-            {chatBubble}
+
+      {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
+          (see stackItem above). The boss HP card below stays separate — it uses
+          a different scale (4.2) and z-order. */}
+      <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
+        <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
+          {chatBubble && (
             <div style={{
-              position: 'absolute',
-              bottom: '-7px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 0,
-              height: 0,
-              borderLeft: '7px solid transparent',
-              borderRight: '7px solid transparent',
-              borderTop: '7px solid rgba(255,255,255,0.92)',
-            }} />
+              ...stackItem(STACK_BUBBLE_Y),
+              maxWidth: '156px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              padding: '4px 7px',
+              background: 'rgba(255,255,255,0.92)',
+              color: '#111',
+              fontSize: '11px',
+              fontWeight: '500',
+              borderRadius: '9px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+              textAlign: 'center',
+            }}>
+              {chatBubble}
+              <div style={{
+                position: 'absolute',
+                bottom: '-6px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 0,
+                height: 0,
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderTop: '6px solid rgba(255,255,255,0.92)',
+              }} />
+            </div>
+          )}
+
+          <div style={{
+            ...stackItem(0),
+            fontSize: '12px',
+            fontWeight: 'bold',
+            color: isDead ? '#888' : isWinner ? 'gold' : 'white',
+            textShadow: '0 0 4px rgba(0,0,0,0.8)',
+            padding: '2px 6px',
+            background: 'rgba(0,0,0,0.6)',
+            borderRadius: '4px',
+          }}>
+            {name}
+            {isWinner && ' 👑'}
+            {isDead && ' ☠️'}
           </div>
-        </Html>
-      )}
-      {showAttackButton && !isBoss && (
-        <Html position={[0, 0.9, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
-          <button
-            onClick={onAttack}
-            className={`${actionCue} ${hlAttack}`}
-            style={{
-              pointerEvents: 'auto',
-              cursor: 'pointer',
-              padding: '16px 32px',
-              fontSize: '28px',
-              fontWeight: 'bold',
-              color: isAttackSelected ? '#ffffff' : '#fca5a5',
-              background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
-              border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
-              borderRadius: '8px',
-              whiteSpace: 'nowrap',
-              backdropFilter: 'blur(4px)',
-              boxShadow: isAttackSelected
-                ? '0 0 8px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-            }}
-          >
-            ⚔ ATTACK
-          </button>
-        </Html>
-      )}
-      {/* DEFEND button — own player only */}
-      {showOwnActions && (
-        <Html position={[0, -0.1, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
-          <button
-            onClick={onDefend}
-            className={`${actionCue} ${hlDefend}`}
-            style={{
-              pointerEvents: 'auto',
-              cursor: 'pointer',
-              padding: '14px 28px',
-              fontSize: '26px',
-              fontWeight: 'bold',
-              color: currentAction === 'defend' ? '#ffffff' : '#93c5fd',
-              background: currentAction === 'defend' ? 'rgba(37,99,235,0.95)' : 'rgba(30,27,75,0.85)',
-              border: currentAction === 'defend' ? '2px solid #93c5fd' : '2px solid #1d4ed8',
-              borderRadius: '8px',
-              whiteSpace: 'nowrap',
-              backdropFilter: 'blur(4px)',
-              boxShadow: currentAction === 'defend'
-                ? '0 0 8px rgba(59,130,246,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-            }}
-          >
-            🛡 DEFEND
-          </button>
-        </Html>
-      )}
+
+          {showAttackButton && !isBoss && (
+            <button
+              onClick={() => onAttack?.(name)}
+              className={`${actionCue} ${hlAttack}`}
+              style={{
+                ...stackItem(STACK_ATTACK_Y, true),
+                cursor: 'pointer',
+                padding: '16px 32px',
+                fontSize: '28px',
+                fontWeight: 'bold',
+                color: isAttackSelected ? '#ffffff' : '#fca5a5',
+                background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
+                border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
+                borderRadius: '8px',
+                backdropFilter: 'blur(4px)',
+                boxShadow: isAttackSelected
+                  ? '0 0 8px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                  : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+              }}
+            >
+              ⚔ ATTACK
+            </button>
+          )}
+
+          {/* DEFEND button — own player only */}
+          {showOwnActions && (
+            <button
+              onClick={onDefend}
+              className={`${actionCue} ${hlDefend}`}
+              style={{
+                ...stackItem(STACK_DEFEND_Y, true),
+                cursor: 'pointer',
+                padding: '14px 28px',
+                fontSize: '26px',
+                fontWeight: 'bold',
+                color: currentAction === 'defend' ? '#ffffff' : '#93c5fd',
+                background: currentAction === 'defend' ? 'rgba(37,99,235,0.95)' : 'rgba(30,27,75,0.85)',
+                border: currentAction === 'defend' ? '2px solid #93c5fd' : '2px solid #1d4ed8',
+                borderRadius: '8px',
+                backdropFilter: 'blur(4px)',
+                boxShadow: currentAction === 'defend'
+                  ? '0 0 8px rgba(59,130,246,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                  : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+              }}
+            >
+              🛡 DEFEND
+            </button>
+          )}
+        </div>
+      </Html>
       {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
           zIndexRange sits above the lost-soul/action buttons ([0,0]) so clicks land here
           first, but stays below the CSS overlay panels (waiting lobby + round messages,
@@ -328,7 +369,7 @@ function PlayerWithName({
             </p>
             {showAttackButton && (
               <button
-                onClick={onAttack}
+                onClick={() => onAttack?.(name)}
                 className={actionCue}
                 style={{
                   marginTop: '10px',
@@ -354,31 +395,9 @@ function PlayerWithName({
           </div>
         </Html>
       )}
-      <Html
-        position={[0, 0.5, 0]}
-        center
-        distanceFactor={3}
-        zIndexRange={[0, 0]}
-        style={{
-          pointerEvents: 'none',
-          userSelect: 'none',
-          whiteSpace: 'nowrap',
-          fontSize: '14px',
-          fontWeight: 'bold',
-          color: isDead ? '#888' : isWinner ? 'gold' : 'white',
-          textShadow: '0 0 4px rgba(0,0,0,0.8)',
-          padding: '2px 6px',
-          background: 'rgba(0,0,0,0.6)',
-          borderRadius: '4px',
-        }}
-      >
-        {name}
-        {isWinner && ' 👑'}
-        {isDead && ' ☠️'}
-      </Html>
     </group>
   );
-}
+});
 
 
 // Behind Hades who is fixed at [0, PLAYER_Y, -1.4] (far z- side)
@@ -396,8 +415,9 @@ function LostSoulMesh() {
   return <primitive object={sceneClone} scale={0.4} />;
 }
 
-function LostSoulModel({
+const LostSoulModel = memo(function LostSoulModel({
   name,
+  index,
   position,
   showAttackButton,
   onAttack,
@@ -405,9 +425,12 @@ function LostSoulModel({
   actionCue,
 }: {
   name: string;
+  /** Slot index — souls share one server name, so this disambiguates them. */
+  index: number;
   position: [number, number, number];
   showAttackButton?: boolean;
-  onAttack?: () => void;
+  /** Called with (name, index) — stable across renders so memo() holds. */
+  onAttack?: (name: string, index: number) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
 }) {
@@ -425,55 +448,50 @@ function LostSoulModel({
       <Suspense fallback={null}>
         <LostSoulMesh />
       </Suspense>
-      <Html
-        position={[0, 0.6, 0]}
-        center
-        distanceFactor={3}
-        zIndexRange={[0, 0]}
-        style={{
-          pointerEvents: 'none',
-          userSelect: 'none',
-          whiteSpace: 'nowrap',
-          fontSize: '13px',
-          fontWeight: 'bold',
-          color: '#a78bfa',
-          textShadow: '0 0 6px rgba(100,0,200,0.8)',
-          padding: '2px 6px',
-          background: 'rgba(0,0,0,0.6)',
-          borderRadius: '4px',
-        }}
-      >
-        {name}
+      {/* Name + attack button share one Html root (was two per soul). The
+          button sits ~0.15 world units (≈35px pre-scale) above the name. */}
+      <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
+        <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
+          <div style={{
+            ...stackItem(0),
+            fontSize: '11px',
+            fontWeight: 'bold',
+            color: '#a78bfa',
+            textShadow: '0 0 6px rgba(100,0,200,0.8)',
+            padding: '2px 6px',
+            background: 'rgba(0,0,0,0.6)',
+            borderRadius: '4px',
+          }}>
+            {name}
+          </div>
+          {showAttackButton && (
+            <button
+              onClick={() => onAttack?.(name, index)}
+              className={actionCue}
+              style={{
+                ...stackItem(-35, true),
+                cursor: 'pointer',
+                padding: '16px 32px',
+                fontSize: '28px',
+                fontWeight: 'bold',
+                color: isAttackSelected ? '#ffffff' : '#fca5a5',
+                background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
+                border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
+                borderRadius: '8px',
+                backdropFilter: 'blur(4px)',
+                boxShadow: isAttackSelected
+                  ? '0 0 8px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
+                  : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
+              }}
+            >
+              ⚔ ATTACK
+            </button>
+          )}
+        </div>
       </Html>
-      {showAttackButton && (
-        <Html position={[0, 0.75, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
-          <button
-            onClick={onAttack}
-            className={actionCue}
-            style={{
-              pointerEvents: 'auto',
-              cursor: 'pointer',
-              padding: '16px 32px',
-              fontSize: '28px',
-              fontWeight: 'bold',
-              color: isAttackSelected ? '#ffffff' : '#fca5a5',
-              background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
-              border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
-              borderRadius: '8px',
-              whiteSpace: 'nowrap',
-              backdropFilter: 'blur(4px)',
-              boxShadow: isAttackSelected
-                ? '0 0 8px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-            }}
-          >
-            ⚔ ATTACK
-          </button>
-        </Html>
-      )}
     </group>
   );
-}
+});
 
 const BOSS_MAX_HP = 8;
 
@@ -663,7 +681,15 @@ type LobbySceneProps = {
 };
 
 export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {} }: LobbySceneProps) {
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  // Countdown warning level for the action buttons. We deliberately do NOT
+  // store the remaining seconds here — that re-rendered the whole scene every
+  // second. The level only changes twice per round ('' → gold → red), and
+  // setState with an unchanged value bails out without re-rendering.
+  const [warnLevel, setWarnLevel] = useState<'' | 'gold' | 'red'>('');
+  // Which lost soul the player clicked. All lost souls share the same server
+  // name ("Lost Soul 👻"), so attackTarget alone can't distinguish them — this
+  // index picks out the one whose button lights up / the sword hovers at.
+  const [selectedSoulIdx, setSelectedSoulIdx] = useState<number | null>(null);
 
   // ----- Animation state -----
   const prevStateRef  = useRef<LobbyState | null>(null);
@@ -685,16 +711,19 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
 
   useEffect(() => {
-    if (!state?.round_end_time) { setSecondsLeft(null); return; }
-    const endTime = new Date(state.round_end_time).getTime() / 1000;
-    const interval = setInterval(() => {
-      setSecondsLeft(Math.max(0, Math.floor(endTime - Date.now() / 1000)));
-    }, 1000);
+    if (!state?.round_end_time) { setWarnLevel(''); return; }
+    const endTime = new Date(state.round_end_time).getTime();
+    const tick = () => {
+      const s = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      setWarnLevel(s <= 5 ? 'red' : s <= 10 ? 'gold' : '');
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [state?.round_end_time]);
 
   const allPlayers = useMemo(() => state?.players ?? [], [state?.players]);
-  const lostSouls = allPlayers.filter((p) => p.lost_soul);
+  const lostSouls = useMemo(() => allPlayers.filter((p) => p.lost_soul), [allPlayers]);
 
   const myPlayer = state?.players.find((p) => p.name === playerName);
   const gameOver = state?.gameover ?? false;
@@ -720,7 +749,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // In boss fights: boss is kept last (gets its own fixed far-side position) and non-boss
   // players are secondarily sorted by name so their slots stay stable as new players join.
   // Outside boss fights: boss goes to slot 1 (far side of the full circle).
-  const players = allPlayers
+  // Memoized so the slot arrays keep a stable identity across FX/countdown
+  // re-renders — PlayerWithName is memo()ed and compares props shallowly.
+  const players = useMemo(() => allPlayers
     .filter((p) => !p.lost_soul)
     .sort((a, b) => {
       const score = (p: typeof a) => (p.name === playerName ? 0 : p.boss ? (isBossFight ? 999 : 1) : 2);
@@ -729,18 +760,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       // Stable secondary sort by name so existing players keep their slots when new ones join
       return a.name.localeCompare(b.name);
     })
-    .slice(0, MAX_PLAYERS);
+    .slice(0, MAX_PLAYERS), [allPlayers, playerName, isBossFight]);
   const winner = state?.winner ?? state?.raidwinner ?? null;
 
   // Compute seat positions. In boss fights the boss is pinned to the far side and players
   // spread across the near half, so adding a player never moves Hades.
-  const PLAYER_POSITIONS = (() => {
+  const PLAYER_POSITIONS = useMemo(() => {
     if (!isBossFight) return getPlayerPositions(players.length);
     const bossSlot = getBossPosition();
     const nonBossSlots = getBossPlayerPositions(players.filter((p) => !p.boss).length);
     let nbi = 0;
     return players.map((p) => (p.boss ? bossSlot : nonBossSlots[nbi++]));
-  })();
+  }, [players, isBossFight]);
 
   // Keep posMapRef up-to-date each render (synchronous ref write — no re-render triggered).
   // This is read by the round-transition effect below.
@@ -781,10 +812,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const gameStarted = (state?.round ?? 0) > 0;
   const showAttackButtons = gameStarted && !gameOver && !isDenied && isAlive && !myPlayer?.spectator;
 
-  const isGoldWarn = secondsLeft !== null && secondsLeft <= 10 && secondsLeft > 5;
-  const isRedWarn  = secondsLeft !== null && secondsLeft <= 5;
   const actionCue  = !currentAction && showAttackButtons
-    ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '')
+    ? (warnLevel === 'red' ? 'warn-blink-red' : warnLevel === 'gold' ? 'warn-blink-gold' : '')
     : '';
 
   // Detect round transitions and spawn 3D animation events based on personal messages.
@@ -1205,7 +1234,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return () => clearInterval(interval);
   }, [playerName]);
 
-  // Build a map of sender → latest message text if it's within CHAT_BUBBLE_DURATION_MS
+  // Build a map of sender → latest message text if it's within CHAT_BUBBLE_DURATION_MS.
+  // bubbleTick forces a re-evaluation when the next bubble expires — previously
+  // bubbles lingered until some unrelated state update happened to re-render.
+  const [bubbleTick, setBubbleTick] = useState(0);
   const chatBubbles = useMemo(() => {
     const now = Date.now();
     const map = new Map<string, string>();
@@ -1216,28 +1248,52 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       }
     }
     return map;
-  }, [state?.chat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.chat, bubbleTick]);
 
-  const handleAttack = (targetName: string) => {
+  useEffect(() => {
+    const now = Date.now();
+    let soonest = Infinity;
+    for (const msg of state?.chat ?? []) {
+      const expiry = new Date(msg.timestamp).getTime() + CHAT_BUBBLE_DURATION_MS;
+      if (expiry > now) soonest = Math.min(soonest, expiry);
+    }
+    if (!Number.isFinite(soonest)) return;
+    const t = setTimeout(() => setBubbleTick((n) => n + 1), soonest - now + 50);
+    return () => clearTimeout(t);
+  }, [state?.chat, bubbleTick]);
+
+  // Stable identities — these are passed to memo()ed players/souls, so a fresh
+  // closure per render would defeat the memoization.
+  const handleAttack = useCallback((targetName: string) => {
     getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'attack', target: targetName, resource: '' });
+    setSelectedSoulIdx(null);
     onAttackSelect?.(targetName);
-  };
+  }, [lobbyId, playerName, onAttackSelect]);
 
-  const handleDefend = () => {
+  // Lost souls all share one server name, so the emitted target is the shared
+  // name while the clicked index is remembered locally for selection UI.
+  const handleSoulAttack = useCallback((targetName: string, index: number) => {
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'attack', target: targetName, resource: '' });
+    setSelectedSoulIdx(index);
+    onAttackSelect?.(targetName);
+  }, [lobbyId, playerName, onAttackSelect]);
+
+  const handleDefend = useCallback(() => {
     getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'defend', resource: '' });
     onActionChange?.('defend');
-  };
+  }, [lobbyId, playerName, onActionChange]);
 
-  const handleRaid = () => {
+  const handleRaid = useCallback(() => {
     getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'raid', resource: '' });
     onActionChange?.('raid');
-  };
+  }, [lobbyId, playerName, onActionChange]);
 
   return (
     <>
       <CameraFlyIn />
       <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 10]} intensity={1.2} castShadow />
+      <directionalLight position={[10, 10, 10]} intensity={1.2} />
 
       {/* Sky dome + sea plane — the sea horizon sits where they meet in the distance.
           Tweak seaLevel to line the water up with the temple/player base. */}
@@ -1261,13 +1317,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         const isOpponent = player.name !== playerName;
         const isBoss = !!player.boss;
         const isOwnPlayer = player.name === playerName;
-        const playerRotation: [number, number, number] = [rotation[0], rotation[1] + Math.PI / 2, rotation[2]];
         return (
           <PlayerWithName
             key={player.name}
             name={player.name}
             position={position}
-            rotation={playerRotation}
+            rotation={rotation}
             isAnimating={true}
             isDead={isDead}
             isWinner={!!isWinner}
@@ -1277,7 +1332,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             bossTitle={isBoss ? player.title : undefined}
             frogSkinUrl={skinMap.get(player.name)}
             showAttackButton={showAttackButtons && isOpponent && !isDead && (!isBossFight || isBoss)}
-            onAttack={() => handleAttack(player.name)}
+            onAttack={handleAttack}
             isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
             actionCue={actionCue}
             chatBubble={chatBubbles.get(player.name)}
@@ -1296,12 +1351,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         const isDead = (soul.hp ?? 0) <= 0;
         return (
           <LostSoulModel
-            key={soul.name}
+            // All souls share the same server name, so the name alone is
+            // neither a unique key nor a unique attack target (clicking one
+            // used to light up every soul's button).
+            key={`${soul.name}-${i}`}
             name={soul.name}
+            index={i}
             position={pos}
             showAttackButton={showAttackButtons && !isDead}
-            onAttack={() => handleAttack(soul.name)}
-            isAttackSelected={currentAction === 'attack' && attackTarget === soul.name}
+            onAttack={handleSoulAttack}
+            isAttackSelected={currentAction === 'attack' && attackTarget === soul.name && selectedSoulIdx === i}
             actionCue={actionCue}
           />
         );
@@ -1349,7 +1408,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       <Suspense fallback={null}>
         {currentAction === 'attack' && attackTarget && (() => {
           const myPos  = posMapRef.current.get(playerName);
-          const tgtPos = posMapRef.current.get(attackTarget);
+          // Souls share one name (the posMap entry is whichever came last), so
+          // aim at the specific soul the player clicked instead.
+          const tgtPos = selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === attackTarget
+            ? LOST_SOUL_POSITIONS[selectedSoulIdx % LOST_SOUL_POSITIONS.length]
+            : posMapRef.current.get(attackTarget);
           if (!myPos || !tgtPos) return null;
           const fp: [number, number, number] = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
           const tp: [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
@@ -1468,7 +1531,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       </Suspense>
 
       <Suspense fallback={null}>
-        <Environment preset="sunset" />
+        {/* Self-hosted — preset="sunset" fetched this exact file from a CDN at runtime */}
+        <Environment files="/hdri/venice_sunset_1k.hdr" />
       </Suspense>
 
     </>
