@@ -9,8 +9,6 @@ import CityMarker from './CityMarker';
 import GlobeCrackleEffect from './GlobeCrackleEffect';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
-import { isLowQuality } from '@/lib/deviceQuality';
-import { isSlowNetwork } from '@/lib/networkQuality';
 import { setGlobeSpin } from '@/lib/globeSpin';
 
 const GLOBE_RADIUS = 2.5;
@@ -128,15 +126,9 @@ function makeFresnelMat() {
   });
 }
 
-// Pick lower-res assets when either the device is underpowered or the network
-// is slow. Both signals converge on "ship smaller textures".
-const lowResAssets = (): boolean => isLowQuality() || isSlowNetwork();
+const jupiterTexturePath = (): string => '/textures/jupiter/jupiter2_1k.jpg';
 
-const jupiterTexturePath = (): string =>
-  lowResAssets() ? '/textures/jupiter/jupiter2_1k.jpg' : '/textures/jupiter/jupiter2_4k.jpg';
-
-const milkyWayTexturePath = (): string =>
-  lowResAssets() ? '/textures/stars/MilkyWay-HD.png' : '/textures/stars/MilkyWay-extreme.png';
+const milkyWayTexturePath = (): string => '/textures/stars/MilkyWay-HD.png';
 
 // Preload async textures early so they are likely cached by the time their
 // phase is reached.
@@ -822,11 +814,10 @@ function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
     return new THREE.Vector3(x, y, z);
   }, []);
 
-  // Use 1k earth textures on low-end devices or slow networks (~6 MB → ~640 KB),
-  // 4k otherwise. Cloud textures are the same file in both folders, so always
-  // pulled from high-res.
-  const earthDir = lowResAssets() ? 'low-res' : 'high-res';
-  const earthSuffix = lowResAssets() ? '1k' : '4k';
+  // Always use 1k earth textures. Cloud textures are the same file in both
+  // folders, so always pulled from high-res.
+  const earthDir = 'low-res';
+  const earthSuffix = '1k';
   const [earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans] = useTexture([
     `/textures/earth/${earthDir}/00_earthmap${earthSuffix}.jpg`,
     `/textures/earth/${earthDir}/02_earthspec${earthSuffix}.jpg`,
