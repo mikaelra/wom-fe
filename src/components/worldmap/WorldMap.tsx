@@ -128,7 +128,9 @@ function makeFresnelMat() {
 
 const jupiterTexturePath = (): string => '/textures/jupiter/jupiter2_1k.jpg';
 
-const milkyWayTexturePath = (): string => '/textures/stars/MilkyWay-HD.png';
+// JPEG re-encode of MilkyWay-HD.png (12 MB → ~0.6 MB); the material ignores
+// alpha, so nothing is lost.
+const milkyWayTexturePath = (): string => '/textures/stars/MilkyWay-HD.jpg';
 
 // Preload async textures early so they are likely cached by the time their
 // phase is reached.

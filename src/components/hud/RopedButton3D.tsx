@@ -18,7 +18,7 @@ type ButtonModelProps = {
 };
 
 function ButtonModel({ url, pressed, rotation = [0, 0, 0], scale = 1 }: ButtonModelProps) {
-  const { scene } = useGLTF(url);
+  const { scene } = useGLTF(url, '/draco/');
   const cloned = useMemo(() => scene.clone(true), [scene]);
   const baseColors = useRef<Map<string, THREE.Color>>(new Map());
 
@@ -180,6 +180,4 @@ export default function RopedButton3D({
   );
 }
 
-useGLTF.preload(DEFAULT_MODEL);
-useGLTF.preload('/models/buttons/attack-hd.glb');
-useGLTF.preload('/models/buttons/defend-hd.glb');
+useGLTF.preload(DEFAULT_MODEL, '/draco/');

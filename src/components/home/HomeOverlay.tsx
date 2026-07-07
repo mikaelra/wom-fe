@@ -255,9 +255,11 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('playerName');
       localStorage.removeItem('playerEmail');
-      setLoggedInName('');
-      window.location.reload();
     }
+    // State update only — a location.reload() here would tear down and
+    // re-initialise the entire WebGL scene just to swap the auth buttons.
+    setLoggedInName('');
+    setName('');
   };
 
   if (!mounted) return null;

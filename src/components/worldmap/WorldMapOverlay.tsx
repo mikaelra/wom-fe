@@ -55,10 +55,11 @@ export default function WorldMapOverlay() {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('playerName');
       localStorage.removeItem('playerEmail');
-      setLoggedInName('');
-      setShowUserMenu(false);
-      window.location.reload();
     }
+    // State update only — a location.reload() here would tear down and
+    // re-initialise the entire WebGL scene just to swap the top-bar button.
+    setLoggedInName('');
+    setShowUserMenu(false);
   };
 
   const fetchRelics = async () => {

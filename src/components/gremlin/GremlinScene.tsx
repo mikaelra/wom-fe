@@ -121,7 +121,7 @@ function GremlinModel({
   alive: boolean;
   position: [number, number, number];
 }) {
-  const { scene } = useGLTF('/models/gremlinv01.glb');
+  const { scene } = useGLTF('/models/gremlinv01.glb', '/draco/');
   const clone = useMemo(() => scene.clone(), [scene]);
   const groupRef = useRef<THREE.Group>(null!);
   const bobRef = useRef(0);
@@ -353,5 +353,5 @@ export default function GremlinScene({ state, playerName, lobbyId = '' }: Gremli
 
 // Preload models
 useGLTF.preload(WELL_MODEL);
-useGLTF.preload('/models/gremlinv01.glb');
+useGLTF.preload('/models/gremlinv01.glb', '/draco/');
 ALL_FROG_SKINS.forEach((s) => useGLTF.preload(skinUrl(s)));

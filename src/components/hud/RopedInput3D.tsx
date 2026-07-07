@@ -10,7 +10,7 @@ import { isLowQuality } from '@/lib/deviceQuality';
 const LD_IMAGE = '/models/buttons/rope_button-ld.png';
 
 function RopeFrame({ rotation = [0, 0, 0] as [number, number, number] }) {
-  const { scene } = useGLTF('/models/buttons/roped_button-hd.glb');
+  const { scene } = useGLTF('/models/buttons/roped_button-hd.glb', '/draco/');
   const groupRef = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
     if (!groupRef.current) return;
@@ -89,4 +89,4 @@ const RopedInput3D = forwardRef<HTMLDivElement, RopedInput3DProps>(function Rope
 
 export default RopedInput3D;
 
-useGLTF.preload('/models/buttons/roped_button-hd.glb');
+useGLTF.preload('/models/buttons/roped_button-hd.glb', '/draco/');
