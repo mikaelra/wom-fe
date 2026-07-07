@@ -36,6 +36,8 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Vendored third-party assets (e.g. the Draco decoder), not app source.
+      "public/**",
     ],
   },
 ];
