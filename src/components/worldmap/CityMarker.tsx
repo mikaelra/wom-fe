@@ -10,7 +10,7 @@ import { isLowQuality } from '@/lib/deviceQuality';
 
 // Gremlin GLB model that sits on top of the Gremlin's Lair pin
 function GremlinPinFigure() {
-  const { scene } = useGLTF('/models/gremlinv01.glb');
+  const { scene } = useGLTF('/models/gremlinv01.glb', '/draco/');
   const clone = useMemo(() => scene.clone(), [scene]);
   const ref = useRef<THREE.Group>(null!);
   const t = useRef(0);
@@ -30,13 +30,13 @@ function GremlinPinFigure() {
   );
 }
 
-useGLTF.preload('/models/gremlinv01.glb');
+useGLTF.preload('/models/gremlinv01.glb', '/draco/');
 
 interface SwordPinProps { hovered: boolean }
 
 function SwordPinFigure({ hovered }: SwordPinProps) {
   const swordModel = isLowQuality() ? '/models/swords/sword_ld_v1.glb' : '/models/swords/sword_hd_v1.glb';
-  const { scene } = useGLTF(swordModel);
+  const { scene } = useGLTF(swordModel, '/draco/');
   const clone = useMemo(() => scene.clone(), [scene]);
   const spriteRef = useRef<THREE.Sprite>(null!);
   const ringRef = useRef<THREE.Mesh>(null!);
@@ -147,7 +147,7 @@ function SwordPinFigure({ hovered }: SwordPinProps) {
   );
 }
 
-useGLTF.preload(isLowQuality() ? '/models/swords/sword_ld_v1.glb' : '/models/swords/sword_hd_v1.glb');
+useGLTF.preload(isLowQuality() ? '/models/swords/sword_ld_v1.glb' : '/models/swords/sword_hd_v1.glb', '/draco/');
 
 interface CityMarkerProps {
   city: City;
