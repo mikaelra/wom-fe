@@ -2,13 +2,12 @@ name: Deploy frontend
 
 on:
   push:
-    branches: [master, prod-docker]
+    branches: [master]
   workflow_dispatch: {}
 
 permissions:
   contents: read
   packages: write
-  issues: write
 
 jobs:
   lint:
@@ -22,7 +21,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
-  build:
+  build-and-deploy:
     needs: lint
     runs-on: ubuntu-latest
     steps:
@@ -44,25 +43,6 @@ jobs:
             ghcr.io/mikaelra/wom-fe:latest
             ghcr.io/mikaelra/wom-fe:${{ github.sha }}
 
-  approve:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      # Opens a GitHub issue and blocks here until you comment "approved" (or
-      # react thumbs-up) on it, from the site or the GitHub Mobile app. Same
-      # mechanism as wom-be, so both repos use one approval pathway.
-      - uses: trstringer/manual-approval@v1
-        with:
-          secret: ${{ secrets.GITHUB_TOKEN }}
-          approvers: mikaelra
-          minimum-approvals: 1
-          issue-title: "Deploy wom-fe to production (${{ github.sha }})"
-          issue-body: "Approve to deploy commit ${{ github.sha }} to production. Comment `approved` (or react 👍) to proceed, or `denied` to cancel."
-
-  deploy:
-    needs: approve
-    runs-on: ubuntu-latest
-    steps:
       - name: Deploy to production server
         uses: appleboy/ssh-action@v1.2.0
         with:
