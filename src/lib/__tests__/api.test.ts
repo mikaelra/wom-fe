@@ -14,7 +14,7 @@ const jsonResponse = (data: unknown, status = 200) =>
     ok: status >= 200 && status < 300,
     status,
     json: async () => data,
-  }) as Response;
+  }) as unknown as Response;
 
 const failingJsonResponse = (status: number) =>
   ({
@@ -23,7 +23,7 @@ const failingJsonResponse = (status: number) =>
     json: async () => {
       throw new Error('not json');
     },
-  }) as Response;
+  }) as unknown as Response;
 
 let fetchMock: Mock;
 
@@ -108,8 +108,11 @@ describe('error-swallowing endpoints', () => {
     await expect(getPlayerRelics('Alice')).resolves.toEqual({ relics: [] });
   });
 
-  it('getPlayerMessages returns an empty list on failure', async () => {
+  it('getPlayerMessages returns empty lists on failure', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: 'boom' }, 500));
-    await expect(getPlayerMessages('abc', 'Alice')).resolves.toEqual({ messages: [] });
+    await expect(getPlayerMessages('abc', 'Alice')).resolves.toEqual({
+      messages: [],
+      events: [],
+    });
   });
 });

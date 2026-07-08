@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LobbyState } from '@/types/game';
 import { getPlayerMessages } from '@/lib/api';
-import { parseWellReward, type WellRewardComponent } from '@/lib/parseWellReward';
-import { parseCombatMessages } from '@/lib/parseCombatMessages';
+import { combatFromEvents, wellRewardFromEvents, type WellRewardComponent } from '@/lib/gameEvents';
 import { onHpFx } from '@/lib/resourceFx';
 
 export interface Resources {
@@ -130,8 +129,7 @@ export function useStagedResources(
     getPlayerMessages(lobbyId, playerName)
       .then((json) => {
         if (cancelled) return;
-        const msgs = json.messages ?? [];
-        const wellDelta = wellStatDelta(parseWellReward(msgs));
+        const wellDelta = wellStatDelta(wellRewardFromEvents(json.events));
 
         let combatLoss = 0;
         let hasKill = false;
@@ -142,7 +140,7 @@ export function useStagedResources(
         let killCoins = 0;
         let killAtk = 0;
         if (stageCombat) {
-          const combat = parseCombatMessages(msgs);
+          const combat = combatFromEvents(json.events);
           incomingCount = combat.incoming.length;
           for (const inc of combat.incoming) {
             if (inc.outcome === 'hit') combatLoss += inc.damage ?? 1;

@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { WellGlow } from '@/lib/parseWellReward';
+import type { WellGlow } from '@/lib/gameEvents';
 
 // A coloured glow that flashes under the well. On a win it's keyed to reward
 // rarity (blue / purple / gold); when you choose the well but lose, a small red

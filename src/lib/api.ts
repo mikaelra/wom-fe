@@ -1,5 +1,6 @@
 import { BACKEND_URL } from "@/config";
 import type { Relic } from "@/types/game";
+import type { GameEvent } from "@/lib/gameEvents";
 import { io, Socket } from 'socket.io-client';
 
 let socket: Socket | null = null;
@@ -104,9 +105,9 @@ export async function createGremlinLobby(playerName: string): Promise<{ lobby_id
 export async function getPlayerMessages(
   lobbyId: string,
   playerName: string
-): Promise<{ messages: string[][] }> {
+): Promise<{ messages: string[][]; events?: GameEvent[] }> {
   const res = await fetch(`${BACKEND_URL}/get_player_messages/${lobbyId}/${playerName}`);
-  if (!res.ok) return { messages: [] };
+  if (!res.ok) return { messages: [], events: [] };
   return res.json();
 }
 
