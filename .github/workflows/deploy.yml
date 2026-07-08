@@ -3,6 +3,7 @@ name: Deploy frontend
 on:
   push:
     branches: [master]
+  pull_request: {}
   workflow_dispatch: {}
 
 permissions:
@@ -21,8 +22,21 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npm test
+
   build-and-deploy:
-    needs: lint
+    # PRs only lint + test; the image is built and deployed on push to master.
+    if: github.event_name != 'pull_request'
+    needs: [lint, test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

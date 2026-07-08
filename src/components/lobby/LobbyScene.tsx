@@ -16,9 +16,8 @@ import WellGlowEffect, { WellGlowLight, type WellGlowColor } from '@/components/
 import KillFireEffect from '@/components/lobby/KillFireEffect';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket, getPlayerMessages } from '@/lib/api';
-import { parseCombatMessages } from '@/lib/parseCombatMessages';
 import { emitHpFx, type HpFxEvent } from '@/lib/resourceFx';
-import { parseWellReward, glowForReward, type WellRewardComponent } from '@/lib/parseWellReward';
+import { combatFromEvents, wellRewardFromEvents, glowForReward, type WellRewardComponent } from '@/lib/gameEvents';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
 import {
   TABLE_POSITION,
@@ -845,7 +844,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
     getPlayerMessages(lobbyId, playerName).then((json) => {
       if (cancelled) return;
-      const combat = parseCombatMessages(json.messages ?? []);
+      const combat = combatFromEvents(json.events);
       const posMap = posMapRef.current;
       const myPos  = posMap.get(playerName);
 
@@ -963,7 +962,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       // the two don't play at once and confuse the player.
       let wellDelayMs = 0;
       if (myPos && state.raidwinner === playerName) {
-        const components = parseWellReward(json.messages ?? []);
+        const components = wellRewardFromEvents(json.events);
         if (components.length) {
           // Splash + rarity glow on the well itself.
           const fxId = `wellfx-${Date.now()}`;
