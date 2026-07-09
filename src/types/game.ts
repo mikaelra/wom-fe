@@ -8,7 +8,6 @@ export interface Player {
   messages: (string | string[])[];
   idle_rounds: number;
   boss?: boolean;
-  gremlin?: boolean;
   lost_soul?: boolean;
   spectator: boolean;
   title?: string;
@@ -35,7 +34,6 @@ export interface LobbyState {
   round_end_time: string | null;
   start_time: number;
   boss_fight: boolean | null;
-  gremlin_fight?: boolean | null;
   gameover: boolean | null;
   replay_votes?: string[];
   replay_votes_count?: number;

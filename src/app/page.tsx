@@ -14,7 +14,6 @@ const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: 
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
 import {
-  createGremlinLobby,
   getBossfightLobby,
   getNextBossfightTime,
   checkName,
@@ -179,15 +178,6 @@ export default function Page() {
   // interactive before the WebGL context initialises.
   const [sceneReady, setSceneReady] = useState(false);
 
-  // Gremlin fight login popup state
-  const [showGremlinPopup, setShowGremlinPopup] = useState(false);
-  const [gremlinUsername, setGremlinUsername] = useState('');
-  const [gremlinError, setGremlinError] = useState('');
-  const [gremlinLoading, setGremlinLoading] = useState(false);
-  const [gremlinEmailMode, setGremlinEmailMode] = useState(false);
-  const [gremlinEmail, setGremlinEmail] = useState('');
-  const [gremlinEmailError, setGremlinEmailError] = useState('');
-
   // Athens raid login popup state
   const [showAthensPopup, setShowAthensPopup] = useState(false);
   const [athensUsername, setAthensUsername] = useState('');
@@ -241,15 +231,6 @@ export default function Page() {
       });
   }, [router]);
 
-  const resetGremlinPopup = useCallback(() => {
-    setGremlinUsername('');
-    setGremlinError('');
-    setGremlinLoading(false);
-    setGremlinEmailMode(false);
-    setGremlinEmail('');
-    setGremlinEmailError('');
-  }, []);
-
   const resetAthensPopup = useCallback(() => {
     setAthensUsername('');
     setAthensError('');
@@ -272,18 +253,6 @@ export default function Page() {
       router.push('/rules');
       return;
     }
-    if (city.isGremlin) {
-      const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
-      if (!playerName) {
-        resetGremlinPopup();
-        setShowGremlinPopup(true);
-        return;
-      }
-      createGremlinLobby(playerName)
-        .then((data) => router.push(`/gremlin/${data.lobby_id}`))
-        .catch((err) => alert(err instanceof Error ? err.message : 'Failed to enter the forest.'));
-      return;
-    }
     // Athens → go straight to the Hades raid
     if (city.name === 'Athens') {
       const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
@@ -296,74 +265,7 @@ export default function Page() {
       return;
     }
     setSelectedCity(city);
-  }, [router, enterAthensRaid, resetGremlinPopup, resetAthensPopup]);
-
-  // ---- Gremlin fight handlers ------------------------------------------------
-  const proceedGremlin = useCallback(async (trimmed: string) => {
-    const data = await createGremlinLobby(trimmed);
-    if (typeof window !== 'undefined') localStorage.setItem('playerName', trimmed);
-    setShowGremlinPopup(false);
-    router.push(`/gremlin/${data.lobby_id}`);
-  }, [router]);
-
-  const handleGremlinJoin = useCallback(async () => {
-    const trimmed = gremlinUsername.trim();
-    if (!trimmed) {
-      setGremlinError('Please enter a username.');
-      return;
-    }
-    setGremlinError('');
-    setGremlinLoading(true);
-    try {
-      const { claimed } = await checkName(trimmed);
-      if (claimed) {
-        setGremlinEmailMode(true);
-        setGremlinEmail('');
-        setGremlinEmailError('');
-        return;
-      }
-      await proceedGremlin(trimmed);
-    } catch (err) {
-      setGremlinError(err instanceof Error ? err.message : 'Failed to enter the forest.');
-    } finally {
-      setGremlinLoading(false);
-    }
-  }, [gremlinUsername, proceedGremlin]);
-
-  const handleGremlinLogin = useCallback(async () => {
-    const trimmedName = gremlinUsername.trim();
-    const trimmedEmail = gremlinEmail.trim();
-    if (!trimmedName || !trimmedEmail) {
-      setGremlinEmailError('Please enter your email.');
-      return;
-    }
-    setGremlinEmailError('');
-    setGremlinLoading(true);
-    try {
-      await logInUser(trimmedName, trimmedEmail);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('playerName', trimmedName);
-        localStorage.setItem('playerEmail', trimmedEmail);
-      }
-      await proceedGremlin(trimmedName);
-    } catch (err) {
-      if (err instanceof Error && err.message === 'Wrong email') {
-        setGremlinEmailError('Wrong email');
-      } else {
-        setGremlinEmailError(err instanceof Error ? err.message : 'Log in failed.');
-      }
-    } finally {
-      setGremlinLoading(false);
-    }
-  }, [gremlinUsername, gremlinEmail, proceedGremlin]);
-
-  const handleGremlinChooseNewName = useCallback(() => {
-    setGremlinEmailMode(false);
-    setGremlinEmail('');
-    setGremlinEmailError('');
-    setGremlinUsername('');
-    setGremlinError('');
-  }, []);
+  }, [router, enterAthensRaid, resetAthensPopup]);
 
   // ---- Athens raid handlers --------------------------------------------------
   const proceedAthens = useCallback((trimmed: string) => {
@@ -540,101 +442,6 @@ export default function Page() {
                     <button
                       type="button"
                       onClick={() => setShowAthensPopup(false)}
-                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Gremlin's Lair login popup */}
-        {showGremlinPopup && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-            onClick={() => setShowGremlinPopup(false)}
-          >
-            <div
-              className="bg-gray-900 border border-green-700/60 text-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-xl font-bold mb-1 text-green-400">Enter the Gremlin&apos;s Lair</h2>
-              <p className="text-sm text-white/60 mb-4">Choose a battle name to join the fight.</p>
-              <input
-                type="text"
-                placeholder="Your battle name"
-                value={gremlinUsername}
-                onChange={(e) => setGremlinUsername(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') return;
-                  if (gremlinEmailMode) handleGremlinLogin();
-                  else handleGremlinJoin();
-                }}
-                autoFocus
-                readOnly={gremlinEmailMode}
-                className={`w-full p-2 rounded-md bg-gray-800 border border-green-700/50 text-white placeholder-white/30 focus:outline-none focus:border-green-500 mb-3 ${gremlinEmailMode ? 'opacity-70' : ''}`}
-              />
-              {gremlinError && !gremlinEmailMode && (
-                <p className="text-red-400 text-sm mb-3">{gremlinError}</p>
-              )}
-
-              {gremlinEmailMode && (
-                <>
-                  <p className="text-sm text-white/80 mb-2">
-                    This name is claimed. Type your email if you have claimed this username.
-                  </p>
-                  <input
-                    type="email"
-                    placeholder="email"
-                    value={gremlinEmail}
-                    onChange={(e) => setGremlinEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleGremlinLogin()}
-                    autoFocus
-                    className="w-full p-2 rounded-md bg-gray-800 border border-green-700/50 text-white placeholder-white/30 focus:outline-none focus:border-green-500 mb-1"
-                  />
-                  <p className="text-xs text-white/50 mb-3">email</p>
-                  {gremlinEmailError && (
-                    <p className="text-red-500 text-sm mb-3 font-semibold">{gremlinEmailError}</p>
-                  )}
-                </>
-              )}
-
-              <div className="flex gap-3">
-                {gremlinEmailMode ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleGremlinLogin}
-                      disabled={gremlinLoading}
-                      className="flex-1 py-2 rounded-lg bg-green-700 hover:bg-green-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {gremlinLoading ? 'Logging in...' : 'Log in'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleGremlinChooseNewName}
-                      disabled={gremlinLoading}
-                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      Choose new name
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleGremlinJoin}
-                      disabled={gremlinLoading}
-                      className="flex-1 py-2 rounded-lg bg-green-700 hover:bg-green-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {gremlinLoading ? 'Entering...' : 'Join Battle'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowGremlinPopup(false)}
                       className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors cursor-pointer"
                     >
                       Cancel

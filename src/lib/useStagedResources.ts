@@ -57,7 +57,7 @@ function wellStatDelta(components: WellRewardComponent[]): Resources {
  * the amounts/baseline are computed here from the same messages.
  *
  * Combat staging only runs when `stageCombat` is set (the lobby/PvP path);
- * gremlin mode leaves it off and keeps the Phase 1/2 behaviour.
+ * otherwise it keeps the Phase 1/2 behaviour.
  *
  * Returns null when there is no local player (cards aren't rendered then).
  */

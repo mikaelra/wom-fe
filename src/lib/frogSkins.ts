@@ -58,7 +58,7 @@ function rareTierFor(seed: string): number {
 // Both rare and common skins are claimed exclusively — a player who doesn't
 // land on an available rare skin falls through to an unclaimed common skin.
 // lobbyId is mixed into the seed so results vary across different lobbies.
-// Only frog players (not boss / turtle / gremlin) should be passed in.
+// Only frog players (not boss / turtle) should be passed in.
 export function assignSkins(players: Pick<Player, 'name'>[], lobbyId = ''): Map<string, string> {
   const takenRareTiers = new Set<number>();
   const takenCommonIndices = new Set<number>();

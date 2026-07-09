@@ -732,7 +732,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // Compute skins for all frog players deterministically from their names so
   // every client agrees without any server round-trip.
   const skinMap = useMemo(() => {
-    const frogPlayers = allPlayers.filter((p) => !p.boss && !p.gremlin && !p.lost_soul && p.name !== 'TURTLE');
+    const frogPlayers = allPlayers.filter((p) => !p.boss && !p.lost_soul && p.name !== 'TURTLE');
     return assignSkins(frogPlayers, lobbyId);
   }, [allPlayers, lobbyId]);
 

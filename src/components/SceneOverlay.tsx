@@ -80,8 +80,7 @@ export type SceneOverlayConfig = {
    *  anchored to the enemy model instead. */
   suppressEnemyPanel?: boolean;
   /** When true, incoming combat damage is peeled off the HP card per attack
-   *  (synced to the 3D sword strikes via the resourceFx bus). Lobby/PvP only;
-   *  the gremlin scene doesn't emit strike events so it leaves this off. */
+   *  (synced to the 3D sword strikes via the resourceFx bus). */
   stageCombatDamage?: boolean;
   renderGameOver: (opts: GameOverRenderOpts) => ReactNode;
   /** Render additional positioned elements (e.g. a "More monsters" button) */
