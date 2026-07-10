@@ -27,7 +27,7 @@ export interface LobbyState {
   round: number;
   players: Player[];
   winner: string | null;
-  raidwinner: string | null;
+  wellwinner: string | null;
   pending_deny: string | null;
   deny_target: string | null;
   readyPlayers: string[];

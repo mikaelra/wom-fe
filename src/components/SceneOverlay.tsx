@@ -73,7 +73,7 @@ export type SceneOverlayConfig = {
   showChat?: boolean;
   enableNextLobbyRedirect?: boolean;
   enableRaidTimer?: boolean;
-  /** When true the RAID/DEFEND/resource/nametag buttons are suppressed from the
+  /** When true the WELL/DEFEND/resource/nametag buttons are suppressed from the
    *  overlay — the 3D scene renders them anchored to the player model instead. */
   hidePlayerActionButtons?: boolean;
   /** When true the enemy HP panel is not rendered here — the 3D scene renders it
@@ -688,7 +688,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             <ul className="space-y-1">
               {state.players.filter((p) => !p.spectator).map((p, i) => (
                 <li key={`${p.name}-${i}`} className={`flex items-center gap-1 ${p.hp <= 0 ? 'opacity-40' : ''}`}>
-                  {(state.winner === p.name || (!state.winner && state.raidwinner === p.name)) && <span className="shrink-0">👑</span>}
+                  {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && <span className="shrink-0">👑</span>}
                   {p.hp <= 0 && <span className="shrink-0">☠️</span>}
                   {p.idle_rounds >= 2 && <span className="shrink-0">👻</span>}
                   <span className={`truncate min-w-0 ${p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}`}>
@@ -734,7 +734,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         </div>
       )}
 
-      {/* RAID button (hidden when 3D scene owns player action UI) */}
+      {/* WELL button (hidden when 3D scene owns player action UI) */}
       {!hidePlayerActionButtons && showActions && (
         <div
           className="absolute pointer-events-auto"
@@ -742,9 +742,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         >
           <button
             type="button"
-            onClick={() => handleAction('raid')}
+            onClick={() => handleAction('well')}
             className={`${btn} text-sm backdrop-blur-sm shadow-lg ${actionCue} ${
-              effectiveAction === 'raid'
+              effectiveAction === 'well'
                 ? 'bg-purple-600 text-white border-purple-400'
                 : 'bg-purple-900/80 text-purple-200 border-purple-700 hover:bg-purple-800/90'
             }`}
@@ -765,7 +765,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         >
           <div className="bg-black/70 backdrop-blur-sm rounded-lg px-3 py-1 text-center border border-blue-500/30">
             <p className="text-blue-200 font-bold text-sm">
-              {state.raidwinner === playerName ? '👑 ' : ''}{playerName}
+              {state.wellwinner === playerName ? '👑 ' : ''}{playerName}
             </p>
           </div>
         </div>
