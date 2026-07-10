@@ -760,7 +760,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       return a.name.localeCompare(b.name);
     })
     .slice(0, MAX_PLAYERS), [allPlayers, playerName, isBossFight]);
-  const winner = state?.winner ?? state?.raidwinner ?? null;
+  const winner = state?.winner ?? state?.wellwinner ?? null;
 
   // Compute seat positions. In boss fights the boss is pinned to the far side and players
   // spread across the near half, so adding a player never moves Hades.
@@ -795,8 +795,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     if (!slot) return null;
     return slot.position;
   }, [gameOver, isBossFight, winner, players, PLAYER_POSITIONS]);
-  // raidwinner = who last won The Well; crown shows during gameplay (not on game-over screen)
-  const wellCrownHolder = (!gameOver && state?.raidwinner) ? state.raidwinner : null;
+  // wellwinner = who last won The Well; crown shows during gameplay (not on game-over screen)
+  const wellCrownHolder = (!gameOver && state?.wellwinner) ? state.wellwinner : null;
 
   // Well crown hovers above the current well winner for everyone to see
   const wellCrownPosition = useMemo((): [number, number, number] | null => {
@@ -832,7 +832,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
     // Chose The Well but didn't win → small red glow under the well (PvP only).
     // The win case is handled below once we've fetched the reward messages.
-    if (currentActionRef.current === 'raid' && !state.boss_fight && state.raidwinner !== playerName) {
+    if (currentActionRef.current === 'well' && !state.boss_fight && state.wellwinner !== playerName) {
       const lossId = `wellloss-${Date.now()}`;
       setWellWinFx((fx) => [...fx, { id: lossId, splash: false, glow: 'red', glowRadius: WELL_LOSS_GLOW_RADIUS, glowIntensity: WELL_LOSS_GLOW_INTENSITY, glowStartMs: performance.now() }]);
       staggerTimeoutsRef.current.push(
@@ -957,11 +957,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       }
 
       // ── Well reward: only for the player who actually won the well ────────
-      // (steal *victims* also receive a "Steal-all!" line, so gate on raidwinner.)
+      // (steal *victims* also receive a "Steal-all!" line, so gate on wellwinner.)
       // Spawned first; incoming attacks below are delayed until it finishes so
       // the two don't play at once and confuse the player.
       let wellDelayMs = 0;
-      if (myPos && state.raidwinner === playerName) {
+      if (myPos && state.wellwinner === playerName) {
         const components = wellRewardFromEvents(json.events);
         if (components.length) {
           // Splash + rarity glow on the well itself.
@@ -1283,9 +1283,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     onActionChange?.('defend');
   }, [lobbyId, playerName, onActionChange]);
 
-  const handleRaid = useCallback(() => {
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'raid', resource: '' });
-    onActionChange?.('raid');
+  const handleWell = useCallback(() => {
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'well', resource: '' });
+    onActionChange?.('well');
   }, [lobbyId, playerName, onActionChange]);
 
   return (
@@ -1365,11 +1365,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         );
       })}
 
-      {/* Well (raid) button — immediate; the Table GLB loads separately below */}
+      {/* Well button — immediate; the Table GLB loads separately below */}
       {showAttackButtons && (
         <Html position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
           <button
-            onClick={handleRaid}
+            onClick={handleWell}
             className={`${actionCue} ${guideGlowClass(guideHighlight?.well)}`}
             style={{
               pointerEvents: 'auto',
@@ -1377,13 +1377,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               padding: '14px 28px',
               fontSize: '26px',
               fontWeight: 'bold',
-              color: currentAction === 'raid' ? '#ffffff' : '#d8b4fe',
-              background: currentAction === 'raid' ? 'rgba(126,34,206,0.95)' : 'rgba(46,16,101,0.85)',
-              border: currentAction === 'raid' ? '2px solid #d8b4fe' : '2px solid #7e22ce',
+              color: currentAction === 'well' ? '#ffffff' : '#d8b4fe',
+              background: currentAction === 'well' ? 'rgba(126,34,206,0.95)' : 'rgba(46,16,101,0.85)',
+              border: currentAction === 'well' ? '2px solid #d8b4fe' : '2px solid #7e22ce',
               borderRadius: '8px',
               whiteSpace: 'nowrap',
               backdropFilter: 'blur(4px)',
-              boxShadow: currentAction === 'raid'
+              boxShadow: currentAction === 'well'
                 ? '0 0 8px rgba(167,139,250,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
                 : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
             }}

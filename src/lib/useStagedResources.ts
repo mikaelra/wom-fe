@@ -51,7 +51,7 @@ function wellStatDelta(components: WellRewardComponent[]): Resources {
  *   3. combat damage  — peeled one incoming attack at a time, each a red shake in
  *                       sync with its sword strike; blocks pulse the border blue (Phase 3)
  *
- * The Well win is known synchronously (state.raidwinner); the amounts come from
+ * The Well win is known synchronously (state.wellwinner); the amounts come from
  * the player's messages (async). Combat impact *timing* is driven by the 3D
  * scene via the resourceFx bus (LobbyScene emits at each strike's impact), while
  * the amounts/baseline are computed here from the same messages.
@@ -100,7 +100,7 @@ export function useStagedResources(
     lastFinalRef.current = final;
     combatActiveRef.current = false;
 
-    const wonWell = state.raidwinner === playerName;
+    const wonWell = state.wellwinner === playerName;
     if (prevRound > 0 && prev && (wonWell || stageCombat)) {
       // Freeze every card at the previous value, then let the async pass below
       // reveal each gain as its own beat. Coins/ATK are held back too (not just
@@ -120,7 +120,7 @@ export function useStagedResources(
     const p = state.players.find((x) => x.name === playerName);
     if (!p) return;
     const finalNow: Resources = { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage };
-    const wonWell = state.raidwinner === playerName;
+    const wonWell = state.wellwinner === playerName;
     if (!wonWell && !stageCombat) return; // nothing to stage
 
     let cancelled = false;

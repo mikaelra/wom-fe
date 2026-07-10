@@ -202,7 +202,7 @@ function renderPreGame({
               {state.players.map((p) => (
                 <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
                   {p.hp <= 0 && <span className="text-red-500">☠️</span>}
-                  {(state.winner === p.name || (!state.winner && state.raidwinner === p.name)) && (
+                  {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
                     <span className="text-yellow-500">👑</span>
                   )}
                   {p.spectator && <span className="text-yellow-500">👁</span>}
