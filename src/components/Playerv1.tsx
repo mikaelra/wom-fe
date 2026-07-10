@@ -74,8 +74,7 @@ function PlayerV1Impl({
     }
 
     // No castShadow/receiveShadow here: no lobby/home Canvas enables shadow
-    // maps, so the flags were dead weight (see gremlin scene for a Canvas that
-    // does use shadows — it has its own models).
+    // maps, so the flags were dead weight.
     sceneClone.traverse((obj: THREE.Object3D) => {
       if (obj instanceof THREE.Mesh) {
         obj.renderOrder = 10;

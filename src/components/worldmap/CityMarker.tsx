@@ -8,30 +8,6 @@ import type { City } from '@/lib/cities';
 import { latLngToVec3 } from '@/lib/cities';
 import { isLowQuality } from '@/lib/deviceQuality';
 
-// Gremlin GLB model that sits on top of the Gremlin's Lair pin
-function GremlinPinFigure() {
-  const { scene } = useGLTF('/models/gremlinv01.glb', '/draco/');
-  const clone = useMemo(() => scene.clone(), [scene]);
-  const ref = useRef<THREE.Group>(null!);
-  const t = useRef(0);
-
-  useFrame((_, delta) => {
-    t.current += delta * 2.5;
-    if (ref.current) {
-      ref.current.position.y = 0.28 + Math.sin(t.current) * 0.018;
-      ref.current.rotation.y += delta * 0.8;
-    }
-  });
-
-  return (
-    <group ref={ref} position={[0, 0.28, 0]} scale={0.78}>
-      <primitive object={clone} />
-    </group>
-  );
-}
-
-useGLTF.preload('/models/gremlinv01.glb', '/draco/');
-
 interface SwordPinProps { hovered: boolean }
 
 function SwordPinFigure({ hovered }: SwordPinProps) {
@@ -159,7 +135,6 @@ interface CityMarkerProps {
 
 export default function CityMarker({ city, globeRadius, onClick, raidInfo }: CityMarkerProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const glowRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
 
   const position = latLngToVec3(city.lat, city.lng, globeRadius);
@@ -167,28 +142,17 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo }: Cit
   // Compute an "up" direction from globe center so the marker stands normal to the surface
   const up = new THREE.Vector3(...position).normalize();
 
-  // Animate the glow ring pulse (only active when glowRef is attached — gremlin marker)
-  useFrame(({ clock }) => {
-    if (glowRef.current) {
-      const s = 1 + 0.15 * Math.sin(clock.elapsedTime * 2 + city.id);
-      glowRef.current.scale.set(s, s, s);
-    }
-  });
-
   // Orient the group so its local Y points away from globe center
   const quaternion = new THREE.Quaternion().setFromUnitVectors(
     new THREE.Vector3(0, 1, 0),
     up,
   );
 
-  const markerScale = city.isGremlin ? 2 : 1;
-
   return (
     <group
       ref={groupRef}
       position={position}
       quaternion={quaternion}
-      scale={markerScale}
       onClick={(e) => {
         e.stopPropagation();
         onClick(city);
@@ -203,25 +167,7 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo }: Cit
         document.body.style.cursor = 'auto';
       }}
     >
-      {city.isGremlin ? (
-        <>
-          {/* Pillar / pin */}
-          <mesh position={[0, 0.12, 0]}>
-            <cylinderGeometry args={[0.04, 0.06, 0.24, 8]} />
-            <meshStandardMaterial color={city.color} emissive={city.color} emissiveIntensity={hovered ? 1.2 : 0.5} />
-          </mesh>
-
-          <GremlinPinFigure />
-
-          {/* Pulsing glow ring at base */}
-          <mesh ref={glowRef} position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.08, 0.14, 24]} />
-            <meshBasicMaterial color={city.color} transparent opacity={hovered ? 0.7 : 0.35} side={THREE.DoubleSide} />
-          </mesh>
-        </>
-      ) : (
-        <SwordPinFigure hovered={hovered} />
-      )}
+      <SwordPinFigure hovered={hovered} />
 
       {/* Label (HTML overlay) */}
       <Html
