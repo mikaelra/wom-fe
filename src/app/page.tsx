@@ -245,10 +245,6 @@ export default function Page() {
       router.push('/vault');
       return;
     }
-    if (city.isLeaderboard) {
-      router.push('/leaderboards');
-      return;
-    }
     if (city.isRules) {
       router.push('/rules');
       return;

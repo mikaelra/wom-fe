@@ -15,8 +15,6 @@ export interface City {
   tag: string;
   /** If true, clicking this marker navigates directly to the vault page */
   isVault?: boolean;
-  /** If true, clicking this marker navigates directly to the leaderboards page */
-  isLeaderboard?: boolean;
   /** If true, clicking this marker navigates directly to the rules page */
   isRules?: boolean;
 }
@@ -40,7 +38,6 @@ export interface City {
  */
 export const CITIES: City[] = [
   { id: 3, name: "Athens", country: "Greece", lat: 37.9838, lng: -25, color: "#fa0202", tag: "Marble Columns" },
-  // { id: 8, name: "Leaderboards", country: "Norway", lat: 59.9139, lng: -4, color: "#de340d", tag: "Viking Fjords", isLeaderboard: true },
   // { id: 13, name: "Rules", country: "North Pole", lat: 90, lng: 0, color: "#ffffff", tag: "The Rules", isRules: true },
   // { id: 12, name: "The Vault", country: "South Pole", lat: -90, lng: 0, color: "#FFD700", tag: "The Vault", isVault: true },
 ];
