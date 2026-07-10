@@ -15,10 +15,7 @@ After it is used through a bot with claude, claude will end the file with a list
 
 1. **Gremlin feature** — done (branch `cleanup`). Removed the route (`src/app/gremlin/[lobbyId]/page.tsx`), the components (`src/components/gremlin/`), `createGremlinLobby()` from `src/lib/api.ts`, the Gremlin popup state/handlers/UI in `src/app/page.tsx`, `GremlinPinFigure`/`isGremlin` marker handling in `src/components/worldmap/CityMarker.tsx`, the `isGremlin`/`gremlin`/`gremlin_fight` fields in `src/lib/cities.ts` and `src/types/game.ts`, gremlin filters in `src/components/lobby/LobbyScene.tsx`/`src/lib/frogSkins.ts`, stale gremlin comments in `src/components/SceneOverlay.tsx`/`src/components/Playerv1.tsx`/`src/lib/useStagedResources.ts`, and the `public/models/gremlinv01.glb` asset. Verified with `eslint`, `tsc --noEmit` (no new errors vs. before), and a full `next build` (compiled successfully).
 
-2. **Leaderboards page** — backend `/leaderboards` endpoint is gone.
-   - Remove `src/app/leaderboards/page.tsx`
-   - Remove links/nav entries pointing at it in `src/components/home/HomeOverlay.tsx` and `src/app/page.tsx`
-   - Check `src/lib/cities.ts` for any leaderboard-related references
+2. **Leaderboards page** — done (branch `cleanup`). Removed `src/app/leaderboards/page.tsx`, the nav links in `src/components/home/HomeOverlay.tsx`/`src/app/page.tsx`, and the `isLeaderboard` field/entry in `src/lib/cities.ts`. Verified with `eslint`, `tsc --noEmit`, and a full `next build` (no `/leaderboards` route generated).
 
 3. **"Raid" → "Well" rename** — do this together with the matching backend change (see backend item 2 above); renaming only one side breaks gameplay.
    - `src/types/game.ts` — `raidwinner` field
