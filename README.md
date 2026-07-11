@@ -1,6 +1,6 @@
 # World of Mythos — Frontend
 
-3D multiplayer turn-based strategy game built with Next.js and React Three Fiber. Players navigate a mythological world map, battle around a table in sacred cities, fight gremlins in enchanted forests, and raid bosses in the underworld.
+3D multiplayer turn-based strategy game built with Next.js and React Three Fiber. Players navigate a mythological world map, battle around a table in sacred cities, and raid bosses in the underworld.
 
 ## Tech Stack
 
@@ -9,7 +9,7 @@
 - **React Three Fiber** / **Three.js** — 3D scenes and character models
 - **Socket.IO** — real-time multiplayer communication
 - **Tailwind CSS 4** — UI styling
-- **Netlify** — deployment
+- **Docker** — self-hosted on a Hetzner VM (built via GitHub Actions, deployed over SSH)
 
 ## Getting Started
 
@@ -47,79 +47,84 @@ npm run lint   # Run ESLint
 ```
 src/
 ├── app/                        # Next.js pages (App Router)
-│   ├── page.tsx                # Home — 3D world map with city markers
-│   ├── lobby/[lobbyId]/        # Battle lobby (PvP + boss raids)
-│   ├── gremlin/[lobbyId]/      # Gremlin fight (forest scene)
+│   ├── page.tsx                # Home — 3D world map with city hub + Athens/Hades raid entry
+│   ├── lobby/[lobbyId]/        # Battle lobby (PvP + boss raids) — the main game page
 │   ├── vault/                  # Artifact vault unlock
 │   ├── rules/                  # Game rules overview
 │   ├── rules/[page]/           # Detailed rules (p1–p8)
-│   ├── leaderboards/           # Player rankings
-│   ├── login/                  # Login (name + email)
-│   └── signup/                 # Registration
+│   ├── login/                  # Login (name + email, with code verification)
+│   ├── signup/                 # Registration
+│   ├── settings/               # Account settings (email verification toggle)
+│   └── email_verified/         # Landing page for email confirmation links
 ├── components/
 │   ├── worldmap/
-│   │   ├── WorldMap.tsx        # 3D globe with Earth textures, Fresnel atmosphere, starfield
-│   │   └── CityMarker.tsx      # Clickable city markers with glow and labels
+│   │   ├── WorldMap.tsx           # 3D globe with Earth textures, Fresnel atmosphere, starfield
+│   │   ├── CityMarker.tsx         # Clickable city markers with glow and labels
+│   │   ├── GlobeCrackleEffect.tsx # Hades-raid VFX on the globe
+│   │   └── WorldMapOverlay.tsx    # World map top bar (user menu, create/join)
 │   ├── lobby/
-│   │   ├── LobbyScene.tsx      # 3D table scene with players, chat bubbles, animations
-│   │   └── LobbyOverlay.tsx    # Pre-game lobby UI + SceneOverlay wrapper
-│   ├── gremlin/
-│   │   ├── GremlinScene.tsx    # Dark forest scene with trees, mushrooms, gremlin model
-│   │   └── GremlinOverlay.tsx  # Gremlin-themed SceneOverlay wrapper
+│   │   ├── LobbyScene.tsx         # 3D table scene with players, chat bubbles, animations
+│   │   ├── LobbyOverlay.tsx       # Pre-game lobby UI + SceneOverlay wrapper
+│   │   ├── InGameGuide.tsx        # First-time-player guided tour
+│   │   └── ...                    # Combat/Well VFX: SwordEffect, ShieldEffect, WellGlowEffect, etc.
 │   ├── home/
-│   │   ├── HomeOverlay.tsx     # City hub menu (create/join lobby, relics, raid timer)
-│   │   └── WorldMapOverlay.tsx # World map top bar (user menu, create/join)
-│   ├── SceneOverlay.tsx        # Core game HUD — actions, chat, round info, player list
-│   ├── Playerv1.tsx            # Player character model (frog, turtle, ghost, Hades)
-│   ├── Model.tsx               # Generic GLB model loader
-│   ├── Table.tsx               # Game table model
-│   ├── mountain.tsx            # Mountain backdrop model
-│   ├── ExplosionEffect.tsx     # Particle explosion VFX
-│   ├── FloatingMessage.tsx     # Animated floating UI messages
-│   └── MusicPlayer.tsx         # Background music player
+│   │   └── HomeOverlay.tsx        # City hub menu (create/join lobby, relics, raid timer)
+│   ├── hud/                       # Shared 3D-space UI primitives (roped button/input)
+│   ├── vault/
+│   │   └── VaultScene.tsx         # Vault unlock 3D scene
+│   ├── SceneOverlay.tsx           # Core game HUD — actions, chat, round info, player list
+│   ├── Playerv1.tsx               # Player character model (frog skins, turtle, ghost, Hades)
+│   ├── Table.tsx                  # Game table model
+│   ├── mountain.tsx / temple.tsx  # Scene backdrop models
+│   ├── ExplosionEffect.tsx        # Particle explosion VFX
+│   └── BossSignupNudge.tsx        # Prompt to link an email after winning a pending relic
 ├── lib/
 │   ├── api.ts                  # REST API client + Socket.IO singleton
+│   ├── gameEvents.ts           # Typed structured combat/well events (mirrors the backend's engine/phases/*)
 │   ├── cities.ts               # Sacred city definitions (coords + metadata)
+│   ├── frogSkins.ts            # Deterministic per-lobby player skin assignment
+│   ├── deviceQuality.ts        # Low-end device detection, gates 3D render quality
 │   ├── sceneConstants.ts       # 3D scene positioning and layout
-│   └── usePanOffset.ts         # Camera pan offset hook
+│   ├── guideHighlights.ts      # In-game tutorial highlight state
+│   ├── sounds.ts / resourceFx.ts # Sound + resource-gain VFX bus
+│   └── usePanOffset.ts / useGuideEnabled.ts / useStagedResources.ts  # Shared hooks
 ├── types/
 │   └── game.ts                 # TypeScript interfaces (Player, LobbyState, Relic, ChatMessage)
 └── config.ts                   # Backend URL config
 
 public/
-├── models/                     # 3D models (.glb)
+├── models/                     # 3D models (.glb), including per-skin frog models under models/frogs/
 ├── textures/                   # Earth textures for world map
+├── audio/ sounds/              # Music and sound effects
 └── images/                     # UI assets (rules SVGs, etc.)
 ```
 
 ## Features
 
 - **3D World Map** — Interactive globe with sacred city markers, realistic Earth textures (specular, bump, city lights, clouds), Fresnel atmospheric glow, orbit controls, and starfield background
-- **Battle Lobbies** — 2–4 players seated at a 3D table with animated character models (Cherub, Turtle, Ghost, PlayerV1)
+- **Battle Lobbies** — 2–4 players seated at a 3D table with animated character models (per-player frog skins with rarity tiers, plus Turtle bot, Ghost, and boss models)
 - **Real-Time Multiplayer** — Socket.IO for live state updates, action submission, and chat (no polling)
-- **Turn-Based Combat** — Resource gathering (HP, coins, attack), attacking, defending, raiding, and deny mechanics with 40-second round timer
-- **Boss Raids** — Scheduled Hades encounters with countdown timer; cooperative play
-- **Gremlin Fights** — Solo forest encounters with procedural gremlin model, trees, mushrooms, and victory signpost animation
-- **Lobby Chat** — In-game text chat with collapsible panel and 3D speech bubbles above player heads
+- **Turn-Based Combat** — Resource gathering (HP, coins, attack), attacking, defending, The Well, and deny mechanics with 40-second round timer
+- **Boss Raids** — Scheduled Hades encounters with countdown timer; cooperative play, awards relics
+- **Lobby Chat** — In-game text chat with collapsible panel
 - **Vault System** — 8-digit code unlock for rare artifacts with first-finder registration
-- **Leaderboards** — Monthly and all-time rankings (wins, kills, games played, raid wins)
 - **Bot Support** — Add AI bots to fill lobby slots
-- **Replay System** — Vote to replay after game over
-- **Authentication** — Simple name + email registration and login
+- **In-Game Guide** — First-time-player highlighted tour of the UI
+- **Authentication** — Name + email registration and login, with optional email code verification
 
 ## Real-Time Communication
 
 The game uses a hybrid REST + Socket.IO architecture:
 
 - **Socket.IO** handles all in-game communication: state updates, action submission (start game, submit choice, deny, kick, add bot), and chat messages. The server pushes `state_update` events whenever lobby state changes — no polling required.
-- **REST** is used for one-time operations: lobby creation, raid/gremlin matchmaking, authentication, leaderboards, vault, and player data queries.
+- **REST** is used for one-time operations: lobby creation, boss-fight matchmaking, authentication, vault, and player data queries.
 
 ## Backend
 
-This frontend expects a backend API server. In production, the backend runs at `https://tjuvpakk-backend.onrender.com`. For local development, run the backend on port 5000 or set `NEXT_PUBLIC_BACKEND_URL` to point to your backend instance.
+This frontend expects a backend API server (see [wom-be](https://github.com/mikaelra/wom-be)). For local development, run the backend on port 5000 or set `NEXT_PUBLIC_BACKEND_URL` to point to your backend instance. In production, `NEXT_PUBLIC_BACKEND_URL` is baked into the build by `.github/workflows/deploy.yml` (it's a `NEXT_PUBLIC_*` var, so it has to be supplied at build time, not as a runtime env var).
 
 See [docs/API_ROUTES.md](docs/API_ROUTES.md) for the complete API reference.
 
 ## Deployment
 
-Deployed to Netlify with the Next.js plugin. Configuration is in `netlify.toml`.
+Self-hosted on a Hetzner VM with Docker. `.github/workflows/deploy.yml` builds the image, pushes it to GHCR, and deploys it over SSH on every push to `master`. Configuration is in the top-level `Dockerfile`.
