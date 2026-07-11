@@ -67,12 +67,6 @@ export async function getBossfightLobby(playerName: string): Promise<{ lobby_id:
   return data;
 }
 
-export async function getState(lobbyId: string): Promise<import("@/types/game").LobbyState> {
-  const res = await fetch(`${BACKEND_URL}/get_state/${lobbyId}`);
-  if (!res.ok) throw new Error(`get_state failed: ${res.status}`);
-  return res.json();
-}
-
 export async function getNextBossfightTime(): Promise<{ start_time: number }> {
   const res = await fetch(`${BACKEND_URL}/get_next_bossfight_time`);
   if (!res.ok) throw new Error("Failed to fetch next boss fight time");
@@ -95,28 +89,6 @@ export async function getPlayerMessages(
 ): Promise<{ messages: string[][]; events?: GameEvent[] }> {
   const res = await fetch(`${BACKEND_URL}/get_player_messages/${lobbyId}/${playerName}`);
   if (!res.ok) return { messages: [], events: [] };
-  return res.json();
-}
-
-export async function requestReplay(
-  lobbyId: string,
-  player: string,
-  vote: boolean
-): Promise<{
-  replay_votes?: string[];
-  replay_votes_count?: number;
-  replay_votes_needed?: number;
-  next_lobby_id?: string | null;
-}> {
-  const res = await fetch(`${BACKEND_URL}/request_replay/${lobbyId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ player, vote }),
-  });
-  if (!res.ok) {
-    const data = await res.json();
-    throw new Error((data as { error?: string }).error ?? "Failed to update rematch vote");
-  }
   return res.json();
 }
 
