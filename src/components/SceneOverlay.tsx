@@ -2,11 +2,9 @@
 
 import { useState, useEffect, useRef, ReactNode } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   getNextBossfightTime,
   getPlayerMessages,
-  requestReplay,
   getSocket,
 } from '@/lib/api';
 import type { LobbyState, Player } from '@/types/game';
@@ -38,9 +36,6 @@ export type GameOverRenderOpts = {
   playerName: string;
   enemy: Player | undefined;
   btn: string;
-  replayVoted: boolean;
-  replayLoading: boolean;
-  onReplayToggle: (checked: boolean) => void;
 };
 
 export type PreGameRenderOpts = {
@@ -71,7 +66,6 @@ export type SceneOverlayConfig = {
   showDenyPicker?: boolean;
   showFloatingMessages?: boolean;
   showChat?: boolean;
-  enableNextLobbyRedirect?: boolean;
   enableRaidTimer?: boolean;
   /** When true the WELL/DEFEND/resource/nametag buttons are suppressed from the
    *  overlay — the 3D scene renders them anchored to the player model instead. */
@@ -112,7 +106,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     showDenyPicker = false,
     showFloatingMessages = false,
     showChat = false,
-    enableNextLobbyRedirect = false,
     enableRaidTimer = false,
     hidePlayerActionButtons = false,
     suppressEnemyPanel = false,
@@ -121,7 +114,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     renderExtra,
   } = config;
 
-  const router = useRouter();
   const [playerName, setPlayerName] = useState('');
   const [state, setState] = useState<LobbyState | null>(null);
   const [messages, setMessages] = useState<string[][]>([]);
@@ -129,8 +121,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [resource, setResource] = useState('');
   const pendingResourceRef = useRef('');
   const [denyTarget, setDenyTarget] = useState('');
-  const [replayLoading, setReplayLoading] = useState(false);
-  const [readyToRedirect, setReadyToRedirect] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [floatingMessages, setFloatingMessages] = useState<string[]>([]);
   const [nextRaidTime, setNextRaidTime] = useState<number | null>(null);
@@ -158,7 +148,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   useEffect(() => {
     setState(null);
-    setReadyToRedirect(false);
     setFloatingMessages([]);
     setMessages([]);
   }, [lobbyId]);
@@ -213,23 +202,23 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     onStateChange?.(state);
   }, [state, onStateChange]);
 
-  // While waiting in the pre-game lobby, and again once the game is over and
-  // players are deciding on a rematch, periodically re-emit join_room so the
-  // server sends back the current state. This is a low-frequency polling
-  // fallback for whenever the live state_update broadcast doesn't reach this
-  // socket (e.g. a dropped/zombied connection) — both of these are idle,
-  // low-traffic windows where a silently missed broadcast would otherwise
-  // leave the UI stuck indefinitely with no other event to self-correct it.
+  // While waiting in the pre-game lobby, and again once the game is over,
+  // periodically re-emit join_room so the server sends back the current
+  // state. This is a low-frequency polling fallback for whenever the live
+  // state_update broadcast doesn't reach this socket (e.g. a dropped/zombied
+  // connection) — both of these are idle, low-traffic windows where a
+  // silently missed broadcast would otherwise leave the UI stuck
+  // indefinitely with no other event to self-correct it.
   const gameStarted = (state?.round ?? 0) > 0;
-  const awaitingRematch = state?.gameover ?? false;
+  const isPostGame = state?.gameover ?? false;
   useEffect(() => {
     if (!lobbyId || !playerName) return;
-    if (gameStarted && !awaitingRematch) return;
+    if (gameStarted && !isPostGame) return;
     const interval = setInterval(() => {
       getSocket().emit("join_room", { lobby_id: lobbyId, name: playerName });
     }, 3000);
     return () => clearInterval(interval);
-  }, [lobbyId, playerName, gameStarted, awaitingRematch]);
+  }, [lobbyId, playerName, gameStarted, isPostGame]);
 
   useEffect(() => {
     if (!state?.round_end_time) {
@@ -245,29 +234,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   }, [state?.round_end_time]);
 
   const gameOver = state?.gameover ?? false;
-
-  const allVotedForRematch =
-    typeof state?.replay_votes_needed === 'number' &&
-    state.replay_votes_needed > 0 &&
-    (state?.replay_votes_count ?? 0) >= state.replay_votes_needed;
-
-  // Show the "Creating new lobby…" animation for a couple of seconds once
-  // everyone has voted, before actually navigating to the new lobby.
-  useEffect(() => {
-    if (!allVotedForRematch) {
-      setReadyToRedirect(false);
-      return;
-    }
-    const timer = setTimeout(() => setReadyToRedirect(true), 2500);
-    return () => clearTimeout(timer);
-  }, [allVotedForRematch]);
-
-  useEffect(() => {
-    if (!enableNextLobbyRedirect) return;
-    if (gameOver && readyToRedirect && state?.next_lobby_id && state.next_lobby_id !== lobbyId) {
-      router.replace(`/lobby/${state.next_lobby_id}`);
-    }
-  }, [gameOver, readyToRedirect, state?.next_lobby_id, lobbyId, router, enableNextLobbyRedirect]);
 
   useEffect(() => {
     // Play the gain sound for the resource picked last round, then reset selection.
@@ -399,20 +365,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   const handleDeny = () => {
     getSocket().emit('submit_deny_target', { lobby_id: lobbyId, player: playerName, target: denyTarget });
-  };
-
-  const replayVoted = state?.replay_votes?.includes(playerName) ?? false;
-
-  const handleReplayToggle = async (checked: boolean) => {
-    setReplayLoading(true);
-    try {
-      const data = await requestReplay(lobbyId, playerName, checked);
-      setState((s) => (s ? { ...s, ...data } : s));
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to update rematch vote');
-    } finally {
-      setReplayLoading(false);
-    }
   };
 
   useEffect(() => {
@@ -677,7 +629,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             </div>
           )}
 
-          {gameOver && renderGameOver({ state, playerName, enemy, btn, replayVoted, replayLoading, onReplayToggle: handleReplayToggle })}
+          {gameOver && renderGameOver({ state, playerName, enemy, btn })}
         </div>
       </div>
 
