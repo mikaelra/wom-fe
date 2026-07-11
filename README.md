@@ -121,9 +121,7 @@ The game uses a hybrid REST + Socket.IO architecture:
 
 ## Backend
 
-This frontend expects a backend API server (see [wom-be](https://github.com/mikaelra/wom-be)). For local development, run the backend on port 5000 or set `NEXT_PUBLIC_BACKEND_URL` to point to your backend instance. In production, `NEXT_PUBLIC_BACKEND_URL` is baked into the build by `.github/workflows/deploy.yml` (it's a `NEXT_PUBLIC_*` var, so it has to be supplied at build time, not as a runtime env var).
-
-See [docs/API_ROUTES.md](docs/API_ROUTES.md) for the complete API reference.
+This frontend expects a backend API server (see [wom-be](https://github.com/mikaelra/wom-be), which has its own API reference in its README). For local development, run the backend on port 5000 or set `NEXT_PUBLIC_BACKEND_URL` to point to your backend instance. In production, `NEXT_PUBLIC_BACKEND_URL` is baked into the build by `.github/workflows/deploy.yml` (it's a `NEXT_PUBLIC_*` var, so it has to be supplied at build time, not as a runtime env var).
 
 ## Deployment
 
