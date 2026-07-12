@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import LobbyOverlay from '@/components/lobby/LobbyOverlay';
 import InGameGuide from '@/components/lobby/InGameGuide';
 import { BASE_FOV } from '@/lib/sceneConstants';
-import { getSocket, joinLobby, checkName, logInUser, verifyLoginCode } from '@/lib/api';
+import { getSocket, getStoredToken, joinLobby, checkName, logInUser, verifyLoginCode } from '@/lib/api';
 import type { LobbyState } from '@/types/game';
 import type { GuideHighlights } from '@/lib/guideHighlights';
 
@@ -68,15 +68,21 @@ export default function LobbyPage() {
   }, [lobbyId, playerNameInit, playerName]);
 
   // Subscribe to socket state updates once the user has typed a name.
-  // The server ignores join_room with an empty name, so we wait until
-  // there is something to send.
+  // join_room now authenticates via the join-issued session token (backend
+  // Phase 1a) rather than the typed name, so this preview only works when a
+  // token from an earlier join in this tab is already stored (e.g. a
+  // refresh) -- a brand-new visitor who hasn't joined yet has no token, and
+  // the player-list preview simply doesn't populate for them. That's the
+  // intended effect of closing off anonymous room peeking, not a bug.
   const typedName = joinName.trim();
   useEffect(() => {
     if (!lobbyId || !playerNameInit || playerName || !typedName) return;
+    const token = getStoredToken();
+    if (!token) return;
     const sock = getSocket();
     const handleStateUpdate = (data: LobbyState) => setPreviewState(data);
     sock.on('state_update', handleStateUpdate);
-    sock.emit('join_room', { lobby_id: lobbyId, name: typedName });
+    sock.emit('join_room', { lobby_id: lobbyId, token });
     return () => {
       sock.off('state_update', handleStateUpdate);
     };

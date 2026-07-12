@@ -1265,28 +1265,28 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // Stable identities — these are passed to memo()ed players/souls, so a fresh
   // closure per render would defeat the memoization.
   const handleAttack = useCallback((targetName: string) => {
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'attack', target: targetName, resource: '' });
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'attack', target: targetName, resource: '' });
     setSelectedSoulIdx(null);
     onAttackSelect?.(targetName);
-  }, [lobbyId, playerName, onAttackSelect]);
+  }, [lobbyId, onAttackSelect]);
 
   // Lost souls all share one server name, so the emitted target is the shared
   // name while the clicked index is remembered locally for selection UI.
   const handleSoulAttack = useCallback((targetName: string, index: number) => {
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'attack', target: targetName, resource: '' });
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'attack', target: targetName, resource: '' });
     setSelectedSoulIdx(index);
     onAttackSelect?.(targetName);
-  }, [lobbyId, playerName, onAttackSelect]);
+  }, [lobbyId, onAttackSelect]);
 
   const handleDefend = useCallback(() => {
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'defend', resource: '' });
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'defend', resource: '' });
     onActionChange?.('defend');
-  }, [lobbyId, playerName, onActionChange]);
+  }, [lobbyId, onActionChange]);
 
   const handleWell = useCallback(() => {
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'well', resource: '' });
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'well', resource: '' });
     onActionChange?.('well');
-  }, [lobbyId, playerName, onActionChange]);
+  }, [lobbyId, onActionChange]);
 
   return (
     <>

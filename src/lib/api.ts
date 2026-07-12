@@ -12,7 +12,44 @@ export function getSocket(): Socket {
   return socket;
 }
 
-export async function createLobby(name: string, email: string): Promise<{ lobby_id: string }> {
+// ---------------------------------------------------------------------------
+// Session token store (hardening plan Phase 4 item 1 / backend Phase 1a).
+//
+// The backend now issues a one-time session token on join (HTTP
+// create_lobby/join_lobby/get_bossfight_lobby responses, and the socket
+// join_lobby ack) that must be presented on join_room to bind this
+// connection to the joining player. Every other action event derives the
+// actor from that connection binding server-side, so the client no longer
+// sends name/admin/player identity fields on actions at all.
+//
+// Kept in memory + sessionStorage (not localStorage): sessionStorage is
+// per-tab, which matches a token's lifetime -- it's reissued fresh on every
+// join_lobby call, so persisting it across tabs/browser restarts would just
+// go stale. A page refresh in the same tab still works.
+// ---------------------------------------------------------------------------
+
+const SESSION_TOKEN_KEY = "wom_session_token";
+let sessionToken: string | null = null;
+
+export function getStoredToken(): string | null {
+  if (sessionToken !== null) return sessionToken;
+  if (typeof window !== "undefined") {
+    sessionToken = window.sessionStorage.getItem(SESSION_TOKEN_KEY);
+  }
+  return sessionToken;
+}
+
+export function setStoredToken(token: string | null | undefined): void {
+  sessionToken = token ?? null;
+  if (typeof window === "undefined") return;
+  if (sessionToken) {
+    window.sessionStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
+  } else {
+    window.sessionStorage.removeItem(SESSION_TOKEN_KEY);
+  }
+}
+
+export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
   const res = await fetch(`${BACKEND_URL}/create_lobby`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -22,7 +59,9 @@ export async function createLobby(name: string, email: string): Promise<{ lobby_
     const errorData = await res.json();
     throw new Error((errorData as { error?: string }).error ?? "Create lobby failed");
   }
-  return res.json();
+  const data = await res.json();
+  setStoredToken(data.token);
+  return data;
 }
 
 export async function joinLobby(
@@ -34,9 +73,10 @@ export async function joinLobby(
     const sock = getSocket();
     sock.emit("join_lobby", { lobby_id: joinCode, name, email });
 
-    const onJoined = () => {
+    const onJoined = (data: { lobby_id: string; token?: string }) => {
       sock.off("joined_lobby", onJoined);
       sock.off("error", onError);
+      if (data?.token) setStoredToken(data.token);
       resolve();
     };
 
@@ -51,7 +91,7 @@ export async function joinLobby(
   });
 }
 
-export async function getBossfightLobby(playerName: string): Promise<{ lobby_id: string }> {
+export async function getBossfightLobby(playerName: string): Promise<{ lobby_id: string; token?: string | null }> {
   const res = await fetch(`${BACKEND_URL}/get_bossfight_lobby`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -62,6 +102,10 @@ export async function getBossfightLobby(playerName: string): Promise<{ lobby_id:
     throw new Error((errorData as { error?: string }).error ?? "Failed to enter boss fight.");
   }
   const data = await res.json();
+  // token may be null when the caller is already a member re-checking in
+  // (e.g. a page refresh) -- in that case they're expected to still hold
+  // the token from their original join, so don't clobber it with null.
+  if (data.token) setStoredToken(data.token);
   const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
   getSocket().emit("join_lobby", { lobby_id: data.lobby_id, name: playerName, email });
   return data;

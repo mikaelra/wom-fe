@@ -5,7 +5,9 @@ import {
   createLobby,
   getPlayerMessages,
   getPlayerRelics,
+  getStoredToken,
   logInUser,
+  setStoredToken,
   verifyLoginCode,
 } from '@/lib/api';
 
@@ -37,17 +39,25 @@ afterEach(() => {
 });
 
 describe('createLobby', () => {
-  it('posts name and email and returns the lobby id', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ lobby_id: 'abc' }));
+  it('posts name and email and returns the lobby id and session token', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ lobby_id: 'abc', token: 'tok-1' }));
 
     const result = await createLobby('Alice', 'alice@example.com');
 
-    expect(result).toEqual({ lobby_id: 'abc' });
+    expect(result).toEqual({ lobby_id: 'abc', token: 'tok-1' });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/create_lobby`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Alice', email: 'alice@example.com' }),
     });
+  });
+
+  it('stores the returned session token', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ lobby_id: 'abc', token: 'tok-stored' }));
+
+    await createLobby('Alice', 'alice@example.com');
+
+    expect(getStoredToken()).toBe('tok-stored');
   });
 
   it('throws the backend error message on failure', async () => {
@@ -56,6 +66,20 @@ describe('createLobby', () => {
     await expect(createLobby('Alice', 'x@example.com')).rejects.toThrow(
       'This name is already claimed.',
     );
+  });
+});
+
+describe('session token store', () => {
+  it('round-trips a token through getStoredToken/setStoredToken', () => {
+    setStoredToken('a-token');
+    expect(getStoredToken()).toBe('a-token');
+  });
+
+  it('clears the stored token when set to null', () => {
+    setStoredToken('another-token');
+    expect(getStoredToken()).toBe('another-token');
+    setStoredToken(null);
+    expect(getStoredToken()).toBeNull();
   });
 });
 

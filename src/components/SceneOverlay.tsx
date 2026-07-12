@@ -8,6 +8,7 @@ import {
   getPlayerMessages,
   requestReplay,
   getSocket,
+  getStoredToken,
 } from '@/lib/api';
 import type { LobbyState, Player } from '@/types/game';
 import FloatingMessage from '@/components/lobby/FloatingMessage';
@@ -174,9 +175,13 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     // for anyone who already joined earlier). Gating it behind a successful
     // "joined_lobby" response left reconnecting clients silently stuck
     // outside the room with no further state_update broadcasts.
+    //
+    // join_room now authenticates via the join-issued session token instead
+    // of a client-supplied name (backend Phase 1a) -- the server resolves
+    // the actor's name from the token itself.
     const rejoin = () => {
       sock.emit("join_lobby", { lobby_id: lobbyId, name: playerName, email });
-      sock.emit("join_room", { lobby_id: lobbyId, name: playerName });
+      sock.emit("join_room", { lobby_id: lobbyId, token: getStoredToken() });
     };
 
     sock.on("connect", rejoin);
@@ -226,7 +231,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     if (!lobbyId || !playerName) return;
     if (gameStarted && !awaitingRematch) return;
     const interval = setInterval(() => {
-      getSocket().emit("join_room", { lobby_id: lobbyId, name: playerName });
+      getSocket().emit("join_room", { lobby_id: lobbyId, token: getStoredToken() });
     }, 3000);
     return () => clearInterval(interval);
   }, [lobbyId, playerName, gameStarted, awaitingRematch]);
@@ -368,21 +373,21 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const resourceCue = needsResource ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '') : '';
 
   const handleStartGame = () => {
-    getSocket().emit('start_game', { lobby_id: lobbyId, admin: playerName });
+    getSocket().emit('start_game', { lobby_id: lobbyId });
   };
 
   const handleAddDummy = () => {
-    getSocket().emit('add_dummy', { lobby_id: lobbyId, name: playerName });
+    getSocket().emit('add_dummy', { lobby_id: lobbyId });
   };
 
   const handleKick = (targetName: string) => {
-    getSocket().emit('kick_player', { lobby_id: lobbyId, admin: playerName, target: targetName });
+    getSocket().emit('kick_player', { lobby_id: lobbyId, target: targetName });
   };
 
   const handleResource = (resId: string) => {
     setResource(resId);
     pendingResourceRef.current = resId;
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, resource: resId, action: '' });
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, resource: resId, action: '' });
   };
 
   const handleAction = (act: string) => {
@@ -390,7 +395,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     onActionChange?.(act);
     getSocket().emit('submit_choice', {
       lobby_id: lobbyId,
-      player: playerName,
       action: act,
       resource: '',
       target: act === 'attack' && enemy ? enemy.name : undefined,
@@ -398,7 +402,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   };
 
   const handleDeny = () => {
-    getSocket().emit('submit_deny_target', { lobby_id: lobbyId, player: playerName, target: denyTarget });
+    getSocket().emit('submit_deny_target', { lobby_id: lobbyId, target: denyTarget });
   };
 
   const replayVoted = state?.replay_votes?.includes(playerName) ?? false;
@@ -437,7 +441,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const handleSendChat = () => {
     const msg = chatInput.trim();
     if (!msg || !playerName) return;
-    getSocket().emit('send_message', { lobby_id: lobbyId, name: playerName, message: msg });
+    getSocket().emit('send_message', { lobby_id: lobbyId, message: msg });
     setChatInput('');
   };
 
