@@ -139,4 +139,47 @@ describe('error-swallowing endpoints', () => {
       events: [],
     });
   });
+
+  it('getPlayerMessages returns empty lists on a 403 (e.g. missing/stale token)', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: 'Missing or invalid session token.' }, 403),
+    );
+    await expect(getPlayerMessages('abc', 'Alice')).resolves.toEqual({
+      messages: [],
+      events: [],
+    });
+  });
+});
+
+describe('getPlayerMessages token attachment', () => {
+  it('appends the stored session token as a query param', async () => {
+    setStoredToken('tok-42');
+    fetchMock.mockResolvedValue(jsonResponse({ messages: [], events: [] }));
+
+    await getPlayerMessages('abc', 'Alice');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/get_player_messages/abc/Alice?token=tok-42`,
+    );
+  });
+
+  it('URL-encodes the token', async () => {
+    setStoredToken('tok/with+special?chars');
+    fetchMock.mockResolvedValue(jsonResponse({ messages: [], events: [] }));
+
+    await getPlayerMessages('abc', 'Alice');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/get_player_messages/abc/Alice?token=${encodeURIComponent('tok/with+special?chars')}`,
+    );
+  });
+
+  it('omits the token param when no token is stored', async () => {
+    setStoredToken(null);
+    fetchMock.mockResolvedValue(jsonResponse({ messages: [], events: [] }));
+
+    await getPlayerMessages('abc', 'Alice');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/get_player_messages/abc/Alice`);
+  });
 });

@@ -137,7 +137,15 @@ export async function getPlayerMessages(
   lobbyId: string,
   playerName: string
 ): Promise<{ messages: string[][]; events?: GameEvent[] }> {
-  const res = await fetch(`${BACKEND_URL}/get_player_messages/${lobbyId}/${playerName}`);
+  // Backend Phase 1b: messages/events are private data, gated behind the
+  // session token issued on join (see getStoredToken above). A stale tab
+  // that never (re)joined has no token -- fetch will 403 and fall through
+  // to the existing empty-result fallback below, same as any other failure.
+  const token = getStoredToken();
+  const url = token
+    ? `${BACKEND_URL}/get_player_messages/${lobbyId}/${playerName}?token=${encodeURIComponent(token)}`
+    : `${BACKEND_URL}/get_player_messages/${lobbyId}/${playerName}`;
+  const res = await fetch(url);
   if (!res.ok) return { messages: [], events: [] };
   return res.json();
 }
