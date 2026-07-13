@@ -31,12 +31,23 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
-      - run: npm test
+      - run: npm test -- --coverage
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npx tsc --noEmit
 
   build-and-deploy:
-    # PRs only lint + test; the image is built and deployed on push to master.
+    # PRs only lint + test + typecheck; the image is built and deployed on push to master.
     if: github.event_name != 'pull_request'
-    needs: [lint, test]
+    needs: [lint, test, typecheck]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

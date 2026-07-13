@@ -27,6 +27,10 @@ const eslintConfig = [
       "react-hooks/gating": "off",
       "react-hooks/incompatible-library": "off",
       "react-hooks/unsupported-syntax": "off",
+      // Stale-closure bugs in the socket effects are this codebase's most
+      // likely runtime failure (see docs/CODEBASE_HARDENING_PLAN.md) --
+      // was "warn" by default; enforced as an error from Phase 0 on.
+      "react-hooks/exhaustive-deps": "error",
     },
   },
   {
