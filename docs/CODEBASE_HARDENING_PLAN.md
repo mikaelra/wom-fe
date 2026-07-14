@@ -218,9 +218,37 @@ Lands as several PRs, one hook/component each (unlike Phase 0/1).
      `SceneOverlay.tsx` — not touched since it's a much larger hook with
      its own animation-timing state, and changing its signature would
      touch its call sites too.
-3. **`useRoundTimer(roundEndTime)`**, **`useGameEvents(...)`** (the
-   fetch-messages-per-round choreography), each pure enough to unit-test
-   with fake timers.
+3. Split into two steps — research found this covers two concerns of very
+   different size/risk (the same split the backend hardening effort used
+   for its own Phase 3, 3a logging / 3b error-handling):
+   - ✅ **done (3a)** — `src/lib/useRoundTimer.ts` (`SceneOverlay.tsx`'s
+     `secondsLeft` countdown, lifted verbatim) and
+     `src/lib/useBossfightCountdown.ts` (the "next boss fight" countdown,
+     independently reimplemented **3 times** — `SceneOverlay.tsx`,
+     `app/page.tsx`, `components/home/HomeOverlay.tsx` — each with a
+     different gating condition, all preserved exactly via one `enabled`
+     boolean parameter; also fixes a real gap where `SceneOverlay.tsx`'s
+     version had no cancellation guard on its fetch). An orphaned,
+     never-merged commit (`302651d`, found during step 1's research)
+     already built almost exactly these two hooks — unlike its
+     `useLobbyConnection` attempt, this part predates nothing (pure timer
+     logic, no auth coupling) and was directly usable as a reference.
+     `LobbyScene.tsx`'s own, third, round-countdown (`warnLevel`) was
+     deliberately **not** unified — it intentionally avoids storing raw
+     seconds to prevent re-rendering the whole 3D scene every tick, and
+     using the shared hook there would reintroduce that exact perf
+     problem.
+   - **Not yet done (3b)** — `useGameEvents`, i.e. centralizing
+     `getPlayerMessages`. Independently called **3 times per round**
+     today — `SceneOverlay.tsx` (feeds the "Round messages" text panel),
+     `src/lib/useStagedResources.ts` (feeds HP/coin/ATK stat-card
+     staging), `LobbyScene.tsx` (feeds sword/shield/well-reward 3D
+     animation scheduling) — a real, fixable duplicate-network-call bug,
+     but each of the 3 consumers has a distinct gating/timing need
+     (LobbyScene only on an actual round *increase*; `useStagedResources`
+     only when `wonWell || stageCombat`; SceneOverlay unconditionally on
+     any round-related change). Bigger, higher-risk than the two timer
+     hooks — deserves its own dedicated plan/PR.
 4. **Slim the pages**: `app/lobby/[lobbyId]/page.tsx` keeps routing, the
    join/login form, and composition; `app/page.tsx`'s duplicated
    login/verify flow and `page.tsx`'s copy become one shared
@@ -283,8 +311,9 @@ Coordinated with backend Phase 1a/1b (see that plan):
 1. ✅ Phase 0 (CI: typecheck + coverage ratchet) — half a day.
 2. ✅ Phase 1 (zod boundary + typed socket layer) — the anti-anxiety core.
 3. **In progress** — Phase 2 hooks extraction — several PRs, one
-   hook/component each. Steps 1 (`useLobbyConnection`) and 2
-   (`useLobbyGame`) done; **next up** is `useRoundTimer`/`useGameEvents`.
+   hook/component each. Steps 1 (`useLobbyConnection`), 2 (`useLobbyGame`),
+   and 3a (`useRoundTimer`/`useBossfightCountdown`) done; **next up** is
+   step 3b (`useGameEvents`).
 4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3

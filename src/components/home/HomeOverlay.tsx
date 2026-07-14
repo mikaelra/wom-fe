@@ -7,12 +7,12 @@ import {
   createLobby,
   joinLobby,
   getBossfightLobby,
-  getNextBossfightTime,
   getPlayerRelics,
   checkName,
   logInUser,
   verifyLoginCode,
 } from '@/lib/api';
+import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import type { Relic } from '@/types/game';
 import type { City } from '@/lib/cities';
 
@@ -34,7 +34,6 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [joinCode, setJoinCode] = useState('');
-  const [secondsUntilNextRaid, setSecondsUntilNextRaid] = useState<number | null>(null);
   const [showRelics, setShowRelics] = useState(false);
   const [relics, setRelics] = useState<Relic[]>([]);
   const [relicsLoading, setRelicsLoading] = useState(false);
@@ -63,27 +62,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     }
   }, []);
 
-  useEffect(() => {
-    if (!mounted) return;
-    let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-    getNextBossfightTime()
-      .then((json) => {
-        if (cancelled) return;
-        const nextRT = new Date(json.start_time);
-        intervalId = setInterval(() => {
-          const diff = Math.floor((nextRT.getTime() - Date.now()) / 1000);
-          setSecondsUntilNextRaid(diff <= 0 ? 0 : diff);
-        }, 1000);
-      })
-      .catch(() => {
-        if (!cancelled) setSecondsUntilNextRaid(null);
-      });
-    return () => {
-      cancelled = true;
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [mounted]);
+  const { secondsUntil: secondsUntilNextRaid } = useBossfightCountdown(mounted);
 
   const performCreate = async (trimmedName: string, email: string) => {
     const data = await createLobby(trimmedName, email);
