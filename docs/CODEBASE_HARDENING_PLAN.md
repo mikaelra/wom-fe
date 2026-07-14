@@ -88,28 +88,80 @@ tested. The plan is mostly "move logic out of components into that layer."
 
 ## Phase 1 — Typed, validated boundary (the highest-leverage change)
 
-1. **Introduce `zod` schemas for every server payload**: `LobbyState`,
-   `Player`, `ChatMessage`, `GameEvent` (they already exist as interfaces in
-   `src/types/game.ts` / `src/lib/gameEvents.ts` — derive the types from
-   schemas instead: `z.infer`). Parse in exactly one place.
-2. **Split `src/lib/api.ts` (239 lines) into:**
-   - `lib/http.ts` — one `request<T>(path, schema, opts)` helper that owns
-     fetch, JSON, error normalization (a typed `ApiError`), and zod parsing.
-     The ten near-identical `if (!res.ok) throw new Error(...)` blocks
-     collapse into it.
-   - `lib/socket.ts` — the socket singleton plus a **typed event map**:
-     one `ServerEvents`/`ClientEvents` interface pair (socket.io-client
-     supports generic typing), event-name constants, and a
-     `subscribe(event, handler)` that returns an unsubscribe function so
-     components/hooks can't leak listeners.
-   - `lib/api.ts` — thin, typed endpoint functions built on both.
-3. **Fail loudly**: a zod parse failure logs the payload shape diff in dev
-   and surfaces a user-visible "out of date / reload" state in prod —
-   this is what turns backend drift from a haunted 3D scene into a
-   one-line console error.
-4. Unit tests: schema round-trips for every fixture payload (capture real
-   payloads from the backend's golden tests — same fixtures, two repos,
-   drift caught on either side; see backend plan Phase 4).
+- ✅ **done** — All 4 items landed together (they're tightly interlocking:
+  can't split `api.ts` without schemas to hand `request()`, can't
+  round-trip test without the schemas existing):
+  1. `zod` schemas for every server payload the frontend actually
+     consumes: `Player`/`LobbyState`/`ChatMessage`/`Relic` stay in
+     `src/types/game.ts` (same export names, same import paths — zero
+     call-site churn beyond field-accuracy fixes below), `GameEvent`
+     stays in `src/lib/gameEvents.ts`; both now `z.infer`-derived. New
+     `src/lib/schemas.ts` holds the HTTP response-envelope schemas (one
+     per route) and the socket envelope schemas not already in
+     `types/game.ts`. Built directly against wom-be's `docs/PROTOCOL.md`
+     (that repo's own Phase 4), not assumption — this surfaced real,
+     concrete drift between what the frontend *claimed* the wire shape
+     was and what it actually is:
+     - `Player` had `messages`/`submittedAction`/`submittedResource`/
+       `target` fields the backend's `state_update` never sends
+       (deliberately excluded by the backend's Phase 1b hidden-info fix)
+       and that nothing on this side ever read either — dropped. It was
+       missing `bot`, which the backend always sends — added.
+     - `start_time` (`LobbyState` and `getNextBossfightTime()`) was typed
+       `number` but the backend always sends an ISO8601 *string* — fixed.
+       This "worked" before only because `new Date()` silently accepts
+       either.
+     - `LobbyState.replay_votes`/`replay_votes_count`/
+       `replay_votes_needed`/`next_lobby_id` don't exist on the wire at
+       all. Unlike the `Player` fields above, these *were* actively read:
+       a whole "Rematch?" checkbox UI in `SceneOverlay.tsx`/
+       `LobbyOverlay.tsx`, calling `requestReplay()` →
+       `POST /request_replay/<id>`, a route the backend has never
+       implemented. This exact half-built/broken feature was already
+       removed upstream on `master` (PR #163, wom-fe) — this branch just
+       predated that PR. Folded the removal into this phase since an
+       honest `LobbyState` schema structurally can't include fields the
+       server never sends. Also dropped `getState()` (`GET /get_state/<id>`,
+       fully unreferenced, also already removed in PR #163 — the route
+       doesn't exist on the backend either).
+     - `Relic` was missing `boss_id`/`created_at`/`power_category` that
+       the backend sends (unused by the UI today, kept anyway for
+       accuracy). `boss_fight`/`gameover` were nullable but the backend
+       always sends a real boolean — tightened.
+     - `getPlayerMessages`'s `messages` field is a genuine mix of plain
+       strings and single/multi-element string arrays — confirmed
+       directly against wom-be's engine code (most entries appended as
+       plain strings, several inserted as one-element lists). The
+       existing `.flat()` call already handled this; the schema now makes
+       it explicit instead of the too-narrow `string[][]` the old type
+       claimed.
+  2. `src/lib/api.ts` split into `lib/http.ts` (`request<S>(path, schema,
+     opts)`, `ApiError`, `SchemaMismatchError`, the session-token store),
+     `lib/socket.ts` (the `getSocket()` singleton, typed
+     `ServerToClientEvents`/`ClientToServerEvents`, `subscribe()`), and a
+     thin `lib/api.ts` built on both. Fixed a real, latent bug this
+     surfaced: `SceneOverlay.tsx` used to clean up socket listeners via
+     `sock.off(event)` with **no handler argument**, which wipes every
+     listener for that event on the shared singleton socket, not just
+     that component's own — harmless only because nothing else happened
+     to listen concurrently. `subscribe()`'s returned unsubscribe closure
+     fixes this by construction; rewired `SceneOverlay.tsx`'s three
+     listeners (and `app/lobby/[lobbyId]/page.tsx`'s preview listener) to
+     use it.
+  3. Fail loudly: a zod parse failure (`request()` or `subscribe()`) logs
+     the full shape diff via `console.error` in both dev and prod. Turning
+     this into a user-visible "out of date, reload" banner is Phase 5's
+     `<ErrorBoundary>` work, not done here — this phase's job was only to
+     guarantee drift is never silent.
+  4. `src/lib/__tests__/schemas.test.ts`: round-trip tests for every
+     schema, fixtures built directly from `docs/PROTOCOL.md`'s documented
+     shapes (including the asymmetric/edge cases: `get_bossfight_lobby`'s
+     absent-not-null `token`, the mixed-type `messages` field), plus
+     deliberately-malformed cases confirming rejection.
+- Coverage ratchet raised (margin below the observed
+  38.23/34.4/36.66/38.09) — `src/lib/schemas.ts`/`http.ts`/`socket.ts`
+  were already inside the existing `src/lib/**/*.ts` include from Phase 0,
+  no glob change needed.
 
 ## Phase 2 — Extract the game-state machine from the components
 
@@ -185,9 +237,9 @@ Coordinated with backend Phase 1a/1b (see that plan):
 ## Suggested order of work
 
 1. ✅ Phase 0 (CI: typecheck + coverage ratchet) — half a day.
-2. **Next up** — Phase 1 (zod boundary + typed socket layer) — the
-   anti-anxiety core.
-3. Phase 2 hooks extraction — several PRs, one hook/component each.
+2. ✅ Phase 1 (zod boundary + typed socket layer) — the anti-anxiety core.
+3. **Next up** — Phase 2 hooks extraction — several PRs, one
+   hook/component each.
 4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3

@@ -15,7 +15,8 @@ import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight, type WellGlowColor } from '@/components/lobby/WellGlowEffect';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
-import { getSocket, getPlayerMessages } from '@/lib/api';
+import { getPlayerMessages } from '@/lib/api';
+import { getSocket } from '@/lib/socket';
 import { emitHpFx, type HpFxEvent } from '@/lib/resourceFx';
 import { combatFromEvents, wellRewardFromEvents, glowForReward, type WellRewardComponent } from '@/lib/gameEvents';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
@@ -1328,7 +1329,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             isBoss={isBoss}
             bossHp={isBoss ? player.hp : undefined}
             bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
-            bossTitle={isBoss ? player.title : undefined}
+            bossTitle={isBoss ? player.title ?? undefined : undefined}
             frogSkinUrl={skinMap.get(player.name)}
             showAttackButton={showAttackButtons && isOpponent && !isDead && (!isBossFight || isBoss)}
             onAttack={handleAttack}

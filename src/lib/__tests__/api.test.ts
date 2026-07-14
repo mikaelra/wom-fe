@@ -5,11 +5,10 @@ import {
   createLobby,
   getPlayerMessages,
   getPlayerRelics,
-  getStoredToken,
   logInUser,
-  setStoredToken,
   verifyLoginCode,
 } from '@/lib/api';
+import { getStoredToken, setStoredToken } from '@/lib/http';
 
 const jsonResponse = (data: unknown, status = 200) =>
   ({
@@ -154,32 +153,37 @@ describe('error-swallowing endpoints', () => {
 describe('getPlayerMessages token attachment', () => {
   it('appends the stored session token as a query param', async () => {
     setStoredToken('tok-42');
-    fetchMock.mockResolvedValue(jsonResponse({ messages: [], events: [] }));
+    fetchMock.mockResolvedValue(jsonResponse({ player: 'Alice', messages: [], events: [] }));
 
     await getPlayerMessages('abc', 'Alice');
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${BACKEND_URL}/get_player_messages/abc/Alice?token=tok-42`,
+      { method: 'GET', headers: undefined, body: undefined },
     );
   });
 
   it('URL-encodes the token', async () => {
     setStoredToken('tok/with+special?chars');
-    fetchMock.mockResolvedValue(jsonResponse({ messages: [], events: [] }));
+    fetchMock.mockResolvedValue(jsonResponse({ player: 'Alice', messages: [], events: [] }));
 
     await getPlayerMessages('abc', 'Alice');
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${BACKEND_URL}/get_player_messages/abc/Alice?token=${encodeURIComponent('tok/with+special?chars')}`,
+      { method: 'GET', headers: undefined, body: undefined },
     );
   });
 
   it('omits the token param when no token is stored', async () => {
     setStoredToken(null);
-    fetchMock.mockResolvedValue(jsonResponse({ messages: [], events: [] }));
+    fetchMock.mockResolvedValue(jsonResponse({ player: 'Alice', messages: [], events: [] }));
 
     await getPlayerMessages('abc', 'Alice');
 
-    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/get_player_messages/abc/Alice`);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/get_player_messages/abc/Alice`,
+      { method: 'GET', headers: undefined, body: undefined },
+    );
   });
 });

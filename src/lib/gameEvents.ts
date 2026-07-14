@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { WellRewardType } from '@/components/lobby/WellRewardEffect';
 
 /**
@@ -10,58 +11,77 @@ import type { WellRewardType } from '@/components/lobby/WellRewardEffect';
  * mechanic) — the client genuinely doesn't know who it was.
  */
 
-export type OutgoingOutcome = 'hit' | 'blocked' | 'reflected' | 'instakill' | 'instakill_blocked';
-export type IncomingOutcome = 'hit' | 'blocked' | 'reflected_back' | 'instakill' | 'instakill_blocked';
+export const OutgoingOutcomeSchema = z.enum(['hit', 'blocked', 'reflected', 'instakill', 'instakill_blocked']);
+export type OutgoingOutcome = z.infer<typeof OutgoingOutcomeSchema>;
 
-export interface OutgoingEvent {
-  kind: 'outgoing';
-  target: string;
-  outcome: OutgoingOutcome;
-  attackerDied: boolean;
+export const IncomingOutcomeSchema = z.enum(['hit', 'blocked', 'reflected_back', 'instakill', 'instakill_blocked']);
+export type IncomingOutcome = z.infer<typeof IncomingOutcomeSchema>;
+
+export const OutgoingEventSchema = z.object({
+  kind: z.literal('outgoing'),
+  target: z.string(),
+  outcome: OutgoingOutcomeSchema,
+  attackerDied: z.boolean(),
   /** True when this attack eliminated the target and granted +1 ⚔ + their coins. */
-  eliminated?: boolean;
+  eliminated: z.boolean().optional(),
   /** Coins received from the kill (the eliminated player's purse). */
-  coinsReceived?: number;
-}
+  coinsReceived: z.number().optional(),
+});
+export type OutgoingEvent = z.infer<typeof OutgoingEventSchema>;
 
-export interface IncomingEvent {
-  kind: 'incoming';
-  attacker: string | null; // null = anonymous
-  outcome: IncomingOutcome;
-  attackerDied: boolean;
-  damage?: number; // HP lost (only set for 'hit')
+export const IncomingEventSchema = z.object({
+  kind: z.literal('incoming'),
+  attacker: z.string().nullable(), // null = anonymous
+  outcome: IncomingOutcomeSchema,
+  attackerDied: z.boolean(),
+  damage: z.number().optional(), // HP lost (only set for 'hit')
   /** Coins received when a reflected attack eliminated the attacker (kill by me). */
-  coinsReceived?: number;
-}
+  coinsReceived: z.number().optional(),
+});
+export type IncomingEvent = z.infer<typeof IncomingEventSchema>;
 
-export interface WitnessEvent {
-  kind: 'witness';
-  attacker: string;
-  victim: string;
-}
+export const WitnessEventSchema = z.object({
+  kind: z.literal('witness'),
+  attacker: z.string(),
+  victim: z.string(),
+});
+export type WitnessEvent = z.infer<typeof WitnessEventSchema>;
 
 /** For 'steal': how many coins were taken from a given player. */
-export interface WellStealVictim {
-  name: string;
-  amount: number;
-}
+export const WellStealVictimSchema = z.object({
+  name: z.string(),
+  amount: z.number(),
+});
+export type WellStealVictim = z.infer<typeof WellStealVictimSchema>;
 
-export interface WellRewardComponent {
+// Must stay in sync with WellRewardType (components/lobby/WellRewardEffect.tsx)
+// -- the `satisfies` check below fails to compile if the two ever drift.
+const WELL_REWARD_TYPES = ['gold', 'health', 'sword', 'instakill', 'deny', 'info', 'steal'] as const satisfies readonly WellRewardType[];
+
+export const WellRewardComponentSchema = z.object({
   /** Which reward model to animate. */
-  type: WellRewardType;
+  type: z.enum(WELL_REWARD_TYPES),
   /** How many model instances to spawn (e.g. +2 HP → 2 hearts). */
-  count: number;
+  count: z.number(),
   /** For 'steal' only: per-player coin counts, so one coin flies from each
    *  player for every coin stolen from them. */
-  victims?: WellStealVictim[];
-}
+  victims: z.array(WellStealVictimSchema).optional(),
+});
+export type WellRewardComponent = z.infer<typeof WellRewardComponentSchema>;
 
-export interface WellRewardGrantEvent {
-  kind: 'well_reward';
-  components: WellRewardComponent[];
-}
+export const WellRewardGrantEventSchema = z.object({
+  kind: z.literal('well_reward'),
+  components: z.array(WellRewardComponentSchema),
+});
+export type WellRewardGrantEvent = z.infer<typeof WellRewardGrantEventSchema>;
 
-export type GameEvent = OutgoingEvent | IncomingEvent | WitnessEvent | WellRewardGrantEvent;
+export const GameEventSchema = z.union([
+  OutgoingEventSchema,
+  IncomingEventSchema,
+  WitnessEventSchema,
+  WellRewardGrantEventSchema,
+]);
+export type GameEvent = z.infer<typeof GameEventSchema>;
 
 // ── Views over one round's events ───────────────────────────────────────────
 
