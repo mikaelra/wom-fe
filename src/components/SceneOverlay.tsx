@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef, ReactNode } from 'react';
 import Link from 'next/link';
-import { getPlayerMessages } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import { useRoundTimer } from '@/lib/useRoundTimer';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
+import { useGameEvents } from '@/lib/useGameEvents';
 import type { LobbyState, Player } from '@/types/game';
 import { playResourceSound } from '@/lib/sounds';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
@@ -183,25 +183,23 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     setMessagesExpanded(false);
   }, [state?.round]);
 
+  const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
+
   useEffect(() => {
-    if (!lobbyId || !playerName) return;
-    getPlayerMessages(lobbyId, playerName)
-      .then((json) => {
-        const newMsgs = json.messages ?? [];
-        const newFlat = newMsgs.flat().join('\n');
-        if (newFlat !== lastMessagesFlat.current) {
-          lastMessagesFlat.current = newFlat;
-          setMessages(newMsgs);
-          setMessagesExpanded(false);
-        }
-      })
-      .catch(() => {});
-  }, [state?.round, lobbyId, playerName, state?.deny_target]);
+    if (!gameEvents || gameEvents.round !== state?.round) return;
+    const newMsgs = gameEvents.messages ?? [];
+    const newFlat = newMsgs.flat().join('\n');
+    if (newFlat !== lastMessagesFlat.current) {
+      lastMessagesFlat.current = newFlat;
+      setMessages(newMsgs);
+      setMessagesExpanded(false);
+    }
+  }, [gameEvents, state?.round]);
 
   // Staged display values for the resource cards: holds back a Well reward at
   // round start and ticks it up when the reward lands (Phase 2). Falls back to
   // the player's real values for every other case.
-  const stagedResources = useStagedResources(state, playerName, lobbyId, { stageCombat: stageCombatDamage });
+  const stagedResources = useStagedResources(state, playerName, gameEvents, { stageCombat: stageCombatDamage });
 
   const { raidMins, raidSecs } = useBossfightCountdown(enableRaidTimer && isAlive);
 

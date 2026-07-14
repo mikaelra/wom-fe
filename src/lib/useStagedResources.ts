@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LobbyState } from '@/types/game';
-import { getPlayerMessages } from '@/lib/api';
 import { combatFromEvents, wellRewardFromEvents, type WellRewardComponent } from '@/lib/gameEvents';
 import { onHpFx } from '@/lib/resourceFx';
+import type { GameEventsResult } from '@/lib/useGameEvents';
 
 export interface Resources {
   hp: number;
@@ -64,7 +64,7 @@ function wellStatDelta(components: WellRewardComponent[]): Resources {
 export function useStagedResources(
   state: LobbyState | null,
   playerName: string,
-  lobbyId: string,
+  gameEvents: GameEventsResult | null,
   options?: { stageCombat?: boolean },
 ): StagedResources | null {
   const stageCombat = options?.stageCombat ?? false;
@@ -113,8 +113,10 @@ export function useStagedResources(
     }
   }
 
-  // Async staged reveal: parse the round's messages and run the income → well →
-  // (combat window opens) timeline. Combat decrements themselves arrive via the bus.
+  // Staged reveal: once this round's messages have arrived via the shared
+  // useGameEvents fetch, run the income → well → (combat window opens)
+  // timeline. Combat decrements themselves arrive via the bus.
+  const processedRoundRef = useRef(0);
   useEffect(() => {
     if (!state || state.round <= 0) return;
     const p = state.players.find((x) => x.name === playerName);
@@ -122,100 +124,93 @@ export function useStagedResources(
     const finalNow: Resources = { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage };
     const wonWell = state.wellwinner === playerName;
     if (!wonWell && !stageCombat) return; // nothing to stage
+    if (!gameEvents || gameEvents.round !== state.round) return; // wait for this round's data
+    if (gameEvents.round <= processedRoundRef.current) return; // already staged this round
+    processedRoundRef.current = gameEvents.round;
 
-    let cancelled = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
 
-    getPlayerMessages(lobbyId, playerName)
-      .then((json) => {
-        if (cancelled) return;
-        const wellDelta = wellStatDelta(wellRewardFromEvents(json.events));
+    const wellDelta = wellStatDelta(wellRewardFromEvents(gameEvents.events));
 
-        let combatLoss = 0;
-        let hasKill = false;
-        let incomingCount = 0;
-        // Gains from kills *I* made this round: their coins + the +1 ATK. Held
-        // back from the baseline and revealed when the kill lands (killgain bus
-        // event from LobbyScene), so the cards tick up in sync with the 3D fx.
-        let killCoins = 0;
-        let killAtk = 0;
-        if (stageCombat) {
-          const combat = combatFromEvents(json.events);
-          incomingCount = combat.incoming.length;
-          for (const inc of combat.incoming) {
-            if (inc.outcome === 'hit') combatLoss += inc.damage ?? 1;
-            else if (inc.outcome === 'instakill') hasKill = true;
-            // Reflection kill: my shield finished the attacker → I gain coins + ATK.
-            if (inc.attackerDied && inc.coinsReceived != null) {
-              killCoins += inc.coinsReceived;
-              killAtk += 1;
-            }
-          }
-          if (combat.outgoing?.eliminated) {
-            killCoins += combat.outgoing.coinsReceived ?? 0;
-            killAtk += 1;
-          }
+    let combatLoss = 0;
+    let hasKill = false;
+    let incomingCount = 0;
+    // Gains from kills *I* made this round: their coins + the +1 ATK. Held
+    // back from the baseline and revealed when the kill lands (killgain bus
+    // event from LobbyScene), so the cards tick up in sync with the 3D fx.
+    let killCoins = 0;
+    let killAtk = 0;
+    if (stageCombat) {
+      const combat = combatFromEvents(gameEvents.events);
+      incomingCount = combat.incoming.length;
+      for (const inc of combat.incoming) {
+        if (inc.outcome === 'hit') combatLoss += inc.damage ?? 1;
+        else if (inc.outcome === 'instakill') hasKill = true;
+        // Reflection kill: my shield finished the attacker → I gain coins + ATK.
+        if (inc.attackerDied && inc.coinsReceived != null) {
+          killCoins += inc.coinsReceived;
+          killAtk += 1;
         }
+      }
+      if (combat.outgoing?.eliminated) {
+        killCoins += combat.outgoing.coinsReceived ?? 0;
+        killAtk += 1;
+      }
+    }
 
-        // Baseline = pre-well, pre-combat values. For HP this is finalHp +
-        // combatLoss − wellHp, which equals prevHp + income (so it bounces only
-        // if income raised it, then gets peeled down by the attacks). An
-        // instakill has no recoverable per-hit number, so fall back to the
-        // previous HP and let the kill drop it to 0.
-        const prev = prevFinalAtRoundRef.current;
-        const baseline: Resources = {
-          hp: hasKill ? prev?.hp ?? finalNow.hp : finalNow.hp + combatLoss - wellDelta.hp,
-          coins: finalNow.coins - wellDelta.coins - killCoins,
-          attackDamage: finalNow.attackDamage - wellDelta.attackDamage - killAtk,
-        };
-        setHpAnim('bounce');
-        setOverride(baseline);
-        combatActiveRef.current = stageCombat;
+    // Baseline = pre-well, pre-combat values. For HP this is finalHp +
+    // combatLoss − wellHp, which equals prevHp + income (so it bounces only
+    // if income raised it, then gets peeled down by the attacks). An
+    // instakill has no recoverable per-hit number, so fall back to the
+    // previous HP and let the kill drop it to 0.
+    const prev = prevFinalAtRoundRef.current;
+    const baseline: Resources = {
+      hp: hasKill ? prev?.hp ?? finalNow.hp : finalNow.hp + combatLoss - wellDelta.hp,
+      coins: finalNow.coins - wellDelta.coins - killCoins,
+      attackDamage: finalNow.attackDamage - wellDelta.attackDamage - killAtk,
+    };
+    setHpAnim('bounce');
+    setOverride(baseline);
+    combatActiveRef.current = stageCombat;
 
-        const wellActive = wellDelta.hp !== 0 || wellDelta.coins !== 0 || wellDelta.attackDamage !== 0;
-        if (wellActive) {
-          timers.push(
-            setTimeout(() => {
-              if (cancelled) return;
-              setHpAnim('bounce');
-              setOverride({
-                hp: baseline.hp + wellDelta.hp,
-                coins: baseline.coins + wellDelta.coins,
-                attackDamage: baseline.attackDamage + wellDelta.attackDamage,
-              });
-            }, WELL_REVEAL_DELAY_MS),
-          );
-        }
+    const wellActive = wellDelta.hp !== 0 || wellDelta.coins !== 0 || wellDelta.attackDamage !== 0;
+    if (wellActive) {
+      timers.push(
+        setTimeout(() => {
+          setHpAnim('bounce');
+          setOverride({
+            hp: baseline.hp + wellDelta.hp,
+            coins: baseline.coins + wellDelta.coins,
+            attackDamage: baseline.attackDamage + wellDelta.attackDamage,
+          });
+        }, WELL_REVEAL_DELAY_MS),
+      );
+    }
 
-        // Safety net: snap to the real state after the combat window, covering
-        // bus events missed while the 3D frame loop was paused (background tab).
-        const reconcileMs =
-          (wonWell ? WELL_REVEAL_DELAY_MS + 1000 : 0) +
-          incomingCount * PER_ATTACK_MAX_MS +
-          RECONCILE_BUFFER_MS;
-        timers.push(
-          setTimeout(() => {
-            if (cancelled) return;
-            combatActiveRef.current = false;
-            setOverride(null);
-          }, reconcileMs),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) {
-          combatActiveRef.current = false;
-          setOverride(null);
-        }
-      });
+    // Safety net: snap to the real state after the combat window, covering
+    // bus events missed while the 3D frame loop was paused (background tab).
+    const reconcileMs =
+      (wonWell ? WELL_REVEAL_DELAY_MS + 1000 : 0) +
+      incomingCount * PER_ATTACK_MAX_MS +
+      RECONCILE_BUFFER_MS;
+    timers.push(
+      setTimeout(() => {
+        combatActiveRef.current = false;
+        setOverride(null);
+      }, reconcileMs),
+    );
 
     return () => {
-      cancelled = true;
       combatActiveRef.current = false;
       timers.forEach(clearTimeout);
     };
-    // Re-run once per round. Other deps are stable for the round's lifetime.
+    // Depend on gameEvents' round number, not the object itself: a same-round
+    // gameEvents refetch (e.g. triggered by another consumer's denyTarget
+    // change) would otherwise re-run this effect, tearing down the timers
+    // scheduled below via the cleanup function without rescheduling them
+    // (the processedRoundRef guard above would just bail).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.round, stageCombat]);
+  }, [state?.round, stageCombat, gameEvents?.round]);
 
   // Apply per-attack combat feedback as the 3D strikes land (driven by the bus).
   useEffect(() => {
