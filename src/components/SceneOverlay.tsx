@@ -2,14 +2,9 @@
 
 import { useState, useEffect, useRef, ReactNode } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import {
-  getNextBossfightTime,
-  getPlayerMessages,
-  requestReplay,
-  getSocket,
-  getStoredToken,
-} from '@/lib/api';
+import { getNextBossfightTime, getPlayerMessages } from '@/lib/api';
+import { getSocket, subscribe } from '@/lib/socket';
+import { getStoredToken } from '@/lib/http';
 import type { LobbyState, Player } from '@/types/game';
 import { playResourceSound } from '@/lib/sounds';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
@@ -38,9 +33,6 @@ export type GameOverRenderOpts = {
   playerName: string;
   enemy: Player | undefined;
   btn: string;
-  replayVoted: boolean;
-  replayLoading: boolean;
-  onReplayToggle: (checked: boolean) => void;
 };
 
 export type PreGameRenderOpts = {
@@ -68,7 +60,6 @@ export type SceneOverlayConfig = {
   showPlayerList?: boolean;
   showDenyPicker?: boolean;
   showChat?: boolean;
-  enableNextLobbyRedirect?: boolean;
   enableRaidTimer?: boolean;
   /** When true the WELL/DEFEND/resource/nametag buttons are suppressed from the
    *  overlay — the 3D scene renders them anchored to the player model instead. */
@@ -108,7 +99,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     showPlayerList = false,
     showDenyPicker = false,
     showChat = false,
-    enableNextLobbyRedirect = false,
     enableRaidTimer = false,
     hidePlayerActionButtons = false,
     suppressEnemyPanel = false,
@@ -117,18 +107,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     renderExtra,
   } = config;
 
-  const router = useRouter();
   const [playerName, setPlayerName] = useState('');
   const [state, setState] = useState<LobbyState | null>(null);
-  const [messages, setMessages] = useState<string[][]>([]);
+  const [messages, setMessages] = useState<(string | string[])[]>([]);
   const [action, setAction] = useState('');
   const [resource, setResource] = useState('');
   const pendingResourceRef = useRef('');
   const [denyTarget, setDenyTarget] = useState('');
-  const [replayLoading, setReplayLoading] = useState(false);
-  const [readyToRedirect, setReadyToRedirect] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  const [nextRaidTime, setNextRaidTime] = useState<number | null>(null);
+  const [nextRaidTime, setNextRaidTime] = useState<string | null>(null);
   const [raidMins, setRaidMins] = useState<number | null>(null);
   const [raidSecs, setRaidSecs] = useState<number | null>(null);
   const [messagesExpanded, setMessagesExpanded] = useState(false);
@@ -153,7 +140,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   useEffect(() => {
     setState(null);
-    setReadyToRedirect(false);
     setMessages([]);
   }, [lobbyId]);
 
@@ -181,18 +167,22 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
     rejoin();
 
-    sock.on("state_update", (data) => {
+    // subscribe() (lib/socket.ts) validates each payload and returns a real
+    // unsubscribe closure -- this used to clean up via sock.off(event) with
+    // no handler argument, which wipes *every* listener for that event on
+    // the shared singleton socket, not just this component's own.
+    const unsubState = subscribe("state_update", (data) => {
       setState(data);
     });
 
-    sock.on("chat_message", (msg) => {
+    const unsubChat = subscribe("chat_message", (msg) => {
       setState((prev) =>
         prev ? { ...prev, chat: [...(prev.chat ?? []), msg] } : prev
       );
       if (!chatExpandedRef.current) setUnreadChat(true);
     });
 
-    sock.on("error", (data) => {
+    const unsubError = subscribe("error", (data) => {
       if (data.message !== "Name taken") {
         alert(data.message);
       }
@@ -200,10 +190,10 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
     return () => {
       sock.off("connect", rejoin);
-      sock.emit("leave_room", { lobby_id: lobbyId, name: playerName });
-      sock.off("state_update");
-      sock.off("chat_message");
-      sock.off("error");
+      sock.emit("leave_room", { lobby_id: lobbyId });
+      unsubState();
+      unsubChat();
+      unsubError();
     };
   }, [lobbyId, playerName]);
 
@@ -243,29 +233,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   }, [state?.round_end_time]);
 
   const gameOver = state?.gameover ?? false;
-
-  const allVotedForRematch =
-    typeof state?.replay_votes_needed === 'number' &&
-    state.replay_votes_needed > 0 &&
-    (state?.replay_votes_count ?? 0) >= state.replay_votes_needed;
-
-  // Show the "Creating new lobby…" animation for a couple of seconds once
-  // everyone has voted, before actually navigating to the new lobby.
-  useEffect(() => {
-    if (!allVotedForRematch) {
-      setReadyToRedirect(false);
-      return;
-    }
-    const timer = setTimeout(() => setReadyToRedirect(true), 2500);
-    return () => clearTimeout(timer);
-  }, [allVotedForRematch]);
-
-  useEffect(() => {
-    if (!enableNextLobbyRedirect) return;
-    if (gameOver && readyToRedirect && state?.next_lobby_id && state.next_lobby_id !== lobbyId) {
-      router.replace(`/lobby/${state.next_lobby_id}`);
-    }
-  }, [gameOver, readyToRedirect, state?.next_lobby_id, lobbyId, router, enableNextLobbyRedirect]);
 
   useEffect(() => {
     // Play the gain sound for the resource picked last round, then reset selection.
@@ -390,20 +357,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   const handleDeny = () => {
     getSocket().emit('submit_deny_target', { lobby_id: lobbyId, target: denyTarget });
-  };
-
-  const replayVoted = state?.replay_votes?.includes(playerName) ?? false;
-
-  const handleReplayToggle = async (checked: boolean) => {
-    setReplayLoading(true);
-    try {
-      const data = await requestReplay(lobbyId, playerName, checked);
-      setState((s) => (s ? { ...s, ...data } : s));
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to update rematch vote');
-    } finally {
-      setReplayLoading(false);
-    }
   };
 
   useEffect(() => {
@@ -666,7 +619,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             </div>
           )}
 
-          {gameOver && renderGameOver({ state, playerName, enemy, btn, replayVoted, replayLoading, onReplayToggle: handleReplayToggle })}
+          {gameOver && renderGameOver({ state, playerName, enemy, btn })}
         </div>
       </div>
 

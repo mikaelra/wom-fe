@@ -7,7 +7,9 @@ import dynamic from 'next/dynamic';
 import LobbyOverlay from '@/components/lobby/LobbyOverlay';
 import InGameGuide from '@/components/lobby/InGameGuide';
 import { BASE_FOV } from '@/lib/sceneConstants';
-import { getSocket, getStoredToken, joinLobby, checkName, logInUser, verifyLoginCode } from '@/lib/api';
+import { joinLobby, checkName, logInUser, verifyLoginCode } from '@/lib/api';
+import { getSocket, subscribe } from '@/lib/socket';
+import { getStoredToken } from '@/lib/http';
 import type { LobbyState } from '@/types/game';
 import type { GuideHighlights } from '@/lib/guideHighlights';
 
@@ -79,13 +81,9 @@ export default function LobbyPage() {
     if (!lobbyId || !playerNameInit || playerName || !typedName) return;
     const token = getStoredToken();
     if (!token) return;
-    const sock = getSocket();
-    const handleStateUpdate = (data: LobbyState) => setPreviewState(data);
-    sock.on('state_update', handleStateUpdate);
-    sock.emit('join_room', { lobby_id: lobbyId, token });
-    return () => {
-      sock.off('state_update', handleStateUpdate);
-    };
+    const unsubscribe = subscribe('state_update', (data) => setPreviewState(data));
+    getSocket().emit('join_room', { lobby_id: lobbyId, token });
+    return unsubscribe;
   }, [lobbyId, playerNameInit, playerName, typedName]);
 
   // Reset shared action at the start of each new round

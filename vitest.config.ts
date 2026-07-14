@@ -49,11 +49,17 @@ export default defineConfig({
       // it as later phases add tests; never lower it to make a PR pass.
       // Set with margin below the observed 32.54/32.18/33.72/31.95
       // (stable across repeated runs -- no background-timer jitter here).
+      //
+      // Raised in Phase 1 (typed, zod-validated server boundary): new
+      // src/lib/http.ts, socket.ts, schemas.ts (already inside the
+      // existing src/lib/**/*.ts include -- no glob change needed) plus
+      // their round-trip tests pushed the suite to ~38.23/34.4/36.66/38.09
+      // (stable across repeated runs).
       thresholds: {
-        statements: 30,
-        branches: 28,
-        functions: 32,
-        lines: 30,
+        statements: 36,
+        branches: 32,
+        functions: 34,
+        lines: 36,
       },
     },
   },
