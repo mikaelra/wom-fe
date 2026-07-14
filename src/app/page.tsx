@@ -15,10 +15,10 @@ import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
 import {
   getBossfightLobby,
-  getNextBossfightTime,
   checkName,
   logInUser,
 } from '@/lib/api';
+import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 
 // Dynamically import heavy 3D models
 const PlayerV1 = dynamic(() => import('../components/Playerv1'), { ssr: false });
@@ -188,9 +188,6 @@ export default function Page() {
   const [athensEmailError, setAthensEmailError] = useState('');
   const [athensSceneLoading, setAthensSceneLoading] = useState(false);
 
-  // Raid countdown shown over Athens on the globe
-  const [athensRaidSecondsUntil, setAthensRaidSecondsUntil] = useState<number | null>(null);
-
   const router = useRouter();
 
   useEffect(() => {
@@ -198,28 +195,8 @@ export default function Page() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Poll next raid time while on the world map
-  useEffect(() => {
-    if (selectedCity) return;
-    let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-    getNextBossfightTime()
-      .then((json) => {
-        if (cancelled) return;
-        const nextRT = new Date(json.start_time);
-        intervalId = setInterval(() => {
-          const diff = Math.floor((nextRT.getTime() - Date.now()) / 1000);
-          setAthensRaidSecondsUntil(diff <= 0 ? 0 : diff);
-        }, 1000);
-      })
-      .catch(() => {
-        if (!cancelled) setAthensRaidSecondsUntil(null);
-      });
-    return () => {
-      cancelled = true;
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [selectedCity]);
+  // Raid countdown shown over Athens on the globe; polls while on the world map
+  const { secondsUntil: athensRaidSecondsUntil } = useBossfightCountdown(!selectedCity);
 
   const enterAthensRaid = useCallback((playerName: string) => {
     setAthensSceneLoading(true);

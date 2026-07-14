@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef, ReactNode } from 'react';
 import Link from 'next/link';
-import { getNextBossfightTime, getPlayerMessages } from '@/lib/api';
+import { getPlayerMessages } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import { useLobbyGame } from '@/lib/useLobbyGame';
+import { useRoundTimer } from '@/lib/useRoundTimer';
+import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import type { LobbyState, Player } from '@/types/game';
 import { playResourceSound } from '@/lib/sounds';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
@@ -114,10 +116,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [resource, setResource] = useState('');
   const pendingResourceRef = useRef('');
   const [denyTarget, setDenyTarget] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  const [nextRaidTime, setNextRaidTime] = useState<string | null>(null);
-  const [raidMins, setRaidMins] = useState<number | null>(null);
-  const [raidSecs, setRaidSecs] = useState<number | null>(null);
   const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [messagesOverflow, setMessagesOverflow] = useState(false);
   const [messagesHidden, setMessagesHidden] = useState(false);
@@ -171,19 +169,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const gameStarted = round > 0;
   const gameOver = phase === 'gameover';
   const isChoosingDeny = showDenyPicker && isPendingDenyChooser;
-
-  useEffect(() => {
-    if (!state?.round_end_time) {
-      setSecondsLeft(null);
-      return;
-    }
-    const endTime = new Date(state.round_end_time).getTime() / 1000;
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.floor(endTime - Date.now() / 1000));
-      setSecondsLeft(remaining);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [state?.round_end_time]);
+  const secondsLeft = useRoundTimer(state?.round_end_time);
 
   useEffect(() => {
     // Play the gain sound for the resource picked last round, then reset selection.
@@ -217,23 +203,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   // the player's real values for every other case.
   const stagedResources = useStagedResources(state, playerName, lobbyId, { stageCombat: stageCombatDamage });
 
-  useEffect(() => {
-    if (!enableRaidTimer || !isAlive) return;
-    getNextBossfightTime()
-      .then((json) => setNextRaidTime(json.start_time))
-      .catch(() => setNextRaidTime(null));
-  }, [isAlive, enableRaidTimer]);
-
-  useEffect(() => {
-    if (!enableRaidTimer || nextRaidTime == null) return;
-    const nextRT = new Date(nextRaidTime);
-    const interval = setInterval(() => {
-      const diff = Math.floor((nextRT.getTime() - Date.now()) / 1000);
-      setRaidSecs(Math.floor(diff % 60));
-      setRaidMins(Math.floor(diff / 60));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [nextRaidTime, enableRaidTimer]);
+  const { raidMins, raidSecs } = useBossfightCountdown(enableRaidTimer && isAlive);
 
   // Detect if messages overflow the collapsed container. We compare the
   // list's natural height against the fixed collapsed limit (the max-h-[4.5rem]

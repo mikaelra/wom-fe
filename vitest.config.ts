@@ -64,11 +64,14 @@ export default defineConfig({
       // SceneOverlay/LobbyScene/LobbyOverlay): new src/lib/useLobbyGame.ts
       // (a pure derivation hook, no mocking needed for its tests) pushed
       // the suite to ~45.85/44.7/46.72/46.13 (stable across repeated runs).
+      // Raised in Phase 2 step 3a (useRoundTimer + useBossfightCountdown
+      // extracted from SceneOverlay.tsx/page.tsx/HomeOverlay.tsx): pushed
+      // the suite to ~49.04/47.16/51.28/49.21 (stable across repeated runs).
       thresholds: {
-        statements: 44,
-        branches: 42,
-        functions: 44,
-        lines: 44,
+        statements: 48,
+        branches: 46,
+        functions: 50,
+        lines: 48,
       },
     },
   },
