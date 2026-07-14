@@ -36,12 +36,13 @@ export default defineConfig({
       // Three.js scene components are never meant to be unit-tested (see
       // docs/CODEBASE_HARDENING_PLAN.md's Phase 3 test strategy) -- a
       // whole-tree ratchet would just measure "how much of the app is
-      // 3D rendering," not real regression risk. Expand this list as
-      // later phases add real tests for a new layer (src/hooks/ in
-      // Phase 2, specific RTL-tested DOM components in Phase 3). Since
-      // Vitest 4 removed the old `coverage.all` flag, listing `include`
-      // is sufficient on its own to make untested matching files report
-      // as 0% instead of being silently omitted.
+      // 3D rendering," not real regression risk. Hooks extracted in Phase
+      // 2 live flat in src/lib/ (use*.ts, matching this repo's existing
+      // convention -- not a separate src/hooks/ dir), so they're already
+      // inside this glob. Expand it as Phase 3 adds RTL-tested DOM
+      // components. Since Vitest 4 removed the old `coverage.all` flag,
+      // listing `include` is sufficient on its own to make untested
+      // matching files report as 0% instead of being silently omitted.
       include: ['src/lib/**/*.ts'],
       reporter: ['text', 'json-summary'],
       // Ratchet threshold (Phase 0 of docs/CODEBASE_HARDENING_PLAN.md):
@@ -55,11 +56,15 @@ export default defineConfig({
       // existing src/lib/**/*.ts include -- no glob change needed) plus
       // their round-trip tests pushed the suite to ~38.23/34.4/36.66/38.09
       // (stable across repeated runs).
+      // Raised in Phase 2 step 1 (useLobbyConnection extracted from
+      // SceneOverlay.tsx): new src/lib/useLobbyConnection.ts plus its
+      // hook tests (renderHook + a mocked @/lib/socket) pushed the suite
+      // to ~43.89/38.37/44.66/44.27 (stable across repeated runs).
       thresholds: {
-        statements: 36,
-        branches: 32,
-        functions: 34,
-        lines: 36,
+        statements: 42,
+        branches: 36,
+        functions: 42,
+        lines: 42,
       },
     },
   },

@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, ReactNode } from 'react';
 import Link from 'next/link';
 import { getNextBossfightTime, getPlayerMessages } from '@/lib/api';
-import { getSocket, subscribe } from '@/lib/socket';
-import { getStoredToken } from '@/lib/http';
+import { getSocket } from '@/lib/socket';
+import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import type { LobbyState, Player } from '@/types/game';
 import { playResourceSound } from '@/lib/sounds';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
@@ -108,7 +108,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   } = config;
 
   const [playerName, setPlayerName] = useState('');
-  const [state, setState] = useState<LobbyState | null>(null);
   const [messages, setMessages] = useState<(string | string[])[]>([]);
   const [action, setAction] = useState('');
   const [resource, setResource] = useState('');
@@ -139,85 +138,25 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   }, []);
 
   useEffect(() => {
-    setState(null);
     setMessages([]);
   }, [lobbyId]);
 
-  useEffect(() => {
-    if (!lobbyId || !playerName) return;
-    const sock = getSocket();
-    const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
-
-    // join_room is what actually subscribes this socket to the lobby's
-    // broadcast room, so it must fire on every (re)connect regardless of
-    // whether join_lobby succeeds or reports "Name taken" (the common case
-    // for anyone who already joined earlier). Gating it behind a successful
-    // "joined_lobby" response left reconnecting clients silently stuck
-    // outside the room with no further state_update broadcasts.
-    //
-    // join_room now authenticates via the join-issued session token instead
-    // of a client-supplied name (backend Phase 1a) -- the server resolves
-    // the actor's name from the token itself.
-    const rejoin = () => {
-      sock.emit("join_lobby", { lobby_id: lobbyId, name: playerName, email });
-      sock.emit("join_room", { lobby_id: lobbyId, token: getStoredToken() });
-    };
-
-    sock.on("connect", rejoin);
-
-    rejoin();
-
-    // subscribe() (lib/socket.ts) validates each payload and returns a real
-    // unsubscribe closure -- this used to clean up via sock.off(event) with
-    // no handler argument, which wipes *every* listener for that event on
-    // the shared singleton socket, not just this component's own.
-    const unsubState = subscribe("state_update", (data) => {
-      setState(data);
-    });
-
-    const unsubChat = subscribe("chat_message", (msg) => {
-      setState((prev) =>
-        prev ? { ...prev, chat: [...(prev.chat ?? []), msg] } : prev
-      );
+  const { state } = useLobbyConnection(lobbyId, playerName, {
+    onChatMessage: () => {
       if (!chatExpandedRef.current) setUnreadChat(true);
-    });
-
-    const unsubError = subscribe("error", (data) => {
-      if (data.message !== "Name taken") {
-        alert(data.message);
+    },
+    onError: (message) => {
+      if (message !== 'Name taken') {
+        alert(message);
       }
-    });
-
-    return () => {
-      sock.off("connect", rejoin);
-      sock.emit("leave_room", { lobby_id: lobbyId });
-      unsubState();
-      unsubChat();
-      unsubError();
-    };
-  }, [lobbyId, playerName]);
+    },
+  });
 
   useEffect(() => {
     onStateChange?.(state);
   }, [state, onStateChange]);
 
-  // While waiting in the pre-game lobby, and again once the game is over and
-  // players are deciding on a rematch, periodically re-emit join_room so the
-  // server sends back the current state. This is a low-frequency polling
-  // fallback for whenever the live state_update broadcast doesn't reach this
-  // socket (e.g. a dropped/zombied connection) — both of these are idle,
-  // low-traffic windows where a silently missed broadcast would otherwise
-  // leave the UI stuck indefinitely with no other event to self-correct it.
   const gameStarted = (state?.round ?? 0) > 0;
-  const awaitingRematch = state?.gameover ?? false;
-  useEffect(() => {
-    if (!lobbyId || !playerName) return;
-    if (gameStarted && !awaitingRematch) return;
-    const interval = setInterval(() => {
-      getSocket().emit("join_room", { lobby_id: lobbyId, token: getStoredToken() });
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [lobbyId, playerName, gameStarted, awaitingRematch]);
 
   useEffect(() => {
     if (!state?.round_end_time) {
