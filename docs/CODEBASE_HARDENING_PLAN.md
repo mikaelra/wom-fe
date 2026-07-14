@@ -187,11 +187,37 @@ Lands as several PRs, one hook/component each (unlike Phase 0/1).
      resurrecting an orphaned, never-merged commit attempting almost the
      same hook — it predated the session-token auth model and carried the
      identical bug uncorrected.)
-2. **`useLobbyGame(state, playerName)`** — a reducer (useReducer; reach for
-   zustand only if prop-drilling still hurts afterwards) that derives the
-   client phase union: current round, my player, am-I-ready, pending deny,
-   winner. All the `lobbyState.players.find(...)` logic scattered through
-   `LobbyScene`/`LobbyOverlay`/`page.tsx` moves here.
+2. ✅ **done** — `src/lib/useLobbyGame.ts`: derives the client phase union
+   (`'loading' | 'lobby' | 'playing' | 'gameover'` — no distinct
+   `roundResult` phase exists in the current UI, so none was invented)
+   plus `myPlayer`/`isAdmin`/`isReady`/`enemy`/`winner`/`wellWinner`/deny
+   state/`canAct` from a `LobbyState` snapshot. Built as a **plain
+   function of its arguments, not a `useReducer`** as the plan doc
+   suggested — every value here is a pure, stateless derivation from
+   `(state, playerName)`, with no action/dispatch logic anywhere in
+   scope; a reducer with nothing to reduce would be manufactured
+   structure. Research found real duplication beyond the plan's own
+   description: **"find my player" was independently re-implemented 4
+   times** across `SceneOverlay.tsx`, `LobbyScene.tsx` (×2), and
+   `LobbyOverlay.tsx`; **the exact same 5-condition "can I act right
+   now" boolean existed twice under different names**
+   (`SceneOverlay.tsx`'s `showActions` and `LobbyScene.tsx`'s
+   `showAttackButtons` were the identical formula, reordered) — unified
+   under `canAct`. Wired into all three components, each passing its own
+   already-held `state` reference (the hook takes `state` as a plain
+   argument rather than owning a subscription, exactly so it can be
+   called once per component without needing them to share one `state`
+   instance).
+   - Discovered, deliberately deferred follow-ups (not fixed here): three-plus
+     separate copies of `state` already float around the lobby page
+     (`page.tsx`'s `lobbyState`/`previewState`, `LobbyOverlay.tsx`'s
+     `localState`, `SceneOverlay`'s internal `useLobbyConnection` state) —
+     unifying that is a materially bigger architectural change than this
+     step asked for. `src/lib/useStagedResources.ts` independently
+     re-derives `myPlayer` too, sitting right next to the fix in
+     `SceneOverlay.tsx` — not touched since it's a much larger hook with
+     its own animation-timing state, and changing its signature would
+     touch its call sites too.
 3. **`useRoundTimer(roundEndTime)`**, **`useGameEvents(...)`** (the
    fetch-messages-per-round choreography), each pure enough to unit-test
    with fake timers.
@@ -257,8 +283,8 @@ Coordinated with backend Phase 1a/1b (see that plan):
 1. ✅ Phase 0 (CI: typecheck + coverage ratchet) — half a day.
 2. ✅ Phase 1 (zod boundary + typed socket layer) — the anti-anxiety core.
 3. **In progress** — Phase 2 hooks extraction — several PRs, one
-   hook/component each. Step 1 (`useLobbyConnection`) done; **next up**
-   is `useLobbyGame`.
+   hook/component each. Steps 1 (`useLobbyConnection`) and 2
+   (`useLobbyGame`) done; **next up** is `useRoundTimer`/`useGameEvents`.
 4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3

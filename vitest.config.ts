@@ -60,11 +60,15 @@ export default defineConfig({
       // SceneOverlay.tsx): new src/lib/useLobbyConnection.ts plus its
       // hook tests (renderHook + a mocked @/lib/socket) pushed the suite
       // to ~43.89/38.37/44.66/44.27 (stable across repeated runs).
+      // Raised in Phase 2 step 2 (useLobbyGame extracted from
+      // SceneOverlay/LobbyScene/LobbyOverlay): new src/lib/useLobbyGame.ts
+      // (a pure derivation hook, no mocking needed for its tests) pushed
+      // the suite to ~45.85/44.7/46.72/46.13 (stable across repeated runs).
       thresholds: {
-        statements: 42,
-        branches: 36,
-        functions: 42,
-        lines: 42,
+        statements: 44,
+        branches: 42,
+        functions: 44,
+        lines: 44,
       },
     },
   },

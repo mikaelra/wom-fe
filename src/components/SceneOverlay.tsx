@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getNextBossfightTime, getPlayerMessages } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
+import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState, Player } from '@/types/game';
 import { playResourceSound } from '@/lib/sounds';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
@@ -156,7 +157,20 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     onStateChange?.(state);
   }, [state, onStateChange]);
 
-  const gameStarted = (state?.round ?? 0) > 0;
+  const {
+    round,
+    myPlayer,
+    isAlive,
+    isAdmin,
+    enemy,
+    isPendingDenyChooser,
+    eligibleDenyTargets,
+    canAct,
+    phase,
+  } = useLobbyGame(state, playerName);
+  const gameStarted = round > 0;
+  const gameOver = phase === 'gameover';
+  const isChoosingDeny = showDenyPicker && isPendingDenyChooser;
 
   useEffect(() => {
     if (!state?.round_end_time) {
@@ -170,8 +184,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     }, 1000);
     return () => clearInterval(interval);
   }, [state?.round_end_time]);
-
-  const gameOver = state?.gameover ?? false;
 
   useEffect(() => {
     // Play the gain sound for the resource picked last round, then reset selection.
@@ -199,9 +211,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       })
       .catch(() => {});
   }, [state?.round, lobbyId, playerName, state?.deny_target]);
-
-  const myPlayer = state?.players.find((p) => p.name === playerName);
-  const isAlive = (myPlayer?.hp ?? 0) > 0;
 
   // Staged display values for the resource cards: holds back a Well reward at
   // round start and ticks it up when the reward lands (Phase 2). Falls back to
@@ -249,17 +258,10 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     return () => ro.disconnect();
   }, [messages, messagesHidden]);
 
-  const isAdmin = myPlayer?.admin ?? false;
-  const enemy = state?.players.find((p) => p.boss);
-  const isDenied = playerName === state?.deny_target;
-  const isChoosingDeny = showDenyPicker && state?.pending_deny === playerName;
-  const eligibleTargets = state?.players.filter((p) => p.name !== playerName && p.hp > 0) ?? [];
-  const showActions = !gameOver && !isDenied && isAlive && !myPlayer?.spectator && gameStarted;
-
   const effectiveAction = externalAction !== undefined ? externalAction : action;
 
-  const needsAction   = effectiveAction === '' && showActions;
-  const needsResource = resource === '' && showActions;
+  const needsAction   = effectiveAction === '' && canAct;
+  const needsResource = resource === '' && canAct;
   const isGoldWarn    = secondsLeft !== null && secondsLeft <= 10 && secondsLeft > 5;
   const isRedWarn     = secondsLeft !== null && secondsLeft <= 5;
   const actionCue   = needsAction   ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '') : '';
@@ -350,9 +352,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabelClass="text-red-400/70"
           anim={stagedResources?.hpAnim ?? 'bounce'}
           blockPulse={stagedResources?.hpBlockPulse ?? 0}
-          disabled={!showActions}
+          disabled={!canAct}
           onClick={() => handleResource('gain_hp')}
-          className={`${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+          className={`${!canAct ? 'opacity-60 cursor-default' : 'cursor-pointer'}
             ${resourceCue} ${guideGlowClass(guideHighlight?.hp)}
             ${resource === 'gain_hp'
               ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
@@ -365,9 +367,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabel="💰 Get"
           valueClass="text-yellow-400"
           sublabelClass="text-yellow-400/70"
-          disabled={!showActions}
+          disabled={!canAct}
           onClick={() => handleResource('gain_coin')}
-          className={`${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+          className={`${!canAct ? 'opacity-60 cursor-default' : 'cursor-pointer'}
             ${resourceCue} ${guideGlowClass(guideHighlight?.coins)}
             ${resource === 'gain_coin'
               ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
@@ -380,10 +382,10 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabel="⚔ Buy"
           valueClass="text-blue-400"
           sublabelClass="text-blue-400/70"
-          disabled={!showActions || cannotAffordAtk}
+          disabled={!canAct || cannotAffordAtk}
           onClick={() => handleResource('gain_attack')}
           className={`relative overflow-hidden
-            ${!showActions || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+            ${!canAct || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
             ${cannotAffordAtk ? '' : resourceCue} ${guideGlowClass(guideHighlight?.atk)}
             ${resource === 'gain_attack'
               ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
@@ -598,7 +600,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
               />
             </div>
             <p className={`${theme.enemyHpTextClass} text-xs mt-1`}>{Math.max(0, enemy!.hp)} / {enemyMaxHp} HP</p>
-            {showActions && (
+            {canAct && (
               <button
                 type="button"
                 onClick={() => handleAction('attack')}
@@ -616,7 +618,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       )}
 
       {/* WELL button (hidden when 3D scene owns player action UI) */}
-      {!hidePlayerActionButtons && showActions && (
+      {!hidePlayerActionButtons && canAct && (
         <div
           className="absolute pointer-events-auto"
           style={{ top: '54%', left: '50%', transform: 'translate(-50%, -50%)' }}
@@ -653,7 +655,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       )}
 
       {/* DEFEND button (hidden when 3D scene owns player action UI) */}
-      {!hidePlayerActionButtons && showActions && (
+      {!hidePlayerActionButtons && canAct && (
         <div
           className="absolute pointer-events-auto"
           style={{ top: '65%', left: '50%', transform: 'translateX(-50%)' }}
@@ -706,7 +708,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                 className="border border-gray-600 rounded-lg p-2 bg-black/80 text-white text-sm flex-1 min-w-[120px]"
               >
                 <option value="">Select player</option>
-                {eligibleTargets.map((p, i) => (
+                {eligibleDenyTargets.map((p, i) => (
                   <option key={`${p.name}-${i}`} value={p.name}>{p.name}</option>
                 ))}
               </select>

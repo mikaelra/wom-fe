@@ -10,6 +10,7 @@ import SceneOverlay, {
 } from '@/components/SceneOverlay';
 import type { GuideHighlights } from '@/lib/guideHighlights';
 import BossSignupNudge from '@/components/BossSignupNudge';
+import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
 
 type LobbyOverlayProps = {
@@ -260,7 +261,7 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
     onStateChange?.(s);
   };
 
-  const myPlayer = localState?.players.find((p) => p.name === playerName);
+  const { myPlayer } = useLobbyGame(localState, playerName);
   const showNudge =
     !nudgeDismissed &&
     (localState?.gameover ?? false) &&

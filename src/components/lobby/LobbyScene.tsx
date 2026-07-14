@@ -31,6 +31,7 @@ import {
   getResponsiveFov,
 } from '@/lib/sceneConstants';
 import { usePanOffset } from '@/lib/usePanOffset';
+import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
 
 
@@ -725,10 +726,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const allPlayers = useMemo(() => state?.players ?? [], [state?.players]);
   const lostSouls = useMemo(() => allPlayers.filter((p) => p.lost_soul), [allPlayers]);
 
-  const myPlayer = state?.players.find((p) => p.name === playerName);
-  const gameOver = state?.gameover ?? false;
+  const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase } = useLobbyGame(state, playerName);
+  const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
-  const isDenied = playerName === state?.deny_target;
 
   // Compute skins for all frog players deterministically from their names so
   // every client agrees without any server round-trip.
@@ -761,7 +761,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       return a.name.localeCompare(b.name);
     })
     .slice(0, MAX_PLAYERS), [allPlayers, playerName, isBossFight]);
-  const winner = state?.winner ?? state?.wellwinner ?? null;
+  const winner = gameWinner ?? wellWinner;
 
   // Compute seat positions. In boss fights the boss is pinned to the far side and players
   // spread across the near half, so adding a player never moves Hades.
@@ -797,7 +797,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return slot.position;
   }, [gameOver, isBossFight, winner, players, PLAYER_POSITIONS]);
   // wellwinner = who last won The Well; crown shows during gameplay (not on game-over screen)
-  const wellCrownHolder = (!gameOver && state?.wellwinner) ? state.wellwinner : null;
+  const wellCrownHolder = (!gameOver && wellWinner) ? wellWinner : null;
 
   // Well crown hovers above the current well winner for everyone to see
   const wellCrownPosition = useMemo((): [number, number, number] | null => {
@@ -806,11 +806,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     if (idx < 0) return null;
     return PLAYER_POSITIONS[idx]?.position ?? null;
   }, [wellCrownHolder, players, PLAYER_POSITIONS]);
-
-
-  const isAlive = (myPlayer?.hp ?? 0) > 0;
-  const gameStarted = (state?.round ?? 0) > 0;
-  const showAttackButtons = gameStarted && !gameOver && !isDenied && isAlive && !myPlayer?.spectator;
 
   const actionCue  = !currentAction && showAttackButtons
     ? (warnLevel === 'red' ? 'warn-blink-red' : warnLevel === 'gold' ? 'warn-blink-gold' : '')
