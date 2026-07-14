@@ -78,7 +78,10 @@ tested. The plan is mostly "move logic out of components into that layer."
      it's dead code, gated behind a `showFloatingMessages` flag that's
      hardcoded `false` everywhere and never flipped on, superseded by the
      newer animation system. Swapped rather than testing a code path
-     nothing exercises.)
+     nothing exercises, and removed the dead component plus the
+     `showFloatingMessages`/`floatingMessages`/`onDoneFloating` plumbing
+     in `SceneOverlay.tsx`/`LobbyOverlay.tsx` in the same PR, matching
+     the style of PR #163's earlier dead-code cleanup.)
   4. `eslint.config.mjs`: `react-hooks/exhaustive-deps` was `warn` by
      default via `eslint-config-next`; flipped to `error`. Verified zero
      new violations in `src/` before flipping.

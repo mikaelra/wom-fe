@@ -11,7 +11,6 @@ import {
   getStoredToken,
 } from '@/lib/api';
 import type { LobbyState, Player } from '@/types/game';
-import FloatingMessage from '@/components/lobby/FloatingMessage';
 import { playResourceSound } from '@/lib/sounds';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import ResourceCard from '@/components/ResourceCard';
@@ -56,8 +55,6 @@ export type PreGameRenderOpts = {
   onStartGame: () => void;
   onAddDummy: () => void;
   onKick: (name: string) => void;
-  floatingMessages: string[];
-  onDoneFloating: (idx: number) => void;
 };
 
 export type SceneOverlayConfig = {
@@ -70,7 +67,6 @@ export type SceneOverlayConfig = {
   showEnemyAlways?: boolean;
   showPlayerList?: boolean;
   showDenyPicker?: boolean;
-  showFloatingMessages?: boolean;
   showChat?: boolean;
   enableNextLobbyRedirect?: boolean;
   enableRaidTimer?: boolean;
@@ -111,7 +107,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     showEnemyAlways = false,
     showPlayerList = false,
     showDenyPicker = false,
-    showFloatingMessages = false,
     showChat = false,
     enableNextLobbyRedirect = false,
     enableRaidTimer = false,
@@ -133,7 +128,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [replayLoading, setReplayLoading] = useState(false);
   const [readyToRedirect, setReadyToRedirect] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  const [floatingMessages, setFloatingMessages] = useState<string[]>([]);
   const [nextRaidTime, setNextRaidTime] = useState<number | null>(null);
   const [raidMins, setRaidMins] = useState<number | null>(null);
   const [raidSecs, setRaidSecs] = useState<number | null>(null);
@@ -160,7 +154,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   useEffect(() => {
     setState(null);
     setReadyToRedirect(false);
-    setFloatingMessages([]);
     setMessages([]);
   }, [lobbyId]);
 
@@ -294,18 +287,12 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         const newFlat = newMsgs.flat().join('\n');
         if (newFlat !== lastMessagesFlat.current) {
           lastMessagesFlat.current = newFlat;
-          if (showFloatingMessages) {
-            setFloatingMessages((prev) => [...prev, newFlat]);
-            setMessagesExpanded(false);
-            setTimeout(() => setMessages(newMsgs), 2500);
-          } else {
-            setMessages(newMsgs);
-            setMessagesExpanded(false);
-          }
+          setMessages(newMsgs);
+          setMessagesExpanded(false);
         }
       })
       .catch(() => {});
-  }, [state?.round, lobbyId, playerName, state?.deny_target, showFloatingMessages]);
+  }, [state?.round, lobbyId, playerName, state?.deny_target]);
 
   const myPlayer = state?.players.find((p) => p.name === playerName);
   const isAlive = (myPlayer?.hp ?? 0) > 0;
@@ -546,8 +533,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           onStartGame: handleStartGame,
           onAddDummy: handleAddDummy,
           onKick: handleKick,
-          floatingMessages,
-          onDoneFloating: (idx) => setFloatingMessages((prev) => prev.filter((_, i) => i !== idx)),
         })}
         {showChat && (
           <div
@@ -903,15 +888,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           </div>
         </div>
       )}
-
-      {/* Floating messages (optional) */}
-      {showFloatingMessages && floatingMessages.map((msg, idx) => (
-        <FloatingMessage
-          key={idx}
-          message={msg}
-          onDone={() => setFloatingMessages((prev) => prev.filter((_, i) => i !== idx))}
-        />
-      ))}
     </div>
   );
 }

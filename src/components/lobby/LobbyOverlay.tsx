@@ -8,7 +8,6 @@ import SceneOverlay, {
   type GameOverRenderOpts,
   type PreGameRenderOpts,
 } from '@/components/SceneOverlay';
-import FloatingMessage from './FloatingMessage';
 import type { GuideHighlights } from '@/lib/guideHighlights';
 import BossSignupNudge from '@/components/BossSignupNudge';
 import type { LobbyState } from '@/types/game';
@@ -167,8 +166,6 @@ function renderPreGame({
   onStartGame,
   onAddDummy,
   onKick,
-  floatingMessages,
-  onDoneFloating,
 }: PreGameRenderOpts) {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-8">
@@ -245,14 +242,6 @@ function renderPreGame({
           <div className="mb-4">
             <InviteSection lobbyId={lobbyId} />
           </div>
-
-          {floatingMessages.map((msg, idx) => (
-            <FloatingMessage
-              key={idx}
-              message={msg}
-              onDone={() => onDoneFloating(idx)}
-            />
-          ))}
         </div>
       </div>
     </div>
@@ -281,7 +270,6 @@ const lobbyConfig: SceneOverlayConfig = {
   showEnemyAlways: false,
   showPlayerList: true,
   showDenyPicker: true,
-  showFloatingMessages: false,
   showChat: true,
   enableNextLobbyRedirect: true,
   enableRaidTimer: true,
