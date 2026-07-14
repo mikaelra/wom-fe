@@ -51,16 +51,40 @@ tested. The plan is mostly "move logic out of components into that layer."
 
 ## Phase 0 — CI and tooling (1 small PR)
 
-1. Add a `typecheck` job to `.github/workflows/deploy.yml`: `npx tsc --noEmit`
-   on every PR (strict mode is already on — enforce it).
-2. Add vitest coverage (`--coverage`) with a ratchet threshold set to the
-   current number; raise it as phases land, never lower.
-3. Add `environment: 'jsdom'` project to `vitest.config.ts` (keep the fast
-   node project for lib tests) + React Testing Library, so component tests
-   are possible in Phase 3.
-4. Optional: `eslint-plugin-react-hooks` is included via next config —
-   verify `exhaustive-deps` is error, not warn; stale-closure bugs in the
-   socket effects are this codebase's most likely runtime failure.
+- ✅ **done** — All 4 items landed together:
+  1. `typecheck` job added to `.github/workflows/deploy.yml`
+     (`npx tsc --noEmit`), gating `build-and-deploy` alongside `lint`/`test`.
+  2. `vitest.config.ts`'s `coverage` block ratchets `src/lib/**/*.ts`
+     (the tested "logic" layer — not the whole `src/` tree, since
+     components/pages are still god-objects pre-Phase-2 and R3F/Three.js
+     scene components are never meant to be unit-tested, per this doc's
+     own Phase 3 test strategy below; a whole-tree ratchet would just
+     measure "how much of the app is 3D rendering"). Threshold set with
+     margin below the observed 31.78%/30%/33.69%/31.37%
+     (statements/branches/functions/lines), stable across repeated runs.
+     Raise it — and widen `include` — as later phases add real tests for
+     a new layer (`src/hooks/` in Phase 2, specific RTL-tested DOM
+     components in Phase 3); never lower it to make a PR pass.
+  3. `vitest.config.ts` restructured into `test.projects`: the existing
+     fast `node` project (`src/**/*.test.ts`, unchanged) plus a new
+     `jsdom` project (`src/**/*.test.tsx`) with `@testing-library/react`
+     + `@testing-library/jest-dom` wired via `vitest.setup.ts`. Proven
+     end-to-end with a real first test,
+     `src/components/__tests__/ResourceCard.test.tsx` (not a throwaway
+     smoke test) — a small, pure-DOM component (no R3F) that's genuinely
+     live: it's the HP/Coins/ATK resource button rendered unconditionally
+     for every non-spectator player during gameplay. (An earlier draft
+     used `FloatingMessage.tsx` instead — caught during PR review that
+     it's dead code, gated behind a `showFloatingMessages` flag that's
+     hardcoded `false` everywhere and never flipped on, superseded by the
+     newer animation system. Swapped rather than testing a code path
+     nothing exercises, and removed the dead component plus the
+     `showFloatingMessages`/`floatingMessages`/`onDoneFloating` plumbing
+     in `SceneOverlay.tsx`/`LobbyOverlay.tsx` in the same PR, matching
+     the style of PR #163's earlier dead-code cleanup.)
+  4. `eslint.config.mjs`: `react-hooks/exhaustive-deps` was `warn` by
+     default via `eslint-config-next`; flipped to `error`. Verified zero
+     new violations in `src/` before flipping.
 
 ## Phase 1 — Typed, validated boundary (the highest-leverage change)
 
@@ -160,11 +184,15 @@ Coordinated with backend Phase 1a/1b (see that plan):
 
 ## Suggested order of work
 
-1. Phase 0 (CI: typecheck + coverage ratchet) — half a day.
-2. Phase 1 (zod boundary + typed socket layer) — the anti-anxiety core.
+1. ✅ Phase 0 (CI: typecheck + coverage ratchet) — half a day.
+2. **Next up** — Phase 1 (zod boundary + typed socket layer) — the
+   anti-anxiety core.
 3. Phase 2 hooks extraction — several PRs, one hook/component each.
 4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
-5. Phase 4 when the backend token work ships.
+5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
+   with the backend token work shipping (PRs #164/#165). Item 3
+   (treat `localStorage` as convenience-only) is effectively already true
+   as a consequence, but not separately audited yet.
 
 Definition of done for any new feature after this: server data enters
 through a zod schema, game logic lands in `lib/` or a hook with a vitest
