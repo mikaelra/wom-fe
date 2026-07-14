@@ -67,11 +67,15 @@ export default defineConfig({
       // Raised in Phase 2 step 3a (useRoundTimer + useBossfightCountdown
       // extracted from SceneOverlay.tsx/page.tsx/HomeOverlay.tsx): pushed
       // the suite to ~49.04/47.16/51.28/49.21 (stable across repeated runs).
+      // Raised in Phase 2 step 3b (useGameEvents extracted from
+      // SceneOverlay.tsx/useStagedResources.ts/LobbyScene.tsx, centralizing
+      // the former triplicate getPlayerMessages fetch): pushed the suite to
+      // ~50.6/48.6/53.78/50.68 (stable across repeated runs).
       thresholds: {
-        statements: 48,
-        branches: 46,
-        functions: 50,
-        lines: 48,
+        statements: 49,
+        branches: 47,
+        functions: 52,
+        lines: 49,
       },
     },
   },

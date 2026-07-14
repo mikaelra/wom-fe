@@ -15,8 +15,8 @@ import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight, type WellGlowColor } from '@/components/lobby/WellGlowEffect';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
-import { getPlayerMessages } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
+import { useGameEvents } from '@/lib/useGameEvents';
 import { emitHpFx, type HpFxEvent } from '@/lib/resourceFx';
 import { combatFromEvents, wellRewardFromEvents, glowForReward, type WellRewardComponent } from '@/lib/gameEvents';
 import { assignSkins, skinUrl } from '@/lib/frogSkins';
@@ -704,6 +704,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [killBanners, setKillBanners] = useState<KillBanner[]>([]);
   // Timeout IDs for staggered incoming defended strikes (cleared each new round)
   const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Last round this component has already scheduled combat/well-reward
+  // animations for, from useGameEvents' shared fetch (see the effect below).
+  const processedEventsRoundRef = useRef(0);
   // Mirrors the local player's chosen action. The parent clears currentAction on
   // the new round, but child effects run before the parent's, so when the
   // round-transition effect fires this still holds the resolved round's choice.
@@ -729,6 +732,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase } = useLobbyGame(state, playerName);
   const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
+  const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
 
   // Compute skins for all frog players deterministically from their names so
   // every client agrees without any server round-trip.
@@ -811,7 +815,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     ? (warnLevel === 'red' ? 'warn-blink-red' : warnLevel === 'gold' ? 'warn-blink-gold' : '')
     : '';
 
-  // Detect round transitions and spawn 3D animation events based on personal messages.
+  // Detect round transitions: clear stale animation state left over from the
+  // previous round and spawn the (synchronous, message-data-free) well-loss
+  // glow. Splitting this from the message-driven scheduling below means this
+  // half no longer needs to wait on the shared useGameEvents fetch.
   useEffect(() => {
     if (!state) { prevStateRef.current = null; return; }
     const prev = prevStateRef.current;
@@ -835,277 +842,287 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== lossId)), WELL_FX_DURATION),
       );
     }
+  }, [state, playerName]);
 
-    let cancelled = false;
+  // Spawn 3D animation events based on personal messages, once this round's
+  // events have arrived via the shared useGameEvents fetch. Gated on
+  // processedEventsRoundRef (not prevStateRef, which the effect above already
+  // consumes for its own "did the round just increase" check) so this only
+  // runs once per round -- exactly when that round's data becomes available --
+  // rather than on every state_update broadcast for the same round.
+  useEffect(() => {
+    if (!state || !gameEvents) return;
+    if (gameEvents.round !== state.round) return;
+    if (gameEvents.round <= processedEventsRoundRef.current) return;
+    processedEventsRoundRef.current = gameEvents.round;
 
-    getPlayerMessages(lobbyId, playerName).then((json) => {
-      if (cancelled) return;
-      const combat = combatFromEvents(json.events);
-      const posMap = posMapRef.current;
-      const myPos  = posMap.get(playerName);
+    const combat = combatFromEvents(gameEvents.events);
+    const posMap = posMapRef.current;
+    const myPos  = posMap.get(playerName);
 
-      const newStrikes:       StrikeEvent[]  = [];
-      const newImpactShields: ImpactShield[] = [];
+    const newStrikes:       StrikeEvent[]  = [];
+    const newImpactShields: ImpactShield[] = [];
 
-      // ── Kill animation helpers ───────────────────────────────────────────
-      // A fiery red glow erupts under the killer (seen by killer, witness and
-      // victim); the killer additionally sees the victim's coins fly over and
-      // their ATK/coin cards tick up. `staggerTimeoutsRef` clears all of these
-      // on the next round transition.
-      const SWORD_IMPACT_MS = (STRIKE_DUR + HOLD_DUR) * 1000;
-      // Coins land ~one travel-arc after launch (WellRewardEffect TRAVEL_DUR).
-      const KILL_LOOT_LAND_MS = 850;
-      const myNowHp = state.players.find((p) => p.name === playerName)?.hp ?? 1;
-      const iDied   = myNowHp <= 0;
-      const killStamp = Date.now();
-      let killSeq = 0;
+    // ── Kill animation helpers ───────────────────────────────────────────
+    // A fiery red glow erupts under the killer (seen by killer, witness and
+    // victim); the killer additionally sees the victim's coins fly over and
+    // their ATK/coin cards tick up. `staggerTimeoutsRef` clears all of these
+    // on the next round transition.
+    const SWORD_IMPACT_MS = (STRIKE_DUR + HOLD_DUR) * 1000;
+    // Coins land ~one travel-arc after launch (WellRewardEffect TRAVEL_DUR).
+    const KILL_LOOT_LAND_MS = 850;
+    const myNowHp = state.players.find((p) => p.name === playerName)?.hp ?? 1;
+    const iDied   = myNowHp <= 0;
+    const killStamp = Date.now();
+    let killSeq = 0;
 
-      const scheduleKillFire = (pos: [number, number, number], atMs: number) => {
-        const id = `killfire-${killStamp}-${killSeq++}`;
-        staggerTimeoutsRef.current.push(
-          setTimeout(() => setKillFireEvents((e) => [...e, { id, pos }]), Math.max(0, atMs)),
-        );
-      };
+    const scheduleKillFire = (pos: [number, number, number], atMs: number) => {
+      const id = `killfire-${killStamp}-${killSeq++}`;
+      staggerTimeoutsRef.current.push(
+        setTimeout(() => setKillFireEvents((e) => [...e, { id, pos }]), Math.max(0, atMs)),
+      );
+    };
 
-      const scheduleKillBanner = (killer: string, pos: [number, number, number], atMs: number) => {
-        const id = `killbanner-${killStamp}-${killSeq++}`;
+    const scheduleKillBanner = (killer: string, pos: [number, number, number], atMs: number) => {
+      const id = `killbanner-${killStamp}-${killSeq++}`;
+      staggerTimeoutsRef.current.push(
+        setTimeout(() => {
+          setKillBanners((b) => [...b, { id, killer, pos }]);
+          staggerTimeoutsRef.current.push(
+            setTimeout(() => setKillBanners((b) => b.filter((x) => x.id !== id)), 2600),
+          );
+        }, Math.max(0, atMs)),
+      );
+    };
+
+    // Killer only: fling the victim's coins over and tick up the ATK/coin cards.
+    const scheduleKillLoot = (
+      fromPos: [number, number, number],
+      toPos: [number, number, number],
+      coins: number,
+      atMs: number,
+    ) => {
+      if (coins > 0) {
         staggerTimeoutsRef.current.push(
           setTimeout(() => {
-            setKillBanners((b) => [...b, { id, killer, pos }]);
-            staggerTimeoutsRef.current.push(
-              setTimeout(() => setKillBanners((b) => b.filter((x) => x.id !== id)), 2600),
-            );
+            const from: [number, number, number] = [fromPos[0], fromPos[1] + 0.3, fromPos[2]];
+            const evs: WellRewardEvent[] = [];
+            for (let c = 0; c < coins; c++) {
+              const jitter = coins > 1 ? (c - (coins - 1) / 2) * 0.15 : 0;
+              evs.push({
+                id:   `kill-coin-${killStamp}-${killSeq++}`,
+                type: 'steal',
+                fromPos: [from[0] + jitter, from[1], from[2]],
+                toPos:   [toPos[0] + jitter, toPos[1], toPos[2]],
+                delay:   c * WELL_REWARD_STAGGER,
+              });
+            }
+            setWellRewardEvents((ev) => [...ev, ...evs]);
           }, Math.max(0, atMs)),
         );
-      };
-
-      // Killer only: fling the victim's coins over and tick up the ATK/coin cards.
-      const scheduleKillLoot = (
-        fromPos: [number, number, number],
-        toPos: [number, number, number],
-        coins: number,
-        atMs: number,
-      ) => {
-        if (coins > 0) {
-          staggerTimeoutsRef.current.push(
-            setTimeout(() => {
-              const from: [number, number, number] = [fromPos[0], fromPos[1] + 0.3, fromPos[2]];
-              const evs: WellRewardEvent[] = [];
-              for (let c = 0; c < coins; c++) {
-                const jitter = coins > 1 ? (c - (coins - 1) / 2) * 0.15 : 0;
-                evs.push({
-                  id:   `kill-coin-${killStamp}-${killSeq++}`,
-                  type: 'steal',
-                  fromPos: [from[0] + jitter, from[1], from[2]],
-                  toPos:   [toPos[0] + jitter, toPos[1], toPos[2]],
-                  delay:   c * WELL_REWARD_STAGGER,
-                });
-              }
-              setWellRewardEvents((ev) => [...ev, ...evs]);
-            }, Math.max(0, atMs)),
-          );
-        }
-        // Reveal the gained coins (+ the +1 ATK) on the resource cards once the
-        // coins have arrived — staged like the Well reward (see useStagedResources).
-        staggerTimeoutsRef.current.push(
-          setTimeout(() => emitHpFx({ kind: 'killgain', coins, atk: 1 }), Math.max(0, atMs) + KILL_LOOT_LAND_MS),
-        );
-      };
-
-      // ── Outgoing: local player attacked someone ──────────────────────────
-      if (combat.outgoing) {
-        const { target, outcome } = combat.outgoing;
-        const tgtPos = posMap.get(target);
-        if (myPos && tgtPos) {
-          const tgtDefended = outcome === 'blocked' || outcome === 'reflected' || outcome === 'instakill_blocked';
-          const tgtHit      = outcome === 'hit' || outcome === 'instakill';
-          const reflected   = outcome === 'reflected';
-
-          const fromPos: [number, number, number]    = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
-          const baseToPos: [number, number, number]  = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
-
-          const SHIELD_OFFSET = 0.8;
-          let toPos = baseToPos;
-          if (tgtDefended) {
-            const dx = fromPos[0] - baseToPos[0];
-            const dz = fromPos[2] - baseToPos[2];
-            const len = Math.sqrt(dx * dx + dz * dz);
-            if (len > 0) {
-              toPos = [baseToPos[0] + (dx / len) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / len) * SHIELD_OFFSET];
-            }
-          }
-
-          newStrikes.push({
-            id: `out-${Date.now()}`, fromPos, toPos,
-            targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false,
-            postImpact:     tgtDefended ? (reflected ? 'bounce' : 'stop') : 'retreat',
-            flashPosition:  tgtHit    ? tgtPos : undefined,
-            bounceFlashPos: reflected ? myPos  : undefined,
-          });
-
-          // Kill! At the moment the blow lands: fiery glow under me (the killer,
-          // symbolising my +1 ATK) and the victim's coins arch over to me.
-          if (combat.outgoing.eliminated) {
-            scheduleKillFire(myPos, SWORD_IMPACT_MS);
-            scheduleKillLoot(tgtPos, myPos, combat.outgoing.coinsReceived ?? 0, SWORD_IMPACT_MS);
-          }
-        }
       }
+      // Reveal the gained coins (+ the +1 ATK) on the resource cards once the
+      // coins have arrived — staged like the Well reward (see useStagedResources).
+      staggerTimeoutsRef.current.push(
+        setTimeout(() => emitHpFx({ kind: 'killgain', coins, atk: 1 }), Math.max(0, atMs) + KILL_LOOT_LAND_MS),
+      );
+    };
 
-      // ── Well reward: only for the player who actually won the well ────────
-      // (steal *victims* also receive a "Steal-all!" line, so gate on wellwinner.)
-      // Spawned first; incoming attacks below are delayed until it finishes so
-      // the two don't play at once and confuse the player.
-      let wellDelayMs = 0;
-      if (myPos && state.wellwinner === playerName) {
-        const components = wellRewardFromEvents(json.events);
-        if (components.length) {
-          // Splash + rarity glow on the well itself.
-          const fxId = `wellfx-${Date.now()}`;
-          setWellWinFx((fx) => [...fx, { id: fxId, splash: true, glow: glowForReward(components), glowStartMs: performance.now() }]);
-          staggerTimeoutsRef.current.push(
-            setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== fxId)), WELL_FX_DURATION),
-          );
+    // ── Outgoing: local player attacked someone ──────────────────────────
+    if (combat.outgoing) {
+      const { target, outcome } = combat.outgoing;
+      const tgtPos = posMap.get(target);
+      if (myPos && tgtPos) {
+        const tgtDefended = outcome === 'blocked' || outcome === 'reflected' || outcome === 'instakill_blocked';
+        const tgtHit      = outcome === 'hit' || outcome === 'instakill';
+        const reflected   = outcome === 'reflected';
 
-          // For steal: one coin per stolen coin, flying from each victim's seat.
-          const stealVictims = components.find((c) => c.type === 'steal')?.victims ?? [];
-          const stealSources = stealVictims
-            .map((v) => ({ pos: posMap.get(v.name), count: v.amount }))
-            .filter((s): s is { pos: [number, number, number]; count: number } => !!s.pos);
-          const rewardEvents = buildWellRewardEvents(components, myPos, stealSources);
-          const rewardDurMs = rewardEvents.length
-            ? (Math.max(...rewardEvents.map((e) => e.delay)) + WELL_REWARD_FLIGHT_DUR) * 1000
-            : 0;
-          if (rewardEvents.length) setWellRewardEvents((ev) => [...ev, ...rewardEvents]);
-          // Hold incoming attacks until both the splash/glow and any reward
-          // models have finished.
-          wellDelayMs = Math.max(rewardDurMs, WELL_FX_DURATION);
-        }
-      }
+        const fromPos: [number, number, number]    = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
+        const baseToPos: [number, number, number]  = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
 
-      // ── Incoming: local player was attacked ──────────────────────────────
-      if (myPos && combat.incoming.length > 0) {
         const SHIELD_OFFSET = 0.8;
-        const ONE_DEF_MS    = (STRIKE_DUR + HOLD_DUR + BOUNCE_DUR)  * 1000;
-        const ONE_HIT_MS    = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR) * 1000;
-        const GAP_MS        = 200;
-        // Start after the well animation so incoming swords don't overlap it.
-        let staggerMs       = wellDelayMs;
+        let toPos = baseToPos;
+        if (tgtDefended) {
+          const dx = fromPos[0] - baseToPos[0];
+          const dz = fromPos[2] - baseToPos[2];
+          const len = Math.sqrt(dx * dx + dz * dz);
+          if (len > 0) {
+            toPos = [baseToPos[0] + (dx / len) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / len) * SHIELD_OFFSET];
+          }
+        }
 
-        combat.incoming.forEach((inc, i) => {
-          const atkPos  = inc.attacker ? posMap.get(inc.attacker) : undefined;
-          const fromPos: [number, number, number] = atkPos
-            ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
-            : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
-          const baseToPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
+        newStrikes.push({
+          id: `out-${Date.now()}`, fromPos, toPos,
+          targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false,
+          postImpact:     tgtDefended ? (reflected ? 'bounce' : 'stop') : 'retreat',
+          flashPosition:  tgtHit    ? tgtPos : undefined,
+          bounceFlashPos: reflected ? myPos  : undefined,
+        });
 
-          const isDefended   = inc.outcome === 'blocked' || inc.outcome === 'reflected_back' || inc.outcome === 'instakill_blocked';
-          const atkReflected = inc.outcome === 'reflected_back';
-          const incomingFx: HpFxEvent = isDefended
-            ? { kind: 'block' }
-            : inc.outcome === 'instakill'
-              ? { kind: 'kill' }
-              : { kind: 'hit', damage: inc.damage ?? 1 };
+        // Kill! At the moment the blow lands: fiery glow under me (the killer,
+        // symbolising my +1 ATK) and the victim's coins arch over to me.
+        if (combat.outgoing.eliminated) {
+          scheduleKillFire(myPos, SWORD_IMPACT_MS);
+          scheduleKillLoot(tgtPos, myPos, combat.outgoing.coinsReceived ?? 0, SWORD_IMPACT_MS);
+        }
+      }
+    }
 
-          let toPos = baseToPos;
+    // ── Well reward: only for the player who actually won the well ────────
+    // (steal *victims* also receive a "Steal-all!" line, so gate on wellwinner.)
+    // Spawned first; incoming attacks below are delayed until it finishes so
+    // the two don't play at once and confuse the player.
+    let wellDelayMs = 0;
+    if (myPos && state.wellwinner === playerName) {
+      const components = wellRewardFromEvents(gameEvents.events);
+      if (components.length) {
+        // Splash + rarity glow on the well itself.
+        const fxId = `wellfx-${Date.now()}`;
+        setWellWinFx((fx) => [...fx, { id: fxId, splash: true, glow: glowForReward(components), glowStartMs: performance.now() }]);
+        staggerTimeoutsRef.current.push(
+          setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== fxId)), WELL_FX_DURATION),
+        );
+
+        // For steal: one coin per stolen coin, flying from each victim's seat.
+        const stealVictims = components.find((c) => c.type === 'steal')?.victims ?? [];
+        const stealSources = stealVictims
+          .map((v) => ({ pos: posMap.get(v.name), count: v.amount }))
+          .filter((s): s is { pos: [number, number, number]; count: number } => !!s.pos);
+        const rewardEvents = buildWellRewardEvents(components, myPos, stealSources);
+        const rewardDurMs = rewardEvents.length
+          ? (Math.max(...rewardEvents.map((e) => e.delay)) + WELL_REWARD_FLIGHT_DUR) * 1000
+          : 0;
+        if (rewardEvents.length) setWellRewardEvents((ev) => [...ev, ...rewardEvents]);
+        // Hold incoming attacks until both the splash/glow and any reward
+        // models have finished.
+        wellDelayMs = Math.max(rewardDurMs, WELL_FX_DURATION);
+      }
+    }
+
+    // ── Incoming: local player was attacked ──────────────────────────────
+    if (myPos && combat.incoming.length > 0) {
+      const SHIELD_OFFSET = 0.8;
+      const ONE_DEF_MS    = (STRIKE_DUR + HOLD_DUR + BOUNCE_DUR)  * 1000;
+      const ONE_HIT_MS    = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR) * 1000;
+      const GAP_MS        = 200;
+      // Start after the well animation so incoming swords don't overlap it.
+      let staggerMs       = wellDelayMs;
+
+      combat.incoming.forEach((inc, i) => {
+        const atkPos  = inc.attacker ? posMap.get(inc.attacker) : undefined;
+        const fromPos: [number, number, number] = atkPos
+          ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
+          : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
+        const baseToPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
+
+        const isDefended   = inc.outcome === 'blocked' || inc.outcome === 'reflected_back' || inc.outcome === 'instakill_blocked';
+        const atkReflected = inc.outcome === 'reflected_back';
+        const incomingFx: HpFxEvent = isDefended
+          ? { kind: 'block' }
+          : inc.outcome === 'instakill'
+            ? { kind: 'kill' }
+            : { kind: 'hit', damage: inc.damage ?? 1 };
+
+        let toPos = baseToPos;
+        if (isDefended) {
+          const dx = fromPos[0] - baseToPos[0];
+          const dz = fromPos[2] - baseToPos[2];
+          const ld = Math.sqrt(dx * dx + dz * dz);
+          if (ld > 0) {
+            toPos = [baseToPos[0] + (dx / ld) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / ld) * SHIELD_OFFSET];
+          }
+        }
+
+        const strike: StrikeEvent = {
+          id:             `in-${inc.attacker ?? 'anon'}-${Date.now()}-${i}`,
+          fromPos, toPos,
+          targetDefended: isDefended,
+          targetHit:      !isDefended,
+          isIncoming:     true,
+          postImpact:     isDefended ? (atkReflected ? 'bounce' : 'stop') : 'retreat',
+          flashPosition:  !isDefended         ? myPos  : undefined,
+          bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
+          incomingFx,
+        };
+
+        const ONE_ANIM_MS = isDefended ? ONE_DEF_MS : ONE_HIT_MS;
+        const delay       = staggerMs;
+        staggerMs += ONE_ANIM_MS + GAP_MS;
+
+        // Reflection kill: my shield bounced the attack back and finished the
+        // attacker. I'm the killer — fiery glow under me + their coins fly over.
+        if (atkReflected && inc.attackerDied && inc.coinsReceived != null && atkPos) {
+          scheduleKillFire(myPos, delay + ONE_DEF_MS);
+          scheduleKillLoot(atkPos, myPos, inc.coinsReceived, delay + ONE_DEF_MS);
+        }
+        // I was killed by this blow: I see the fiery glow erupt under my killer
+        // (no coins — those go to them, not me).
+        if (iDied && !isDefended && atkPos && (inc.outcome === 'hit' || inc.outcome === 'instakill')) {
+          scheduleKillFire(atkPos, delay + SWORD_IMPACT_MS);
+        }
+
+        if (delay === 0) {
+          newStrikes.push(strike);
           if (isDefended) {
-            const dx = fromPos[0] - baseToPos[0];
-            const dz = fromPos[2] - baseToPos[2];
-            const ld = Math.sqrt(dx * dx + dz * dz);
-            if (ld > 0) {
-              toPos = [baseToPos[0] + (dx / ld) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / ld) * SHIELD_OFFSET];
-            }
-          }
-
-          const strike: StrikeEvent = {
-            id:             `in-${inc.attacker ?? 'anon'}-${Date.now()}-${i}`,
-            fromPos, toPos,
-            targetDefended: isDefended,
-            targetHit:      !isDefended,
-            isIncoming:     true,
-            postImpact:     isDefended ? (atkReflected ? 'bounce' : 'stop') : 'retreat',
-            flashPosition:  !isDefended         ? myPos  : undefined,
-            bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
-            incomingFx,
-          };
-
-          const ONE_ANIM_MS = isDefended ? ONE_DEF_MS : ONE_HIT_MS;
-          const delay       = staggerMs;
-          staggerMs += ONE_ANIM_MS + GAP_MS;
-
-          // Reflection kill: my shield bounced the attack back and finished the
-          // attacker. I'm the killer — fiery glow under me + their coins fly over.
-          if (atkReflected && inc.attackerDied && inc.coinsReceived != null && atkPos) {
-            scheduleKillFire(myPos, delay + ONE_DEF_MS);
-            scheduleKillLoot(atkPos, myPos, inc.coinsReceived, delay + ONE_DEF_MS);
-          }
-          // I was killed by this blow: I see the fiery glow erupt under my killer
-          // (no coins — those go to them, not me).
-          if (iDied && !isDefended && atkPos && (inc.outcome === 'hit' || inc.outcome === 'instakill')) {
-            scheduleKillFire(atkPos, delay + SWORD_IMPACT_MS);
-          }
-
-          if (delay === 0) {
-            newStrikes.push(strike);
-            if (isDefended) {
-              const sid       = `def-shield-${strike.id}`;
-              const shieldDur = ONE_DEF_MS + 350;
-              const rotY      = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
-              newImpactShields.push({ id: sid, pos: toPos, rotY });
-              staggerTimeoutsRef.current.push(
-                setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), shieldDur),
-              );
-            }
-          } else {
+            const sid       = `def-shield-${strike.id}`;
+            const shieldDur = ONE_DEF_MS + 350;
+            const rotY      = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
+            newImpactShields.push({ id: sid, pos: toPos, rotY });
             staggerTimeoutsRef.current.push(
-              setTimeout(() => {
-                setStrikeEvents((s) => [...s, strike]);
-                if (isDefended) {
-                  const sid       = `def-shield-${strike.id}`;
-                  const shieldDur = ONE_DEF_MS + 350;
-                  const rotY      = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
-                  setImpactShields((s) => [...s, { id: sid, pos: toPos, rotY }]);
-                  staggerTimeoutsRef.current.push(
-                    setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), shieldDur),
-                  );
-                }
-              }, delay),
+              setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), shieldDur),
             );
           }
-        });
-      }
-
-      // ── Witnessed eliminations ────────────────────────────────────────────
-      // The lone witness sees a fiery glow erupt under the killer plus a banner
-      // naming them, and a red flash on the victim — but no coins (those are the
-      // killer's alone).
-      combat.witnessedEliminations.forEach((we, i) => {
-        const victimPos = posMap.get(we.victim);
-        const killerPos = posMap.get(we.attacker);
-        const delay = wellDelayMs + SWORD_IMPACT_MS + i * 450;
-        if (victimPos) {
+        } else {
           staggerTimeoutsRef.current.push(
             setTimeout(() => {
-              const f = { id: `fl-${we.victim}-${Date.now()}`, position: victimPos };
-              setHitFlashEvents((ev) => [...ev, f]);
-              staggerTimeoutsRef.current.push(
-                setTimeout(() => setHitFlashEvents((ev) => ev.filter((h) => h.id !== f.id)), 650),
-              );
+              setStrikeEvents((s) => [...s, strike]);
+              if (isDefended) {
+                const sid       = `def-shield-${strike.id}`;
+                const shieldDur = ONE_DEF_MS + 350;
+                const rotY      = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
+                setImpactShields((s) => [...s, { id: sid, pos: toPos, rotY }]);
+                staggerTimeoutsRef.current.push(
+                  setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), shieldDur),
+                );
+              }
             }, delay),
           );
         }
-        if (killerPos) {
-          scheduleKillFire(killerPos, delay);
-          scheduleKillBanner(we.attacker, killerPos, delay);
-        }
       });
+    }
 
-      if (newStrikes.length)       setStrikeEvents((ev) => [...ev, ...newStrikes]);
-      if (newImpactShields.length) setImpactShields((s) => [...s, ...newImpactShields]);
-    }).catch(() => {});
+    // ── Witnessed eliminations ────────────────────────────────────────────
+    // The lone witness sees a fiery glow erupt under the killer plus a banner
+    // naming them, and a red flash on the victim — but no coins (those are the
+    // killer's alone).
+    combat.witnessedEliminations.forEach((we, i) => {
+      const victimPos = posMap.get(we.victim);
+      const killerPos = posMap.get(we.attacker);
+      const delay = wellDelayMs + SWORD_IMPACT_MS + i * 450;
+      if (victimPos) {
+        staggerTimeoutsRef.current.push(
+          setTimeout(() => {
+            const f = { id: `fl-${we.victim}-${Date.now()}`, position: victimPos };
+            setHitFlashEvents((ev) => [...ev, f]);
+            staggerTimeoutsRef.current.push(
+              setTimeout(() => setHitFlashEvents((ev) => ev.filter((h) => h.id !== f.id)), 650),
+            );
+          }, delay),
+        );
+      }
+      if (killerPos) {
+        scheduleKillFire(killerPos, delay);
+        scheduleKillBanner(we.attacker, killerPos, delay);
+      }
+    });
 
-    return () => { cancelled = true; };
-  }, [state, playerName, lobbyId]); // posMapRef is a stable ref — no dep needed
+    if (newStrikes.length)       setStrikeEvents((ev) => [...ev, ...newStrikes]);
+    if (newImpactShields.length) setImpactShields((s) => [...s, ...newImpactShields]);
+    // gameEvents as a whole (not just its round) is a safe dep here: unlike
+    // useStagedResources, this effect has no cleanup function, so a same-round
+    // gameEvents refetch just re-runs the body, which the processedEventsRoundRef
+    // guard above turns into a harmless no-op.
+  }, [state, gameEvents, playerName]); // posMapRef is a stable ref — no dep needed
 
   // ── Debug: preview well-reward animations without a live game ─────────────
   // Append `?welltest=<types>` to the lobby URL to loop the animation(s) onto

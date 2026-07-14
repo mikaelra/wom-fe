@@ -238,17 +238,61 @@ Lands as several PRs, one hook/component each (unlike Phase 0/1).
      seconds to prevent re-rendering the whole 3D scene every tick, and
      using the shared hook there would reintroduce that exact perf
      problem.
-   - **Not yet done (3b)** — `useGameEvents`, i.e. centralizing
-     `getPlayerMessages`. Independently called **3 times per round**
-     today — `SceneOverlay.tsx` (feeds the "Round messages" text panel),
-     `src/lib/useStagedResources.ts` (feeds HP/coin/ATK stat-card
-     staging), `LobbyScene.tsx` (feeds sword/shield/well-reward 3D
-     animation scheduling) — a real, fixable duplicate-network-call bug,
-     but each of the 3 consumers has a distinct gating/timing need
-     (LobbyScene only on an actual round *increase*; `useStagedResources`
-     only when `wonWell || stageCombat`; SceneOverlay unconditionally on
-     any round-related change). Bigger, higher-risk than the two timer
-     hooks — deserves its own dedicated plan/PR.
+   - ✅ **done (3b)** — `src/lib/useGameEvents.ts` centralizes
+     `getPlayerMessages`, which was independently called **3 times per
+     round** — `SceneOverlay.tsx` (feeds the "Round messages" text
+     panel), `src/lib/useStagedResources.ts` (feeds HP/coin/ATK
+     stat-card staging), `LobbyScene.tsx` (feeds sword/shield/well-reward
+     3D animation scheduling). The hook fetches on the broadest of the 3
+     former trigger conditions (round or `deny_target` change — a
+     superset covering the other two's narrower triggers for free) and
+     tags each result with the round it was fetched for; each consumer
+     keeps its own exact gating logic, now comparing its round of
+     interest against the tagged result instead of firing its own fetch.
+     Also fixes a real gap: `SceneOverlay.tsx`'s original fetch had no
+     cancellation guard, so a slow response could still call
+     `setMessages` after the component moved on to a new lobby.
+     - **Net call count: 3 → 2, not 3 → 1.** `LobbyScene.tsx` renders in
+       a separate component tree (inside the R3F `Canvas`) from
+       `SceneOverlay.tsx`/`useStagedResources.ts` (rendered via
+       `LobbyOverlay.tsx`, a sibling under `app/lobby/[lobbyId]/page.tsx`)
+       — collapsing to a single shared fetch across both trees would mean
+       lifting `useGameEvents` into `page.tsx` and threading its result
+       down as a prop through `LobbyOverlay.tsx` too, a materially bigger
+       change than this step's scope. Settled for one hook call per tree:
+       `SceneOverlay.tsx` calls it once and passes the result into
+       `useStagedResources`, `LobbyScene.tsx` calls it independently.
+       Still a real fix — down from 3 uncoordinated fetches to 2, one of
+       which gained a cancellation guard it previously lacked.
+     - **Splitting the effects, correctly.** `LobbyScene.tsx`'s single
+       original effect both detected round increases (via `prevStateRef`,
+       clearing stale animation state) *and* fetched/scheduled the
+       animations from the response — in one body. Naively adding
+       `gameEvents` to that effect's dependency array would have broken
+       the round-increase check (`prevStateRef` gets updated to the
+       current state on the *first* invocation, so a later re-run once
+       `gameEvents` arrives would wrongly see `prev.round === state.round`
+       and bail). Split into two effects: one unchanged, synchronous,
+       round-increase detector (clears stagger timeouts / kill state,
+       schedules the well-loss glow — none of which need event data); a
+       second that schedules the combat/well-reward animations once
+       `gameEvents` for the current round arrives, gated by its own
+       `processedEventsRoundRef` (not `prevStateRef`, which the first
+       effect already owns) so it runs exactly once per round.
+       `useStagedResources.ts`'s own staging effect needed the same
+       `processedRoundRef` guard, plus depending on `gameEvents?.round`
+       rather than the `gameEvents` object itself — that effect has a
+       cleanup function (clearing its staged-reveal timers), and a
+       same-round `gameEvents` refetch (e.g. triggered by
+       `SceneOverlay.tsx`'s `deny_target` dependency) would otherwise
+       re-run the effect, tearing down still-pending timers via cleanup
+       without rescheduling them.
+     - **Removed now-dead error handling.** `getPlayerMessages`
+       (`src/lib/api.ts`) already catches its own fetch failures into an
+       empty `{messages: [], events: []}` result and never rejects — so
+       each consumer's `.catch(() => {})` around its own inline fetch was
+       already unreachable before this change. Not carried forward into
+       `useGameEvents` or its consumers.
 4. **Slim the pages**: `app/lobby/[lobbyId]/page.tsx` keeps routing, the
    join/login form, and composition; `app/page.tsx`'s duplicated
    login/verify flow and `page.tsx`'s copy become one shared
@@ -312,8 +356,8 @@ Coordinated with backend Phase 1a/1b (see that plan):
 2. ✅ Phase 1 (zod boundary + typed socket layer) — the anti-anxiety core.
 3. **In progress** — Phase 2 hooks extraction — several PRs, one
    hook/component each. Steps 1 (`useLobbyConnection`), 2 (`useLobbyGame`),
-   and 3a (`useRoundTimer`/`useBossfightCountdown`) done; **next up** is
-   step 3b (`useGameEvents`).
+   3a (`useRoundTimer`/`useBossfightCountdown`), and 3b (`useGameEvents`)
+   done; **next up** is item 4 (`useAuthFlow`, slimming the pages).
 4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
