@@ -70,9 +70,15 @@ tested. The plan is mostly "move logic out of components into that layer."
      `jsdom` project (`src/**/*.test.tsx`) with `@testing-library/react`
      + `@testing-library/jest-dom` wired via `vitest.setup.ts`. Proven
      end-to-end with a real first test,
-     `src/components/lobby/__tests__/FloatingMessage.test.tsx` (not a
-     throwaway smoke test) — a small, pure-DOM component (plain
-     `useState`/`useEffect`/`useRef`, no R3F).
+     `src/components/__tests__/ResourceCard.test.tsx` (not a throwaway
+     smoke test) — a small, pure-DOM component (no R3F) that's genuinely
+     live: it's the HP/Coins/ATK resource button rendered unconditionally
+     for every non-spectator player during gameplay. (An earlier draft
+     used `FloatingMessage.tsx` instead — caught during PR review that
+     it's dead code, gated behind a `showFloatingMessages` flag that's
+     hardcoded `false` everywhere and never flipped on, superseded by the
+     newer animation system. Swapped rather than testing a code path
+     nothing exercises.)
   4. `eslint.config.mjs`: `react-hooks/exhaustive-deps` was `warn` by
      default via `eslint-config-next`; flipped to `error`. Verified zero
      new violations in `src/` before flipping.
