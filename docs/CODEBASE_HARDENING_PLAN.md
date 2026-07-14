@@ -62,9 +62,10 @@ tested. The plan is mostly "move logic out of components into that layer."
      measure "how much of the app is 3D rendering"). Threshold set with
      margin below the observed 31.78%/30%/33.69%/31.37%
      (statements/branches/functions/lines), stable across repeated runs.
-     Raise it — and widen `include` — as later phases add real tests for
-     a new layer (`src/hooks/` in Phase 2, specific RTL-tested DOM
-     components in Phase 3); never lower it to make a PR pass.
+     Raise it as later phases add real tests for a new layer (Phase 2's
+     hooks, which live flat in `src/lib/` alongside everything else —
+     already inside this glob; specific RTL-tested DOM components in
+     Phase 3); never lower it to make a PR pass.
   3. `vitest.config.ts` restructured into `test.projects`: the existing
      fast `node` project (`src/**/*.test.ts`, unchanged) plus a new
      `jsdom` project (`src/**/*.test.tsx`) with `@testing-library/react`
@@ -165,15 +166,32 @@ tested. The plan is mostly "move logic out of components into that layer."
 
 ## Phase 2 — Extract the game-state machine from the components
 
-1. **`useLobbyConnection(lobbyId)`** hook: owns socket join/rejoin,
-   `state_update` subscription, reconnect handling (today a dropped socket
-   silently stops updates — re-emit `join_room` + token on `reconnect`),
-   and exposes `{ state, connectionStatus }`.
+Lands as several PRs, one hook/component each (unlike Phase 0/1).
+
+1. ✅ **done** — `src/lib/useLobbyConnection.ts`: owns socket join/rejoin,
+   `state_update`/`chat_message`/`error` subscription, and — newly, since
+   nothing tracked this before — real `connectionStatus`
+   (`'connecting'|'connected'|'disconnected'`) via the socket's own
+   `connect`/`disconnect` events (`disconnect` was never even listened for
+   previously). Exposes `{ state, connectionStatus }`; presentation
+   decisions (unread-chat badge, error `alert()`) move out to two optional
+   callbacks, keeping the hook itself presentation-free. Extracted from
+   `SceneOverlay.tsx`'s two effects (~80 lines net removed).
+   - Along the way: the pre-existing 3s idle-window `join_room` polling
+     fallback carried a dead branch from the removed Rematch feature —
+     `git log -S "awaitingRematch"` traced it to `d951ff9 "Add post-game
+     polling fallback for the rematch vote counter"`, which kept polling
+     for the entire post-gameover screen (today just a static message,
+     nothing live left to wait on). Fixed to poll only the pre-game lobby
+     wait, not copied forward verbatim. (Also found and ruled out
+     resurrecting an orphaned, never-merged commit attempting almost the
+     same hook — it predated the session-token auth model and carried the
+     identical bug uncorrected.)
 2. **`useLobbyGame(state, playerName)`** — a reducer (useReducer; reach for
    zustand only if prop-drilling still hurts afterwards) that derives the
    client phase union: current round, my player, am-I-ready, pending deny,
-   winner, replay votes. All the `lobbyState.players.find(...)` logic
-   scattered through `LobbyScene`/`LobbyOverlay`/`page.tsx` moves here.
+   winner. All the `lobbyState.players.find(...)` logic scattered through
+   `LobbyScene`/`LobbyOverlay`/`page.tsx` moves here.
 3. **`useRoundTimer(roundEndTime)`**, **`useGameEvents(...)`** (the
    fetch-messages-per-round choreography), each pure enough to unit-test
    with fake timers.
@@ -238,8 +256,9 @@ Coordinated with backend Phase 1a/1b (see that plan):
 
 1. ✅ Phase 0 (CI: typecheck + coverage ratchet) — half a day.
 2. ✅ Phase 1 (zod boundary + typed socket layer) — the anti-anxiety core.
-3. **Next up** — Phase 2 hooks extraction — several PRs, one
-   hook/component each.
+3. **In progress** — Phase 2 hooks extraction — several PRs, one
+   hook/component each. Step 1 (`useLobbyConnection`) done; **next up**
+   is `useLobbyGame`.
 4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
