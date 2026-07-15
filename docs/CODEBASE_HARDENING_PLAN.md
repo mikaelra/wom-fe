@@ -436,19 +436,41 @@ current behavior, move the code, components shrink mechanically.
 
 With logic in hooks/lib, what's left to test as components is small:
 
-- **RTL tests for the DOM layer**: `LobbyOverlay` (action buttons reflect
-  phase, deny modal, replay voting), the join/login/verify forms (happy
+- ✅ **done** — `src/components/lobby/__tests__/LobbyOverlay.test.tsx`.
+  Direct read found this file's own description here was stale on two
+  counts, corrected rather than carried forward: "replay voting" no
+  longer exists (removed in Phase 1); "action buttons reflect phase,
+  deny modal" isn't actually in `LobbyOverlay.tsx` at all — that logic
+  lives in `SceneOverlay.tsx` (the component `LobbyOverlay` renders via
+  `<SceneOverlay config={lobbyConfig} renderPreGame={renderPreGame}
+  .../>`), a separate, bigger testing surface — see below.
+  `LobbyOverlay.tsx` itself is a thin wrapper: `InviteSection`
+  (copy-link/QR-code popover), two pure render-prop functions
+  (`renderGameOver`, `renderPreGame`) handed to `SceneOverlay`, and one
+  small derived gate (`showNudge`) for `BossSignupNudge`. Added `export`
+  to the three (pure visibility change, no logic change) so they're
+  testable without mounting the whole tree; `SceneOverlay` itself is
+  mocked to a stub for the `showNudge`-gate test, driven via a captured
+  `onStateChange` callback. 14 new tests; no coverage-ratchet change
+  (this file isn't in the `src/lib/**/*.ts` glob, confirmed via a run).
+- **Not yet done** — `SceneOverlay.tsx`'s own RTL tests (action buttons
+  reflect phase, deny modal, messages panel) — a substantially bigger
+  surface than `LobbyOverlay.tsx`, deserving its own dedicated step.
+- **Not yet done** — RTL tests for the join/login/verify forms (happy
   path + wrong-email + expired-code branches — these exercise the
-  `useAuthFlow` hook), settings page toggle flow.
+  `useAuthFlow` hook, already unit-tested at 94%+ coverage itself; the
+  remaining gap is whether each of the 5 sites' JSX correctly reflects
+  the hook's state).
+- **Not yet done** — settings page toggle flow.
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
   covered indirectly: their props are produced by tested functions, and
   their own remaining logic should approach zero.
-- **One Playwright E2E smoke** (new `e2e/` dir, own CI job, runs against
-  `docker compose` of wom-be + wom-fe): create lobby → add TURTLE dummy →
-  start → submit action+resource → round resolves → game over screen.
-  This single test exercises the full contract both repos share and is the
-  highest-value "worry less" artifact in either repo. Keep it to 1–3
-  scenarios; E2E suites rot when they sprawl.
+- **Not yet done** — one Playwright E2E smoke (new `e2e/` dir, own CI
+  job, runs against `docker compose` of wom-be + wom-fe): create lobby →
+  add TURTLE dummy → start → submit action+resource → round resolves →
+  game over screen. This single test exercises the full contract both
+  repos share and is the highest-value "worry less" artifact in either
+  repo. Keep it to 1–3 scenarios; E2E suites rot when they sprawl.
 
 ## Phase 4 — Adopt the backend security model
 
@@ -485,8 +507,10 @@ Coordinated with backend Phase 1a/1b (see that plan):
    (`useAuthFlow` across all 5 duplicate sites, incl. a 2FA-bypass bug
    fix), 5 (`LobbyScene.tsx` split into `PlayerAvatars.tsx`/
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
-4. **Next up** — Phase 3 RTL tests now that logic lives in hooks/lib;
-   Playwright smoke once stable.
+4. **In progress** — Phase 3 RTL tests now that logic lives in
+   hooks/lib. `LobbyOverlay.tsx` done; **next up** is `SceneOverlay.tsx`
+   (the bigger action-button/deny-modal surface). Playwright smoke once
+   the RTL layer is stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
    (treat `localStorage` as convenience-only) is effectively already true
