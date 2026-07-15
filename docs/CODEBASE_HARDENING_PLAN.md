@@ -518,9 +518,14 @@ With logic in hooks/lib, what's left to test as components is small:
     (full pages combining the 3D scene with the popup) and would need
     new R3F-mocking infrastructure this repo doesn't have — the
     hardening doc is explicit that R3F scenes shouldn't be rendered in
-    jsdom. `HomeOverlay.tsx`/`WorldMapOverlay.tsx` import no R3F at all,
-    so those two (Shape B) went first; the two Canvas-rendering pages
-    are deferred until/unless that infrastructure is worth building.
+    jsdom. `HomeOverlay.tsx`/`WorldMapOverlay.tsx` don't import
+    `@react-three/fiber` themselves, so those two (Shape B) went first;
+    the two Canvas-rendering pages are deferred until/unless that
+    infrastructure is worth building. (Correction made in site 3 below:
+    "doesn't import R3F" turned out to be true only of `HomeOverlay.tsx`
+    — `WorldMapOverlay.tsx` renders `RopedButton3D`/`RopedInput3D`,
+    which *do* render `<Canvas>` internally, so its test mocks those two
+    components rather than skipping R3F-mocking entirely.)
     `src/components/home/__tests__/HomeOverlay.test.tsx`: same
     real-hook/mocked-`@/lib/api` approach as site 1. 9 tests: logged-out
     UI, create/join for both unclaimed and claimed names, the
@@ -535,9 +540,32 @@ With logic in hooks/lib, what's left to test as components is small:
     with `router.push` mocked in the test, no navigation happens, so the
     modal staying mounted is expected test-harness behavior, not a
     product bug. No coverage-ratchet change, confirmed via a run.
-  - **Not yet done (3-5/5)** — `WorldMapOverlay.tsx`, then the two
-    Canvas-rendering Shape A pages.
-- **Not yet done** — settings page toggle flow.
+  - ✅ **done (3/5)** — `WorldMapOverlay.tsx`. Same real-hook/
+    mocked-`@/lib/api` approach as sites 1-2, plus one addition this
+    site needed that the others didn't: it renders
+    `RopedButton3D`/`RopedInput3D` (`@/components/hud/*`) instead of
+    plain HTML buttons/inputs, and both of those internally render
+    `@react-three/fiber`'s `<Canvas>` (gated behind a `lowQuality`
+    state that starts `false` on first render) — invisible from
+    grepping `WorldMapOverlay.tsx`'s own imports, only found by reading
+    the child components directly. Fixed by mocking both to plain
+    accessible stand-ins (`<button>`/pass-through `children`) scoped to
+    this test file, the same "mock what's not the thing under test"
+    principle used for `SceneOverlay.tsx`'s 6 hooks.
+    `src/components/worldmap/__tests__/WorldMapOverlay.test.tsx`, 9
+    tests: logged-out UI, the blank-name-popup-first flow (this file's
+    real difference from `HomeOverlay.tsx`, which reads an
+    already-typed name directly with no separate "open" step) for both
+    Join and Create with an unclaimed name, the claimed-name email step
+    completing the *correct* pending action (create vs. join, both
+    directions tested), the code step (wrong then right code), the
+    already-logged-in shortcut (`checkName` never called *and* the
+    popup never opens at all), Cancel, and the user menu/logout. No
+    coverage-ratchet change, confirmed via a run (exactly unchanged from
+    site 1's numbers, matching site 2 — neither file is in `src/lib/`).
+  - **Not yet done (4-5/5)** — the two Canvas-rendering Shape A pages
+    (`app/page.tsx`, `app/lobby/[lobbyId]/page.tsx`), pending a decision
+    on whether to build R3F/Canvas-mocking infrastructure for them.
 - **Not yet done** — settings page toggle flow.
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
   covered indirectly: their props are produced by tested functions, and
@@ -586,9 +614,11 @@ Coordinated with backend Phase 1a/1b (see that plan):
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
 4. **In progress** — Phase 3 RTL tests now that logic lives in
    hooks/lib. `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, and
-   auth-form sites 1-2/5 (`app/login/page.tsx`, `HomeOverlay.tsx`) done;
-   **next up** is auth-form site 3/5 (`WorldMapOverlay.tsx`), then the
-   settings-page toggle flow, then Playwright smoke.
+   auth-form sites 1-3/5 (`app/login/page.tsx`, `HomeOverlay.tsx`,
+   `WorldMapOverlay.tsx`) done; **next up** is auth-form sites 4-5/5
+   (the two Canvas-rendering Shape A pages, pending an R3F-mocking
+   decision), then the settings-page toggle flow, then Playwright
+   smoke.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
    (treat `localStorage` as convenience-only) is effectively already true

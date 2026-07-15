@@ -97,6 +97,11 @@ export default defineConfig({
       // ~64.34/59.95/59.85/65.47 -- exercising the hook through a real
       // page's JSX hit a few more of its own branches than its dedicated
       // hook test did. Still within the existing margin.
+      // Sites 2/5 (HomeOverlay.tsx) and 3/5 (WorldMapOverlay.tsx) needed no
+      // glob/threshold change -- neither file is in src/lib/, and both
+      // exercise useAuthFlow the same way site 1 already did, so the
+      // numbers were exactly unchanged (confirmed via a run each time, not
+      // assumed).
       thresholds: {
         statements: 63,
         branches: 58,
