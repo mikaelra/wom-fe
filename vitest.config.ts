@@ -105,6 +105,9 @@ export default defineConfig({
       // Site 4/5 (app/page.tsx's Athens raid popup, the first RTL test in
       // this repo to mock @react-three/fiber's Canvas) also needed no
       // change, same reason.
+      // Site 5/5 (app/lobby/[lobbyId]/page.tsx's join form, reusing the
+      // Canvas mock) closes out all 5/5 useAuthFlow sites -- also no
+      // change, same reason.
       thresholds: {
         statements: 63,
         branches: 58,
