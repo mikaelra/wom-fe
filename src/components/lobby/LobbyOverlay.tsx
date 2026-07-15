@@ -21,7 +21,7 @@ type LobbyOverlayProps = {
   guideHighlight?: GuideHighlights;
 };
 
-function InviteSection({ lobbyId }: { lobbyId: string }) {
+export function InviteSection({ lobbyId }: { lobbyId: string }) {
   const [showQR, setShowQR] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -103,7 +103,7 @@ function InviteSection({ lobbyId }: { lobbyId: string }) {
   );
 }
 
-function renderGameOver({ state, playerName }: GameOverRenderOpts) {
+export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   return (
     <div className="mt-3 text-center">
       <p className="text-xl font-bold mb-2">
@@ -122,7 +122,7 @@ function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   );
 }
 
-function renderPreGame({
+export function renderPreGame({
   state,
   lobbyId,
   playerName,
