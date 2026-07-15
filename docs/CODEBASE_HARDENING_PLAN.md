@@ -472,13 +472,26 @@ With logic in hooks/lib, what's left to test as components is small:
   ~63.72/58.84/59.85/64.79) — still within the existing margin, so no
   numeric threshold change needed; confirmed via a run rather than
   assumed either way.
-- **Not yet done (remainder of `SceneOverlay.tsx`)** — the chat panel
-  (toggle/send/unread badge/click-outside), the messages panel's
-  overflow measurement (`ResizeObserver`/`document.fonts.ready`), the
-  player list, and the warn-blink (`actionCue`/`resourceCue`)
-  countdown-threshold cues — each its own self-contained
-  mocking/timing concern, deferred to a follow-up step rather than
-  bundled into one large PR.
+- ✅ **done (remainder)** — extended `SceneOverlay.test.tsx` with the 4
+  pieces deferred above, closing out this file's RTL coverage. 16 more
+  tests: the chat panel (toggle/send/clear-input/unread-badge/
+  click-outside), tested independently against **both** the pre-game
+  and in-game chat blocks — they're two separate, nearly-duplicate JSX
+  regions, not one shared component, so passing one doesn't guarantee
+  the other; the messages panel's overflow measurement (stubbed
+  `ResizeObserver`, scoped to this test file only — jsdom has no native
+  implementation at all — plus a stubbed `scrollHeight` via
+  `Object.defineProperty`, since jsdom elements always report 0); the
+  player list (crown/skull/idle indicators, spectator exclusion,
+  own-name highlighting); the warn-blink cues. The last of these
+  surfaced a genuinely easy-to-miss distinction verified against the
+  actual code rather than assumed: the countdown *number*'s own
+  red-text threshold (`secondsLeft <= 10`) is **not** the same as the
+  action-button blink's red threshold (`secondsLeft <= 5`) — at 8
+  seconds the number is already red while the buttons are still only
+  gold. Coverage ratchet unaffected (confirmed via a run — exactly
+  unchanged from the prior step, since this addition touches no new
+  `src/lib` import paths).
 - **Not yet done** — RTL tests for the join/login/verify forms (happy
   path + wrong-email + expired-code branches — these exercise the
   `useAuthFlow` hook, already unit-tested at 94%+ coverage itself; the
@@ -531,11 +544,9 @@ Coordinated with backend Phase 1a/1b (see that plan):
    fix), 5 (`LobbyScene.tsx` split into `PlayerAvatars.tsx`/
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
 4. **In progress** — Phase 3 RTL tests now that logic lives in
-   hooks/lib. `LobbyOverlay.tsx` and `SceneOverlay.tsx`'s core
-   branching/actions done; **next up** is `SceneOverlay.tsx`'s
-   remainder (chat panel, messages overflow, player list, warn-blink
-   cues), then the auth-form RTL tests, settings-page toggle flow, and
-   Playwright smoke.
+   hooks/lib. `LobbyOverlay.tsx` and all of `SceneOverlay.tsx` done;
+   **next up** is the auth-form RTL tests, then the settings-page
+   toggle flow, then Playwright smoke.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
    (treat `localStorage` as convenience-only) is effectively already true
