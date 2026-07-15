@@ -30,6 +30,17 @@ test.use({ viewport: { width: 320, height: 240 } });
 test.setTimeout(20 * 60_000);
 
 test('create a lobby, add a bot, fight it out, and win', async ({ page }) => {
+  // Surface network/console failures directly in the test log -- a failed
+  // API call (a rejected fetch, a 4xx/5xx) otherwise fails silently here,
+  // showing up only as a later step timing out with no indication why.
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') console.log('[browser console error]', msg.text());
+  });
+  page.on('pageerror', (err) => console.log('[browser page error]', err.message));
+  page.on('response', (res) => {
+    if (!res.ok()) console.log('[failed response]', res.status(), res.url());
+  });
+
   // A real user could disable the welcome tour in Settings; doing so here
   // avoids its overlay (found to cover and block the action buttons on a
   // fresh session) without adding an unrelated interaction to this test.
