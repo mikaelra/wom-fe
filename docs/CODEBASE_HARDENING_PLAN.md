@@ -674,17 +674,31 @@ With logic in hooks/lib, what's left to test as components is small:
   always expected to already be running), `baseURL` from
   `E2E_BASE_URL ?? http://localhost:3000`.
 
-  **One-time setup needed before this job can pass**: `ghcr.io/mikaelra/
-  wom-be` is a private package owned by the `wom-be` repo — a workflow
-  in *this* repo has no automatic read access to it (its own
-  `GITHUB_TOKEN` only reaches packages within the same repo), confirmed
-  by an actual CI run failing with `unauthorized` on the first `docker
-  run ghcr.io/mikaelra/wom-be` pull. Fix: create a fine-grained PAT
-  scoped to the `wom-be` repo with `read:packages` permission, then add
-  it as this repo's `WOM_BE_PACKAGE_TOKEN` secret (Settings → Secrets
-  and variables → Actions) — the workflow already has the
-  `docker login ghcr.io -u mikaelra --password-stdin` step wired up to
-  use it, just needs the secret to exist.
+  **One-time setup needed before this job can pass** — two private,
+  cross-repo resources, both found via actual failed CI runs rather than
+  anticipated up front:
+  1. `ghcr.io/mikaelra/wom-be` is a private package owned by the
+     `wom-be` repo — a workflow in *this* repo has no automatic read
+     access to it (its own `GITHUB_TOKEN` only reaches packages within
+     the same repo), confirmed by a CI run failing with `unauthorized`
+     on the first `docker run ghcr.io/mikaelra/wom-be` pull. Fix:
+     create a fine-grained PAT scoped to the `wom-be` repo with
+     `read:packages` permission, add it as this repo's
+     `WOM_BE_PACKAGE_TOKEN` secret (Settings → Secrets and variables →
+     Actions) — done as of PR #187.
+  2. `wom-be`'s own alembic "baseline" migration turned out to be a
+     literal no-op (`pass`) — the real schema (tables like `players`)
+     comes from a Supabase SQL dump that lives in the private
+     `wom-infra` repo (`db/init/001_supabase_dump.sql`, the same file
+     `/config/workspace/game/docker-compose.yml`'s local dev stack
+     seeds from), confirmed by a CI run failing on the second migration
+     with `relation "players" does not exist` — `alembic upgrade head`
+     alone can never build a working schema from empty. The dump
+     contains sensitive data, so it's neither vendored into this repo
+     nor is `wom-infra` made public — the workflow instead checks out
+     `wom-infra` with a second PAT (`contents:read` scope) and runs the
+     dump via `psql` before migrations. Needs its own fine-grained PAT
+     scoped to `wom-infra`, added as `WOM_INFRA_READ_TOKEN`.
 
   Several real things surfaced only by actually running this against a
   live backend, not by reasoning about the code alone:

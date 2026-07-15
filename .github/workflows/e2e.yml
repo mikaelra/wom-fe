@@ -43,6 +43,21 @@ jobs:
       - name: Log in to ghcr.io for the wom-be image
         run: echo "${{ secrets.WOM_BE_PACKAGE_TOKEN }}" | docker login ghcr.io -u mikaelra --password-stdin
 
+      # wom-be's own alembic "baseline" migration is a no-op -- the actual
+      # schema (tables like `players`) comes from a Supabase SQL dump that
+      # lives in the private wom-infra repo (contains sensitive data, so
+      # not vendored into this repo or made public). Needs its own PAT
+      # (contents:read on wom-infra) -- see the hardening doc.
+      - name: Checkout wom-infra (DB schema dump)
+        uses: actions/checkout@v4
+        with:
+          repository: mikaelra/wom-infra
+          token: ${{ secrets.WOM_INFRA_READ_TOKEN }}
+          path: wom-infra
+
+      - name: Load DB schema from the Supabase dump
+        run: psql "$DATABASE_URL" -f wom-infra/db/init/001_supabase_dump.sql
+
       - name: Run wom-be migrations
         run: |
           docker run --rm --network host \
