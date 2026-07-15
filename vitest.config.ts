@@ -108,11 +108,16 @@ export default defineConfig({
       // Site 5/5 (app/lobby/[lobbyId]/page.tsx's join form, reusing the
       // Canvas mock) closes out all 5/5 useAuthFlow sites -- also no
       // change, same reason.
+      // Raised for the settings-page toggle flow: a dedicated
+      // useGuideEnabled.ts hook test (previously 0%, in the src/lib glob)
+      // plus SettingsPage's own RTL test (real hook, mocked
+      // @/lib/api calls) pushed the suite to ~67.2/60.84/64.23/68.49
+      // (stable across repeated runs).
       thresholds: {
-        statements: 63,
-        branches: 58,
-        functions: 59,
-        lines: 64,
+        statements: 66,
+        branches: 60,
+        functions: 63,
+        lines: 67,
       },
     },
   },
