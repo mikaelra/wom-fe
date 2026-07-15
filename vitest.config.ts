@@ -71,11 +71,15 @@ export default defineConfig({
       // SceneOverlay.tsx/useStagedResources.ts/LobbyScene.tsx, centralizing
       // the former triplicate getPlayerMessages fetch): pushed the suite to
       // ~50.6/48.6/53.78/50.68 (stable across repeated runs).
+      // Raised in Phase 2 step 4a (useAuthFlow extracted from
+      // app/page.tsx's Athens popup and app/lobby/[lobbyId]/page.tsx's
+      // join form): pushed the suite to ~55.62/49.56/56/56.29 (stable
+      // across repeated runs).
       thresholds: {
-        statements: 49,
-        branches: 47,
-        functions: 52,
-        lines: 49,
+        statements: 55,
+        branches: 49,
+        functions: 55,
+        lines: 55,
       },
     },
   },
