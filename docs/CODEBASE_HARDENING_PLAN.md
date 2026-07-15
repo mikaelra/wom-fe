@@ -392,10 +392,42 @@ Lands as several PRs, one hook/component each (unlike Phase 0/1).
      `<SeaAndSky>` JSX call site) and so stayed put, rather than being
      swept along just because of their proximity. Dropped
      `LobbyScene.tsx` from 1141 to 1092 lines.
-   - **Not yet done (5c)** — the effect-orchestration pure-function
-     extraction itself, done last and most carefully.
-   - HUD wiring: re-evaluate after 5c lands — `LobbyScene.tsx` may
-     already be small enough by then that it isn't worth a further cut.
+   - ✅ **done (5c)** — `src/lib/combatAnimationPlan.ts`: the
+     `GameEvent[] → which animations to play` mapping, as a pure,
+     100%-statement-covered function (`buildCombatAnimationPlan`),
+     completing item 5. Read the original ~270-line effect in full
+     (not summarized) to preserve every timing/grouping decision
+     exactly rather than redesigning it:
+     - The function returns a flat, ordered list of `{delayMs, actions}`
+       batches. `LobbyScene.tsx`'s effect becomes a thin executor: apply
+       synchronously if `delayMs <= 0` (matching the original's
+       non-deferred `setState` calls exactly — multiple synchronous
+       calls still batch into one React 19 render, confirmed via
+       `package.json`), else `setTimeout`.
+     - Groupings were preserved exactly as found, not standardized:
+       some sibling effects (kill-fire + kill-loot) were already two
+       independently-scheduled timers in the original, so they stayed
+       two independent batches; the one deliberately-bundled pair
+       (an incoming strike + its shield) stayed one batch, since
+       splitting it into two independently-scheduled timers could
+       theoretically let a render land between them.
+     - Confirmed via grep, not assumed: `killFireEvents`/
+       `wellRewardEvents` self-remove via their own component's
+       `onDone` callback, so the plan needs no removal action for them;
+       the round-transition effect and the `onStrike`/`onDone`
+       callbacks on `<SwordEffect>` in the JSX react to the animation
+       actually completing (not a computed delay) and are out of scope.
+     - `WELL_SPLASH_POSITION`/`WELL_GLOW_POSITION` stayed in
+       `LobbyScene.tsx` (JSX-only); `WELL_LOSS_GLOW_RADIUS`/
+       `WELL_FX_DURATION` moved but are re-exported since the
+       round-transition effect and the `?welltest=`/`?killtest=` debug
+       preview effects (untouched) still need them.
+     - Dropped `LobbyScene.tsx` from 1092 to 750 lines; the new
+       `combatAnimationPlan.ts` (408 lines, 100% statement coverage)
+       pushed the whole-suite coverage ratchet from ~55.7% to ~63.7%.
+   - HUD wiring: re-evaluated now that all of 5a-5c are done —
+     `LobbyScene.tsx` is already down to 750 lines from 1552; not
+     pursuing a further cut here for now.
 
 Each extraction is test-first: write the hook/function test from the
 current behavior, move the code, components shrink mechanically.
@@ -447,15 +479,14 @@ Coordinated with backend Phase 1a/1b (see that plan):
 
 1. ✅ Phase 0 (CI: typecheck + coverage ratchet) — half a day.
 2. ✅ Phase 1 (zod boundary + typed socket layer) — the anti-anxiety core.
-3. **In progress** — Phase 2 hooks extraction — several PRs, one
-   hook/component each. Steps 1 (`useLobbyConnection`), 2 (`useLobbyGame`),
-   3a (`useRoundTimer`/`useBossfightCountdown`), 3b (`useGameEvents`), all
-   of item 4 (`useAuthFlow` — 4a the Shape A sites incl. a 2FA-bypass bug
-   fix, 4b `HomeOverlay.tsx`/`WorldMapOverlay.tsx`, 4c
-   `app/login/page.tsx`), and item 5 steps 5a (`PlayerAvatars.tsx`) and
-   5b (`CameraFlyIn.tsx`) done; **next up** is item 5 step 5c (the
-   effect-orchestration pure-function extraction).
-4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
+3. ✅ Phase 2 hooks extraction — several PRs, one hook/component each.
+   All 5 items done: 1 (`useLobbyConnection`), 2 (`useLobbyGame`), 3
+   (`useRoundTimer`/`useBossfightCountdown`/`useGameEvents`), 4
+   (`useAuthFlow` across all 5 duplicate sites, incl. a 2FA-bypass bug
+   fix), 5 (`LobbyScene.tsx` split into `PlayerAvatars.tsx`/
+   `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
+4. **Next up** — Phase 3 RTL tests now that logic lives in hooks/lib;
+   Playwright smoke once stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
    (treat `localStorage` as convenience-only) is effectively already true

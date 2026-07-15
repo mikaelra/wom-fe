@@ -80,11 +80,17 @@ export default defineConfig({
       // default): pushed the suite to ~55.69/49.85/56/56.36 (stable
       // across repeated runs). Step 4b needed no glob/threshold change --
       // HomeOverlay.tsx/WorldMapOverlay.tsx aren't in src/lib/.
+      // Raised in Phase 2 item 5 step 5c (src/lib/combatAnimationPlan.ts,
+      // the GameEvent[] -> animation-plan mapping extracted from
+      // LobbyScene.tsx's combat/well-reward effect as a pure, 100%-covered
+      // function): pushed the suite to ~63.72/58.84/59.85/64.79 (stable
+      // across repeated runs). Steps 5a/5b needed no glob/threshold change --
+      // PlayerAvatars.tsx/CameraFlyIn.tsx aren't in src/lib/.
       thresholds: {
-        statements: 55,
-        branches: 49,
-        functions: 55,
-        lines: 55,
+        statements: 63,
+        branches: 58,
+        functions: 59,
+        lines: 64,
       },
     },
   },
