@@ -631,7 +631,29 @@ With logic in hooks/lib, what's left to test as components is small:
     an unclaimed-name join, the claimed-name email step, and the code step
     (wrong then right code). No coverage-ratchet change, confirmed via a
     run.
-- **Not yet done** — settings page toggle flow.
+- ✅ **done** — settings page toggle flow (`src/app/settings/page.tsx`).
+  Two independent toggles: the server-backed always-verify-email flag
+  (`getAlwaysVerifyEmailFlag`/`requestToggleVerifyEmail` from
+  `@/lib/api`, with an email-confirmation step before it takes effect),
+  and the local-only in-game-tutorial flag
+  (`src/lib/useGuideEnabled.ts`, shared with `InGameGuide.tsx` — out of
+  scope here). `useGuideEnabled.ts` sat at 0% coverage despite being in
+  the tracked `src/lib` glob, so this step added both a dedicated hook
+  test (`src/lib/__tests__/useGuideEnabled.test.tsx` — default-on,
+  persistence, same-tab sync via its custom event, cross-tab sync via
+  the native `storage` event) and the page's own RTL test
+  (`src/app/settings/__tests__/page.test.tsx`, using the real hook for
+  the guide toggle, mocked `@/lib/api` calls for the email-verify one —
+  same "real hook + mocked network" principle as every `useAuthFlow`
+  site). One jsdom quirk hit and worked around: `window.location.reload`
+  (used by "Refresh page") has a non-configurable property, so
+  `vi.spyOn` throws `Cannot redefine property: reload` —
+  `vi.stubGlobal('location', { ...window.location, reload: vi.fn() })`
+  works instead. 8 page tests (logged-out gate, server flag reflected on
+  and off, toggling on + the awaiting-confirmation message, a failure
+  reverting the optimistic check, Resend, Refresh, the guide toggle) plus
+  6 hook tests. Coverage ratchet raised (real increase from
+  `useGuideEnabled.ts`, confirmed via a run): see `vitest.config.ts`.
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
   covered indirectly: their props are produced by tested functions, and
   their own remaining logic should approach zero.
@@ -640,7 +662,12 @@ With logic in hooks/lib, what's left to test as components is small:
   add TURTLE dummy → start → submit action+resource → round resolves →
   game over screen. This single test exercises the full contract both
   repos share and is the highest-value "worry less" artifact in either
-  repo. Keep it to 1–3 scenarios; E2E suites rot when they sprawl.
+  repo. Keep it to 1–3 scenarios; E2E suites rot when they sprawl. Target
+  backend: `158.178.151.93:5000`, a Docker-hosted wom-be instance on the
+  same VM as this frontend dev environment (flagged directly by the repo
+  owner) — wire it in as the default/dev target rather than assuming a
+  local `docker compose` stack or `localhost:5000`; confirm the
+  host/port are still correct before hardcoding anything.
 
 ## Phase 4 — Adopt the backend security model
 
@@ -678,11 +705,13 @@ Coordinated with backend Phase 1a/1b (see that plan):
    fix), 5 (`LobbyScene.tsx` split into `PlayerAvatars.tsx`/
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
 4. **In progress** — Phase 3 RTL tests now that logic lives in
-   hooks/lib. `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, and all 5/5
+   hooks/lib. `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, all 5/5
    auth-form sites (`app/login/page.tsx`, `HomeOverlay.tsx`,
    `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens popup,
-   `app/lobby/[lobbyId]/page.tsx`'s join form) done; **next up** is the
-   settings-page toggle flow, then Playwright smoke.
+   `app/lobby/[lobbyId]/page.tsx`'s join form), and the settings-page
+   toggle flow (`app/settings/page.tsx` + `useGuideEnabled.ts`) done;
+   **next up**, and the last Phase 3 item, is the Playwright E2E smoke
+   (target backend: `158.178.151.93:5000`).
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
    (treat `localStorage` as convenience-only) is effectively already true
