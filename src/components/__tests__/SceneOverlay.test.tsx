@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import SceneOverlay, { type SceneOverlayConfig, type PreGameRenderOpts } from '@/components/SceneOverlay';
-import { useLobbyConnection } from '@/lib/useLobbyConnection';
+import { useLobbyConnection, type UseLobbyConnectionOptions } from '@/lib/useLobbyConnection';
 import { useLobbyGame, type UseLobbyGameResult } from '@/lib/useLobbyGame';
 import { useRoundTimer } from '@/lib/useRoundTimer';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
@@ -87,14 +87,32 @@ const baseConfig: SceneOverlayConfig = {
   renderGameOver: vi.fn(() => null),
 };
 
+let capturedConnectionOptions: UseLobbyConnectionOptions | undefined;
+
+// Drives useLobbyConnection's return value while also capturing the
+// onChatMessage/onError callbacks SceneOverlay passes in, so a test can
+// invoke them directly to simulate a socket broadcast arriving.
+function mockConnection(state: LobbyState | null) {
+  mockedUseLobbyConnection.mockImplementation((_lobbyId, _playerName, options) => {
+    capturedConnectionOptions = options;
+    return { state, connectionStatus: state ? 'connected' : 'connecting' };
+  });
+}
+
 beforeEach(() => {
   emit.mockClear();
-  mockedUseLobbyConnection.mockReturnValue({ state: baseState, connectionStatus: 'connected' });
+  capturedConnectionOptions = undefined;
+  mockConnection(baseState);
   mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult });
   mockedUseRoundTimer.mockReturnValue(null);
   mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: null, raidMins: null, raidSecs: null });
   mockedUseGameEvents.mockReturnValue(null);
   mockedUseStagedResources.mockReturnValue(null);
+});
+
+afterEach(() => {
+  localStorage.clear();
+  vi.unstubAllGlobals();
 });
 
 describe('loading state', () => {
@@ -175,7 +193,6 @@ describe('game over', () => {
       enemy,
       btn: expect.any(String),
     }));
-    localStorage.clear();
   });
 });
 
@@ -251,5 +268,196 @@ describe('deny picker', () => {
 
     fireEvent.click(denyButton);
     expect(emit).toHaveBeenCalledWith('submit_deny_target', { lobby_id: 'AAAA', target: 'Bob' });
+  });
+});
+
+describe('chat panel', () => {
+  const chatConfig = { ...baseConfig, showChat: true };
+
+  beforeEach(() => {
+    localStorage.setItem('playerName', 'Alice');
+  });
+
+  it('toggles open, sends a message, and clears the input (in-game)', () => {
+    render(<SceneOverlay lobbyId="AAAA" config={chatConfig} />);
+
+    fireEvent.click(screen.getByLabelText('Toggle chat'));
+    const input = screen.getByPlaceholderText('Chat…');
+    fireEvent.change(input, { target: { value: 'hello' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(emit).toHaveBeenCalledWith('send_message', { lobby_id: 'AAAA', message: 'hello' });
+    expect(input).toHaveValue('');
+  });
+
+  it('shows an unread badge only while collapsed, and clears it on open (in-game)', () => {
+    render(<SceneOverlay lobbyId="AAAA" config={chatConfig} />);
+    expect(document.querySelector('.bg-orange-500')).not.toBeInTheDocument();
+
+    act(() => {
+      capturedConnectionOptions?.onChatMessage?.({ sender: 'Bob', message: 'hi', timestamp: new Date().toISOString() });
+    });
+    expect(document.querySelector('.bg-orange-500')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Toggle chat'));
+    expect(document.querySelector('.bg-orange-500')).not.toBeInTheDocument();
+  });
+
+  it('closes when clicking outside the chat container (in-game)', () => {
+    render(<SceneOverlay lobbyId="AAAA" config={chatConfig} />);
+    fireEvent.click(screen.getByLabelText('Toggle chat'));
+    expect(screen.getByPlaceholderText('Chat…')).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByPlaceholderText('Chat…')).not.toBeInTheDocument();
+  });
+
+  it('toggles open and sends a message via the ↵ button (pre-game)', () => {
+    const preGameState: LobbyState = { ...baseState, round: 0 };
+    mockConnection(preGameState);
+    mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult, phase: 'lobby', round: 0 });
+
+    render(<SceneOverlay lobbyId="AAAA" config={chatConfig} renderPreGame={() => null} />);
+
+    fireEvent.click(screen.getByLabelText('Toggle chat'));
+    const input = screen.getByPlaceholderText('Chat…');
+    fireEvent.change(input, { target: { value: 'hi there' } });
+    fireEvent.click(screen.getByText('↵'));
+
+    expect(emit).toHaveBeenCalledWith('send_message', { lobby_id: 'AAAA', message: 'hi there' });
+  });
+});
+
+describe('messages panel overflow', () => {
+  class FakeResizeObserver {
+    private cb: ResizeObserverCallback;
+    constructor(cb: ResizeObserverCallback) { this.cb = cb; }
+    observe() { this.cb([], this as unknown as ResizeObserver); }
+    unobserve() {}
+    disconnect() {}
+  }
+
+  beforeEach(() => {
+    // jsdom has no ResizeObserver at all; a minimal stub scoped to this
+    // suite only, since nothing else needs it.
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    mockedUseGameEvents.mockReturnValue({
+      round: 1,
+      messages: [['A long message that would overflow the collapsed panel.']],
+      events: [],
+    });
+  });
+
+  it('shows "Show more" only when the message list overflows the collapsed height', () => {
+    Object.defineProperty(HTMLUListElement.prototype, 'scrollHeight', { configurable: true, value: 500 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.getByText('▼ Show more')).toBeInTheDocument();
+  });
+
+  it('does not show "Show more" when the content fits the collapsed height', () => {
+    Object.defineProperty(HTMLUListElement.prototype, 'scrollHeight', { configurable: true, value: 10 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.queryByText('▼ Show more')).not.toBeInTheDocument();
+  });
+
+  it('expands past the collapsed clamp and toggles to "Show less"', () => {
+    Object.defineProperty(HTMLUListElement.prototype, 'scrollHeight', { configurable: true, value: 500 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    const wrapper = screen.getByText(/A long message/).closest('ul')?.parentElement;
+    expect(wrapper?.className).toContain('max-h-[4.5rem]');
+
+    fireEvent.click(screen.getByText('▼ Show more'));
+    expect(screen.getByText('▲ Show less')).toBeInTheDocument();
+    expect(wrapper?.className).not.toContain('max-h-[4.5rem]');
+  });
+
+  it('hides the message body entirely via the Hide/Show toggle', () => {
+    Object.defineProperty(HTMLUListElement.prototype, 'scrollHeight', { configurable: true, value: 10 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.getByText(/A long message/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Hide'));
+    expect(screen.queryByText(/A long message/)).not.toBeInTheDocument();
+    expect(screen.getByText('Show')).toBeInTheDocument();
+  });
+});
+
+describe('player list', () => {
+  it('shows crown/skull/idle indicators, excludes spectators, and highlights the local player', () => {
+    localStorage.setItem('playerName', 'Alice');
+    const dead: Player = { ...basePlayer, name: 'Bob', hp: 0 };
+    const spectator: Player = { ...basePlayer, name: 'Carol', spectator: true };
+    const idle: Player = { ...basePlayer, name: 'Dave', idle_rounds: 2 };
+    mockConnection({ ...baseState, players: [basePlayer, dead, spectator, idle], winner: 'Alice' });
+
+    render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, showPlayerList: true }} />);
+
+    expect(screen.getByText('👑')).toBeInTheDocument();
+    expect(screen.getByText('☠️')).toBeInTheDocument();
+    expect(screen.getByText('👻')).toBeInTheDocument();
+    expect(screen.queryByText('Carol')).not.toBeInTheDocument();
+    // "Alice" also appears in the separate player-nametag block; scope to
+    // the player-list entry specifically (its <li> ancestor).
+    const aliceEntries = screen.getAllByText('Alice');
+    const listEntry = aliceEntries.find((el) => el.closest('li'));
+    expect(listEntry).toHaveClass('text-blue-300');
+  });
+
+  it('crowns the well-winner instead, only when there is no game winner yet', () => {
+    mockConnection({ ...baseState, players: [basePlayer], winner: null, wellwinner: 'Alice' });
+    render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, showPlayerList: true }} />);
+    expect(screen.getByText('👑')).toBeInTheDocument();
+  });
+});
+
+describe('warn-blink cues', () => {
+  it('shows the countdown while <=20s with no action-button warn class above 10s', () => {
+    mockedUseRoundTimer.mockReturnValue(15);
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.getByText('15s')).toHaveClass('text-yellow-400');
+    const well = screen.getByText('🏴 The Well');
+    expect(well).not.toHaveClass('warn-blink-gold');
+    expect(well).not.toHaveClass('warn-blink-red');
+  });
+
+  it('turns the countdown red at <=10s while the action-button cue is still only gold (6-10s)', () => {
+    // A real, easy-to-miss distinction: the countdown *number*'s own red
+    // threshold (<=10s) doesn't match the action-button blink's red
+    // threshold (<=5s) -- at 8s the number is already red but the
+    // buttons are still gold, not red.
+    mockedUseRoundTimer.mockReturnValue(8);
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.getByText('8s')).toHaveClass('text-red-500');
+    const well = screen.getByText('🏴 The Well');
+    expect(well).toHaveClass('warn-blink-gold');
+    expect(well).not.toHaveClass('warn-blink-red');
+  });
+
+  it('applies warn-blink-red to the action buttons at <=5s', () => {
+    mockedUseRoundTimer.mockReturnValue(3);
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.getByText('3s')).toHaveClass('text-red-500');
+    expect(screen.getByText('🏴 The Well')).toHaveClass('warn-blink-red');
+  });
+
+  it('does not warn-blink once an action has already been chosen', () => {
+    mockedUseRoundTimer.mockReturnValue(3);
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} externalAction="well" />);
+    const well = screen.getByText('🏴 The Well');
+    expect(well).not.toHaveClass('warn-blink-red');
+    expect(well).not.toHaveClass('warn-blink-gold');
+  });
+
+  it('hides the countdown once the game is over', () => {
+    mockedUseRoundTimer.mockReturnValue(15);
+    mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult, phase: 'gameover' });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.queryByText('15s')).not.toBeInTheDocument();
+  });
+
+  it('hides the countdown once more than 20 seconds remain', () => {
+    mockedUseRoundTimer.mockReturnValue(25);
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.queryByText('25s')).not.toBeInTheDocument();
   });
 });
