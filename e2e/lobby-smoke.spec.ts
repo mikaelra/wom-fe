@@ -7,15 +7,21 @@ import { expect, test } from '@playwright/test';
 //
 // This fight is genuinely slow and RNG-driven, verified empirically against
 // a live backend rather than assumed: TURTLE's "defend" blocks ~50% of
-// attacks, blocked attacks have a further ~20% chance to reflect damage back
-// onto the attacker, and a starting attackDamage of 1 only grows through an
-// increasingly expensive economy (each +1 upgrade costs coins equal to the
-// current attackDamage). A naive "always buy coins" strategy is actually a
-// *losing* one (TURTLE's flat +1 HP/round heal outpaces it) -- this test
-// buys attack upgrades when affordable and takes a guaranteed heal every
-// 4th round regardless of current HP, to survive reflection damage without
-// needing a live HP read (a locator meant to read the live HP value proved
-// unreliable during development, so this avoids depending on one at all).
+// attacks, and a blocked attack has a further ~20% chance to reflect damage
+// back onto the attacker -- i.e. ~10% of all attacks (0.5 * 0.2) reflect
+// onto us, for damage equal to our own current attackDamage. A starting
+// attackDamage of 1 only grows through an increasingly expensive economy
+// (each +1 upgrade costs coins equal to the current attackDamage). A naive
+// "always buy coins" strategy is actually a *losing* one (TURTLE's flat
+// +1 HP/round heal outpaces it) -- this test buys attack upgrades when
+// affordable and throws in a heal every 4th round regardless of current HP.
+// That's not a real survival guarantee (reflected damage scales with our
+// own attackDamage and can land on consecutive rounds regardless of this
+// cadence) -- it's just a simple way to reduce, not eliminate, the odds of
+// dying to reflection during development, without depending on a live HP
+// read (a locator meant to read the live HP value proved unreliable). If
+// this test starts failing from dying rather than from timing out, that's
+// this tradeoff showing up, not a regression to chase.
 test.use({ viewport: { width: 320, height: 240 } });
 // Small viewport cuts WebGL fill-rate cost -- this box's headless Chromium
 // has no GPU (SwiftShader software rendering), and at a normal viewport the

@@ -713,13 +713,22 @@ With logic in hooks/lib, what's left to test as components is small:
     starting `attackDamage` of 1 only grows through an increasingly
     expensive economy (each +1 upgrade costs coins equal to the current
     attackDamage) — a naive "always buy coins, never buy attack, never
-    heal" strategy is actually a *losing* one long-term. The committed
-    test buys attack upgrades when affordable and takes a guaranteed
-    heal every 4th round (rather than depending on a live HP read, which
-    proved unreliable during development) to survive occasional
-    reflected self-damage. Given this, the test is intentionally
-    long-timeout (20 minutes) and runs as its own non-blocking CI job,
-    not part of `build-and-deploy`'s required checks.
+    heal" strategy is actually a *losing* one long-term. A blocked
+    attack also has a further ~20% chance to reflect damage back onto
+    the attacker (~10% of all attacks overall, i.e. 0.5 × 0.2), for
+    damage equal to the attacker's own current attackDamage. The
+    committed test buys attack upgrades when affordable and throws in a
+    heal every 4th round regardless of current HP (rather than
+    depending on a live HP read, which proved unreliable during
+    development) — this is **not** a real survival guarantee (reflected
+    damage scales with our own growing attackDamage and isn't bound to
+    that cadence), just a simple way to reduce the odds of dying to
+    reflection rather than eliminate them. Given all this, the test is
+    intentionally long-timeout (20 minutes) and runs as its own
+    non-blocking CI job, not part of `build-and-deploy`'s required
+    checks — an occasional failure from dying rather than timing out is
+    an accepted tradeoff of this simplicity, not necessarily a
+    regression to chase.
 
 ## Phase 4 — Adopt the backend security model
 
