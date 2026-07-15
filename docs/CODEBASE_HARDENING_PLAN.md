@@ -341,10 +341,24 @@ Lands as several PRs, one hook/component each (unlike Phase 0/1).
      every other error in both files and 4a's own precedent.
      `WorldMapOverlay.tsx` already used inline errors throughout, no
      change needed there.
-   - **Not yet done (4c)** — **Shape C: no `checkName` gate, direct
-     login** — `app/login/page.tsx`. Name+email entered together up
-     front, straight to `logInUser`, no "new vs. existing name" branch.
-     Likely the simplest of the three shapes, but still its own.
+   - ✅ **done (4c)** — **Shape C: no `checkName` gate, direct login** —
+     `app/login/page.tsx`. This closes out item 4: all 5 duplicate sites
+     now share `useAuthFlow.ts`. One small hook change, unlike 4a/4b:
+     `submitErrorFallback` became optional (defaulting internally to
+     "Something went wrong."), since this page never calls
+     `handleSubmitName()` (it has no `checkName` step at all) and
+     shouldn't need to supply a string for a path it can't reach. Two
+     deliberate, explicitly-noted unifications: this page's own combined
+     "name and email both required" validation isn't replicated —
+     `handleLogin`'s built-in check only covers email, so a caller-side
+     guard (`if (!authFlow.name.trim()) return;`) silently blocks the
+     empty-name case (matching the "silently blocked, no message"
+     precedent from 4a) rather than reproducing the exact original
+     message; and this page's login failures, previously an
+     undifferentiated `err.message`, now route through the hook's
+     `emailError` and pick up the "Wrong email" special-casing every
+     other site already had — a minor improvement, not a preserved
+     design choice.
 5. **Split `LobbyScene.tsx`** along what it already contains: scene setup /
    camera, per-player avatar group, effect orchestration (the
    sword/shield/well/fire effects keyed off `GameEvent`s), and HUD wiring.
@@ -404,10 +418,11 @@ Coordinated with backend Phase 1a/1b (see that plan):
 2. ✅ Phase 1 (zod boundary + typed socket layer) — the anti-anxiety core.
 3. **In progress** — Phase 2 hooks extraction — several PRs, one
    hook/component each. Steps 1 (`useLobbyConnection`), 2 (`useLobbyGame`),
-   3a (`useRoundTimer`/`useBossfightCountdown`), 3b (`useGameEvents`), 4a
-   (`useAuthFlow` for the Shape A sites, incl. a 2FA-bypass bug fix), and
-   4b (`useAuthFlow` for `HomeOverlay.tsx`/`WorldMapOverlay.tsx`) done;
-   **next up** is item 4c (`useAuthFlow` for `app/login/page.tsx`).
+   3a (`useRoundTimer`/`useBossfightCountdown`), 3b (`useGameEvents`), and
+   all of item 4 (`useAuthFlow` — 4a the Shape A sites incl. a 2FA-bypass
+   bug fix, 4b `HomeOverlay.tsx`/`WorldMapOverlay.tsx`, 4c
+   `app/login/page.tsx`) done; **next up** is item 5 (splitting
+   `LobbyScene.tsx`).
 4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3

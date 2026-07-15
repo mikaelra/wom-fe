@@ -7,9 +7,13 @@ export interface UseAuthFlowOptions {
    *  clearing `loading`, so a caller whose follow-up action is itself
    *  async keeps its own loading indicator lit for the full duration. */
   onAuthenticated: (name: string, email: string) => void | Promise<void>;
-  /** Shown when the name-check step throws a non-Error or generic failure. */
-  submitErrorFallback: string;
+  /** Shown when the name-check step throws a non-Error or generic failure.
+   *  Only relevant to callers that use `handleSubmitName` -- optional since
+   *  a plain-login caller (no `checkName` step) never reaches this path. */
+  submitErrorFallback?: string;
 }
+
+const DEFAULT_SUBMIT_ERROR_FALLBACK = 'Something went wrong.';
 
 export interface UseAuthFlowResult {
   name: string;
@@ -73,7 +77,7 @@ export function useAuthFlow({
       }
       await onAuthenticated(trimmed, '');
     } catch (e) {
-      setError(e instanceof Error ? e.message : submitErrorFallback);
+      setError(e instanceof Error ? e.message : submitErrorFallback ?? DEFAULT_SUBMIT_ERROR_FALLBACK);
     } finally {
       setLoading(false);
     }

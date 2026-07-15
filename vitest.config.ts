@@ -75,6 +75,11 @@ export default defineConfig({
       // app/page.tsx's Athens popup and app/lobby/[lobbyId]/page.tsx's
       // join form): pushed the suite to ~55.62/49.56/56/56.29 (stable
       // across repeated runs).
+      // Raised in Phase 2 step 4c (app/login/page.tsx wired onto
+      // useAuthFlow, plus a test for its now-optional submitErrorFallback
+      // default): pushed the suite to ~55.69/49.85/56/56.36 (stable
+      // across repeated runs). Step 4b needed no glob/threshold change --
+      // HomeOverlay.tsx/WorldMapOverlay.tsx aren't in src/lib/.
       thresholds: {
         statements: 55,
         branches: 49,

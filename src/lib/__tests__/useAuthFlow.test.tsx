@@ -85,6 +85,18 @@ describe('useAuthFlow', () => {
     expect(result.current.error).toBe('Failed to enter raid.');
   });
 
+  it('falls back to a default message when submitErrorFallback is omitted', async () => {
+    mockedCheckName.mockRejectedValue('boom');
+    const { result } = renderHook(() => useAuthFlow({ onAuthenticated: vi.fn() }));
+
+    act(() => result.current.setName('Bob'));
+    await act(async () => {
+      result.current.handleSubmitName();
+    });
+
+    expect(result.current.error).toBe('Something went wrong.');
+  });
+
   it('logs in and authenticates without a code when requires_code is false', async () => {
     mockedCheckName.mockResolvedValue({ claimed: true });
     mockedLogInUser.mockResolvedValue({ success: true });
