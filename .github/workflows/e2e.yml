@@ -1,0 +1,81 @@
+name: E2E smoke
+
+on:
+  push:
+    branches: [master]
+  pull_request: {}
+  workflow_dispatch: {}
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    # The one spec here can genuinely take up to ~20 minutes (combat RNG and
+    # a slow starting economy -- see e2e/lobby-smoke.spec.ts); this caps the
+    # whole job well above that rather than relying on the 360-minute default.
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: wom
+          POSTGRES_PASSWORD: wom
+          POSTGRES_DB: wom
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wom -d wom"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://wom:wom@localhost:5432/wom
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run wom-be migrations
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL \
+            ghcr.io/mikaelra/wom-be:latest \
+            alembic upgrade head
+
+      - name: Start wom-be
+        run: |
+          docker run -d --network host --name wom-be \
+            -e DATABASE_URL \
+            ghcr.io/mikaelra/wom-be:latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Build and start the frontend
+        env:
+          NEXT_PUBLIC_BACKEND_URL: http://localhost:5000
+        run: |
+          npm run build
+          npm start &
+          for url in http://localhost:5000 http://localhost:3000; do
+            for i in $(seq 1 30); do
+              curl -sf "$url" > /dev/null && break
+              sleep 2
+            done
+          done
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

@@ -657,17 +657,57 @@ With logic in hooks/lib, what's left to test as components is small:
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
   covered indirectly: their props are produced by tested functions, and
   their own remaining logic should approach zero.
-- **Not yet done** — one Playwright E2E smoke (new `e2e/` dir, own CI
-  job, runs against `docker compose` of wom-be + wom-fe): create lobby →
-  add TURTLE dummy → start → submit action+resource → round resolves →
-  game over screen. This single test exercises the full contract both
-  repos share and is the highest-value "worry less" artifact in either
-  repo. Keep it to 1–3 scenarios; E2E suites rot when they sprawl. Target
-  backend: `158.178.151.93:5000`, a Docker-hosted wom-be instance on the
-  same VM as this frontend dev environment (flagged directly by the repo
-  owner) — wire it in as the default/dev target rather than assuming a
-  local `docker compose` stack or `localhost:5000`; confirm the
-  host/port are still correct before hardcoding anything.
+- ✅ **done** — one Playwright E2E smoke test (`e2e/lobby-smoke.spec.ts`),
+  the last Phase 3 item: create a lobby, add a TURTLE dummy, start the
+  game, fight it to a win. First E2E test in this repo, verified for real
+  against a live, already-running dev stack rather than assumed —
+  `158.178.151.93` turned out to be this VM's own public IP
+  (`/config/workspace/game/docker-compose.yml`'s persistent local
+  wom-fe+wom-be+postgres stack, reachable at `localhost:5000`/`:3000`
+  too), used here purely to develop and verify the suite; the actual CI
+  job (`.github/workflows/e2e.yml`) spins up its own ephemeral stack —
+  `postgres:16-alpine` + the published `ghcr.io/mikaelra/wom-be:latest`
+  image (confirmed `DATABASE_URL` is its only hard-required env var and
+  `alembic upgrade head` alone builds a working schema; no Supabase
+  credentials or seed data needed) + this PR's own frontend build.
+  `playwright.config.ts`: no `webServer` auto-start (both services are
+  always expected to already be running), `baseURL` from
+  `E2E_BASE_URL ?? http://localhost:3000`.
+
+  Several real things surfaced only by actually running this against a
+  live backend, not by reasoning about the code alone:
+  - The root `/` page is `WorldMapOverlay.tsx` (a blank name popup on
+    "Create Lobby"), not `HomeOverlay.tsx`'s inline field, as an initial
+    pass assumed.
+  - The backend's real name validation (3–12 chars, no `-`) 400'd a
+    first attempt's timestamp-suffixed name — silently, with no visible
+    frontend error for this particular case.
+  - `InGameGuide`'s welcome-tour overlay covers the action buttons on a
+    fresh session; disabled via seeding `localStorage.womGuideEnabled`
+    (the same flag `useGuideEnabled.ts` reads) rather than exercising an
+    unrelated interaction in this test.
+  - The action/resource HUD buttons are billboard labels whose CSS
+    position is recomputed from the 3D scene every frame, so they never
+    satisfy Playwright's default "stable" actionability check — needs
+    `force: true`.
+  - Headless Chromium here has no GPU (SwiftShader software WebGL), and
+    at a normal viewport the continuous 3D rendering was found to starve
+    the page's JS main thread badly enough that even click dispatch
+    could take 10s+ or hang outright; a small (320×240) viewport cuts
+    this enough to be workable.
+  - The fight itself is genuinely slow and RNG-driven: TURTLE always
+    defends (blocking ~50% of attacks, one confirmed root cause it took
+    a while to isolate) and heals +1 HP/round unconditionally, while a
+    starting `attackDamage` of 1 only grows through an increasingly
+    expensive economy (each +1 upgrade costs coins equal to the current
+    attackDamage) — a naive "always buy coins, never buy attack, never
+    heal" strategy is actually a *losing* one long-term. The committed
+    test buys attack upgrades when affordable and takes a guaranteed
+    heal every 4th round (rather than depending on a live HP read, which
+    proved unreliable during development) to survive occasional
+    reflected self-damage. Given this, the test is intentionally
+    long-timeout (20 minutes) and runs as its own non-blocking CI job,
+    not part of `build-and-deploy`'s required checks.
 
 ## Phase 4 — Adopt the backend security model
 
@@ -704,14 +744,13 @@ Coordinated with backend Phase 1a/1b (see that plan):
    (`useAuthFlow` across all 5 duplicate sites, incl. a 2FA-bypass bug
    fix), 5 (`LobbyScene.tsx` split into `PlayerAvatars.tsx`/
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
-4. **In progress** — Phase 3 RTL tests now that logic lives in
-   hooks/lib. `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, all 5/5
-   auth-form sites (`app/login/page.tsx`, `HomeOverlay.tsx`,
-   `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens popup,
-   `app/lobby/[lobbyId]/page.tsx`'s join form), and the settings-page
-   toggle flow (`app/settings/page.tsx` + `useGuideEnabled.ts`) done;
-   **next up**, and the last Phase 3 item, is the Playwright E2E smoke
-   (target backend: `158.178.151.93:5000`).
+4. ✅ Phase 3 — RTL tests now that logic lives in hooks/lib, plus one
+   Playwright E2E smoke. All items done: `LobbyOverlay.tsx`, all of
+   `SceneOverlay.tsx`, all 5/5 auth-form sites (`app/login/page.tsx`,
+   `HomeOverlay.tsx`, `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens
+   popup, `app/lobby/[lobbyId]/page.tsx`'s join form), the settings-page
+   toggle flow (`app/settings/page.tsx` + `useGuideEnabled.ts`), and
+   `e2e/lobby-smoke.spec.ts` (create lobby → add bot → fight to a win).
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
    (treat `localStorage` as convenience-only) is effectively already true
