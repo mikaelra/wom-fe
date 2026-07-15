@@ -600,10 +600,37 @@ With logic in hooks/lib, what's left to test as components is small:
     failure showing `alert()` (first use of a `window.alert` spy in this
     repo's tests — no earlier site's test exercised an `alert()` branch).
     No coverage-ratchet change, confirmed via a run.
-  - **Not yet done (5/5)** — `app/lobby/[lobbyId]/page.tsx`'s join form,
-    the last Shape A site. Reuses this step's `@react-three/fiber` mock;
-    additionally needs `@/lib/socket` and `next/navigation`'s `useParams`
-    mocked.
+  - ✅ **done (5/5)** — `app/lobby/[lobbyId]/page.tsx`'s join form, the
+    last Shape A site. **This closes out RTL tests for all 5/5
+    `useAuthFlow` sites.** Reused the `@react-three/fiber` Canvas mock
+    from site 4 (this page doesn't call `useFrame`/`useThree` itself, so
+    the mock only needed to export `Canvas`). Three siblings mocked away
+    as out of scope: `LobbyScene` (real 3D scene content, no dedicated
+    suite planned), `LobbyOverlay` (already has its own full suite from
+    Phase 3 step 1), `InGameGuide` (a presentational welcome-tour overlay,
+    untested either way and unrelated to auth-forms wiring). The
+    socket-preview feature (showing the player list before joining, via
+    `@/lib/socket`'s `subscribe`/`getSocket().emit('join_room', ...)`)
+    only activates when `@/lib/http`'s `getStoredToken()` returns a
+    stored token — mocking it to always return `null` cleanly disables
+    that whole path (and, as a consequence, the "game already in
+    progress" branch, since `previewState` never populates), matching the
+    "preview only works when a token is already stored" comment already
+    in the source; `@/lib/socket` itself is still mocked to inert stubs
+    purely so the module resolves, never actually exercised. First use of
+    `next/navigation`'s `useParams` mock in this repo. One query
+    ambiguity matching earlier sites' pattern: "Join Lobby" is both the
+    popup's `<h1>` heading and its submit button's text, so tests use
+    `getByRole('button', { name: 'Join Lobby' })` rather than `getByText`.
+    `src/app/lobby/[lobbyId]/__tests__/page.test.tsx`, 7 tests: the
+    `!lobbyId` "Invalid lobby." branch, the logged-out join form, the
+    already-logged-in auto-join-via-invite-link shortcut (skipping
+    `checkName` entirely), auto-join *failure* still revealing the game UI
+    (`.catch(() => setHasJoined(true))` is a deliberate "don't get stuck"
+    fallback, not a bug — easy to assume backwards, worth pinning down),
+    an unclaimed-name join, the claimed-name email step, and the code step
+    (wrong then right code). No coverage-ratchet change, confirmed via a
+    run.
 - **Not yet done** — settings page toggle flow.
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
   covered indirectly: their props are produced by tested functions, and
@@ -651,11 +678,10 @@ Coordinated with backend Phase 1a/1b (see that plan):
    fix), 5 (`LobbyScene.tsx` split into `PlayerAvatars.tsx`/
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
 4. **In progress** — Phase 3 RTL tests now that logic lives in
-   hooks/lib. `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, and
-   auth-form sites 1-4/5 (`app/login/page.tsx`, `HomeOverlay.tsx`,
-   `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens popup) done; **next up**
-   is auth-form site 5/5 (`app/lobby/[lobbyId]/page.tsx`'s join form,
-   reusing the `@react-three/fiber` mock built for site 4), then the
+   hooks/lib. `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, and all 5/5
+   auth-form sites (`app/login/page.tsx`, `HomeOverlay.tsx`,
+   `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens popup,
+   `app/lobby/[lobbyId]/page.tsx`'s join form) done; **next up** is the
    settings-page toggle flow, then Playwright smoke.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
