@@ -510,9 +510,33 @@ With logic in hooks/lib, what's left to test as components is small:
     code round trip, and the Back button preserving typed input. Small
     real coverage increase (~64.34/59.95/59.85/65.47), confirmed via a
     run.
-  - **Not yet done (2-5/5)** — `app/page.tsx` (Athens popup),
-    `app/lobby/[lobbyId]/page.tsx` (join form), `HomeOverlay.tsx`,
-    `WorldMapOverlay.tsx`.
+  - ✅ **done (2/5)** — `HomeOverlay.tsx` (Shape B — dual action via a
+    `pendingActionRef`, plus an already-logged-in `checkName`-skip
+    shortcut). Grepped all 5 sites for `Canvas`/`@react-three` first:
+    the two remaining Shape A sites (`app/page.tsx`,
+    `app/lobby/[lobbyId]/page.tsx`) both render a `<Canvas>` directly
+    (full pages combining the 3D scene with the popup) and would need
+    new R3F-mocking infrastructure this repo doesn't have — the
+    hardening doc is explicit that R3F scenes shouldn't be rendered in
+    jsdom. `HomeOverlay.tsx`/`WorldMapOverlay.tsx` import no R3F at all,
+    so those two (Shape B) went first; the two Canvas-rendering pages
+    are deferred until/unless that infrastructure is worth building.
+    `src/components/home/__tests__/HomeOverlay.test.tsx`: same
+    real-hook/mocked-`@/lib/api` approach as site 1. 9 tests: logged-out
+    UI, create/join for both unclaimed and claimed names, the
+    claimed-name modal completing the *correct* pending action (create
+    vs. join — proving `pendingActionRef` threads through, not just
+    "some action fires"), the code step (wrong then right code), the
+    already-logged-in shortcut (asserting `checkName` is never called,
+    not just that create succeeds), "Choose new name", and logout. One
+    self-caught test bug during this step: an assertion assumed the
+    modal closes right after a successful login — it doesn't, in
+    production the page *navigates away* (unmounting the component);
+    with `router.push` mocked in the test, no navigation happens, so the
+    modal staying mounted is expected test-harness behavior, not a
+    product bug. No coverage-ratchet change, confirmed via a run.
+  - **Not yet done (3-5/5)** — `WorldMapOverlay.tsx`, then the two
+    Canvas-rendering Shape A pages.
 - **Not yet done** — settings page toggle flow.
 - **Not yet done** — settings page toggle flow.
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
@@ -562,9 +586,9 @@ Coordinated with backend Phase 1a/1b (see that plan):
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
 4. **In progress** — Phase 3 RTL tests now that logic lives in
    hooks/lib. `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, and
-   auth-form site 1/5 (`app/login/page.tsx`) done; **next up** is
-   auth-form sites 2-5, then the settings-page toggle flow, then
-   Playwright smoke.
+   auth-form sites 1-2/5 (`app/login/page.tsx`, `HomeOverlay.tsx`) done;
+   **next up** is auth-form site 3/5 (`WorldMapOverlay.tsx`), then the
+   settings-page toggle flow, then Playwright smoke.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
    (treat `localStorage` as convenience-only) is effectively already true
