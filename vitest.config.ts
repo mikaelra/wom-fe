@@ -92,6 +92,11 @@ export default defineConfig({
       // resolving the mocked modules) -- still safely within the existing
       // margin below, so the numeric thresholds are unchanged; noted here
       // per the "always document the observed number" convention.
+      // Phase 3 auth-forms RTL tests, site 1/5 (app/login/page.tsx, using
+      // the real useAuthFlow hook with mocked @/lib/api calls): observed
+      // ~64.34/59.95/59.85/65.47 -- exercising the hook through a real
+      // page's JSX hit a few more of its own branches than its dedicated
+      // hook test did. Still within the existing margin.
       thresholds: {
         statements: 63,
         branches: 58,
