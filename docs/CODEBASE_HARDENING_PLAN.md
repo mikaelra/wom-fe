@@ -492,11 +492,28 @@ With logic in hooks/lib, what's left to test as components is small:
   gold. Coverage ratchet unaffected (confirmed via a run — exactly
   unchanged from the prior step, since this addition touches no new
   `src/lib` import paths).
-- **Not yet done** — RTL tests for the join/login/verify forms (happy
-  path + wrong-email + expired-code branches — these exercise the
-  `useAuthFlow` hook, already unit-tested at 94%+ coverage itself; the
-  remaining gap is whether each of the 5 sites' JSX correctly reflects
-  the hook's state).
+- RTL tests for the 5 `useAuthFlow` sites (happy path + wrong-email +
+  expired-code branches — `useAuthFlow` itself is already unit-tested
+  at 94%+ coverage; the gap is whether each site's own JSX correctly
+  reflects the hook's state). Split by site, smallest/simplest first:
+  - ✅ **done (1/5)** — `app/login/page.tsx` (Shape C, no `checkName`
+    gate). `src/app/login/__tests__/page.test.tsx`: uses the **real**
+    `useAuthFlow` hook (not mocked) with `@/lib/api`'s `logInUser`/
+    `verifyLoginCode` mocked — same principle as `SceneOverlay.tsx`'s
+    tests, just inverted (there the hooks were mocked and the page's own
+    logic was real; here the hook is real and only its network calls are
+    mocked, since what's under test is the page's JSX wiring, not a
+    re-test of `useAuthFlow`'s own branching). Establishes this repo's
+    first `next/navigation` `useRouter` mock. 7 tests: login without a
+    code, the `requires_code` code-view switch, the empty-name silent
+    block, the empty-email inline error, "Wrong email", a wrong-then-right
+    code round trip, and the Back button preserving typed input. Small
+    real coverage increase (~64.34/59.95/59.85/65.47), confirmed via a
+    run.
+  - **Not yet done (2-5/5)** — `app/page.tsx` (Athens popup),
+    `app/lobby/[lobbyId]/page.tsx` (join form), `HomeOverlay.tsx`,
+    `WorldMapOverlay.tsx`.
+- **Not yet done** — settings page toggle flow.
 - **Not yet done** — settings page toggle flow.
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
   covered indirectly: their props are produced by tested functions, and
@@ -544,9 +561,10 @@ Coordinated with backend Phase 1a/1b (see that plan):
    fix), 5 (`LobbyScene.tsx` split into `PlayerAvatars.tsx`/
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
 4. **In progress** — Phase 3 RTL tests now that logic lives in
-   hooks/lib. `LobbyOverlay.tsx` and all of `SceneOverlay.tsx` done;
-   **next up** is the auth-form RTL tests, then the settings-page
-   toggle flow, then Playwright smoke.
+   hooks/lib. `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, and
+   auth-form site 1/5 (`app/login/page.tsx`) done; **next up** is
+   auth-form sites 2-5, then the settings-page toggle flow, then
+   Playwright smoke.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
    (treat `localStorage` as convenience-only) is effectively already true
