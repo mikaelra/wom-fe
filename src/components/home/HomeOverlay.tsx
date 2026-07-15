@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -8,11 +8,9 @@ import {
   joinLobby,
   getBossfightLobby,
   getPlayerRelics,
-  checkName,
-  logInUser,
-  verifyLoginCode,
 } from '@/lib/api';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
+import { useAuthFlow } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
 import type { City } from '@/lib/cities';
 
@@ -32,7 +30,6 @@ type PendingAction =
 
 export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const router = useRouter();
-  const [name, setName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [showRelics, setShowRelics] = useState(false);
   const [relics, setRelics] = useState<Relic[]>([]);
@@ -42,24 +39,46 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const [mounted, setMounted] = useState(false);
   const isLoggedIn = mounted && !!loggedInName;
 
-  // Email-login modal state for claimed names
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginEmailError, setLoginEmailError] = useState('');
-  const [loginLoading, setLoginLoading] = useState(false);
+  // Which action (create vs join) triggered the claimed-name login modal.
+  // A ref, not state: handleCreate/handleJoin set this synchronously in the
+  // same click handler that then calls authFlow.handleSubmitName(), whose
+  // onAuthenticated closure needs to read the current value immediately --
+  // a state update wouldn't be visible until the next render.
+  const pendingActionRef = useRef<PendingAction | null>(null);
 
-  // Verification-code step shown when always_verify_email is enabled.
-  const [codeMode, setCodeMode] = useState(false);
-  const [loginCode, setLoginCode] = useState('');
-  const [loginCodeError, setLoginCodeError] = useState('');
+  const authFlow = useAuthFlow({
+    submitErrorFallback: 'Failed to check name.',
+    onAuthenticated: async (trimmedName, trimmedEmail) => {
+      const action = pendingActionRef.current;
+      pendingActionRef.current = null;
+      // handleSubmitName's unclaimed-name path always passes '' for email
+      // (it never asked for one) -- original behavior for that path was to
+      // fall back to whatever email is already on file for this browser,
+      // same as handleCreate/handleJoin's own storedEmail read below.
+      const email = trimmedEmail ||
+        (typeof window !== 'undefined' ? localStorage.getItem('playerEmail') || '' : '');
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('playerName', trimmedName);
+        if (email) localStorage.setItem('playerEmail', email);
+      }
+      if (!action) return;
+      if (action.type === 'create') {
+        await performCreate(trimmedName, email);
+      } else {
+        await performJoin(trimmedName, action.joinCode, email);
+      }
+    },
+  });
 
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('playerName') || '';
-      setName(stored);
+      authFlow.setName(stored);
       setLoggedInName(stored);
     }
+    // Only ever runs once on mount -- authFlow.setName is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const { secondsUntil: secondsUntilNextRaid } = useBossfightCountdown(mounted);
@@ -77,127 +96,41 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   };
 
   const handleCreate = async () => {
-    const trimmedName = name.trim();
+    const trimmedName = authFlow.name.trim();
     if (!trimmedName) return;
-    const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') || '' : '';
-    try {
-      if (!isLoggedIn) {
-        const { claimed } = await checkName(trimmedName);
-        if (claimed) {
-          setPendingAction({ type: 'create' });
-          setLoginEmail('');
-          setLoginEmailError('');
-          return;
-        }
+    if (isLoggedIn) {
+      const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') || '' : '';
+      try {
+        await performCreate(trimmedName, storedEmail);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Create lobby failed');
       }
-      await performCreate(trimmedName, storedEmail);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Create lobby failed');
+      return;
     }
+    pendingActionRef.current = { type: 'create' };
+    authFlow.handleSubmitName();
   };
 
   const handleJoin = async () => {
-    const trimmedName = name.trim();
+    const trimmedName = authFlow.name.trim();
     const trimmedCode = joinCode.trim();
     if (!trimmedName || !trimmedCode) return;
-    const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') || '' : '';
-    try {
-      if (!isLoggedIn) {
-        const { claimed } = await checkName(trimmedName);
-        if (claimed) {
-          setPendingAction({ type: 'join', joinCode: trimmedCode });
-          setLoginEmail('');
-          setLoginEmailError('');
-          return;
-        }
+    if (isLoggedIn) {
+      const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') || '' : '';
+      try {
+        await performJoin(trimmedName, trimmedCode, storedEmail);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Join failed');
       }
-      await performJoin(trimmedName, trimmedCode, storedEmail);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Join failed');
-    }
-  };
-
-  const completePendingAction = async (
-    trimmedName: string,
-    trimmedEmail: string
-  ) => {
-    const action = pendingAction;
-    setPendingAction(null);
-    setCodeMode(false);
-    setLoginCode('');
-    setLoginCodeError('');
-    setLoginEmail('');
-    setLoginEmailError('');
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('playerName', trimmedName);
-      localStorage.setItem('playerEmail', trimmedEmail);
-    }
-    if (!action) return;
-    if (action.type === 'create') {
-      await performCreate(trimmedName, trimmedEmail);
-    } else {
-      await performJoin(trimmedName, action.joinCode, trimmedEmail);
-    }
-  };
-
-  const handleLogin = async () => {
-    if (!pendingAction) return;
-    const trimmedName = name.trim();
-    const trimmedEmail = loginEmail.trim();
-    if (!trimmedName || !trimmedEmail) {
-      setLoginEmailError('Please enter your email.');
       return;
     }
-    setLoginEmailError('');
-    setLoginLoading(true);
-    try {
-      const result = await logInUser(trimmedName, trimmedEmail);
-      if (result.requires_code) {
-        setCodeMode(true);
-        setLoginCode('');
-        setLoginCodeError('');
-        return;
-      }
-      await completePendingAction(trimmedName, trimmedEmail);
-    } catch (err) {
-      if (err instanceof Error && err.message === 'Wrong email') {
-        setLoginEmailError('Wrong email');
-      } else {
-        setLoginEmailError(err instanceof Error ? err.message : 'Log in failed.');
-      }
-    } finally {
-      setLoginLoading(false);
-    }
-  };
-
-  const handleVerifyCode = async () => {
-    const trimmedName = name.trim();
-    const trimmedEmail = loginEmail.trim();
-    const trimmedCode = loginCode.trim();
-    if (!trimmedCode) {
-      setLoginCodeError('Please enter the code from your email.');
-      return;
-    }
-    setLoginCodeError('');
-    setLoginLoading(true);
-    try {
-      await verifyLoginCode(trimmedName, trimmedCode);
-      await completePendingAction(trimmedName, trimmedEmail);
-    } catch (err) {
-      setLoginCodeError(err instanceof Error ? err.message : 'Verification failed.');
-    } finally {
-      setLoginLoading(false);
-    }
+    pendingActionRef.current = { type: 'join', joinCode: trimmedCode };
+    authFlow.handleSubmitName();
   };
 
   const handleChooseNewName = () => {
-    setPendingAction(null);
-    setCodeMode(false);
-    setLoginCode('');
-    setLoginCodeError('');
-    setLoginEmail('');
-    setLoginEmailError('');
-    setName('');
+    pendingActionRef.current = null;
+    authFlow.reset();
   };
 
   const handleEnterRaid = async () => {
@@ -238,7 +171,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     // State update only — a location.reload() here would tear down and
     // re-initialise the entire WebGL scene just to swap the auth buttons.
     setLoggedInName('');
-    setName('');
+    authFlow.reset();
   };
 
   if (!mounted) return null;
@@ -335,11 +268,11 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
       )}
 
       {/* Claimed-name email login modal */}
-      {pendingAction && (
+      {authFlow.emailMode && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
           onClick={() => {
-            if (!loginLoading) handleChooseNewName();
+            if (!authFlow.loading) handleChooseNewName();
           }}
         >
           <div
@@ -352,62 +285,58 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
             <input
               type="email"
               placeholder="email"
-              value={loginEmail}
-              onChange={(e) => setLoginEmail(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !codeMode) handleLogin(); }}
-              autoFocus={!codeMode}
-              readOnly={codeMode}
-              className={`w-full p-2 border-2 border-black rounded text-gray-800 mb-1 ${codeMode ? 'opacity-60 bg-gray-100' : ''}`}
+              value={authFlow.email}
+              onChange={(e) => authFlow.setEmail(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !authFlow.codeMode) authFlow.handleLogin(); }}
+              autoFocus={!authFlow.codeMode}
+              readOnly={authFlow.codeMode}
+              className={`w-full p-2 border-2 border-black rounded text-gray-800 mb-1 ${authFlow.codeMode ? 'opacity-60 bg-gray-100' : ''}`}
             />
             <p className="text-xs text-gray-600 mb-3">email</p>
-            {loginEmailError && !codeMode && (
-              <p className="text-red-600 mb-3 font-semibold">{loginEmailError}</p>
+            {authFlow.emailError && !authFlow.codeMode && (
+              <p className="text-red-600 mb-3 font-semibold">{authFlow.emailError}</p>
             )}
 
-            {codeMode && (
+            {authFlow.codeMode && (
               <>
                 <p className="text-sm text-gray-700 mb-2">
-                  We sent a 6-digit code to <strong>{loginEmail}</strong>.
+                  We sent a 6-digit code to <strong>{authFlow.email}</strong>.
                 </p>
                 <input
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   placeholder="6-digit code"
-                  value={loginCode}
+                  value={authFlow.code}
                   onChange={(e) =>
-                    setLoginCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                    authFlow.setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
                   }
-                  onKeyDown={(e) => e.key === 'Enter' && handleVerifyCode()}
+                  onKeyDown={(e) => e.key === 'Enter' && authFlow.handleVerifyCode()}
                   autoFocus
                   className="w-full p-2 border-2 border-black rounded text-gray-800 mb-1 tracking-[0.3em] font-mono text-center"
                 />
                 <p className="text-xs text-gray-600 mb-3">6-digit code</p>
-                {loginCodeError && (
-                  <p className="text-red-600 mb-3 font-semibold">{loginCodeError}</p>
+                {authFlow.codeError && (
+                  <p className="text-red-600 mb-3 font-semibold">{authFlow.codeError}</p>
                 )}
               </>
             )}
 
             <div className="flex gap-3">
-              {codeMode ? (
+              {authFlow.codeMode ? (
                 <>
                   <button
                     type="button"
-                    onClick={handleVerifyCode}
-                    disabled={loginLoading}
+                    onClick={authFlow.handleVerifyCode}
+                    disabled={authFlow.loading}
                     className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
                   >
-                    {loginLoading ? 'Verifying...' : 'Verify'}
+                    {authFlow.loading ? 'Verifying...' : 'Verify'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setCodeMode(false);
-                      setLoginCode('');
-                      setLoginCodeError('');
-                    }}
-                    disabled={loginLoading}
+                    onClick={authFlow.backToEmailStep}
+                    disabled={authFlow.loading}
                     className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
                   >
                     Back
@@ -417,16 +346,16 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
                 <>
                   <button
                     type="button"
-                    onClick={handleLogin}
-                    disabled={loginLoading}
+                    onClick={authFlow.handleLogin}
+                    disabled={authFlow.loading}
                     className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
                   >
-                    {loginLoading ? 'Logging in...' : 'Log in'}
+                    {authFlow.loading ? 'Logging in...' : 'Log in'}
                   </button>
                   <button
                     type="button"
                     onClick={handleChooseNewName}
-                    disabled={loginLoading}
+                    disabled={authFlow.loading}
                     className={`${buttonBase} flex-1 bg-gray-200 text-black disabled:opacity-50`}
                   >
                     Choose new name
@@ -461,13 +390,18 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
           )}
 
           {!isLoggedIn && (
-            <input
-              type="text"
-              placeholder="Enter your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-64 p-2 rounded-l-md bg-gray-200 text-gray-800 border-2 border-black focus:outline-none"
-            />
+            <>
+              <input
+                type="text"
+                placeholder="Enter your name"
+                value={authFlow.name}
+                onChange={(e) => authFlow.setName(e.target.value)}
+                className="w-64 p-2 rounded-l-md bg-gray-200 text-gray-800 border-2 border-black focus:outline-none"
+              />
+              {authFlow.error && !authFlow.emailMode && (
+                <p className="text-red-400 text-sm font-semibold drop-shadow-md">{authFlow.error}</p>
+              )}
+            </>
           )}
 
           <div className="flex items-center gap-2 flex-wrap justify-center">
