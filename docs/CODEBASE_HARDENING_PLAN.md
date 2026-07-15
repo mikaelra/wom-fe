@@ -293,10 +293,42 @@ Lands as several PRs, one hook/component each (unlike Phase 0/1).
        each consumer's `.catch(() => {})` around its own inline fetch was
        already unreachable before this change. Not carried forward into
        `useGameEvents` or its consumers.
-4. **Slim the pages**: `app/lobby/[lobbyId]/page.tsx` keeps routing, the
-   join/login form, and composition; `app/page.tsx`'s duplicated
-   login/verify flow and `page.tsx`'s copy become one shared
-   `useAuthFlow` hook + form component.
+4. **Slim the pages** via a shared `useAuthFlow` hook for the
+   `checkName → claimed? → logInUser → requires_code? → verifyLoginCode`
+   flow. Research found this duplicated in **5** places, not the 2
+   originally described here, across 3 distinct shapes — split into
+   sub-steps accordingly (mirroring the 3a/3b split above):
+   - ✅ **done (4a)** — `src/lib/useAuthFlow.ts`, covering **Shape A:
+     single action, always `checkName`-gated** — `app/page.tsx` (the
+     Athens raid popup) and `app/lobby/[lobbyId]/page.tsx` (the
+     join-lobby form). A real bug found and fixed along the way: the
+     Athens popup was the *only* Shape A site that never checked
+     `logInUser`'s `requires_code` field, letting a 2FA-enabled account
+     bypass the verification-code step entirely when entering the raid
+     from the home screen — every other entry point (including the lobby
+     join form) correctly gated it. Building the shared hook with the
+     code step included and wiring it into both sites closes this gap as
+     a natural consequence of unification. Two small, deliberate,
+     explicitly-noted behavior unifications (not pure preservation): an
+     empty name submit now always shows "Please enter a username." (the
+     lobby page silently no-op'd here before, reachable only by pressing
+     Enter on an empty, button-disabled field); the lobby page's
+     name-input `onChange` used to also clear `emailMode`/`codeMode`,
+     dead code since the field is `readOnly` while either mode is active
+     (matches the Athens popup, which never had this reset). Not built as
+     a shared JSX component — the two popups differ enough in visual
+     chrome (colors, copy, button labels) that one parameterized
+     component would cost more than the duplication it'd save; revisit
+     only if 4b/4c reveal the same JSX shape recurring again.
+   - **Not yet done (4b)** — **Shape B: dual action via a `pendingAction`
+     union, with an "already-logged-in, skip `checkName`" shortcut** —
+     `HomeOverlay.tsx` and `WorldMapOverlay.tsx` (near-identical to each
+     other). Needs the hook (or a variant) to support a caller-tracked
+     "which action is pending" dispatch that Shape A doesn't have.
+   - **Not yet done (4c)** — **Shape C: no `checkName` gate, direct
+     login** — `app/login/page.tsx`. Name+email entered together up
+     front, straight to `logInUser`, no "new vs. existing name" branch.
+     Likely the simplest of the three shapes, but still its own.
 5. **Split `LobbyScene.tsx`** along what it already contains: scene setup /
    camera, per-player avatar group, effect orchestration (the
    sword/shield/well/fire effects keyed off `GameEvent`s), and HUD wiring.
@@ -356,8 +388,10 @@ Coordinated with backend Phase 1a/1b (see that plan):
 2. ✅ Phase 1 (zod boundary + typed socket layer) — the anti-anxiety core.
 3. **In progress** — Phase 2 hooks extraction — several PRs, one
    hook/component each. Steps 1 (`useLobbyConnection`), 2 (`useLobbyGame`),
-   3a (`useRoundTimer`/`useBossfightCountdown`), and 3b (`useGameEvents`)
-   done; **next up** is item 4 (`useAuthFlow`, slimming the pages).
+   3a (`useRoundTimer`/`useBossfightCountdown`), 3b (`useGameEvents`), and
+   4a (`useAuthFlow` for the Shape A sites, incl. a 2FA-bypass bug fix)
+   done; **next up** is item 4b (`useAuthFlow` for `HomeOverlay.tsx`/
+   `WorldMapOverlay.tsx`).
 4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3

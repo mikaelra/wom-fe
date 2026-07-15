@@ -13,12 +13,9 @@ import HomeOverlay from '@/components/home/HomeOverlay';
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
-import {
-  getBossfightLobby,
-  checkName,
-  logInUser,
-} from '@/lib/api';
+import { getBossfightLobby } from '@/lib/api';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
+import { useAuthFlow } from '@/lib/useAuthFlow';
 
 // Dynamically import heavy 3D models
 const PlayerV1 = dynamic(() => import('../components/Playerv1'), { ssr: false });
@@ -180,12 +177,6 @@ export default function Page() {
 
   // Athens raid login popup state
   const [showAthensPopup, setShowAthensPopup] = useState(false);
-  const [athensUsername, setAthensUsername] = useState('');
-  const [athensError, setAthensError] = useState('');
-  const [athensLoading, setAthensLoading] = useState(false);
-  const [athensEmailMode, setAthensEmailMode] = useState(false);
-  const [athensEmail, setAthensEmail] = useState('');
-  const [athensEmailError, setAthensEmailError] = useState('');
   const [athensSceneLoading, setAthensSceneLoading] = useState(false);
 
   const router = useRouter();
@@ -208,14 +199,24 @@ export default function Page() {
       });
   }, [router]);
 
-  const resetAthensPopup = useCallback(() => {
-    setAthensUsername('');
-    setAthensError('');
-    setAthensLoading(false);
-    setAthensEmailMode(false);
-    setAthensEmail('');
-    setAthensEmailError('');
-  }, []);
+  // ---- Athens raid handlers --------------------------------------------------
+  const proceedAthens = useCallback((name: string, email: string) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('playerName', name);
+      if (email) localStorage.setItem('playerEmail', email);
+    }
+    setShowAthensPopup(false);
+    enterAthensRaid(name);
+  }, [enterAthensRaid]);
+
+  const authFlow = useAuthFlow({
+    submitErrorFallback: 'Failed to enter raid.',
+    onAuthenticated: proceedAthens,
+  });
+  // Pulled out so handleCityClick's own useCallback deps stay stable --
+  // authFlow itself is a fresh object every render, but .reset is a stable
+  // useCallback(..., []) internally.
+  const resetAuthFlow = authFlow.reset;
 
   const handleCityClick = useCallback((city: City) => {
     if (city.isVault) {
@@ -230,7 +231,7 @@ export default function Page() {
     if (city.name === 'Athens') {
       const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
       if (!playerName) {
-        resetAthensPopup();
+        resetAuthFlow();
         setShowAthensPopup(true);
         return;
       }
@@ -238,73 +239,7 @@ export default function Page() {
       return;
     }
     setSelectedCity(city);
-  }, [router, enterAthensRaid, resetAthensPopup]);
-
-  // ---- Athens raid handlers --------------------------------------------------
-  const proceedAthens = useCallback((trimmed: string) => {
-    if (typeof window !== 'undefined') localStorage.setItem('playerName', trimmed);
-    setShowAthensPopup(false);
-    enterAthensRaid(trimmed);
-  }, [enterAthensRaid]);
-
-  const handleAthensJoin = useCallback(async () => {
-    const trimmed = athensUsername.trim();
-    if (!trimmed) {
-      setAthensError('Please enter a username.');
-      return;
-    }
-    setAthensError('');
-    setAthensLoading(true);
-    try {
-      const { claimed } = await checkName(trimmed);
-      if (claimed) {
-        setAthensEmailMode(true);
-        setAthensEmail('');
-        setAthensEmailError('');
-        return;
-      }
-      proceedAthens(trimmed);
-    } catch (err) {
-      setAthensError(err instanceof Error ? err.message : 'Failed to enter raid.');
-    } finally {
-      setAthensLoading(false);
-    }
-  }, [athensUsername, proceedAthens]);
-
-  const handleAthensLogin = useCallback(async () => {
-    const trimmedName = athensUsername.trim();
-    const trimmedEmail = athensEmail.trim();
-    if (!trimmedName || !trimmedEmail) {
-      setAthensEmailError('Please enter your email.');
-      return;
-    }
-    setAthensEmailError('');
-    setAthensLoading(true);
-    try {
-      await logInUser(trimmedName, trimmedEmail);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('playerName', trimmedName);
-        localStorage.setItem('playerEmail', trimmedEmail);
-      }
-      proceedAthens(trimmedName);
-    } catch (err) {
-      if (err instanceof Error && err.message === 'Wrong email') {
-        setAthensEmailError('Wrong email');
-      } else {
-        setAthensEmailError(err instanceof Error ? err.message : 'Log in failed.');
-      }
-    } finally {
-      setAthensLoading(false);
-    }
-  }, [athensUsername, athensEmail, proceedAthens]);
-
-  const handleAthensChooseNewName = useCallback(() => {
-    setAthensEmailMode(false);
-    setAthensEmail('');
-    setAthensEmailError('');
-    setAthensUsername('');
-    setAthensError('');
-  }, []);
+  }, [router, enterAthensRaid, resetAuthFlow]);
 
   const handleBackToMap = useCallback(() => {
     setSelectedCity(null);
@@ -346,22 +281,23 @@ export default function Page() {
               <input
                 type="text"
                 placeholder="Your battle name"
-                value={athensUsername}
-                onChange={(e) => setAthensUsername(e.target.value)}
+                value={authFlow.name}
+                onChange={(e) => authFlow.setName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key !== 'Enter') return;
-                  if (athensEmailMode) handleAthensLogin();
-                  else handleAthensJoin();
+                  if (authFlow.codeMode) authFlow.handleVerifyCode();
+                  else if (authFlow.emailMode) authFlow.handleLogin();
+                  else authFlow.handleSubmitName();
                 }}
                 autoFocus
-                readOnly={athensEmailMode}
-                className={`w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 focus:outline-none focus:border-red-500 mb-3 ${athensEmailMode ? 'opacity-70' : ''}`}
+                readOnly={authFlow.emailMode}
+                className={`w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 focus:outline-none focus:border-red-500 mb-3 ${authFlow.emailMode ? 'opacity-70' : ''}`}
               />
-              {athensError && !athensEmailMode && (
-                <p className="text-red-400 text-sm mb-3">{athensError}</p>
+              {authFlow.error && !authFlow.emailMode && (
+                <p className="text-red-400 text-sm mb-3">{authFlow.error}</p>
               )}
 
-              {athensEmailMode && (
+              {authFlow.emailMode && (
                 <>
                   <p className="text-sm text-white/80 mb-2">
                     This name is claimed. Type your email if you have claimed this username.
@@ -369,34 +305,76 @@ export default function Page() {
                   <input
                     type="email"
                     placeholder="email"
-                    value={athensEmail}
-                    onChange={(e) => setAthensEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAthensLogin()}
-                    autoFocus
-                    className="w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 focus:outline-none focus:border-red-500 mb-1"
+                    value={authFlow.email}
+                    onChange={(e) => authFlow.setEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !authFlow.codeMode) authFlow.handleLogin(); }}
+                    autoFocus={!authFlow.codeMode}
+                    readOnly={authFlow.codeMode}
+                    className={`w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 focus:outline-none focus:border-red-500 mb-1 ${authFlow.codeMode ? 'opacity-70' : ''}`}
                   />
                   <p className="text-xs text-white/50 mb-3">email</p>
-                  {athensEmailError && (
-                    <p className="text-red-500 text-sm mb-3 font-semibold">{athensEmailError}</p>
+                  {authFlow.emailError && !authFlow.codeMode && (
+                    <p className="text-red-500 text-sm mb-3 font-semibold">{authFlow.emailError}</p>
+                  )}
+                </>
+              )}
+
+              {authFlow.codeMode && (
+                <>
+                  <p className="text-sm text-white/80 mb-2">
+                    We sent a 6-digit code to <strong>{authFlow.email}</strong>.
+                  </p>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="6-digit code"
+                    value={authFlow.code}
+                    onChange={(e) => authFlow.setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    onKeyDown={(e) => e.key === 'Enter' && authFlow.handleVerifyCode()}
+                    autoFocus
+                    className="w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 tracking-[0.3em] font-mono text-center focus:outline-none focus:border-red-500 mb-3"
+                  />
+                  {authFlow.codeError && (
+                    <p className="text-red-500 text-sm mb-3 font-semibold">{authFlow.codeError}</p>
                   )}
                 </>
               )}
 
               <div className="flex gap-3">
-                {athensEmailMode ? (
+                {authFlow.codeMode ? (
                   <>
                     <button
                       type="button"
-                      onClick={handleAthensLogin}
-                      disabled={athensLoading}
+                      onClick={authFlow.handleVerifyCode}
+                      disabled={authFlow.loading}
                       className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
                     >
-                      {athensLoading ? 'Logging in...' : 'Log in'}
+                      {authFlow.loading ? 'Verifying...' : 'Verify'}
                     </button>
                     <button
                       type="button"
-                      onClick={handleAthensChooseNewName}
-                      disabled={athensLoading}
+                      onClick={authFlow.backToEmailStep}
+                      disabled={authFlow.loading}
+                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      Back
+                    </button>
+                  </>
+                ) : authFlow.emailMode ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={authFlow.handleLogin}
+                      disabled={authFlow.loading}
+                      className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {authFlow.loading ? 'Logging in...' : 'Log in'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={authFlow.reset}
+                      disabled={authFlow.loading}
                       className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       Choose new name
@@ -406,11 +384,11 @@ export default function Page() {
                   <>
                     <button
                       type="button"
-                      onClick={handleAthensJoin}
-                      disabled={athensLoading}
+                      onClick={authFlow.handleSubmitName}
+                      disabled={authFlow.loading}
                       className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
                     >
-                      {athensLoading ? 'Entering...' : 'Enter Raid'}
+                      {authFlow.loading ? 'Entering...' : 'Enter Raid'}
                     </button>
                     <button
                       type="button"
