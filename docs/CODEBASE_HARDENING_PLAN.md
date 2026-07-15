@@ -320,11 +320,27 @@ Lands as several PRs, one hook/component each (unlike Phase 0/1).
      chrome (colors, copy, button labels) that one parameterized
      component would cost more than the duplication it'd save; revisit
      only if 4b/4c reveal the same JSX shape recurring again.
-   - **Not yet done (4b)** — **Shape B: dual action via a `pendingAction`
+   - ✅ **done (4b)** — **Shape B: dual action via a `pendingAction`
      union, with an "already-logged-in, skip `checkName`" shortcut** —
      `HomeOverlay.tsx` and `WorldMapOverlay.tsx` (near-identical to each
-     other). Needs the hook (or a variant) to support a caller-tracked
-     "which action is pending" dispatch that Shape A doesn't have.
+     other). No changes needed to `useAuthFlow.ts` itself — both callers
+     wrap it, tracking "which action is pending" and the
+     already-logged-in shortcut entirely on their own side, confirming
+     4a's hook surface was general enough. One real structural difference
+     between the two files shaped the implementation:
+     `WorldMapOverlay.tsx` opens a blank popup first, so its own
+     `pendingAction` can stay `useState` (read safely across the render
+     boundary between "open" and "submit" clicks, and it's also
+     rendered — "join"/"create" copy text). `HomeOverlay.tsx` has no
+     separate open step — `handleCreate`/`handleJoin` set the pending
+     action and call the hook's `handleSubmitName()` in the *same*
+     synchronous click handler, so `useState` would be stale-closure-prone
+     there; it uses a `useRef` instead. Also unified
+     `HomeOverlay.tsx`'s `checkName`-step error reporting from `alert()`
+     to inline text (a small new element under the name input), matching
+     every other error in both files and 4a's own precedent.
+     `WorldMapOverlay.tsx` already used inline errors throughout, no
+     change needed there.
    - **Not yet done (4c)** — **Shape C: no `checkName` gate, direct
      login** — `app/login/page.tsx`. Name+email entered together up
      front, straight to `logInUser`, no "new vs. existing name" branch.
@@ -388,10 +404,10 @@ Coordinated with backend Phase 1a/1b (see that plan):
 2. ✅ Phase 1 (zod boundary + typed socket layer) — the anti-anxiety core.
 3. **In progress** — Phase 2 hooks extraction — several PRs, one
    hook/component each. Steps 1 (`useLobbyConnection`), 2 (`useLobbyGame`),
-   3a (`useRoundTimer`/`useBossfightCountdown`), 3b (`useGameEvents`), and
-   4a (`useAuthFlow` for the Shape A sites, incl. a 2FA-bypass bug fix)
-   done; **next up** is item 4b (`useAuthFlow` for `HomeOverlay.tsx`/
-   `WorldMapOverlay.tsx`).
+   3a (`useRoundTimer`/`useBossfightCountdown`), 3b (`useGameEvents`), 4a
+   (`useAuthFlow` for the Shape A sites, incl. a 2FA-bypass bug fix), and
+   4b (`useAuthFlow` for `HomeOverlay.tsx`/`WorldMapOverlay.tsx`) done;
+   **next up** is item 4c (`useAuthFlow` for `app/login/page.tsx`).
 4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
