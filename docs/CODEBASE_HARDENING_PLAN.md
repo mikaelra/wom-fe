@@ -364,7 +364,32 @@ Lands as several PRs, one hook/component each (unlike Phase 0/1).
    sword/shield/well/fire effects keyed off `GameEvent`s), and HUD wiring.
    Target: no file over ~400 lines, and the effect-orchestration mapping
    (`GameEvent[] → which animations to play`) becomes a pure function in
-   `lib/` with unit tests — it's game logic, not rendering.
+   `lib/` with unit tests — it's game logic, not rendering. Direct
+   full-file read (1552 lines) found the same 4 concerns the doc already
+   named; split into sub-steps ordered by risk, lowest first (mirroring
+   the 3a/3b and 4a-4c splits above) — the effect-orchestration piece
+   drives real-time 3D animation timing (staggered `setTimeout`s, coin-
+   count jitter, precise delay math) and is deliberately done last, once
+   the file is already smaller:
+   - ✅ **done (5a)** — `src/components/lobby/PlayerAvatars.tsx`: a pure,
+     behavior-preserving move of the entire per-player/lost-soul/crown
+     avatar group (`PlayerWithName`, `PlayerModelLayer`,
+     `BobbingCrown`/`WinnerCrown`/`WellCrown`, `LostSoulMesh`/
+     `LostSoulModel`, their private stacked-HTML helpers, and the
+     `LOST_SOUL_POSITIONS`/`BOSS_MAX_HP` constants) out of
+     `LobbyScene.tsx` — no logic changes. Verified via grep, not
+     assumption, which of the file's `useGLTF.preload(...)` calls belong
+     to this group (the player/crown/soul GLBs) versus the
+     effect-orchestration group (shield/sword/well-reward GLBs, staying
+     put) before moving them. Dropped `LobbyScene.tsx` from 1552 to 1141
+     lines.
+   - **Not yet done (5b)** — extract `CameraFlyIn` and the rest of the
+     scene-setup/camera code into its own file. Similarly mechanical,
+     similarly low risk.
+   - **Not yet done (5c)** — the effect-orchestration pure-function
+     extraction itself, done last and most carefully.
+   - HUD wiring: re-evaluate after 5b/5c land — `LobbyScene.tsx` may
+     already be small enough by then that it isn't worth a further cut.
 
 Each extraction is test-first: write the hook/function test from the
 current behavior, move the code, components shrink mechanically.
@@ -418,11 +443,12 @@ Coordinated with backend Phase 1a/1b (see that plan):
 2. ✅ Phase 1 (zod boundary + typed socket layer) — the anti-anxiety core.
 3. **In progress** — Phase 2 hooks extraction — several PRs, one
    hook/component each. Steps 1 (`useLobbyConnection`), 2 (`useLobbyGame`),
-   3a (`useRoundTimer`/`useBossfightCountdown`), 3b (`useGameEvents`), and
-   all of item 4 (`useAuthFlow` — 4a the Shape A sites incl. a 2FA-bypass
-   bug fix, 4b `HomeOverlay.tsx`/`WorldMapOverlay.tsx`, 4c
-   `app/login/page.tsx`) done; **next up** is item 5 (splitting
-   `LobbyScene.tsx`).
+   3a (`useRoundTimer`/`useBossfightCountdown`), 3b (`useGameEvents`), all
+   of item 4 (`useAuthFlow` — 4a the Shape A sites incl. a 2FA-bypass bug
+   fix, 4b `HomeOverlay.tsx`/`WorldMapOverlay.tsx`, 4c
+   `app/login/page.tsx`), and item 5 step 5a (`PlayerAvatars.tsx`) done;
+   **next up** is item 5 step 5b (`LobbyScene.tsx`'s camera/scene-setup
+   extraction).
 4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
