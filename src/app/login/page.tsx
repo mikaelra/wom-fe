@@ -1,111 +1,69 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { logInUser, verifyLoginCode } from '@/lib/api';
+import { useAuthFlow } from '@/lib/useAuthFlow';
 
 export default function LoginPage() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const [needsCode, setNeedsCode] = useState(false);
-  const [code, setCode] = useState('');
-  const [codeError, setCodeError] = useState('');
-
   const router = useRouter();
 
-  const finishLogin = (trimmedName: string, trimmedEmail: string) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('playerName', trimmedName);
-      localStorage.setItem('playerEmail', trimmedEmail);
-    }
-    router.push('/');
-  };
-
-  const handleLogin = async () => {
-    const trimmedName = name.trim();
-    const trimmedEmail = email.trim();
-    if (!trimmedName || !trimmedEmail) {
-      setError('Please fill in both name and email.');
-      return;
-    }
-    setError('');
-    setLoading(true);
-    try {
-      const result = await logInUser(trimmedName, trimmedEmail);
-      if (result.requires_code) {
-        setNeedsCode(true);
-        setCode('');
-        setCodeError('');
-        return;
+  const authFlow = useAuthFlow({
+    onAuthenticated: (name, email) => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('playerName', name);
+        localStorage.setItem('playerEmail', email);
       }
-      finishLogin(trimmedName, trimmedEmail);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      router.push('/');
+    },
+  });
 
-  const handleVerify = async () => {
-    const trimmedCode = code.trim();
-    if (!trimmedCode) {
-      setCodeError('Please enter the code from your email.');
-      return;
-    }
-    setCodeError('');
-    setLoading(true);
-    try {
-      await verifyLoginCode(name.trim(), trimmedCode);
-      finishLogin(name.trim(), email.trim());
-    } catch (err) {
-      setCodeError(err instanceof Error ? err.message : 'Verification failed.');
-    } finally {
-      setLoading(false);
-    }
+  // This page has no checkName step (it's a plain login, not join-or-create),
+  // so authFlow.handleLogin's own empty-email check runs unguarded, but its
+  // empty-name check doesn't exist -- Shape A/B only ever call handleLogin
+  // after their own handleSubmitName step already enforced a non-empty name.
+  const handleLoginClick = () => {
+    if (!authFlow.name.trim()) return;
+    authFlow.handleLogin();
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 p-6">
       <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-gray-900">
         <h2 className="text-2xl font-bold text-center mb-6">
-          {needsCode ? 'Enter verification code' : 'Log In'}
+          {authFlow.codeMode ? 'Enter verification code' : 'Log In'}
         </h2>
 
-        {!needsCode ? (
+        {!authFlow.codeMode ? (
           <>
             <input
               type="text"
               placeholder="Enter your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={authFlow.name}
+              onChange={(e) => authFlow.setName(e.target.value)}
               className="w-full mb-4 p-2 border-2 border-black rounded text-gray-800"
             />
             <input
               type="email"
               placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+              value={authFlow.email}
+              onChange={(e) => authFlow.setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLoginClick()}
               className="w-full mb-6 p-2 border-2 border-black rounded text-gray-800"
             />
-            {error && <p className="text-red-500 mb-4 text-center">{error}</p>}
+            {authFlow.emailError && <p className="text-red-500 mb-4 text-center">{authFlow.emailError}</p>}
             <button
               type="button"
-              onClick={handleLogin}
-              disabled={loading}
+              onClick={handleLoginClick}
+              disabled={authFlow.loading}
               className="w-full px-4 py-2 border-2 border-black rounded font-bold bg-gray-200 text-black cursor-pointer disabled:opacity-50"
             >
-              {loading ? 'Logging in...' : 'Log In'}
+              {authFlow.loading ? 'Logging in...' : 'Log In'}
             </button>
           </>
         ) : (
           <>
             <p className="text-sm text-gray-700 mb-4">
-              We sent a 6-digit code to <strong>{email}</strong>. Enter it below
+              We sent a 6-digit code to <strong>{authFlow.email}</strong>. Enter it below
               to finish signing in.
             </p>
             <input
@@ -113,31 +71,27 @@ export default function LoginPage() {
               inputMode="numeric"
               autoComplete="one-time-code"
               placeholder="6-digit code"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+              value={authFlow.code}
+              onChange={(e) => authFlow.setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyDown={(e) => e.key === 'Enter' && authFlow.handleVerifyCode()}
               autoFocus
               className="w-full mb-4 p-2 border-2 border-black rounded text-gray-800 tracking-[0.3em] font-mono text-center"
             />
-            {codeError && (
-              <p className="text-red-500 mb-4 text-center">{codeError}</p>
+            {authFlow.codeError && (
+              <p className="text-red-500 mb-4 text-center">{authFlow.codeError}</p>
             )}
             <button
               type="button"
-              onClick={handleVerify}
-              disabled={loading}
+              onClick={authFlow.handleVerifyCode}
+              disabled={authFlow.loading}
               className="w-full px-4 py-2 border-2 border-black rounded font-bold bg-gray-200 text-black cursor-pointer disabled:opacity-50"
             >
-              {loading ? 'Verifying...' : 'Verify'}
+              {authFlow.loading ? 'Verifying...' : 'Verify'}
             </button>
             <button
               type="button"
-              onClick={() => {
-                setNeedsCode(false);
-                setCode('');
-                setCodeError('');
-              }}
-              disabled={loading}
+              onClick={authFlow.backToEmailStep}
+              disabled={authFlow.loading}
               className="w-full mt-2 px-4 py-2 border-2 border-black rounded font-bold bg-white text-black cursor-pointer disabled:opacity-50"
             >
               Back
