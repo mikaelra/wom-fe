@@ -383,12 +383,18 @@ Lands as several PRs, one hook/component each (unlike Phase 0/1).
      effect-orchestration group (shield/sword/well-reward GLBs, staying
      put) before moving them. Dropped `LobbyScene.tsx` from 1552 to 1141
      lines.
-   - **Not yet done (5b)** — extract `CameraFlyIn` and the rest of the
-     scene-setup/camera code into its own file. Similarly mechanical,
-     similarly low risk.
+   - ✅ **done (5b)** — `src/components/lobby/CameraFlyIn.tsx`: the
+     camera controller (frame-loop lerp, pan-offset orbit, responsive
+     FOV) and its 5 scratch-vector constants, moved verbatim. Verified
+     via grep that `SEA_LEVEL`/`SUN_POSITION` — sitting right next to
+     the camera constants in the original file — aren't actually camera
+     logic at all (only ever read at `LobbyScene.tsx`'s own
+     `<SeaAndSky>` JSX call site) and so stayed put, rather than being
+     swept along just because of their proximity. Dropped
+     `LobbyScene.tsx` from 1141 to 1092 lines.
    - **Not yet done (5c)** — the effect-orchestration pure-function
      extraction itself, done last and most carefully.
-   - HUD wiring: re-evaluate after 5b/5c land — `LobbyScene.tsx` may
+   - HUD wiring: re-evaluate after 5c lands — `LobbyScene.tsx` may
      already be small enough by then that it isn't worth a further cut.
 
 Each extraction is test-first: write the hook/function test from the
@@ -446,9 +452,9 @@ Coordinated with backend Phase 1a/1b (see that plan):
    3a (`useRoundTimer`/`useBossfightCountdown`), 3b (`useGameEvents`), all
    of item 4 (`useAuthFlow` — 4a the Shape A sites incl. a 2FA-bypass bug
    fix, 4b `HomeOverlay.tsx`/`WorldMapOverlay.tsx`, 4c
-   `app/login/page.tsx`), and item 5 step 5a (`PlayerAvatars.tsx`) done;
-   **next up** is item 5 step 5b (`LobbyScene.tsx`'s camera/scene-setup
-   extraction).
+   `app/login/page.tsx`), and item 5 steps 5a (`PlayerAvatars.tsx`) and
+   5b (`CameraFlyIn.tsx`) done; **next up** is item 5 step 5c (the
+   effect-orchestration pure-function extraction).
 4. Phase 3 RTL tests as extractions land; Playwright smoke once stable.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
