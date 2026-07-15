@@ -86,6 +86,12 @@ export default defineConfig({
       // function): pushed the suite to ~63.72/58.84/59.85/64.79 (stable
       // across repeated runs). Steps 5a/5b needed no glob/threshold change --
       // PlayerAvatars.tsx/CameraFlyIn.tsx aren't in src/lib/.
+      // Phase 3 SceneOverlay.tsx RTL tests (mocking its 6 already-tested
+      // hooks): observed ~63.97/59.51/59.85/65.06, a small but real,
+      // stable increase (some src/lib branches get incidentally exercised
+      // resolving the mocked modules) -- still safely within the existing
+      // margin below, so the numeric thresholds are unchanged; noted here
+      // per the "always document the observed number" convention.
       thresholds: {
         statements: 63,
         branches: 58,

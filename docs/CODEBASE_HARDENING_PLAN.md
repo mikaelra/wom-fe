@@ -453,9 +453,32 @@ With logic in hooks/lib, what's left to test as components is small:
   mocked to a stub for the `showNudge`-gate test, driven via a captured
   `onStateChange` callback. 14 new tests; no coverage-ratchet change
   (this file isn't in the `src/lib/**/*.ts` glob, confirmed via a run).
-- **Not yet done** — `SceneOverlay.tsx`'s own RTL tests (action buttons
-  reflect phase, deny modal, messages panel) — a substantially bigger
-  surface than `LobbyOverlay.tsx`, deserving its own dedicated step.
+- ✅ **done (core branching + actions)** —
+  `src/components/__tests__/SceneOverlay.test.tsx`. `SceneOverlay.tsx`
+  composes 6 hooks, every one already unit-tested in Phase 2
+  (`useLobbyConnection`, `useLobbyGame`, `useRoundTimer`,
+  `useBossfightCountdown`, `useGameEvents`, `useStagedResources`) —
+  exactly Phase 2's payoff: mocked all 6 (plus `@/lib/socket`) so only
+  `SceneOverlay`'s own logic is under test, not the hooks' own behavior.
+  11 new tests cover: the loading state; pre-game delegation
+  (`renderPreGame` called with the right computed props, and its
+  `onStartGame`/`onAddDummy`/`onKick` wired to the right socket emits);
+  game-over delegation (`renderGameOver` called with the right props);
+  `canAct`/`hidePlayerActionButtons`-driven action-button and
+  resource-card gating; the deny picker (visibility, populated options,
+  disabled-until-selected, `submit_deny_target` emit). No coverage-ratchet
+  *glob* change (`SceneOverlay.tsx` isn't in `src/lib/`), but observed a
+  small, real, stable increase anyway (~63.97/59.51/59.85/65.06 vs.
+  ~63.72/58.84/59.85/64.79) — still within the existing margin, so no
+  numeric threshold change needed; confirmed via a run rather than
+  assumed either way.
+- **Not yet done (remainder of `SceneOverlay.tsx`)** — the chat panel
+  (toggle/send/unread badge/click-outside), the messages panel's
+  overflow measurement (`ResizeObserver`/`document.fonts.ready`), the
+  player list, and the warn-blink (`actionCue`/`resourceCue`)
+  countdown-threshold cues — each its own self-contained
+  mocking/timing concern, deferred to a follow-up step rather than
+  bundled into one large PR.
 - **Not yet done** — RTL tests for the join/login/verify forms (happy
   path + wrong-email + expired-code branches — these exercise the
   `useAuthFlow` hook, already unit-tested at 94%+ coverage itself; the
@@ -508,9 +531,11 @@ Coordinated with backend Phase 1a/1b (see that plan):
    fix), 5 (`LobbyScene.tsx` split into `PlayerAvatars.tsx`/
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
 4. **In progress** — Phase 3 RTL tests now that logic lives in
-   hooks/lib. `LobbyOverlay.tsx` done; **next up** is `SceneOverlay.tsx`
-   (the bigger action-button/deny-modal surface). Playwright smoke once
-   the RTL layer is stable.
+   hooks/lib. `LobbyOverlay.tsx` and `SceneOverlay.tsx`'s core
+   branching/actions done; **next up** is `SceneOverlay.tsx`'s
+   remainder (chat panel, messages overflow, player list, warn-blink
+   cues), then the auth-form RTL tests, settings-page toggle flow, and
+   Playwright smoke.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
    (treat `localStorage` as convenience-only) is effectively already true
