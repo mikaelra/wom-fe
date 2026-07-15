@@ -563,9 +563,47 @@ With logic in hooks/lib, what's left to test as components is small:
     popup never opens at all), Cancel, and the user menu/logout. No
     coverage-ratchet change, confirmed via a run (exactly unchanged from
     site 1's numbers, matching site 2 — neither file is in `src/lib/`).
-  - **Not yet done (4-5/5)** — the two Canvas-rendering Shape A pages
-    (`app/page.tsx`, `app/lobby/[lobbyId]/page.tsx`), pending a decision
-    on whether to build R3F/Canvas-mocking infrastructure for them.
+  - ✅ **done (4/5)** — `app/page.tsx`'s Athens raid popup. First test in
+    this repo to mock `@react-three/fiber` itself rather than a component
+    that happens to use it: `Canvas` is mocked to render its children
+    directly (no real `<canvas>`/WebGL context), and `useFrame`/`useThree`
+    are stubbed since the module shape has to satisfy the page's import
+    statement. Two things were verified empirically before finalizing
+    this, not assumed: jsdom's `requestAnimationFrame` does fire (on a
+    real timer, catchable with `waitFor`) — relevant since the world-map
+    Canvas only mounts once an RAF-delayed `sceneReady` flag flips; and
+    `vi.mock('@/components/worldmap/WorldMap', ...)` does correctly
+    intercept the module despite it being wrapped in
+    `next/dynamic(() => import(...))`, confirmed with a throwaway repro
+    first since this repo had no prior test combining the two.
+    `WorldMap` itself (the 3D city-picker, out of scope) is mocked to a
+    button that invokes its real `onCityClick` prop, and the already
+    separately-tested `WorldMapOverlay` is mocked to `() => null`.
+    One real gap the initial plan got wrong, caught by a test crash
+    rather than by re-reading the code closely enough up front: clicking
+    a *non*-Athens/vault/rules city doesn't no-op, it calls
+    `setSelectedCity`, switching to the City Hub view and mounting
+    `TempleScene`'s real R3F content (`Mountain`, `Table`, `PlayerV1`,
+    `OrbitControls`, `Environment`) inside a second `<Canvas>` — well
+    beyond this step's scope to mock (their GLTF loaders throw immediately
+    in jsdom). Fixed by dropping that specific test rather than building
+    out a much larger mock surface for a view this step was never meant to
+    cover; the vault/rules-city tests stay safe since both `router.push`
+    and `return` before ever reaching `setSelectedCity`.
+    `src/app/__tests__/page.test.tsx`, 8 tests: opening the popup on an
+    Athens click, vault/rules cities navigating directly without opening
+    it, the already-logged-in shortcut skipping `checkName` entirely, an
+    unclaimed-name raid entry (`localStorage` written with no email — this
+    site's own difference from `WorldMapOverlay.tsx`, which only writes
+    `localStorage` when an email is present), the claimed-name email step,
+    the code step (wrong then right code), and a `getBossfightLobby`
+    failure showing `alert()` (first use of a `window.alert` spy in this
+    repo's tests — no earlier site's test exercised an `alert()` branch).
+    No coverage-ratchet change, confirmed via a run.
+  - **Not yet done (5/5)** — `app/lobby/[lobbyId]/page.tsx`'s join form,
+    the last Shape A site. Reuses this step's `@react-three/fiber` mock;
+    additionally needs `@/lib/socket` and `next/navigation`'s `useParams`
+    mocked.
 - **Not yet done** — settings page toggle flow.
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
   covered indirectly: their props are produced by tested functions, and
@@ -614,11 +652,11 @@ Coordinated with backend Phase 1a/1b (see that plan):
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
 4. **In progress** — Phase 3 RTL tests now that logic lives in
    hooks/lib. `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, and
-   auth-form sites 1-3/5 (`app/login/page.tsx`, `HomeOverlay.tsx`,
-   `WorldMapOverlay.tsx`) done; **next up** is auth-form sites 4-5/5
-   (the two Canvas-rendering Shape A pages, pending an R3F-mocking
-   decision), then the settings-page toggle flow, then Playwright
-   smoke.
+   auth-form sites 1-4/5 (`app/login/page.tsx`, `HomeOverlay.tsx`,
+   `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens popup) done; **next up**
+   is auth-form site 5/5 (`app/lobby/[lobbyId]/page.tsx`'s join form,
+   reusing the `@react-three/fiber` mock built for site 4), then the
+   settings-page toggle flow, then Playwright smoke.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165). Item 3
    (treat `localStorage` as convenience-only) is effectively already true

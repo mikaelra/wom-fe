@@ -102,6 +102,9 @@ export default defineConfig({
       // exercise useAuthFlow the same way site 1 already did, so the
       // numbers were exactly unchanged (confirmed via a run each time, not
       // assumed).
+      // Site 4/5 (app/page.tsx's Athens raid popup, the first RTL test in
+      // this repo to mock @react-three/fiber's Canvas) also needed no
+      // change, same reason.
       thresholds: {
         statements: 63,
         branches: 58,
