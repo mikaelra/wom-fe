@@ -35,6 +35,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ghcr.io/mikaelra/wom-be is a private package owned by a different
+      # repo -- this workflow's own GITHUB_TOKEN has no read access to it,
+      # so a PAT scoped to that repo (read:packages) is required. See
+      # docs/CODEBASE_HARDENING_PLAN.md's Phase 3 Playwright section for
+      # how to create WOM_BE_PACKAGE_TOKEN.
+      - name: Log in to ghcr.io for the wom-be image
+        run: echo "${{ secrets.WOM_BE_PACKAGE_TOKEN }}" | docker login ghcr.io -u mikaelra --password-stdin
+
       - name: Run wom-be migrations
         run: |
           docker run --rm --network host \

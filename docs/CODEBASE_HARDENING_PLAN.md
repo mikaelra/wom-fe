@@ -674,6 +674,18 @@ With logic in hooks/lib, what's left to test as components is small:
   always expected to already be running), `baseURL` from
   `E2E_BASE_URL ?? http://localhost:3000`.
 
+  **One-time setup needed before this job can pass**: `ghcr.io/mikaelra/
+  wom-be` is a private package owned by the `wom-be` repo — a workflow
+  in *this* repo has no automatic read access to it (its own
+  `GITHUB_TOKEN` only reaches packages within the same repo), confirmed
+  by an actual CI run failing with `unauthorized` on the first `docker
+  run ghcr.io/mikaelra/wom-be` pull. Fix: create a fine-grained PAT
+  scoped to the `wom-be` repo with `read:packages` permission, then add
+  it as this repo's `WOM_BE_PACKAGE_TOKEN` secret (Settings → Secrets
+  and variables → Actions) — the workflow already has the
+  `docker login ghcr.io -u mikaelra --password-stdin` step wired up to
+  use it, just needs the secret to exist.
+
   Several real things surfaced only by actually running this against a
   live backend, not by reasoning about the code alone:
   - The root `/` page is `WorldMapOverlay.tsx` (a blank name popup on
