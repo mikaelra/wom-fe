@@ -140,6 +140,7 @@ export type CombatAnimationAction =
   | { type: 'addImpactShield'; shield: ImpactShield }
   | { type: 'removeImpactShield'; id: string }
   | { type: 'addKillFire'; event: KillFireEvent }
+  | { type: 'markDead'; name: string }
   | { type: 'addKillBanner'; banner: KillBanner }
   | { type: 'removeKillBanner'; id: string }
   | { type: 'addWellRewardEvents'; events: WellRewardEvent[] }
@@ -193,9 +194,14 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   const killStamp = Date.now();
   let killSeq = 0;
 
-  const scheduleKillFire = (pos: [number, number, number], atMs: number) => {
+  // `victim`, when given, holds off that player's dead pose (model tip-over +
+  // gray fade, see LobbyScene's deathPending) until this same moment, so they
+  // don't flop over before the sword animation lands.
+  const scheduleKillFire = (pos: [number, number, number], atMs: number, victim?: string) => {
     const id = `killfire-${killStamp}-${killSeq++}`;
-    batches.push({ delayMs: Math.max(0, atMs), actions: [{ type: 'addKillFire', event: { id, pos } }] });
+    const actions: CombatAnimationAction[] = [{ type: 'addKillFire', event: { id, pos } }];
+    if (victim) actions.push({ type: 'markDead', name: victim });
+    batches.push({ delayMs: Math.max(0, atMs), actions });
   };
 
   const scheduleKillBanner = (killer: string, pos: [number, number, number], atMs: number) => {
@@ -271,7 +277,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       // Kill! At the moment the blow lands: fiery glow under me (the killer,
       // symbolising my +1 ATK) and the victim's coins arch over to me.
       if (combat.outgoing.eliminated) {
-        scheduleKillFire(myPos, SWORD_IMPACT_MS);
+        scheduleKillFire(myPos, SWORD_IMPACT_MS, target);
         scheduleKillLoot(tgtPos, myPos, combat.outgoing.coinsReceived ?? 0, SWORD_IMPACT_MS);
       }
     }
@@ -360,13 +366,13 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       // Reflection kill: my shield bounced the attack back and finished the
       // attacker. I'm the killer — fiery glow under me + their coins fly over.
       if (atkReflected && inc.attackerDied && inc.coinsReceived != null && atkPos) {
-        scheduleKillFire(myPos, delay + ONE_DEF_MS);
+        scheduleKillFire(myPos, delay + ONE_DEF_MS, inc.attacker ?? undefined);
         scheduleKillLoot(atkPos, myPos, inc.coinsReceived, delay + ONE_DEF_MS);
       }
       // I was killed by this blow: I see the fiery glow erupt under my killer
       // (no coins — those go to them, not me).
       if (iDied && !isDefended && atkPos && (inc.outcome === 'hit' || inc.outcome === 'instakill')) {
-        scheduleKillFire(atkPos, delay + SWORD_IMPACT_MS);
+        scheduleKillFire(atkPos, delay + SWORD_IMPACT_MS, playerName);
       }
 
       const strikeActions: CombatAnimationAction[] = [{ type: 'addStrike', strike }];
@@ -399,7 +405,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       batches.push({ delayMs: delay + 650, actions: [{ type: 'removeHitFlash', id: fid }] });
     }
     if (killerPos) {
-      scheduleKillFire(killerPos, delay);
+      scheduleKillFire(killerPos, delay, we.victim);
       scheduleKillBanner(we.attacker, killerPos, delay);
     }
   });
