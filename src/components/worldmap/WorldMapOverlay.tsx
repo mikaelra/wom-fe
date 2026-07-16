@@ -157,7 +157,10 @@ export default function WorldMapOverlay() {
   return (
     <>
       {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-end gap-2 px-3 py-2 pointer-events-none">
+      <div
+        className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-end gap-2 px-3 py-2 pointer-events-none"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
+      >
         {/* Right: player info */}
         <div className="pointer-events-auto flex items-center gap-3">
           {!isLoggedIn && (
