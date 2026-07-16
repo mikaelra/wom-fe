@@ -56,6 +56,11 @@ const SEA_LEVEL = 2;                       // water height; lower = sea drops
 const SUN_POSITION: [number, number, number] = [100, 20, 100]; // sun direction
 
 const CHAT_BUBBLE_DURATION_MS = 4000;
+// Safety net for the death-pose delay below: if a player's HP hits 0 but the
+// combat plan never sends a matching 'markDead' (e.g. events fetch hiccup),
+// force their dead pose to show after this long rather than leaving them
+// looking alive indefinitely.
+const DEATH_POSE_FALLBACK_MS = 4000;
 
 useGLTF.preload('/models/shields/shield_animation-ld.glb');
 
@@ -131,6 +136,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [killBanners, setKillBanners] = useState<KillBanner[]>([]);
   const [denyRingFx, setDenyRingFx] = useState<{ id: string; pos: [number, number, number] }[]>([]);
   const prevDenyTargetRef = useRef<string | null>(null);
+  // Players whose HP just hit 0 but whose dead pose (model tip-over + gray
+  // fade) is being held off until the kill animation's impact moment —
+  // otherwise they'd flop over/gray out before the sword even lands. Cleared
+  // per-name by the 'markDead' action (timed with the kill fire), or in bulk
+  // on the next round transition / by the fallback timeout below.
+  const [deathPending, setDeathPending] = useState<Set<string>>(new Set());
   // Timeout IDs for staggered incoming defended strikes (cleared each new round)
   const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   // Last round this component has already scheduled combat/well-reward
@@ -258,10 +269,32 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     staggerTimeoutsRef.current.forEach(clearTimeout);
     staggerTimeoutsRef.current = [];
     // Clear any lingering kill effects from the previous round (their removal
-    // timeouts were just cancelled above).
+    // timeouts were just cancelled above). Any death-pose delay from last round
+    // is long since resolved by now, so drop it too rather than leave stale names.
     setKillFireEvents([]);
     setKillBanners([]);
     setDenyRingFx([]);
+    setDeathPending(new Set());
+
+    // Hold off newly-eliminated players' dead pose until buildCombatAnimationPlan's
+    // kill-fire timing (below) reveals it via 'markDead' — otherwise they flop
+    // over/gray out this instant, before the sword animation has even played.
+    const newlyDead = state.players
+      .filter((p) => (p.hp ?? 0) <= 0 && (prev.players.find((pp) => pp.name === p.name)?.hp ?? 0) > 0)
+      .map((p) => p.name);
+    if (newlyDead.length) {
+      setDeathPending((s) => new Set([...s, ...newlyDead]));
+      staggerTimeoutsRef.current.push(
+        setTimeout(() => {
+          setDeathPending((s) => {
+            if (!newlyDead.some((n) => s.has(n))) return s;
+            const next = new Set(s);
+            newlyDead.forEach((n) => next.delete(n));
+            return next;
+          });
+        }, DEATH_POSE_FALLBACK_MS),
+      );
+    }
 
     // Chose The Well but didn't win → small red glow under the well (PvP only).
     // The win case is handled below once we've fetched the reward messages.
@@ -337,6 +370,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         case 'addImpactShield': setImpactShields((s) => [...s, action.shield]); break;
         case 'removeImpactShield': setImpactShields((s) => s.filter((x) => x.id !== action.id)); break;
         case 'addKillFire': setKillFireEvents((e) => [...e, action.event]); break;
+        case 'markDead': setDeathPending((s) => {
+          if (!s.has(action.name)) return s;
+          const next = new Set(s);
+          next.delete(action.name);
+          return next;
+        }); break;
         case 'addKillBanner': setKillBanners((b) => [...b, action.banner]); break;
         case 'removeKillBanner': setKillBanners((b) => b.filter((x) => x.id !== action.id)); break;
         case 'addWellRewardEvents': setWellRewardEvents((ev) => [...ev, ...action.events]); break;
@@ -563,6 +602,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         if (!slot) return null;
         const { position, rotation } = slot;
         const isDead = (player.hp ?? 0) <= 0;
+        // Gate the actual "dead" visual (model tip-over + gray fade + skull
+        // label) separately from isDead: buttons/targeting react to hp
+        // instantly (you shouldn't be able to attack an already-dead player),
+        // but the pose itself waits for deathPending to clear so it lands
+        // together with the kill animation instead of snapping in first.
+        const showDeadPose = isDead && !deathPending.has(player.name);
         const isWinner = winner === player.name;
         const isOpponent = player.name !== playerName;
         const isBoss = !!player.boss;
@@ -574,7 +619,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             position={position}
             rotation={rotation}
             isAnimating={true}
-            isDead={isDead}
+            isDead={showDeadPose}
             isWinner={!!isWinner}
             isBoss={isBoss}
             bossHp={isBoss ? player.hp : undefined}
