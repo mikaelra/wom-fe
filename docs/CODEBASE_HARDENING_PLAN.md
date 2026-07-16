@@ -764,8 +764,14 @@ With logic in hooks/lib, what's left to test as components is small:
     coins, never buy attack" strategy would still be a losing one long
     term, independent of the click bug above. The committed test buys
     an attack upgrade whenever affordable and otherwise banks a coin.
-    Runs as its own non-blocking CI job, not part of `build-and-deploy`'s
-    required checks.
+    The `e2e` job lives in `.github/workflows/deploy.yml` itself (not a
+    separate workflow file — `needs:` can only reference jobs in the same
+    file) and `build-and-deploy` now `needs: [lint, test, typecheck, e2e]`
+    — a real end-to-end regression can no longer reach the production VM
+    just because the unit-level checks passed. (Earlier in development
+    this ran as its own separate, non-blocking workflow while the test
+    itself was still unreliable — folded into `deploy.yml` as a gate once
+    the `dispatchEvent` fix above made it fast and reliable.)
   - Separately, and unrelated to any of the above: getting even one
     real CI run to reach the actual test step required merging two
     long-running "hardening" integration branches (this repo's
