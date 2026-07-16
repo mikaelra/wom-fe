@@ -18,6 +18,9 @@ export const BOUNCE_DUR   = 0.55;
 const BOUNCE_ARCH_HEIGHT = 0.6;
 // Number of end-over-end tumbles during the bounce
 const BOUNCE_SPINS = 1.5;
+// How far the blade pitches forward (nose-down, toward the target) over the
+// course of the lunge, reaching full tilt exactly as the sword arrives.
+const STRIKE_TILT_MAX = THREE.MathUtils.degToRad(60);
 
 export type SwordEffectProps = {
   /** World-space position of the attacker (used to compute sword direction). */
@@ -102,9 +105,12 @@ export default function SwordEffect({
     const t = tRef.current;
 
     if (t < STRIKE_DUR) {
-      // Lunge toward target
-      group.position.lerpVectors(startPos, toVec, easeIn(t / STRIKE_DUR));
+      // Lunge toward target, pitching the blade forward as it closes the
+      // distance so it reaches full 60° tilt right as it lands.
+      const p = easeIn(t / STRIKE_DUR);
+      group.position.lerpVectors(startPos, toVec, p);
       group.lookAt(toVec);
+      group.rotateX(STRIKE_TILT_MAX * p);
     } else if (t < STRIKE_DUR + HOLD_DUR) {
       // Sword rests at impact point
       group.position.copy(toVec);
@@ -122,10 +128,12 @@ export default function SwordEffect({
       group.lookAt(fromVec);
       group.rotateX(localT * Math.PI * 2 * BOUNCE_SPINS);
     } else if (postImpact === 'retreat' && t < STRIKE_DUR + HOLD_DUR + RETREAT_DUR) {
-      // Retreat back to hover position (normal successful hit)
+      // Retreat back to hover position (normal successful hit), unwinding the
+      // forward tilt as it pulls back
       const p = easeOut((t - STRIKE_DUR - HOLD_DUR) / RETREAT_DUR);
       group.position.lerpVectors(toVec, startPos, p);
       group.lookAt(toVec);
+      group.rotateX(STRIKE_TILT_MAX * (1 - p));
     } else {
       // Done
       if (!doneCalledRef.current) {
