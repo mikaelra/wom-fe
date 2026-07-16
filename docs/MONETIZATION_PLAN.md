@@ -9,7 +9,8 @@ become **owned, persistent items** on a player's account:
 
 - Everyone starts with (and permanently owns) the default **green** frog skin.
 - Finishing any match — bossfight or PvP — gives each player an independent **25% chance
-  of earning a Wheel** (free). Wheels can be spun immediately or saved in the inventory.
+  of earning a Wheel** (free, capped at 4 wheels per rolling two weeks). Wheels can be
+  spun immediately or saved in the inventory.
 - Spinning a **normal Wheel** opens a tivoli-style spinning wheel with the 6 non-green
   common skin colors as equally sized slices; the landed skin is added to the inventory.
 - The **Shop** sells a **Special Wheel for $5** with weighted rare slices
@@ -91,10 +92,15 @@ account/identity prerequisites, compliance, testing, and a phased rollout.
   bot lobbies become a wheel farm).
 - **Award UX:** the game-over screen shows "You won a Wheel!" with two buttons:
   **Spin now** and **Save for later**. Saved wheels live in the inventory.
-- **Spin outcome:** uniform over the 6 non-green common skins (each 1/6 ≈ 16.67%).
-  Green is excluded — everyone already owns it, so every spin yields something you
-  didn't start with. The result can still be a duplicate of an earned skin —
-  duplicates are kept and counted.
+- **Spin outcome:** uniform over the 6 non-green common skins (each 1/6 ≈ 16.67%);
+  green is excluded because everyone already owns it. **Every spin is completely
+  random and independent** — there is no dedup or "new skin" bias, so rolling a skin
+  you already own is normal and expected. Duplicates are kept and counted.
+- **Drop cap: 4 Normal Wheels per player per two weeks** (rolling 14-day window).
+  Once a player has been granted 4 match-drop wheels in the trailing 14 days, the
+  post-match roll simply doesn't happen for them until a grant ages out. Enforced
+  server-side by counting `wheel_items` with `source = 'match_drop'` and
+  `created_at > now() - 14 days` before rolling.
 
 ### 3.3 Special Wheel — $5, shop item
 
@@ -361,17 +367,19 @@ regulated territory:
 - All rolls happen server-side with a CSPRNG (`secrets` / `random.SystemRandom`) —
   never trust the client, never seed from player-controlled input (the current
   name-hash approach in `frogSkins.ts` is exactly what we're retiring).
-- Wheel drop only in bot-free matches (reuses the existing `botPresent` guard);
-  add a per-player daily cap (e.g. max 10 wheel drops/day) so 2-friend quick-loss
-  farming has bounded yield.
+- Wheel drop only in bot-free matches (reuses the existing `botPresent` guard). The
+  product rule of **4 match-drop wheels per player per rolling 14 days** (§3.2) also
+  bounds 2-friend quick-loss farming — no separate anti-abuse cap needed.
 - Rate-limit spin/equip/checkout endpoints with the existing `rate_limit.py` limiter.
 - Ownership checks on every equip/spin (`player_id` from session, never from body).
 
 ## 11. Testing
 
 - **Backend unit:** weight-table sums to exactly 30 000; spin endpoint consumes
-  atomically (double-spin returns "already spun"); drop roll respects `botPresent`;
-  webhook idempotency (same event twice → one grant); revocation on refund events.
+  atomically (double-spin returns "already spun"); drop roll respects `botPresent`
+  and the 4-per-14-days cap (5th drop in window never grants; a grant aging past
+  14 days re-opens the roll); webhook idempotency (same event twice → one grant);
+  revocation on refund events.
 - **Backend integration:** Stripe CLI–driven webhook tests against the docker-compose
   stack (see existing test layout in `backend/tests/`).
 - **Frontend unit (vitest):** slice-geometry math from weights; inventory equip flow.
@@ -415,13 +423,16 @@ above:
    Per-lobby exclusivity dies with `assignSkins` (§3.1).
 2. **Guests:** wheel drops require a claimed account. Guests wear green and get a
    "claim your name to earn wheels" teaser on the game-over screen (§3.2).
-3. **Green on the normal wheel:** excluded. 6 slices, 1/6 each — every spin yields
-   something you didn't start with (§3.2).
+3. **Green on the normal wheel:** excluded — 6 slices, 1/6 each. Every spin is
+   completely random and independent; duplicates of skins you already own are normal
+   (§3.2).
 4. **Multi-packs:** single $5 wheel per checkout at launch; packs later if wanted
    (§3.3).
 5. **Cherub duplicates:** allowed but warn + explicit confirm before a second $500
    charge (§3.4).
 6. **Pity mechanic:** none. Pure independent 1/300 per spin, disclosed as such (§3.3).
+7. **Normal-wheel drop cap:** max 4 match-drop wheels per player per rolling 14 days
+   (§3.2).
 
 Still open (visual polish, not blocking): exact special-wheel slice layout — 300
 tivoli slices for exact math vs. a coarser wheel with one odd-sized rainbow slice
