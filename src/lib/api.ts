@@ -23,7 +23,7 @@ export async function createLobby(name: string, email: string): Promise<{ lobby_
     body: { name, email },
     defaultErrorMessage: 'Create lobby failed',
   });
-  setStoredToken(data.token);
+  setStoredToken(data.lobby_id, data.token);
   return data;
 }
 
@@ -32,7 +32,7 @@ export async function joinLobby(joinCode: string, name: string, email: string): 
     const unsubJoined = subscribe('joined_lobby', (data) => {
       unsubJoined();
       unsubError();
-      setStoredToken(data.token);
+      setStoredToken(data.lobby_id, data.token);
       resolve();
     });
     const unsubError = subscribe('error', (data) => {
@@ -53,7 +53,7 @@ export async function getBossfightLobby(playerName: string): Promise<{ lobby_id:
   // token may be absent when the caller is already a member re-checking in
   // (e.g. a page refresh) -- in that case they're expected to still hold
   // the token from their original join, so don't clobber it.
-  if (data.token) setStoredToken(data.token);
+  if (data.token) setStoredToken(data.lobby_id, data.token);
   const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
   getSocket().emit('join_lobby', { lobby_id: data.lobby_id, name: playerName, email });
   return data;
@@ -81,7 +81,7 @@ export async function getPlayerMessages(
   // session token issued on join (see getStoredToken). A stale tab that
   // never (re)joined has no token -- fetch will 403 and fall through to
   // the empty-result fallback below, same as any other failure.
-  const token = getStoredToken();
+  const token = getStoredToken(lobbyId);
   const path = token
     ? `/get_player_messages/${lobbyId}/${playerName}?token=${encodeURIComponent(token)}`
     : `/get_player_messages/${lobbyId}/${playerName}`;

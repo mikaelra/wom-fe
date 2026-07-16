@@ -56,7 +56,7 @@ describe('createLobby', () => {
 
     await createLobby('Alice', 'alice@example.com');
 
-    expect(getStoredToken()).toBe('tok-stored');
+    expect(getStoredToken('abc')).toBe('tok-stored');
   });
 
   it('throws the backend error message on failure', async () => {
@@ -70,15 +70,26 @@ describe('createLobby', () => {
 
 describe('session token store', () => {
   it('round-trips a token through getStoredToken/setStoredToken', () => {
-    setStoredToken('a-token');
-    expect(getStoredToken()).toBe('a-token');
+    setStoredToken('lobby-a', 'a-token');
+    expect(getStoredToken('lobby-a')).toBe('a-token');
   });
 
   it('clears the stored token when set to null', () => {
-    setStoredToken('another-token');
-    expect(getStoredToken()).toBe('another-token');
-    setStoredToken(null);
-    expect(getStoredToken()).toBeNull();
+    setStoredToken('lobby-a', 'another-token');
+    expect(getStoredToken('lobby-a')).toBe('another-token');
+    setStoredToken('lobby-a', null);
+    expect(getStoredToken('lobby-a')).toBeNull();
+  });
+
+  it('keeps tokens for different lobbies independent -- regression test for the boss fight rejoin bug', () => {
+    // Reproduces: join boss fight (token A), leave, create an unrelated
+    // lobby (token B used to clobber the single global slot), leave that
+    // too, then return to the boss fight -- token A must still be there.
+    setStoredToken('bossfight-lobby', 'token-a');
+    setStoredToken('new-lobby', 'token-b');
+
+    expect(getStoredToken('bossfight-lobby')).toBe('token-a');
+    expect(getStoredToken('new-lobby')).toBe('token-b');
   });
 });
 
@@ -152,7 +163,7 @@ describe('error-swallowing endpoints', () => {
 
 describe('getPlayerMessages token attachment', () => {
   it('appends the stored session token as a query param', async () => {
-    setStoredToken('tok-42');
+    setStoredToken('abc', 'tok-42');
     fetchMock.mockResolvedValue(jsonResponse({ player: 'Alice', messages: [], events: [] }));
 
     await getPlayerMessages('abc', 'Alice');
@@ -164,7 +175,7 @@ describe('getPlayerMessages token attachment', () => {
   });
 
   it('URL-encodes the token', async () => {
-    setStoredToken('tok/with+special?chars');
+    setStoredToken('abc', 'tok/with+special?chars');
     fetchMock.mockResolvedValue(jsonResponse({ player: 'Alice', messages: [], events: [] }));
 
     await getPlayerMessages('abc', 'Alice');
@@ -176,7 +187,7 @@ describe('getPlayerMessages token attachment', () => {
   });
 
   it('omits the token param when no token is stored', async () => {
-    setStoredToken(null);
+    setStoredToken('abc', null);
     fetchMock.mockResolvedValue(jsonResponse({ player: 'Alice', messages: [], events: [] }));
 
     await getPlayerMessages('abc', 'Alice');
