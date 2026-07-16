@@ -635,7 +635,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         // "info" Well reward badge: fresh the round it's captured, greyed
         // ("last round") the round after, then gone — see infoReveal above.
         let infoBadge: InfoRevealBadge | null = null;
-        if (infoReveal && isOpponent && !isBoss && !isDead) {
+        if (infoReveal && isOpponent && !isDead) {
           const s = infoReveal.stats.get(player.name);
           if (s && infoReveal.round === state?.round) infoBadge = { ...s, stale: false };
           else if (s && infoReveal.round === (state?.round ?? 0) - 1) infoBadge = { ...s, stale: true };
