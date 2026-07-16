@@ -205,45 +205,6 @@ export const PlayerWithName = memo(function PlayerWithName({
             </div>
           )}
 
-          {infoReveal && (
-            <div style={{
-              ...stackItem(STACK_INFO_Y),
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '6px',
-              opacity: infoReveal.stale ? 0.45 : 1,
-              filter: infoReveal.stale ? 'grayscale(1)' : 'none',
-              transition: 'opacity 0.4s ease',
-            }}>
-              <div style={{
-                display: 'flex',
-                gap: '24px',
-                padding: '9px 24px',
-                background: 'rgba(0,0,0,0.75)',
-                border: '3px solid rgba(96,165,250,0.5)',
-                borderRadius: '18px',
-                fontSize: '33px',
-                fontWeight: 'bold',
-                color: '#e5e7eb',
-              }}>
-                <span>❤ {infoReveal.hp}</span>
-                <span>💰 {infoReveal.coins}</span>
-                <span>⚔ {infoReveal.attackDamage}</span>
-              </div>
-              {infoReveal.stale && (
-                <span style={{
-                  fontSize: '27px',
-                  fontWeight: 'bold',
-                  color: '#f87171',
-                  textShadow: '0 0 3px rgba(0,0,0,0.9)',
-                }}>
-                  last round
-                </span>
-              )}
-            </div>
-          )}
-
           <div style={{
             ...stackItem(0),
             fontSize: '12px',
@@ -309,6 +270,49 @@ export const PlayerWithName = memo(function PlayerWithName({
           )}
         </div>
       </Html>
+      {/* Info-reward badge — its own Html mount (same anchor/scale as the stack
+          above) so its zIndexRange can sit above the boss HP card ([5,5])
+          instead of being drawn underneath it when the two overlap on Hades. */}
+      {infoReveal && (
+        <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
+          <div style={{
+            ...stackItem(STACK_INFO_Y),
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '6px',
+            opacity: infoReveal.stale ? 0.45 : 1,
+            filter: infoReveal.stale ? 'grayscale(1)' : 'none',
+            transition: 'opacity 0.4s ease',
+          }}>
+            <div style={{
+              display: 'flex',
+              gap: '24px',
+              padding: '9px 24px',
+              background: 'rgba(0,0,0,0.75)',
+              border: '3px solid rgba(96,165,250,0.5)',
+              borderRadius: '18px',
+              fontSize: '33px',
+              fontWeight: 'bold',
+              color: '#e5e7eb',
+            }}>
+              <span>❤ {infoReveal.hp}</span>
+              <span>💰 {infoReveal.coins}</span>
+              <span>⚔ {infoReveal.attackDamage}</span>
+            </div>
+            {infoReveal.stale && (
+              <span style={{
+                fontSize: '27px',
+                fontWeight: 'bold',
+                color: '#f87171',
+                textShadow: '0 0 3px rgba(0,0,0,0.9)',
+              }}>
+                last round
+              </span>
+            )}
+          </div>
+        </Html>
+      )}
       {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
           zIndexRange sits above the lost-soul/action buttons ([0,0]) so clicks land here
           first, but stays below the CSS overlay panels (waiting lobby + round messages,
