@@ -46,6 +46,49 @@ function stackItem(dy: number, interactive = false): CSSProperties {
   };
 }
 
+// Shared by PlayerWithName and LostSoulModel — both anchor it below their
+// name tag via STACK_INFO_Y.
+function InfoRevealContent({ badge }: { badge: InfoRevealBadge }) {
+  return (
+    <div style={{
+      ...stackItem(STACK_INFO_Y),
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '6px',
+      opacity: badge.stale ? 0.45 : 1,
+      filter: badge.stale ? 'grayscale(1)' : 'none',
+      transition: 'opacity 0.4s ease',
+    }}>
+      <div style={{
+        display: 'flex',
+        gap: '24px',
+        padding: '9px 24px',
+        background: 'rgba(0,0,0,0.75)',
+        border: '3px solid rgba(96,165,250,0.5)',
+        borderRadius: '18px',
+        fontSize: '33px',
+        fontWeight: 'bold',
+        color: '#e5e7eb',
+      }}>
+        <span>❤ {badge.hp}</span>
+        <span>💰 {badge.coins}</span>
+        <span>⚔ {badge.attackDamage}</span>
+      </div>
+      {badge.stale && (
+        <span style={{
+          fontSize: '27px',
+          fontWeight: 'bold',
+          color: '#f87171',
+          textShadow: '0 0 3px rgba(0,0,0,0.9)',
+        }}>
+          last round
+        </span>
+      )}
+    </div>
+  );
+}
+
 // Inner components mount only while a crown is visible, so the bobbing
 // useFrame (and the GLB clone) costs nothing the rest of the game.
 function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale }: {
@@ -275,42 +318,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
         <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
-          <div style={{
-            ...stackItem(STACK_INFO_Y),
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '6px',
-            opacity: infoReveal.stale ? 0.45 : 1,
-            filter: infoReveal.stale ? 'grayscale(1)' : 'none',
-            transition: 'opacity 0.4s ease',
-          }}>
-            <div style={{
-              display: 'flex',
-              gap: '24px',
-              padding: '9px 24px',
-              background: 'rgba(0,0,0,0.75)',
-              border: '3px solid rgba(96,165,250,0.5)',
-              borderRadius: '18px',
-              fontSize: '33px',
-              fontWeight: 'bold',
-              color: '#e5e7eb',
-            }}>
-              <span>❤ {infoReveal.hp}</span>
-              <span>💰 {infoReveal.coins}</span>
-              <span>⚔ {infoReveal.attackDamage}</span>
-            </div>
-            {infoReveal.stale && (
-              <span style={{
-                fontSize: '27px',
-                fontWeight: 'bold',
-                color: '#f87171',
-                textShadow: '0 0 3px rgba(0,0,0,0.9)',
-              }}>
-                last round
-              </span>
-            )}
-          </div>
+          <InfoRevealContent badge={infoReveal} />
         </Html>
       )}
       {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
@@ -403,6 +411,7 @@ export const LostSoulModel = memo(function LostSoulModel({
   onAttack,
   isAttackSelected,
   actionCue,
+  infoReveal,
 }: {
   name: string;
   /** Slot index — souls share one server name, so this disambiguates them. */
@@ -413,6 +422,8 @@ export const LostSoulModel = memo(function LostSoulModel({
   onAttack?: (name: string, index: number) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
+  /** Stats revealed by the local player's "info" Well reward, or null when none is active. */
+  infoReveal?: InfoRevealBadge | null;
 }) {
   const ref = useRef<THREE.Group>(null);
 
@@ -469,6 +480,11 @@ export const LostSoulModel = memo(function LostSoulModel({
           )}
         </div>
       </Html>
+      {infoReveal && (
+        <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
+          <InfoRevealContent badge={infoReveal} />
+        </Html>
+      )}
     </group>
   );
 });

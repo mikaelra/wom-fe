@@ -673,6 +673,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       {lostSouls.map((soul, i) => {
         const pos = LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length];
         const isDead = (soul.hp ?? 0) <= 0;
+        // Same fresh/stale/gone derivation as the main player loop above.
+        // Souls share one server name, so — like their shared posMap entry —
+        // every soul with that name shows the same captured snapshot.
+        let infoBadge: InfoRevealBadge | null = null;
+        if (infoReveal && !isDead) {
+          const s = infoReveal.stats.get(soul.name);
+          if (s && infoReveal.round === state?.round) infoBadge = { ...s, stale: false };
+          else if (s && infoReveal.round === (state?.round ?? 0) - 1) infoBadge = { ...s, stale: true };
+        }
         return (
           <LostSoulModel
             // All souls share the same server name, so the name alone is
@@ -686,6 +695,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             onAttack={handleSoulAttack}
             isAttackSelected={currentAction === 'attack' && attackTarget === soul.name && selectedSoulIdx === i}
             actionCue={actionCue}
+            infoReveal={infoBadge}
           />
         );
       })}
