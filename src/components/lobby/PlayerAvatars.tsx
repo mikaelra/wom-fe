@@ -19,7 +19,20 @@ import { skinUrl } from '@/lib/frogSkins';
 // defend −0.1).
 const STACK_BUBBLE_Y = -184;
 const STACK_ATTACK_Y = -92;
+const STACK_INFO_Y = 130;
 const STACK_DEFEND_Y = 138;
+
+// A player's stats as revealed by an opponent's "info" Well reward. `stale`
+// marks the one extra round it's shown greyed-out with a "last round" label
+// before disappearing (see LobbyScene's infoReveal state, which tracks the
+// round it was captured in and derives fresh/stale/gone by comparing to
+// state.round).
+export interface InfoRevealBadge {
+  hp: number;
+  coins: number;
+  attackDamage: number;
+  stale: boolean;
+}
 
 function stackItem(dy: number, interactive = false): CSSProperties {
   return {
@@ -118,6 +131,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   onDefend,
   showShield,
   highlight,
+  infoReveal,
 }: {
   name: string;
   position: [number, number, number];
@@ -141,6 +155,8 @@ export const PlayerWithName = memo(function PlayerWithName({
   onDefend?: () => void;
   showShield?: boolean;
   highlight?: GuideHighlights;
+  /** Stats revealed by the local player's "info" Well reward, or null when none is active. */
+  infoReveal?: InfoRevealBadge | null;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   // Welcome-tour highlights — glow the real button(s) the current slide points at.
@@ -186,6 +202,45 @@ export const PlayerWithName = memo(function PlayerWithName({
                 borderRight: '6px solid transparent',
                 borderTop: '6px solid rgba(255,255,255,0.92)',
               }} />
+            </div>
+          )}
+
+          {infoReveal && (
+            <div style={{
+              ...stackItem(STACK_INFO_Y),
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '6px',
+              opacity: infoReveal.stale ? 0.45 : 1,
+              filter: infoReveal.stale ? 'grayscale(1)' : 'none',
+              transition: 'opacity 0.4s ease',
+            }}>
+              <div style={{
+                display: 'flex',
+                gap: '24px',
+                padding: '9px 24px',
+                background: 'rgba(0,0,0,0.75)',
+                border: '3px solid rgba(96,165,250,0.5)',
+                borderRadius: '18px',
+                fontSize: '33px',
+                fontWeight: 'bold',
+                color: '#e5e7eb',
+              }}>
+                <span>❤ {infoReveal.hp}</span>
+                <span>💰 {infoReveal.coins}</span>
+                <span>⚔ {infoReveal.attackDamage}</span>
+              </div>
+              {infoReveal.stale && (
+                <span style={{
+                  fontSize: '27px',
+                  fontWeight: 'bold',
+                  color: '#f87171',
+                  textShadow: '0 0 3px rgba(0,0,0,0.9)',
+                }}>
+                  last round
+                </span>
+              )}
             </div>
           )}
 
