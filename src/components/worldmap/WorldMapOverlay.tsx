@@ -162,8 +162,8 @@ export default function WorldMapOverlay() {
         <div className="pointer-events-auto flex items-center gap-3">
           {!isLoggedIn && (
             <RopedButton
-              width={200}
-              height={70}
+              width={170}
+              height={60}
               onClick={() => router.push('/login')}
               ariaLabel="Log in"
             >
@@ -173,8 +173,8 @@ export default function WorldMapOverlay() {
           {isLoggedIn && (
             <div className="relative" ref={userMenuRef}>
               <RopedButton
-                width={325}
-                height={70}
+                width={276}
+                height={60}
                 onClick={() => setShowUserMenu((v) => !v)}
                 ariaLabel="Open user menu"
                 textClassName="flex items-center gap-2 text-white font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
@@ -229,7 +229,7 @@ export default function WorldMapOverlay() {
           className="pointer-events-auto flex flex-wrap justify-center items-center px-3"
           onSubmit={(e) => { e.preventDefault(); handleJoinLobby(); }}
         >
-          <RopedInput width={240} height={70} innerPadding="14px 30px">
+          <RopedInput width={204} height={60} innerPadding="12px 26px">
             <input
               type="text"
               placeholder="Enter lobby code..."
@@ -241,8 +241,8 @@ export default function WorldMapOverlay() {
           </RopedInput>
           <span>
             <RopedButton
-              width={198}
-              height={63}
+              width={168}
+              height={54}
               onClick={handleJoinLobby}
               disabled={lobbyLoading && loadingAction !== 'join'}
               loading={lobbyLoading && loadingAction === 'join'}
@@ -254,8 +254,8 @@ export default function WorldMapOverlay() {
         </form>
         <div className="pointer-events-auto flex justify-center">
           <RopedButton
-            width={293}
-            height={63}
+            width={249}
+            height={54}
             onClick={handleCreateLobby}
             disabled={lobbyLoading && loadingAction !== 'create'}
             loading={lobbyLoading && loadingAction === 'create'}
