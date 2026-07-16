@@ -162,8 +162,8 @@ export default function WorldMapOverlay() {
         <div className="pointer-events-auto flex items-center gap-3">
           {!isLoggedIn && (
             <RopedButton
-              width={170}
-              height={60}
+              width={153}
+              height={54}
               onClick={() => router.push('/login')}
               ariaLabel="Log in"
             >
@@ -173,8 +173,8 @@ export default function WorldMapOverlay() {
           {isLoggedIn && (
             <div className="relative" ref={userMenuRef}>
               <RopedButton
-                width={276}
-                height={60}
+                width={248}
+                height={54}
                 onClick={() => setShowUserMenu((v) => !v)}
                 ariaLabel="Open user menu"
                 textClassName="flex items-center gap-2 text-white font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
@@ -229,14 +229,14 @@ export default function WorldMapOverlay() {
           className="pointer-events-auto flex flex-wrap justify-center items-center px-3"
           onSubmit={(e) => { e.preventDefault(); handleJoinLobby(); }}
         >
-          <RopedInput width={204} height={60} innerPadding="12px 26px">
+          <RopedInput width={184} height={54} innerPadding="8px 11px">
             <input
               type="text"
               placeholder="Enter lobby code..."
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toLowerCase())}
-              style={{ width: '70%' }}
-              className="h-full bg-transparent text-white placeholder-white/70 focus:outline-none text-sm font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+              style={{ width: '95%' }}
+              className="h-full bg-transparent text-white placeholder-white/70 focus:outline-none text-[10px] font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             />
           </RopedInput>
           <span>
