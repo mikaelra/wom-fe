@@ -83,7 +83,10 @@ describe('buildCombatAnimationPlan', () => {
 
       expect(plan[1]).toEqual({
         delayMs: SWORD_IMPACT_MS,
-        actions: [{ type: 'addKillFire', event: expect.objectContaining({ pos: [0, 0, 0] }) }],
+        actions: [
+          { type: 'addKillFire', event: expect.objectContaining({ pos: [0, 0, 0] }) },
+          { type: 'markDead', name: 'Bob' },
+        ],
       });
 
       expect(plan[2].delayMs).toBe(SWORD_IMPACT_MS);
@@ -104,7 +107,7 @@ describe('buildCombatAnimationPlan', () => {
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
       const actionTypes = plan.flatMap((b) => b.actions.map((a) => a.type));
-      expect(actionTypes).toEqual(['addStrike', 'addKillFire', 'emitHpFx']);
+      expect(actionTypes).toEqual(['addStrike', 'addKillFire', 'markDead', 'emitHpFx']);
     });
 
     it('produces no batches when the attacker has no known position', () => {
