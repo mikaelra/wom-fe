@@ -657,17 +657,134 @@ With logic in hooks/lib, what's left to test as components is small:
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
   covered indirectly: their props are produced by tested functions, and
   their own remaining logic should approach zero.
-- **Not yet done** — one Playwright E2E smoke (new `e2e/` dir, own CI
-  job, runs against `docker compose` of wom-be + wom-fe): create lobby →
-  add TURTLE dummy → start → submit action+resource → round resolves →
-  game over screen. This single test exercises the full contract both
-  repos share and is the highest-value "worry less" artifact in either
-  repo. Keep it to 1–3 scenarios; E2E suites rot when they sprawl. Target
-  backend: `158.178.151.93:5000`, a Docker-hosted wom-be instance on the
-  same VM as this frontend dev environment (flagged directly by the repo
-  owner) — wire it in as the default/dev target rather than assuming a
-  local `docker compose` stack or `localhost:5000`; confirm the
-  host/port are still correct before hardcoding anything.
+- ✅ **done** — one Playwright E2E smoke test (`e2e/lobby-smoke.spec.ts`),
+  the last Phase 3 item: create a lobby, add a TURTLE dummy, start the
+  game, and fight it to a win. Originally written as this whole flow up
+  front and debugged as one large unit — that turned out slow to iterate
+  on (each attempt costs a full CI round trip or a live-backend session)
+  and masked exactly where a real failure was coming from. Rebuilt step
+  by step instead: "create a lobby successfully" first, then add-a-bot,
+  then start-game, then one round (attack + a resource), then a second
+  round (the well + an attack upgrade, to prove those specific reward/
+  economy paths), each confirmed solid against a live backend before
+  adding the next slice — the last slice (round 3 onward: attack, buy an
+  attack upgrade when affordable else bank a coin, until someone wins)
+  fell out directly once the others were solid. First E2E test in this
+  repo, verified for real against a live,
+  already-running dev stack rather than assumed —
+  `158.178.151.93` turned out to be this VM's own public IP
+  (`/config/workspace/game/docker-compose.yml`'s persistent local
+  wom-fe+wom-be+postgres stack, reachable at `localhost:5000`/`:3000`
+  too), used here purely to develop and verify the suite; the actual CI
+  job (`.github/workflows/e2e.yml`) spins up its own ephemeral stack —
+  `postgres:16-alpine` + the published `ghcr.io/mikaelra/wom-be:latest`
+  image (confirmed `DATABASE_URL` is its only hard-required env var and
+  `alembic upgrade head` alone builds a working schema; no Supabase
+  credentials or seed data needed) + this PR's own frontend build.
+  `playwright.config.ts`: no `webServer` auto-start (both services are
+  always expected to already be running), `baseURL` from
+  `E2E_BASE_URL ?? http://localhost:3000`.
+
+  **One-time setup needed before this job can pass** — two private,
+  cross-repo resources, both found via actual failed CI runs rather than
+  anticipated up front:
+  1. `ghcr.io/mikaelra/wom-be` is a private package owned by the
+     `wom-be` repo — a workflow in *this* repo has no automatic read
+     access to it (its own `GITHUB_TOKEN` only reaches packages within
+     the same repo), confirmed by a CI run failing with `unauthorized`
+     on the first `docker run ghcr.io/mikaelra/wom-be` pull. Fix:
+     create a fine-grained PAT scoped to the `wom-be` repo with
+     `read:packages` permission, add it as this repo's
+     `WOM_BE_PACKAGE_TOKEN` secret (Settings → Secrets and variables →
+     Actions) — done as of PR #187.
+  2. `wom-be`'s own alembic "baseline" migration turned out to be a
+     literal no-op (`pass`) — the real schema (tables like `players`)
+     comes from a Supabase SQL dump that lives in the private
+     `wom-infra` repo (`db/init/001_supabase_dump.sql`, the same file
+     `/config/workspace/game/docker-compose.yml`'s local dev stack
+     seeds from), confirmed by a CI run failing on the second migration
+     with `relation "players" does not exist` — `alembic upgrade head`
+     alone can never build a working schema from empty. The dump
+     contains sensitive data, so it's neither vendored into this repo
+     nor is `wom-infra` made public — the workflow instead checks out
+     `wom-infra` with a second PAT (`contents:read` scope) and runs the
+     dump via `psql` before migrations. Needs its own fine-grained PAT
+     scoped to `wom-infra`, added as `WOM_INFRA_READ_TOKEN`.
+
+  Several real things surfaced only by actually running this against a
+  live backend, not by reasoning about the code alone:
+  - The root `/` page is `WorldMapOverlay.tsx` (a blank name popup on
+    "Create Lobby"), not `HomeOverlay.tsx`'s inline field, as an initial
+    pass assumed.
+  - The backend's real name validation (3–12 chars, no `-`) 400'd a
+    first attempt's timestamp-suffixed name — silently, with no visible
+    frontend error for this particular case.
+  - `InGameGuide`'s welcome-tour overlay covers the action buttons on a
+    fresh session; disabled via seeding `localStorage.womGuideEnabled`
+    (the same flag `useGuideEnabled.ts` reads) rather than exercising an
+    unrelated interaction in this test.
+  - The action/resource HUD buttons are billboard labels whose CSS
+    position is recomputed from the 3D scene every frame, so they never
+    satisfy Playwright's default "stable" actionability check — needs
+    `force: true`.
+  - Headless Chromium here has no GPU (SwiftShader software WebGL), and
+    at a normal viewport the continuous 3D rendering was found to starve
+    the page's JS main thread badly enough that even click dispatch
+    could take 10s+ or hang outright; a small (320×240) viewport cuts
+    this enough to be workable.
+  - **The actual root cause of the earlier "20+ minutes, sometimes never
+    concluding" runtime**: `click({ force: true })` on the per-avatar
+    `⚔ ATTACK`/`🛡 DEFEND` buttons (`PlayerAvatars.tsx`, repositioned
+    every frame via a drei `<Html>` anchor) and on `🏴 The Well`
+    (`SceneOverlay.tsx`, a plain 2D `position: absolute` button —
+    *not* 3D-anchored, so this isn't simply a 3D-vs-2D-DOM story)
+    completes without error but never actually fires the click handler
+    — confirmed directly by listening to the raw WebSocket frames and
+    observing no `submit_choice` sent at all for these three, while the
+    exact same `force: true` pattern reliably sends one for the resource
+    cards and for Add Bot/Start Game. In practice this meant every
+    earlier version of this test was silently never attacking at all —
+    only ever changing resources — so TURTLE (which heals +1 HP/round
+    unconditionally and never attacks itself) simply never took damage,
+    and every round fell back to the 40-second `ROUND_DURATION` timer
+    instead of the backend's near-instant "early resolve once all
+    non-bot players are ready" path (confirmed: with real attacks
+    landing, round times dropped to ~5 seconds). Fix: `dispatchEvent
+    ('click')` for these three specifically — it bypasses hit-testing/
+    coordinates entirely and reliably reaches the real handler,
+    confirmed via the actual `submit_choice` frame. With that fix, the
+    full fight-to-a-win flow completes in ~3 minutes.
+  - Worth noting for context, even though the above was the real
+    blocker: TURTLE always defends (blocking ~50% of attacks) and a
+    blocked attack has a further ~20% chance to reflect damage back
+    onto the attacker (~10% of all attacks overall), for damage equal
+    to the attacker's own current `attackDamage`, which only grows
+    through an increasingly expensive economy (each +1 upgrade costs
+    coins equal to the current attackDamage) — a naive "always buy
+    coins, never buy attack" strategy would still be a losing one long
+    term, independent of the click bug above. The committed test buys
+    an attack upgrade whenever affordable and otherwise banks a coin.
+    The `e2e` job lives in `.github/workflows/deploy.yml` itself (not a
+    separate workflow file — `needs:` can only reference jobs in the same
+    file) and `build-and-deploy` now `needs: [lint, test, typecheck, e2e]`
+    — a real end-to-end regression can no longer reach the production VM
+    just because the unit-level checks passed. (Earlier in development
+    this ran as its own separate, non-blocking workflow while the test
+    itself was still unreliable — folded into `deploy.yml` as a gate once
+    the `dispatchEvent` fix above made it fast and reliable.)
+  - Separately, and unrelated to any of the above: getting even one
+    real CI run to reach the actual test step required merging two
+    long-running "hardening" integration branches (this repo's
+    `claude/frontend-hardening-continue` and `wom-be`'s
+    `claude/backend-phase4-protocol-doc`) into their respective
+    production branches, coordinated together — `wom-be`'s published
+    `:latest` image had been built from its stale `main` (predating the
+    session-token contract this repo's frontend already assumed),
+    surfaced by a real run failing with a zod schema mismatch on
+    `/create_lobby`'s `token` field. Deploying either side alone would
+    have broken production (the new backend's `join_room` hard-requires
+    a session token; the old frontend never sent one) — both were
+    merged in the same window instead.
 
 ## Phase 4 — Adopt the backend security model
 
@@ -704,18 +821,23 @@ Coordinated with backend Phase 1a/1b (see that plan):
    (`useAuthFlow` across all 5 duplicate sites, incl. a 2FA-bypass bug
    fix), 5 (`LobbyScene.tsx` split into `PlayerAvatars.tsx`/
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
-4. **In progress** — Phase 3 RTL tests now that logic lives in
-   hooks/lib. `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, all 5/5
-   auth-form sites (`app/login/page.tsx`, `HomeOverlay.tsx`,
-   `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens popup,
-   `app/lobby/[lobbyId]/page.tsx`'s join form), and the settings-page
-   toggle flow (`app/settings/page.tsx` + `useGuideEnabled.ts`) done;
-   **next up**, and the last Phase 3 item, is the Playwright E2E smoke
-   (target backend: `158.178.151.93:5000`).
+4. ✅ Phase 3 — RTL tests now that logic lives in hooks/lib, plus one
+   Playwright E2E smoke. All items done: `LobbyOverlay.tsx`, all of
+   `SceneOverlay.tsx`, all 5/5 auth-form sites (`app/login/page.tsx`,
+   `HomeOverlay.tsx`, `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens
+   popup, `app/lobby/[lobbyId]/page.tsx`'s join form), the settings-page
+   toggle flow (`app/settings/page.tsx` + `useGuideEnabled.ts`), and
+   `e2e/lobby-smoke.spec.ts` (create lobby → add bot → fight it to a
+   win — see Phase 3's own writeup above for the `dispatchEvent` fix
+   that made this reliably finish in ~3 minutes instead of 20+).
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
-   with the backend token work shipping (PRs #164/#165). Item 3
-   (treat `localStorage` as convenience-only) is effectively already true
-   as a consequence, but not separately audited yet.
+   with the backend token work shipping (PRs #164/#165) — and, as of
+   PR #188, actually **live in production**: this repo's
+   `claude/frontend-hardening-continue` merged to `master` and wom-be's
+   corresponding hardening branch merged to `main` in the same window
+   (see Phase 3's E2E writeup above for why together, not separately).
+   Item 3 (treat `localStorage` as convenience-only) is effectively
+   already true as a consequence, but not separately audited yet.
 
 Definition of done for any new feature after this: server data enters
 through a zod schema, game logic lands in `lib/` or a hook with a vitest
