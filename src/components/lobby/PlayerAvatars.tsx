@@ -19,7 +19,20 @@ import { skinUrl } from '@/lib/frogSkins';
 // defend −0.1).
 const STACK_BUBBLE_Y = -184;
 const STACK_ATTACK_Y = -92;
+const STACK_INFO_Y = 130;
 const STACK_DEFEND_Y = 138;
+
+// A player's stats as revealed by an opponent's "info" Well reward. `stale`
+// marks the one extra round it's shown greyed-out with a "last round" label
+// before disappearing (see LobbyScene's infoReveal state, which tracks the
+// round it was captured in and derives fresh/stale/gone by comparing to
+// state.round).
+export interface InfoRevealBadge {
+  hp: number;
+  coins: number;
+  attackDamage: number;
+  stale: boolean;
+}
 
 function stackItem(dy: number, interactive = false): CSSProperties {
   return {
@@ -31,6 +44,49 @@ function stackItem(dy: number, interactive = false): CSSProperties {
     pointerEvents: interactive ? 'auto' : 'none',
     userSelect: 'none',
   };
+}
+
+// Shared by PlayerWithName and LostSoulModel — both anchor it below their
+// name tag via STACK_INFO_Y.
+function InfoRevealContent({ badge }: { badge: InfoRevealBadge }) {
+  return (
+    <div style={{
+      ...stackItem(STACK_INFO_Y),
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '6px',
+      opacity: badge.stale ? 0.45 : 1,
+      filter: badge.stale ? 'grayscale(1)' : 'none',
+      transition: 'opacity 0.4s ease',
+    }}>
+      <div style={{
+        display: 'flex',
+        gap: '24px',
+        padding: '9px 24px',
+        background: 'rgba(0,0,0,0.75)',
+        border: '3px solid rgba(96,165,250,0.5)',
+        borderRadius: '18px',
+        fontSize: '33px',
+        fontWeight: 'bold',
+        color: '#e5e7eb',
+      }}>
+        <span>❤ {badge.hp}</span>
+        <span>💰 {badge.coins}</span>
+        <span>⚔ {badge.attackDamage}</span>
+      </div>
+      {badge.stale && (
+        <span style={{
+          fontSize: '27px',
+          fontWeight: 'bold',
+          color: '#f87171',
+          textShadow: '0 0 3px rgba(0,0,0,0.9)',
+        }}>
+          last round
+        </span>
+      )}
+    </div>
+  );
 }
 
 // Inner components mount only while a crown is visible, so the bobbing
@@ -118,6 +174,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   onDefend,
   showShield,
   highlight,
+  infoReveal,
 }: {
   name: string;
   position: [number, number, number];
@@ -141,6 +198,8 @@ export const PlayerWithName = memo(function PlayerWithName({
   onDefend?: () => void;
   showShield?: boolean;
   highlight?: GuideHighlights;
+  /** Stats revealed by the local player's "info" Well reward, or null when none is active. */
+  infoReveal?: InfoRevealBadge | null;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   // Welcome-tour highlights — glow the real button(s) the current slide points at.
@@ -254,6 +313,16 @@ export const PlayerWithName = memo(function PlayerWithName({
           )}
         </div>
       </Html>
+      {/* Info-reward badge — its own Html mount (same anchor/scale as the stack
+          above) so its zIndexRange can sit above the boss HP card ([5,5])
+          instead of being drawn underneath it when the two overlap on Hades. */}
+      {infoReveal && (
+        <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
+          <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
+            <InfoRevealContent badge={infoReveal} />
+          </div>
+        </Html>
+      )}
       {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
           zIndexRange sits above the lost-soul/action buttons ([0,0]) so clicks land here
           first, but stays below the CSS overlay panels (waiting lobby + round messages,
@@ -344,6 +413,7 @@ export const LostSoulModel = memo(function LostSoulModel({
   onAttack,
   isAttackSelected,
   actionCue,
+  infoReveal,
 }: {
   name: string;
   /** Slot index — souls share one server name, so this disambiguates them. */
@@ -354,6 +424,8 @@ export const LostSoulModel = memo(function LostSoulModel({
   onAttack?: (name: string, index: number) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
+  /** Stats revealed by the local player's "info" Well reward, or null when none is active. */
+  infoReveal?: InfoRevealBadge | null;
 }) {
   const ref = useRef<THREE.Group>(null);
 
@@ -410,6 +482,13 @@ export const LostSoulModel = memo(function LostSoulModel({
           )}
         </div>
       </Html>
+      {infoReveal && (
+        <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
+          <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
+            <InfoRevealContent badge={infoReveal} />
+          </div>
+        </Html>
+      )}
     </group>
   );
 });

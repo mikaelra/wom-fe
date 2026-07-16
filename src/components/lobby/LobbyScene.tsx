@@ -15,12 +15,12 @@ import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight } from '@/components/lobby/WellGlowEffect';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
-import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP } from '@/components/lobby/PlayerAvatars';
+import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { emitHpFx } from '@/lib/resourceFx';
-import { glowForReward, type WellRewardComponent } from '@/lib/gameEvents';
+import { glowForReward, wellRewardFromEvents, type WellRewardComponent } from '@/lib/gameEvents';
 import { assignSkins } from '@/lib/frogSkins';
 import {
   buildCombatAnimationPlan,
@@ -136,6 +136,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [killBanners, setKillBanners] = useState<KillBanner[]>([]);
   const [denyRingFx, setDenyRingFx] = useState<{ id: string; pos: [number, number, number] }[]>([]);
   const prevDenyTargetRef = useRef<string | null>(null);
+  // Opponent stats captured when the local player wins the Well's "info"
+  // reward. Rendered on each opponent for the round it's captured (fresh),
+  // greyed with a "last round" label for the round after (stale), then
+  // dropped — derived purely by comparing `round` to state.round at render
+  // time, so no separate expiry timer is needed.
+  const [infoReveal, setInfoReveal] = useState<{
+    round: number;
+    stats: Map<string, { hp: number; coins: number; attackDamage: number }>;
+  } | null>(null);
   // Players whose HP just hit 0 but whose dead pose (model tip-over + gray
   // fade) is being held off until the kill animation's impact moment —
   // otherwise they'd flop over/gray out before the sword even lands. Cleared
@@ -356,13 +365,24 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     processedEventsRoundRef.current = gameEvents.round;
 
     const myNowHp = state.players.find((p) => p.name === playerName)?.hp ?? 1;
+    const wonWell = state.wellwinner === playerName;
     const plan = buildCombatAnimationPlan({
       events: gameEvents.events,
       playerName,
       posMap: posMapRef.current,
       myNowHp,
-      wonWell: state.wellwinner === playerName,
+      wonWell,
     });
+
+    // "info" Well reward: snapshot every other player's current stats so
+    // PlayerAvatars can badge them for this round (then one more, greyed).
+    if (wonWell && wellRewardFromEvents(gameEvents.events).some((c) => c.type === 'info')) {
+      const stats = new Map<string, { hp: number; coins: number; attackDamage: number }>();
+      state.players.forEach((p) => {
+        if (p.name !== playerName) stats.set(p.name, { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage });
+      });
+      setInfoReveal({ round: state.round, stats });
+    }
 
     const applyAction = (action: CombatAnimationAction) => {
       switch (action.type) {
@@ -612,6 +632,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         const isOpponent = player.name !== playerName;
         const isBoss = !!player.boss;
         const isOwnPlayer = player.name === playerName;
+        // "info" Well reward badge: fresh the round it's captured, greyed
+        // ("last round") the round after, then gone — see infoReveal above.
+        let infoBadge: InfoRevealBadge | null = null;
+        if (infoReveal && isOpponent && !isDead) {
+          const s = infoReveal.stats.get(player.name);
+          if (s && infoReveal.round === state?.round) infoBadge = { ...s, stale: false };
+          else if (s && infoReveal.round === (state?.round ?? 0) - 1) infoBadge = { ...s, stale: true };
+        }
         return (
           <PlayerWithName
             key={player.name}
@@ -636,6 +664,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             onDefend={handleDefend}
             showShield={isOwnPlayer && currentAction === 'defend'}
             highlight={guideHighlight}
+            infoReveal={infoBadge}
           />
         );
       })}
@@ -644,6 +673,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       {lostSouls.map((soul, i) => {
         const pos = LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length];
         const isDead = (soul.hp ?? 0) <= 0;
+        // Same fresh/stale/gone derivation as the main player loop above.
+        // Souls share one server name, so — like their shared posMap entry —
+        // every soul with that name shows the same captured snapshot.
+        let infoBadge: InfoRevealBadge | null = null;
+        if (infoReveal && !isDead) {
+          const s = infoReveal.stats.get(soul.name);
+          if (s && infoReveal.round === state?.round) infoBadge = { ...s, stale: false };
+          else if (s && infoReveal.round === (state?.round ?? 0) - 1) infoBadge = { ...s, stale: true };
+        }
         return (
           <LostSoulModel
             // All souls share the same server name, so the name alone is
@@ -657,6 +695,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             onAttack={handleSoulAttack}
             isAttackSelected={currentAction === 'attack' && attackTarget === soul.name && selectedSoulIdx === i}
             actionCue={actionCue}
+            infoReveal={infoBadge}
           />
         );
       })}
