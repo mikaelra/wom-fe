@@ -318,7 +318,9 @@ export const PlayerWithName = memo(function PlayerWithName({
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
         <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
-          <InfoRevealContent badge={infoReveal} />
+          <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
+            <InfoRevealContent badge={infoReveal} />
+          </div>
         </Html>
       )}
       {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
@@ -482,7 +484,9 @@ export const LostSoulModel = memo(function LostSoulModel({
       </Html>
       {infoReveal && (
         <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
-          <InfoRevealContent badge={infoReveal} />
+          <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
+            <InfoRevealContent badge={infoReveal} />
+          </div>
         </Html>
       )}
     </group>
