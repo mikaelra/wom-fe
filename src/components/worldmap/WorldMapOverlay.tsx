@@ -8,9 +8,11 @@ import { useAuthFlow } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
 import RopedButton3D from '@/components/hud/RopedButton3D';
 import RopedInput3D from '@/components/hud/RopedInput3D';
+import { useToast } from '@/components/Toast';
 
 export default function WorldMapOverlay() {
   const router = useRouter();
+  const { showError } = useToast();
   const [loggedInName, setLoggedInName] = useState('');
   const [mounted, setMounted] = useState(false);
 
@@ -82,7 +84,7 @@ export default function WorldMapOverlay() {
       if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
       router.push(`/lobby/${code}`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Join failed');
+      showError(err instanceof Error ? err.message : 'Join failed');
       setLobbyLoading(false);
       setLoadingAction(null);
     }
@@ -97,7 +99,7 @@ export default function WorldMapOverlay() {
       if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
       router.push(`/lobby/${data.lobby_id}`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Create lobby failed');
+      showError(err instanceof Error ? err.message : 'Create lobby failed');
       setLobbyLoading(false);
       setLoadingAction(null);
     }

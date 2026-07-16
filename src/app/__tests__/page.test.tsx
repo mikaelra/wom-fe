@@ -6,6 +6,7 @@ import Page from '@/app/page';
 import { checkName, logInUser, verifyLoginCode, getBossfightLobby } from '@/lib/api';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import type { City } from '@/lib/cities';
+import { ToastProvider } from '@/components/Toast';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -209,15 +210,18 @@ describe('Page (world map view, Athens raid popup)', () => {
     expect(push).toHaveBeenCalledWith('/lobby/DDDD');
   });
 
-  it('shows an alert and hides the loading overlay when entering the raid fails', async () => {
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+  it('shows a toast and hides the loading overlay when entering the raid fails', async () => {
     localStorage.setItem('playerName', 'Alice');
     mockedGetBossfightLobby.mockRejectedValue(new Error('Raid full'));
-    render(<Page />);
+    render(
+      <ToastProvider>
+        <Page />
+      </ToastProvider>,
+    );
 
     await clickAthens();
 
-    expect(alertSpy).toHaveBeenCalledWith('Raid full');
+    expect(await screen.findByText('Raid full')).toBeInTheDocument();
     expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
   });

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { BACKEND_URL } from '@/config';
+import { useToast } from '@/components/Toast';
 
 const VaultScene = dynamic(() => import('@/components/vault/VaultScene'), { ssr: false });
 
@@ -18,6 +19,7 @@ export default function VaultPage() {
   const [keycode, setKeycode] = useState('');
   const [isCorrect, setIsCorrect] = useState(false);
   const [vaultResult, setVaultResult] = useState<VaultResult | null>(null);
+  const { showError } = useToast();
 
   const checkKeycode = async () => {
     try {
@@ -28,7 +30,7 @@ export default function VaultPage() {
       });
 
       if (!res.ok) {
-        alert('Wrong code! Try again.');
+        showError('Wrong code! Try again.');
         return;
       }
 
@@ -38,7 +40,7 @@ export default function VaultPage() {
       setIsCorrect(true);
     } catch (err) {
       console.error('Error checking code:', err);
-      alert('Server error. Try again later.');
+      showError('Server error. Try again later.');
     }
   };
 

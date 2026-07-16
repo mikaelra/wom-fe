@@ -16,6 +16,7 @@ import type { City } from '@/lib/cities';
 import { getBossfightLobby } from '@/lib/api';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useAuthFlow } from '@/lib/useAuthFlow';
+import { useToast } from '@/components/Toast';
 
 // Dynamically import heavy 3D models
 const PlayerV1 = dynamic(() => import('../components/Playerv1'), { ssr: false });
@@ -180,6 +181,7 @@ export default function Page() {
   const [athensSceneLoading, setAthensSceneLoading] = useState(false);
 
   const router = useRouter();
+  const { showError } = useToast();
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setSceneReady(true));
@@ -195,9 +197,9 @@ export default function Page() {
       .then((data) => router.push(`/lobby/${data.lobby_id}`))
       .catch((err) => {
         setAthensSceneLoading(false);
-        alert(err instanceof Error ? err.message : 'Failed to enter raid.');
+        showError(err instanceof Error ? err.message : 'Failed to enter raid.');
       });
-  }, [router]);
+  }, [router, showError]);
 
   // ---- Athens raid handlers --------------------------------------------------
   const proceedAthens = useCallback((name: string, email: string) => {

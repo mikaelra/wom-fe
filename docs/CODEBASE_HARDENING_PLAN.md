@@ -795,21 +795,102 @@ Coordinated with backend Phase 1a/1b (see that plan):
 2. Private data (`messages`, `events`, `personal_history`) moves off the
    broadcast state — switch `useGameEvents` to the authenticated channel
    the backend provides (`private_update` or token-gated GET).
-3. Treat `localStorage` name/email as a convenience prefill only, never as
-   identity.
+3. ✅ **done (audited)** — audited every `localStorage.getItem`/`setItem`/
+   `removeItem` call site for `playerName`/`playerEmail` (an Explore-agent
+   sweep across `src/`, then verified directly rather than taken at face
+   value). Conclusion: the frontend's own behavior is fine as designed.
+   `HomeOverlay.tsx`, `WorldMapOverlay.tsx`, `app/page.tsx`, and
+   `app/lobby/[lobbyId]/page.tsx` all read a stored name to skip the
+   `useAuthFlow` popup UI and call create/join/login directly — this
+   *looks* like a client-asserted identity shortcut, but isn't one: the
+   frontend does no verification itself, and every one of those calls
+   still goes to the backend, which independently re-validates name/email
+   ownership on every request (per Phase 1a/1b's session-token model).
+   Client-side `localStorage` is convenience state for the UI, never a
+   trust boundary.
+
+   Two things this audit checked more closely, since they involve sending
+   a stored name to the server without a session token attached:
+   - `src/lib/useLobbyConnection.ts`'s `rejoin()` re-emits `join_lobby`
+     (with the stored name/email) on every socket reconnect, alongside
+     the real authorizer, `join_room` (token-only). Checked wom-be's
+     `sockets/lobby.py` `handle_join_lobby` directly: it's gated by the
+     same `find_claimed_email` match and `is_name_taken_in_lobby` checks
+     as a fresh join, so a reconnect can't be used to impersonate another
+     player — confirmed **not** a security issue, just a redundant,
+     effectively-inert call in the common case (already in the lobby →
+     rejected as "Name taken").
+   - `getPlayerRelics()`/`claimPendingRelic()` (`src/lib/api.ts`) send only
+     a name (no `getStoredToken()`), unlike sibling `getPlayerMessages()`.
+     Traced this into wom-be's `routes/bossfight.py` and found it's not
+     just a frontend-side gap but a **real, confirmed backend
+     vulnerability** on the other end, out of this repo's control to fix:
+     - `get_player_relics`: takes only `name` from the request body and
+       returns that player's relics with **zero authentication check** —
+       anyone can view any player's relic collection by name alone.
+     - `claim_pending_relic`: correctly rejects if the name already has a
+       registered account with a *different* email (409), but if the name
+       has never registered one, it **creates a new account under
+       whatever email the caller supplies and immediately awards the
+       pending relic** — a real theft path for any name that's earned an
+       unclaimed relic and can be guessed.
+
+     Filed here rather than fixed, per this plan's cross-repo convention
+     (e.g. the Phase 3 E2E section's session-token coordination write-up):
+     this needs a `wom-be` PR to add token-based auth to both routes, not
+     a frontend change. The frontend already sends these calls attaching
+     only what the current API requires; adding `getStoredToken()` to
+     them here would be a no-op until the backend actually checks it.
 
 ## Phase 5 — Housekeeping (opportunistic, no dedicated PRs)
 
-- `src/app/Playerv1.tsx` vs `src/components/Playerv1.tsx` — one is dead;
-  delete it.
-- `package.json` name `my-3d-app` → `wom-fe`.
-- `src/config.ts` hardcodes a Render URL as the fallback backend; make dev
-  fallback `http://localhost:5000` and fail loudly in prod builds when
-  `NEXT_PUBLIC_BACKEND_URL` is unset, so a misconfigured deploy can't
-  silently talk to the wrong backend.
-- Standardize error surfaces: one `<ErrorBoundary>` around the canvas, one
-  toast/banner pattern for `ApiError`, instead of per-call `alert`/silent
-  catch.
+- ✅ **done (already true)** — `src/app/Playerv1.tsx` vs
+  `src/components/Playerv1.tsx`: only the latter exists. `git log` traced
+  the former's removal to `e17e9bd` ("Remove dead code and the half-built
+  rematch feature", part of PR #163's earlier cleanup) — this item
+  predated that PR and was stale. `src/components/Playerv1.tsx` is live
+  code (used by `app/page.tsx`'s TempleScene and `PlayerAvatars.tsx`),
+  nothing to delete.
+- ✅ **done** — `package.json` name `my-3d-app` → `wom-fe` (also
+  regenerated `package-lock.json`'s matching `name` fields via
+  `npm install --package-lock-only`). Grepped first to confirm nothing
+  else referenced the old name.
+- ✅ **done** — `src/config.ts`'s `BACKEND_URL`: dev fallback is now
+  `http://localhost:5000` (was a stale Render URL); a production build
+  with `NEXT_PUBLIC_BACKEND_URL` unset now throws instead of silently
+  falling back. This turned out to fail even louder than planned: since
+  `config.ts` is imported at module scope by several server-rendered
+  pages, the throw surfaces **during `next build` itself** (confirmed by
+  actually running a build with the var unset — it failed prerendering
+  `/email_verified` with the new error message and a non-zero exit),
+  not just at runtime — a misconfigured deploy can't produce a pushable
+  image at all, let alone one that talks to the wrong backend.
+- ✅ **done** — standardized error surfaces: `src/components/Toast.tsx`
+  (`ToastProvider`/`useToast`, a small fixed-position banner stack,
+  auto-dismiss after 6s or manual close) and
+  `src/components/ErrorBoundary.tsx` (class component, catches render-time
+  crashes in the DOM/overlay tree with a "Something went wrong" + Reload
+  fallback), both mounted once at the root (`src/app/layout.tsx`):
+  `<ToastProvider><ErrorBoundary>{children}</ErrorBoundary></ToastProvider>`.
+  All 10 `alert(...)` call sites replaced with `showError(...)` —
+  `app/page.tsx`'s raid-entry failure, `app/vault/page.tsx`'s two keycode
+  failures, `SceneOverlay.tsx`'s socket error, `HomeOverlay.tsx`'s 4
+  (create/join/not-logged-in/raid-entry), `WorldMapOverlay.tsx`'s 2
+  (create/join). `useToast()` falls back to a `console.error` (not a
+  throw) when no `ToastProvider` is mounted, specifically so the many
+  existing component tests that render these components in isolation
+  don't all need a provider wrapper — only `page.test.tsx`'s one test
+  that actually asserted on `window.alert` needed updating (now wraps
+  with a real `ToastProvider` and asserts the toast text renders). New
+  `Toast.test.tsx`/`ErrorBoundary.test.tsx` cover both components
+  directly. The `<ErrorBoundary>` sits around the whole app (in the root
+  layout), not literally wrapped tight around each `<Canvas>` — R3F's
+  `<Canvas>` renders its scene graph through a separate reconciler root,
+  so a DOM-level boundary only catches errors during Canvas's own mount,
+  not errors inside `useFrame`/the WebGL loop; the actual motivating
+  problem this doc names ("a schema mismatch becomes a silent `undefined`
+  deep inside a Three.js component") is a DOM/overlay-component crash on
+  bad data, which this placement does catch.
 
 ## Suggested order of work
 
@@ -836,8 +917,19 @@ Coordinated with backend Phase 1a/1b (see that plan):
    `claude/frontend-hardening-continue` merged to `master` and wom-be's
    corresponding hardening branch merged to `main` in the same window
    (see Phase 3's E2E writeup above for why together, not separately).
-   Item 3 (treat `localStorage` as convenience-only) is effectively
-   already true as a consequence, but not separately audited yet.
+   Item 3 (treat `localStorage` as convenience-only) has since been
+   separately audited and confirmed true — see Phase 4's own writeup
+   above, including two real `wom-be`-side vulnerabilities
+   (`get_player_relics`, `claim_pending_relic`) it surfaced but that need
+   a backend PR to fix, not a frontend change.
+6. ✅ Phase 5 housekeeping — all 4 items done (see Phase 5's own writeup
+   above): the `Playerv1.tsx` duplicate turned out to already be gone
+   (stale item, nothing to do), `package.json` renamed to `wom-fe`,
+   `src/config.ts`'s backend-URL fallback now fails loudly (at `next
+   build` time, not just runtime) instead of silently pointing at a
+   stale Render URL, and error surfaces are standardized behind a shared
+   `<ToastProvider>`/`useToast()` plus a root `<ErrorBoundary>`. **This
+   closes out every phase of this plan.**
 
 Definition of done for any new feature after this: server data enters
 through a zod schema, game logic lands in `lib/` or a hook with a vitest
