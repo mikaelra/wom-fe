@@ -11,8 +11,9 @@ become **owned, persistent items** on a player's account:
 - Finishing any match — bossfight or PvP — gives each player an independent **25% chance
   of earning a Wheel** (free, capped at 4 wheels per rolling two weeks). Wheels can be
   spun immediately or saved in the inventory.
-- Spinning a **normal Wheel** opens a tivoli-style spinning wheel with the 6 non-green
-  common skin colors as equally sized slices; the landed skin is added to the inventory.
+- Spinning a **normal Wheel** shows the top arc of a tivoli-style spinning wheel with
+  the 6 non-green common skin colors at equal odds; the landed skin is added to the
+  inventory.
 - The **Shop** sells a **Special Wheel for $5** with weighted rare slices
   (silver 63%, gold 30%, rainbow 6.6667%, bling 0.3333%) drawn to scale on the wheel,
   and the **Cherub skin for $500** as a direct purchase.
@@ -64,7 +65,12 @@ account/identity prerequisites, compliance, testing, and a phased rollout.
    every login) or use OAuth.
 3. **No persistent auth token.** Session tokens are scoped to a lobby. Inventory, shop
    and purchase endpoints need an account-scoped session.
-4. **No cherub asset.** `frog_cherub_v1.glb` must be created.
+4. **Cherub asset exists but lives outside the frogs folder:**
+   `public/models/cherub-v01.glb` (note: *not* under `/models/frogs/`, and not
+   `frog_*`-named). `skinUrl()` assumes `/models/frogs/<skin>.glb`, so the skin-id →
+   model-URL mapping needs an exception (or a lookup table). Verify the model works
+   as a player skin (scale/rig/animations vs. the frog models) and produce a shop
+   thumbnail.
 
 ---
 
@@ -139,17 +145,26 @@ account/identity prerequisites, compliance, testing, and a phased rollout.
   (consistent with the ownership rules), but **decided: warn + confirm** — if the
   player already owns Cherub, the shop shows "You already own Cherub" and requires an
   explicit confirmation step before a second $500 charge.
-- Requires a new model asset `frog_cherub_v1.glb` + thumbnail. Track asset production
-  as its own workstream — it gates the shop launch only for this product, not the rest.
+- The model already exists: `public/models/cherub-v01.glb` (in `/models/`, not
+  `/models/frogs/`). Remaining work is integration, not asset production: a skin-id →
+  model-URL mapping exception for non-frog-folder skins, verifying scale/rig/animations
+  in-game as a player skin, and a shop thumbnail.
 
 ### 3.5 Wheel spin UX (both wheel types)
 
 1. Player clicks **Use** on a wheel in the inventory (or **Spin now** post-match).
 2. Frontend calls `POST /wheel/spin` with the wheel item id. **The server consumes the
    wheel and decides the outcome in this call**, atomically, before any animation.
-3. A modal shows the top arc of a large tivoli wheel already spinning fast. Slices are
-   colored per skin (normal wheel: the 6 non-green common skin colors, equal; special
-   wheel: silver / gold / rainbow-gradient / bling, sized per §3.3).
+3. A modal shows the wheel already spinning fast. **Visual direction (to be iterated,
+   but this is the target):** the wheel is drawn much larger than the viewport so the
+   player only sees a small arc of the top — like standing in front of a real tivoli
+   wheel — never the whole disc. Each color is split into many small repeated slices
+   interleaved around the wheel rather than a few large wedges: the normal wheel is
+   *not* 6 big slices but e.g. 6 colors × N repetitions (normal: the 6 non-green
+   common skin colors, equal totals; special: silver / gold / rainbow-gradient /
+   bling, totals sized per §3.3). Many narrow slices streaming past the pointer is
+   what makes the spin feel alive; the per-color *total* angle share is what must
+   stay true to the odds.
 4. A **STOP ROLL** button appears. Clicking it starts a several-second ease-out that
    lands the pointer on the server-chosen slice. If the player never clicks (or closes
    the tab), the outcome already happened — the skin is in their inventory; the
@@ -158,7 +173,9 @@ account/identity prerequisites, compliance, testing, and a phased rollout.
 
 Implementation note: render the wheel with SVG/canvas conic segments and a
 requestAnimationFrame easing, choosing a final rotation = N full turns + the target
-slice's angle. No physics needed; determinism from the server response.
+slice's angle. The partial-top-arc view is just a viewport crop: draw the full disc
+in an oversized canvas and clip it, so the geometry/easing math stays trivial. No
+physics needed; determinism from the server response.
 
 ---
 
@@ -434,6 +451,9 @@ above:
 7. **Normal-wheel drop cap:** max 4 match-drop wheels per player per rolling 14 days
    (§3.2).
 
-Still open (visual polish, not blocking): exact special-wheel slice layout — 300
-tivoli slices for exact math vs. a coarser wheel with one odd-sized rainbow slice
-(§3.3), to be refined during `WheelSpinModal` implementation.
+Still open (visual polish, not blocking): exact slice layout for both wheels. The
+agreed direction (§3.5): only a small top arc of an oversized wheel is visible, and
+each color repeats across many interleaved narrow slices — never a few big wedges.
+Slice counts to tune during `WheelSpinModal` implementation (special wheel: 300
+slices gives exact per-color math — 189/90/20/1; coarser needs one odd-sized rainbow
+slice, per §3.3).
