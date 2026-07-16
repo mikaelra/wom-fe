@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef, ReactNode } from 'react';
 import Link from 'next/link';
-import {
-  getNextBossfightTime,
-  getPlayerMessages,
-  getSocket,
-} from '@/lib/api';
+import { getSocket } from '@/lib/socket';
+import { useLobbyConnection } from '@/lib/useLobbyConnection';
+import { useLobbyGame } from '@/lib/useLobbyGame';
+import { useRoundTimer } from '@/lib/useRoundTimer';
+import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
+import { useGameEvents } from '@/lib/useGameEvents';
 import type { LobbyState, Player } from '@/types/game';
-import FloatingMessage from '@/components/lobby/FloatingMessage';
 import { playResourceSound } from '@/lib/sounds';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import ResourceCard from '@/components/ResourceCard';
@@ -50,8 +50,6 @@ export type PreGameRenderOpts = {
   onStartGame: () => void;
   onAddDummy: () => void;
   onKick: (name: string) => void;
-  floatingMessages: string[];
-  onDoneFloating: (idx: number) => void;
 };
 
 export type SceneOverlayConfig = {
@@ -64,7 +62,6 @@ export type SceneOverlayConfig = {
   showEnemyAlways?: boolean;
   showPlayerList?: boolean;
   showDenyPicker?: boolean;
-  showFloatingMessages?: boolean;
   showChat?: boolean;
   enableRaidTimer?: boolean;
   /** When true the WELL/DEFEND/resource/nametag buttons are suppressed from the
@@ -104,7 +101,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     showEnemyAlways = false,
     showPlayerList = false,
     showDenyPicker = false,
-    showFloatingMessages = false,
     showChat = false,
     enableRaidTimer = false,
     hidePlayerActionButtons = false,
@@ -115,17 +111,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   } = config;
 
   const [playerName, setPlayerName] = useState('');
-  const [state, setState] = useState<LobbyState | null>(null);
-  const [messages, setMessages] = useState<string[][]>([]);
+  const [messages, setMessages] = useState<(string | string[])[]>([]);
   const [action, setAction] = useState('');
   const [resource, setResource] = useState('');
   const pendingResourceRef = useRef('');
   const [denyTarget, setDenyTarget] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  const [floatingMessages, setFloatingMessages] = useState<string[]>([]);
-  const [nextRaidTime, setNextRaidTime] = useState<number | null>(null);
-  const [raidMins, setRaidMins] = useState<number | null>(null);
-  const [raidSecs, setRaidSecs] = useState<number | null>(null);
   const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [messagesOverflow, setMessagesOverflow] = useState(false);
   const [messagesHidden, setMessagesHidden] = useState(false);
@@ -147,93 +137,39 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   }, []);
 
   useEffect(() => {
-    setState(null);
-    setFloatingMessages([]);
     setMessages([]);
   }, [lobbyId]);
 
-  useEffect(() => {
-    if (!lobbyId || !playerName) return;
-    const sock = getSocket();
-    const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
-
-    // join_room is what actually subscribes this socket to the lobby's
-    // broadcast room, so it must fire on every (re)connect regardless of
-    // whether join_lobby succeeds or reports "Name taken" (the common case
-    // for anyone who already joined earlier). Gating it behind a successful
-    // "joined_lobby" response left reconnecting clients silently stuck
-    // outside the room with no further state_update broadcasts.
-    const rejoin = () => {
-      sock.emit("join_lobby", { lobby_id: lobbyId, name: playerName, email });
-      sock.emit("join_room", { lobby_id: lobbyId, name: playerName });
-    };
-
-    sock.on("connect", rejoin);
-
-    rejoin();
-
-    sock.on("state_update", (data) => {
-      setState(data);
-    });
-
-    sock.on("chat_message", (msg) => {
-      setState((prev) =>
-        prev ? { ...prev, chat: [...(prev.chat ?? []), msg] } : prev
-      );
+  const { state } = useLobbyConnection(lobbyId, playerName, {
+    onChatMessage: () => {
       if (!chatExpandedRef.current) setUnreadChat(true);
-    });
-
-    sock.on("error", (data) => {
-      if (data.message !== "Name taken") {
-        alert(data.message);
+    },
+    onError: (message) => {
+      if (message !== 'Name taken') {
+        alert(message);
       }
-    });
-
-    return () => {
-      sock.off("connect", rejoin);
-      sock.emit("leave_room", { lobby_id: lobbyId, name: playerName });
-      sock.off("state_update");
-      sock.off("chat_message");
-      sock.off("error");
-    };
-  }, [lobbyId, playerName]);
+    },
+  });
 
   useEffect(() => {
     onStateChange?.(state);
   }, [state, onStateChange]);
 
-  // While waiting in the pre-game lobby, and again once the game is over,
-  // periodically re-emit join_room so the server sends back the current
-  // state. This is a low-frequency polling fallback for whenever the live
-  // state_update broadcast doesn't reach this socket (e.g. a dropped/zombied
-  // connection) — both of these are idle, low-traffic windows where a
-  // silently missed broadcast would otherwise leave the UI stuck
-  // indefinitely with no other event to self-correct it.
-  const gameStarted = (state?.round ?? 0) > 0;
-  const isPostGame = state?.gameover ?? false;
-  useEffect(() => {
-    if (!lobbyId || !playerName) return;
-    if (gameStarted && !isPostGame) return;
-    const interval = setInterval(() => {
-      getSocket().emit("join_room", { lobby_id: lobbyId, name: playerName });
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [lobbyId, playerName, gameStarted, isPostGame]);
-
-  useEffect(() => {
-    if (!state?.round_end_time) {
-      setSecondsLeft(null);
-      return;
-    }
-    const endTime = new Date(state.round_end_time).getTime() / 1000;
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.floor(endTime - Date.now() / 1000));
-      setSecondsLeft(remaining);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [state?.round_end_time]);
-
-  const gameOver = state?.gameover ?? false;
+  const {
+    round,
+    myPlayer,
+    isAlive,
+    isAdmin,
+    enemy,
+    isPendingDenyChooser,
+    eligibleDenyTargets,
+    canAct,
+    phase,
+  } = useLobbyGame(state, playerName);
+  const gameStarted = round > 0;
+  const gameOver = phase === 'gameover';
+  const isChoosingDeny = showDenyPicker && isPendingDenyChooser;
+  const secondsLeft = useRoundTimer(state?.round_end_time);
 
   useEffect(() => {
     // Play the gain sound for the resource picked last round, then reset selection.
@@ -247,52 +183,25 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     setMessagesExpanded(false);
   }, [state?.round]);
 
-  useEffect(() => {
-    if (!lobbyId || !playerName) return;
-    getPlayerMessages(lobbyId, playerName)
-      .then((json) => {
-        const newMsgs = json.messages ?? [];
-        const newFlat = newMsgs.flat().join('\n');
-        if (newFlat !== lastMessagesFlat.current) {
-          lastMessagesFlat.current = newFlat;
-          if (showFloatingMessages) {
-            setFloatingMessages((prev) => [...prev, newFlat]);
-            setMessagesExpanded(false);
-            setTimeout(() => setMessages(newMsgs), 2500);
-          } else {
-            setMessages(newMsgs);
-            setMessagesExpanded(false);
-          }
-        }
-      })
-      .catch(() => {});
-  }, [state?.round, lobbyId, playerName, state?.deny_target, showFloatingMessages]);
+  const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
 
-  const myPlayer = state?.players.find((p) => p.name === playerName);
-  const isAlive = (myPlayer?.hp ?? 0) > 0;
+  useEffect(() => {
+    if (!gameEvents || gameEvents.round !== state?.round) return;
+    const newMsgs = gameEvents.messages ?? [];
+    const newFlat = newMsgs.flat().join('\n');
+    if (newFlat !== lastMessagesFlat.current) {
+      lastMessagesFlat.current = newFlat;
+      setMessages(newMsgs);
+      setMessagesExpanded(false);
+    }
+  }, [gameEvents, state?.round]);
 
   // Staged display values for the resource cards: holds back a Well reward at
   // round start and ticks it up when the reward lands (Phase 2). Falls back to
   // the player's real values for every other case.
-  const stagedResources = useStagedResources(state, playerName, lobbyId, { stageCombat: stageCombatDamage });
+  const stagedResources = useStagedResources(state, playerName, gameEvents, { stageCombat: stageCombatDamage });
 
-  useEffect(() => {
-    if (!enableRaidTimer || !isAlive) return;
-    getNextBossfightTime()
-      .then((json) => setNextRaidTime(json.start_time))
-      .catch(() => setNextRaidTime(null));
-  }, [isAlive, enableRaidTimer]);
-
-  useEffect(() => {
-    if (!enableRaidTimer || nextRaidTime == null) return;
-    const nextRT = new Date(nextRaidTime);
-    const interval = setInterval(() => {
-      const diff = Math.floor((nextRT.getTime() - Date.now()) / 1000);
-      setRaidSecs(Math.floor(diff % 60));
-      setRaidMins(Math.floor(diff / 60));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [nextRaidTime, enableRaidTimer]);
+  const { raidMins, raidSecs } = useBossfightCountdown(enableRaidTimer && isAlive);
 
   // Detect if messages overflow the collapsed container. We compare the
   // list's natural height against the fixed collapsed limit (the max-h-[4.5rem]
@@ -317,38 +226,31 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     return () => ro.disconnect();
   }, [messages, messagesHidden]);
 
-  const isAdmin = myPlayer?.admin ?? false;
-  const enemy = state?.players.find((p) => p.boss);
-  const isDenied = playerName === state?.deny_target;
-  const isChoosingDeny = showDenyPicker && state?.pending_deny === playerName;
-  const eligibleTargets = state?.players.filter((p) => p.name !== playerName && p.hp > 0) ?? [];
-  const showActions = !gameOver && !isDenied && isAlive && !myPlayer?.spectator && gameStarted;
-
   const effectiveAction = externalAction !== undefined ? externalAction : action;
 
-  const needsAction   = effectiveAction === '' && showActions;
-  const needsResource = resource === '' && showActions;
+  const needsAction   = effectiveAction === '' && canAct;
+  const needsResource = resource === '' && canAct;
   const isGoldWarn    = secondsLeft !== null && secondsLeft <= 10 && secondsLeft > 5;
   const isRedWarn     = secondsLeft !== null && secondsLeft <= 5;
   const actionCue   = needsAction   ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '') : '';
   const resourceCue = needsResource ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '') : '';
 
   const handleStartGame = () => {
-    getSocket().emit('start_game', { lobby_id: lobbyId, admin: playerName });
+    getSocket().emit('start_game', { lobby_id: lobbyId });
   };
 
   const handleAddDummy = () => {
-    getSocket().emit('add_dummy', { lobby_id: lobbyId, name: playerName });
+    getSocket().emit('add_dummy', { lobby_id: lobbyId });
   };
 
   const handleKick = (targetName: string) => {
-    getSocket().emit('kick_player', { lobby_id: lobbyId, admin: playerName, target: targetName });
+    getSocket().emit('kick_player', { lobby_id: lobbyId, target: targetName });
   };
 
   const handleResource = (resId: string) => {
     setResource(resId);
     pendingResourceRef.current = resId;
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, resource: resId, action: '' });
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, resource: resId, action: '' });
   };
 
   const handleAction = (act: string) => {
@@ -356,7 +258,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     onActionChange?.(act);
     getSocket().emit('submit_choice', {
       lobby_id: lobbyId,
-      player: playerName,
       action: act,
       resource: '',
       target: act === 'attack' && enemy ? enemy.name : undefined,
@@ -364,7 +265,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   };
 
   const handleDeny = () => {
-    getSocket().emit('submit_deny_target', { lobby_id: lobbyId, player: playerName, target: denyTarget });
+    getSocket().emit('submit_deny_target', { lobby_id: lobbyId, target: denyTarget });
   };
 
   useEffect(() => {
@@ -389,7 +290,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const handleSendChat = () => {
     const msg = chatInput.trim();
     if (!msg || !playerName) return;
-    getSocket().emit('send_message', { lobby_id: lobbyId, name: playerName, message: msg });
+    getSocket().emit('send_message', { lobby_id: lobbyId, message: msg });
     setChatInput('');
   };
 
@@ -419,9 +320,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabelClass="text-red-400/70"
           anim={stagedResources?.hpAnim ?? 'bounce'}
           blockPulse={stagedResources?.hpBlockPulse ?? 0}
-          disabled={!showActions}
+          disabled={!canAct}
           onClick={() => handleResource('gain_hp')}
-          className={`${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+          className={`${!canAct ? 'opacity-60 cursor-default' : 'cursor-pointer'}
             ${resourceCue} ${guideGlowClass(guideHighlight?.hp)}
             ${resource === 'gain_hp'
               ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
@@ -434,9 +335,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabel="💰 Get"
           valueClass="text-yellow-400"
           sublabelClass="text-yellow-400/70"
-          disabled={!showActions}
+          disabled={!canAct}
           onClick={() => handleResource('gain_coin')}
-          className={`${!showActions ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+          className={`${!canAct ? 'opacity-60 cursor-default' : 'cursor-pointer'}
             ${resourceCue} ${guideGlowClass(guideHighlight?.coins)}
             ${resource === 'gain_coin'
               ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
@@ -449,10 +350,10 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabel="⚔ Buy"
           valueClass="text-blue-400"
           sublabelClass="text-blue-400/70"
-          disabled={!showActions || cannotAffordAtk}
+          disabled={!canAct || cannotAffordAtk}
           onClick={() => handleResource('gain_attack')}
           className={`relative overflow-hidden
-            ${!showActions || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+            ${!canAct || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
             ${cannotAffordAtk ? '' : resourceCue} ${guideGlowClass(guideHighlight?.atk)}
             ${resource === 'gain_attack'
               ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
@@ -494,8 +395,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           onStartGame: handleStartGame,
           onAddDummy: handleAddDummy,
           onKick: handleKick,
-          floatingMessages,
-          onDoneFloating: (idx) => setFloatingMessages((prev) => prev.filter((_, i) => i !== idx)),
         })}
         {showChat && (
           <div
@@ -669,7 +568,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
               />
             </div>
             <p className={`${theme.enemyHpTextClass} text-xs mt-1`}>{Math.max(0, enemy!.hp)} / {enemyMaxHp} HP</p>
-            {showActions && (
+            {canAct && (
               <button
                 type="button"
                 onClick={() => handleAction('attack')}
@@ -687,7 +586,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       )}
 
       {/* WELL button (hidden when 3D scene owns player action UI) */}
-      {!hidePlayerActionButtons && showActions && (
+      {!hidePlayerActionButtons && canAct && (
         <div
           className="absolute pointer-events-auto"
           style={{ top: '54%', left: '50%', transform: 'translate(-50%, -50%)' }}
@@ -724,7 +623,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       )}
 
       {/* DEFEND button (hidden when 3D scene owns player action UI) */}
-      {!hidePlayerActionButtons && showActions && (
+      {!hidePlayerActionButtons && canAct && (
         <div
           className="absolute pointer-events-auto"
           style={{ top: '65%', left: '50%', transform: 'translateX(-50%)' }}
@@ -777,7 +676,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                 className="border border-gray-600 rounded-lg p-2 bg-black/80 text-white text-sm flex-1 min-w-[120px]"
               >
                 <option value="">Select player</option>
-                {eligibleTargets.map((p, i) => (
+                {eligibleDenyTargets.map((p, i) => (
                   <option key={`${p.name}-${i}`} value={p.name}>{p.name}</option>
                 ))}
               </select>
@@ -851,15 +750,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           </div>
         </div>
       )}
-
-      {/* Floating messages (optional) */}
-      {showFloatingMessages && floatingMessages.map((msg, idx) => (
-        <FloatingMessage
-          key={idx}
-          message={msg}
-          onDone={() => setFloatingMessages((prev) => prev.filter((_, i) => i !== idx))}
-        />
-      ))}
     </div>
   );
 }

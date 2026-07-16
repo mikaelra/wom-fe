@@ -7,7 +7,10 @@ import dynamic from 'next/dynamic';
 import LobbyOverlay from '@/components/lobby/LobbyOverlay';
 import InGameGuide from '@/components/lobby/InGameGuide';
 import { BASE_FOV } from '@/lib/sceneConstants';
-import { getSocket, joinLobby, checkName, logInUser, verifyLoginCode } from '@/lib/api';
+import { joinLobby } from '@/lib/api';
+import { getSocket, subscribe } from '@/lib/socket';
+import { getStoredToken } from '@/lib/http';
+import { useAuthFlow } from '@/lib/useAuthFlow';
 import type { LobbyState } from '@/types/game';
 import type { GuideHighlights } from '@/lib/guideHighlights';
 
@@ -29,19 +32,6 @@ export default function LobbyPage() {
 
   // Join form state (used when not logged in)
   const [previewState, setPreviewState] = useState<LobbyState | null>(null);
-  const [joinName, setJoinName] = useState('');
-  const [joinError, setJoinError] = useState('');
-  const [joinLoading, setJoinLoading] = useState(false);
-
-  // Email verification step (when the typed name is claimed)
-  const [emailMode, setEmailMode] = useState(false);
-  const [email, setEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
-
-  // Code verification step (when the user has always_verify_email enabled)
-  const [codeMode, setCodeMode] = useState(false);
-  const [code, setCode] = useState('');
-  const [codeError, setCodeError] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -68,18 +58,31 @@ export default function LobbyPage() {
   }, [lobbyId, playerNameInit, playerName]);
 
   // Subscribe to socket state updates once the user has typed a name.
-  // The server ignores join_room with an empty name, so we wait until
-  // there is something to send.
-  const typedName = joinName.trim();
+  // join_room now authenticates via the join-issued session token (backend
+  // Phase 1a) rather than the typed name, so this preview only works when a
+  // token from an earlier join in this tab is already stored (e.g. a
+  // refresh) -- a brand-new visitor who hasn't joined yet has no token, and
+  // the player-list preview simply doesn't populate for them. That's the
+  // intended effect of closing off anonymous room peeking, not a bug.
+  const authFlow = useAuthFlow({
+    submitErrorFallback: 'Failed to join lobby',
+    onAuthenticated: async (name, emailForJoin) => {
+      hasAutoJoined.current = true; // prevent the auto-join effect from re-firing after setPlayerName
+      await joinLobby(lobbyId!, name, emailForJoin);
+      localStorage.setItem('playerName', name);
+      if (emailForJoin) localStorage.setItem('playerEmail', emailForJoin);
+      setHasJoined(true);
+      setPlayerName(name);
+    },
+  });
+  const typedName = authFlow.name.trim();
   useEffect(() => {
     if (!lobbyId || !playerNameInit || playerName || !typedName) return;
-    const sock = getSocket();
-    const handleStateUpdate = (data: LobbyState) => setPreviewState(data);
-    sock.on('state_update', handleStateUpdate);
-    sock.emit('join_room', { lobby_id: lobbyId, name: typedName });
-    return () => {
-      sock.off('state_update', handleStateUpdate);
-    };
+    const token = getStoredToken();
+    if (!token) return;
+    const unsubscribe = subscribe('state_update', (data) => setPreviewState(data));
+    getSocket().emit('join_room', { lobby_id: lobbyId, token });
+    return unsubscribe;
   }, [lobbyId, playerNameInit, playerName, typedName]);
 
   // Reset shared action at the start of each new round
@@ -93,93 +96,6 @@ export default function LobbyPage() {
     setSharedAction('attack');
     setSharedAttackTarget(target);
   }, []);
-
-  const doJoin = async (name: string, emailForJoin = '') => {
-    hasAutoJoined.current = true; // prevent the auto-join effect from re-firing after setPlayerName
-    await joinLobby(lobbyId!, name, emailForJoin);
-    localStorage.setItem('playerName', name);
-    if (emailForJoin) localStorage.setItem('playerEmail', emailForJoin);
-    setHasJoined(true);
-    setPlayerName(name);
-  };
-
-  const handleJoin = async () => {
-    const name = joinName.trim();
-    if (!name || !lobbyId) return;
-    setJoinLoading(true);
-    setJoinError('');
-    try {
-      const { claimed } = await checkName(name);
-      if (claimed) {
-        setEmailMode(true);
-        setEmail('');
-        setEmailError('');
-        return;
-      }
-      await doJoin(name);
-    } catch (e) {
-      setJoinError(e instanceof Error ? e.message : 'Failed to join lobby');
-    } finally {
-      setJoinLoading(false);
-    }
-  };
-
-  const handleLogin = async () => {
-    const name = joinName.trim();
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) { setEmailError('Please enter your email.'); return; }
-    setJoinLoading(true);
-    setEmailError('');
-    try {
-      const result = await logInUser(name, trimmedEmail);
-      if (result.requires_code) {
-        setCodeMode(true);
-        setCode('');
-        setCodeError('');
-        return;
-      }
-      await doJoin(name, trimmedEmail);
-    } catch (e) {
-      if (e instanceof Error && e.message === 'Wrong email') {
-        setEmailError('Wrong email');
-      } else {
-        setEmailError(e instanceof Error ? e.message : 'Log in failed.');
-      }
-    } finally {
-      setJoinLoading(false);
-    }
-  };
-
-  const handleVerifyCode = async () => {
-    const name = joinName.trim();
-    const trimmedEmail = email.trim();
-    const trimmedCode = code.trim();
-    if (!trimmedCode) {
-      setCodeError('Please enter the code from your email.');
-      return;
-    }
-    setJoinLoading(true);
-    setCodeError('');
-    try {
-      await verifyLoginCode(name, trimmedCode);
-      await doJoin(name, trimmedEmail);
-    } catch (e) {
-      setCodeError(e instanceof Error ? e.message : 'Verification failed.');
-    } finally {
-      setJoinLoading(false);
-    }
-  };
-
-  const handleChooseNewName = () => {
-    setEmailMode(false);
-    setEmail('');
-    setEmailError('');
-    setCodeMode(false);
-    setCode('');
-    setCodeError('');
-    setJoinName('');
-    setJoinError('');
-  };
 
   if (!lobbyId) {
     return (
@@ -260,23 +176,19 @@ export default function LobbyPage() {
                   type="text"
                   maxLength={30}
                   placeholder="Name"
-                  value={joinName}
-                  onChange={(e) => {
-                    setJoinName(e.target.value);
-                    setEmailMode(false);
-                    setCodeMode(false);
-                  }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !emailMode) handleJoin(); }}
-                  autoFocus={!emailMode}
-                  readOnly={emailMode}
-                  className={`w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${emailMode ? 'opacity-60 !bg-gray-100' : ''}`}
+                  value={authFlow.name}
+                  onChange={(e) => authFlow.setName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !authFlow.emailMode) authFlow.handleSubmitName(); }}
+                  autoFocus={!authFlow.emailMode}
+                  readOnly={authFlow.emailMode}
+                  className={`w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${authFlow.emailMode ? 'opacity-60 !bg-gray-100' : ''}`}
                 />
-                {joinError && !emailMode && (
-                  <p className="text-red-500 text-sm mb-3">{joinError}</p>
+                {authFlow.error && !authFlow.emailMode && (
+                  <p className="text-red-500 text-sm mb-3">{authFlow.error}</p>
                 )}
 
                 {/* Email step shown when name is claimed */}
-                {emailMode && (
+                {authFlow.emailMode && (
                   <>
                     <p className="text-sm text-gray-600 mb-2">
                       This name is claimed. Enter your email to log in or pick a new name.
@@ -284,61 +196,57 @@ export default function LobbyPage() {
                     <input
                       type="email"
                       placeholder="Email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !codeMode) handleLogin(); }}
-                      autoFocus={!codeMode}
-                      readOnly={codeMode}
-                      className={`w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${codeMode ? 'opacity-60 bg-gray-100' : ''}`}
+                      value={authFlow.email}
+                      onChange={(e) => authFlow.setEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !authFlow.codeMode) authFlow.handleLogin(); }}
+                      autoFocus={!authFlow.codeMode}
+                      readOnly={authFlow.codeMode}
+                      className={`w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${authFlow.codeMode ? 'opacity-60 bg-gray-100' : ''}`}
                     />
-                    {emailError && !codeMode && (
-                      <p className="text-red-500 text-sm font-semibold mb-3">{emailError}</p>
+                    {authFlow.emailError && !authFlow.codeMode && (
+                      <p className="text-red-500 text-sm font-semibold mb-3">{authFlow.emailError}</p>
                     )}
 
                     {/* Code step shown when always_verify_email is on */}
-                    {codeMode && (
+                    {authFlow.codeMode && (
                       <>
                         <p className="text-sm text-gray-600 mb-2">
-                          We sent a 6-digit code to <strong>{email}</strong>.
+                          We sent a 6-digit code to <strong>{authFlow.email}</strong>.
                         </p>
                         <input
                           type="text"
                           inputMode="numeric"
                           autoComplete="one-time-code"
                           placeholder="6-digit code"
-                          value={code}
+                          value={authFlow.code}
                           onChange={(e) =>
-                            setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                            authFlow.setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
                           }
-                          onKeyDown={(e) => { if (e.key === 'Enter') handleVerifyCode(); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') authFlow.handleVerifyCode(); }}
                           autoFocus
                           className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-3 bg-white text-gray-900 placeholder-gray-400 tracking-[0.3em] font-mono text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
-                        {codeError && (
-                          <p className="text-red-500 text-sm font-semibold mb-3">{codeError}</p>
+                        {authFlow.codeError && (
+                          <p className="text-red-500 text-sm font-semibold mb-3">{authFlow.codeError}</p>
                         )}
                       </>
                     )}
 
                     <div className="flex gap-2 mb-3">
-                      {codeMode ? (
+                      {authFlow.codeMode ? (
                         <>
                           <button
                             type="button"
-                            onClick={handleVerifyCode}
-                            disabled={!code.trim() || joinLoading}
+                            onClick={authFlow.handleVerifyCode}
+                            disabled={!authFlow.code.trim() || authFlow.loading}
                             className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {joinLoading ? 'Verifying…' : 'Verify'}
+                            {authFlow.loading ? 'Verifying…' : 'Verify'}
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              setCodeMode(false);
-                              setCode('');
-                              setCodeError('');
-                            }}
-                            disabled={joinLoading}
+                            onClick={authFlow.backToEmailStep}
+                            disabled={authFlow.loading}
                             className="flex-1 px-4 py-2 rounded-lg bg-gray-200 text-gray-700 font-bold hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Back
@@ -348,16 +256,16 @@ export default function LobbyPage() {
                         <>
                           <button
                             type="button"
-                            onClick={handleLogin}
-                            disabled={!email.trim() || joinLoading}
+                            onClick={authFlow.handleLogin}
+                            disabled={!authFlow.email.trim() || authFlow.loading}
                             className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {joinLoading ? 'Logging in…' : 'Log in'}
+                            {authFlow.loading ? 'Logging in…' : 'Log in'}
                           </button>
                           <button
                             type="button"
-                            onClick={handleChooseNewName}
-                            disabled={joinLoading}
+                            onClick={authFlow.reset}
+                            disabled={authFlow.loading}
                             className="flex-1 px-4 py-2 rounded-lg bg-gray-200 text-gray-700 font-bold hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             New name
@@ -368,14 +276,14 @@ export default function LobbyPage() {
                   </>
                 )}
 
-                {!emailMode && (
+                {!authFlow.emailMode && (
                   <button
                     type="button"
-                    onClick={handleJoin}
-                    disabled={!joinName.trim() || joinLoading}
+                    onClick={authFlow.handleSubmitName}
+                    disabled={!authFlow.name.trim() || authFlow.loading}
                     className="w-full px-4 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed mb-3"
                   >
-                    {joinLoading ? 'Checking…' : 'Join Lobby'}
+                    {authFlow.loading ? 'Checking…' : 'Join Lobby'}
                   </button>
                 )}
 

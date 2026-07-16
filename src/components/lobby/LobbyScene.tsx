@@ -1,45 +1,52 @@
 'use client';
 
-import { useThree, useFrame } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import { Html, Environment, useGLTF } from '@react-three/drei';
-import { useRef, useMemo, useState, useEffect, useCallback, memo, Suspense, type CSSProperties } from 'react';
+import { useRef, useMemo, useState, useEffect, useCallback, Suspense } from 'react';
 import * as THREE from 'three';
 import Temple from '@/components/temple';
 import SeaAndSky from '@/components/lobby/SeaAndSky';
 import Table from '@/components/Table';
-import PlayerV1 from '@/components/Playerv1';
+import CameraFlyIn from '@/components/lobby/CameraFlyIn';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
-import SwordEffect, { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
-import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
+import SwordEffect, { STRIKE_DUR, HOLD_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
+import WellRewardEffect, { preloadWellRewardModels, type WellRewardType } from '@/components/lobby/WellRewardEffect';
 import WellSplashEffect from '@/components/lobby/WellSplashEffect';
-import WellGlowEffect, { WellGlowLight, type WellGlowColor } from '@/components/lobby/WellGlowEffect';
+import WellGlowEffect, { WellGlowLight } from '@/components/lobby/WellGlowEffect';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
+import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP } from '@/components/lobby/PlayerAvatars';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
-import { getSocket, getPlayerMessages } from '@/lib/api';
-import { emitHpFx, type HpFxEvent } from '@/lib/resourceFx';
-import { combatFromEvents, wellRewardFromEvents, glowForReward, type WellRewardComponent } from '@/lib/gameEvents';
-import { assignSkins, skinUrl } from '@/lib/frogSkins';
+import { getSocket } from '@/lib/socket';
+import { useGameEvents } from '@/lib/useGameEvents';
+import { emitHpFx } from '@/lib/resourceFx';
+import { glowForReward, type WellRewardComponent } from '@/lib/gameEvents';
+import { assignSkins } from '@/lib/frogSkins';
+import {
+  buildCombatAnimationPlan,
+  buildWellRewardEvents,
+  WELL_LOSS_GLOW_RADIUS,
+  WELL_LOSS_GLOW_INTENSITY,
+  WELL_FX_DURATION,
+  WELL_REWARD_STAGGER,
+  type StrikeEvent,
+  type HitFlashEvent,
+  type WellRewardEvent,
+  type KillFireEvent,
+  type KillBanner,
+  type WellWinFx,
+  type ImpactShield,
+  type CombatAnimationAction,
+} from '@/lib/combatAnimationPlan';
 import {
   TABLE_POSITION,
-  SCENE_CENTER,
   MAX_PLAYERS,
   getPlayerPositions,
   getBossPosition,
   getBossPlayerPositions,
-  getCameraTargetPosition,
-  getResponsiveFov,
 } from '@/lib/sceneConstants';
-import { usePanOffset } from '@/lib/usePanOffset';
+import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
 
-
-const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
-const WORLD_UP = new THREE.Vector3(0, 1, 0);
-// Scratch vectors reused by CameraFlyIn's frame loop — allocating these per
-// frame caused steady GC pressure (periodic hitches).
-const camTarget = new THREE.Vector3();
-const camArm    = new THREE.Vector3();
-const camRight  = new THREE.Vector3();
 
 // ── Sea & sky tuning ────────────────────────────────────────────────────────
 // Single source of truth — edit these to move the water / sun. (Don't also set
@@ -47,597 +54,18 @@ const camRight  = new THREE.Vector3();
 const SEA_LEVEL = 2;                       // water height; lower = sea drops
 const SUN_POSITION: [number, number, number] = [100, 20, 100]; // sun direction
 
-// Camera controller — snaps to target immediately on mount so Html buttons appear in the
-// correct screen position before any models load, then tracks resize / pan smoothly.
-function CameraFlyIn() {
-  const { camera, size } = useThree();
-  // Start at the target position (not the Canvas default [33,26,33]) so there is no fly-in
-  // delay and Html elements are projected correctly on the very first frame.
-  const [tx, ty, tz] = getCameraTargetPosition(size.width, size.height);
-  const currentPosition = useRef(new THREE.Vector3(tx, ty, tz));
-  const panOffset = usePanOffset();
-
-  useFrame((_, delta) => {
-    const [x, y, z] = getCameraTargetPosition(size.width, size.height);
-    camTarget.set(x, y, z);
-    // Frame-rate independent ease toward the target (0.025/frame at 60 fps ≈ lambda 1.5)
-    currentPosition.current.lerp(camTarget, 1 - Math.exp(-1.5 * delta));
-
-    // Apply pan offset by orbiting around the look-at point, then scale by zoom
-    camArm.copy(currentPosition.current).sub(LOBBY_LOOKAT);
-    camArm.applyAxisAngle(WORLD_UP, panOffset.current.yaw);
-    camRight.crossVectors(WORLD_UP, camArm).normalize();
-    camArm.applyAxisAngle(camRight, panOffset.current.pitch);
-    camArm.multiplyScalar(panOffset.current.zoom);
-
-    camera.position.copy(LOBBY_LOOKAT).add(camArm);
-    camera.lookAt(LOBBY_LOOKAT);
-
-    if (camera instanceof THREE.PerspectiveCamera) {
-      const fov = getResponsiveFov(size.width, size.height);
-      if (camera.fov !== fov) {
-        camera.fov = fov;
-        camera.updateProjectionMatrix();
-      }
-    }
-  });
-
-  return null;
-}
-
 const CHAT_BUBBLE_DURATION_MS = 4000;
 
-// ── Per-player HTML stack ───────────────────────────────────────────────────
-// Chat bubble, ATTACK, name and DEFEND used to be four separate drei <Html>
-// mounts per player — each one is reprojected to screen space and written to
-// the DOM every frame. They now share ONE <Html> root anchored at the name
-// (world y 0.5, distanceFactor 3.45) with the other elements absolutely
-// positioned around it in pre-scale pixels. ~230px ≈ 1 world unit here, so the
-// offsets below mirror the old world-space anchors (bubble 1.3, attack 0.9,
-// defend −0.1).
-const STACK_BUBBLE_Y = -184;
-const STACK_ATTACK_Y = -92;
-const STACK_DEFEND_Y = 138;
-
-function stackItem(dy: number, interactive = false): CSSProperties {
-  return {
-    position: 'absolute',
-    left: 0,
-    top: dy,
-    transform: 'translate(-50%, -50%)',
-    whiteSpace: 'nowrap',
-    pointerEvents: interactive ? 'auto' : 'none',
-    userSelect: 'none',
-  };
-}
-
-// Inner components mount only while a crown is visible, so the bobbing
-// useFrame (and the GLB clone) costs nothing the rest of the game.
-function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale }: {
-  url: string;
-  worldPosition: [number, number, number];
-  yOffset: number;
-  bobAmp: number;
-  scale: number;
-}) {
-  const { scene } = useGLTF(url);
-  const crownScene = useMemo(() => scene.clone(), [scene]);
-  const ref = useRef<THREE.Group>(null);
-
-  useFrame((clockState) => {
-    if (ref.current) {
-      ref.current.position.y = worldPosition[1] + yOffset + Math.sin(clockState.clock.elapsedTime * 2.2) * bobAmp;
-      ref.current.rotation.y = clockState.clock.elapsedTime * 0.45;
-    }
-  });
-
-  return (
-    <group ref={ref} position={[worldPosition[0], worldPosition[1] + yOffset, worldPosition[2]]}>
-      <primitive object={crownScene} scale={scale} />
-    </group>
-  );
-}
-
-function WinnerCrown({ worldPosition }: { worldPosition: [number, number, number] | null }) {
-  if (!worldPosition) return null;
-  return <BobbingCrown url="/models/crowns/crown_ld_v1.glb" worldPosition={worldPosition} yOffset={1.05} bobAmp={0.06} scale={0.35} />;
-}
-
-function WellCrown({ worldPosition }: { worldPosition: [number, number, number] | null }) {
-  if (!worldPosition) return null;
-  return <BobbingCrown url="/models/crowns/well_crown_v1.glb" worldPosition={worldPosition} yOffset={0.65} bobAmp={0.07} scale={0.2} />;
-}
-
-
-// Holds only the GLB-dependent parts of a player slot so it can be Suspense-wrapped
-// independently of the HTML UI (names / action buttons) rendered by PlayerWithName.
-function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield }: {
-  modelUrl: string;
-  isBoss: boolean;
-  isAnimating: boolean;
-  isDead?: boolean;
-  showShield?: boolean;
-}) {
-  return (
-    <>
-      <PlayerV1
-        url={modelUrl}
-        scale={isBoss ? 1.44 : 0.6}
-        position={[0, 0, 0]}
-        rotation={[0, 0, 0]}
-        isAnimating={isAnimating}
-        isDead={isDead}
-      />
-      {showShield && <ShieldEffect />}
-    </>
-  );
-}
-
-const PlayerWithName = memo(function PlayerWithName({
-  name,
-  position,
-  rotation,
-  isAnimating,
-  isDead,
-  isWinner,
-  showAttackButton,
-  onAttack,
-  isAttackSelected,
-  actionCue,
-  chatBubble,
-  isBoss,
-  bossHp,
-  bossMaxHp,
-  bossTitle,
-  frogSkinUrl,
-  // own-player action UI
-  showOwnActions,
-  currentAction,
-  onDefend,
-  showShield,
-  highlight,
-}: {
-  name: string;
-  position: [number, number, number];
-  rotation: [number, number, number];
-  isAnimating: boolean;
-  isDead?: boolean;
-  isWinner?: boolean;
-  showAttackButton?: boolean;
-  /** Called with this player's name — stable across renders so memo() holds. */
-  onAttack?: (name: string) => void;
-  isAttackSelected?: boolean;
-  actionCue?: string;
-  chatBubble?: string;
-  isBoss?: boolean;
-  bossHp?: number;
-  bossMaxHp?: number;
-  bossTitle?: string;
-  frogSkinUrl?: string;
-  showOwnActions?: boolean;
-  currentAction?: string;
-  onDefend?: () => void;
-  showShield?: boolean;
-  highlight?: GuideHighlights;
-}) {
-  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
-  // Welcome-tour highlights — glow the real button(s) the current slide points at.
-  const hl = highlight ?? {};
-  const hlAttack = guideGlowClass(hl.attack);
-  const hlDefend = guideGlowClass(hl.defend);
-  return (
-    <group position={position} rotation={[rotation[0], rotation[1] + Math.PI / 2, rotation[2]]}>
-      {/* 3D model — lazy; suspends until GLB is ready */}
-      <Suspense fallback={null}>
-        <PlayerModelLayer modelUrl={modelUrl} isBoss={!!isBoss} isAnimating={isAnimating} isDead={isDead} showShield={showShield} />
-      </Suspense>
-
-      {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
-          (see stackItem above). The boss HP card below stays separate — it uses
-          a different scale (4.2) and z-order. */}
-      <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
-        <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
-          {chatBubble && (
-            <div style={{
-              ...stackItem(STACK_BUBBLE_Y),
-              maxWidth: '156px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              padding: '4px 7px',
-              background: 'rgba(255,255,255,0.92)',
-              color: '#111',
-              fontSize: '11px',
-              fontWeight: '500',
-              borderRadius: '9px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-              textAlign: 'center',
-            }}>
-              {chatBubble}
-              <div style={{
-                position: 'absolute',
-                bottom: '-6px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: 0,
-                height: 0,
-                borderLeft: '6px solid transparent',
-                borderRight: '6px solid transparent',
-                borderTop: '6px solid rgba(255,255,255,0.92)',
-              }} />
-            </div>
-          )}
-
-          <div style={{
-            ...stackItem(0),
-            fontSize: '12px',
-            fontWeight: 'bold',
-            color: isDead ? '#888' : isWinner ? 'gold' : 'white',
-            textShadow: '0 0 4px rgba(0,0,0,0.8)',
-            padding: '2px 6px',
-            background: 'rgba(0,0,0,0.6)',
-            borderRadius: '4px',
-          }}>
-            {name}
-            {isWinner && ' 👑'}
-            {isDead && ' ☠️'}
-          </div>
-
-          {showAttackButton && !isBoss && (
-            <button
-              onClick={() => onAttack?.(name)}
-              className={`${actionCue} ${hlAttack}`}
-              style={{
-                ...stackItem(STACK_ATTACK_Y, true),
-                cursor: 'pointer',
-                padding: '16px 32px',
-                fontSize: '28px',
-                fontWeight: 'bold',
-                color: isAttackSelected ? '#ffffff' : '#fca5a5',
-                background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
-                border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
-                borderRadius: '8px',
-                backdropFilter: 'blur(4px)',
-                boxShadow: isAttackSelected
-                  ? '0 0 8px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                  : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-              }}
-            >
-              ⚔ ATTACK
-            </button>
-          )}
-
-          {/* DEFEND button — own player only */}
-          {showOwnActions && (
-            <button
-              onClick={onDefend}
-              className={`${actionCue} ${hlDefend}`}
-              style={{
-                ...stackItem(STACK_DEFEND_Y, true),
-                cursor: 'pointer',
-                padding: '14px 28px',
-                fontSize: '26px',
-                fontWeight: 'bold',
-                color: currentAction === 'defend' ? '#ffffff' : '#93c5fd',
-                background: currentAction === 'defend' ? 'rgba(37,99,235,0.95)' : 'rgba(30,27,75,0.85)',
-                border: currentAction === 'defend' ? '2px solid #93c5fd' : '2px solid #1d4ed8',
-                borderRadius: '8px',
-                backdropFilter: 'blur(4px)',
-                boxShadow: currentAction === 'defend'
-                  ? '0 0 8px rgba(59,130,246,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                  : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-              }}
-            >
-              🛡 DEFEND
-            </button>
-          )}
-        </div>
-      </Html>
-      {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
-          zIndexRange sits above the lost-soul/action buttons ([0,0]) so clicks land here
-          first, but stays below the CSS overlay panels (waiting lobby + round messages,
-          which use Tailwind z-10/z-20) so the card renders beneath them rather than
-          covering them. */}
-      {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]}>
-          <div style={{
-            pointerEvents: showAttackButton ? 'auto' : 'none',
-            userSelect: 'none',
-            textAlign: 'center',
-            background: 'rgba(0,0,0,0.75)',
-            border: '2px solid rgba(239,68,68,0.4)',
-            borderRadius: '20px',
-            padding: '12px 28px',
-            backdropFilter: 'blur(4px)',
-            minWidth: '240px',
-          }}>
-            <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '26px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
-            {bossTitle && (
-              <p style={{ color: '#d1d5db', fontSize: '22px', margin: '2px 0 8px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
-            )}
-            <div style={{ width: '100%', height: '12px', background: '#374151', borderRadius: '6px', overflow: 'hidden' }}>
-              <div style={{
-                height: '100%',
-                width: `${Math.max(0, (bossHp / bossMaxHp) * 100)}%`,
-                background: '#ef4444',
-                borderRadius: '6px',
-                transition: 'width 0.5s ease',
-              }} />
-            </div>
-            <p style={{ color: '#fca5a5', fontSize: '22px', margin: '6px 0 0', whiteSpace: 'nowrap' }}>
-              {Math.max(0, bossHp)} / {bossMaxHp} HP
-            </p>
-            {showAttackButton && (
-              <button
-                onClick={() => onAttack?.(name)}
-                className={actionCue}
-                style={{
-                  marginTop: '10px',
-                  pointerEvents: 'auto',
-                  cursor: 'pointer',
-                  padding: '14px 28px',
-                  fontSize: '24px',
-                  fontWeight: 'bold',
-                  color: isAttackSelected ? '#ffffff' : '#fca5a5',
-                  background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
-                  border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
-                  borderRadius: '10px',
-                  whiteSpace: 'nowrap',
-                  backdropFilter: 'blur(4px)',
-                  boxShadow: isAttackSelected
-                    ? '0 0 16px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                    : '0 10px 15px -3px rgba(0,0,0,0.3)',
-                }}
-              >
-                ⚔ ATTACK
-              </button>
-            )}
-          </div>
-        </Html>
-      )}
-    </group>
-  );
-});
-
-
-// Behind Hades who is fixed at [0, PLAYER_Y, -1.4] (far z- side)
-const LOST_SOUL_POSITIONS: [number, number, number][] = [
-  [-0.5, 4.2, -1.9],
-  [0.5, 4.2, -1.9],
-  [-0.3, 4.4, -2.3],
-  [0.3, 4.4, -2.3],
-];
-
-// GLB-only sub-component so Suspense can wrap the model without blocking the HTML labels.
-function LostSoulMesh() {
-  const { scene } = useGLTF('/models/lost_soul_v2.glb');
-  const sceneClone = useMemo(() => scene.clone(), [scene]);
-  return <primitive object={sceneClone} scale={0.4} />;
-}
-
-const LostSoulModel = memo(function LostSoulModel({
-  name,
-  index,
-  position,
-  showAttackButton,
-  onAttack,
-  isAttackSelected,
-  actionCue,
-}: {
-  name: string;
-  /** Slot index — souls share one server name, so this disambiguates them. */
-  index: number;
-  position: [number, number, number];
-  showAttackButton?: boolean;
-  /** Called with (name, index) — stable across renders so memo() holds. */
-  onAttack?: (name: string, index: number) => void;
-  isAttackSelected?: boolean;
-  actionCue?: string;
-}) {
-  const ref = useRef<THREE.Group>(null);
-
-  useFrame((state) => {
-    if (ref.current) {
-      ref.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 1.8 + position[0]) * 0.1;
-    }
-  });
-
-  return (
-    <group ref={ref} position={position}>
-      {/* 3D model — lazy; name label and attack button render immediately */}
-      <Suspense fallback={null}>
-        <LostSoulMesh />
-      </Suspense>
-      {/* Name + attack button share one Html root (was two per soul). The
-          button sits ~0.15 world units (≈35px pre-scale) above the name. */}
-      <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
-        <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
-          <div style={{
-            ...stackItem(0),
-            fontSize: '11px',
-            fontWeight: 'bold',
-            color: '#a78bfa',
-            textShadow: '0 0 6px rgba(100,0,200,0.8)',
-            padding: '2px 6px',
-            background: 'rgba(0,0,0,0.6)',
-            borderRadius: '4px',
-          }}>
-            {name}
-          </div>
-          {showAttackButton && (
-            <button
-              onClick={() => onAttack?.(name, index)}
-              className={actionCue}
-              style={{
-                ...stackItem(-35, true),
-                cursor: 'pointer',
-                padding: '16px 32px',
-                fontSize: '28px',
-                fontWeight: 'bold',
-                color: isAttackSelected ? '#ffffff' : '#fca5a5',
-                background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
-                border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
-                borderRadius: '8px',
-                backdropFilter: 'blur(4px)',
-                boxShadow: isAttackSelected
-                  ? '0 0 8px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                  : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-              }}
-            >
-              ⚔ ATTACK
-            </button>
-          )}
-        </div>
-      </Html>
-    </group>
-  );
-});
-
-const BOSS_MAX_HP = 8;
-
-useGLTF.preload('/models/lost_soul_v2.glb');
-useGLTF.preload('/models/hades/hades_v3-ld.glb');
-useGLTF.preload('/models/turtlev01.glb');
-useGLTF.preload('/models/crowns/crown_ld_v1.glb');
-useGLTF.preload('/models/crowns/well_crown_v1.glb');
 useGLTF.preload('/models/shields/shield_animation-ld.glb');
+
 useGLTF.preload('/models/swords/sword_animation-ld.glb');
 preloadWellRewardModels();
 // Frog skins are preloaded on-demand per lobby (see usePreloadLobbySkins below).
 // Previously we eagerly preloaded all 13 skins (~92 MB) on app start.
 
-type StrikeEvent = {
-  id: string;
-  fromPos: [number, number, number];
-  toPos:   [number, number, number];
-  targetDefended: boolean;
-  targetHit: boolean;
-  isIncoming: boolean;
-  // 'retreat' = normal hit, 'stop' = blocked no reflect, 'bounce' = blocked + reflected
-  postImpact: 'retreat' | 'stop' | 'bounce';
-  // World-space position to aura-flash on strike (undefined = no flash)
-  flashPosition?: [number, number, number];
-  // For bounce-back strikes: where to aura-flash when the bounce lands on the attacker
-  bounceFlashPos?: [number, number, number];
-  // For incoming strikes: HP-card feedback to emit at the impact moment.
-  incomingFx?: HpFxEvent;
-};
-
-type HitFlashEvent = {
-  id: string;
-  position: [number, number, number];
-};
-
-type WellRewardEvent = {
-  id: string;
-  type: WellRewardType;
-  fromPos: [number, number, number];
-  toPos:   [number, number, number];
-  delay:   number;
-};
-
-// A fiery red glow that erupts under a character when a kill is made. Seen by the
-// killer (under themselves), the witness and the victim (under the killer).
-type KillFireEvent = {
-  id:  string;
-  pos: [number, number, number];
-};
-
-// Text shown to the lone witness of a kill, naming the killer in a fiery style.
-type KillBanner = {
-  id:     string;
-  killer: string;
-  pos:    [number, number, number];
-};
-
-// Splash + glow that play on the well. A win shows a splash plus the rarity
-// glow (or none for common rewards); choosing the well but losing shows just a
-// small red glow.
-type WellWinFx = {
-  id: string;
-  splash: boolean;
-  glow: WellGlowColor | null;
-  glowRadius?: number;
-  glowIntensity?: number;
-  glowStartMs?: number; // performance.now() at spawn — drives the persistent light
-};
-// Size + brightness of the small red "you chose the well but lost" glow.
-const WELL_LOSS_GLOW_RADIUS = 0.9;
-const WELL_LOSS_GLOW_INTENSITY = 0.33;
-
-// Where rewards spout out of the well (center of the table, just above the rim).
-const WELL_SPOUT_POSITION: [number, number, number] = [0, 2.4, 0];
 // Where the splash erupts (well mouth) and where the rarity glow lies (under it).
 const WELL_SPLASH_POSITION: [number, number, number] = [0, 2.4, 0];
 const WELL_GLOW_POSITION:   [number, number, number] = [0, 2.3, 0];
-// Lifetime of the splash/glow before removal (ms) — also how long incoming
-// attacks wait when a win has no flying reward models (e.g. a 0-coin steal).
-const WELL_FX_DURATION = 1600;
-// Stagger between successive reward instances (seconds).
-const WELL_REWARD_STAGGER = 0.18;
-
-// A steal source: one player's seat plus how many coins were stolen from them.
-type StealSource = { pos: [number, number, number]; count: number };
-
-// Build the per-instance reward animations for a won well result. A result can
-// contain several components (e.g. 2 gold + 2 hp), each spawning `count` models.
-//  - simple rewards: models arch from the well onto the winner.
-//  - 'steal': one coin flies from each player to the winner, one per coin stolen.
-function buildWellRewardEvents(
-  components: WellRewardComponent[],
-  winnerPos: [number, number, number],
-  stealSources: StealSource[],
-): WellRewardEvent[] {
-  const land: [number, number, number] = [winnerPos[0], winnerPos[1], winnerPos[2]];
-  const stamp = Date.now();
-  const events: WellRewardEvent[] = [];
-  let seq = 0; // running index so every instance staggers off the same clock
-
-  for (const reward of components) {
-    if (reward.type === 'steal') {
-      // Fall back to the well only if we somehow have no player sources.
-      const sources: StealSource[] = stealSources.length
-        ? stealSources
-        : [{ pos: WELL_SPOUT_POSITION, count: Math.max(1, reward.count) }];
-      sources.forEach((src, si) => {
-        const from: [number, number, number] = [src.pos[0], src.pos[1] + 0.3, src.pos[2]];
-        const coins = Math.max(0, src.count); // broke players yield no coin
-        for (let i = 0; i < coins; i++) {
-          // Spread coins from the same player so they don't perfectly overlap.
-          const jitter = coins > 1 ? (i - (coins - 1) / 2) * 0.15 : 0;
-          events.push({
-            id:   `well-steal-${stamp}-${si}-${i}`,
-            type: 'steal',
-            fromPos: [from[0] + jitter, from[1], from[2]],
-            toPos:   [land[0] + jitter, land[1], land[2]],
-            delay:   seq++ * WELL_REWARD_STAGGER,
-          });
-        }
-      });
-      continue;
-    }
-
-    const n = Math.max(1, reward.count);
-    for (let i = 0; i < n; i++) {
-      // Spread multiples slightly so they don't perfectly overlap on landing.
-      const jitter = n > 1 ? (i - (n - 1) / 2) * 0.18 : 0;
-      events.push({
-        id:   `well-${reward.type}-${stamp}-${i}`,
-        type: reward.type,
-        fromPos: WELL_SPOUT_POSITION,
-        toPos:   [land[0] + jitter, land[1], land[2] + jitter],
-        delay:   seq++ * WELL_REWARD_STAGGER,
-      });
-    }
-  }
-
-  return events;
-}
-
-type ImpactShield = {
-  id:   string;
-  pos:  [number, number, number];
-  rotY: number;
-};
 
 function AuraFlash({ position }: { position: [number, number, number] }) {
   const meshRef  = useRef<THREE.Mesh>(null);
@@ -702,6 +130,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [killBanners, setKillBanners] = useState<KillBanner[]>([]);
   // Timeout IDs for staggered incoming defended strikes (cleared each new round)
   const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Last round this component has already scheduled combat/well-reward
+  // animations for, from useGameEvents' shared fetch (see the effect below).
+  const processedEventsRoundRef = useRef(0);
   // Mirrors the local player's chosen action. The parent clears currentAction on
   // the new round, but child effects run before the parent's, so when the
   // round-transition effect fires this still holds the resolved round's choice.
@@ -724,10 +155,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const allPlayers = useMemo(() => state?.players ?? [], [state?.players]);
   const lostSouls = useMemo(() => allPlayers.filter((p) => p.lost_soul), [allPlayers]);
 
-  const myPlayer = state?.players.find((p) => p.name === playerName);
-  const gameOver = state?.gameover ?? false;
+  const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase } = useLobbyGame(state, playerName);
+  const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
-  const isDenied = playerName === state?.deny_target;
+  const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
 
   // Compute skins for all frog players deterministically from their names so
   // every client agrees without any server round-trip.
@@ -760,7 +191,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       return a.name.localeCompare(b.name);
     })
     .slice(0, MAX_PLAYERS), [allPlayers, playerName, isBossFight]);
-  const winner = state?.winner ?? state?.wellwinner ?? null;
+  const winner = gameWinner ?? wellWinner;
 
   // Compute seat positions. In boss fights the boss is pinned to the far side and players
   // spread across the near half, so adding a player never moves Hades.
@@ -796,7 +227,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return slot.position;
   }, [gameOver, isBossFight, winner, players, PLAYER_POSITIONS]);
   // wellwinner = who last won The Well; crown shows during gameplay (not on game-over screen)
-  const wellCrownHolder = (!gameOver && state?.wellwinner) ? state.wellwinner : null;
+  const wellCrownHolder = (!gameOver && wellWinner) ? wellWinner : null;
 
   // Well crown hovers above the current well winner for everyone to see
   const wellCrownPosition = useMemo((): [number, number, number] | null => {
@@ -806,16 +237,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return PLAYER_POSITIONS[idx]?.position ?? null;
   }, [wellCrownHolder, players, PLAYER_POSITIONS]);
 
-
-  const isAlive = (myPlayer?.hp ?? 0) > 0;
-  const gameStarted = (state?.round ?? 0) > 0;
-  const showAttackButtons = gameStarted && !gameOver && !isDenied && isAlive && !myPlayer?.spectator;
-
   const actionCue  = !currentAction && showAttackButtons
     ? (warnLevel === 'red' ? 'warn-blink-red' : warnLevel === 'gold' ? 'warn-blink-gold' : '')
     : '';
 
-  // Detect round transitions and spawn 3D animation events based on personal messages.
+  // Detect round transitions: clear stale animation state left over from the
+  // previous round and spawn the (synchronous, message-data-free) well-loss
+  // glow. Splitting this from the message-driven scheduling below means this
+  // half no longer needs to wait on the shared useGameEvents fetch.
   useEffect(() => {
     if (!state) { prevStateRef.current = null; return; }
     const prev = prevStateRef.current;
@@ -839,277 +268,59 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== lossId)), WELL_FX_DURATION),
       );
     }
+  }, [state, playerName]);
 
-    let cancelled = false;
+  // Spawn 3D animation events based on personal messages, once this round's
+  // events have arrived via the shared useGameEvents fetch. Gated on
+  // processedEventsRoundRef (not prevStateRef, which the effect above already
+  // consumes for its own "did the round just increase" check) so this only
+  // runs once per round -- exactly when that round's data becomes available --
+  // rather than on every state_update broadcast for the same round.
+  useEffect(() => {
+    if (!state || !gameEvents) return;
+    if (gameEvents.round !== state.round) return;
+    if (gameEvents.round <= processedEventsRoundRef.current) return;
+    processedEventsRoundRef.current = gameEvents.round;
 
-    getPlayerMessages(lobbyId, playerName).then((json) => {
-      if (cancelled) return;
-      const combat = combatFromEvents(json.events);
-      const posMap = posMapRef.current;
-      const myPos  = posMap.get(playerName);
+    const myNowHp = state.players.find((p) => p.name === playerName)?.hp ?? 1;
+    const plan = buildCombatAnimationPlan({
+      events: gameEvents.events,
+      playerName,
+      posMap: posMapRef.current,
+      myNowHp,
+      wonWell: state.wellwinner === playerName,
+    });
 
-      const newStrikes:       StrikeEvent[]  = [];
-      const newImpactShields: ImpactShield[] = [];
-
-      // ── Kill animation helpers ───────────────────────────────────────────
-      // A fiery red glow erupts under the killer (seen by killer, witness and
-      // victim); the killer additionally sees the victim's coins fly over and
-      // their ATK/coin cards tick up. `staggerTimeoutsRef` clears all of these
-      // on the next round transition.
-      const SWORD_IMPACT_MS = (STRIKE_DUR + HOLD_DUR) * 1000;
-      // Coins land ~one travel-arc after launch (WellRewardEffect TRAVEL_DUR).
-      const KILL_LOOT_LAND_MS = 850;
-      const myNowHp = state.players.find((p) => p.name === playerName)?.hp ?? 1;
-      const iDied   = myNowHp <= 0;
-      const killStamp = Date.now();
-      let killSeq = 0;
-
-      const scheduleKillFire = (pos: [number, number, number], atMs: number) => {
-        const id = `killfire-${killStamp}-${killSeq++}`;
-        staggerTimeoutsRef.current.push(
-          setTimeout(() => setKillFireEvents((e) => [...e, { id, pos }]), Math.max(0, atMs)),
-        );
-      };
-
-      const scheduleKillBanner = (killer: string, pos: [number, number, number], atMs: number) => {
-        const id = `killbanner-${killStamp}-${killSeq++}`;
-        staggerTimeoutsRef.current.push(
-          setTimeout(() => {
-            setKillBanners((b) => [...b, { id, killer, pos }]);
-            staggerTimeoutsRef.current.push(
-              setTimeout(() => setKillBanners((b) => b.filter((x) => x.id !== id)), 2600),
-            );
-          }, Math.max(0, atMs)),
-        );
-      };
-
-      // Killer only: fling the victim's coins over and tick up the ATK/coin cards.
-      const scheduleKillLoot = (
-        fromPos: [number, number, number],
-        toPos: [number, number, number],
-        coins: number,
-        atMs: number,
-      ) => {
-        if (coins > 0) {
-          staggerTimeoutsRef.current.push(
-            setTimeout(() => {
-              const from: [number, number, number] = [fromPos[0], fromPos[1] + 0.3, fromPos[2]];
-              const evs: WellRewardEvent[] = [];
-              for (let c = 0; c < coins; c++) {
-                const jitter = coins > 1 ? (c - (coins - 1) / 2) * 0.15 : 0;
-                evs.push({
-                  id:   `kill-coin-${killStamp}-${killSeq++}`,
-                  type: 'steal',
-                  fromPos: [from[0] + jitter, from[1], from[2]],
-                  toPos:   [toPos[0] + jitter, toPos[1], toPos[2]],
-                  delay:   c * WELL_REWARD_STAGGER,
-                });
-              }
-              setWellRewardEvents((ev) => [...ev, ...evs]);
-            }, Math.max(0, atMs)),
-          );
-        }
-        // Reveal the gained coins (+ the +1 ATK) on the resource cards once the
-        // coins have arrived — staged like the Well reward (see useStagedResources).
-        staggerTimeoutsRef.current.push(
-          setTimeout(() => emitHpFx({ kind: 'killgain', coins, atk: 1 }), Math.max(0, atMs) + KILL_LOOT_LAND_MS),
-        );
-      };
-
-      // ── Outgoing: local player attacked someone ──────────────────────────
-      if (combat.outgoing) {
-        const { target, outcome } = combat.outgoing;
-        const tgtPos = posMap.get(target);
-        if (myPos && tgtPos) {
-          const tgtDefended = outcome === 'blocked' || outcome === 'reflected' || outcome === 'instakill_blocked';
-          const tgtHit      = outcome === 'hit' || outcome === 'instakill';
-          const reflected   = outcome === 'reflected';
-
-          const fromPos: [number, number, number]    = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
-          const baseToPos: [number, number, number]  = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
-
-          const SHIELD_OFFSET = 0.8;
-          let toPos = baseToPos;
-          if (tgtDefended) {
-            const dx = fromPos[0] - baseToPos[0];
-            const dz = fromPos[2] - baseToPos[2];
-            const len = Math.sqrt(dx * dx + dz * dz);
-            if (len > 0) {
-              toPos = [baseToPos[0] + (dx / len) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / len) * SHIELD_OFFSET];
-            }
-          }
-
-          newStrikes.push({
-            id: `out-${Date.now()}`, fromPos, toPos,
-            targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false,
-            postImpact:     tgtDefended ? (reflected ? 'bounce' : 'stop') : 'retreat',
-            flashPosition:  tgtHit    ? tgtPos : undefined,
-            bounceFlashPos: reflected ? myPos  : undefined,
-          });
-
-          // Kill! At the moment the blow lands: fiery glow under me (the killer,
-          // symbolising my +1 ATK) and the victim's coins arch over to me.
-          if (combat.outgoing.eliminated) {
-            scheduleKillFire(myPos, SWORD_IMPACT_MS);
-            scheduleKillLoot(tgtPos, myPos, combat.outgoing.coinsReceived ?? 0, SWORD_IMPACT_MS);
-          }
-        }
+    const applyAction = (action: CombatAnimationAction) => {
+      switch (action.type) {
+        case 'addStrike': setStrikeEvents((s) => [...s, action.strike]); break;
+        case 'addImpactShield': setImpactShields((s) => [...s, action.shield]); break;
+        case 'removeImpactShield': setImpactShields((s) => s.filter((x) => x.id !== action.id)); break;
+        case 'addKillFire': setKillFireEvents((e) => [...e, action.event]); break;
+        case 'addKillBanner': setKillBanners((b) => [...b, action.banner]); break;
+        case 'removeKillBanner': setKillBanners((b) => b.filter((x) => x.id !== action.id)); break;
+        case 'addWellRewardEvents': setWellRewardEvents((ev) => [...ev, ...action.events]); break;
+        case 'emitHpFx': emitHpFx(action.event); break;
+        case 'addWellWinFx': setWellWinFx((fx) => [...fx, action.fx]); break;
+        case 'removeWellWinFx': setWellWinFx((fx) => fx.filter((x) => x.id !== action.id)); break;
+        case 'addHitFlash': setHitFlashEvents((ev) => [...ev, action.event]); break;
+        case 'removeHitFlash': setHitFlashEvents((ev) => ev.filter((x) => x.id !== action.id)); break;
       }
+    };
 
-      // ── Well reward: only for the player who actually won the well ────────
-      // (steal *victims* also receive a "Steal-all!" line, so gate on wellwinner.)
-      // Spawned first; incoming attacks below are delayed until it finishes so
-      // the two don't play at once and confuse the player.
-      let wellDelayMs = 0;
-      if (myPos && state.wellwinner === playerName) {
-        const components = wellRewardFromEvents(json.events);
-        if (components.length) {
-          // Splash + rarity glow on the well itself.
-          const fxId = `wellfx-${Date.now()}`;
-          setWellWinFx((fx) => [...fx, { id: fxId, splash: true, glow: glowForReward(components), glowStartMs: performance.now() }]);
-          staggerTimeoutsRef.current.push(
-            setTimeout(() => setWellWinFx((fx) => fx.filter((x) => x.id !== fxId)), WELL_FX_DURATION),
-          );
-
-          // For steal: one coin per stolen coin, flying from each victim's seat.
-          const stealVictims = components.find((c) => c.type === 'steal')?.victims ?? [];
-          const stealSources = stealVictims
-            .map((v) => ({ pos: posMap.get(v.name), count: v.amount }))
-            .filter((s): s is { pos: [number, number, number]; count: number } => !!s.pos);
-          const rewardEvents = buildWellRewardEvents(components, myPos, stealSources);
-          const rewardDurMs = rewardEvents.length
-            ? (Math.max(...rewardEvents.map((e) => e.delay)) + WELL_REWARD_FLIGHT_DUR) * 1000
-            : 0;
-          if (rewardEvents.length) setWellRewardEvents((ev) => [...ev, ...rewardEvents]);
-          // Hold incoming attacks until both the splash/glow and any reward
-          // models have finished.
-          wellDelayMs = Math.max(rewardDurMs, WELL_FX_DURATION);
-        }
+    for (const batch of plan) {
+      const apply = () => batch.actions.forEach(applyAction);
+      if (batch.delayMs <= 0) {
+        apply();
+      } else {
+        staggerTimeoutsRef.current.push(setTimeout(apply, batch.delayMs));
       }
-
-      // ── Incoming: local player was attacked ──────────────────────────────
-      if (myPos && combat.incoming.length > 0) {
-        const SHIELD_OFFSET = 0.8;
-        const ONE_DEF_MS    = (STRIKE_DUR + HOLD_DUR + BOUNCE_DUR)  * 1000;
-        const ONE_HIT_MS    = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR) * 1000;
-        const GAP_MS        = 200;
-        // Start after the well animation so incoming swords don't overlap it.
-        let staggerMs       = wellDelayMs;
-
-        combat.incoming.forEach((inc, i) => {
-          const atkPos  = inc.attacker ? posMap.get(inc.attacker) : undefined;
-          const fromPos: [number, number, number] = atkPos
-            ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
-            : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
-          const baseToPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
-
-          const isDefended   = inc.outcome === 'blocked' || inc.outcome === 'reflected_back' || inc.outcome === 'instakill_blocked';
-          const atkReflected = inc.outcome === 'reflected_back';
-          const incomingFx: HpFxEvent = isDefended
-            ? { kind: 'block' }
-            : inc.outcome === 'instakill'
-              ? { kind: 'kill' }
-              : { kind: 'hit', damage: inc.damage ?? 1 };
-
-          let toPos = baseToPos;
-          if (isDefended) {
-            const dx = fromPos[0] - baseToPos[0];
-            const dz = fromPos[2] - baseToPos[2];
-            const ld = Math.sqrt(dx * dx + dz * dz);
-            if (ld > 0) {
-              toPos = [baseToPos[0] + (dx / ld) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / ld) * SHIELD_OFFSET];
-            }
-          }
-
-          const strike: StrikeEvent = {
-            id:             `in-${inc.attacker ?? 'anon'}-${Date.now()}-${i}`,
-            fromPos, toPos,
-            targetDefended: isDefended,
-            targetHit:      !isDefended,
-            isIncoming:     true,
-            postImpact:     isDefended ? (atkReflected ? 'bounce' : 'stop') : 'retreat',
-            flashPosition:  !isDefended         ? myPos  : undefined,
-            bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
-            incomingFx,
-          };
-
-          const ONE_ANIM_MS = isDefended ? ONE_DEF_MS : ONE_HIT_MS;
-          const delay       = staggerMs;
-          staggerMs += ONE_ANIM_MS + GAP_MS;
-
-          // Reflection kill: my shield bounced the attack back and finished the
-          // attacker. I'm the killer — fiery glow under me + their coins fly over.
-          if (atkReflected && inc.attackerDied && inc.coinsReceived != null && atkPos) {
-            scheduleKillFire(myPos, delay + ONE_DEF_MS);
-            scheduleKillLoot(atkPos, myPos, inc.coinsReceived, delay + ONE_DEF_MS);
-          }
-          // I was killed by this blow: I see the fiery glow erupt under my killer
-          // (no coins — those go to them, not me).
-          if (iDied && !isDefended && atkPos && (inc.outcome === 'hit' || inc.outcome === 'instakill')) {
-            scheduleKillFire(atkPos, delay + SWORD_IMPACT_MS);
-          }
-
-          if (delay === 0) {
-            newStrikes.push(strike);
-            if (isDefended) {
-              const sid       = `def-shield-${strike.id}`;
-              const shieldDur = ONE_DEF_MS + 350;
-              const rotY      = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
-              newImpactShields.push({ id: sid, pos: toPos, rotY });
-              staggerTimeoutsRef.current.push(
-                setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), shieldDur),
-              );
-            }
-          } else {
-            staggerTimeoutsRef.current.push(
-              setTimeout(() => {
-                setStrikeEvents((s) => [...s, strike]);
-                if (isDefended) {
-                  const sid       = `def-shield-${strike.id}`;
-                  const shieldDur = ONE_DEF_MS + 350;
-                  const rotY      = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
-                  setImpactShields((s) => [...s, { id: sid, pos: toPos, rotY }]);
-                  staggerTimeoutsRef.current.push(
-                    setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), shieldDur),
-                  );
-                }
-              }, delay),
-            );
-          }
-        });
-      }
-
-      // ── Witnessed eliminations ────────────────────────────────────────────
-      // The lone witness sees a fiery glow erupt under the killer plus a banner
-      // naming them, and a red flash on the victim — but no coins (those are the
-      // killer's alone).
-      combat.witnessedEliminations.forEach((we, i) => {
-        const victimPos = posMap.get(we.victim);
-        const killerPos = posMap.get(we.attacker);
-        const delay = wellDelayMs + SWORD_IMPACT_MS + i * 450;
-        if (victimPos) {
-          staggerTimeoutsRef.current.push(
-            setTimeout(() => {
-              const f = { id: `fl-${we.victim}-${Date.now()}`, position: victimPos };
-              setHitFlashEvents((ev) => [...ev, f]);
-              staggerTimeoutsRef.current.push(
-                setTimeout(() => setHitFlashEvents((ev) => ev.filter((h) => h.id !== f.id)), 650),
-              );
-            }, delay),
-          );
-        }
-        if (killerPos) {
-          scheduleKillFire(killerPos, delay);
-          scheduleKillBanner(we.attacker, killerPos, delay);
-        }
-      });
-
-      if (newStrikes.length)       setStrikeEvents((ev) => [...ev, ...newStrikes]);
-      if (newImpactShields.length) setImpactShields((s) => [...s, ...newImpactShields]);
-    }).catch(() => {});
-
-    return () => { cancelled = true; };
-  }, [state, playerName, lobbyId]); // posMapRef is a stable ref — no dep needed
+    }
+    // gameEvents as a whole (not just its round) is a safe dep here: unlike
+    // useStagedResources, this effect has no cleanup function, so a same-round
+    // gameEvents refetch just re-runs the body, which the processedEventsRoundRef
+    // guard above turns into a harmless no-op.
+  }, [state, gameEvents, playerName]); // posMapRef is a stable ref — no dep needed
 
   // ── Debug: preview well-reward animations without a live game ─────────────
   // Append `?welltest=<types>` to the lobby URL to loop the animation(s) onto
@@ -1265,28 +476,28 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // Stable identities — these are passed to memo()ed players/souls, so a fresh
   // closure per render would defeat the memoization.
   const handleAttack = useCallback((targetName: string) => {
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'attack', target: targetName, resource: '' });
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'attack', target: targetName, resource: '' });
     setSelectedSoulIdx(null);
     onAttackSelect?.(targetName);
-  }, [lobbyId, playerName, onAttackSelect]);
+  }, [lobbyId, onAttackSelect]);
 
   // Lost souls all share one server name, so the emitted target is the shared
   // name while the clicked index is remembered locally for selection UI.
   const handleSoulAttack = useCallback((targetName: string, index: number) => {
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'attack', target: targetName, resource: '' });
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'attack', target: targetName, resource: '' });
     setSelectedSoulIdx(index);
     onAttackSelect?.(targetName);
-  }, [lobbyId, playerName, onAttackSelect]);
+  }, [lobbyId, onAttackSelect]);
 
   const handleDefend = useCallback(() => {
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'defend', resource: '' });
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'defend', resource: '' });
     onActionChange?.('defend');
-  }, [lobbyId, playerName, onActionChange]);
+  }, [lobbyId, onActionChange]);
 
   const handleWell = useCallback(() => {
-    getSocket().emit('submit_choice', { lobby_id: lobbyId, player: playerName, action: 'well', resource: '' });
+    getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'well', resource: '' });
     onActionChange?.('well');
-  }, [lobbyId, playerName, onActionChange]);
+  }, [lobbyId, onActionChange]);
 
   return (
     <>
@@ -1328,7 +539,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             isBoss={isBoss}
             bossHp={isBoss ? player.hp : undefined}
             bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
-            bossTitle={isBoss ? player.title : undefined}
+            bossTitle={isBoss ? player.title ?? undefined : undefined}
             frogSkinUrl={skinMap.get(player.name)}
             showAttackButton={showAttackButtons && isOpponent && !isDead && (!isBossFight || isBoss)}
             onAttack={handleAttack}

@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createLobby, joinLobby, getPlayerRelics, checkName, logInUser, verifyLoginCode } from '@/lib/api';
+import { createLobby, joinLobby, getPlayerRelics } from '@/lib/api';
+import { useAuthFlow } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
 import RopedButton3D from '@/components/hud/RopedButton3D';
 import RopedInput3D from '@/components/hud/RopedInput3D';
@@ -18,15 +19,6 @@ export default function WorldMapOverlay() {
   const [loadingAction, setLoadingAction] = useState<'join' | 'create' | null>(null);
   const [showNamePopup, setShowNamePopup] = useState(false);
   const [pendingAction, setPendingAction] = useState<'join' | 'create' | null>(null);
-  const [popupName, setPopupName] = useState('');
-  const [popupError, setPopupError] = useState('');
-  const [popupEmailMode, setPopupEmailMode] = useState(false);
-  const [popupEmail, setPopupEmail] = useState('');
-  const [popupEmailError, setPopupEmailError] = useState('');
-  const [popupLoading, setPopupLoading] = useState(false);
-  const [popupCodeMode, setPopupCodeMode] = useState(false);
-  const [popupCode, setPopupCode] = useState('');
-  const [popupCodeError, setPopupCodeError] = useState('');
 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showRelics, setShowRelics] = useState(false);
@@ -79,10 +71,6 @@ export default function WorldMapOverlay() {
     }
   };
 
-  if (!mounted) return null;
-
-  const isLoggedIn = !!loggedInName;
-
   const doJoin = async (name: string) => {
     const code = joinCode.trim();
     if (!code) return;
@@ -115,31 +103,35 @@ export default function WorldMapOverlay() {
     }
   };
 
+  const authFlow = useAuthFlow({
+    submitErrorFallback: 'Something went wrong.',
+    onAuthenticated: async (trimmedName, trimmedEmail) => {
+      // The unclaimed-name path (trimmedEmail === '') leaves localStorage to
+      // doJoin/doCreate's own post-success write, same as before; only the
+      // login/code path needs the pre-write here, since doJoin/doCreate read
+      // playerEmail back out of localStorage themselves rather than taking
+      // it as a parameter.
+      if (trimmedEmail && typeof window !== 'undefined') {
+        localStorage.setItem('playerName', trimmedName);
+        localStorage.setItem('playerEmail', trimmedEmail);
+      }
+      setShowNamePopup(false);
+      if (pendingAction === 'join') {
+        await doJoin(trimmedName);
+      } else {
+        await doCreate(trimmedName);
+      }
+    },
+  });
+
+  if (!mounted) return null;
+
+  const isLoggedIn = !!loggedInName;
+
   const openNamePopup = (action: 'join' | 'create') => {
     setPendingAction(action);
-    setPopupName('');
-    setPopupError('');
-    setPopupEmailMode(false);
-    setPopupEmail('');
-    setPopupEmailError('');
-    setPopupCodeMode(false);
-    setPopupCode('');
-    setPopupCodeError('');
-    setPopupLoading(false);
+    authFlow.reset();
     setShowNamePopup(true);
-  };
-
-  const completePopupLogin = async (trimmedName: string, trimmedEmail: string) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('playerName', trimmedName);
-      localStorage.setItem('playerEmail', trimmedEmail);
-    }
-    setShowNamePopup(false);
-    if (pendingAction === 'join') {
-      await doJoin(trimmedName);
-    } else {
-      await doCreate(trimmedName);
-    }
   };
 
   const handleJoinLobby = () => {
@@ -158,95 +150,6 @@ export default function WorldMapOverlay() {
       return;
     }
     doCreate(name);
-  };
-
-  const handleNameSubmit = async () => {
-    const trimmed = popupName.trim();
-    if (!trimmed) {
-      setPopupError('Please enter a username.');
-      return;
-    }
-    setPopupError('');
-    setPopupLoading(true);
-    try {
-      const { claimed } = await checkName(trimmed);
-      if (claimed) {
-        setPopupEmailMode(true);
-        setPopupEmail('');
-        setPopupEmailError('');
-        return;
-      }
-      setShowNamePopup(false);
-      if (pendingAction === 'join') {
-        await doJoin(trimmed);
-      } else {
-        await doCreate(trimmed);
-      }
-    } catch (err) {
-      setPopupError(err instanceof Error ? err.message : 'Something went wrong.');
-    } finally {
-      setPopupLoading(false);
-    }
-  };
-
-  const handlePopupLogin = async () => {
-    const trimmedName = popupName.trim();
-    const trimmedEmail = popupEmail.trim();
-    if (!trimmedName || !trimmedEmail) {
-      setPopupEmailError('Please enter your email.');
-      return;
-    }
-    setPopupEmailError('');
-    setPopupLoading(true);
-    try {
-      const result = await logInUser(trimmedName, trimmedEmail);
-      if (result.requires_code) {
-        setPopupCodeMode(true);
-        setPopupCode('');
-        setPopupCodeError('');
-        return;
-      }
-      await completePopupLogin(trimmedName, trimmedEmail);
-    } catch (err) {
-      if (err instanceof Error && err.message === 'Wrong email') {
-        setPopupEmailError('Wrong email');
-      } else {
-        setPopupEmailError(err instanceof Error ? err.message : 'Log in failed.');
-      }
-    } finally {
-      setPopupLoading(false);
-    }
-  };
-
-  const handlePopupVerifyCode = async () => {
-    const trimmedName = popupName.trim();
-    const trimmedEmail = popupEmail.trim();
-    const trimmedCode = popupCode.trim();
-    if (!trimmedCode) {
-      setPopupCodeError('Please enter the code from your email.');
-      return;
-    }
-    setPopupCodeError('');
-    setPopupLoading(true);
-    try {
-      await verifyLoginCode(trimmedName, trimmedCode);
-      await completePopupLogin(trimmedName, trimmedEmail);
-    } catch (err) {
-      setPopupCodeError(err instanceof Error ? err.message : 'Verification failed.');
-    } finally {
-      setPopupLoading(false);
-    }
-  };
-
-  const handlePopupChooseNewName = () => {
-    setPopupEmailMode(false);
-    setPopupEmail('');
-    setPopupEmailError('');
-    setPopupCodeMode(false);
-    setPopupCode('');
-    setPopupCodeError('');
-    setPopupName('');
-    setPopupError('');
   };
 
   return (
@@ -400,7 +303,7 @@ export default function WorldMapOverlay() {
       {showNamePopup && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-          onClick={() => { if (!popupLoading) setShowNamePopup(false); }}
+          onClick={() => { if (!authFlow.loading) setShowNamePopup(false); }}
         >
           <div
             className="bg-gray-900 border border-white/20 text-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4"
@@ -413,23 +316,23 @@ export default function WorldMapOverlay() {
             <input
               type="text"
               placeholder="Your battle name"
-              value={popupName}
-              onChange={(e) => setPopupName(e.target.value)}
+              value={authFlow.name}
+              onChange={(e) => authFlow.setName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key !== 'Enter') return;
-                if (popupCodeMode) handlePopupVerifyCode();
-                else if (popupEmailMode) handlePopupLogin();
-                else handleNameSubmit();
+                if (authFlow.codeMode) authFlow.handleVerifyCode();
+                else if (authFlow.emailMode) authFlow.handleLogin();
+                else authFlow.handleSubmitName();
               }}
-              autoFocus={!popupEmailMode && !popupCodeMode}
-              readOnly={popupEmailMode || popupCodeMode}
-              className={`w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-3 ${popupEmailMode || popupCodeMode ? 'opacity-70' : ''}`}
+              autoFocus={!authFlow.emailMode && !authFlow.codeMode}
+              readOnly={authFlow.emailMode || authFlow.codeMode}
+              className={`w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-3 ${authFlow.emailMode || authFlow.codeMode ? 'opacity-70' : ''}`}
             />
-            {popupError && !popupEmailMode && !popupCodeMode && (
-              <p className="text-red-400 text-sm mb-3">{popupError}</p>
+            {authFlow.error && !authFlow.emailMode && !authFlow.codeMode && (
+              <p className="text-red-400 text-sm mb-3">{authFlow.error}</p>
             )}
 
-            {popupEmailMode && (
+            {authFlow.emailMode && (
               <>
                 <p className="text-sm text-white/80 mb-2">
                   This name is claimed. Type your email if you have claimed this username.
@@ -437,83 +340,79 @@ export default function WorldMapOverlay() {
                 <input
                   type="email"
                   placeholder="email"
-                  value={popupEmail}
-                  onChange={(e) => setPopupEmail(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !popupCodeMode) handlePopupLogin(); }}
-                  autoFocus={!popupCodeMode}
-                  readOnly={popupCodeMode}
-                  className={`w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-1 ${popupCodeMode ? 'opacity-60' : ''}`}
+                  value={authFlow.email}
+                  onChange={(e) => authFlow.setEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !authFlow.codeMode) authFlow.handleLogin(); }}
+                  autoFocus={!authFlow.codeMode}
+                  readOnly={authFlow.codeMode}
+                  className={`w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-1 ${authFlow.codeMode ? 'opacity-60' : ''}`}
                 />
                 <p className="text-xs text-white/50 mb-3">email</p>
-                {popupEmailError && !popupCodeMode && (
-                  <p className="text-red-500 text-sm mb-3 font-semibold">{popupEmailError}</p>
+                {authFlow.emailError && !authFlow.codeMode && (
+                  <p className="text-red-500 text-sm mb-3 font-semibold">{authFlow.emailError}</p>
                 )}
               </>
             )}
 
-            {popupCodeMode && (
+            {authFlow.codeMode && (
               <>
                 <p className="text-sm text-white/80 mb-2">
-                  We sent a 6-digit code to <strong>{popupEmail}</strong>.
+                  We sent a 6-digit code to <strong>{authFlow.email}</strong>.
                 </p>
                 <input
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   placeholder="6-digit code"
-                  value={popupCode}
+                  value={authFlow.code}
                   onChange={(e) =>
-                    setPopupCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                    authFlow.setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
                   }
-                  onKeyDown={(e) => e.key === 'Enter' && handlePopupVerifyCode()}
+                  onKeyDown={(e) => e.key === 'Enter' && authFlow.handleVerifyCode()}
                   autoFocus
                   className="w-full p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-white/50 mb-1 tracking-[0.3em] font-mono text-center"
                 />
                 <p className="text-xs text-white/50 mb-3">6-digit code</p>
-                {popupCodeError && (
-                  <p className="text-red-500 text-sm mb-3 font-semibold">{popupCodeError}</p>
+                {authFlow.codeError && (
+                  <p className="text-red-500 text-sm mb-3 font-semibold">{authFlow.codeError}</p>
                 )}
               </>
             )}
 
             <div className="flex gap-3">
-              {popupCodeMode ? (
+              {authFlow.codeMode ? (
                 <>
                   <button
                     type="button"
-                    onClick={handlePopupVerifyCode}
-                    disabled={popupLoading}
+                    onClick={authFlow.handleVerifyCode}
+                    disabled={authFlow.loading}
                     className="flex-1 py-2 rounded-lg bg-white/20 hover:bg-white/30 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    {popupLoading ? 'Verifying...' : 'Verify'}
+                    {authFlow.loading ? 'Verifying...' : 'Verify'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setPopupCodeMode(false);
-                      setPopupCode('');
-                      setPopupCodeError('');
-                    }}
-                    disabled={popupLoading}
+                    onClick={authFlow.backToEmailStep}
+                    disabled={authFlow.loading}
                     className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     Back
                   </button>
                 </>
-              ) : popupEmailMode ? (
+              ) : authFlow.emailMode ? (
                 <>
                   <button
                     type="button"
-                    onClick={handlePopupLogin}
-                    disabled={popupLoading}
+                    onClick={authFlow.handleLogin}
+                    disabled={authFlow.loading}
                     className="flex-1 py-2 rounded-lg bg-white/20 hover:bg-white/30 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    {popupLoading ? 'Logging in...' : 'Log in'}
+                    {authFlow.loading ? 'Logging in...' : 'Log in'}
                   </button>
                   <button
                     type="button"
-                    onClick={handlePopupChooseNewName}
-                    disabled={popupLoading}
+                    onClick={authFlow.reset}
+                    disabled={authFlow.loading}
                     className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     Choose new name
@@ -523,16 +422,16 @@ export default function WorldMapOverlay() {
                 <>
                   <button
                     type="button"
-                    onClick={handleNameSubmit}
-                    disabled={popupLoading}
+                    onClick={authFlow.handleSubmitName}
+                    disabled={authFlow.loading}
                     className="flex-1 py-2 rounded-lg bg-white/20 hover:bg-white/30 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    {popupLoading ? 'Checking...' : 'Continue'}
+                    {authFlow.loading ? 'Checking...' : 'Continue'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowNamePopup(false)}
-                    disabled={popupLoading}
+                    disabled={authFlow.loading}
                     className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     Cancel

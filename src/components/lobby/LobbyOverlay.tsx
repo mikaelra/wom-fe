@@ -8,9 +8,9 @@ import SceneOverlay, {
   type GameOverRenderOpts,
   type PreGameRenderOpts,
 } from '@/components/SceneOverlay';
-import FloatingMessage from './FloatingMessage';
 import type { GuideHighlights } from '@/lib/guideHighlights';
 import BossSignupNudge from '@/components/BossSignupNudge';
+import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
 
 type LobbyOverlayProps = {
@@ -21,7 +21,7 @@ type LobbyOverlayProps = {
   guideHighlight?: GuideHighlights;
 };
 
-function InviteSection({ lobbyId }: { lobbyId: string }) {
+export function InviteSection({ lobbyId }: { lobbyId: string }) {
   const [showQR, setShowQR] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -103,7 +103,7 @@ function InviteSection({ lobbyId }: { lobbyId: string }) {
   );
 }
 
-function renderGameOver({ state, playerName }: GameOverRenderOpts) {
+export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   return (
     <div className="mt-3 text-center">
       <p className="text-xl font-bold mb-2">
@@ -122,7 +122,7 @@ function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   );
 }
 
-function renderPreGame({
+export function renderPreGame({
   state,
   lobbyId,
   playerName,
@@ -134,8 +134,6 @@ function renderPreGame({
   onStartGame,
   onAddDummy,
   onKick,
-  floatingMessages,
-  onDoneFloating,
 }: PreGameRenderOpts) {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-8">
@@ -212,14 +210,6 @@ function renderPreGame({
           <div className="mb-4">
             <InviteSection lobbyId={lobbyId} />
           </div>
-
-          {floatingMessages.map((msg, idx) => (
-            <FloatingMessage
-              key={idx}
-              message={msg}
-              onDone={() => onDoneFloating(idx)}
-            />
-          ))}
         </div>
       </div>
     </div>
@@ -248,7 +238,6 @@ const lobbyConfig: SceneOverlayConfig = {
   showEnemyAlways: false,
   showPlayerList: true,
   showDenyPicker: true,
-  showFloatingMessages: false,
   showChat: true,
   enableRaidTimer: true,
   hidePlayerActionButtons: true,
@@ -272,7 +261,7 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
     onStateChange?.(s);
   };
 
-  const myPlayer = localState?.players.find((p) => p.name === playerName);
+  const { myPlayer } = useLobbyGame(localState, playerName);
   const showNudge =
     !nudgeDismissed &&
     (localState?.gameover ?? false) &&

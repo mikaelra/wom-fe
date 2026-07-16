@@ -8,6 +8,7 @@ import {
   logInUser,
   verifyLoginCode,
 } from '@/lib/api';
+import { getStoredToken, setStoredToken } from '@/lib/http';
 
 const jsonResponse = (data: unknown, status = 200) =>
   ({
@@ -37,17 +38,25 @@ afterEach(() => {
 });
 
 describe('createLobby', () => {
-  it('posts name and email and returns the lobby id', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ lobby_id: 'abc' }));
+  it('posts name and email and returns the lobby id and session token', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ lobby_id: 'abc', token: 'tok-1' }));
 
     const result = await createLobby('Alice', 'alice@example.com');
 
-    expect(result).toEqual({ lobby_id: 'abc' });
+    expect(result).toEqual({ lobby_id: 'abc', token: 'tok-1' });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/create_lobby`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Alice', email: 'alice@example.com' }),
     });
+  });
+
+  it('stores the returned session token', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ lobby_id: 'abc', token: 'tok-stored' }));
+
+    await createLobby('Alice', 'alice@example.com');
+
+    expect(getStoredToken()).toBe('tok-stored');
   });
 
   it('throws the backend error message on failure', async () => {
@@ -56,6 +65,20 @@ describe('createLobby', () => {
     await expect(createLobby('Alice', 'x@example.com')).rejects.toThrow(
       'This name is already claimed.',
     );
+  });
+});
+
+describe('session token store', () => {
+  it('round-trips a token through getStoredToken/setStoredToken', () => {
+    setStoredToken('a-token');
+    expect(getStoredToken()).toBe('a-token');
+  });
+
+  it('clears the stored token when set to null', () => {
+    setStoredToken('another-token');
+    expect(getStoredToken()).toBe('another-token');
+    setStoredToken(null);
+    expect(getStoredToken()).toBeNull();
   });
 });
 
@@ -114,5 +137,53 @@ describe('error-swallowing endpoints', () => {
       messages: [],
       events: [],
     });
+  });
+
+  it('getPlayerMessages returns empty lists on a 403 (e.g. missing/stale token)', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: 'Missing or invalid session token.' }, 403),
+    );
+    await expect(getPlayerMessages('abc', 'Alice')).resolves.toEqual({
+      messages: [],
+      events: [],
+    });
+  });
+});
+
+describe('getPlayerMessages token attachment', () => {
+  it('appends the stored session token as a query param', async () => {
+    setStoredToken('tok-42');
+    fetchMock.mockResolvedValue(jsonResponse({ player: 'Alice', messages: [], events: [] }));
+
+    await getPlayerMessages('abc', 'Alice');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/get_player_messages/abc/Alice?token=tok-42`,
+      { method: 'GET', headers: undefined, body: undefined },
+    );
+  });
+
+  it('URL-encodes the token', async () => {
+    setStoredToken('tok/with+special?chars');
+    fetchMock.mockResolvedValue(jsonResponse({ player: 'Alice', messages: [], events: [] }));
+
+    await getPlayerMessages('abc', 'Alice');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/get_player_messages/abc/Alice?token=${encodeURIComponent('tok/with+special?chars')}`,
+      { method: 'GET', headers: undefined, body: undefined },
+    );
+  });
+
+  it('omits the token param when no token is stored', async () => {
+    setStoredToken(null);
+    fetchMock.mockResolvedValue(jsonResponse({ player: 'Alice', messages: [], events: [] }));
+
+    await getPlayerMessages('abc', 'Alice');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/get_player_messages/abc/Alice`,
+      { method: 'GET', headers: undefined, body: undefined },
+    );
   });
 });
