@@ -47,7 +47,11 @@ test('create a lobby, add a bot, and fight it to a win', async ({ page }) => {
   // position is recomputed every frame, so they never satisfy Playwright's
   // default "stable" actionability check.
   await page.getByText('Add Bot', { exact: true }).click({ timeout: 20_000, force: true });
-  await expect(page.getByText('TURTLE', { exact: true })).toBeVisible({ timeout: 20_000 });
+  // "TURTLE" also appears in a floating 3D name tag above its avatar
+  // (PlayerAvatars.tsx), which can render simultaneously with the
+  // pre-game player-list entry below -- scope to the list specifically
+  // to avoid a strict-mode ambiguity (hit for real in one CI run).
+  await expect(page.getByRole('list').getByText('TURTLE', { exact: true })).toBeVisible({ timeout: 20_000 });
   await page.getByText('Start Game', { exact: true }).click({ timeout: 20_000, force: true });
 
   // "⚔ ATTACK"/"🏴 The Well" here are specifically the per-avatar/in-game
