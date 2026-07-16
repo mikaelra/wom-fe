@@ -78,7 +78,7 @@ export default function LobbyPage() {
   const typedName = authFlow.name.trim();
   useEffect(() => {
     if (!lobbyId || !playerNameInit || playerName || !typedName) return;
-    const token = getStoredToken();
+    const token = getStoredToken(lobbyId);
     if (!token) return;
     const unsubscribe = subscribe('state_update', (data) => setPreviewState(data));
     getSocket().emit('join_room', { lobby_id: lobbyId, token });

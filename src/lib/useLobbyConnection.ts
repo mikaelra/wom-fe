@@ -59,7 +59,7 @@ export function useLobbyConnection(
     // actor's name from the token itself.
     const rejoin = () => {
       sock.emit('join_lobby', { lobby_id: lobbyId, name: playerName, email });
-      sock.emit('join_room', { lobby_id: lobbyId, token: getStoredToken() });
+      sock.emit('join_room', { lobby_id: lobbyId, token: getStoredToken(lobbyId) });
     };
 
     const handleConnect = () => {
@@ -104,7 +104,7 @@ export function useLobbyConnection(
     if (!lobbyId || !playerName) return;
     if (gameStarted) return;
     const interval = setInterval(() => {
-      getSocket().emit('join_room', { lobby_id: lobbyId, token: getStoredToken() });
+      getSocket().emit('join_room', { lobby_id: lobbyId, token: getStoredToken(lobbyId) });
     }, 3000);
     return () => clearInterval(interval);
   }, [lobbyId, playerName, gameStarted]);

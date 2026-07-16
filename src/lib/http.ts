@@ -40,27 +40,50 @@ export class SchemaMismatchError extends Error {
 // per-tab, which matches a token's lifetime -- it's reissued fresh on every
 // join_lobby call, so persisting it across tabs/browser restarts would just
 // go stale. A page refresh in the same tab still works.
+//
+// Scoped per lobby_id (a map, not a single slot): the backend mints and
+// resolves tokens per-lobby too (each lobby owns its own token dict), and a
+// tab can legitimately hold membership in more than one lobby at once --
+// e.g. join the boss fight, leave, create an unrelated lobby, leave that too,
+// then return to the boss fight. A single global slot let the second lobby's
+// token silently clobber the boss fight's, so rejoining the boss fight later
+// presented the wrong lobby's token and got "Invalid or missing session
+// token" even though the original one was still valid server-side.
 // ---------------------------------------------------------------------------
 
 const SESSION_TOKEN_KEY = 'wom_session_token';
-let sessionToken: string | null = null;
+let tokensByLobby: Record<string, string> | null = null;
 
-export function getStoredToken(): string | null {
-  if (sessionToken !== null) return sessionToken;
+function loadTokens(): Record<string, string> {
+  if (tokensByLobby !== null) return tokensByLobby;
+  let tokens: Record<string, string> = {};
   if (typeof window !== 'undefined') {
-    sessionToken = window.sessionStorage.getItem(SESSION_TOKEN_KEY);
+    const raw = window.sessionStorage.getItem(SESSION_TOKEN_KEY);
+    if (raw) {
+      try {
+        tokens = JSON.parse(raw) as Record<string, string>;
+      } catch {
+        tokens = {};
+      }
+    }
   }
-  return sessionToken;
+  tokensByLobby = tokens;
+  return tokensByLobby;
 }
 
-export function setStoredToken(token: string | null | undefined): void {
-  sessionToken = token ?? null;
-  if (typeof window === 'undefined') return;
-  if (sessionToken) {
-    window.sessionStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
+export function getStoredToken(lobbyId: string): string | null {
+  return loadTokens()[lobbyId] ?? null;
+}
+
+export function setStoredToken(lobbyId: string, token: string | null | undefined): void {
+  const tokens = loadTokens();
+  if (token) {
+    tokens[lobbyId] = token;
   } else {
-    window.sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    delete tokens[lobbyId];
   }
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(tokens));
 }
 
 type RequestOpts = {
