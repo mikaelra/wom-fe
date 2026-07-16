@@ -241,8 +241,8 @@ export default function WorldMapOverlay() {
           </RopedInput>
           <span>
             <RopedButton
-              width={220}
-              height={70}
+              width={198}
+              height={63}
               onClick={handleJoinLobby}
               disabled={lobbyLoading && loadingAction !== 'join'}
               loading={lobbyLoading && loadingAction === 'join'}
@@ -254,8 +254,8 @@ export default function WorldMapOverlay() {
         </form>
         <div className="pointer-events-auto flex justify-center">
           <RopedButton
-            width={325}
-            height={70}
+            width={293}
+            height={63}
             onClick={handleCreateLobby}
             disabled={lobbyLoading && loadingAction !== 'create'}
             loading={lobbyLoading && loadingAction === 'create'}
