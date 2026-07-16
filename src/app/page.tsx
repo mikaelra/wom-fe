@@ -250,7 +250,7 @@ export default function Page() {
   // ---------- World Map view ----------
   if (!selectedCity) {
     return (
-      <div style={{ width: '100%', height: '100vh', position: 'relative', overflow: 'hidden', background: '#070b15' }}>
+      <div style={{ width: '100%', height: '100dvh', position: 'relative', overflow: 'hidden', background: '#070b15' }}>
         <WorldMapOverlay />
         {sceneReady && (
           <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
@@ -412,7 +412,7 @@ export default function Page() {
 
   // ---------- City Hub view (existing menu on temple scene) ----------
   return (
-    <div style={{ width: '100%', height: '100vh', position: 'relative' }}>
+    <div style={{ width: '100%', height: '100dvh', position: 'relative' }}>
       <HomeOverlay city={selectedCity} onBackToMap={handleBackToMap} />
       <Canvas camera={{ position: [33, 26, 33], fov: BASE_FOV }}>
         <TempleScene cityColor={selectedCity.color} />

@@ -110,7 +110,7 @@ export default function LobbyPage() {
   const playerList = previewState?.players.map((p) => p.name).join(', ') ?? '';
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100dvh', overflow: 'hidden' }}>
       <Canvas
         camera={{ position: [33, 26, 33], fov: BASE_FOV }}
         // Cap resolution at 2x — rendering at DPR 3 on phones triples the pixel
