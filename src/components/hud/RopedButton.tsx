@@ -57,7 +57,7 @@ export default function RopedButton({
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="absolute inset-0 w-full h-full object-fill pointer-events-none transition-[filter,transform] duration-150"
+        className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-[filter,transform] duration-150"
         style={{
           filter: pressed ? 'brightness(0.65)' : 'brightness(1)',
           transform: pressed ? 'translateY(2px)' : 'translateY(0)',

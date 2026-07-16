@@ -28,7 +28,7 @@ const RopedInput = forwardRef<HTMLDivElement, RopedInputProps>(function RopedInp
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+        className="absolute inset-0 w-full h-full object-contain pointer-events-none"
       />
       <div
         className="absolute inset-0 flex items-center justify-center"
