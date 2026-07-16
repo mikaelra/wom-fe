@@ -844,16 +844,53 @@ Coordinated with backend Phase 1a/1b (see that plan):
 
 ## Phase 5 — Housekeeping (opportunistic, no dedicated PRs)
 
-- `src/app/Playerv1.tsx` vs `src/components/Playerv1.tsx` — one is dead;
-  delete it.
-- `package.json` name `my-3d-app` → `wom-fe`.
-- `src/config.ts` hardcodes a Render URL as the fallback backend; make dev
-  fallback `http://localhost:5000` and fail loudly in prod builds when
-  `NEXT_PUBLIC_BACKEND_URL` is unset, so a misconfigured deploy can't
-  silently talk to the wrong backend.
-- Standardize error surfaces: one `<ErrorBoundary>` around the canvas, one
-  toast/banner pattern for `ApiError`, instead of per-call `alert`/silent
-  catch.
+- ✅ **done (already true)** — `src/app/Playerv1.tsx` vs
+  `src/components/Playerv1.tsx`: only the latter exists. `git log` traced
+  the former's removal to `e17e9bd` ("Remove dead code and the half-built
+  rematch feature", part of PR #163's earlier cleanup) — this item
+  predated that PR and was stale. `src/components/Playerv1.tsx` is live
+  code (used by `app/page.tsx`'s TempleScene and `PlayerAvatars.tsx`),
+  nothing to delete.
+- ✅ **done** — `package.json` name `my-3d-app` → `wom-fe` (also
+  regenerated `package-lock.json`'s matching `name` fields via
+  `npm install --package-lock-only`). Grepped first to confirm nothing
+  else referenced the old name.
+- ✅ **done** — `src/config.ts`'s `BACKEND_URL`: dev fallback is now
+  `http://localhost:5000` (was a stale Render URL); a production build
+  with `NEXT_PUBLIC_BACKEND_URL` unset now throws instead of silently
+  falling back. This turned out to fail even louder than planned: since
+  `config.ts` is imported at module scope by several server-rendered
+  pages, the throw surfaces **during `next build` itself** (confirmed by
+  actually running a build with the var unset — it failed prerendering
+  `/email_verified` with the new error message and a non-zero exit),
+  not just at runtime — a misconfigured deploy can't produce a pushable
+  image at all, let alone one that talks to the wrong backend.
+- ✅ **done** — standardized error surfaces: `src/components/Toast.tsx`
+  (`ToastProvider`/`useToast`, a small fixed-position banner stack,
+  auto-dismiss after 6s or manual close) and
+  `src/components/ErrorBoundary.tsx` (class component, catches render-time
+  crashes in the DOM/overlay tree with a "Something went wrong" + Reload
+  fallback), both mounted once at the root (`src/app/layout.tsx`):
+  `<ToastProvider><ErrorBoundary>{children}</ErrorBoundary></ToastProvider>`.
+  All 10 `alert(...)` call sites replaced with `showError(...)` —
+  `app/page.tsx`'s raid-entry failure, `app/vault/page.tsx`'s two keycode
+  failures, `SceneOverlay.tsx`'s socket error, `HomeOverlay.tsx`'s 4
+  (create/join/not-logged-in/raid-entry), `WorldMapOverlay.tsx`'s 2
+  (create/join). `useToast()` falls back to a `console.error` (not a
+  throw) when no `ToastProvider` is mounted, specifically so the many
+  existing component tests that render these components in isolation
+  don't all need a provider wrapper — only `page.test.tsx`'s one test
+  that actually asserted on `window.alert` needed updating (now wraps
+  with a real `ToastProvider` and asserts the toast text renders). New
+  `Toast.test.tsx`/`ErrorBoundary.test.tsx` cover both components
+  directly. The `<ErrorBoundary>` sits around the whole app (in the root
+  layout), not literally wrapped tight around each `<Canvas>` — R3F's
+  `<Canvas>` renders its scene graph through a separate reconciler root,
+  so a DOM-level boundary only catches errors during Canvas's own mount,
+  not errors inside `useFrame`/the WebGL loop; the actual motivating
+  problem this doc names ("a schema mismatch becomes a silent `undefined`
+  deep inside a Three.js component") is a DOM/overlay-component crash on
+  bad data, which this placement does catch.
 
 ## Suggested order of work
 

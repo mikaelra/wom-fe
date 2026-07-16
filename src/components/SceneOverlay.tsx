@@ -13,6 +13,7 @@ import { playResourceSound } from '@/lib/sounds';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import ResourceCard from '@/components/ResourceCard';
 import { useStagedResources } from '@/lib/useStagedResources';
+import { useToast } from '@/components/Toast';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -129,6 +130,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatExpandedRef = useRef(chatExpanded);
   useEffect(() => { chatExpandedRef.current = chatExpanded; }, [chatExpanded]);
+  const { showError } = useToast();
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -146,7 +148,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     },
     onError: (message) => {
       if (message !== 'Name taken') {
-        alert(message);
+        showError(message);
       }
     },
   });

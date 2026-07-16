@@ -13,6 +13,7 @@ import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useAuthFlow } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
 import type { City } from '@/lib/cities';
+import { useToast } from '@/components/Toast';
 
 const buttonBase =
   'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
@@ -30,6 +31,7 @@ type PendingAction =
 
 export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const router = useRouter();
+  const { showError } = useToast();
   const [joinCode, setJoinCode] = useState('');
   const [showRelics, setShowRelics] = useState(false);
   const [relics, setRelics] = useState<Relic[]>([]);
@@ -103,7 +105,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
       try {
         await performCreate(trimmedName, storedEmail);
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'Create lobby failed');
+        showError(err instanceof Error ? err.message : 'Create lobby failed');
       }
       return;
     }
@@ -120,7 +122,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
       try {
         await performJoin(trimmedName, trimmedCode, storedEmail);
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'Join failed');
+        showError(err instanceof Error ? err.message : 'Join failed');
       }
       return;
     }
@@ -136,14 +138,14 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const handleEnterRaid = async () => {
     const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
     if (!playerName) {
-      alert('You must be logged in to enter the raid.');
+      showError('You must be logged in to enter the raid.');
       return;
     }
     try {
       const data = await getBossfightLobby(playerName);
       router.push(`/lobby/${data.lobby_id}`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to enter raid.');
+      showError(err instanceof Error ? err.message : 'Failed to enter raid.');
     }
   };
 
