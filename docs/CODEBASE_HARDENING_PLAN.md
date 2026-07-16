@@ -657,11 +657,16 @@ With logic in hooks/lib, what's left to test as components is small:
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
   covered indirectly: their props are produced by tested functions, and
   their own remaining logic should approach zero.
-- ✅ **done (scaled back from its original scope — see below)** — one
-  Playwright E2E smoke test (`e2e/lobby-smoke.spec.ts`), the last Phase 3
-  item: create a lobby, add a TURTLE dummy, start the game, clear
-  `ROUNDS_TO_CLEAR` round(s) (currently 1, deliberately not "fight to a
-  win" — see the "genuinely slow and RNG-driven" note below for why).
+- **in progress, growing step by step** — one Playwright E2E smoke test
+  (`e2e/lobby-smoke.spec.ts`), the last Phase 3 item. Originally written
+  as a full "create lobby → add bot → start → submit action+resource →
+  round resolves → game over" flow and debugged as one large unit — that
+  turned out slow to iterate on (each attempt costs a full CI round trip
+  or a live-backend session) and masked exactly where a real failure was
+  coming from. Restarted from the smallest possible slice instead:
+  currently just "create a lobby successfully." Each next slice (add a
+  bot, start the game, resolve a round, eventually a full win) gets
+  added only once the current one is confirmed solid in real CI runs.
   First E2E test in this repo, verified for real against a live,
   already-running dev stack rather than assumed —
   `158.178.151.93` turned out to be this VM's own public IP
@@ -739,16 +744,13 @@ With logic in hooks/lib, what's left to test as components is small:
     risk-reducing, not risk-eliminating, heuristic) — observed runtime
     ranged from a few minutes to, in one case, over 20 without
     concluding. That's far more variance than a smoke test should
-    carry, so the committed version deliberately stops at
-    `ROUNDS_TO_CLEAR` (currently 1) instead: enough to prove the whole
-    round-resolution pipeline works (action/resource submitted →
-    backend resolves → broadcast → frontend re-renders), observable
-    directly via the in-game "Round N" counter
-    (`SceneOverlay.tsx`'s `.round-zoom` span) rather than a win/loss
-    state. Bumped only gradually, and only once it's passing reliably
-    at the current value — not straight back to "fight to a win."
-    Bounded to a 3-minute timeout accordingly, and still runs as its
-    own non-blocking CI job, not part of `build-and-deploy`'s required
+    carry, and made each debugging attempt expensive. Restarted from
+    the smallest slice ("create a lobby successfully") instead — see
+    the "in progress, growing step by step" note above. Once resolving
+    a round is back in scope, the in-game "Round N" counter
+    (`SceneOverlay.tsx`'s `.round-zoom` span) is the directly-observable
+    signal to key off, not a win/loss state. Runs as its own
+    non-blocking CI job, not part of `build-and-deploy`'s required
     checks.
   - Separately, and unrelated to any of the above: getting even one
     real CI run to reach the actual test step required merging two
@@ -799,15 +801,15 @@ Coordinated with backend Phase 1a/1b (see that plan):
    (`useAuthFlow` across all 5 duplicate sites, incl. a 2FA-bypass bug
    fix), 5 (`LobbyScene.tsx` split into `PlayerAvatars.tsx`/
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
-4. ✅ Phase 3 — RTL tests now that logic lives in hooks/lib, plus one
-   Playwright E2E smoke. All items done: `LobbyOverlay.tsx`, all of
-   `SceneOverlay.tsx`, all 5/5 auth-form sites (`app/login/page.tsx`,
-   `HomeOverlay.tsx`, `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens
-   popup, `app/lobby/[lobbyId]/page.tsx`'s join form), the settings-page
-   toggle flow (`app/settings/page.tsx` + `useGuideEnabled.ts`), and
-   `e2e/lobby-smoke.spec.ts` (create lobby → add bot → clear
-   `ROUNDS_TO_CLEAR` round(s), currently 1 — scaled back from an
-   original "fight to a win" scope; see Phase 3's own writeup above).
+4. **In progress** — Phase 3 RTL tests now that logic lives in hooks/lib
+   are done: `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, all 5/5
+   auth-form sites (`app/login/page.tsx`, `HomeOverlay.tsx`,
+   `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens popup,
+   `app/lobby/[lobbyId]/page.tsx`'s join form), and the settings-page
+   toggle flow (`app/settings/page.tsx` + `useGuideEnabled.ts`). The
+   Playwright E2E smoke (`e2e/lobby-smoke.spec.ts`) is still growing
+   step by step — currently just "create a lobby successfully"; see
+   Phase 3's own writeup above.
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165) — and, as of
    PR #188, actually **live in production**: this repo's
