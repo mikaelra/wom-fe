@@ -1,10 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, within, fireEvent } from '@testing-library/react';
-import type { ComponentProps } from 'react';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import { checkName, logInUser, verifyLoginCode, createLobby, joinLobby } from '@/lib/api';
-import type RealRopedButton3D from '@/components/hud/RopedButton3D';
-import type RealRopedInput3D from '@/components/hud/RopedInput3D';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -18,22 +15,6 @@ vi.mock('@/lib/api', () => ({
   createLobby: vi.fn(),
   joinLobby: vi.fn(),
   getPlayerRelics: vi.fn(),
-}));
-
-// RopedButton3D/RopedInput3D render @react-three/fiber's <Canvas> internally
-// (gated behind a lowQuality state that starts false), which jsdom can't
-// mount. WorldMapOverlay's own auth-flow wiring is what's under test here,
-// not these presentational components' 3D rendering, so they're mocked to
-// plain accessible stand-ins that preserve the same prop contract.
-vi.mock('@/components/hud/RopedButton3D', () => ({
-  default: ({ onClick, disabled, loading, ariaLabel, children }: ComponentProps<typeof RealRopedButton3D>) => (
-    <button aria-label={ariaLabel} onClick={onClick} disabled={disabled || loading}>
-      {loading ? 'Loading...' : children}
-    </button>
-  ),
-}));
-vi.mock('@/components/hud/RopedInput3D', () => ({
-  default: ({ children }: ComponentProps<typeof RealRopedInput3D>) => <>{children}</>,
 }));
 
 const mockedCheckName = vi.mocked(checkName);
