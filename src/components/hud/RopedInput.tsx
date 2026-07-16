@@ -2,7 +2,7 @@
 
 import { forwardRef, ReactNode } from 'react';
 
-const LD_IMAGE = '/models/buttons/rope_button-ld.png';
+const LD_IMAGE = '/models/buttons/rope_button-ld-v2.png';
 
 type RopedInputProps = {
   width?: number;
@@ -28,8 +28,7 @@ const RopedInput = forwardRef<HTMLDivElement, RopedInputProps>(function RopedInp
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-        style={{ transform: 'scale(2.93, 1.87)' }}
+        className="absolute inset-0 w-full h-full object-fill pointer-events-none"
       />
       <div
         className="absolute inset-0 flex items-center justify-center"

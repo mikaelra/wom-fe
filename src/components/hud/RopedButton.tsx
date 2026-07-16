@@ -2,7 +2,7 @@
 
 import { useState, ReactNode } from 'react';
 
-const DEFAULT_IMAGE = '/models/buttons/rope_button-ld.png';
+const DEFAULT_IMAGE = '/models/buttons/rope_button-ld-v2.png';
 
 type RopedButtonProps = {
   onClick?: () => void;
@@ -57,10 +57,10 @@ export default function RopedButton({
         alt=""
         aria-hidden="true"
         draggable={false}
-        className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-[filter,transform] duration-150"
+        className="absolute inset-0 w-full h-full object-fill pointer-events-none transition-[filter,transform] duration-150"
         style={{
           filter: pressed ? 'brightness(0.65)' : 'brightness(1)',
-          transform: pressed ? 'translateY(2px) scale(2.2)' : 'translateY(0) scale(2.2)',
+          transform: pressed ? 'translateY(2px)' : 'translateY(0)',
         }}
       />
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
