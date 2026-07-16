@@ -922,6 +922,14 @@ Coordinated with backend Phase 1a/1b (see that plan):
    above, including two real `wom-be`-side vulnerabilities
    (`get_player_relics`, `claim_pending_relic`) it surfaced but that need
    a backend PR to fix, not a frontend change.
+6. ✅ Phase 5 housekeeping — all 4 items done (see Phase 5's own writeup
+   above): the `Playerv1.tsx` duplicate turned out to already be gone
+   (stale item, nothing to do), `package.json` renamed to `wom-fe`,
+   `src/config.ts`'s backend-URL fallback now fails loudly (at `next
+   build` time, not just runtime) instead of silently pointing at a
+   stale Render URL, and error surfaces are standardized behind a shared
+   `<ToastProvider>`/`useToast()` plus a root `<ErrorBoundary>`. **This
+   closes out every phase of this plan.**
 
 Definition of done for any new feature after this: server data enters
 through a zod schema, game logic lands in `lib/` or a hook with a vitest
