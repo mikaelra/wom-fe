@@ -657,10 +657,13 @@ With logic in hooks/lib, what's left to test as components is small:
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
   covered indirectly: their props are produced by tested functions, and
   their own remaining logic should approach zero.
-- ✅ **done** — one Playwright E2E smoke test (`e2e/lobby-smoke.spec.ts`),
-  the last Phase 3 item: create a lobby, add a TURTLE dummy, start the
-  game, fight it to a win. First E2E test in this repo, verified for real
-  against a live, already-running dev stack rather than assumed —
+- ✅ **done (scaled back from its original scope — see below)** — one
+  Playwright E2E smoke test (`e2e/lobby-smoke.spec.ts`), the last Phase 3
+  item: create a lobby, add a TURTLE dummy, start the game, clear
+  `ROUNDS_TO_CLEAR` round(s) (currently 1, deliberately not "fight to a
+  win" — see the "genuinely slow and RNG-driven" note below for why).
+  First E2E test in this repo, verified for real against a live,
+  already-running dev stack rather than assumed —
   `158.178.151.93` turned out to be this VM's own public IP
   (`/config/workspace/game/docker-compose.yml`'s persistent local
   wom-fe+wom-be+postgres stack, reachable at `localhost:5000`/`:3000`
@@ -721,28 +724,45 @@ With logic in hooks/lib, what's left to test as components is small:
     the page's JS main thread badly enough that even click dispatch
     could take 10s+ or hang outright; a small (320×240) viewport cuts
     this enough to be workable.
-  - The fight itself is genuinely slow and RNG-driven: TURTLE always
-    defends (blocking ~50% of attacks, one confirmed root cause it took
-    a while to isolate) and heals +1 HP/round unconditionally, while a
-    starting `attackDamage` of 1 only grows through an increasingly
-    expensive economy (each +1 upgrade costs coins equal to the current
-    attackDamage) — a naive "always buy coins, never buy attack, never
-    heal" strategy is actually a *losing* one long-term. A blocked
-    attack also has a further ~20% chance to reflect damage back onto
-    the attacker (~10% of all attacks overall, i.e. 0.5 × 0.2), for
-    damage equal to the attacker's own current attackDamage. The
-    committed test buys attack upgrades when affordable and throws in a
-    heal every 4th round regardless of current HP (rather than
-    depending on a live HP read, which proved unreliable during
-    development) — this is **not** a real survival guarantee (reflected
-    damage scales with our own growing attackDamage and isn't bound to
-    that cadence), just a simple way to reduce the odds of dying to
-    reflection rather than eliminate them. Given all this, the test is
-    intentionally long-timeout (20 minutes) and runs as its own
-    non-blocking CI job, not part of `build-and-deploy`'s required
-    checks — an occasional failure from dying rather than timing out is
-    an accepted tradeoff of this simplicity, not necessarily a
-    regression to chase.
+  - Fighting TURTLE to an actual win is genuinely slow and RNG-driven:
+    it always defends (blocking ~50% of attacks) and heals +1 HP/round
+    unconditionally, while a starting `attackDamage` of 1 only grows
+    through an increasingly expensive economy (each +1 upgrade costs
+    coins equal to the current attackDamage) — a naive "always buy
+    coins, never buy attack, never heal" strategy is actually a
+    *losing* one long-term. A blocked attack also has a further ~20%
+    chance to reflect damage back onto the attacker (~10% of all
+    attacks overall, i.e. 0.5 × 0.2), for damage equal to the
+    attacker's own current attackDamage. An earlier version of this
+    test tried to fight all the way to a win (buying attack upgrades
+    when affordable, throwing in a heal every 4th round as a
+    risk-reducing, not risk-eliminating, heuristic) — observed runtime
+    ranged from a few minutes to, in one case, over 20 without
+    concluding. That's far more variance than a smoke test should
+    carry, so the committed version deliberately stops at
+    `ROUNDS_TO_CLEAR` (currently 1) instead: enough to prove the whole
+    round-resolution pipeline works (action/resource submitted →
+    backend resolves → broadcast → frontend re-renders), observable
+    directly via the in-game "Round N" counter
+    (`SceneOverlay.tsx`'s `.round-zoom` span) rather than a win/loss
+    state. Bumped only gradually, and only once it's passing reliably
+    at the current value — not straight back to "fight to a win."
+    Bounded to a 3-minute timeout accordingly, and still runs as its
+    own non-blocking CI job, not part of `build-and-deploy`'s required
+    checks.
+  - Separately, and unrelated to any of the above: getting even one
+    real CI run to reach the actual test step required merging two
+    long-running "hardening" integration branches (this repo's
+    `claude/frontend-hardening-continue` and `wom-be`'s
+    `claude/backend-phase4-protocol-doc`) into their respective
+    production branches, coordinated together — `wom-be`'s published
+    `:latest` image had been built from its stale `main` (predating the
+    session-token contract this repo's frontend already assumed),
+    surfaced by a real run failing with a zod schema mismatch on
+    `/create_lobby`'s `token` field. Deploying either side alone would
+    have broken production (the new backend's `join_room` hard-requires
+    a session token; the old frontend never sent one) — both were
+    merged in the same window instead.
 
 ## Phase 4 — Adopt the backend security model
 
@@ -785,11 +805,17 @@ Coordinated with backend Phase 1a/1b (see that plan):
    `HomeOverlay.tsx`, `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens
    popup, `app/lobby/[lobbyId]/page.tsx`'s join form), the settings-page
    toggle flow (`app/settings/page.tsx` + `useGuideEnabled.ts`), and
-   `e2e/lobby-smoke.spec.ts` (create lobby → add bot → fight to a win).
+   `e2e/lobby-smoke.spec.ts` (create lobby → add bot → clear
+   `ROUNDS_TO_CLEAR` round(s), currently 1 — scaled back from an
+   original "fight to a win" scope; see Phase 3's own writeup above).
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
-   with the backend token work shipping (PRs #164/#165). Item 3
-   (treat `localStorage` as convenience-only) is effectively already true
-   as a consequence, but not separately audited yet.
+   with the backend token work shipping (PRs #164/#165) — and, as of
+   PR #188, actually **live in production**: this repo's
+   `claude/frontend-hardening-continue` merged to `master` and wom-be's
+   corresponding hardening branch merged to `main` in the same window
+   (see Phase 3's E2E writeup above for why together, not separately).
+   Item 3 (treat `localStorage` as convenience-only) is effectively
+   already true as a consequence, but not separately audited yet.
 
 Definition of done for any new feature after this: server data enters
 through a zod schema, game logic lands in `lib/` or a hook with a vitest
