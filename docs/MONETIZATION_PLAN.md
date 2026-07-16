@@ -10,8 +10,8 @@ become **owned, persistent items** on a player's account:
 - Everyone starts with (and permanently owns) the default **green** frog skin.
 - Finishing any match — bossfight or PvP — gives each player an independent **25% chance
   of earning a Wheel** (free). Wheels can be spun immediately or saved in the inventory.
-- Spinning a **normal Wheel** opens a tivoli-style spinning wheel with the 7 common skin
-  colors as equally sized slices; the landed skin is added to the inventory.
+- Spinning a **normal Wheel** opens a tivoli-style spinning wheel with the 6 non-green
+  common skin colors as equally sized slices; the landed skin is added to the inventory.
 - The **Shop** sells a **Special Wheel for $5** with weighted rare slices
   (silver 63%, gold 30%, rainbow 6.6667%, bling 0.3333%) drawn to scale on the wheel,
   and the **Cherub skin for $500** as a direct purchase.
@@ -77,21 +77,24 @@ account/identity prerequisites, compliance, testing, and a phased rollout.
 - `players.equipped_skin` (default `frog_green_v1`) is what the player wears in every
   lobby. Equipping is done from the Inventory page and validated server-side against
   ownership.
-- **Per-lobby exclusivity is dropped.** Two players who both own and equip
-  `frog_red_v1` both appear red. (Alternative — first-come nameplate tint — punted; see
-  Open questions.)
+- **Per-lobby exclusivity is dropped** (decided): two players who both own and equip
+  `frog_red_v1` both appear red. Your equipped skin is your identity.
 
 ### 3.2 Normal Wheel — free, post-match drop
 
-- **Trigger:** when a match ends (bossfight or PvP), each participating player rolls an
-  independent 25% chance to receive one Normal Wheel.
+- **Trigger:** when a match ends (bossfight or PvP), each participating player with a
+  **claimed account** rolls an independent 25% chance to receive one Normal Wheel.
+  Guests earn nothing and wear green; show them a "claim your name to earn wheels"
+  teaser on the game-over screen — the drop doubles as an account-creation funnel.
 - **Server-side only.** The roll happens in the game-end path in
   `engine/combat.py` (same guard as stats: matches with bots grant nothing, otherwise
   bot lobbies become a wheel farm).
 - **Award UX:** the game-over screen shows "You won a Wheel!" with two buttons:
   **Spin now** and **Save for later**. Saved wheels live in the inventory.
-- **Spin outcome:** uniform over the 7 common skins (each 1/7 ≈ 14.29%), green
-  included. The result can be a duplicate — duplicates are kept and counted.
+- **Spin outcome:** uniform over the 6 non-green common skins (each 1/6 ≈ 16.67%).
+  Green is excluded — everyone already owns it, so every spin yields something you
+  didn't start with. The result can still be a duplicate of an earned skin —
+  duplicates are kept and counted.
 
 ### 3.3 Special Wheel — $5, shop item
 
@@ -108,16 +111,28 @@ account/identity prerequisites, compliance, testing, and a phased rollout.
   | Bling   |    100             | 0.3333%     | 300    |
 
   Expected cost to hit one bling from scratch is 300 spins × $5 = **$1,500 in
-  expectation** (it is a per-spin probability, not a pity counter — no guarantee at any
-  spend level). Keep this framing in mind for the compliance section.
-- **Wheel rendering shows true proportions:** slice angles are drawn from the same
-  weight table the server rolls from (silver 226.8°, gold 108°, rainbow 24°,
-  bling 1.2°). The bling sliver being nearly invisible is intentional and honest.
+  expectation** (it is a per-spin probability — no guarantee at any spend level).
+  **Decided: no pity mechanic** — every spin is independent, disclosed as such.
+  Keep this framing in mind for the compliance section.
+- **Decided: single quantity only at launch.** One $5 wheel per checkout; multi-packs
+  are a trivial later addition since wheels are inventory items.
+- **Wheel rendering shows true proportions, but visual slices are decoupled from the
+  RNG weights.** The 30 000 above is only the roll denominator — the drawn wheel can
+  have any slice layout as long as each color's total angle matches its probability.
+  For the tivoli look (many small alternating slices), **300 visual slices is the
+  smallest count where every color is an exact whole number of slices**: 189 silver,
+  90 gold, 20 rainbow, 1 bling. Any smaller count makes rainbow (6.6667%) a
+  non-integer slice count, so a coarser wheel would need one odd-sized rainbow slice
+  or slightly-off visuals. Exact layout is a visual-polish decision to refine near
+  implementation; the constraint that total drawn angle = true probability is not
+  negotiable (compliance, §9).
 
 ### 3.4 Cherub skin — $500, direct purchase
 
-- New exclusive skin, purchase-only (never on any wheel), duplicates technically
-  possible but the shop should warn "You already own Cherub" before a second purchase.
+- New exclusive skin, purchase-only (never on any wheel). Duplicates are allowed
+  (consistent with the ownership rules), but **decided: warn + confirm** — if the
+  player already owns Cherub, the shop shows "You already own Cherub" and requires an
+  explicit confirmation step before a second $500 charge.
 - Requires a new model asset `frog_cherub_v1.glb` + thumbnail. Track asset production
   as its own workstream — it gates the shop launch only for this product, not the rest.
 
@@ -127,8 +142,8 @@ account/identity prerequisites, compliance, testing, and a phased rollout.
 2. Frontend calls `POST /wheel/spin` with the wheel item id. **The server consumes the
    wheel and decides the outcome in this call**, atomically, before any animation.
 3. A modal shows the top arc of a large tivoli wheel already spinning fast. Slices are
-   colored per skin (normal wheel: the 7 common skin colors; special wheel: silver /
-   gold / rainbow-gradient / bling, sized per §3.3).
+   colored per skin (normal wheel: the 6 non-green common skin colors, equal; special
+   wheel: silver / gold / rainbow-gradient / bling, sized per §3.3).
 4. A **STOP ROLL** button appears. Clicking it starts a several-second ease-out that
    lands the pointer on the server-chosen slice. If the player never clicks (or closes
    the tab), the outcome already happened — the skin is in their inventory; the
@@ -230,9 +245,10 @@ GET  /auth/oauth/<provider>/start, /auth/oauth/<provider>/callback
 ```
 
 The wheel drop itself is not an endpoint: `engine/combat.py`'s game-end path inserts
-`wheel_items` rows for winners of the 25% roll (`random.random() < 0.25` server-side,
-per player) and includes `wheel_awarded: true` per player in the game-over socket
-payload so the frontend can show the award screen.
+`wheel_items` rows for winners of the 25% roll (CSPRNG server-side, per player,
+claimed accounts only) and includes `wheel_awarded: true` per player in the game-over
+socket payload so the frontend can show the award screen (or the claim-your-name
+teaser for guests).
 
 **Skins in lobbies:** the lobby join/state payload gains `skin` per player, taken from
 `players.equipped_skin` at join time (frozen for the match). `assignSkins` in
@@ -304,7 +320,7 @@ New routes under `src/app/`:
 New components:
 
 - **`WheelSpinModal`** (§3.5) — takes `{kind, slices: [{skin, color, weight}], resultSkin}`;
-  slice geometry computed from weights so normal (7 × equal) and special
+  slice geometry computed from weights so normal (6 × equal) and special
   (63/30/6.6667/0.3333) render from one component.
 - **Post-match award panel** in the game-over screen: "You won a Wheel!" →
   Spin now (opens `WheelSpinModal`) / Save for later.
@@ -390,15 +406,23 @@ Google OIDC, `auth_identities`, account linking. Steam/Discord afterwards.
 Purchase analytics/dashboards, admin grant/revoke tooling, daily drop cap tuning,
 localization of prices (Stripe Prices per currency).
 
-## 13. Open questions
+## 13. Decision log (resolved 2026-07-16)
 
-1. **Skin clashes in lobby:** confirmed OK that two players can look identical? (Plan
-   assumes yes; the old exclusivity dies with `assignSkins`.)
-2. **Guests** (never claimed a name): green-only, or should match drops require a
-   claimed name so wheels can't be stranded? (Plan assumes drops require an account.)
-3. Should the normal wheel exclude green (the default everyone owns), or is a green
-   duplicate an acceptable "miss"? (Plan assumes green is included, 1/7.)
-4. Special Wheel purchase quantity — allow buying multiple at once (5-pack)?
-5. Cherub duplicates: hard-block a second $500 purchase, or warn only?
-6. Any pity mechanic for bling (e.g. guaranteed at 300 spins)? Current plan: none —
-   pure 1/300 per spin, disclosed as such.
+Formerly the open-questions list; all six are decided and folded into the sections
+above:
+
+1. **Skin clashes:** identical skins allowed — two players can both appear red.
+   Per-lobby exclusivity dies with `assignSkins` (§3.1).
+2. **Guests:** wheel drops require a claimed account. Guests wear green and get a
+   "claim your name to earn wheels" teaser on the game-over screen (§3.2).
+3. **Green on the normal wheel:** excluded. 6 slices, 1/6 each — every spin yields
+   something you didn't start with (§3.2).
+4. **Multi-packs:** single $5 wheel per checkout at launch; packs later if wanted
+   (§3.3).
+5. **Cherub duplicates:** allowed but warn + explicit confirm before a second $500
+   charge (§3.4).
+6. **Pity mechanic:** none. Pure independent 1/300 per spin, disclosed as such (§3.3).
+
+Still open (visual polish, not blocking): exact special-wheel slice layout — 300
+tivoli slices for exact math vs. a coarser wheel with one odd-sized rainbow slice
+(§3.3), to be refined during `WheelSpinModal` implementation.
