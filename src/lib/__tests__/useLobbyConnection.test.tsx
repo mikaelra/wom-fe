@@ -73,7 +73,7 @@ const baseLobbyState = {
 
 beforeEach(() => {
   socket.__reset();
-  setStoredToken('test-token');
+  setStoredToken('AAAA', 'test-token');
 });
 
 afterEach(() => {
