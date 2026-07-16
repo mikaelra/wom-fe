@@ -14,6 +14,7 @@ import WellRewardEffect, { preloadWellRewardModels, type WellRewardType } from '
 import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight } from '@/components/lobby/WellGlowEffect';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
+import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP } from '@/components/lobby/PlayerAvatars';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket } from '@/lib/socket';
@@ -133,6 +134,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
   const [killFireEvents, setKillFireEvents] = useState<KillFireEvent[]>([]);
   const [killBanners, setKillBanners] = useState<KillBanner[]>([]);
+  const [denyRingFx, setDenyRingFx] = useState<{ id: string; pos: [number, number, number] }[]>([]);
+  const prevDenyTargetRef = useRef<string | null>(null);
   // Players whose HP just hit 0 but whose dead pose (model tip-over + gray
   // fade) is being held off until the kill animation's impact moment —
   // otherwise they'd flop over/gray out before the sword even lands. Cleared
@@ -270,6 +273,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     // is long since resolved by now, so drop it too rather than leave stale names.
     setKillFireEvents([]);
     setKillBanners([]);
+    setDenyRingFx([]);
     setDeathPending(new Set());
 
     // Hold off newly-eliminated players' dead pose until buildCombatAnimationPlan's
@@ -302,6 +306,42 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       );
     }
   }, [state, playerName]);
+
+  // Deny-ring drop: fires the moment `deny_target` newly names someone (set
+  // synchronously server-side on submit_deny_target, see lobby.py), riding the
+  // same state_update broadcast every client already receives — so the denier,
+  // the denied player, and bystanders all see it at the same instant without a
+  // dedicated event. Own ref (not prevStateRef) so ordering vs. the effect above
+  // doesn't matter.
+  useEffect(() => {
+    const target = state?.deny_target ?? null;
+    const prevTarget = prevDenyTargetRef.current;
+    prevDenyTargetRef.current = target;
+    if (!target || target === prevTarget) return;
+    const pos = posMapRef.current.get(target);
+    if (!pos) return;
+    const id = `deny-${target}-${Date.now()}`;
+    setDenyRingFx((fx) => [...fx, { id, pos }]);
+  }, [state?.deny_target]);
+
+  // Dev preview: append ?debugDenyRing=1 to a lobby URL to replay the deny-ring
+  // drop on the first seated player every few seconds, without needing to
+  // actually win the Well's (RNG-gated) deny reward. No effect in normal play.
+  // Reads via refs and sets up the interval once (empty deps) so frequent
+  // state_update-driven re-renders (which change `players`' identity) don't
+  // keep resetting the timer before it ever fires.
+  const playersRef = useRef(players);
+  playersRef.current = players;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.location.search.includes('debugDenyRing')) return;
+    const t = setInterval(() => {
+      const first = playersRef.current[0];
+      const pos = first ? posMapRef.current.get(first.name) : null;
+      if (pos) setDenyRingFx((fx) => [...fx, { id: `debug-${Date.now()}`, pos }]);
+    }, 2500);
+    return () => clearInterval(t);
+  }, []);
 
   // Spawn 3D animation events based on personal messages, once this round's
   // events have arrived via the shared useGameEvents fetch. Gated on
@@ -763,6 +803,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           key={k.id}
           position={k.pos}
           onDone={() => setKillFireEvents((e) => e.filter((x) => x.id !== k.id))}
+        />
+      ))}
+
+      {/* Three red hoops dropping over a player denied their action by the Well */}
+      {denyRingFx.map((fx) => (
+        <DenyRingEffect
+          key={fx.id}
+          position={fx.pos}
+          onDone={() => setDenyRingFx((e) => e.filter((x) => x.id !== fx.id))}
         />
       ))}
 
