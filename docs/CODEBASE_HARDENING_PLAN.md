@@ -657,17 +657,20 @@ With logic in hooks/lib, what's left to test as components is small:
 - **Do not try to render R3F scenes in jsdom.** The 3D components stay
   covered indirectly: their props are produced by tested functions, and
   their own remaining logic should approach zero.
-- **in progress, growing step by step** — one Playwright E2E smoke test
-  (`e2e/lobby-smoke.spec.ts`), the last Phase 3 item. Originally written
-  as a full "create lobby → add bot → start → submit action+resource →
-  round resolves → game over" flow and debugged as one large unit — that
-  turned out slow to iterate on (each attempt costs a full CI round trip
-  or a live-backend session) and masked exactly where a real failure was
-  coming from. Restarted from the smallest possible slice instead:
-  currently just "create a lobby successfully." Each next slice (add a
-  bot, start the game, resolve a round, eventually a full win) gets
-  added only once the current one is confirmed solid in real CI runs.
-  First E2E test in this repo, verified for real against a live,
+- ✅ **done** — one Playwright E2E smoke test (`e2e/lobby-smoke.spec.ts`),
+  the last Phase 3 item: create a lobby, add a TURTLE dummy, start the
+  game, and fight it to a win. Originally written as this whole flow up
+  front and debugged as one large unit — that turned out slow to iterate
+  on (each attempt costs a full CI round trip or a live-backend session)
+  and masked exactly where a real failure was coming from. Rebuilt step
+  by step instead: "create a lobby successfully" first, then add-a-bot,
+  then start-game, then one round (attack + a resource), then a second
+  round (the well + an attack upgrade, to prove those specific reward/
+  economy paths), each confirmed solid against a live backend before
+  adding the next slice — the last slice (round 3 onward: attack, buy an
+  attack upgrade when affordable else bank a coin, until someone wins)
+  fell out directly once the others were solid. First E2E test in this
+  repo, verified for real against a live,
   already-running dev stack rather than assumed —
   `158.178.151.93` turned out to be this VM's own public IP
   (`/config/workspace/game/docker-compose.yml`'s persistent local
@@ -729,29 +732,40 @@ With logic in hooks/lib, what's left to test as components is small:
     the page's JS main thread badly enough that even click dispatch
     could take 10s+ or hang outright; a small (320×240) viewport cuts
     this enough to be workable.
-  - Fighting TURTLE to an actual win is genuinely slow and RNG-driven:
-    it always defends (blocking ~50% of attacks) and heals +1 HP/round
-    unconditionally, while a starting `attackDamage` of 1 only grows
+  - **The actual root cause of the earlier "20+ minutes, sometimes never
+    concluding" runtime**: `click({ force: true })` on the per-avatar
+    `⚔ ATTACK`/`🛡 DEFEND` buttons (`PlayerAvatars.tsx`, repositioned
+    every frame via a drei `<Html>` anchor) and on `🏴 The Well`
+    (`SceneOverlay.tsx`, a plain 2D `position: absolute` button —
+    *not* 3D-anchored, so this isn't simply a 3D-vs-2D-DOM story)
+    completes without error but never actually fires the click handler
+    — confirmed directly by listening to the raw WebSocket frames and
+    observing no `submit_choice` sent at all for these three, while the
+    exact same `force: true` pattern reliably sends one for the resource
+    cards and for Add Bot/Start Game. In practice this meant every
+    earlier version of this test was silently never attacking at all —
+    only ever changing resources — so TURTLE (which heals +1 HP/round
+    unconditionally and never attacks itself) simply never took damage,
+    and every round fell back to the 40-second `ROUND_DURATION` timer
+    instead of the backend's near-instant "early resolve once all
+    non-bot players are ready" path (confirmed: with real attacks
+    landing, round times dropped to ~5 seconds). Fix: `dispatchEvent
+    ('click')` for these three specifically — it bypasses hit-testing/
+    coordinates entirely and reliably reaches the real handler,
+    confirmed via the actual `submit_choice` frame. With that fix, the
+    full fight-to-a-win flow completes in ~3 minutes.
+  - Worth noting for context, even though the above was the real
+    blocker: TURTLE always defends (blocking ~50% of attacks) and a
+    blocked attack has a further ~20% chance to reflect damage back
+    onto the attacker (~10% of all attacks overall), for damage equal
+    to the attacker's own current `attackDamage`, which only grows
     through an increasingly expensive economy (each +1 upgrade costs
     coins equal to the current attackDamage) — a naive "always buy
-    coins, never buy attack, never heal" strategy is actually a
-    *losing* one long-term. A blocked attack also has a further ~20%
-    chance to reflect damage back onto the attacker (~10% of all
-    attacks overall, i.e. 0.5 × 0.2), for damage equal to the
-    attacker's own current attackDamage. An earlier version of this
-    test tried to fight all the way to a win (buying attack upgrades
-    when affordable, throwing in a heal every 4th round as a
-    risk-reducing, not risk-eliminating, heuristic) — observed runtime
-    ranged from a few minutes to, in one case, over 20 without
-    concluding. That's far more variance than a smoke test should
-    carry, and made each debugging attempt expensive. Restarted from
-    the smallest slice ("create a lobby successfully") instead — see
-    the "in progress, growing step by step" note above. Once resolving
-    a round is back in scope, the in-game "Round N" counter
-    (`SceneOverlay.tsx`'s `.round-zoom` span) is the directly-observable
-    signal to key off, not a win/loss state. Runs as its own
-    non-blocking CI job, not part of `build-and-deploy`'s required
-    checks.
+    coins, never buy attack" strategy would still be a losing one long
+    term, independent of the click bug above. The committed test buys
+    an attack upgrade whenever affordable and otherwise banks a coin.
+    Runs as its own non-blocking CI job, not part of `build-and-deploy`'s
+    required checks.
   - Separately, and unrelated to any of the above: getting even one
     real CI run to reach the actual test step required merging two
     long-running "hardening" integration branches (this repo's
@@ -801,15 +815,15 @@ Coordinated with backend Phase 1a/1b (see that plan):
    (`useAuthFlow` across all 5 duplicate sites, incl. a 2FA-bypass bug
    fix), 5 (`LobbyScene.tsx` split into `PlayerAvatars.tsx`/
    `CameraFlyIn.tsx`/`combatAnimationPlan.ts`, 1552 → 750 lines).
-4. **In progress** — Phase 3 RTL tests now that logic lives in hooks/lib
-   are done: `LobbyOverlay.tsx`, all of `SceneOverlay.tsx`, all 5/5
-   auth-form sites (`app/login/page.tsx`, `HomeOverlay.tsx`,
-   `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens popup,
-   `app/lobby/[lobbyId]/page.tsx`'s join form), and the settings-page
-   toggle flow (`app/settings/page.tsx` + `useGuideEnabled.ts`). The
-   Playwright E2E smoke (`e2e/lobby-smoke.spec.ts`) is still growing
-   step by step — currently just "create a lobby successfully"; see
-   Phase 3's own writeup above.
+4. ✅ Phase 3 — RTL tests now that logic lives in hooks/lib, plus one
+   Playwright E2E smoke. All items done: `LobbyOverlay.tsx`, all of
+   `SceneOverlay.tsx`, all 5/5 auth-form sites (`app/login/page.tsx`,
+   `HomeOverlay.tsx`, `WorldMapOverlay.tsx`, `app/page.tsx`'s Athens
+   popup, `app/lobby/[lobbyId]/page.tsx`'s join form), the settings-page
+   toggle flow (`app/settings/page.tsx` + `useGuideEnabled.ts`), and
+   `e2e/lobby-smoke.spec.ts` (create lobby → add bot → fight it to a
+   win — see Phase 3's own writeup above for the `dispatchEvent` fix
+   that made this reliably finish in ~3 minutes instead of 20+).
 5. ✅ Phase 4 items 1–2 (session tokens) done ahead of order, coordinated
    with the backend token work shipping (PRs #164/#165) — and, as of
    PR #188, actually **live in production**: this repo's

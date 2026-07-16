@@ -9,10 +9,10 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    # The one spec here can genuinely take up to ~20 minutes (combat RNG and
-    # a slow starting economy -- see e2e/lobby-smoke.spec.ts); this caps the
-    # whole job well above that rather than relying on the 360-minute default.
-    timeout-minutes: 30
+    # The spec itself is capped at 5 minutes (test.setTimeout) and observed
+    # to finish in ~3; this covers that plus infra setup with margin, rather
+    # than relying on the 360-minute default.
+    timeout-minutes: 10
 
     services:
       postgres:
