@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import { createLobby, joinLobby, getPlayerRelics } from '@/lib/api';
 import { useAuthFlow } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
-import RopedButton3D from '@/components/hud/RopedButton3D';
-import RopedInput3D from '@/components/hud/RopedInput3D';
+import RopedButton from '@/components/hud/RopedButton';
+import RopedInput from '@/components/hud/RopedInput';
 import { useToast } from '@/components/Toast';
 
 export default function WorldMapOverlay() {
@@ -161,18 +161,18 @@ export default function WorldMapOverlay() {
         {/* Right: player info */}
         <div className="pointer-events-auto flex items-center gap-3">
           {!isLoggedIn && (
-            <RopedButton3D
+            <RopedButton
               width={200}
               height={70}
               onClick={() => router.push('/login')}
               ariaLabel="Log in"
             >
               Log in
-            </RopedButton3D>
+            </RopedButton>
           )}
           {isLoggedIn && (
             <div className="relative" ref={userMenuRef}>
-              <RopedButton3D
+              <RopedButton
                 width={325}
                 height={70}
                 onClick={() => setShowUserMenu((v) => !v)}
@@ -184,7 +184,7 @@ export default function WorldMapOverlay() {
                 </span>
                 <span>{loggedInName}</span>
                 <span className="text-white/70 text-xs">{showUserMenu ? '▲' : '▼'}</span>
-              </RopedButton3D>
+              </RopedButton>
               {showUserMenu && (
                 <div className="absolute right-0 mt-1 w-40 bg-gray-900 border border-white/20 rounded-lg shadow-xl overflow-hidden">
                   <button
@@ -229,7 +229,7 @@ export default function WorldMapOverlay() {
           className="pointer-events-auto flex flex-wrap justify-center items-center px-3"
           onSubmit={(e) => { e.preventDefault(); handleJoinLobby(); }}
         >
-          <RopedInput3D width={410} height={70}>
+          <RopedInput width={410} height={70}>
             <input
               type="text"
               placeholder="Enter lobby code..."
@@ -238,9 +238,9 @@ export default function WorldMapOverlay() {
               style={{ width: '70%' }}
               className="h-full bg-transparent text-white placeholder-white/70 focus:outline-none text-sm font-semibold text-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             />
-          </RopedInput3D>
+          </RopedInput>
           <span>
-            <RopedButton3D
+            <RopedButton
               width={290}
               height={70}
               onClick={handleJoinLobby}
@@ -249,11 +249,11 @@ export default function WorldMapOverlay() {
               ariaLabel="Join lobby"
             >
               Join Lobby
-            </RopedButton3D>
+            </RopedButton>
           </span>
         </form>
         <div className="pointer-events-auto flex justify-center">
-          <RopedButton3D
+          <RopedButton
             width={325}
             height={70}
             onClick={handleCreateLobby}
@@ -262,7 +262,7 @@ export default function WorldMapOverlay() {
             ariaLabel="Create lobby"
           >
             Create Lobby
-          </RopedButton3D>
+          </RopedButton>
         </div>
       </div>
 
