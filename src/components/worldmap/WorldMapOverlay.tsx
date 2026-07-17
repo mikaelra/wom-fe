@@ -15,7 +15,7 @@ import { markLobbyEntranceTransition } from '@/lib/lobbyTransition';
 // Matches the .lobby-transition-out animation-duration in globals.css.
 const TRANSITION_OUT_MS = 550;
 
-export default function WorldMapOverlay() {
+export default function WorldMapOverlay({ onEnterLobbyStart }: { onEnterLobbyStart?: () => void }) {
   const router = useRouter();
   const { showError } = useToast();
   const [loggedInName, setLoggedInName] = useState('');
@@ -85,6 +85,7 @@ export default function WorldMapOverlay() {
   // before navigating, so the two animations read as one continuous camera move.
   const enterLobby = (lobbyId: string) => {
     setEnteringLobby(lobbyId);
+    onEnterLobbyStart?.();
     setTimeout(() => {
       markLobbyEntranceTransition();
       router.push(`/lobby/${lobbyId}`);

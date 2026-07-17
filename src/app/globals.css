@@ -25,28 +25,35 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Lobby join/create entrance transition — a white circle that grows to
-   cover the screen (leaving the world map / expanding "into" white), then
-   on the lobby page shrinks back away (panning "out of" white into the
-   lobby scene). clip-path keeps the growth centered and circular so it
-   reads as camera motion rather than a flat fade. */
-@keyframes lobby-zoom-to-white {
-  0%   { clip-path: circle(0% at 50% 50%); opacity: 0.4; }
-  35%  { opacity: 1; }
-  100% { clip-path: circle(150% at 50% 50%); opacity: 1; }
+/* Lobby join/create entrance transition — a full-screen white sheet fades in
+   over the world map (paired with a scale-up "zoom into the world" on the
+   scene behind it, see .world-zoom-transition below), then on the lobby page
+   fades back out while the camera flies in (CameraFlyIn's `flyIn` prop). A
+   plain opacity fade (rather than a shaped wipe) is what keeps every corner
+   of the viewport covered while fully white, not just the world map itself. */
+@keyframes lobby-fade-to-white {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
-@keyframes lobby-pan-out-from-white {
-  0%   { clip-path: circle(150% at 50% 50%); opacity: 1; }
-  100% { clip-path: circle(0% at 50% 50%); opacity: 1; }
+@keyframes lobby-fade-from-white {
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 .lobby-transition-out {
-  animation: lobby-zoom-to-white 550ms ease-in forwards;
+  animation: lobby-fade-to-white 550ms ease-in forwards;
 }
 
 .lobby-transition-in {
-  animation: lobby-pan-out-from-white 700ms ease-out forwards;
+  animation: lobby-fade-from-white 700ms ease-out forwards;
+}
+
+/* Scale-up applied to the world map's Canvas wrapper while lobby-transition-out
+   plays, so the world visibly zooms in as it's swallowed by white. */
+.world-zoom-transition {
+  transition: transform 550ms ease-in;
+  transform: scale(1.35);
 }
 
 @keyframes blink-gold {

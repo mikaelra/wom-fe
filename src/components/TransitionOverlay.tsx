@@ -1,9 +1,10 @@
 'use client';
 
-// Full-screen white overlay used for the "zoom into the world, then into white"
-// (outgoing) and "pan out from white" (incoming) halves of the lobby entrance
-// transition. Both directions animate the same white sheet via CSS clip-path,
-// so the circle's growth/shrink reads as the camera pushing through it.
+// Full-screen white overlay used for the lobby entrance transition: a plain
+// opacity fade (not a shaped wipe) so every corner of the viewport, not just
+// the world map underneath it, ends up solid white. "out" fades the outgoing
+// screen to white (paired with a scale-up "zoom into the world" behind it);
+// "in" fades the lobby screen back in from white as the camera flies in.
 export function TransitionOverlay({
   direction,
   onAnimationEnd,

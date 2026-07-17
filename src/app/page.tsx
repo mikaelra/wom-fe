@@ -175,6 +175,9 @@ export default function Page() {
   // Defer Canvas mount by one paint frame so the UI controls render and become
   // interactive before the WebGL context initialises.
   const [sceneReady, setSceneReady] = useState(false);
+  // Scales up the world map's Canvas as it fades to white on lobby entry --
+  // paired with WorldMapOverlay's TransitionOverlay fade, see globals.css.
+  const [zoomingIntoWorld, setZoomingIntoWorld] = useState(false);
 
   // Athens raid login popup state
   const [showAthensPopup, setShowAthensPopup] = useState(false);
@@ -251,14 +254,16 @@ export default function Page() {
   if (!selectedCity) {
     return (
       <div style={{ width: '100%', height: '100dvh', position: 'relative', overflow: 'hidden', background: '#070b15' }}>
-        <WorldMapOverlay />
+        <WorldMapOverlay onEnterLobbyStart={() => setZoomingIntoWorld(true)} />
         {sceneReady && (
-          <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
-            <WorldMap
-              onCityClick={handleCityClick}
-              athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil, bossName: 'Hades' }}
-            />
-          </Canvas>
+          <div className={zoomingIntoWorld ? 'world-zoom-transition' : ''} style={{ width: '100%', height: '100%' }}>
+            <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
+              <WorldMap
+                onCityClick={handleCityClick}
+                athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil, bossName: 'Hades' }}
+              />
+            </Canvas>
+          </div>
         )}
 
         {/* Athens scene loading overlay */}
