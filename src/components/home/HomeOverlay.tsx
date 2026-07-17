@@ -411,7 +411,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
               type="text"
               placeholder="Lobby code"
               value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toLowerCase())}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
               className="w-40 p-2 rounded-md bg-gray-200 text-gray-800 border-2 border-black focus:outline-none"
             />
             <button
