@@ -544,66 +544,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return () => clearInterval(interval);
   }, [playerName]);
 
-  // ── Debug: preview the instakill reward's kill/block bursts ────────────────
-  // Append `?instakilltest=<roles>` to the lobby URL to loop the instakill fx
-  // onto the scene every 4s, using another seated player (bot or human) as the
-  // "other" character. Roles are comma-separated (default: all four):
-  //   kill    — green burst + red aura on the other player (you killed them)
-  //   victim  — green burst + red aura on you (you were insta-killed)
-  //   blocked — shield + blue burst on the other player (your instakill got blocked)
-  //   block   — shield + blue burst on you (you blocked an incoming instakill)
-  // e.g. ?instakilltest=kill   ?instakilltest=block,blocked
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const raw = new URLSearchParams(window.location.search).get('instakilltest');
-    if (raw == null) return;
-    const roles = raw.split(',').map((p) => p.trim()).filter(Boolean);
-    if (!roles.length) roles.push('kill', 'victim', 'blocked', 'block');
-
-    const SHIELD_OFFSET = 0.8;
-    const SHIELD_HOLD_MS = 1400;
-
-    const fire = () => {
-      const myPos = posMapRef.current.get(playerName);
-      if (!myPos) return;
-      // Borrow another seat as the "other" character; fall back to an offset spot.
-      const otherEntry = Array.from(posMapRef.current.entries()).find(([n]) => n !== playerName);
-      const otherPos: [number, number, number] = otherEntry?.[1] ?? [myPos[0] + 2.2, myPos[1], myPos[2]];
-      const stamp = Date.now();
-      let seq = 0;
-
-      const spawnFlash = (pos: [number, number, number]) => {
-        const id = `instakill-flash-dbg-${stamp}-${seq++}`;
-        setHitFlashEvents((s) => [...s, { id, position: pos, instakill: true }]);
-        setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== id)), 650);
-      };
-      const spawnShield = (fromRaw: [number, number, number], toRaw: [number, number, number]) => {
-        const id = `instakill-shield-dbg-${stamp}-${seq++}`;
-        const fromPos: [number, number, number]   = [fromRaw[0], fromRaw[1] + 0.3, fromRaw[2]];
-        const baseToPos: [number, number, number] = [toRaw[0],   toRaw[1]   + 0.3, toRaw[2]];
-        const dx = fromPos[0] - baseToPos[0];
-        const dz = fromPos[2] - baseToPos[2];
-        const len = Math.sqrt(dx * dx + dz * dz);
-        const pos: [number, number, number] = len > 0
-          ? [baseToPos[0] + (dx / len) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / len) * SHIELD_OFFSET]
-          : baseToPos;
-        const rotY = Math.atan2(dx, dz);
-        setImpactShields((s) => [...s, { id, pos, rotY, instakill: true }]);
-        setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== id)), SHIELD_HOLD_MS);
-      };
-
-      for (const role of roles) {
-        if (role === 'kill') spawnFlash(otherPos);
-        else if (role === 'victim') spawnFlash(myPos);
-        else if (role === 'blocked') spawnShield(myPos, otherPos);
-        else if (role === 'block') spawnShield(otherPos, myPos);
-      }
-    };
-    fire();
-    const interval = setInterval(fire, 4000);
-    return () => clearInterval(interval);
-  }, [playerName]);
-
   // Build a map of sender → latest message text if it's within CHAT_BUBBLE_DURATION_MS.
   // bubbleTick forces a re-evaluation when the next bubble expires — previously
   // bubbles lingered until some unrelated state update happened to re-render.
@@ -865,9 +805,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             {s.instakill && (
               <InstakillBurstEffect
                 position={[
-                  s.pos[0] + Math.sin(s.rotY) * 0.4,
-                  s.pos[1] + 0.4,
-                  s.pos[2] + Math.cos(s.rotY) * 0.4,
+                  s.pos[0] + Math.sin(s.rotY) * 0.15,
+                  s.pos[1],
+                  s.pos[2] + Math.cos(s.rotY) * 0.15,
                 ]}
                 color={INSTAKILL_BLOCK_COLOR}
               />
