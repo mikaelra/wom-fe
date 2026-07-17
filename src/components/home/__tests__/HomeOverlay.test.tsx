@@ -117,7 +117,7 @@ describe('HomeOverlay', () => {
     render(<HomeOverlay />);
 
     fireEvent.change(screen.getByPlaceholderText('Enter your name'), { target: { value: 'Alice' } });
-    fireEvent.change(screen.getByPlaceholderText('Lobby code'), { target: { value: 'zzzz' } });
+    fireEvent.change(screen.getByPlaceholderText('Lobby code'), { target: { value: 'ZZZZ' } });
     await act(async () => {
       fireEvent.click(screen.getByText('Join'));
       await flush();
@@ -129,9 +129,9 @@ describe('HomeOverlay', () => {
       await flush();
     });
 
-    expect(mockedJoinLobby).toHaveBeenCalledWith('zzzz', 'Alice', 'alice@example.com');
+    expect(mockedJoinLobby).toHaveBeenCalledWith('ZZZZ', 'Alice', 'alice@example.com');
     expect(mockedCreateLobby).not.toHaveBeenCalled();
-    expect(push).toHaveBeenCalledWith('/lobby/zzzz');
+    expect(push).toHaveBeenCalledWith('/lobby/ZZZZ');
   });
 
   it('shows the code step when requires_code is true, and completes on a correct code', async () => {

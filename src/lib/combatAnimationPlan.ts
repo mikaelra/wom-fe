@@ -19,11 +19,16 @@ export type StrikeEvent = {
   bounceFlashPos?: [number, number, number];
   // For incoming strikes: HP-card feedback to emit at the impact moment.
   incomingFx?: HpFxEvent;
+  // True when this strike's outcome was 'instakill'/'instakill_blocked' — adds
+  // the instakill reward's green (kill) or blue (blocked) burst on top of the
+  // normal hit/shield effects.
+  instakill?: boolean;
 };
 
 export type HitFlashEvent = {
   id: string;
   position: [number, number, number];
+  instakill?: boolean;
 };
 
 export type WellRewardEvent = {
@@ -78,6 +83,9 @@ export type ImpactShield = {
   id:   string;
   pos:  [number, number, number];
   rotY: number;
+  // True when the blocked attack was an instakill — adds the reward's blue
+  // burst in front of the shield.
+  instakill?: boolean;
 };
 
 // Build the per-instance reward animations for a won well result. A result can
@@ -250,6 +258,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       const tgtDefended = outcome === 'blocked' || outcome === 'reflected' || outcome === 'instakill_blocked';
       const tgtHit      = outcome === 'hit' || outcome === 'instakill';
       const reflected   = outcome === 'reflected';
+      const isInstakill = outcome === 'instakill' || outcome === 'instakill_blocked';
 
       const fromPos: [number, number, number]    = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
       const baseToPos: [number, number, number]  = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
@@ -271,6 +280,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
         postImpact:     tgtDefended ? (reflected ? 'bounce' : 'stop') : 'retreat',
         flashPosition:  tgtHit    ? tgtPos : undefined,
         bounceFlashPos: reflected ? myPos  : undefined,
+        instakill:      isInstakill,
       };
       batches.push({ delayMs: 0, actions: [{ type: 'addStrike', strike }] });
 
@@ -331,6 +341,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
 
       const isDefended   = inc.outcome === 'blocked' || inc.outcome === 'reflected_back' || inc.outcome === 'instakill_blocked';
       const atkReflected = inc.outcome === 'reflected_back';
+      const isInstakill  = inc.outcome === 'instakill' || inc.outcome === 'instakill_blocked';
       const incomingFx: HpFxEvent = isDefended
         ? { kind: 'block' }
         : inc.outcome === 'instakill'
@@ -357,6 +368,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
         flashPosition:  !isDefended         ? myPos  : undefined,
         bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
         incomingFx,
+        instakill:      isInstakill,
       };
 
       const ONE_ANIM_MS = isDefended ? ONE_DEF_MS : ONE_HIT_MS;
@@ -382,7 +394,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
         shieldId  = `def-shield-${strike.id}`;
         shieldDur = ONE_DEF_MS + 350;
         const rotY = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
-        strikeActions.push({ type: 'addImpactShield', shield: { id: shieldId, pos: toPos, rotY } });
+        strikeActions.push({ type: 'addImpactShield', shield: { id: shieldId, pos: toPos, rotY, instakill: isInstakill } });
       }
       batches.push({ delayMs: delay, actions: strikeActions });
       if (shieldId) {

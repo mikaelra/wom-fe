@@ -15,6 +15,7 @@ import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight } from '@/components/lobby/WellGlowEffect';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
+import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
 import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket } from '@/lib/socket';
@@ -771,14 +772,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               if (ev.targetDefended && !ev.isIncoming) {
                 const rotY = Math.atan2(ev.fromPos[0] - ev.toPos[0], ev.fromPos[2] - ev.toPos[2]);
                 const sid  = `shield-${ev.id}`;
-                setImpactShields((s) => [...s, { id: sid, pos: ev.toPos, rotY }]);
+                setImpactShields((s) => [...s, { id: sid, pos: ev.toPos, rotY, instakill: ev.instakill }]);
                 const postDurSec = ev.postImpact === 'bounce' ? BOUNCE_DUR : 0;
                 const holdMs = (HOLD_DUR + postDurSec) * 1000 + 200;
                 setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), holdMs);
               }
               if (ev.flashPosition) {
                 const fid = `fl-sword-${ev.id}`;
-                setHitFlashEvents((s) => [...s, { id: fid, position: ev.flashPosition! }]);
+                setHitFlashEvents((s) => [...s, { id: fid, position: ev.flashPosition!, instakill: ev.instakill }]);
                 setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
               }
               // Signal the HP card to react at the exact impact moment (drop +
@@ -799,7 +800,19 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         ))}
 
         {impactShields.map((s) => (
-          <ShieldEffect key={s.id} localSpace={false} worldPosition={s.pos} worldRotationY={s.rotY} />
+          <group key={s.id}>
+            <ShieldEffect localSpace={false} worldPosition={s.pos} worldRotationY={s.rotY} />
+            {s.instakill && (
+              <InstakillBurstEffect
+                position={[
+                  s.pos[0] + Math.sin(s.rotY) * 0.15,
+                  s.pos[1],
+                  s.pos[2] + Math.cos(s.rotY) * 0.15,
+                ]}
+                color={INSTAKILL_BLOCK_COLOR}
+              />
+            )}
+          </group>
         ))}
 
         {/* Well rewards arching out of the well onto the winner */}
@@ -833,7 +846,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       {/* Red aura — pure geometry, no model; renders immediately */}
       {hitFlashEvents.map((f) => (
-        <AuraFlash key={f.id} position={f.position} />
+        <group key={f.id}>
+          <AuraFlash position={f.position} />
+          {f.instakill && (
+            <InstakillBurstEffect
+              position={[f.position[0], f.position[1] + 0.45, f.position[2]]}
+              color={INSTAKILL_KILL_COLOR}
+            />
+          )}
+        </group>
       ))}
 
       {/* Fiery red glow under a character when a kill is made (ATK surge) */}
