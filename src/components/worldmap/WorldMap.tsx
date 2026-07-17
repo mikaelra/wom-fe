@@ -29,6 +29,12 @@ export function gmstHours(date: Date): number {
   return Astronomy.SiderealTime(date);
 }
 
+// Computed once at module load — GMST drifts slowly enough (~0.004°/s) that
+// a load-time snapshot stays in sync with the sky for the entire session.
+// Shared by the Globe's texture rotation and CameraRig's Athens-facing
+// direction so both agree on where Athens actually sits in world space.
+const EARTH_ROTATION_Y = Math.PI + gmstHours(new Date()) * (Math.PI / 12);
+
 // Retrograde = geocentric ecliptic longitude moving westward (decreasing) over
 // time. Sample two points one hour apart and check the sign of Δlongitude,
 // unwrapping the 0/360° seam.
@@ -857,7 +863,7 @@ function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
 
   const geo = useMemo(() => new THREE.IcosahedronGeometry(GLOBE_RADIUS, 12), []);
 
-  const earthRot = useMemo(() => Math.PI + gmstHours(new Date()) * (Math.PI / 12), []);
+  const earthRot = EARTH_ROTATION_Y;
 
   useFrame(() => { if (cloudsRef.current) cloudsRef.current.rotation.y += 0.000075; });
 
@@ -903,32 +909,151 @@ function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
 // The camera starts at the anti-solar point — the Sun is always on the
 // ecliptic, so its opposite direction is too. At r=13 with the Sun at r=46
 // in the same direction, the Sun is hidden behind the Earth and peeks out as
-// the camera begins its slow 360° pan.
+// the ambient auto-rotate carries the camera around.
 // Sky drift: planets, stars, and ecliptic all rotate their groups by this
 // delta every frame. The camera must apply the same rotation so it stays
 // locked to the ecliptic plane as the sky drifts.
 const _driftQ   = new THREE.Quaternion();
 const _yAxis    = new THREE.Vector3(0, 1, 0);
 
-function CameraRig() {
+const CAMERA_RADIUS = 13;
+// If the ambient auto-rotate hasn't carried Athens into view within this
+// window, a corrective pan kicks in.
+const SHOW_CHECK_SECONDS = 5;
+const CATCHUP_SECONDS = 5;
+// "Roughly centred" cone half-angle used to decide whether the ambient
+// auto-rotate has already brought Athens into view.
+const SHOWN_ANGLE_THRESHOLD = 35 * RAD;
+// The catch-up pan lands with Athens a smidge left of dead-centre rather
+// than exactly on it — see the sign derivation in CameraRig below.
+const CATCHUP_LEFT_BIAS = 12 * RAD;
+
+// Athens' world-space direction from the globe centre, on the same Y
+// rotation the Globe applies to its texture — so a camera positioned along
+// this same ray, looking at the origin, has Athens dead-centre in frame.
+const ATHENS_DIR = (() => {
+  const athens = CITIES.find((c) => c.name === 'Athens')!;
+  const [x, y, z] = latLngToVec3(athens.lat, athens.lng, 1);
+  return new THREE.Vector3(x, y, z).applyAxisAngle(_yAxis, EARTH_ROTATION_Y).normalize();
+})();
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
+}
+
+// Shortest signed angular delta from a to b, in (-π, π].
+function angleDelta(a: number, b: number): number {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
+// Right-handed basis spanning the plane ⊥ up (e1×e2 = up), used to read and
+// set azimuth around an arbitrary orbit pole.
+function orbitBasis(up: THREE.Vector3) {
+  const ref = Math.abs(up.y) < 0.99 ? _yAxis : new THREE.Vector3(1, 0, 0);
+  const e1 = new THREE.Vector3().crossVectors(ref, up).normalize();
+  const e2 = new THREE.Vector3().crossVectors(up, e1).normalize();
+  return { e1, e2 };
+}
+
+function azimuthOf(v: THREE.Vector3, up: THREE.Vector3, e1: THREE.Vector3, e2: THREE.Vector3): number {
+  const perp = v.clone().addScaledVector(up, -v.dot(up));
+  return Math.atan2(perp.dot(e2), perp.dot(e1));
+}
+
+// Camera behaviour: the ambient auto-rotate (owned by OrbitControls) runs
+// from the very first frame. We just watch whether Athens comes into view
+// on its own within SHOW_CHECK_SECONDS. If it doesn't, we take over for a
+// corrective pan that stays on the *same orbit ring* — same radius, same
+// elevation off the orbit pole, only the azimuth changes — turning until
+// Athens lands a smidge left of dead-centre. That's different from a
+// straight-line slerp between two arbitrary directions, which would also
+// drag the camera's elevation around and cut across the sky at an angle
+// unrelated to the ring the ambient orbit runs on.
+function CameraRig({
+  onCatchupStart,
+  onCatchupEnd,
+}: {
+  onCatchupStart?: () => void;
+  onCatchupEnd?: () => void;
+}) {
   const { camera } = useThree();
   const initialized = useRef(false);
-  useFrame(() => {
+  const shown = useRef(false);
+  const elapsed = useRef(0);
+
+  const catchingUp = useRef(false);
+  const catchupElapsed = useRef(0);
+  const catchupUp = useRef(new THREE.Vector3());
+  const catchupE1 = useRef(new THREE.Vector3());
+  const catchupE2 = useRef(new THREE.Vector3());
+  const catchupUComp = useRef(0);
+  const catchupPerpLen = useRef(0);
+  const catchupStartAz = useRef(0);
+  const catchupTargetAz = useRef(0);
+
+  useFrame((_, delta) => {
     if (!initialized.current) {
       const sunEq = Astronomy.Equator(Astronomy.Body.Sun, new Date(), OBSERVER, false, true);
       const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1).normalize();
-      camera.position.copy(sunDir.multiplyScalar(-13));
+      camera.position.copy(sunDir).multiplyScalar(-CAMERA_RADIUS);
       camera.up.copy(ECLIPTIC_POLE);
       camera.lookAt(0, 0, 0);
       initialized.current = true;
       return;
     }
 
-    // Apply the same Y drift as the planet/ecliptic groups so the camera
-    // stays in the ecliptic plane and orbits around the correct pole.
+    if (catchingUp.current) {
+      catchupElapsed.current += delta;
+      const t = Math.min(catchupElapsed.current / CATCHUP_SECONDS, 1);
+      const az = catchupStartAz.current
+        + angleDelta(catchupStartAz.current, catchupTargetAz.current) * easeInOutCubic(t);
+      const up = catchupUp.current, e1 = catchupE1.current, e2 = catchupE2.current;
+      camera.position
+        .copy(e1).multiplyScalar(Math.cos(az) * catchupPerpLen.current)
+        .addScaledVector(e2, Math.sin(az) * catchupPerpLen.current)
+        .addScaledVector(up, catchupUComp.current);
+      camera.up.copy(up);
+      camera.lookAt(0, 0, 0);
+      if (t >= 1) {
+        catchingUp.current = false;
+        shown.current = true; // don't retrigger — we just brought it into view
+        onCatchupEnd?.();
+      }
+      return;
+    }
+
+    // Ambient phase: OrbitControls owns azimuth/autoRotate (and user drag).
+    // We only add the slow sky-drift shared with the planet/ecliptic groups,
+    // and watch for whether Athens has drifted into view on its own.
     _driftQ.setFromAxisAngle(_yAxis, SKY_DRIFT);
     camera.position.applyQuaternion(_driftQ);
     camera.up.applyQuaternion(_driftQ).normalize();
+
+    if (!shown.current) {
+      elapsed.current += delta;
+      if (camera.position.angleTo(ATHENS_DIR) < SHOWN_ANGLE_THRESHOLD) {
+        shown.current = true;
+      } else if (elapsed.current >= SHOW_CHECK_SECONDS) {
+        const up = camera.up.clone();
+        const { e1, e2 } = orbitBasis(up);
+        const uComp = camera.position.dot(up);
+        const perp = camera.position.clone().addScaledVector(up, -uComp);
+
+        catchupUp.current.copy(up);
+        catchupE1.current.copy(e1);
+        catchupE2.current.copy(e2);
+        catchupUComp.current = uComp;
+        catchupPerpLen.current = perp.length();
+        catchupStartAz.current = Math.atan2(perp.dot(e2), perp.dot(e1));
+        catchupTargetAz.current = azimuthOf(ATHENS_DIR, up, e1, e2) + CATCHUP_LEFT_BIAS;
+        catchupElapsed.current = 0;
+        catchingUp.current = true;
+        onCatchupStart?.();
+      }
+    }
   });
   return null;
 }
@@ -956,6 +1081,9 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
   const [globeReady, setGlobeReady] = useState(false);
+  // True only while the corrective pan to Athens is running; gates
+  // OrbitControls so user input/autoRotate can't fight it mid-turn.
+  const [catchingUp, setCatchingUp] = useState(false);
 
   // Phase 1: mount the Globe immediately.
   useEffect(() => { setPhase(1); }, []);
@@ -978,7 +1106,10 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
 
   return (
     <>
-      <CameraRig />
+      <CameraRig
+        onCatchupStart={() => setCatchingUp(true)}
+        onCatchupEnd={() => setCatchingUp(false)}
+      />
       <color attach="background" args={['#070b15']} />
       {/* Raised from 0.05 so the dark side of the globe stays readable */}
       <ambientLight intensity={0.12} />
@@ -1013,11 +1144,12 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
 
       <OrbitControls
         makeDefault
+        enabled={!catchingUp}
         enablePan={false}
         enableZoom
         minDistance={4}
         maxDistance={18}
-        autoRotate
+        autoRotate={!catchingUp}
         autoRotateSpeed={0.4}
         maxPolarAngle={Math.PI * 0.80}
         minPolarAngle={Math.PI * 0.10}
