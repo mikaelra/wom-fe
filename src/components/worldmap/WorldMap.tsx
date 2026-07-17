@@ -29,6 +29,12 @@ export function gmstHours(date: Date): number {
   return Astronomy.SiderealTime(date);
 }
 
+// Computed once at module load — GMST drifts slowly enough (~0.004°/s) that
+// a load-time snapshot stays in sync with the sky for the entire session.
+// Shared by the Globe's texture rotation and CameraRig's Athens-facing
+// direction so both agree on where Athens actually sits in world space.
+const EARTH_ROTATION_Y = Math.PI + gmstHours(new Date()) * (Math.PI / 12);
+
 // Retrograde = geocentric ecliptic longitude moving westward (decreasing) over
 // time. Sample two points one hour apart and check the sign of Δlongitude,
 // unwrapping the 0/360° seam.
@@ -857,7 +863,7 @@ function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
 
   const geo = useMemo(() => new THREE.IcosahedronGeometry(GLOBE_RADIUS, 12), []);
 
-  const earthRot = useMemo(() => Math.PI + gmstHours(new Date()) * (Math.PI / 12), []);
+  const earthRot = EARTH_ROTATION_Y;
 
   useFrame(() => { if (cloudsRef.current) cloudsRef.current.rotation.y += 0.000075; });
 
@@ -903,24 +909,61 @@ function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
 // The camera starts at the anti-solar point — the Sun is always on the
 // ecliptic, so its opposite direction is too. At r=13 with the Sun at r=46
 // in the same direction, the Sun is hidden behind the Earth and peeks out as
-// the camera begins its slow 360° pan.
+// the camera swings toward Athens, then begins its slow 360° pan.
 // Sky drift: planets, stars, and ecliptic all rotate their groups by this
 // delta every frame. The camera must apply the same rotation so it stays
 // locked to the ecliptic plane as the sky drifts.
 const _driftQ   = new THREE.Quaternion();
 const _yAxis    = new THREE.Vector3(0, 1, 0);
 
-function CameraRig() {
+const CAMERA_RADIUS = 13;
+const INTRO_PAN_SECONDS = 5;
+
+// Athens' world-space direction from the globe centre, on the same Y
+// rotation the Globe applies to its texture — so the camera ends the intro
+// pan looking straight down the line from itself through the origin to the
+// sword marker, putting Athens dead-centre in frame.
+const ATHENS_DIR = (() => {
+  const athens = CITIES.find((c) => c.name === 'Athens')!;
+  const [x, y, z] = latLngToVec3(athens.lat, athens.lng, 1);
+  return new THREE.Vector3(x, y, z).applyAxisAngle(_yAxis, EARTH_ROTATION_Y).normalize();
+})();
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
+}
+
+function CameraRig({ onIntroPanEnd }: { onIntroPanEnd?: () => void }) {
   const { camera } = useThree();
   const initialized = useRef(false);
-  useFrame(() => {
+  const introDone = useRef(false);
+  const introElapsed = useRef(0);
+  const startDir = useRef(new THREE.Vector3());
+  const panRotation = useRef(new THREE.Quaternion());
+
+  useFrame((_, delta) => {
     if (!initialized.current) {
       const sunEq = Astronomy.Equator(Astronomy.Body.Sun, new Date(), OBSERVER, false, true);
       const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1).normalize();
-      camera.position.copy(sunDir.multiplyScalar(-13));
+      startDir.current.copy(sunDir).multiplyScalar(-1);
+      panRotation.current.setFromUnitVectors(startDir.current, ATHENS_DIR);
+      camera.position.copy(startDir.current).multiplyScalar(CAMERA_RADIUS);
       camera.up.copy(ECLIPTIC_POLE);
       camera.lookAt(0, 0, 0);
       initialized.current = true;
+      return;
+    }
+
+    if (!introDone.current) {
+      introElapsed.current += delta;
+      const t = Math.min(introElapsed.current / INTRO_PAN_SECONDS, 1);
+      const q = new THREE.Quaternion().identity().slerp(panRotation.current, easeInOutCubic(t));
+      camera.position.copy(startDir.current).applyQuaternion(q).multiplyScalar(CAMERA_RADIUS);
+      camera.lookAt(0, 0, 0);
+      if (t >= 1) {
+        introDone.current = true;
+        onIntroPanEnd?.();
+      }
       return;
     }
 
@@ -956,6 +999,9 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
   const [globeReady, setGlobeReady] = useState(false);
+  // True until the 5s intro pan to Athens finishes; gates OrbitControls so
+  // user input/autoRotate can't fight the scripted pan.
+  const [introPanning, setIntroPanning] = useState(true);
 
   // Phase 1: mount the Globe immediately.
   useEffect(() => { setPhase(1); }, []);
@@ -978,7 +1024,7 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
 
   return (
     <>
-      <CameraRig />
+      <CameraRig onIntroPanEnd={() => setIntroPanning(false)} />
       <color attach="background" args={['#070b15']} />
       {/* Raised from 0.05 so the dark side of the globe stays readable */}
       <ambientLight intensity={0.12} />
@@ -1013,11 +1059,12 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
 
       <OrbitControls
         makeDefault
+        enabled={!introPanning}
         enablePan={false}
         enableZoom
         minDistance={4}
         maxDistance={18}
-        autoRotate
+        autoRotate={!introPanning}
         autoRotateSpeed={0.4}
         maxPolarAngle={Math.PI * 0.80}
         minPolarAngle={Math.PI * 0.10}
