@@ -82,7 +82,7 @@ describe('WorldMapOverlay', () => {
     mockedJoinLobby.mockResolvedValue(undefined);
     render(<WorldMapOverlay />);
 
-    fireEvent.change(screen.getByPlaceholderText('Enter lobby code...'), { target: { value: 'zzzz' } });
+    fireEvent.change(screen.getByPlaceholderText('Enter lobby code...'), { target: { value: 'ZZZZ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Join lobby' }));
     expect(screen.getByText('Choose a name')).toBeInTheDocument();
 
@@ -94,9 +94,9 @@ describe('WorldMapOverlay', () => {
       await flush();
     });
 
-    expect(mockedJoinLobby).toHaveBeenCalledWith('zzzz', 'Alice', '');
+    expect(mockedJoinLobby).toHaveBeenCalledWith('ZZZZ', 'Alice', '');
     expect(mockedCreateLobby).not.toHaveBeenCalled();
-    expect(push).toHaveBeenCalledWith('/lobby/zzzz');
+    expect(push).toHaveBeenCalledWith('/lobby/ZZZZ');
   });
 
   it('shows the email step for a claimed name, and completes the pending create (not join)', async () => {
@@ -137,7 +137,7 @@ describe('WorldMapOverlay', () => {
     mockedJoinLobby.mockResolvedValue(undefined);
     render(<WorldMapOverlay />);
 
-    fireEvent.change(screen.getByPlaceholderText('Enter lobby code...'), { target: { value: 'zzzz' } });
+    fireEvent.change(screen.getByPlaceholderText('Enter lobby code...'), { target: { value: 'ZZZZ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Join lobby' }));
     fireEvent.change(within(namePopup()).getByPlaceholderText('Your battle name'), {
       target: { value: 'Alice' },
@@ -153,9 +153,9 @@ describe('WorldMapOverlay', () => {
       await flush();
     });
 
-    expect(mockedJoinLobby).toHaveBeenCalledWith('zzzz', 'Alice', 'alice@example.com');
+    expect(mockedJoinLobby).toHaveBeenCalledWith('ZZZZ', 'Alice', 'alice@example.com');
     expect(mockedCreateLobby).not.toHaveBeenCalled();
-    expect(push).toHaveBeenCalledWith('/lobby/zzzz');
+    expect(push).toHaveBeenCalledWith('/lobby/ZZZZ');
   });
 
   it('shows the code step when requires_code is true, and completes on a correct code', async () => {
