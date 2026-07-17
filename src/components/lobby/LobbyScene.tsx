@@ -111,9 +111,11 @@ type LobbySceneProps = {
   /** Welcome-tour highlights, lifted to the page so the overlay can glow the
    *  resource cards too. The 3D scene uses it for attack/defend/well. */
   guideHighlight?: GuideHighlights;
+  /** Start the camera pulled back and ease it in, for the join/create entrance transition. */
+  flyIn?: boolean;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {} }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {}, flyIn = false }: LobbySceneProps) {
   // Countdown warning level for the action buttons. We deliberately do NOT
   // store the remaining seconds here — that re-rendered the whole scene every
   // second. The level only changes twice per round ('' → gold → red), and
@@ -600,7 +602,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   return (
     <>
-      <CameraFlyIn />
+      <CameraFlyIn flyIn={flyIn} />
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 10]} intensity={1.2} />
 

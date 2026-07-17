@@ -9,6 +9,11 @@ import type { Relic } from '@/types/game';
 import RopedButton from '@/components/hud/RopedButton';
 import RopedInput from '@/components/hud/RopedInput';
 import { useToast } from '@/components/Toast';
+import { TransitionOverlay } from '@/components/TransitionOverlay';
+import { markLobbyEntranceTransition } from '@/lib/lobbyTransition';
+
+// Matches the .lobby-transition-out animation-duration in globals.css.
+const TRANSITION_OUT_MS = 550;
 
 export default function WorldMapOverlay() {
   const router = useRouter();
@@ -21,6 +26,8 @@ export default function WorldMapOverlay() {
   const [loadingAction, setLoadingAction] = useState<'join' | 'create' | null>(null);
   const [showNamePopup, setShowNamePopup] = useState(false);
   const [pendingAction, setPendingAction] = useState<'join' | 'create' | null>(null);
+
+  const [enteringLobby, setEnteringLobby] = useState<string | null>(null);
 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showRelics, setShowRelics] = useState(false);
@@ -73,6 +80,17 @@ export default function WorldMapOverlay() {
     }
   };
 
+  // Plays the "zoom into white" overlay, then hands off to the lobby page's
+  // matching "pan out from white" entrance via markLobbyEntranceTransition
+  // before navigating, so the two animations read as one continuous camera move.
+  const enterLobby = (lobbyId: string) => {
+    setEnteringLobby(lobbyId);
+    setTimeout(() => {
+      markLobbyEntranceTransition();
+      router.push(`/lobby/${lobbyId}`);
+    }, TRANSITION_OUT_MS);
+  };
+
   const doJoin = async (name: string) => {
     const code = joinCode.trim();
     if (!code) return;
@@ -82,7 +100,7 @@ export default function WorldMapOverlay() {
     try {
       await joinLobby(code, name, email);
       if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
-      router.push(`/lobby/${code}`);
+      enterLobby(code);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Join failed');
       setLobbyLoading(false);
@@ -97,7 +115,7 @@ export default function WorldMapOverlay() {
     try {
       const data = await createLobby(name, email);
       if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
-      router.push(`/lobby/${data.lobby_id}`);
+      enterLobby(data.lobby_id);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Create lobby failed');
       setLobbyLoading(false);
@@ -156,6 +174,8 @@ export default function WorldMapOverlay() {
 
   return (
     <>
+      {enteringLobby && <TransitionOverlay direction="out" />}
+
       {/* Top bar */}
       <div
         className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-end gap-2 px-3 py-2 pointer-events-none"

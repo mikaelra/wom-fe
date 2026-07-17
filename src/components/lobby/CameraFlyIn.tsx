@@ -14,14 +14,31 @@ const camTarget = new THREE.Vector3();
 const camArm    = new THREE.Vector3();
 const camRight  = new THREE.Vector3();
 
+// How far out (as a multiple of the normal target distance from the look-at
+// point) the camera starts when `flyIn` is set, e.g. arriving via the lobby
+// entrance transition. The lerp below eases it back in over ~1s.
+const FLY_IN_DISTANCE_MULTIPLIER = 2.4;
+
 // Camera controller — snaps to target immediately on mount so Html buttons appear in the
 // correct screen position before any models load, then tracks resize / pan smoothly.
-export default function CameraFlyIn() {
+// When `flyIn` is true, it instead starts pulled back from the target and eases in,
+// for the lobby entrance transition (paired with the join/create "zoom to white" overlay).
+export default function CameraFlyIn({ flyIn = false }: { flyIn?: boolean }) {
   const { camera, size } = useThree();
   // Start at the target position (not the Canvas default [33,26,33]) so there is no fly-in
   // delay and Html elements are projected correctly on the very first frame.
   const [tx, ty, tz] = getCameraTargetPosition(size.width, size.height);
-  const currentPosition = useRef(new THREE.Vector3(tx, ty, tz));
+  const initialPosition = useRef<THREE.Vector3 | null>(null);
+  if (initialPosition.current === null) {
+    const target = new THREE.Vector3(tx, ty, tz);
+    if (flyIn) {
+      const arm = target.clone().sub(LOBBY_LOOKAT).multiplyScalar(FLY_IN_DISTANCE_MULTIPLIER);
+      initialPosition.current = LOBBY_LOOKAT.clone().add(arm);
+    } else {
+      initialPosition.current = target;
+    }
+  }
+  const currentPosition = useRef(initialPosition.current.clone());
   const panOffset = usePanOffset();
 
   useFrame((_, delta) => {

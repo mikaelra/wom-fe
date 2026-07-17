@@ -24,6 +24,9 @@ const mockedCreateLobby = vi.mocked(createLobby);
 const mockedJoinLobby = vi.mocked(joinLobby);
 
 const flush = () => act(async () => Promise.resolve());
+// The lobby-entrance transition delays router.push until the "zoom to white"
+// overlay animation finishes (TRANSITION_OUT_MS in WorldMapOverlay).
+const flushTransition = () => act(async () => new Promise((r) => setTimeout(r, 600)));
 
 // The popup's own "Log in" button (email step) and the top bar's "Log in"
 // button (rendered whenever logged out) have the same accessible name, so
@@ -73,6 +76,7 @@ describe('WorldMapOverlay', () => {
     expect(mockedCheckName).toHaveBeenCalledWith('Alice');
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', '');
     expect(localStorage.getItem('playerName')).toBe('Alice');
+    await flushTransition();
     expect(push).toHaveBeenCalledWith('/lobby/AAAA');
     expect(screen.queryByText('Choose a name')).not.toBeInTheDocument();
   });
@@ -96,6 +100,7 @@ describe('WorldMapOverlay', () => {
 
     expect(mockedJoinLobby).toHaveBeenCalledWith('zzzz', 'Alice', '');
     expect(mockedCreateLobby).not.toHaveBeenCalled();
+    await flushTransition();
     expect(push).toHaveBeenCalledWith('/lobby/zzzz');
   });
 
@@ -128,6 +133,7 @@ describe('WorldMapOverlay', () => {
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', 'alice@example.com');
     expect(mockedJoinLobby).not.toHaveBeenCalled();
     expect(localStorage.getItem('playerEmail')).toBe('alice@example.com');
+    await flushTransition();
     expect(push).toHaveBeenCalledWith('/lobby/BBBB');
   });
 
@@ -155,6 +161,7 @@ describe('WorldMapOverlay', () => {
 
     expect(mockedJoinLobby).toHaveBeenCalledWith('zzzz', 'Alice', 'alice@example.com');
     expect(mockedCreateLobby).not.toHaveBeenCalled();
+    await flushTransition();
     expect(push).toHaveBeenCalledWith('/lobby/zzzz');
   });
 
@@ -198,6 +205,7 @@ describe('WorldMapOverlay', () => {
 
     expect(mockedVerifyLoginCode).toHaveBeenCalledWith('Alice', '123456');
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', 'alice@example.com');
+    await flushTransition();
     expect(push).toHaveBeenCalledWith('/lobby/CCCC');
   });
 
@@ -214,6 +222,7 @@ describe('WorldMapOverlay', () => {
     expect(mockedCheckName).not.toHaveBeenCalled();
     expect(screen.queryByText('Choose a name')).not.toBeInTheDocument();
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', '');
+    await flushTransition();
     expect(push).toHaveBeenCalledWith('/lobby/DDDD');
   });
 

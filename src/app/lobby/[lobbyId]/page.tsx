@@ -6,6 +6,8 @@ import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import LobbyOverlay from '@/components/lobby/LobbyOverlay';
 import InGameGuide from '@/components/lobby/InGameGuide';
+import { TransitionOverlay } from '@/components/TransitionOverlay';
+import { consumeLobbyEntranceTransition } from '@/lib/lobbyTransition';
 import { BASE_FOV } from '@/lib/sceneConstants';
 import { joinLobby } from '@/lib/api';
 import { getSocket, subscribe } from '@/lib/socket';
@@ -29,6 +31,19 @@ export default function LobbyPage() {
 
   const hasAutoJoined = useRef(false);
   const [hasJoined, setHasJoined] = useState(false);
+
+  // Set once on mount if arriving via the world map's create/join "zoom to
+  // white" overlay — pairs with CameraFlyIn's pulled-back start position.
+  // The Canvas/LobbyScene subtree is client-only (dynamic ssr:false) so it's
+  // safe to read sessionStorage into its `flyIn` prop synchronously, but the
+  // overlay div below renders directly in this SSR'd page — its first paint
+  // must match the server's (always false) to avoid a hydration mismatch, so
+  // it only flips on after mount.
+  const [flyIn] = useState(() => consumeLobbyEntranceTransition());
+  const [showEntranceOverlay, setShowEntranceOverlay] = useState(false);
+  useEffect(() => {
+    if (flyIn) setShowEntranceOverlay(true);
+  }, [flyIn]);
 
   // Join form state (used when not logged in)
   const [previewState, setPreviewState] = useState<LobbyState | null>(null);
@@ -128,8 +143,13 @@ export default function LobbyPage() {
           onAttackSelect={handleAttackSelect}
           onActionChange={setSharedAction}
           guideHighlight={guideHighlight}
+          flyIn={flyIn}
         />
       </Canvas>
+
+      {showEntranceOverlay && (
+        <TransitionOverlay direction="in" onAnimationEnd={() => setShowEntranceOverlay(false)} />
+      )}
 
       {playerName && hasJoined && (
         <>

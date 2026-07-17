@@ -25,6 +25,30 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Lobby join/create entrance transition — a white circle that grows to
+   cover the screen (leaving the world map / expanding "into" white), then
+   on the lobby page shrinks back away (panning "out of" white into the
+   lobby scene). clip-path keeps the growth centered and circular so it
+   reads as camera motion rather than a flat fade. */
+@keyframes lobby-zoom-to-white {
+  0%   { clip-path: circle(0% at 50% 50%); opacity: 0.4; }
+  35%  { opacity: 1; }
+  100% { clip-path: circle(150% at 50% 50%); opacity: 1; }
+}
+
+@keyframes lobby-pan-out-from-white {
+  0%   { clip-path: circle(150% at 50% 50%); opacity: 1; }
+  100% { clip-path: circle(0% at 50% 50%); opacity: 1; }
+}
+
+.lobby-transition-out {
+  animation: lobby-zoom-to-white 550ms ease-in forwards;
+}
+
+.lobby-transition-in {
+  animation: lobby-pan-out-from-white 700ms ease-out forwards;
+}
+
 @keyframes blink-gold {
   0%, 100% { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0); }
   50%       { box-shadow:
