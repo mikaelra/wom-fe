@@ -136,14 +136,14 @@ export function renderPreGame({
   onKick,
 }: PreGameRenderOpts) {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-8">
-      <div className="absolute top-4 left-4 z-20">
-        <Link href="/" className="text-blue-600 hover:underline font-medium">
-          ← Back to Home
-        </Link>
-      </div>
-      <div className="relative z-10 min-h-screen w-full flex items-center justify-center">
-        <div className="w-full max-w-3xl flex flex-col items-center justify-center rounded-2xl shadow-xl bg-white/80 backdrop-blur-sm transition-all duration-300 p-6 text-gray-900">
+    <div className="min-h-screen w-full bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-8">
+      <div className="max-w-3xl mx-auto">
+        <div className="mb-4">
+          <Link href="/" className="text-blue-600 hover:underline font-medium">
+            ← Back to Home
+          </Link>
+        </div>
+        <div className="w-full flex flex-col items-center rounded-2xl shadow-xl bg-white/80 backdrop-blur-sm transition-all duration-300 p-6 text-gray-900">
           {state.boss_fight && boss && (
             <div className="bg-red-200 p-4 rounded mb-4 w-full text-center">
               <h2 className="text-2xl font-bold">{boss.name}</h2>
