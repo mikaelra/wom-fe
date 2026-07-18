@@ -919,7 +919,7 @@ const _yAxis    = new THREE.Vector3(0, 1, 0);
 const CAMERA_RADIUS = 13;
 // If the ambient auto-rotate hasn't carried Athens into view within this
 // window, a corrective pan kicks in.
-const SHOW_CHECK_SECONDS = 5;
+const SHOW_CHECK_SECONDS = 10;
 const CATCHUP_SECONDS = 5;
 // "Roughly centred" cone half-angle used to decide whether the ambient
 // auto-rotate has already brought Athens into view.
@@ -937,9 +937,24 @@ const ATHENS_DIR = (() => {
   return new THREE.Vector3(x, y, z).applyAxisAngle(_yAxis, EARTH_ROTATION_Y).normalize();
 })();
 
-function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
+// Cubic Hermite interpolation between p0 (t=0) and p1 (t=1), with tangents
+// m0/m1 giving dp/dt at each end (total change over the unit parameter).
+// Used instead of a plain ease so the catch-up pan can be handed off from,
+// and back to, the ambient orbit at whatever speed it's actually moving —
+// no dead stop at either end.
+function hermite(t: number, p0: number, p1: number, m0: number, m1: number): number {
+  const t2 = t * t, t3 = t2 * t;
+  const h00 = 2 * t3 - 3 * t2 + 1;
+  const h10 = t3 - 2 * t2 + t;
+  const h01 = -2 * t3 + 3 * t2;
+  const h11 = t3 - t2;
+  return h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1;
 }
+
+// Low-pass factor for smoothing the measured ambient angular speed (rad/s
+// per second of blending); just enough to reject a single noisy frame,
+// with plenty of the 5s idle window left to settle before a catch-up fires.
+const AMBIENT_VEL_SMOOTHING = 8;
 
 // Shortest signed angular delta from a to b, in (-π, π].
 function angleDelta(a: number, b: number): number {
@@ -972,6 +987,9 @@ function azimuthOf(v: THREE.Vector3, up: THREE.Vector3, e1: THREE.Vector3, e2: T
 // straight-line slerp between two arbitrary directions, which would also
 // drag the camera's elevation around and cut across the sky at an angle
 // unrelated to the ring the ambient orbit runs on.
+// The turn itself is a Hermite ease whose start/end tangents match the
+// ambient orbit's own measured angular speed, so the hand-off into and out
+// of the pan doesn't dip to zero speed and then jump back to full speed.
 function CameraRig({
   onCatchupStart,
   onCatchupEnd,
@@ -993,6 +1011,20 @@ function CameraRig({
   const catchupPerpLen = useRef(0);
   const catchupStartAz = useRef(0);
   const catchupTargetAz = useRef(0);
+  // Signed angle actually travelled, start → target. Resolved once at
+  // trigger time (see below) rather than re-derived from start/target each
+  // frame, since it may deliberately go the "long way" around the ring.
+  const catchupTurn = useRef(0);
+  // Hermite tangent (rad per unit parameter) matched to the ambient orbit's
+  // own angular speed at the moment the catch-up pan starts, used at both
+  // ends of the pan so it neither launches nor lands with a speed jump.
+  const catchupTangent = useRef(0);
+
+  // Tracks the ambient orbit's actual angular speed (OrbitControls'
+  // autoRotate + the shared sky drift, combined) so the catch-up pan can be
+  // handed off at the same rate it's already moving.
+  const prevAmbientAz = useRef<number | null>(null);
+  const ambientAngVel = useRef(0);
 
   useFrame((_, delta) => {
     if (!initialized.current) {
@@ -1009,7 +1041,7 @@ function CameraRig({
       catchupElapsed.current += delta;
       const t = Math.min(catchupElapsed.current / CATCHUP_SECONDS, 1);
       const az = catchupStartAz.current
-        + angleDelta(catchupStartAz.current, catchupTargetAz.current) * easeInOutCubic(t);
+        + hermite(t, 0, catchupTurn.current, catchupTangent.current, catchupTangent.current);
       const up = catchupUp.current, e1 = catchupE1.current, e2 = catchupE2.current;
       camera.position
         .copy(e1).multiplyScalar(Math.cos(az) * catchupPerpLen.current)
@@ -1033,12 +1065,19 @@ function CameraRig({
     camera.up.applyQuaternion(_driftQ).normalize();
 
     if (!shown.current) {
+      const up = camera.up.clone();
+      const { e1, e2 } = orbitBasis(up);
+      const az = azimuthOf(camera.position, up, e1, e2);
+      if (prevAmbientAz.current !== null && delta > 0) {
+        const instVel = angleDelta(prevAmbientAz.current, az) / delta;
+        ambientAngVel.current += (instVel - ambientAngVel.current) * Math.min(1, delta * AMBIENT_VEL_SMOOTHING);
+      }
+      prevAmbientAz.current = az;
+
       elapsed.current += delta;
       if (camera.position.angleTo(ATHENS_DIR) < SHOWN_ANGLE_THRESHOLD) {
         shown.current = true;
       } else if (elapsed.current >= SHOW_CHECK_SECONDS) {
-        const up = camera.up.clone();
-        const { e1, e2 } = orbitBasis(up);
         const uComp = camera.position.dot(up);
         const perp = camera.position.clone().addScaledVector(up, -uComp);
 
@@ -1047,8 +1086,27 @@ function CameraRig({
         catchupE2.current.copy(e2);
         catchupUComp.current = uComp;
         catchupPerpLen.current = perp.length();
-        catchupStartAz.current = Math.atan2(perp.dot(e2), perp.dot(e1));
+        catchupStartAz.current = az;
         catchupTargetAz.current = azimuthOf(ATHENS_DIR, up, e1, e2) + CATCHUP_LEFT_BIAS;
+
+        // Always turn the same way the ambient orbit is already spinning,
+        // even if that's the "long way round" — reversing direction for a
+        // moment (just because it's the shorter arc) reads as wrong even
+        // when it's geometrically closer.
+        const shortest = angleDelta(catchupStartAz.current, catchupTargetAz.current);
+        const ambientDir = Math.sign(ambientAngVel.current);
+        const shortestDir = Math.sign(shortest) || 1;
+        const totalTurn = (ambientDir !== 0 && shortestDir !== ambientDir)
+          ? shortest - shortestDir * 2 * Math.PI
+          : shortest;
+        catchupTurn.current = totalTurn;
+
+        // Match the pan's launch/landing tangent to the ambient orbit's own
+        // speed, capped so it can't overshoot a short turn.
+        const sign = totalTurn >= 0 ? 1 : -1;
+        const matched = Math.abs(ambientAngVel.current) * CATCHUP_SECONDS;
+        catchupTangent.current = sign * Math.min(matched, Math.abs(totalTurn) * 0.9);
+
         catchupElapsed.current = 0;
         catchingUp.current = true;
         onCatchupStart?.();
