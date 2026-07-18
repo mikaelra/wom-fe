@@ -3,6 +3,7 @@ import { BACKEND_URL } from '@/config';
 import {
   checkName,
   claimPendingWheel,
+  confirmEmailVerification,
   createLobby,
   equipSkin,
   getInventory,
@@ -167,6 +168,24 @@ describe('verifyLoginCode', () => {
     );
     await verifyLoginCode('Alice', '123456');
     expect(getStoredAccountToken()).toBe('sess-2');
+  });
+});
+
+describe('confirmEmailVerification', () => {
+  it('stores the returned session token -- clicking the link is proof of inbox ownership', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, purpose: 'claim_wheel', session_token: 'sess-3' }),
+    );
+    await confirmEmailVerification('tok');
+    expect(getStoredAccountToken()).toBe('sess-3');
+  });
+
+  it.each([
+    [404, 'Invalid or expired link.'],
+    [409, 'Name already claimed by a different email.'],
+  ])('maps status %i to "%s"', async (status, message) => {
+    fetchMock.mockResolvedValue(jsonResponse({}, status));
+    await expect(confirmEmailVerification('tok')).rejects.toThrow(message);
   });
 });
 

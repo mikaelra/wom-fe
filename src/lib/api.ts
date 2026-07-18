@@ -254,10 +254,15 @@ export async function confirmEmailVerification(
   token: string
 ): Promise<{ success: boolean; purpose: 'claim_name' | 'claim_relic' | 'claim_wheel'; relic_name?: string | null }> {
   try {
-    return await request('/confirm_email_verification', ConfirmEmailVerificationResponseSchema, {
+    const data = await request('/confirm_email_verification', ConfirmEmailVerificationResponseSchema, {
       body: { token },
       defaultErrorMessage: 'Failed to confirm.',
     });
+    // Clicking this link is proof of inbox ownership, same as a direct
+    // login -- store the session so e.g. a claim_wheel redirect into
+    // /inventory actually shows something instead of "log in first".
+    if (data.session_token) setStoredAccountToken(data.session_token);
+    return data;
   } catch (e) {
     if (e instanceof ApiError) {
       if (e.status === 404) throw new Error('Invalid or expired link.');

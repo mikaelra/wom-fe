@@ -103,6 +103,7 @@ export const ConfirmEmailVerificationResponseSchema = z.object({
   success: z.boolean(),
   purpose: z.enum(['claim_name', 'claim_relic', 'claim_wheel']),
   relic_name: z.string().nullable().optional(),
+  session_token: z.string().optional(),
 });
 
 export const ForgotUsernameResponseSchema = z.object({

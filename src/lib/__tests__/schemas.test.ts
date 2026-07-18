@@ -14,6 +14,7 @@ import {
   RequestToggleVerifyEmailResponseSchema,
   ConfirmToggleVerifyEmailResponseSchema,
   ClaimPendingRelicResponseSchema,
+  ConfirmEmailVerificationResponseSchema,
   ResolveAccountSessionResponseSchema,
   LogOutResponseSchema,
   JoinedLobbyPayloadSchema,
@@ -222,6 +223,28 @@ describe('HTTP response schemas', () => {
       }).success,
     ).toBe(true);
     expect(LogOutResponseSchema.safeParse({ success: true }).success).toBe(true);
+  });
+
+  it('parses confirm_email_verification responses, including the session_token it now mints', () => {
+    expect(
+      ConfirmEmailVerificationResponseSchema.safeParse({
+        success: true,
+        purpose: 'claim_wheel',
+        session_token: 'tok',
+      }).success,
+    ).toBe(true);
+    expect(
+      ConfirmEmailVerificationResponseSchema.safeParse({
+        success: true,
+        purpose: 'claim_relic',
+        relic_name: 'Golden Fleece',
+        session_token: 'tok',
+      }).success,
+    ).toBe(true);
+    // session_token is optional -- older/edge-case responses without one still parse.
+    expect(
+      ConfirmEmailVerificationResponseSchema.safeParse({ success: true, purpose: 'claim_name' }).success,
+    ).toBe(true);
   });
 });
 
