@@ -25,7 +25,19 @@ describe('skinColor', () => {
 });
 
 describe('skinLabel', () => {
-  it('strips the frog_ prefix and _vN suffix, replacing underscores with spaces', () => {
-    expect(skinLabel('frog_orange_cursed_v1')).toBe('orange cursed');
+  it.each([
+    ['frog_green_v1', 'OG Green'],
+    ['frog_blue_v1', 'Bleak Blue'],
+    ['frog_orange_cursed_v1', 'Cursed Orange'],
+    ['frog_pink_v1', 'Pretty Pink'],
+    ['frog_purple_v1', 'Ponder Purple'],
+    ['frog_red_v1', 'Zonked Red'],
+    ['frog_yellow_v1', 'Yucky Yellow'],
+  ])('gives %s the fun display name "%s"', (skin, name) => {
+    expect(skinLabel(skin)).toBe(name);
+  });
+
+  it('falls back to a derived label (frog_ prefix/_vN suffix stripped) for a skin with no custom name', () => {
+    expect(skinLabel('frog_gold_v1')).toBe('gold');
   });
 });

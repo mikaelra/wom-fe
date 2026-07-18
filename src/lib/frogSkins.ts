@@ -48,6 +48,21 @@ export function skinColor(skinName: string): string {
   return SKIN_COLORS[skinName] ?? '#6b7280';
 }
 
+// Fun display names for the common skins. Rare skins (and anything not
+// listed here) fall back to a generic derived label.
+const SKIN_DISPLAY_NAMES: Record<string, string> = {
+  frog_green_v1: 'OG Green',
+  frog_blue_v1: 'Bleak Blue',
+  frog_orange_cursed_v1: 'Cursed Orange',
+  frog_pink_v1: 'Pretty Pink',
+  frog_purple_v1: 'Ponder Purple',
+  frog_red_v1: 'Zonked Red',
+  frog_yellow_v1: 'Yucky Yellow',
+};
+
 export function skinLabel(skinName: string): string {
-  return skinName.replace(/^frog_/, '').replace(/_v\d+$/, '').replace(/_/g, ' ');
+  return (
+    SKIN_DISPLAY_NAMES[skinName] ??
+    skinName.replace(/^frog_/, '').replace(/_v\d+$/, '').replace(/_/g, ' ')
+  );
 }

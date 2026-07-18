@@ -41,7 +41,7 @@ describe('InventoryPage', () => {
     render(<InventoryPage />);
     await flush();
 
-    expect(screen.getByText('green')).toBeInTheDocument();
+    expect(screen.getByText('OG Green')).toBeInTheDocument();
     expect(screen.getByText('EQUIPPED')).toBeInTheDocument();
   });
 
