@@ -75,9 +75,25 @@ export const ConfirmToggleVerifyEmailResponseSchema = z.object({
   always_verify_email: z.boolean(),
 });
 
+export const ClaimNameResponseSchema = z.object({
+  success: z.boolean(),
+  pending_verification: z.boolean().optional(),
+});
+
 export const ClaimPendingRelicResponseSchema = z.object({
   success: z.boolean(),
-  relic_name: z.string(),
+  pending_verification: z.boolean().optional(),
+  relic_name: z.string().optional(),
+});
+
+export const ConfirmEmailVerificationResponseSchema = z.object({
+  success: z.boolean(),
+  purpose: z.enum(['claim_name', 'claim_relic']),
+  relic_name: z.string().nullable().optional(),
+});
+
+export const ForgotUsernameResponseSchema = z.object({
+  success: z.boolean(),
 });
 
 // ── Socket.IO payload schemas (not already in @/types/game) ────────────────

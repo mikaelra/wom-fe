@@ -15,7 +15,10 @@ import {
   GetAlwaysVerifyEmailFlagResponseSchema,
   RequestToggleVerifyEmailResponseSchema,
   ConfirmToggleVerifyEmailResponseSchema,
+  ClaimNameResponseSchema,
   ClaimPendingRelicResponseSchema,
+  ConfirmEmailVerificationResponseSchema,
+  ForgotUsernameResponseSchema,
 } from '@/lib/schemas';
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
@@ -176,9 +179,43 @@ export async function claimPendingRelic(
   lobbyId: string,
   name: string,
   email: string
-): Promise<{ success: boolean; relic_name: string }> {
+): Promise<{ success: boolean; pending_verification?: boolean; relic_name?: string }> {
   return request('/claim_pending_relic', ClaimPendingRelicResponseSchema, {
     body: { lobby_id: lobbyId, name, email },
     defaultErrorMessage: 'Failed to claim relic',
+  });
+}
+
+export async function claimName(
+  name: string,
+  email: string
+): Promise<{ success: boolean; pending_verification?: boolean }> {
+  return request('/claim_name', ClaimNameResponseSchema, {
+    body: { name, email },
+    defaultErrorMessage: 'Signup failed.',
+  });
+}
+
+export async function confirmEmailVerification(
+  token: string
+): Promise<{ success: boolean; purpose: 'claim_name' | 'claim_relic'; relic_name?: string | null }> {
+  try {
+    return await request('/confirm_email_verification', ConfirmEmailVerificationResponseSchema, {
+      body: { token },
+      defaultErrorMessage: 'Failed to confirm.',
+    });
+  } catch (e) {
+    if (e instanceof ApiError) {
+      if (e.status === 404) throw new Error('Invalid or expired link.');
+      if (e.status === 409) throw new Error('Name already claimed by a different email.');
+    }
+    throw e;
+  }
+}
+
+export async function forgotUsername(email: string): Promise<{ success: boolean }> {
+  return request('/forgot_username', ForgotUsernameResponseSchema, {
+    body: { email },
+    defaultErrorMessage: 'Failed to send email.',
   });
 }

@@ -45,7 +45,6 @@ export function useLobbyConnection(
     setConnectionStatus('connecting');
 
     const sock = getSocket();
-    const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
 
     // join_room is what actually subscribes this socket to the lobby's
     // broadcast room, so it must fire on every (re)connect regardless of
@@ -57,7 +56,17 @@ export function useLobbyConnection(
     // join_room authenticates via the join-issued session token instead of
     // a client-supplied name (backend Phase 1a) -- the server resolves the
     // actor's name from the token itself.
+    //
+    // email is read fresh on every call rather than captured once above --
+    // a reconnect can happen well after mount (e.g. a backgrounded tab
+    // regaining focus), and by then localStorage's playerEmail may have
+    // changed (e.g. BossSignupNudge just wrote a freshly-verified one). A
+    // captured empty string here used to get re-sent on every later
+    // reconnect, which the backend correctly reads as "someone else's
+    // email" and rejects with "This name is claimed" even for the account's
+    // own owner.
     const rejoin = () => {
+      const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
       sock.emit('join_lobby', { lobby_id: lobbyId, name: playerName, email });
       sock.emit('join_room', { lobby_id: lobbyId, token: getStoredToken(lobbyId) });
     };

@@ -14,6 +14,7 @@ export default function BossSignupNudge({ lobbyId, playerName, onDismiss }: Prop
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [claimedRelicName, setClaimedRelicName] = useState<string | null>(null);
+  const [awaitingVerification, setAwaitingVerification] = useState(false);
 
   const handleClaim = async () => {
     const trimmedEmail = email.trim();
@@ -28,7 +29,11 @@ export default function BossSignupNudge({ lobbyId, playerName, onDismiss }: Prop
       if (typeof window !== 'undefined') {
         localStorage.setItem('playerEmail', trimmedEmail);
       }
-      setClaimedRelicName(result.relic_name);
+      if (result.pending_verification) {
+        setAwaitingVerification(true);
+      } else {
+        setClaimedRelicName(result.relic_name ?? null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.');
     } finally {
@@ -54,6 +59,34 @@ export default function BossSignupNudge({ lobbyId, playerName, onDismiss }: Prop
             >
               Close
             </button>
+          </div>
+        ) : awaitingVerification ? (
+          <div className="text-center">
+            <p className="text-3xl mb-3">📬</p>
+            <p className="text-green-400 font-bold text-lg mb-1">Check your inbox</p>
+            <p className="text-gray-400 text-sm mb-5">
+              Click the link we sent to <strong>{email.trim()}</strong> to verify it and
+              claim your relic.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleClaim}
+                disabled={loading}
+                className="flex-1 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-semibold hover:bg-amber-600/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {loading ? 'Sending…' : 'Resend email'}
+              </button>
+              <button
+                type="button"
+                onClick={onDismiss}
+                disabled={loading}
+                className="flex-1 py-2 rounded-lg bg-gray-700 text-gray-300 font-bold hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+            {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
           </div>
         ) : (
           <>

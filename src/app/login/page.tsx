@@ -107,6 +107,11 @@ export default function LoginPage() {
             Create user
           </Link>
         </div>
+        <p className="mt-2 text-center">
+          <Link href="/forgot_username" className="text-blue-600 underline text-sm">
+            Forgot username?
+          </Link>
+        </p>
       </div>
     </div>
   );
