@@ -18,6 +18,9 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     title: null,
     idle_rounds: 0,
     pending_relic_nudge: null,
+    skin: null,
+    wheel_awarded: null,
+    pending_wheel_nudge: null,
     ...overrides,
   };
 }

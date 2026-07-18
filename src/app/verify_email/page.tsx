@@ -29,9 +29,16 @@ function VerifyEmailContent() {
 
     confirmEmailVerification(token)
       .then((data) => {
-        // Neither purpose has any other status the user is watching on this
-        // standalone page -- send them straight home with the confirmation
-        // as a toast instead of stranding them here behind a click.
+        // None of these purposes has any other status the user is
+        // watching on this standalone page -- send them on with the
+        // confirmation as a toast instead of stranding them here behind a
+        // click. A claimed Wheel goes to /inventory (where it can be
+        // spun); everything else goes home.
+        if (data.purpose === 'claim_wheel') {
+          showSuccess('Wheel verified! Spin it in your inventory.');
+          router.replace('/inventory');
+          return;
+        }
         showSuccess(
           data.purpose === 'claim_relic'
             ? `Relic claimed: ${data.relic_name ?? 'relic'}`

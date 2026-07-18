@@ -40,6 +40,9 @@ const basePlayer: Player = {
   title: null,
   idle_rounds: 0,
   pending_relic_nudge: false,
+  skin: null,
+  wheel_awarded: false,
+  pending_wheel_nudge: false,
 };
 
 const baseState: LobbyState = {

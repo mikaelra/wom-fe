@@ -32,6 +32,9 @@ export const PlayerSchema = z.object({
   title: z.string().nullable(),
   idle_rounds: z.number().int(),
   pending_relic_nudge: z.boolean().nullable(),
+  skin: z.string().nullable(),
+  wheel_awarded: z.boolean().nullable(),
+  pending_wheel_nudge: z.boolean().nullable(),
 });
 export type Player = z.infer<typeof PlayerSchema>;
 

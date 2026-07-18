@@ -40,6 +40,9 @@ const playerFixture = {
   title: null,
   idle_rounds: 0,
   pending_relic_nudge: null,
+  skin: null,
+  wheel_awarded: null,
+  pending_wheel_nudge: null,
 };
 
 const lobbyStateFixture = {
@@ -63,8 +66,16 @@ describe('Player/LobbyState/ChatMessage/Relic schemas', () => {
     expect(PlayerSchema.safeParse(playerFixture).success).toBe(true);
   });
 
-  it('accepts non-null lost_soul/title/pending_relic_nudge', () => {
-    const withValues = { ...playerFixture, lost_soul: true, title: 'The Boss', pending_relic_nudge: true };
+  it('accepts non-null lost_soul/title/pending_relic_nudge/skin/wheel_awarded/pending_wheel_nudge', () => {
+    const withValues = {
+      ...playerFixture,
+      lost_soul: true,
+      title: 'The Boss',
+      pending_relic_nudge: true,
+      skin: 'frog_gold_v1',
+      wheel_awarded: true,
+      pending_wheel_nudge: true,
+    };
     expect(PlayerSchema.safeParse(withValues).success).toBe(true);
   });
 
