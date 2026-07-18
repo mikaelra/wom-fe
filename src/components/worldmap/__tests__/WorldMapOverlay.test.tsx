@@ -15,6 +15,7 @@ vi.mock('@/lib/api', () => ({
   createLobby: vi.fn(),
   joinLobby: vi.fn(),
   getPlayerRelics: vi.fn(),
+  logOut: vi.fn(),
 }));
 
 const mockedCheckName = vi.mocked(checkName);

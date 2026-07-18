@@ -8,7 +8,9 @@ import {
   joinLobby,
   getBossfightLobby,
   getPlayerRelics,
+  logOut,
 } from '@/lib/api';
+import { getStoredAccountToken } from '@/lib/http';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useAuthFlow } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
@@ -170,6 +172,10 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
       localStorage.removeItem('playerName');
       localStorage.removeItem('playerEmail');
     }
+    // Fire-and-forget: logOut() clears the local credential synchronously
+    // and treats the server-side revoke as best-effort, so there's nothing
+    // to await or handle here.
+    logOut(getStoredAccountToken());
     // State update only — a location.reload() here would tear down and
     // re-initialise the entire WebGL scene just to swap the auth buttons.
     setLoggedInName('');

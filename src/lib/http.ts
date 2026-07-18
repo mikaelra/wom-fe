@@ -86,6 +86,44 @@ export function setStoredToken(lobbyId: string, token: string | null | undefined
   window.sessionStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(tokens));
 }
 
+// ---------------------------------------------------------------------------
+// Account session token (backend Phase 0 item 2 / monetization plan §7.2).
+//
+// A persistent, account-level login credential -- minted by /log_in or
+// /verify_code, distinct from the per-lobby tokens above in every way that
+// matters: there's exactly one of it (not one per lobby), and it's meant to
+// survive across tabs and browser restarts, so it lives in localStorage
+// rather than sessionStorage. Nothing resolves the caller from it yet
+// (that's Phase 1's inventory/shop routes); today it's only used to let a
+// tab present it back to /resolve_account_session and to /log_out.
+// ---------------------------------------------------------------------------
+
+const ACCOUNT_SESSION_TOKEN_KEY = 'wom_account_session';
+
+// In-memory cache alongside the localStorage write-through -- same
+// resilience pattern as tokensByLobby above (lazy-loaded once, so a
+// window-less environment like an SSR pass or a Node test still behaves
+// correctly rather than silently no-op'ing on every call). `undefined`
+// means "not loaded yet", distinct from `null` ("loaded, nothing stored").
+let cachedAccountToken: string | null | undefined;
+
+export function getStoredAccountToken(): string | null {
+  if (cachedAccountToken !== undefined) return cachedAccountToken;
+  cachedAccountToken =
+    typeof window !== 'undefined' ? window.localStorage.getItem(ACCOUNT_SESSION_TOKEN_KEY) : null;
+  return cachedAccountToken;
+}
+
+export function setStoredAccountToken(token: string | null | undefined): void {
+  cachedAccountToken = token || null;
+  if (typeof window === 'undefined') return;
+  if (token) {
+    window.localStorage.setItem(ACCOUNT_SESSION_TOKEN_KEY, token);
+  } else {
+    window.localStorage.removeItem(ACCOUNT_SESSION_TOKEN_KEY);
+  }
+}
+
 type RequestOpts = {
   /** JSON body. Its presence also selects the method: POST if set, GET otherwise. */
   body?: unknown;

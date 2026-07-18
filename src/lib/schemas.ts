@@ -55,11 +55,24 @@ export const LogInResponseSchema = z.object({
   success: z.boolean(),
   requires_code: z.boolean().optional(),
   always_verify_email: z.boolean().optional(),
+  session_token: z.string().optional(),
 });
 
 export const VerifyLoginCodeResponseSchema = z.object({
   success: z.boolean(),
   always_verify_email: z.boolean().optional(),
+  session_token: z.string().nullable().optional(),
+});
+
+export const ResolveAccountSessionResponseSchema = z.object({
+  name: z.string(),
+  email: z.string().nullable(),
+  always_verify_email: z.boolean(),
+  email_verified: z.boolean(),
+});
+
+export const LogOutResponseSchema = z.object({
+  success: z.boolean(),
 });
 
 export const GetAlwaysVerifyEmailFlagResponseSchema = z.object({
