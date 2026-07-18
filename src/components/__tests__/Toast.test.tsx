@@ -12,6 +12,15 @@ function Trigger({ message }: { message: string }) {
   return null;
 }
 
+function SuccessTrigger({ message }: { message: string }) {
+  const { showSuccess } = useToast();
+  useEffect(() => {
+    showSuccess(message);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+}
+
 describe('Toast', () => {
   it('shows a toast raised via showError, dismissible by its close button', () => {
     render(
@@ -40,6 +49,17 @@ describe('Toast', () => {
     });
     expect(screen.queryByText('Auto dismiss me')).not.toBeInTheDocument();
     vi.useRealTimers();
+  });
+
+  it('shows a green toast raised via showSuccess, distinct from the red error toast', () => {
+    render(
+      <ToastProvider>
+        <SuccessTrigger message="Account verified" />
+      </ToastProvider>,
+    );
+
+    const toast = screen.getByText('Account verified').closest('[role="alert"]');
+    expect(toast).toHaveStyle({ background: '#16a34a' });
   });
 
   it('logs to console.error instead of throwing when no provider is mounted', () => {

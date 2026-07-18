@@ -136,6 +136,35 @@ describe('useLobbyConnection', () => {
     });
   });
 
+  it('re-reads playerEmail from localStorage on every reconnect, not just at mount', () => {
+    // Regression: rejoin() used to capture localStorage's playerEmail once
+    // when the effect first ran and reuse that value on every later
+    // reconnect. A same-tab email verification that completes after mount
+    // (e.g. via BossSignupNudge) was invisible to it -- the next reconnect
+    // (a backgrounded tab regaining focus is a common trigger) re-sent the
+    // stale empty email, which the backend legitimately reads as "someone
+    // else's account" and rejects.
+    renderHook(() => useLobbyConnection('AAAA', 'Alice'));
+    expect(socket.__emit).toHaveBeenCalledWith('join_lobby', {
+      lobby_id: 'AAAA',
+      name: 'Alice',
+      email: '',
+    });
+
+    localStorage.setItem('playerEmail', 'alice@example.com');
+    socket.__emit.mockClear();
+    act(() => {
+      socket.__fireSocketEvent('connect');
+    });
+
+    expect(socket.__emit).toHaveBeenCalledWith('join_lobby', {
+      lobby_id: 'AAAA',
+      name: 'Alice',
+      email: 'alice@example.com',
+    });
+    localStorage.clear();
+  });
+
   it('merges a chat_message into state.chat and calls onChatMessage', () => {
     const onChatMessage = vi.fn();
     const { result } = renderHook(() =>

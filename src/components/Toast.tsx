@@ -2,22 +2,32 @@
 
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 
+type ToastVariant = 'error' | 'success';
+
 interface ToastEntry {
   id: number;
   message: string;
+  variant: ToastVariant;
 }
 
 interface ToastContextValue {
   showError: (message: string) => void;
+  showSuccess: (message: string) => void;
 }
 
 const TOAST_DURATION_MS = 6000;
+
+const TOAST_COLORS: Record<ToastVariant, string> = {
+  error: '#dc2626',
+  success: '#16a34a',
+};
 
 // Falls back to a console warning when no <ToastProvider> is mounted (e.g.
 // a component test rendered in isolation) instead of throwing -- the real
 // app always has one at the root layout.
 const noopToast: ToastContextValue = {
   showError: (message: string) => console.error('[toast] shown with no ToastProvider mounted:', message),
+  showSuccess: (message: string) => console.error('[toast] shown with no ToastProvider mounted:', message),
 };
 
 const ToastContext = createContext<ToastContextValue>(noopToast);
@@ -34,17 +44,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((current) => current.filter((t) => t.id !== id));
   }, []);
 
-  const showError = useCallback(
-    (message: string) => {
+  const show = useCallback(
+    (message: string, variant: ToastVariant) => {
       const id = nextId.current++;
-      setToasts((current) => [...current, { id, message }]);
+      setToasts((current) => [...current, { id, message, variant }]);
       setTimeout(() => dismiss(id), TOAST_DURATION_MS);
     },
     [dismiss],
   );
 
+  const showError = useCallback((message: string) => show(message, 'error'), [show]);
+  const showSuccess = useCallback((message: string) => show(message, 'success'), [show]);
+
   return (
-    <ToastContext.Provider value={{ showError }}>
+    <ToastContext.Provider value={{ showError, showSuccess }}>
       {children}
       <div
         style={{
@@ -63,7 +76,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={t.id}
             role="alert"
             style={{
-              background: '#dc2626',
+              background: TOAST_COLORS[t.variant],
               color: 'white',
               padding: '0.75rem 1rem',
               borderRadius: '0.5rem',
