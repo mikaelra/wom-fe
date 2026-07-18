@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { spinWheel } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { NORMAL_WHEEL_SKINS, skinColor, skinLabel } from '@/lib/frogSkins';
@@ -14,14 +14,29 @@ type Props = {
 type Phase = 'spinning' | 'result' | 'error';
 
 const REVEAL_INTERVAL_MS = 120;
+// The backend call is a fast local round-trip (well under a second), which
+// made the reveal feel like it barely happened. Padding it out to a fixed
+// minimum -- independent of how fast the network actually responds -- is
+// what makes it read as a "spin" instead of a flicker.
+const MIN_SPIN_DURATION_MS = 1800;
 
 export default function WheelSpinModal({ wheelId, onClose, onSpun }: Props) {
   const [phase, setPhase] = useState<Phase>('spinning');
   const [cycleIndex, setCycleIndex] = useState(0);
   const [resultSkin, setResultSkin] = useState<string | null>(null);
   const [error, setError] = useState('');
+  // Guards against React StrictMode's dev-mode double-invoke of effects:
+  // without this, spinWheel fired twice -- the first call correctly
+  // consumed the wheel and granted the skin, and the *second* call's 404
+  // ("already spun") landed after and overwrote the success state with an
+  // error, even though the spin had actually succeeded. Same pattern as
+  // verify_email/page.tsx's calledRef.
+  const calledRef = useRef(false);
 
   useEffect(() => {
+    if (calledRef.current) return;
+    calledRef.current = true;
+
     // Simple reveal: cycle through the possible skins while the spin
     // request is in flight, then settle on whatever the server returned.
     // Not a physically-accurate spinning wheel with slices/pointer -- that
@@ -30,18 +45,21 @@ export default function WheelSpinModal({ wheelId, onClose, onSpun }: Props) {
       setCycleIndex((i) => (i + 1) % NORMAL_WHEEL_SKINS.length);
     }, REVEAL_INTERVAL_MS);
 
-    spinWheel(getStoredAccountToken() ?? '', wheelId)
-      .then((data) => {
-        clearInterval(interval);
-        setResultSkin(data.result_skin);
+    const minDelay = new Promise<void>((resolve) => setTimeout(resolve, MIN_SPIN_DURATION_MS));
+    const spin = spinWheel(getStoredAccountToken() ?? '', wheelId);
+
+    Promise.allSettled([spin, minDelay]).then(([spinResult]) => {
+      clearInterval(interval);
+      if (spinResult.status === 'fulfilled') {
+        setResultSkin(spinResult.value.result_skin);
         setPhase('result');
-        onSpun(data.result_skin);
-      })
-      .catch((e: unknown) => {
-        clearInterval(interval);
+        onSpun(spinResult.value.result_skin);
+      } else {
+        const e = spinResult.reason;
         setError(e instanceof Error ? e.message : 'Something went wrong.');
         setPhase('error');
-      });
+      }
+    });
 
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
