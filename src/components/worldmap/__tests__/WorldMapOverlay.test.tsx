@@ -244,4 +244,17 @@ describe('WorldMapOverlay', () => {
     expect(localStorage.getItem('playerEmail')).toBeNull();
     expect(screen.getByRole('button', { name: 'Log in' })).toBeInTheDocument();
   });
+
+  it('lists Inventory between Your relics and Settings in the user menu', () => {
+    localStorage.setItem('playerName', 'Alice');
+    localStorage.setItem('playerEmail', 'alice@example.com');
+    render(<WorldMapOverlay />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open user menu' }));
+
+    const menu = screen.getByText('Sign out').parentElement;
+    const itemOrder = Array.from(menu?.children ?? []).map((el) => el.textContent);
+    expect(itemOrder).toEqual(['Your relics', 'Inventory', 'Settings', 'Sign out']);
+    expect(screen.getByText('Inventory')).toHaveAttribute('href', '/inventory');
+  });
 });
