@@ -17,6 +17,7 @@ vi.mock('@/lib/api', () => ({
   joinLobby: vi.fn(),
   getBossfightLobby: vi.fn(),
   getPlayerRelics: vi.fn(),
+  logOut: vi.fn(),
 }));
 
 vi.mock('@/lib/useBossfightCountdown', () => ({ useBossfightCountdown: vi.fn() }));

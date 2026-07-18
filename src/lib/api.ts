@@ -1,6 +1,6 @@
 import { request, ApiError } from '@/lib/http';
 import { getSocket, subscribe } from '@/lib/socket';
-import { setStoredToken, getStoredToken } from '@/lib/http';
+import { setStoredToken, getStoredToken, setStoredAccountToken } from '@/lib/http';
 import type { Relic } from '@/types/game';
 import type { GameEvent } from '@/lib/gameEvents';
 import {
@@ -19,6 +19,8 @@ import {
   ClaimPendingRelicResponseSchema,
   ConfirmEmailVerificationResponseSchema,
   ForgotUsernameResponseSchema,
+  ResolveAccountSessionResponseSchema,
+  LogOutResponseSchema,
 } from '@/lib/schemas';
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
@@ -108,10 +110,12 @@ export async function logInUser(
   email: string
 ): Promise<{ success: boolean; requires_code?: boolean; always_verify_email?: boolean }> {
   try {
-    return await request('/log_in', LogInResponseSchema, {
+    const data = await request('/log_in', LogInResponseSchema, {
       body: { name, email },
       defaultErrorMessage: 'Log in failed',
     });
+    if (data.session_token) setStoredAccountToken(data.session_token);
+    return data;
   } catch (e) {
     if (e instanceof ApiError && e.status === 403) throw new Error('Wrong email');
     throw e;
@@ -123,10 +127,12 @@ export async function verifyLoginCode(
   code: string
 ): Promise<{ success: boolean; always_verify_email?: boolean }> {
   try {
-    return await request('/verify_code', VerifyLoginCodeResponseSchema, {
+    const data = await request('/verify_code', VerifyLoginCodeResponseSchema, {
       body: { name, code },
       defaultErrorMessage: 'Verification failed',
     });
+    if (data.session_token) setStoredAccountToken(data.session_token);
+    return data;
   } catch (e) {
     if (e instanceof ApiError) {
       if (e.status === 403) throw new Error('Wrong code');
@@ -218,4 +224,30 @@ export async function forgotUsername(email: string): Promise<{ success: boolean 
     body: { email },
     defaultErrorMessage: 'Failed to send email.',
   });
+}
+
+export async function resolveAccountSession(
+  token: string
+): Promise<{ name: string; email: string | null; always_verify_email: boolean; email_verified: boolean }> {
+  return request('/resolve_account_session', ResolveAccountSessionResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Invalid or expired session.',
+  });
+}
+
+export async function logOut(token: string | null): Promise<{ success: boolean }> {
+  // Clear the local credential unconditionally, before attempting the
+  // server-side revoke -- an unreachable backend shouldn't stop this
+  // browser from considering itself logged out. The revoke call is
+  // best-effort cleanup on top of that, not a precondition for it.
+  setStoredAccountToken(null);
+  if (!token) return { success: true };
+  try {
+    return await request('/log_out', LogOutResponseSchema, {
+      body: { token },
+      defaultErrorMessage: 'Failed to log out.',
+    });
+  } catch {
+    return { success: true };
+  }
 }

@@ -14,6 +14,8 @@ import {
   RequestToggleVerifyEmailResponseSchema,
   ConfirmToggleVerifyEmailResponseSchema,
   ClaimPendingRelicResponseSchema,
+  ResolveAccountSessionResponseSchema,
+  LogOutResponseSchema,
   JoinedLobbyPayloadSchema,
   JoinedPayloadSchema,
   LeftPayloadSchema,
@@ -182,11 +184,33 @@ describe('HTTP response schemas', () => {
     expect(CheckNameResponseSchema.safeParse({ claimed: true }).success).toBe(true);
     expect(LogInResponseSchema.safeParse({ success: true, always_verify_email: false }).success).toBe(true);
     expect(LogInResponseSchema.safeParse({ success: false, requires_code: true }).success).toBe(true);
+    expect(LogInResponseSchema.safeParse({ success: true, always_verify_email: false, session_token: 'tok' }).success).toBe(true);
     expect(VerifyLoginCodeResponseSchema.safeParse({ success: true, always_verify_email: true }).success).toBe(true);
+    expect(VerifyLoginCodeResponseSchema.safeParse({ success: true, always_verify_email: true, session_token: null }).success).toBe(true);
     expect(GetAlwaysVerifyEmailFlagResponseSchema.safeParse({ always_verify_email: true }).success).toBe(true);
     expect(RequestToggleVerifyEmailResponseSchema.safeParse({ success: true }).success).toBe(true);
     expect(ConfirmToggleVerifyEmailResponseSchema.safeParse({ success: true, always_verify_email: true }).success).toBe(true);
     expect(ClaimPendingRelicResponseSchema.safeParse({ success: true, relic_name: 'Shiny Relic' }).success).toBe(true);
+  });
+
+  it('parses resolve_account_session/log_out responses', () => {
+    expect(
+      ResolveAccountSessionResponseSchema.safeParse({
+        name: 'Alice',
+        email: 'alice@example.com',
+        always_verify_email: false,
+        email_verified: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      ResolveAccountSessionResponseSchema.safeParse({
+        name: 'Alice',
+        email: null,
+        always_verify_email: false,
+        email_verified: false,
+      }).success,
+    ).toBe(true);
+    expect(LogOutResponseSchema.safeParse({ success: true }).success).toBe(true);
   });
 });
 

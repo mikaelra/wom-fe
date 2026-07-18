@@ -6,9 +6,11 @@ import {
   getPlayerMessages,
   getPlayerRelics,
   logInUser,
+  logOut,
+  resolveAccountSession,
   verifyLoginCode,
 } from '@/lib/api';
-import { getStoredToken, setStoredToken } from '@/lib/http';
+import { getStoredAccountToken, getStoredToken, setStoredAccountToken, setStoredToken } from '@/lib/http';
 
 const jsonResponse = (data: unknown, status = 200) =>
   ({
@@ -35,6 +37,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  setStoredAccountToken(null);
 });
 
 describe('createLobby', () => {
@@ -93,6 +96,19 @@ describe('session token store', () => {
   });
 });
 
+describe('account session token store', () => {
+  it('round-trips a token through getStoredAccountToken/setStoredAccountToken', () => {
+    setStoredAccountToken('acc-token');
+    expect(getStoredAccountToken()).toBe('acc-token');
+  });
+
+  it('clears the stored token when set to null', () => {
+    setStoredAccountToken('acc-token');
+    setStoredAccountToken(null);
+    expect(getStoredAccountToken()).toBeNull();
+  });
+});
+
 describe('logInUser', () => {
   it('maps 403 to a wrong-email error', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: 'Email does not match.' }, 403));
@@ -105,6 +121,21 @@ describe('logInUser', () => {
       success: false,
       requires_code: true,
     });
+  });
+
+  it('stores the returned session token', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, always_verify_email: false, session_token: 'sess-1' }),
+    );
+    await logInUser('Alice', 'a@example.com');
+    expect(getStoredAccountToken()).toBe('sess-1');
+  });
+
+  it('does not touch the stored token when the response has none (requires_code branch)', async () => {
+    setStoredAccountToken('previous-token');
+    fetchMock.mockResolvedValue(jsonResponse({ success: false, requires_code: true }));
+    await logInUser('Alice', 'a@example.com');
+    expect(getStoredAccountToken()).toBe('previous-token');
   });
 });
 
@@ -124,6 +155,68 @@ describe('verifyLoginCode', () => {
       success: true,
       always_verify_email: true,
     });
+  });
+
+  it('stores the returned session token', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, always_verify_email: true, session_token: 'sess-2' }),
+    );
+    await verifyLoginCode('Alice', '123456');
+    expect(getStoredAccountToken()).toBe('sess-2');
+  });
+});
+
+describe('resolveAccountSession', () => {
+  it('returns the resolved player on success', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        name: 'Alice',
+        email: 'alice@example.com',
+        always_verify_email: false,
+        email_verified: true,
+      }),
+    );
+    await expect(resolveAccountSession('sess-1')).resolves.toEqual({
+      name: 'Alice',
+      email: 'alice@example.com',
+      always_verify_email: false,
+      email_verified: true,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/resolve_account_session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'sess-1' }),
+    });
+  });
+
+  it('throws on an invalid or expired session', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Invalid or expired session.' }, 401));
+    await expect(resolveAccountSession('bad-token')).rejects.toThrow('Invalid or expired session.');
+  });
+});
+
+describe('logOut', () => {
+  it('clears the stored token immediately, before the request resolves', async () => {
+    setStoredAccountToken('sess-1');
+    let resolveFetch: (r: Response) => void = () => {};
+    fetchMock.mockReturnValue(new Promise((resolve) => { resolveFetch = resolve; }));
+
+    const promise = logOut('sess-1');
+    expect(getStoredAccountToken()).toBeNull();
+
+    resolveFetch(jsonResponse({ success: true }));
+    await promise;
+  });
+
+  it('still reports success when the revoke request fails (best-effort)', async () => {
+    setStoredAccountToken('sess-1');
+    fetchMock.mockResolvedValue(failingJsonResponse(500));
+    await expect(logOut('sess-1')).resolves.toEqual({ success: true });
+  });
+
+  it('is a no-op success when there is no token to revoke', async () => {
+    await expect(logOut(null)).resolves.toEqual({ success: true });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

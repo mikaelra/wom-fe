@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createLobby, joinLobby, getPlayerRelics } from '@/lib/api';
+import { createLobby, joinLobby, getPlayerRelics, logOut } from '@/lib/api';
+import { getStoredAccountToken } from '@/lib/http';
 import { useAuthFlow } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
 import RopedButton from '@/components/hud/RopedButton';
@@ -50,6 +51,10 @@ export default function WorldMapOverlay() {
       localStorage.removeItem('playerName');
       localStorage.removeItem('playerEmail');
     }
+    // Fire-and-forget: logOut() clears the local credential synchronously
+    // and treats the server-side revoke as best-effort, so there's nothing
+    // to await or handle here.
+    logOut(getStoredAccountToken());
     // State update only — a location.reload() here would tear down and
     // re-initialise the entire WebGL scene just to swap the top-bar button.
     setLoggedInName('');
