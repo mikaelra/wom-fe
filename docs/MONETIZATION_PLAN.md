@@ -1,6 +1,6 @@
 # Monetization Plan — Frogskins, Wheels & Shop
 
-Status: draft for review · Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-16
+Status: draft for review · Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-18
 
 ## 1. Summary
 
@@ -53,6 +53,26 @@ account/identity prerequisites, compliance, testing, and a phased rollout.
   only when `always_verify_email` is on.
 - Per-lobby session tokens exist (frontend `lib/api.ts`, backend
   `resolve_session_token`), but there is **no persistent account session**.
+- A link-based confirmation flow already exists, just scoped to a settings toggle:
+  `request_toggle_verify_email` / `confirm_toggle_verify_email` (`lib/api.ts`) email a
+  link to `/email_verified?token=...`, which on click flips `always_verify_email`. The
+  reward-claim verification in §7.1 is a new, purpose-built flow but follows the same
+  shape (email a link → confirm page → server-side effect on click).
+
+**Relics** — `backend/routes/bossfight.py`, already live in production:
+
+- Defeating the Hades boss awards a **relic** (`get_player_relics`, `claim_pending_relic`,
+  `pending_relic_nudge` on the player payload, "You won a relic" nudge in
+  `LobbyOverlay.tsx`). This predates the skin/wheel system and isn't itself part of this
+  plan, but it shares the exact problem this plan is solving: **an earned item can be
+  attached to an email nobody has proven they control.**
+- `CODEBASE_HARDENING_PLAN.md` (Phase 4 write-up) documents a confirmed, live
+  vulnerability here: if the name that earned the relic has never registered an account,
+  `claim_pending_relic` **creates a new account under whatever email the caller supplies
+  and immediately awards the pending relic** — no verification at all. Anyone who can
+  guess a name that earned an unclaimed relic can steal it by supplying their own email.
+  Filed there as a backend-only fix, out of this repo's control. §7.1 below is the
+  product rule that closes it (and applies the same rule to wheels going forward).
 
 **Payments** — none. No Stripe/payment code exists anywhere yet.
 
@@ -93,6 +113,10 @@ account/identity prerequisites, compliance, testing, and a phased rollout.
   **claimed account** rolls an independent 25% chance to receive one Normal Wheel.
   Guests earn nothing and wear green; show them a "claim your name to earn wheels"
   teaser on the game-over screen — the drop doubles as an account-creation funnel.
+- **Held pending verification if the email isn't verified yet** (§7.1): the roll still
+  happens and the wheel is reserved server-side, but it doesn't appear in the inventory
+  or become spinnable until the player verifies. Same rule applies to relics (Hades
+  bossfight) — see §7.1.
 - **Server-side only.** The roll happens in the game-end path in
   `engine/combat.py` (same guard as stats: matches with bots grant nothing, otherwise
   bot lobbies become a wheel farm).
@@ -304,24 +328,61 @@ on and consider manual review above a threshold.
 
 ## 7. Accounts & identity (prerequisite work)
 
-Money makes accounts worth stealing; the current name+email login is not enough.
+Money makes accounts worth stealing; the current name+email login is not enough. Two
+items here (§7.1, §7.2) are **Phase 0**, blocking Phase 1 — not because Phase 1 involves
+money, but because Phase 1 hands out real, persistent items (wheels, and the
+already-live relics) and those must not be handed to an unverified inbox. The
+purchase-specific items (§7.3 OAuth is independent; forced re-login lives in §6/Phase 2)
+are gated separately.
 
-1. **Email verification at rest.** New flow reusing the existing HMAC'd 6-digit code
-   machinery (`email_verifications`, `mailer.py`): request → email code → confirm →
-   set `players.email_verified_at`. Changing the email clears it. The shop is gated on
-   it; the game itself stays open to unverified/guest players.
-2. **Real login before first purchase.** Once an account has any order or paid item,
-   force code-verified login (effectively `always_verify_email = true`, set permanently
-   at first checkout). Cheap to build — the code flow already exists.
-3. **Persistent sessions.** On successful (verified) login, issue a random token,
-   store its hash in `account_sessions`, return it to the client (`lib/api.ts` already
-   has the token-attach pattern; add a parallel account token in `localStorage`, ~30-day
-   expiry, sliding renewal). All inventory/shop routes resolve the player from it.
-4. **OAuth (Google first).** Standard OIDC code flow; on callback, match
-   `auth_identities(provider, subject)` → session. New Google users with an email match
-   on an existing verified player get a link-account prompt; otherwise create a player
-   (name-picker step). Google emails arrive pre-verified → set `email_verified_at`.
-5. **Steam later, with a caveat:** Steam uses OpenID 2.0 and **does not give you an
+1. **Reward-claim email verification — link-based, Phase 0, blocks Phase 1.** Before
+   *any* earned item (Normal/Special Wheel, or the existing Hades relic) is delivered to
+   an account, that account's email must be verified by clicking a link — not the
+   6-digit login code, a distinct flow:
+   - Player earns a reward with `email_verified_at IS NULL` (either a brand-new
+     name+email pair, or an existing unverified claim). The reward is recorded
+     server-side (a `wheel_items` row / the existing pending-relic mechanism) but
+     **held**: excluded from `/inventory`, not spinnable, not shown as claimed.
+     Reworks `claim_pending_relic` (`backend/routes/bossfight.py`) to stop
+     creating-account-and-awarding-in-one-step — this is exactly the theft path
+     `CODEBASE_HARDENING_PLAN.md` flags (§2 above): a guessed name + attacker-supplied
+     email currently gets the relic immediately with zero proof of email ownership.
+   - Frontend prompts "enter your email to claim this" (or confirms the one on file) →
+     `POST` a request-verification call → backend emails a link to a confirm page
+     (same shape as the existing `/email_verified?token=...` flow, §2) → clicking it
+     sets `players.email_verified_at`, and **only then** does the held reward move
+     into the visible inventory (or the relic becomes claimed).
+   - If the email is already verified, none of this is visible — reward lands
+     immediately, same as today's plan. This only gates the *first* unverified reward
+     per account, in practice.
+   - `always_verify_email` (the existing settings toggle, still 6-digit-code-based) is
+     an orthogonal, separate concern from this — one is about re-login friction, this
+     one is about proving inbox ownership once before an item is at stake.
+2. **Persistent sessions — Phase 0, blocks Phase 1.** On successful login, issue a
+   random token, store its hash in `account_sessions`, return it to the client
+   (`lib/api.ts` already has the token-attach pattern; add a parallel account token in
+   `localStorage`, ~30-day expiry, sliding renewal). All inventory/shop routes resolve
+   the player from it — needed because today's session tokens are per-`lobby_id`, and
+   inventory/wheel state must survive across lobbies and matches.
+3. **"Forgot username" recovery — Phase 0.** A button on `/login` ("Forgot username?")
+   → a page that takes just an email → backend finds every `players` row where
+   `email = X AND email_verified_at IS NOT NULL` and, if any exist, emails that address
+   the list of usernames. **Only verified links are ever surfaced this way** —
+   deliberately excludes unverified `claim_name` rows, so an unverified/never-confirmed
+   claim can't be leaked or confirmed-by-existence through the recovery flow. Always
+   respond with the same generic "if that email has any accounts, we've sent the list"
+   message regardless of match, to avoid email-enumeration.
+4. **Real login before first purchase — Phase 2 only, not a Phase 0/1 blocker.** Once
+   an account has any order or paid item, force code-verified login (effectively
+   `always_verify_email = true`, set permanently at first checkout). Cheap to build —
+   the 6-digit code flow already exists. This is strictly about payment-account
+   hardening and has no bearing on wheels/relics, which are gated by §7.1 instead.
+5. **OAuth (Google first) — Phase 3, on hold for now, no active work.** Standard OIDC
+   code flow; on callback, match `auth_identities(provider, subject)` → session. New
+   Google users with an email match on an existing verified player get a link-account
+   prompt; otherwise create a player (name-picker step). Google emails arrive
+   pre-verified → set `email_verified_at` directly, skipping §7.1's link step.
+6. **Steam later, with a caveat:** Steam uses OpenID 2.0 and **does not give you an
    email**, so Steam-only accounts still need the email-verification step before
    buying. Discord/Apple are easier follow-ups than Steam if the goal is verified
    emails.
@@ -339,6 +400,22 @@ New routes under `src/app/`:
   email-verified gate (inline verification flow if not) → Stripe redirect.
   `/shop/success` and `/shop/cancel` pages; success polls `/inventory` until the
   webhook has landed the item ("Payment received — your wheel is in your inventory").
+- **`/forgot_username`** (§7.3) — single email input + submit; always shows the same
+  generic "check your inbox if that email has any accounts" success state, whether or
+  not a match was found. Linked from a new "Forgot username?" button on `/login`.
+
+New/changed states on existing screens:
+
+- **Post-match award panel (game-over screen) and the Hades relic nudge
+  (`LobbyOverlay.tsx`'s "You won a relic")** — when the winner's email isn't verified
+  yet (§7.1), swap the normal "Spin now / Save for later" (or "claim") buttons for an
+  "Enter your email to claim this" prompt, then a "Check your inbox" state after
+  submitting. The reward is already reserved server-side; this is purely about
+  unblocking delivery.
+- **`/email_verified`-style confirm page** — either extend the existing page to handle
+  a new token purpose, or add a sibling route, so clicking the reward-claim link
+  releases the held wheel/relic and redirects into `/inventory` (or back to the relic
+  claim) instead of toggling `always_verify_email`.
 
 New components:
 
@@ -389,6 +466,10 @@ regulated territory:
   bounds 2-friend quick-loss farming — no separate anti-abuse cap needed.
 - Rate-limit spin/equip/checkout endpoints with the existing `rate_limit.py` limiter.
 - Ownership checks on every equip/spin (`player_id` from session, never from body).
+- Rewards held on unverified emails (§7.1) close the live `claim_pending_relic`
+  vulnerability in `CODEBASE_HARDENING_PLAN.md`: guessing a name that earned an item no
+  longer lets an attacker attach their own email and receive it — the item only
+  releases once that email's inbox proves it clicked the link.
 
 ## 11. Testing
 
@@ -405,27 +486,43 @@ regulated territory:
   `dispatchEvent('click')` rather than `click({force: true})`.
 - **Odds sanity:** a seedable test hook to run 1M simulated spins in CI and assert
   frequencies within tolerance.
+- **Reward-verification unit tests (§7.1):** a wheel/relic won on an unverified email
+  is held (absent from `/inventory`, not spinnable, relic not claimable) until the
+  confirm link is hit; hitting it releases exactly that reward, not any other pending
+  one; already-verified accounts skip the hold entirely; double-confirming a token is a
+  no-op, not a double-release.
+- **Forgot-username unit tests (§7.3):** only rows with `email_verified_at IS NOT NULL`
+  are included in the sent list; an email with zero verified matches still returns the
+  same generic success response (no enumeration signal); multiple verified names on one
+  email all appear in a single email.
 
 ## 12. Rollout phases
 
-**Phase 0 — Identity prerequisites (backend-heavy)**
-Persistent `account_sessions`; email verification flow + `email_verified_at`;
-forced code login for paying accounts. *Exit: a player can verifiably own things.*
+**Phase 0 — Identity prerequisites**
+Persistent `account_sessions` (§7.2); link-based reward-claim email verification
+gating wheel *and* relic delivery, `players.email_verified_at` (§7.1) — this also
+closes the live `claim_pending_relic` vulnerability in `CODEBASE_HARDENING_PLAN.md`;
+"Forgot username" recovery (§7.3). Forced code-login-before-purchase (old item 2) has
+moved to Phase 2, since it's a payment concern with no bearing on Phase 1.
+*Exit: a player can verifiably own things, and no reward can be delivered to an
+unverified inbox.*
 
 **Phase 1 — Ownership & the free wheel (no money yet)**
 Migrations (`skin_items`, `wheel_items`, `players` columns); equipped skin drives
-lobby appearance (delete `assignSkins`); 25% post-match drop; `WheelSpinModal`;
-`/inventory` page. *Exit: full loop earn → spin → equip → seen by others. Ship this
-alone first — it's a player-facing feature even before payments and shakes out the
-whole pipeline.*
+lobby appearance (delete `assignSkins`); 25% post-match drop, held pending
+verification per §7.1/§3.2; `WheelSpinModal`; `/inventory` page. *Exit: full loop
+earn → (verify if needed) → spin → equip → seen by others. Ship this alone first —
+it's a player-facing feature even before payments and shakes out the whole pipeline.*
 
 **Phase 2 — Shop & payments**
 `orders`, Stripe Checkout + webhooks, `/shop` page, Special Wheel, odds disclosure,
-geo-gating, refund/chargeback revocation. Cherub ships here if the asset is ready.
+geo-gating, refund/chargeback revocation, forced code-verified login before first
+purchase (§7.4). Cherub ships here if the asset is ready.
 *Exit: first real dollar, correctly fulfilled and refundable.*
 
-**Phase 3 — Social login**
-Google OIDC, `auth_identities`, account linking. Steam/Discord afterwards.
+**Phase 3 — Social login (on hold, no active work)**
+Google OIDC, `auth_identities`, account linking. Steam/Discord afterwards. Deliberately
+deferred — revisit once Phases 0–2 are shipped.
 
 **Phase 4 — Polish & ops**
 Purchase analytics/dashboards, admin grant/revoke tooling, daily drop cap tuning,
@@ -450,6 +547,16 @@ above:
 6. **Pity mechanic:** none. Pure independent 1/300 per spin, disclosed as such (§3.3).
 7. **Normal-wheel drop cap:** max 4 match-drop wheels per player per rolling 14 days
    (§3.2).
+8. **Reward-claim verification (added 2026-07-18):** link-based, not the 6-digit login
+   code; gates delivery of both wheels and the existing Hades relic; a reward earned
+   on an unverified email is held server-side, not lost, and releases automatically on
+   confirm (§7.1). This is Phase 0 work, blocking Phase 1, and separately closes the
+   live `claim_pending_relic` vulnerability.
+9. **Forgot username (added 2026-07-18):** recovery email lists only usernames whose
+   email is verified; a generic response regardless of match to prevent enumeration
+   (§7.3). Phase 0.
+10. **Google OAuth (added 2026-07-18):** on hold — Phase 3 stays last, deliberately
+    deferred with no active work for now (§7.5).
 
 Still open (visual polish, not blocking): exact slice layout for both wheels. The
 agreed direction (§3.5): only a small top arc of an oversized wheel is visible, and
