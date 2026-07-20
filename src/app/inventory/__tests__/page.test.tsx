@@ -11,12 +11,15 @@ vi.mock('@/lib/api', () => ({
   getPlayerRelics: vi.fn(),
 }));
 
-// Real RelicCoin renders a react-three-fiber <Canvas>, which needs a WebGL
-// context jsdom can't provide -- mocked out wholesale, same as this repo's
-// other R3F leaf components in page-level tests (see e.g.
-// src/app/__tests__/page.test.tsx's LobbyScene mock).
+// Real RelicCoin/SpinningModelViewer render a react-three-fiber <Canvas>,
+// which needs a WebGL context jsdom can't provide -- mocked out wholesale,
+// same as this repo's other R3F leaf components in page-level tests (see
+// e.g. src/app/__tests__/page.test.tsx's LobbyScene mock).
 vi.mock('@/components/RelicCoin', () => ({
   default: () => <div data-testid="relic-coin" />,
+}));
+vi.mock('@/components/SpinningModelViewer', () => ({
+  default: ({ url }: { url: string }) => <div data-testid="skin-preview" data-url={url} />,
 }));
 
 const mockedGetInventory = vi.mocked(getInventory);
@@ -56,6 +59,7 @@ describe('InventoryPage', () => {
 
     expect(screen.getByText('OG Green')).toBeInTheDocument();
     expect(screen.getByText('EQUIPPED')).toBeInTheDocument();
+    expect(screen.getByTestId('skin-preview')).toHaveAttribute('data-url', '/models/frogs/frog_green_v1.glb');
   });
 
   it('lists owned skins with their counts and an Equip button for unequipped ones', async () => {
@@ -91,6 +95,7 @@ describe('InventoryPage', () => {
 
     expect(mockedEquipSkin).toHaveBeenCalledWith('sess-1', 'frog_gold_v1');
     expect(screen.getAllByText('EQUIPPED')).toHaveLength(1);
+    expect(screen.getByTestId('skin-preview')).toHaveAttribute('data-url', '/models/frogs/frog_gold_v1.glb');
   });
 
   it('shows unspun wheels with a Use button', async () => {

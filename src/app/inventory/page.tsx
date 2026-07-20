@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getInventory, equipSkin, getPlayerRelics } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
-import { skinColor, skinLabel } from '@/lib/frogSkins';
+import { skinColor, skinLabel, skinUrl } from '@/lib/frogSkins';
 import WheelSpinModal from '@/components/WheelSpinModal';
 import RelicCoin from '@/components/RelicCoin';
+import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
 import type { Relic } from '@/types/game';
 
@@ -162,6 +163,9 @@ export default function InventoryPage() {
 
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4">Skins</h2>
+              <div className="w-40 h-40 mx-auto mb-6">
+                <SpinningModelViewer key={equippedSkin} url={skinUrl(equippedSkin)} targetSize={1.8} spinSpeed={0.6} />
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {ownedSkins.map(({ skin, count }) => {
                   const isEquipped = skin === equippedSkin;
