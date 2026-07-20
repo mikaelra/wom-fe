@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, fireEvent } from '@testing-library/react';
-import BossSignupNudge from '@/components/BossSignupNudge';
-import { claimPendingRelic, checkClaimVerified } from '@/lib/api';
+import WheelClaimNudge from '@/components/WheelClaimNudge';
+import { claimPendingWheel, checkClaimVerified } from '@/lib/api';
 
 vi.mock('@/lib/api', () => ({
-  claimPendingRelic: vi.fn(),
+  claimPendingWheel: vi.fn(),
   checkClaimVerified: vi.fn(),
 }));
 
-const mockedClaim = vi.mocked(claimPendingRelic);
+const mockedClaim = vi.mocked(claimPendingWheel);
 const mockedCheckClaimVerified = vi.mocked(checkClaimVerified);
 const flush = () => act(async () => Promise.resolve());
 
@@ -22,40 +22,43 @@ afterEach(() => {
   localStorage.clear();
 });
 
-describe('BossSignupNudge', () => {
+describe('WheelClaimNudge', () => {
   const submit = async (email: string) => {
     fireEvent.change(screen.getByPlaceholderText('Your email'), { target: { value: email } });
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Create account and claim relic' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Create account and claim wheel' }));
       await flush();
     });
   };
 
-  it('shows the immediate-claim success state when the relic is granted right away', async () => {
-    mockedClaim.mockResolvedValue({ success: true, pending_verification: false, relic_name: 'Golden Fleece' });
+  it('shows the claimed state and a link to the inventory when granted right away', async () => {
+    mockedClaim.mockResolvedValue({ success: true, pending_verification: false });
     const onDismiss = vi.fn();
-    render(<BossSignupNudge lobbyId="lobby1" playerName="Alice" onDismiss={onDismiss} />);
+    render(<WheelClaimNudge lobbyId="lobby1" playerName="Alice" onDismiss={onDismiss} />);
 
     await submit('alice@example.com');
 
-    expect(screen.getByText('Relic claimed!')).toBeInTheDocument();
-    expect(screen.getByText('Golden Fleece')).toBeInTheDocument();
+    expect(screen.getByText('Wheel claimed!')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Spin it in your inventory' })).toHaveAttribute(
+      'href',
+      '/inventory',
+    );
     expect(localStorage.getItem('playerEmail')).toBe('alice@example.com');
   });
 
-  it('shows an awaiting-verification state when the relic is held pending verification', async () => {
+  it('shows an awaiting-verification state when the wheel is held pending verification', async () => {
     mockedClaim.mockResolvedValue({ success: true, pending_verification: true });
-    render(<BossSignupNudge lobbyId="lobby1" playerName="Alice" onDismiss={vi.fn()} />);
+    render(<WheelClaimNudge lobbyId="lobby1" playerName="Alice" onDismiss={vi.fn()} />);
 
     await submit('alice@example.com');
 
     expect(screen.getByText('Check your inbox')).toBeInTheDocument();
-    expect(screen.queryByText('Relic claimed!')).not.toBeInTheDocument();
+    expect(screen.queryByText('Wheel claimed!')).not.toBeInTheDocument();
   });
 
-  it('Resend email re-calls claimPendingRelic while staying in the awaiting-verification state', async () => {
+  it('Resend email re-calls claimPendingWheel while staying in the awaiting-verification state', async () => {
     mockedClaim.mockResolvedValue({ success: true, pending_verification: true });
-    render(<BossSignupNudge lobbyId="lobby1" playerName="Alice" onDismiss={vi.fn()} />);
+    render(<WheelClaimNudge lobbyId="lobby1" playerName="Alice" onDismiss={vi.fn()} />);
 
     await submit('alice@example.com');
     await act(async () => {
@@ -67,7 +70,7 @@ describe('BossSignupNudge', () => {
   });
 
   it('shows a validation error for a malformed email without calling the API', async () => {
-    render(<BossSignupNudge lobbyId="lobby1" playerName="Alice" onDismiss={vi.fn()} />);
+    render(<WheelClaimNudge lobbyId="lobby1" playerName="Alice" onDismiss={vi.fn()} />);
 
     await submit('not-an-email');
 
@@ -77,21 +80,21 @@ describe('BossSignupNudge', () => {
 
   it('shows the server error message when the claim fails', async () => {
     mockedClaim.mockRejectedValue(new Error('Name already claimed by a different email'));
-    render(<BossSignupNudge lobbyId="lobby1" playerName="Alice" onDismiss={vi.fn()} />);
+    render(<WheelClaimNudge lobbyId="lobby1" playerName="Alice" onDismiss={vi.fn()} />);
 
     await submit('alice@example.com');
 
     expect(screen.getByText('Name already claimed by a different email')).toBeInTheDocument();
   });
 
-  it('auto-transitions to a generic claimed state once verified via polling (e.g. verified on another device)', async () => {
+  it('auto-transitions to claimed once verified via polling (e.g. verified on another device)', async () => {
     vi.useFakeTimers();
     try {
       mockedClaim.mockResolvedValue({ success: true, pending_verification: true });
       mockedCheckClaimVerified
         .mockResolvedValueOnce({ verified: false })
         .mockResolvedValueOnce({ verified: true });
-      render(<BossSignupNudge lobbyId="lobby1" playerName="Alice" onDismiss={vi.fn()} />);
+      render(<WheelClaimNudge lobbyId="lobby1" playerName="Alice" onDismiss={vi.fn()} />);
 
       await submit('alice@example.com');
       expect(screen.getByText('Check your inbox')).toBeInTheDocument();
@@ -99,11 +102,19 @@ describe('BossSignupNudge', () => {
       await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
       await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
 
-      expect(screen.getByText('Relic claimed!')).toBeInTheDocument();
-      expect(screen.getByText('your relic')).toBeInTheDocument();
+      expect(screen.getByText('Wheel claimed!')).toBeInTheDocument();
       expect(mockedCheckClaimVerified).toHaveBeenCalledWith('Alice', 'alice@example.com');
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('calls onDismiss when "No thanks" is clicked', () => {
+    const onDismiss = vi.fn();
+    render(<WheelClaimNudge lobbyId="lobby1" playerName="Alice" onDismiss={onDismiss} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'No thanks' }));
+
+    expect(onDismiss).toHaveBeenCalled();
   });
 });

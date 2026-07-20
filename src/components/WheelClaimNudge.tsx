@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { claimPendingRelic } from '@/lib/api';
+import Link from 'next/link';
+import { claimPendingWheel } from '@/lib/api';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 
 type Props = {
@@ -10,20 +11,16 @@ type Props = {
   onDismiss: () => void;
 };
 
-export default function BossSignupNudge({ lobbyId, playerName, onDismiss }: Props) {
+export default function WheelClaimNudge({ lobbyId, playerName, onDismiss }: Props) {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [claimedRelicName, setClaimedRelicName] = useState<string | null>(null);
+  const [claimed, setClaimed] = useState(false);
   const [awaitingVerification, setAwaitingVerification] = useState(false);
 
   // Covers verifying on a different device (e.g. a phone) than this one --
-  // this device otherwise never learns the claim went through. The poll
-  // response doesn't carry the relic's name (only whether verification
-  // landed), so this falls back to a generic label rather than the exact one.
-  useClaimVerificationPoll(awaitingVerification, playerName, email.trim(), () =>
-    setClaimedRelicName((prev) => prev ?? 'your relic'),
-  );
+  // this device otherwise never learns the claim went through.
+  useClaimVerificationPoll(awaitingVerification, playerName, email.trim(), () => setClaimed(true));
 
   const handleClaim = async () => {
     const trimmedEmail = email.trim();
@@ -34,14 +31,14 @@ export default function BossSignupNudge({ lobbyId, playerName, onDismiss }: Prop
     setError('');
     setLoading(true);
     try {
-      const result = await claimPendingRelic(lobbyId, playerName, trimmedEmail);
+      const result = await claimPendingWheel(lobbyId, playerName, trimmedEmail);
       if (typeof window !== 'undefined') {
         localStorage.setItem('playerEmail', trimmedEmail);
       }
       if (result.pending_verification) {
         setAwaitingVerification(true);
       } else {
-        setClaimedRelicName(result.relic_name ?? null);
+        setClaimed(true);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.');
@@ -53,13 +50,16 @@ export default function BossSignupNudge({ lobbyId, playerName, onDismiss }: Prop
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="bg-gray-900 border border-amber-500/40 text-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4">
-        {claimedRelicName ? (
+        {claimed ? (
           <div className="text-center">
-            <p className="text-3xl mb-3">🏺</p>
-            <p className="text-green-400 font-bold text-lg mb-1">Relic claimed!</p>
-            <p className="text-amber-300 text-sm mb-1">{claimedRelicName}</p>
+            <p className="text-3xl mb-3">🎡</p>
+            <p className="text-green-400 font-bold text-lg mb-1">Wheel claimed!</p>
             <p className="text-gray-400 text-sm mb-5">
-              Your name is now linked to your email. Find your relics in your profile on the home page.
+              Your name is now linked to your email.{' '}
+              <Link href="/inventory" className="text-amber-300 underline hover:text-amber-200">
+                Spin it in your inventory
+              </Link>
+              .
             </p>
             <button
               type="button"
@@ -75,7 +75,7 @@ export default function BossSignupNudge({ lobbyId, playerName, onDismiss }: Prop
             <p className="text-green-400 font-bold text-lg mb-1">Check your inbox</p>
             <p className="text-gray-400 text-sm mb-5">
               Click the link we sent to <strong>{email.trim()}</strong> to verify it and
-              claim your relic.
+              claim your Wheel.
             </p>
             <div className="flex gap-2">
               <button
@@ -99,12 +99,12 @@ export default function BossSignupNudge({ lobbyId, playerName, onDismiss }: Prop
           </div>
         ) : (
           <>
-            <p className="text-3xl text-center mb-3">🏺</p>
+            <p className="text-3xl text-center mb-3">🎡</p>
             <h2 className="text-lg font-bold text-amber-400 mb-2 text-center">
-              You won a relic from the boss fight.
+              You won a Wheel!
             </h2>
             <p className="text-sm text-gray-300 mb-4 text-center">
-              Connect an email to your name and claim the relic.
+              Connect an email to your name and claim it.
             </p>
             <input
               type="email"
@@ -123,7 +123,7 @@ export default function BossSignupNudge({ lobbyId, playerName, onDismiss }: Prop
                 disabled={loading}
                 className="flex-1 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-bold hover:bg-amber-600/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
-                {loading ? 'Claiming…' : 'Create account and claim relic'}
+                {loading ? 'Claiming…' : 'Create account and claim wheel'}
               </button>
               <button
                 type="button"

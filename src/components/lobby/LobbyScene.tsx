@@ -22,7 +22,7 @@ import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { emitHpFx } from '@/lib/resourceFx';
 import { glowForReward, wellRewardFromEvents, type WellRewardComponent } from '@/lib/gameEvents';
-import { assignSkins } from '@/lib/frogSkins';
+import { skinUrl } from '@/lib/frogSkins';
 import {
   buildCombatAnimationPlan,
   buildWellRewardEvents,
@@ -184,12 +184,19 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const isBossFight = !!state?.boss_fight;
   const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
 
-  // Compute skins for all frog players deterministically from their names so
-  // every client agrees without any server round-trip.
+  // Skins are owned items now, not a per-lobby hash: the server freezes
+  // each player's equipped skin at join time (players.equipped_skin) and
+  // sends it as part of their public payload -- see
+  // docs/MONETIZATION_PLAN.md §3.1. Guests/unclaimed names have no
+  // equipped skin server-side (skin: null) and fall back to green here.
   const skinMap = useMemo(() => {
     const frogPlayers = allPlayers.filter((p) => !p.boss && !p.lost_soul && p.name !== 'TURTLE');
-    return assignSkins(frogPlayers, lobbyId);
-  }, [allPlayers, lobbyId]);
+    const map = new Map<string, string>();
+    for (const p of frogPlayers) {
+      map.set(p.name, skinUrl(p.skin ?? 'frog_green_v1'));
+    }
+    return map;
+  }, [allPlayers]);
 
   // Preload only the skins actually used in this lobby (was: all 13 skins eagerly,
   // ~92 MB). New skins are fetched on-demand when a player joins.

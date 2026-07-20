@@ -9,8 +9,9 @@ become **owned, persistent items** on a player's account:
 
 - Everyone starts with (and permanently owns) the default **green** frog skin.
 - Finishing any match — bossfight or PvP — gives each player an independent **25% chance
-  of earning a Wheel** (free, capped at 4 wheels per rolling two weeks). Wheels can be
-  spun immediately or saved in the inventory.
+  of earning a Wheel** (free, capped at 4 wheels per global bi-weekly period — every
+  player's cap resets at the same instant, on alternating Mondays at 00:00 UTC, not on a
+  per-player rolling window). Wheels can be spun immediately or saved in the inventory.
 - Spinning a **normal Wheel** shows the top arc of a tivoli-style spinning wheel with
   the 6 non-green common skin colors at equal odds; the landed skin is added to the
   inventory.
@@ -126,11 +127,13 @@ account/identity prerequisites, compliance, testing, and a phased rollout.
   green is excluded because everyone already owns it. **Every spin is completely
   random and independent** — there is no dedup or "new skin" bias, so rolling a skin
   you already own is normal and expected. Duplicates are kept and counted.
-- **Drop cap: 4 Normal Wheels per player per two weeks** (rolling 14-day window).
-  Once a player has been granted 4 match-drop wheels in the trailing 14 days, the
-  post-match roll simply doesn't happen for them until a grant ages out. Enforced
-  server-side by counting `wheel_items` with `source = 'match_drop'` and
-  `created_at > now() - 14 days` before rolling.
+- **Drop cap: 4 Normal Wheels per player per global bi-weekly period.** The period is a
+  shared clock, not a per-player rolling window: it resets for every player at the same
+  instant, on alternating Mondays at 00:00 UTC (anchored to a fixed reference Monday, see
+  `engine/combat.py`'s `_current_wheel_drop_period_start`). Once a player has been granted
+  4 match-drop wheels within the current period, the post-match roll simply doesn't happen
+  for them until the next reset. Enforced server-side by counting `wheel_items` with
+  `source = 'match_drop'` and `created_at >= <current period's start>` before rolling.
 
 ### 3.3 Special Wheel — $5, shop item
 
@@ -462,8 +465,8 @@ regulated territory:
   never trust the client, never seed from player-controlled input (the current
   name-hash approach in `frogSkins.ts` is exactly what we're retiring).
 - Wheel drop only in bot-free matches (reuses the existing `botPresent` guard). The
-  product rule of **4 match-drop wheels per player per rolling 14 days** (§3.2) also
-  bounds 2-friend quick-loss farming — no separate anti-abuse cap needed.
+  product rule of **4 match-drop wheels per player per global bi-weekly period** (§3.2)
+  also bounds 2-friend quick-loss farming — no separate anti-abuse cap needed.
 - Rate-limit spin/equip/checkout endpoints with the existing `rate_limit.py` limiter.
 - Ownership checks on every equip/spin (`player_id` from session, never from body).
 - Rewards held on unverified emails (§7.1) close the live `claim_pending_relic`
@@ -475,9 +478,9 @@ regulated territory:
 
 - **Backend unit:** weight-table sums to exactly 30 000; spin endpoint consumes
   atomically (double-spin returns "already spun"); drop roll respects `botPresent`
-  and the 4-per-14-days cap (5th drop in window never grants; a grant aging past
-  14 days re-opens the roll); webhook idempotency (same event twice → one grant);
-  revocation on refund events.
+  and the 4-per-bi-weekly-period cap (5th drop in the current period never grants; a
+  new period's reset re-opens the roll); webhook idempotency (same event twice → one
+  grant); revocation on refund events.
 - **Backend integration:** Stripe CLI–driven webhook tests against the docker-compose
   stack (see existing test layout in `backend/tests/`).
 - **Frontend unit (vitest):** slice-geometry math from weights; inventory equip flow.
@@ -545,8 +548,8 @@ above:
 5. **Cherub duplicates:** allowed but warn + explicit confirm before a second $500
    charge (§3.4).
 6. **Pity mechanic:** none. Pure independent 1/300 per spin, disclosed as such (§3.3).
-7. **Normal-wheel drop cap:** max 4 match-drop wheels per player per rolling 14 days
-   (§3.2).
+7. **Normal-wheel drop cap:** max 4 match-drop wheels per player per global bi-weekly
+   period, resetting for everyone at once on alternating Mondays 00:00 UTC (§3.2).
 8. **Reward-claim verification (added 2026-07-18):** link-based, not the 6-digit login
    code; gates delivery of both wheels and the existing Hades relic; a reward earned
    on an unverified email is held server-side, not lost, and releases automatically on

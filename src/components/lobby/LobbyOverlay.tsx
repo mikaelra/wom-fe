@@ -10,6 +10,7 @@ import SceneOverlay, {
 } from '@/components/SceneOverlay';
 import type { GuideHighlights } from '@/lib/guideHighlights';
 import BossSignupNudge from '@/components/BossSignupNudge';
+import WheelClaimNudge from '@/components/WheelClaimNudge';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
 
@@ -104,6 +105,8 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
 }
 
 export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
+  const myPlayer = state.players.find((p) => p.name === playerName);
+
   return (
     <div className="mt-3 text-center">
       <p className="text-xl font-bold mb-2">
@@ -113,6 +116,14 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
           <span className="text-yellow-400">Game Over! {state.winner} wins!</span>
         )}
       </p>
+      {myPlayer?.wheel_awarded && (
+        <p className="text-amber-300 font-semibold mb-2">
+          🎡 You won a Wheel!{' '}
+          <Link href="/inventory" className="underline hover:text-amber-200">
+            Spin it in your inventory
+          </Link>
+        </p>
+      )}
       <div className="flex flex-col gap-2 items-center">
         <Link href="/" className="text-blue-400 hover:underline font-medium">
           ← Back to Home
@@ -248,6 +259,7 @@ const lobbyConfig: SceneOverlayConfig = {
 export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, guideHighlight }: LobbyOverlayProps) {
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [wheelNudgeDismissed, setWheelNudgeDismissed] = useState(false);
   const [playerName, setPlayerName] = useState('');
 
   useEffect(() => {
@@ -267,6 +279,12 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
     (localState?.gameover ?? false) &&
     (localState?.boss_fight ?? false) &&
     (myPlayer?.pending_relic_nudge ?? false);
+  // Not gated on boss_fight -- the Wheel drops on any match end (PvP or
+  // boss fight), unlike relics which are Hades-bossfight-only.
+  const showWheelNudge =
+    !wheelNudgeDismissed &&
+    (localState?.gameover ?? false) &&
+    (myPlayer?.pending_wheel_nudge ?? false);
 
   return (
     <>
@@ -284,6 +302,13 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
           lobbyId={lobbyId}
           playerName={playerName}
           onDismiss={() => setNudgeDismissed(true)}
+        />
+      )}
+      {showWheelNudge && (
+        <WheelClaimNudge
+          lobbyId={lobbyId}
+          playerName={playerName}
+          onDismiss={() => setWheelNudgeDismissed(true)}
         />
       )}
     </>

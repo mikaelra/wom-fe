@@ -101,12 +101,39 @@ export const ClaimPendingRelicResponseSchema = z.object({
 
 export const ConfirmEmailVerificationResponseSchema = z.object({
   success: z.boolean(),
-  purpose: z.enum(['claim_name', 'claim_relic']),
+  purpose: z.enum(['claim_name', 'claim_relic', 'claim_wheel']),
   relic_name: z.string().nullable().optional(),
+  session_token: z.string().optional(),
 });
 
 export const ForgotUsernameResponseSchema = z.object({
   success: z.boolean(),
+});
+
+export const CheckClaimVerifiedResponseSchema = z.object({
+  verified: z.boolean(),
+  session_token: z.string().optional(),
+});
+
+export const ClaimPendingWheelResponseSchema = z.object({
+  success: z.boolean(),
+  pending_verification: z.boolean().optional(),
+});
+
+export const InventoryResponseSchema = z.object({
+  equipped_skin: z.string(),
+  skins: z.array(z.object({ skin: z.string(), count: z.number().int() })),
+  wheels: z.array(z.object({ id: z.number().int(), kind: z.string() })),
+});
+
+export const EquipSkinResponseSchema = z.object({
+  success: z.boolean(),
+  equipped_skin: z.string(),
+});
+
+export const SpinWheelResponseSchema = z.object({
+  success: z.boolean(),
+  result_skin: z.string(),
 });
 
 // ── Socket.IO payload schemas (not already in @/types/game) ────────────────

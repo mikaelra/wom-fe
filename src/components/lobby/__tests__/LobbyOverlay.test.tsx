@@ -27,6 +27,9 @@ const basePlayer: Player = {
   title: null,
   idle_rounds: 0,
   pending_relic_nudge: false,
+  skin: null,
+  wheel_awarded: false,
+  pending_wheel_nudge: false,
 };
 
 const baseState: LobbyState = {
@@ -89,6 +92,10 @@ describe('renderGameOver', () => {
     btn: '',
   };
 
+  afterEach(() => {
+    localStorage.clear();
+  });
+
   it('shows "You won!" when the local player is the winner', () => {
     render(<>{renderGameOver(opts)}</>);
     expect(screen.getByText('You won! 👑')).toBeInTheDocument();
@@ -97,6 +104,21 @@ describe('renderGameOver', () => {
   it('shows the winner\'s name when someone else won', () => {
     render(<>{renderGameOver({ ...opts, state: { ...opts.state, winner: 'Bob' } })}</>);
     expect(screen.getByText('Game Over! Bob wins!')).toBeInTheDocument();
+  });
+
+  it('shows a link to the inventory when the local player was awarded a Wheel', () => {
+    const me: Player = { ...basePlayer, name: 'Alice', wheel_awarded: true };
+    render(<>{renderGameOver({ ...opts, state: { ...opts.state, players: [me] } })}</>);
+    expect(screen.getByText(/You won a Wheel!/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Spin it in your inventory' })).toHaveAttribute(
+      'href',
+      '/inventory',
+    );
+  });
+
+  it('does not show a claim-your-name teaser for a guest', () => {
+    render(<>{renderGameOver(opts)}</>);
+    expect(screen.queryByText(/to start earning Wheels/)).not.toBeInTheDocument();
   });
 });
 
@@ -254,5 +276,44 @@ describe('LobbyOverlay (BossSignupNudge gate)', () => {
 
     fireEvent.click(screen.getByText('No thanks'));
     expect(screen.queryByText(/You won a relic/)).not.toBeInTheDocument();
+  });
+});
+
+describe('LobbyOverlay (WheelClaimNudge gate)', () => {
+  beforeEach(() => {
+    capturedOnStateChange = null;
+    localStorage.setItem('playerName', 'Alice');
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it('shows the wheel nudge on a PvP game-over too, unlike the boss-fight-only relic nudge', () => {
+    render(<LobbyOverlay lobbyId="AAAA" />);
+    const me: Player = { ...basePlayer, name: 'Alice', pending_wheel_nudge: true };
+
+    act(() => {
+      capturedOnStateChange?.({ ...baseState, players: [me], gameover: false, boss_fight: false });
+    });
+    expect(screen.queryByText(/You won a Wheel/)).not.toBeInTheDocument();
+
+    act(() => {
+      capturedOnStateChange?.({ ...baseState, players: [me], gameover: true, boss_fight: false });
+    });
+    expect(screen.getByText(/You won a Wheel/)).toBeInTheDocument();
+  });
+
+  it('dismisses the wheel nudge and does not show it again for the same state', () => {
+    render(<LobbyOverlay lobbyId="AAAA" />);
+    const me: Player = { ...basePlayer, name: 'Alice', pending_wheel_nudge: true };
+
+    act(() => {
+      capturedOnStateChange?.({ ...baseState, players: [me], gameover: true });
+    });
+    expect(screen.getByText(/You won a Wheel/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('No thanks'));
+    expect(screen.queryByText(/You won a Wheel/)).not.toBeInTheDocument();
   });
 });

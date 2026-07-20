@@ -3,10 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createLobby, joinLobby, getPlayerRelics, logOut } from '@/lib/api';
+import { createLobby, joinLobby, logOut } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { useAuthFlow } from '@/lib/useAuthFlow';
-import type { Relic } from '@/types/game';
 import RopedButton from '@/components/hud/RopedButton';
 import RopedInput from '@/components/hud/RopedInput';
 import { useToast } from '@/components/Toast';
@@ -24,9 +23,6 @@ export default function WorldMapOverlay() {
   const [pendingAction, setPendingAction] = useState<'join' | 'create' | null>(null);
 
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showRelics, setShowRelics] = useState(false);
-  const [relics, setRelics] = useState<Relic[]>([]);
-  const [relicsLoading, setRelicsLoading] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,23 +55,6 @@ export default function WorldMapOverlay() {
     // re-initialise the entire WebGL scene just to swap the top-bar button.
     setLoggedInName('');
     setShowUserMenu(false);
-  };
-
-  const fetchRelics = async () => {
-    const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
-    if (!playerName) return;
-    setShowUserMenu(false);
-    setRelics([]);
-    setRelicsLoading(true);
-    setShowRelics(true);
-    try {
-      const data = await getPlayerRelics(playerName);
-      setRelics(data.relics ?? []);
-    } catch {
-      setRelics([]);
-    } finally {
-      setRelicsLoading(false);
-    }
   };
 
   const doJoin = async (name: string) => {
@@ -195,13 +174,13 @@ export default function WorldMapOverlay() {
               </RopedButton>
               {showUserMenu && (
                 <div className="absolute right-0 mt-1 w-40 bg-gray-900 border border-white/20 rounded-lg shadow-xl overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={fetchRelics}
-                    className="w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  <Link
+                    href="/inventory"
+                    onClick={() => setShowUserMenu(false)}
+                    className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors cursor-pointer no-underline"
                   >
-                    Your relics
-                  </button>
+                    Inventory
+                  </Link>
                   <Link
                     href="/settings"
                     onClick={() => setShowUserMenu(false)}
@@ -273,41 +252,6 @@ export default function WorldMapOverlay() {
           </RopedButton>
         </div>
       </div>
-
-      {/* Relics modal */}
-      {showRelics && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-          onClick={() => setShowRelics(false)}
-        >
-          <div
-            className="bg-gray-900 border border-white/20 text-white p-6 rounded-xl shadow-2xl max-w-md w-full mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-xl font-bold mb-4">Your relics</h3>
-            <ul className="list-disc pl-6 mb-4">
-              {relicsLoading ? (
-                <p className="text-white/60">Loading...</p>
-              ) : relics.length > 0 ? (
-                relics.map((relic) => (
-                  <li key={String(relic.id)}>
-                    <strong>{relic.name} x{relic.count}</strong>
-                  </li>
-                ))
-              ) : (
-                <p className="text-white/60">You have no relics yet.</p>
-              )}
-            </ul>
-            <button
-              type="button"
-              onClick={() => setShowRelics(false)}
-              className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white font-semibold text-sm hover:bg-white/20 transition-colors cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Name popup — shown when not logged in */}
       {showNamePopup && (

@@ -14,6 +14,8 @@ import {
   RequestToggleVerifyEmailResponseSchema,
   ConfirmToggleVerifyEmailResponseSchema,
   ClaimPendingRelicResponseSchema,
+  ConfirmEmailVerificationResponseSchema,
+  CheckClaimVerifiedResponseSchema,
   ResolveAccountSessionResponseSchema,
   LogOutResponseSchema,
   JoinedLobbyPayloadSchema,
@@ -40,6 +42,9 @@ const playerFixture = {
   title: null,
   idle_rounds: 0,
   pending_relic_nudge: null,
+  skin: null,
+  wheel_awarded: null,
+  pending_wheel_nudge: null,
 };
 
 const lobbyStateFixture = {
@@ -63,8 +68,16 @@ describe('Player/LobbyState/ChatMessage/Relic schemas', () => {
     expect(PlayerSchema.safeParse(playerFixture).success).toBe(true);
   });
 
-  it('accepts non-null lost_soul/title/pending_relic_nudge', () => {
-    const withValues = { ...playerFixture, lost_soul: true, title: 'The Boss', pending_relic_nudge: true };
+  it('accepts non-null lost_soul/title/pending_relic_nudge/skin/wheel_awarded/pending_wheel_nudge', () => {
+    const withValues = {
+      ...playerFixture,
+      lost_soul: true,
+      title: 'The Boss',
+      pending_relic_nudge: true,
+      skin: 'frog_gold_v1',
+      wheel_awarded: true,
+      pending_wheel_nudge: true,
+    };
     expect(PlayerSchema.safeParse(withValues).success).toBe(true);
   });
 
@@ -72,6 +85,18 @@ describe('Player/LobbyState/ChatMessage/Relic schemas', () => {
     const missingBot: Partial<typeof playerFixture> = { ...playerFixture };
     delete missingBot.bot;
     expect(PlayerSchema.safeParse(missingBot).success).toBe(false);
+  });
+
+  it('accepts a player entirely missing skin/wheel_awarded/pending_wheel_nudge', () => {
+    // A currently-deployed wom-be can lag a wom-fe branch that already
+    // expects these (e.g. E2E CI against ghcr.io/mikaelra/wom-be:latest,
+    // built from wom-be's main, not necessarily whatever adds these fields)
+    // -- omitted entirely, not sent as null, must still parse.
+    const olderBackendShape: Partial<typeof playerFixture> = { ...playerFixture };
+    delete olderBackendShape.skin;
+    delete olderBackendShape.wheel_awarded;
+    delete olderBackendShape.pending_wheel_nudge;
+    expect(PlayerSchema.safeParse(olderBackendShape).success).toBe(true);
   });
 
   it('parses a full state_update payload', () => {
@@ -211,6 +236,33 @@ describe('HTTP response schemas', () => {
       }).success,
     ).toBe(true);
     expect(LogOutResponseSchema.safeParse({ success: true }).success).toBe(true);
+  });
+
+  it('parses confirm_email_verification responses, including the session_token it now mints', () => {
+    expect(
+      ConfirmEmailVerificationResponseSchema.safeParse({
+        success: true,
+        purpose: 'claim_wheel',
+        session_token: 'tok',
+      }).success,
+    ).toBe(true);
+    expect(
+      ConfirmEmailVerificationResponseSchema.safeParse({
+        success: true,
+        purpose: 'claim_relic',
+        relic_name: 'Golden Fleece',
+        session_token: 'tok',
+      }).success,
+    ).toBe(true);
+    // session_token is optional -- older/edge-case responses without one still parse.
+    expect(
+      ConfirmEmailVerificationResponseSchema.safeParse({ success: true, purpose: 'claim_name' }).success,
+    ).toBe(true);
+  });
+
+  it('parses check_claim_verified responses', () => {
+    expect(CheckClaimVerifiedResponseSchema.safeParse({ verified: true, session_token: 'tok' }).success).toBe(true);
+    expect(CheckClaimVerifiedResponseSchema.safeParse({ verified: false }).success).toBe(true);
   });
 });
 

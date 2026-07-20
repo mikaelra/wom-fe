@@ -14,7 +14,6 @@ vi.mock('@/lib/api', () => ({
   verifyLoginCode: vi.fn(),
   createLobby: vi.fn(),
   joinLobby: vi.fn(),
-  getPlayerRelics: vi.fn(),
   logOut: vi.fn(),
 }));
 
@@ -243,5 +242,18 @@ describe('WorldMapOverlay', () => {
     expect(localStorage.getItem('playerName')).toBeNull();
     expect(localStorage.getItem('playerEmail')).toBeNull();
     expect(screen.getByRole('button', { name: 'Log in' })).toBeInTheDocument();
+  });
+
+  it('lists Inventory before Settings in the user menu, with no separate relics entry', () => {
+    localStorage.setItem('playerName', 'Alice');
+    localStorage.setItem('playerEmail', 'alice@example.com');
+    render(<WorldMapOverlay />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open user menu' }));
+
+    const menu = screen.getByText('Sign out').parentElement;
+    const itemOrder = Array.from(menu?.children ?? []).map((el) => el.textContent);
+    expect(itemOrder).toEqual(['Inventory', 'Settings', 'Sign out']);
+    expect(screen.getByText('Inventory')).toHaveAttribute('href', '/inventory');
   });
 });

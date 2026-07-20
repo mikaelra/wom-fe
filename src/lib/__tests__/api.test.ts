@@ -1,13 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { BACKEND_URL } from '@/config';
 import {
+  checkClaimVerified,
   checkName,
+  claimPendingWheel,
+  confirmEmailVerification,
   createLobby,
+  equipSkin,
+  getInventory,
   getPlayerMessages,
   getPlayerRelics,
   logInUser,
   logOut,
   resolveAccountSession,
+  spinWheel,
   verifyLoginCode,
 } from '@/lib/api';
 import { getStoredAccountToken, getStoredToken, setStoredAccountToken, setStoredToken } from '@/lib/http';
@@ -166,6 +172,38 @@ describe('verifyLoginCode', () => {
   });
 });
 
+describe('confirmEmailVerification', () => {
+  it('stores the returned session token -- clicking the link is proof of inbox ownership', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, purpose: 'claim_wheel', session_token: 'sess-3' }),
+    );
+    await confirmEmailVerification('tok');
+    expect(getStoredAccountToken()).toBe('sess-3');
+  });
+
+  it.each([
+    [404, 'Invalid or expired link.'],
+    [409, 'Name already claimed by a different email.'],
+  ])('maps status %i to "%s"', async (status, message) => {
+    fetchMock.mockResolvedValue(jsonResponse({}, status));
+    await expect(confirmEmailVerification('tok')).rejects.toThrow(message);
+  });
+});
+
+describe('checkClaimVerified', () => {
+  it('stores the returned session token when verified', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ verified: true, session_token: 'sess-4' }));
+    await expect(checkClaimVerified('Alice', 'alice@example.com')).resolves.toEqual({ verified: true });
+    expect(getStoredAccountToken()).toBe('sess-4');
+  });
+
+  it('does not touch the stored token when not yet verified', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ verified: false }));
+    await expect(checkClaimVerified('Alice', 'alice@example.com')).resolves.toEqual({ verified: false });
+    expect(getStoredAccountToken()).toBeNull();
+  });
+});
+
 describe('resolveAccountSession', () => {
   it('returns the resolved player on success', async () => {
     fetchMock.mockResolvedValue(
@@ -289,5 +327,70 @@ describe('getPlayerMessages token attachment', () => {
       `${BACKEND_URL}/get_player_messages/abc/Alice`,
       { method: 'GET', headers: undefined, body: undefined },
     );
+  });
+});
+
+describe('claimPendingWheel', () => {
+  it('posts lobby_id/name/email and returns the response', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, pending_verification: true }));
+
+    const result = await claimPendingWheel('abc', 'Alice', 'alice@example.com');
+
+    expect(result).toEqual({ success: true, pending_verification: true });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/claim_pending_wheel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lobby_id: 'abc', name: 'Alice', email: 'alice@example.com' }),
+    });
+  });
+});
+
+describe('getInventory', () => {
+  it('returns the equipped skin, owned skins, and unspun wheels', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        equipped_skin: 'frog_green_v1',
+        skins: [{ skin: 'frog_gold_v1', count: 1 }],
+        wheels: [{ id: 1, kind: 'normal' }],
+      }),
+    );
+
+    await expect(getInventory('sess-1')).resolves.toEqual({
+      equipped_skin: 'frog_green_v1',
+      skins: [{ skin: 'frog_gold_v1', count: 1 }],
+      wheels: [{ id: 1, kind: 'normal' }],
+    });
+  });
+
+  it('throws on an invalid session', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Invalid or expired session.' }, 401));
+    await expect(getInventory('bad')).rejects.toThrow('Invalid or expired session.');
+  });
+});
+
+describe('equipSkin', () => {
+  it('returns the newly equipped skin', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, equipped_skin: 'frog_gold_v1' }));
+    await expect(equipSkin('sess-1', 'frog_gold_v1')).resolves.toEqual({
+      success: true,
+      equipped_skin: 'frog_gold_v1',
+    });
+  });
+
+  it('maps 403 to an ownership error', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'You do not own this skin.' }, 403));
+    await expect(equipSkin('sess-1', 'frog_gold_v1')).rejects.toThrow('You do not own this skin.');
+  });
+});
+
+describe('spinWheel', () => {
+  it('returns the result skin', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, result_skin: 'frog_blue_v1' }));
+    await expect(spinWheel('sess-1', 1)).resolves.toEqual({ success: true, result_skin: 'frog_blue_v1' });
+  });
+
+  it('maps 404 to an already-spun error', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Wheel not found or already spun.' }, 404));
+    await expect(spinWheel('sess-1', 1)).rejects.toThrow('Wheel not found or already spun.');
   });
 });
