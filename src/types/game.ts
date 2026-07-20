@@ -32,9 +32,16 @@ export const PlayerSchema = z.object({
   title: z.string().nullable(),
   idle_rounds: z.number().int(),
   pending_relic_nudge: z.boolean().nullable(),
-  skin: z.string().nullable(),
-  wheel_awarded: z.boolean().nullable(),
-  pending_wheel_nudge: z.boolean().nullable(),
+  // Optional, not just nullable: wom-fe and wom-be deploy independently, and
+  // these three are new enough that a currently-deployed wom-be can omit
+  // the key entirely rather than send it as null (see e.g. the E2E CI job,
+  // which runs this schema against ghcr.io/mikaelra/wom-be:latest --
+  // whatever wom-be's main branch happens to be built from, not necessarily
+  // whatever wom-fe branch/PR is being tested). Every consumer already
+  // treats a missing value the same as null (`?? 'frog_green_v1'`, `?.`).
+  skin: z.string().nullable().optional(),
+  wheel_awarded: z.boolean().nullable().optional(),
+  pending_wheel_nudge: z.boolean().nullable().optional(),
 });
 export type Player = z.infer<typeof PlayerSchema>;
 

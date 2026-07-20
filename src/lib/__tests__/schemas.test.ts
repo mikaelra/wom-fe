@@ -87,6 +87,18 @@ describe('Player/LobbyState/ChatMessage/Relic schemas', () => {
     expect(PlayerSchema.safeParse(missingBot).success).toBe(false);
   });
 
+  it('accepts a player entirely missing skin/wheel_awarded/pending_wheel_nudge', () => {
+    // A currently-deployed wom-be can lag a wom-fe branch that already
+    // expects these (e.g. E2E CI against ghcr.io/mikaelra/wom-be:latest,
+    // built from wom-be's main, not necessarily whatever adds these fields)
+    // -- omitted entirely, not sent as null, must still parse.
+    const olderBackendShape: Partial<typeof playerFixture> = { ...playerFixture };
+    delete olderBackendShape.skin;
+    delete olderBackendShape.wheel_awarded;
+    delete olderBackendShape.pending_wheel_nudge;
+    expect(PlayerSchema.safeParse(olderBackendShape).success).toBe(true);
+  });
+
   it('parses a full state_update payload', () => {
     expect(LobbyStateSchema.safeParse(lobbyStateFixture).success).toBe(true);
   });
