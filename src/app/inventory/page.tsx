@@ -2,16 +2,30 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getInventory, equipSkin } from '@/lib/api';
+import { getInventory, equipSkin, getPlayerRelics } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel } from '@/lib/frogSkins';
 import WheelSpinModal from '@/components/WheelSpinModal';
 import { useToast } from '@/components/Toast';
+import type { Relic } from '@/types/game';
 
 type SkinEntry = { skin: string; count: number };
 type WheelEntry = { id: number; kind: string };
+// One button per distinct wheel kind, not one per row -- id is an arbitrary
+// representative of the group (any wheel of that kind spins the same way).
+type WheelGroup = { kind: string; id: number; count: number };
 
 const DEFAULT_SKIN = 'frog_green_v1';
+
+function groupWheels(wheels: WheelEntry[]): WheelGroup[] {
+  const groups = new Map<string, WheelGroup>();
+  for (const w of wheels) {
+    const existing = groups.get(w.kind);
+    if (existing) existing.count += 1;
+    else groups.set(w.kind, { kind: w.kind, id: w.id, count: 1 });
+  }
+  return Array.from(groups.values());
+}
 
 export default function InventoryPage() {
   const { showSuccess, showError } = useToast();
@@ -20,6 +34,7 @@ export default function InventoryPage() {
   const [equippedSkin, setEquippedSkin] = useState(DEFAULT_SKIN);
   const [skins, setSkins] = useState<SkinEntry[]>([]);
   const [wheels, setWheels] = useState<WheelEntry[]>([]);
+  const [relics, setRelics] = useState<Relic[]>([]);
   const [equipping, setEquipping] = useState<string | null>(null);
   const [spinningWheelId, setSpinningWheelId] = useState<number | null>(null);
 
@@ -31,11 +46,16 @@ export default function InventoryPage() {
       return;
     }
     setLoading(true);
-    getInventory(token)
-      .then((data) => {
-        setEquippedSkin(data.equipped_skin);
-        setSkins(data.skins);
-        setWheels(data.wheels);
+    const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
+    Promise.all([
+      getInventory(token),
+      playerName ? getPlayerRelics(playerName) : Promise.resolve({ relics: [] }),
+    ])
+      .then(([inventoryData, relicsData]) => {
+        setEquippedSkin(inventoryData.equipped_skin);
+        setSkins(inventoryData.skins);
+        setWheels(inventoryData.wheels);
+        setRelics(relicsData.relics);
         setLoadError('');
       })
       .catch((e: unknown) => {
@@ -70,6 +90,7 @@ export default function InventoryPage() {
   // Green is always owned implicitly -- no skin_items row needed for it
   // (docs/MONETIZATION_PLAN.md §3.1).
   const ownedSkins: SkinEntry[] = [{ skin: DEFAULT_SKIN, count: 1 }, ...skins];
+  const wheelGroups = groupWheels(wheels);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
@@ -98,18 +119,40 @@ export default function InventoryPage() {
           </div>
         ) : (
           <>
-            {wheels.length > 0 && (
+            <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
+              <h2 className="text-lg font-semibold mb-4">Relics</h2>
+              {relics.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {relics.map((relic) => (
+                    <div
+                      key={String(relic.id)}
+                      className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
+                    >
+                      <div className="w-16 h-16 rounded-full border-2 border-white/20 flex items-center justify-center text-3xl">
+                        🏺
+                      </div>
+                      <p className="text-sm font-semibold text-center">{relic.name}</p>
+                      {relic.count > 1 && <p className="text-xs text-white/50">×{relic.count}</p>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-white/60 text-sm">You have no relics yet.</p>
+              )}
+            </div>
+
+            {wheelGroups.length > 0 && (
               <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
                 <h2 className="text-lg font-semibold mb-4">Wheels</h2>
                 <div className="flex flex-wrap gap-3">
-                  {wheels.map((w) => (
+                  {wheelGroups.map((group) => (
                     <button
-                      key={w.id}
+                      key={group.kind}
                       type="button"
-                      onClick={() => setSpinningWheelId(w.id)}
+                      onClick={() => setSpinningWheelId(group.id)}
                       className="px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-semibold hover:bg-amber-600/80 transition-colors cursor-pointer"
                     >
-                      🎡 Use {w.kind} Wheel
+                      🎡 Use {group.kind} Wheel{group.count > 1 ? ` ×${group.count}` : ''}
                     </button>
                   ))}
                 </div>

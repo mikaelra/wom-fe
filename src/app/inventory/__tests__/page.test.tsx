@@ -1,28 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, fireEvent } from '@testing-library/react';
 import InventoryPage from '@/app/inventory/page';
-import { equipSkin, getInventory, spinWheel } from '@/lib/api';
+import { equipSkin, getInventory, getPlayerRelics, spinWheel } from '@/lib/api';
 import { setStoredAccountToken } from '@/lib/http';
 
 vi.mock('@/lib/api', () => ({
   getInventory: vi.fn(),
   equipSkin: vi.fn(),
   spinWheel: vi.fn(),
+  getPlayerRelics: vi.fn(),
 }));
 
 const mockedGetInventory = vi.mocked(getInventory);
 const mockedEquipSkin = vi.mocked(equipSkin);
 const mockedSpinWheel = vi.mocked(spinWheel);
+const mockedGetPlayerRelics = vi.mocked(getPlayerRelics);
 const flush = () => act(async () => Promise.resolve());
 
 beforeEach(() => {
   mockedGetInventory.mockReset();
   mockedEquipSkin.mockReset();
   mockedSpinWheel.mockReset();
+  mockedGetPlayerRelics.mockReset();
+  mockedGetPlayerRelics.mockResolvedValue({ relics: [] });
 });
 
 afterEach(() => {
   setStoredAccountToken(null);
+  localStorage.removeItem('playerName');
 });
 
 describe('InventoryPage', () => {
@@ -117,5 +122,50 @@ describe('InventoryPage', () => {
 
     expect(screen.getByText('Invalid or expired session.')).toBeInTheDocument();
     expect(screen.getByText('Go to log in')).toBeInTheDocument();
+  });
+
+  it('lists relics as the first section, like the skins grid', async () => {
+    setStoredAccountToken('sess-1');
+    localStorage.setItem('playerName', 'Alice');
+    mockedGetInventory.mockResolvedValue({ equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+    mockedGetPlayerRelics.mockResolvedValue({
+      relics: [
+        { id: 1, boss_id: 7, created_at: '2026-01-01T00:00:00+00:00', name: 'Golden Fleece', power_category: 'fire', count: 3 },
+      ],
+    });
+    render(<InventoryPage />);
+    await flush();
+
+    expect(mockedGetPlayerRelics).toHaveBeenCalledWith('Alice');
+    expect(screen.getByText('Relics')).toBeInTheDocument();
+    expect(screen.getByText('Golden Fleece')).toBeInTheDocument();
+    expect(screen.getByText('×3')).toBeInTheDocument();
+  });
+
+  it('shows a fallback message when the player has no relics', async () => {
+    setStoredAccountToken('sess-1');
+    localStorage.setItem('playerName', 'Alice');
+    mockedGetInventory.mockResolvedValue({ equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+    render(<InventoryPage />);
+    await flush();
+
+    expect(screen.getByText('You have no relics yet.')).toBeInTheDocument();
+  });
+
+  it('stacks wheels of the same kind into a single button showing the count', async () => {
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({
+      equipped_skin: 'frog_green_v1',
+      skins: [],
+      wheels: [
+        { id: 1, kind: 'normal' },
+        { id: 2, kind: 'normal' },
+        { id: 3, kind: 'normal' },
+      ],
+    });
+    render(<InventoryPage />);
+    await flush();
+
+    expect(screen.getByRole('button', { name: '🎡 Use normal Wheel ×3' })).toBeInTheDocument();
   });
 });

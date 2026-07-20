@@ -14,7 +14,6 @@ vi.mock('@/lib/api', () => ({
   verifyLoginCode: vi.fn(),
   createLobby: vi.fn(),
   joinLobby: vi.fn(),
-  getPlayerRelics: vi.fn(),
   logOut: vi.fn(),
 }));
 
@@ -245,7 +244,7 @@ describe('WorldMapOverlay', () => {
     expect(screen.getByRole('button', { name: 'Log in' })).toBeInTheDocument();
   });
 
-  it('lists Inventory between Your relics and Settings in the user menu', () => {
+  it('lists Inventory before Settings in the user menu, with no separate relics entry', () => {
     localStorage.setItem('playerName', 'Alice');
     localStorage.setItem('playerEmail', 'alice@example.com');
     render(<WorldMapOverlay />);
@@ -254,7 +253,7 @@ describe('WorldMapOverlay', () => {
 
     const menu = screen.getByText('Sign out').parentElement;
     const itemOrder = Array.from(menu?.children ?? []).map((el) => el.textContent);
-    expect(itemOrder).toEqual(['Your relics', 'Inventory', 'Settings', 'Sign out']);
+    expect(itemOrder).toEqual(['Inventory', 'Settings', 'Sign out']);
     expect(screen.getByText('Inventory')).toHaveAttribute('href', '/inventory');
   });
 });
