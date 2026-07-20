@@ -56,8 +56,8 @@ export default function RelicCoin() {
       dpr={[1, 1.5]}
       gl={{ antialias: true, alpha: true }}
     >
-      <ambientLight intensity={0.9} />
-      <directionalLight position={[2, 3, 2]} intensity={1.2} />
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[3, 1, 1.5]} intensity={2.4} />
       <Suspense fallback={null}>
         <SpinningCoin />
       </Suspense>

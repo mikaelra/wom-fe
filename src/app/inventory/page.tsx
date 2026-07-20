@@ -129,7 +129,7 @@ export default function InventoryPage() {
                       key={String(relic.id)}
                       className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
                     >
-                      <div className="w-16 h-16 rounded-full border-2 border-white/20 overflow-hidden">
+                      <div className="w-16 h-16 overflow-hidden">
                         <RelicCoin />
                       </div>
                       <p className="text-sm font-semibold text-center">{relic.name}</p>
