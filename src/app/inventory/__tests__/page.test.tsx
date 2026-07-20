@@ -11,6 +11,14 @@ vi.mock('@/lib/api', () => ({
   getPlayerRelics: vi.fn(),
 }));
 
+// Real RelicCoin renders a react-three-fiber <Canvas>, which needs a WebGL
+// context jsdom can't provide -- mocked out wholesale, same as this repo's
+// other R3F leaf components in page-level tests (see e.g.
+// src/app/__tests__/page.test.tsx's LobbyScene mock).
+vi.mock('@/components/RelicCoin', () => ({
+  default: () => <div data-testid="relic-coin" />,
+}));
+
 const mockedGetInventory = vi.mocked(getInventory);
 const mockedEquipSkin = vi.mocked(equipSkin);
 const mockedSpinWheel = vi.mocked(spinWheel);
@@ -139,6 +147,7 @@ describe('InventoryPage', () => {
     expect(mockedGetPlayerRelics).toHaveBeenCalledWith('Alice');
     expect(screen.getByText('Relics')).toBeInTheDocument();
     expect(screen.getByText('Golden Fleece')).toBeInTheDocument();
+    expect(screen.getByTestId('relic-coin')).toBeInTheDocument();
     expect(screen.getByText('×3')).toBeInTheDocument();
   });
 

@@ -6,6 +6,7 @@ import { getInventory, equipSkin, getPlayerRelics } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel } from '@/lib/frogSkins';
 import WheelSpinModal from '@/components/WheelSpinModal';
+import RelicCoin from '@/components/RelicCoin';
 import { useToast } from '@/components/Toast';
 import type { Relic } from '@/types/game';
 
@@ -128,8 +129,8 @@ export default function InventoryPage() {
                       key={String(relic.id)}
                       className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
                     >
-                      <div className="w-16 h-16 rounded-full border-2 border-white/20 flex items-center justify-center text-3xl">
-                        🏺
+                      <div className="w-16 h-16 rounded-full border-2 border-white/20 overflow-hidden">
+                        <RelicCoin />
                       </div>
                       <p className="text-sm font-semibold text-center">{relic.name}</p>
                       {relic.count > 1 && <p className="text-xs text-white/50">×{relic.count}</p>}
