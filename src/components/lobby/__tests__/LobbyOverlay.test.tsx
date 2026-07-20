@@ -116,20 +116,8 @@ describe('renderGameOver', () => {
     );
   });
 
-  it('shows a claim-your-name teaser for a guest with no wheel activity', () => {
+  it('does not show a claim-your-name teaser for a guest', () => {
     render(<>{renderGameOver(opts)}</>);
-    expect(screen.getByText(/to start earning Wheels/)).toBeInTheDocument();
-  });
-
-  it('does not show the teaser once the player has a claimed account', () => {
-    localStorage.setItem('playerEmail', 'alice@example.com');
-    render(<>{renderGameOver(opts)}</>);
-    expect(screen.queryByText(/to start earning Wheels/)).not.toBeInTheDocument();
-  });
-
-  it('does not show the teaser when a wheel claim is already pending', () => {
-    const me: Player = { ...basePlayer, name: 'Alice', pending_wheel_nudge: true };
-    render(<>{renderGameOver({ ...opts, state: { ...opts.state, players: [me] } })}</>);
     expect(screen.queryByText(/to start earning Wheels/)).not.toBeInTheDocument();
   });
 });

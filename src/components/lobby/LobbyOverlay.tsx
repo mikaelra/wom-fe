@@ -106,10 +106,6 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
 
 export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   const myPlayer = state.players.find((p) => p.name === playerName);
-  // "Claimed" is inferred the same way the rest of the app treats
-  // localStorage's playerEmail presence as a login signal (WorldMapOverlay,
-  // HomeOverlay) -- there's no dedicated wire field for it.
-  const hasClaimedAccount = typeof window !== 'undefined' && !!localStorage.getItem('playerEmail');
 
   return (
     <div className="mt-3 text-center">
@@ -126,14 +122,6 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
           <Link href="/inventory" className="underline hover:text-amber-200">
             Spin it in your inventory
           </Link>
-        </p>
-      )}
-      {!myPlayer?.wheel_awarded && !myPlayer?.pending_wheel_nudge && !hasClaimedAccount && (
-        <p className="text-gray-400 text-sm mb-2">
-          <Link href="/signup" className="underline hover:text-white">
-            Claim your name
-          </Link>{' '}
-          to start earning Wheels.
         </p>
       )}
       <div className="flex flex-col gap-2 items-center">
