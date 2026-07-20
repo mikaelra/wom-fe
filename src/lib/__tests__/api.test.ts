@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { BACKEND_URL } from '@/config';
 import {
+  checkClaimVerified,
   checkName,
   claimPendingWheel,
   confirmEmailVerification,
@@ -186,6 +187,20 @@ describe('confirmEmailVerification', () => {
   ])('maps status %i to "%s"', async (status, message) => {
     fetchMock.mockResolvedValue(jsonResponse({}, status));
     await expect(confirmEmailVerification('tok')).rejects.toThrow(message);
+  });
+});
+
+describe('checkClaimVerified', () => {
+  it('stores the returned session token when verified', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ verified: true, session_token: 'sess-4' }));
+    await expect(checkClaimVerified('Alice', 'alice@example.com')).resolves.toEqual({ verified: true });
+    expect(getStoredAccountToken()).toBe('sess-4');
+  });
+
+  it('does not touch the stored token when not yet verified', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ verified: false }));
+    await expect(checkClaimVerified('Alice', 'alice@example.com')).resolves.toEqual({ verified: false });
+    expect(getStoredAccountToken()).toBeNull();
   });
 });
 

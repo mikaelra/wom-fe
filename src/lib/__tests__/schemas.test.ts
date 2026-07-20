@@ -15,6 +15,7 @@ import {
   ConfirmToggleVerifyEmailResponseSchema,
   ClaimPendingRelicResponseSchema,
   ConfirmEmailVerificationResponseSchema,
+  CheckClaimVerifiedResponseSchema,
   ResolveAccountSessionResponseSchema,
   LogOutResponseSchema,
   JoinedLobbyPayloadSchema,
@@ -245,6 +246,11 @@ describe('HTTP response schemas', () => {
     expect(
       ConfirmEmailVerificationResponseSchema.safeParse({ success: true, purpose: 'claim_name' }).success,
     ).toBe(true);
+  });
+
+  it('parses check_claim_verified responses', () => {
+    expect(CheckClaimVerifiedResponseSchema.safeParse({ verified: true, session_token: 'tok' }).success).toBe(true);
+    expect(CheckClaimVerifiedResponseSchema.safeParse({ verified: false }).success).toBe(true);
   });
 });
 

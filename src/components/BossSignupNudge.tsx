@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { claimPendingRelic } from '@/lib/api';
+import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 
 type Props = {
   lobbyId: string;
@@ -15,6 +16,14 @@ export default function BossSignupNudge({ lobbyId, playerName, onDismiss }: Prop
   const [loading, setLoading] = useState(false);
   const [claimedRelicName, setClaimedRelicName] = useState<string | null>(null);
   const [awaitingVerification, setAwaitingVerification] = useState(false);
+
+  // Covers verifying on a different device (e.g. a phone) than this one --
+  // this device otherwise never learns the claim went through. The poll
+  // response doesn't carry the relic's name (only whether verification
+  // landed), so this falls back to a generic label rather than the exact one.
+  useClaimVerificationPoll(awaitingVerification, playerName, email.trim(), () =>
+    setClaimedRelicName((prev) => prev ?? 'your relic'),
+  );
 
   const handleClaim = async () => {
     const trimmedEmail = email.trim();

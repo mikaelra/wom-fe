@@ -25,6 +25,7 @@ import {
   InventoryResponseSchema,
   EquipSkinResponseSchema,
   SpinWheelResponseSchema,
+  CheckClaimVerifiedResponseSchema,
 } from '@/lib/schemas';
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
@@ -277,6 +278,19 @@ export async function forgotUsername(email: string): Promise<{ success: boolean 
     body: { email },
     defaultErrorMessage: 'Failed to send email.',
   });
+}
+
+export async function checkClaimVerified(name: string, email: string): Promise<{ verified: boolean }> {
+  const data = await request('/check_claim_verified', CheckClaimVerifiedResponseSchema, {
+    body: { name, email },
+    defaultErrorMessage: 'Failed to check verification status.',
+  });
+  // Cross-device claim polling: this is the device that never saw the
+  // session /confirm_email_verification issued on whichever device actually
+  // clicked the link (see WheelClaimNudge/BossSignupNudge and the
+  // inventory page's own pending-claim check).
+  if (data.session_token) setStoredAccountToken(data.session_token);
+  return { verified: data.verified };
 }
 
 export async function resolveAccountSession(

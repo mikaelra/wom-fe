@@ -9,6 +9,7 @@ import WheelSpinModal from '@/components/WheelSpinModal';
 import RelicCoin from '@/components/RelicCoin';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
+import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 import type { Relic } from '@/types/game';
 
 type SkinEntry = { skin: string; count: number };
@@ -39,14 +40,28 @@ export default function InventoryPage() {
   const [relics, setRelics] = useState<Relic[]>([]);
   const [equipping, setEquipping] = useState<string | null>(null);
   const [spinningWheelId, setSpinningWheelId] = useState<number | null>(null);
+  // Set when we're logged out but localStorage remembers a name+email pair
+  // (i.e. a claim was submitted from this browser) -- covers verifying that
+  // claim's email link on a different device (a phone) than this one, which
+  // otherwise never learns the claim went through and just says "log in".
+  const [pendingClaim, setPendingClaim] = useState<{ name: string; email: string } | null>(null);
 
   const load = () => {
     const token = getStoredAccountToken();
     if (!token) {
       setLoading(false);
-      setLoadError('You must be logged in to view your inventory.');
+      const name = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
+      const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') : null;
+      if (name && email) {
+        setPendingClaim({ name, email });
+        setLoadError('');
+      } else {
+        setPendingClaim(null);
+        setLoadError('You must be logged in to view your inventory.');
+      }
       return;
     }
+    setPendingClaim(null);
     setLoading(true);
     const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
     Promise.all([
@@ -69,6 +84,11 @@ export default function InventoryPage() {
   useEffect(() => {
     load();
   }, []);
+
+  useClaimVerificationPoll(!!pendingClaim, pendingClaim?.name ?? '', pendingClaim?.email ?? '', () => {
+    setPendingClaim(null);
+    load();
+  });
 
   const handleEquip = async (skin: string) => {
     const token = getStoredAccountToken();
@@ -109,6 +129,20 @@ export default function InventoryPage() {
 
         {loading ? (
           <p className="text-white/70">Loading…</p>
+        ) : pendingClaim ? (
+          <div className="bg-black/40 border border-white/10 rounded-xl p-5">
+            <p className="text-white/70 mb-3">
+              Waiting for you to verify <strong>{pendingClaim.email}</strong> — check your inbox
+              for the link. This updates automatically once you click it, even from another
+              device.
+            </p>
+            <Link
+              href="/login"
+              className="bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold no-underline hover:bg-white/20 transition-colors"
+            >
+              Go to log in instead
+            </Link>
+          </div>
         ) : loadError ? (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <p className="text-red-400 mb-3">{loadError}</p>

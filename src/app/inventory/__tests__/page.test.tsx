@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, fireEvent } from '@testing-library/react';
 import InventoryPage from '@/app/inventory/page';
-import { equipSkin, getInventory, getPlayerRelics, spinWheel } from '@/lib/api';
+import { checkClaimVerified, equipSkin, getInventory, getPlayerRelics, spinWheel } from '@/lib/api';
 import { setStoredAccountToken } from '@/lib/http';
 
 vi.mock('@/lib/api', () => ({
@@ -9,6 +9,7 @@ vi.mock('@/lib/api', () => ({
   equipSkin: vi.fn(),
   spinWheel: vi.fn(),
   getPlayerRelics: vi.fn(),
+  checkClaimVerified: vi.fn(),
 }));
 
 // Real RelicCoin/SpinningModelViewer render a react-three-fiber <Canvas>,
@@ -26,6 +27,7 @@ const mockedGetInventory = vi.mocked(getInventory);
 const mockedEquipSkin = vi.mocked(equipSkin);
 const mockedSpinWheel = vi.mocked(spinWheel);
 const mockedGetPlayerRelics = vi.mocked(getPlayerRelics);
+const mockedCheckClaimVerified = vi.mocked(checkClaimVerified);
 const flush = () => act(async () => Promise.resolve());
 
 beforeEach(() => {
@@ -34,11 +36,16 @@ beforeEach(() => {
   mockedSpinWheel.mockReset();
   mockedGetPlayerRelics.mockReset();
   mockedGetPlayerRelics.mockResolvedValue({ relics: [] });
+  mockedCheckClaimVerified.mockReset();
+  mockedCheckClaimVerified.mockResolvedValue({ verified: false });
+  vi.useFakeTimers();
 });
 
 afterEach(() => {
   setStoredAccountToken(null);
   localStorage.removeItem('playerName');
+  localStorage.removeItem('playerEmail');
+  vi.useRealTimers();
 });
 
 describe('InventoryPage', () => {
@@ -181,5 +188,43 @@ describe('InventoryPage', () => {
     await flush();
 
     expect(screen.getByRole('button', { name: '🎡 Use normal Wheel ×3' })).toBeInTheDocument();
+  });
+
+  it('shows a waiting-for-verification message when a claim is pending on this browser', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    localStorage.setItem('playerEmail', 'alice@example.com');
+    render(<InventoryPage />);
+    await flush();
+
+    expect(screen.getByText(/Waiting for you to verify/)).toBeInTheDocument();
+    expect(screen.getByText('alice@example.com')).toBeInTheDocument();
+    expect(mockedGetInventory).not.toHaveBeenCalled();
+  });
+
+  it('auto-loads the inventory once a pending claim is verified elsewhere (e.g. on a phone)', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    localStorage.setItem('playerEmail', 'alice@example.com');
+    // Real checkClaimVerified (lib/api.ts) stores the session token as a
+    // side effect once verified -- simulated here since @/lib/api is mocked.
+    mockedCheckClaimVerified
+      .mockResolvedValueOnce({ verified: false })
+      .mockImplementationOnce(async () => {
+        setStoredAccountToken('sess-1');
+        return { verified: true };
+      });
+    mockedGetInventory.mockResolvedValue({ equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+    render(<InventoryPage />);
+    await flush();
+    expect(screen.getByText(/Waiting for you to verify/)).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+
+    expect(mockedGetInventory).toHaveBeenCalledWith('sess-1');
+    expect(screen.getByText('OG Green')).toBeInTheDocument();
   });
 });

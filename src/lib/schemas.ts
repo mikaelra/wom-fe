@@ -110,6 +110,11 @@ export const ForgotUsernameResponseSchema = z.object({
   success: z.boolean(),
 });
 
+export const CheckClaimVerifiedResponseSchema = z.object({
+  verified: z.boolean(),
+  session_token: z.string().optional(),
+});
+
 export const ClaimPendingWheelResponseSchema = z.object({
   success: z.boolean(),
   pending_verification: z.boolean().optional(),

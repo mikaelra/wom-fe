@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { claimPendingWheel } from '@/lib/api';
+import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 
 type Props = {
   lobbyId: string;
@@ -16,6 +17,10 @@ export default function WheelClaimNudge({ lobbyId, playerName, onDismiss }: Prop
   const [loading, setLoading] = useState(false);
   const [claimed, setClaimed] = useState(false);
   const [awaitingVerification, setAwaitingVerification] = useState(false);
+
+  // Covers verifying on a different device (e.g. a phone) than this one --
+  // this device otherwise never learns the claim went through.
+  useClaimVerificationPoll(awaitingVerification, playerName, email.trim(), () => setClaimed(true));
 
   const handleClaim = async () => {
     const trimmedEmail = email.trim();
