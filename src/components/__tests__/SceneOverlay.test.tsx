@@ -126,6 +126,24 @@ describe('loading state', () => {
   });
 });
 
+describe('connection lost', () => {
+  it('shows a connection-lost message instead of the stale game UI once connectionStatus flips to disconnected', () => {
+    // state deliberately still populated -- useLobbyConnection.ts keeps
+    // its last-known value forever on a lost connection, it never clears
+    // to null. The message must come from connectionStatus, not from
+    // state going away.
+    mockedUseLobbyConnection.mockReturnValue({ state: baseState, connectionStatus: 'disconnected' });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.getByText('Connection lost. Please refresh.')).toBeInTheDocument();
+    expect(screen.queryByText('🏴 The Well')).not.toBeInTheDocument();
+  });
+
+  it('does not show the connection-lost message while connected', () => {
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.queryByText('Connection lost. Please refresh.')).not.toBeInTheDocument();
+  });
+});
+
 describe('pre-game delegation', () => {
   const preGameState: LobbyState = { ...baseState, round: 0 };
 
