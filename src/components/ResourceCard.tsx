@@ -82,7 +82,7 @@ export default function ResourceCard({
   return (
     <div className="relative inline-flex">
       <button
-        key={bounceCount}
+        key={`bounce-${bounceCount}`}
         type="button"
         disabled={disabled}
         onClick={onClick}
@@ -94,7 +94,7 @@ export default function ResourceCard({
         {overlay}
       </button>
       {blockPulse > 0 && (
-        <span key={blockPulse} className="resource-block-aura pointer-events-none absolute inset-0 rounded-lg" />
+        <span key={`pulse-${blockPulse}`} className="resource-block-aura pointer-events-none absolute inset-0 rounded-lg" />
       )}
     </div>
   );

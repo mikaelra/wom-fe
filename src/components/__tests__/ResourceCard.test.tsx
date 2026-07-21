@@ -51,4 +51,29 @@ describe('ResourceCard', () => {
 
     vi.useRealTimers();
   });
+
+  it('does not collide React keys when a value change and a block pulse land on the same count', () => {
+    // Regression test: bounceCount (the button's remount key) and
+    // blockPulse (the aura span's key) are independent counters that both
+    // start at 0. When a value change and a block pulse each reach the same
+    // count, the button and the aura span previously shared a React key
+    // (e.g. both "1") -- React warns "Encountered two children with the
+    // same key" and may duplicate or omit a sibling on the next update
+    // (this is exactly how a stale HP card was left on screen in prod).
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { rerender } = render(<ResourceCard {...baseProps} value={10} blockPulse={0} />);
+    // First value change: bounceCount 0 -> 1.
+    rerender(<ResourceCard {...baseProps} value={9} blockPulse={0} />);
+    // First block pulse, landing on the same count as bounceCount: blockPulse 0 -> 1.
+    rerender(<ResourceCard {...baseProps} value={9} blockPulse={1} />);
+
+    const keyWarning = errorSpy.mock.calls.find((args) =>
+      String(args[0]).includes('same key'),
+    );
+    expect(keyWarning).toBeUndefined();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+
+    errorSpy.mockRestore();
+  });
 });
