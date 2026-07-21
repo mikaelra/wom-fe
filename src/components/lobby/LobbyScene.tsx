@@ -546,7 +546,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         const id = `killbanner-dbg-${stamp}-${seq++}`;
         setTimeout(() => {
           setKillBanners((b) => [...b, { id, killer, pos }]);
-          setTimeout(() => setKillBanners((b) => b.filter((x) => x.id !== id)), 2600);
+          setTimeout(() => setKillBanners((b) => b.filter((x) => x.id !== id)), 3939);
         }, atMs);
       };
 
@@ -817,13 +817,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                 const sid  = `shield-${ev.id}`;
                 setImpactShields((s) => [...s, { id: sid, pos: ev.toPos, rotY, instakill: ev.instakill }]);
                 const postDurSec = ev.postImpact === 'bounce' ? BOUNCE_DUR : 0;
-                const holdMs = (HOLD_DUR + postDurSec) * 1000 + 200;
+                const holdMs = (HOLD_DUR + postDurSec) * 1000 + 303; // buffer scaled to 1/0.66x
                 setTimeout(() => setImpactShields((s) => s.filter((x) => x.id !== sid)), holdMs);
               }
               if (ev.flashPosition) {
                 const fid = `fl-sword-${ev.id}`;
                 setHitFlashEvents((s) => [...s, { id: fid, position: ev.flashPosition!, instakill: ev.instakill }]);
-                setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
+                setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 985); // scaled to 1/0.66x
               }
               // Signal the HP card to react at the exact impact moment (drop +
               // shake on a hit, blue aura on a block) — incoming attacks only.
@@ -835,7 +835,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               if (ev.postImpact === 'bounce' && ev.bounceFlashPos) {
                 const fid = `fl-bounce-${ev.id}`;
                 setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
-                setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 650);
+                setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 985); // scaled to 1/0.66x
               }
               setStrikeEvents((s) => s.filter((x) => x.id !== ev.id));
             }}

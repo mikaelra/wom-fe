@@ -29,8 +29,9 @@ const BASE_CLASS =
   'backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150';
 
 // Delay before the number swaps to its new value — lines up with the bounce's
-// rise so the player sees "bounce, then the number changes".
-const SWAP_DELAY_MS = 180;
+// rise so the player sees "bounce, then the number changes". Scaled to
+// 1/0.66x for slower pacing.
+const SWAP_DELAY_MS = 273;
 
 /**
  * A single resource stat button (HP / Coins / ATK). Displays the current value
