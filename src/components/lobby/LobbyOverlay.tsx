@@ -11,8 +11,10 @@ import SceneOverlay, {
 import type { GuideHighlights } from '@/lib/guideHighlights';
 import BossSignupNudge from '@/components/BossSignupNudge';
 import WheelClaimNudge from '@/components/WheelClaimNudge';
+import RelicSelectionPopover from '@/components/RelicSelectionPopover';
+import StartGameButton from '@/components/StartGameButton';
 import { useLobbyGame } from '@/lib/useLobbyGame';
-import type { LobbyState } from '@/types/game';
+import { COIN_RELIC_ID, type LobbyState } from '@/types/game';
 
 type LobbyOverlayProps = {
   lobbyId: string;
@@ -145,6 +147,7 @@ export function renderPreGame({
   onStartGame,
   onAddDummy,
   onKick,
+  onToggleRelicSelection,
 }: PreGameRenderOpts) {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-8">
@@ -183,6 +186,17 @@ export function renderPreGame({
                   )}
                   {p.spectator && <span className="text-yellow-500">👁</span>}
                   <span className="font-medium">{p.name}</span>
+                  {p.name === playerName && state.round === 0 ? (
+                    <RelicSelectionPopover
+                      playerName={playerName}
+                      selectedRelicIds={p.selected_relic_ids ?? []}
+                      onToggle={onToggleRelicSelection}
+                    />
+                  ) : (
+                    p.selected_relic_ids?.includes(COIN_RELIC_ID) && (
+                      <span title="Selected: will start the match with +1 coin">🪙</span>
+                    )
+                  )}
                   {isAdmin && p.name !== playerName && p.hp > 0 && state.round === 0 && (
                     <span
                       className="ml-2 text-red-500 text-sm cursor-pointer"
@@ -201,13 +215,7 @@ export function renderPreGame({
 
           {isAdmin && (
             <div className="flex flex-wrap gap-3 mb-4 items-end">
-              <button
-                type="button"
-                onClick={onStartGame}
-                className={`${btn} bg-amber-600 text-white border-amber-700`}
-              >
-                Start Game
-              </button>
+              <StartGameButton state={state} btn={btn} onStartGame={onStartGame} />
               <button
                 type="button"
                 onClick={onAddDummy}

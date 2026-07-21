@@ -42,8 +42,15 @@ export const PlayerSchema = z.object({
   skin: z.string().nullable().optional(),
   wheel_awarded: z.boolean().nullable().optional(),
   pending_wheel_nudge: z.boolean().nullable().optional(),
+  // Same deploy-independence reasoning as skin/wheel_awarded above.
+  selected_relic_ids: z.array(z.number().int()).optional(),
 });
 export type Player = z.infer<typeof PlayerSchema>;
+
+// Only relic with a wired-up start_game effect today (+1 coins) -- must
+// match wom-be's config.COIN_RELIC_ID (db/init/001_supabase_dump.sql's
+// relics table, name="Hades' Coin", boss_id=6/Hades).
+export const COIN_RELIC_ID = 1;
 
 export const ChatMessageSchema = z.object({
   sender: z.string(),
