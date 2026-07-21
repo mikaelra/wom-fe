@@ -16,9 +16,15 @@ Add a ranked, competitive track on top of the existing free-for-all table game:
   matchmaking quality and rank movement, similar in spirit to how Hearthstone, Overwatch,
   and most modern matchmakers separate "the number that matches you" from "the rank you
   see."
-- A **visible rank** — a themed tier ladder (§5) with divisions at most tiers, and a
-  numeric **leaderboard placement** at the top tier once a player is good enough to be
-  ranked among the server's best, mirroring Hearthstone's Legend rank number.
+- A **visible rank** — a tier ladder (§5) with divisions at most tiers, and a numeric
+  **leaderboard placement** at the top tier once a player is good enough to be ranked
+  among the server's best, mirroring Hearthstone's Legend rank number.
+- The first **10 ranked games** are volatile **placement matches**: the hidden rating
+  moves fast and freely, but the *visible* rank is capped at a fixed ceiling until all
+  10 are done, then the cap lifts and the true rank is revealed (§5).
+- Grinding out games — even at a break-even win rate — **naturally, slowly nudges the
+  visible rank upward over time** toward a player's true rating, with no separate
+  mechanism needed (§4).
 - **Seasons** with a soft rating reset and a cosmetic reward tied to peak rank, feeding
   into the existing skin/wheel inventory system (`MONETIZATION_PLAN.md`).
 
@@ -133,10 +139,24 @@ Why not the more familiar options:
 - A conservative display value, typically `μ - 3σ`, is used anywhere the game needs "a
   single number" (matchmaking search, initial tier placement) — this is standard OpenSkill
   practice, and self-corrects a new/uncertain player's rank quickly as σ narrows.
-- **Placement matches**: a player's first 5-10 ranked games start from a high-σ prior
-  (fast-moving, wide swings) and are not shown as a public rank until placements finish;
-  the resulting `μ - 3σ` at that point decides the starting tier. This is the standard
-  mitigation for smurfs and brand-new players landing in the wrong bracket.
+- **Placement matches**: a player's first **10** ranked games start from a high-σ prior
+  (fast-moving, wide swings). The visible rank during this window is additionally capped
+  at a fixed ceiling regardless of how well the player is doing (§5) — a separate,
+  deliberate display rule, not a rating-engine change. Once all 10 are played, the cap
+  lifts and the visible rank jumps straight to wherever `μ - 3σ` actually lands. This is
+  the standard mitigation for smurfs and brand-new players landing in the wrong bracket,
+  with the added benefit of a satisfying "reveal" moment at game 10.
+- **Grinding slowly raises visible rank, without a separate mechanism.** σ shrinks a
+  little after every game regardless of outcome (more evidence = more certainty), and
+  since the visible rank is the *conservative* estimate `μ - 3σ`, a shrinking σ alone
+  makes that number creep upward over time even across a stretch of break-even results —
+  converging toward the player's true `μ`. This is bounded (it can't climb past their
+  actual skill estimate, and it plateaus once σ is already small), which is exactly the
+  property that keeps this from corrupting the number matchmaking uses: a high-volume,
+  average player still can't out-rank a genuinely-better low-volume player, they just
+  reach *their own* ceiling a bit faster than pure win/loss variance alone would produce.
+  No extra "loyalty bonus" needed — this is inherent to the rating engine already
+  described above.
 
 ---
 
@@ -160,6 +180,23 @@ proposal is:
   (e.g. "#42"), recalculated live as ratings shift — directly mirroring Hearthstone's
   Legend rank number. This is naturally free real estate for the leaderboard page in
   §10.
+
+**Placement cap (first 10 ranked games).** The hidden `(μ, σ)` engine is left completely
+alone during placements — it needs to move freely and fast to converge on an accurate
+skill estimate. The cap only applies to what's *shown*:
+
+```
+if ranked_games_played < 10:
+    visible_tier = min(tier_from(μ, σ), PLACEMENT_CAP_TIER)
+else:
+    visible_tier = tier_from(μ, σ)   # cap lifted, true tier revealed
+```
+
+`PLACEMENT_CAP_TIER` is a config constant (exact value TBD by you, alongside tier
+naming). A player who's actually far better than the cap the whole time has an
+accurate, uncapped `μ` behind the scenes (so matchmaking treats them correctly even
+during placements); they just don't *see* it until game 10, at which point their visible
+rank can jump straight up to reflect it.
 
 Exact division counts and point thresholds are a starting proposal, not final — easy to
 retune since they're just config once the rating engine underneath is in place.
@@ -227,6 +264,11 @@ order in which the rest of the lobby died. Needed:
 persisted — a queue is inherently ephemeral, and there's precedent for in-memory-only
 game state already.
 
+**Live online-player count** (for the world-map "Play Ranked" button, §10): also
+in-memory, not persisted — a running counter of connected sockets (or players in an
+active lobby), broadcast to clients on change. No new tables needed, just server-side
+state alongside the existing `lobbies` dict.
+
 ---
 
 ## 8. Anti-abuse
@@ -240,10 +282,11 @@ game state already.
 - **Queue-dodging**: repeatedly cancelling right after a match is found (to avoid a bad
   matchup, or to snipe a good one) gets a short escalating queue-ban, standard practice
   in most matchmakers.
-- **Smurfing**: mitigated primarily by wide-σ placement matches (§4) — a smurf's true
-  `μ - 3σ` surfaces within ~5-10 games rather than the 25+ games a flatter system would
-  need, since uncertainty (and thus rating movement per game) starts high and narrows
-  fast.
+- **Smurfing**: mitigated primarily by the wide-σ placement window (§4) — a smurf's true
+  `μ - 3σ` surfaces within the 10 placement games rather than the 25+ games a flatter
+  system would need, since uncertainty (and thus rating movement per game) starts high
+  and narrows fast. The placement cap (§5) adds a second layer: even a smurf stomping
+  every placement match can't display above the cap until game 10 anyway.
 
 ---
 
@@ -264,8 +307,21 @@ game state already.
 
 ## 10. Frontend work (this repo)
 
-- **Entry point**: a "Find Ranked Match" option alongside the existing create/join lobby
-  buttons in `src/components/home/HomeOverlay.tsx`.
+- **Entry point**: a **"Play Ranked"** button over the 3D world map itself, in
+  `src/components/worldmap/WorldMapOverlay.tsx` — the same overlay that already hosts
+  the "Join Lobby"/"Create Lobby" bottom controls on the home page (`src/app/page.tsx`),
+  so it sits alongside them rather than being buried in the city-hub menu
+  (`HomeOverlay.tsx`, which is a level deeper, inside a city).
+- **Live "currently playing" count next to the button**: a running total of players
+  active on the server right now, shown beside the Play Ranked button as social proof /
+  to reassure players a match will actually be found. **This doesn't exist yet in either
+  repo** — needs a small new backend surface: the simplest option is a count of
+  currently-connected Socket.IO clients (or players currently seated in any lobby, a
+  slightly narrower but more meaningful definition of "playing"), pushed to all
+  connected clients as a broadcast socket event whenever it changes, mirroring how
+  `state_update` already pushes lobby state rather than being polled. Exact scope
+  (all connected sockets vs. players in an active game) is a small product call to make
+  alongside the tier naming/thresholds, not a technical blocker either way.
 - **Queue UI**: searching state with elapsed timer and a cancel button; on the
   `ranked_match_found` socket event, transition straight into the existing lobby-join
   flow (reusing `joinLobby`'s shape in `src/lib/api.ts`) rather than building a new join
@@ -297,6 +353,11 @@ game state already.
   worth a cosmetic distinction later (e.g. a small match-size indicator on match history).
 - **Mid-season decay** — deliberately excluded from v1 (§3); revisit if top-of-leaderboard
   inactivity turns out to be a real problem.
+- **Scope of the "currently playing" count** (§10) — all connected sockets vs. only
+  players currently seated in an active lobby. Not a technical blocker either way, just
+  needs a decision.
+- **`PLACEMENT_CAP_TIER` value** (§5) — which tier placement matches are capped at is a
+  tuning call, same bucket as tier naming/thresholds.
 
 ---
 
@@ -308,8 +369,8 @@ game state already.
 2. **Phase 1 (backend, shadow mode)** — matchmaking queue + `ranked` lobby flag, full
    integration with the existing game engine, rating computed and stored but not shown
    to players yet (internal dogfooding only).
-3. **Phase 2 (frontend, visible rank)** — queue button, rank badge, post-game rank-change
-   screen.
+3. **Phase 2 (frontend, visible rank)** — "Play Ranked" button + live online-count on the
+   world map, rank badge, post-game rank-change screen.
 4. **Phase 3 (frontend, leaderboard)** — leaderboard page, top-tier numeric placement.
 5. **Phase 4 (seasons)** — season table, season-end soft-reset job, cosmetic reward
    delivery tied into the existing skin/wheel system.
