@@ -18,7 +18,7 @@ import * as THREE from 'three';
 // blending, scaling a vertex color toward black fades that spike out, so no
 // per-spike opacity is needed.
 
-export const KILL_FIRE_DURATION = 1.8; // seconds
+export const KILL_FIRE_DURATION = 1.19; // seconds -- scaled to 0.66x for snappier pacing
 
 // ── Fine-tuning knobs ─────────────────────────────────────────────────────────
 // Vertical offset of the whole effect relative to the character position it's
