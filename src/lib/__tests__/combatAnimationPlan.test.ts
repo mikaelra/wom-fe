@@ -195,9 +195,11 @@ describe('buildCombatAnimationPlan', () => {
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events, myNowHp: 0 });
 
-      const SWORD_IMPACT_MS = 500;
+      // Instakill: dead pose waits for the kill burst (STRIKE_DUR + burst duration),
+      // which runs longer than the plain SWORD_IMPACT_MS strike-and-hold window.
+      const INSTAKILL_DEATH_MS = 0.28 * 1000 + 0.7 * 1000;
       const killFireBatch = plan.find((b) => b.actions.some((a) => a.type === 'addKillFire'));
-      expect(killFireBatch?.delayMs).toBe(0 + SWORD_IMPACT_MS);
+      expect(killFireBatch?.delayMs).toBe(0 + INSTAKILL_DEATH_MS);
       if (killFireBatch?.actions[0].type === 'addKillFire') {
         expect(killFireBatch.actions[0].event.pos).toEqual([1, 0, 0]); // Bob's position
       }
@@ -209,6 +211,36 @@ describe('buildCombatAnimationPlan', () => {
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events, myNowHp: 4 });
       expect(plan.some((b) => b.actions.some((a) => a.type === 'addKillFire'))).toBe(false);
+    });
+
+    it('reveals the dead pose only once, timed to the last of several attackers, not the first', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'hit', attackerDied: false, damage: 1 },
+        { kind: 'incoming', attacker: 'Carol', outcome: 'hit', attackerDied: false, damage: 1 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events, myNowHp: 0 });
+
+      const SWORD_IMPACT_MS = 500; // (0.28 + 0.22) * 1000
+      const ONE_HIT_MS = 800;      // (0.28 + 0.22 + 0.30) * 1000
+      const GAP_MS = 200;
+
+      const markDeadBatches = plan.filter((b) => b.actions.some((a) => a.type === 'markDead'));
+      // Only one markDead for the whole round...
+      expect(markDeadBatches).toHaveLength(1);
+      // ...timed to Carol's (the second, last-landing attacker's) strike, not Bob's.
+      expect(markDeadBatches[0].delayMs).toBe(ONE_HIT_MS + GAP_MS + SWORD_IMPACT_MS);
+    });
+
+    it('still reveals the dead pose when the killing attacker is anonymised (no known position)', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: null, outcome: 'instakill', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events, myNowHp: 0 });
+
+      const markDeadBatch = plan.find((b) => b.actions.some((a) => a.type === 'markDead'));
+      expect(markDeadBatch).toBeDefined();
+      // No attacker position known, so no kill-fire glow is scheduled alongside it.
+      expect(markDeadBatch?.actions.some((a) => a.type === 'addKillFire')).toBe(false);
     });
   });
 

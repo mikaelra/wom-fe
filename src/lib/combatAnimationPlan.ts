@@ -3,6 +3,7 @@ import { combatFromEvents, wellRewardFromEvents, glowForReward } from '@/lib/gam
 import type { HpFxEvent } from '@/lib/resourceFx';
 import { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import { WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
+import { INSTAKILL_BURST_DURATION } from '@/components/lobby/InstakillBurstEffect';
 
 export type StrikeEvent = {
   id: string;
@@ -197,6 +198,12 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   // victim); the killer additionally sees the victim's coins fly over and
   // their ATK/coin cards tick up.
   const SWORD_IMPACT_MS = (STRIKE_DUR + HOLD_DUR) * 1000;
+  // Instakills layer a burst effect (see InstakillBurstEffect) on top of the
+  // strike, kicked off at the same moment as the sword's onStrike (~STRIKE_DUR
+  // in). Wait for it to finish before revealing the dead pose, so the model
+  // doesn't tip over mid-burst.
+  const INSTAKILL_DEATH_MS = STRIKE_DUR * 1000 + INSTAKILL_BURST_DURATION * 1000;
+  const killDelayMs = (instakill: boolean) => (instakill ? Math.max(SWORD_IMPACT_MS, INSTAKILL_DEATH_MS) : SWORD_IMPACT_MS);
   // Coins land ~one travel-arc after launch (WellRewardEffect TRAVEL_DUR).
   const KILL_LOOT_LAND_MS = 850;
   const killStamp = Date.now();
@@ -204,12 +211,17 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
 
   // `victim`, when given, holds off that player's dead pose (model tip-over +
   // gray fade, see LobbyScene's deathPending) until this same moment, so they
-  // don't flop over before the sword animation lands.
-  const scheduleKillFire = (pos: [number, number, number], atMs: number, victim?: string) => {
-    const id = `killfire-${killStamp}-${killSeq++}`;
-    const actions: CombatAnimationAction[] = [{ type: 'addKillFire', event: { id, pos } }];
+  // don't flop over before the sword animation lands. `pos` is only used for
+  // the kill-fire glow — when it's unknown (e.g. an anonymised attacker) the
+  // dead pose still needs to be revealed, so that must not be gated on it.
+  const scheduleKillFire = (pos: [number, number, number] | undefined, atMs: number, victim?: string) => {
+    const actions: CombatAnimationAction[] = [];
+    if (pos) {
+      const id = `killfire-${killStamp}-${killSeq++}`;
+      actions.push({ type: 'addKillFire', event: { id, pos } });
+    }
     if (victim) actions.push({ type: 'markDead', name: victim });
-    batches.push({ delayMs: Math.max(0, atMs), actions });
+    if (actions.length) batches.push({ delayMs: Math.max(0, atMs), actions });
   };
 
   const scheduleKillBanner = (killer: string, pos: [number, number, number], atMs: number) => {
@@ -287,8 +299,9 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       // Kill! At the moment the blow lands: fiery glow under me (the killer,
       // symbolising my +1 ATK) and the victim's coins arch over to me.
       if (combat.outgoing.eliminated) {
-        scheduleKillFire(myPos, SWORD_IMPACT_MS, target);
-        scheduleKillLoot(tgtPos, myPos, combat.outgoing.coinsReceived ?? 0, SWORD_IMPACT_MS);
+        const atMs = killDelayMs(isInstakill);
+        scheduleKillFire(myPos, atMs, target);
+        scheduleKillLoot(tgtPos, myPos, combat.outgoing.coinsReceived ?? 0, atMs);
       }
     }
   }
@@ -331,6 +344,17 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     const GAP_MS        = 200;
     // Start after the well animation so incoming swords don't overlap it.
     let staggerMs       = wellDelayMs;
+
+    // When several attackers land hits on me in the same round, only the last
+    // one to visually connect should trigger my dead pose — otherwise it flops
+    // over as soon as the first (possibly non-fatal-looking) blow's own timer
+    // fires, before the later strikes in the stagger have even played.
+    const isFatalHit = (inc: (typeof combat.incoming)[number]) =>
+      (inc.outcome === 'hit' || inc.outcome === 'instakill');
+    let lastFatalIdx = -1;
+    if (iDied) {
+      combat.incoming.forEach((inc, idx) => { if (isFatalHit(inc)) lastFatalIdx = idx; });
+    }
 
     combat.incoming.forEach((inc, i) => {
       const atkPos  = inc.attacker ? posMap.get(inc.attacker) : undefined;
@@ -381,10 +405,13 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
         scheduleKillFire(myPos, delay + ONE_DEF_MS, inc.attacker ?? undefined);
         scheduleKillLoot(atkPos, myPos, inc.coinsReceived, delay + ONE_DEF_MS);
       }
-      // I was killed by this blow: I see the fiery glow erupt under my killer
-      // (no coins — those go to them, not me).
-      if (iDied && !isDefended && atkPos && (inc.outcome === 'hit' || inc.outcome === 'instakill')) {
-        scheduleKillFire(atkPos, delay + SWORD_IMPACT_MS, playerName);
+      // I was killed this round: I see the fiery glow erupt under my killer
+      // (no coins — those go to them, not me). Only the last fatal-looking
+      // blow reveals my dead pose (see lastFatalIdx above); earlier attacks
+      // in the same round still play out their own strike/flash normally,
+      // they just don't flip me into the dead pose themselves.
+      if (iDied && i === lastFatalIdx) {
+        scheduleKillFire(atkPos, delay + killDelayMs(isInstakill), playerName);
       }
 
       const strikeActions: CombatAnimationAction[] = [{ type: 'addStrike', strike }];
@@ -416,10 +443,10 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       batches.push({ delayMs: delay, actions: [{ type: 'addHitFlash', event: { id: fid, position: victimPos } }] });
       batches.push({ delayMs: delay + 650, actions: [{ type: 'removeHitFlash', id: fid }] });
     }
-    if (killerPos) {
-      scheduleKillFire(killerPos, delay, we.victim);
-      scheduleKillBanner(we.attacker, killerPos, delay);
-    }
+    // markDead must fire even if the killer's own position is unknown — only
+    // the glow itself needs killerPos, gated inside scheduleKillFire.
+    scheduleKillFire(killerPos, delay, we.victim);
+    if (killerPos) scheduleKillBanner(we.attacker, killerPos, delay);
   });
 
   return batches;
