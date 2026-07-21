@@ -9,13 +9,17 @@ Add a ranked, competitive track on top of the existing free-for-all table game:
 - A new **"Find Ranked Match"** auto-matchmaking queue (today, all lobbies are private
   and joined by a 6-ish-character code — there is no matchmaking of any kind).
 - Ranked matches are **2-6 players**, the same FFA table game that already exists
-  (attack/defend/well/deny), just formed by the matchmaker instead of a join code.
-  Ideally matches are 4-6 players; the matchmaker will accept smaller matches under a
-  timeout so the queue doesn't stall while the player base is small (see §6).
+  (attack/defend/well/deny), just formed by the matchmaker instead of a join code. Once
+  2 players are matched, a **60-second countdown** holds the lobby open for more
+  matched players to join (up to 6); filling to 6 early collapses the countdown to 6
+  seconds, and the countdown expiring with fewer than 6 still starts the match rather
+  than stalling the queue (see §6).
 - A **hidden skill rating** (μ/σ per player, OpenSkill/Weng-Lin model — see §4) drives
   matchmaking quality and rank movement, similar in spirit to how Hearthstone, Overwatch,
   and most modern matchmakers separate "the number that matches you" from "the rank you
-  see."
+  see." **Bigger matches carry more weight** — an explicit match-size multiplier scales
+  up the rating swing on top of what the model already extracts from more players'
+  worth of evidence (§4).
 - A **visible rank** — a tier ladder (§5) with divisions at most tiers, and a numeric
   **leaderboard placement** at the top tier once a player is good enough to be ranked
   among the server's best, mirroring Hearthstone's Legend rank number.
@@ -157,6 +161,19 @@ Why not the more familiar options:
   reach *their own* ceiling a bit faster than pure win/loss variance alone would produce.
   No extra "loyalty bonus" needed — this is inherent to the rating engine already
   described above.
+- **More players in the match → more sway in the rating.** OpenSkill's own math already
+  extracts more information from a bigger match (a 6-player finishing order is more
+  evidence than a 2-player one), but on top of that, apply an explicit **match-size
+  multiplier** to the raw `μ` delta OpenSkill returns before applying it to a player's
+  stored rating: `final_delta = openskill_delta * multiplier(N)`, where `multiplier(N)`
+  is a small increasing curve (e.g. 1.0x at 2 players up to somewhere around 1.5-2x at 6
+  players — exact curve TBD/tunable, same bucket as tier thresholds). This is applied
+  only to the μ delta; σ's own shrinkage is left as OpenSkill computes it natively, since
+  "more players = more certainty" is already the correct behavior there and doesn't need
+  amplifying. The net effect: a 6-player ranked win/loss matters noticeably more to your
+  rank than a 2-player one, on top of what the model already does for free — directly
+  rewarding playing (and winning) the bigger, more chaotic matches the game is designed
+  around.
 
 ---
 
@@ -215,14 +232,29 @@ retune since they're just config once the rating engine underneath is in place.
     and a push avoids queue-status polling entirely once joined.
 - **Matchmaking logic** (backend, in-memory like the existing `InMemoryLobbyRepository`
   — no new persistence needed since there's a single backend process):
-  - Group queued players by closeness in `μ - 3σ`. Prefer forming a 4-6 player match.
-  - Widen the acceptable rating band the longer someone waits (standard matchmaker
-    behavior — start narrow, loosen over time).
-  - After a timeout (e.g. 20-30s) with too few close-rated players to fill a 4-6 match,
-    **fall back to forming a smaller match (down to 2 players)** rather than leaving
-    players waiting indefinitely — explicitly necessary while the player population is
-    small, per your direction. This should be a tunable constant, tightened as the
-    population grows.
+  - Group queued players by closeness in `μ - 3σ` into a **forming** ranked lobby (not
+    yet playing — still accepting joiners). Widen the acceptable rating band the longer
+    the forming lobby waits (standard matchmaker behavior — start narrow, loosen over
+    time), so later joiners can be somewhat further off in rating than the first two.
+  - **Start countdown**: once a forming lobby reaches its **minimum of 2 players**, a
+    **60-second countdown** begins before the game actually starts. While it runs, more
+    matched players can keep joining the same lobby, up to the max of **6**.
+  - **Countdown collapses once full**: if the lobby fills to 6 players before the 60s
+    elapses, the remaining countdown immediately drops to **6 seconds** (or keeps
+    whatever time was already left, if that's already under 6s — i.e. `remaining =
+    min(remaining, 6)`) rather than resetting to a full 6s. This gives a short, consistent
+    "match found, starting shortly" beat in the UI even for a full lobby, instead of an
+    instant, jarring start.
+  - **Timeout fallback**: if the 60s countdown expires with fewer than 6 players (as few
+    as the 2-player minimum), the match **starts anyway** with whoever is present. This
+    is what guarantees a ranked match actually starts within a bounded wait — at most a
+    minute — even while the player population is small and 4-6 players aren't always
+    available; the rating-band widening above and this fixed countdown work together
+    toward the same goal (maximize lobby size within a bounded wait, per your direction
+    that the match format should ideally be 4-6 but must not stall the queue).
+  - All of the above (countdown length, collapse threshold, min/max players) are tunable
+    constants — the 60s/6s/2/6 figures here are your specified starting values, not
+    hardcoded assumptions.
 - **No bots in ranked matches, ever** — enforced at match-formation time (the matchmaker
   never adds one), and doubles up naturally with the existing bot-presence stat-skip in
   `combat.py` (§2) as a second, independent guard.
@@ -322,10 +354,12 @@ state alongside the existing `lobbies` dict.
   `state_update` already pushes lobby state rather than being polled. Exact scope
   (all connected sockets vs. players in an active game) is a small product call to make
   alongside the tier naming/thresholds, not a technical blocker either way.
-- **Queue UI**: searching state with elapsed timer and a cancel button; on the
-  `ranked_match_found` socket event, transition straight into the existing lobby-join
-  flow (reusing `joinLobby`'s shape in `src/lib/api.ts`) rather than building a new join
-  path.
+- **Queue UI**: a "searching" state with a cancel button while waiting for the first
+  match; once matched (`ranked_match_found`), transition into the existing lobby-join
+  flow (reusing `joinLobby`'s shape in `src/lib/api.ts`) and show the **60s hold-open
+  countdown** alongside a live "X/6 players joined" readout, so players can see both the
+  clock and whether the lobby is still filling — this is new UI state without a direct
+  precedent in the existing private-lobby flow, since today's lobbies don't auto-start.
 - **Rank badge component**: tier icon + division (or, at the top tier, the numeric
   leaderboard placement) — used in the HUD (`SceneOverlay.tsx`), a player's profile, and
   the post-game screen.
@@ -347,15 +381,18 @@ state alongside the existing `lobbies` dict.
 - **Exact tier/division point thresholds** — placeholders until there's real rating
   distribution data to calibrate against (§3). Plan to revisit after the first season or
   two.
-- **Cross-size prestige** — does a 6-player ranked win "feel" bigger than a 2-player one?
-  OpenSkill's math already accounts for this in the rating math (more players in a match
-  = more information per placement), but the *perceived* prestige gap might still be
-  worth a cosmetic distinction later (e.g. a small match-size indicator on match history).
+- **Match-size multiplier curve** (§4) — resolved in direction (bigger matches swing
+  rating more) but the exact `multiplier(N)` values are a tuning call, same bucket as
+  tier thresholds; a cosmetic match-size indicator on match history could reinforce this
+  further later, but isn't required for v1.
 - **Mid-season decay** — deliberately excluded from v1 (§3); revisit if top-of-leaderboard
   inactivity turns out to be a real problem.
 - **Scope of the "currently playing" count** (§10) — all connected sockets vs. only
   players currently seated in an active lobby. Not a technical blocker either way, just
   needs a decision.
+- **Countdown/lobby-size constants** (§6) — the 60s hold-open window, 6s collapse
+  threshold, and 2/6 min/max players are your specified starting values; revisit once
+  there's real queue-time data.
 - **`PLACEMENT_CAP_TIER` value** (§5) — which tier placement matches are capped at is a
   tuning call, same bucket as tier naming/thresholds.
 
