@@ -81,14 +81,18 @@ afterEach(() => {
 });
 
 describe('useLobbyConnection', () => {
-  it('starts connecting, then flips to connected on the socket connect event', () => {
+  it('starts connecting, stays connecting on the raw connect event alone, and only flips to connected once a state_update confirms the rejoin', () => {
     const { result } = renderHook(() => useLobbyConnection('AAAA', 'Alice'));
     expect(result.current.connectionStatus).toBe('connecting');
 
     act(() => {
       socket.__fireSocketEvent('connect');
     });
+    expect(result.current.connectionStatus).toBe('connecting');
 
+    act(() => {
+      socket.__fireSubscribeEvent('state_update', baseLobbyState);
+    });
     expect(result.current.connectionStatus).toBe('connected');
   });
 
@@ -116,7 +120,7 @@ describe('useLobbyConnection', () => {
     expect(result.current.state).toEqual({ ...baseLobbyState, round: 2 });
   });
 
-  it('flips to disconnected on a disconnect event, then back to connected and re-emits join_room on reconnect', () => {
+  it('flips to disconnected on a disconnect event, re-emits join_room on reconnect, and only flips back to connected once a state_update confirms the rejoin', () => {
     const { result } = renderHook(() => useLobbyConnection('AAAA', 'Alice'));
 
     act(() => {
@@ -129,11 +133,41 @@ describe('useLobbyConnection', () => {
       socket.__fireSocketEvent('connect');
     });
 
-    expect(result.current.connectionStatus).toBe('connected');
+    // Raw transport reconnecting alone isn't proof the rejoin succeeded --
+    // status stays 'disconnected' until a real state_update confirms it.
+    expect(result.current.connectionStatus).toBe('disconnected');
     expect(socket.__emit).toHaveBeenCalledWith('join_room', {
       lobby_id: 'AAAA',
       token: 'test-token',
     });
+
+    act(() => {
+      socket.__fireSubscribeEvent('state_update', baseLobbyState);
+    });
+    expect(result.current.connectionStatus).toBe('connected');
+  });
+
+  it('stays disconnected if the transport reconnects but the rejoin never succeeds, e.g. the lobby is gone after a backend restart', () => {
+    // Regression for wom-e2e KNOWN_ISSUES.md #5: a backend restart wipes
+    // all lobby state, so a rejoin against the fresh process gets back an
+    // "error" (lobby not found), never another state_update.
+    // connectionStatus must not flip back to 'connected' just because the
+    // raw socket transport reconnected -- that would let SceneOverlay
+    // silently resume rendering the stale pre-restart UI with no further
+    // indication the session is actually gone.
+    const { result } = renderHook(() => useLobbyConnection('AAAA', 'Alice'));
+
+    act(() => {
+      socket.__fireSocketEvent('disconnect');
+    });
+    act(() => {
+      socket.__fireSocketEvent('connect');
+    });
+    act(() => {
+      socket.__fireSubscribeEvent('error', { message: 'Lobby AAAA not found' });
+    });
+
+    expect(result.current.connectionStatus).toBe('disconnected');
   });
 
   it('re-reads playerEmail from localStorage on every reconnect, not just at mount', () => {
