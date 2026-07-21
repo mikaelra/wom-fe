@@ -76,8 +76,8 @@ describe('buildCombatAnimationPlan', () => {
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
 
-      const SWORD_IMPACT_MS = 330; // (0.18 + 0.15) * 1000
-      const KILL_LOOT_LAND_MS = 561;
+      const SWORD_IMPACT_MS = 750; // (0.42 + 0.33) * 1000
+      const KILL_LOOT_LAND_MS = 1288;
 
       expect(plan[0].delayMs).toBe(0); // the strike itself
       expect(plan[0].actions[0].type).toBe('addStrike');
@@ -146,8 +146,8 @@ describe('buildCombatAnimationPlan', () => {
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
 
-      const ONE_DEF_MS = 690; // (0.18 + 0.15 + 0.36) * 1000
-      const shieldDur = ONE_DEF_MS + 231;
+      const ONE_DEF_MS = 1580; // (0.42 + 0.33 + 0.83) * 1000
+      const shieldDur = ONE_DEF_MS + 530;
 
       expect(plan[0].delayMs).toBe(0);
       expect(plan[0].actions.map((a) => a.type)).toEqual(['addStrike', 'addImpactShield']);
@@ -163,8 +163,8 @@ describe('buildCombatAnimationPlan', () => {
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
 
-      const ONE_HIT_MS = 530; // (0.18 + 0.15 + 0.2) * 1000
-      const GAP_MS = 132;
+      const ONE_HIT_MS = 1200; // (0.42 + 0.33 + 0.45) * 1000
+      const GAP_MS = 303;
 
       const strikeBatches = plan.filter((b) => b.actions.some((a) => a.type === 'addStrike'));
       expect(strikeBatches).toHaveLength(2);
@@ -178,7 +178,7 @@ describe('buildCombatAnimationPlan', () => {
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
 
-      const ONE_DEF_MS = 690;
+      const ONE_DEF_MS = 1580;
       const killFireBatch = plan.find((b) => b.actions.some((a) => a.type === 'addKillFire'));
       expect(killFireBatch?.delayMs).toBe(0 + ONE_DEF_MS);
 
@@ -194,7 +194,7 @@ describe('buildCombatAnimationPlan', () => {
 
       // Instakill: dead pose waits for the kill burst (STRIKE_DUR + burst duration),
       // which runs longer than the plain SWORD_IMPACT_MS strike-and-hold window.
-      const INSTAKILL_DEATH_MS = 0.18 * 1000 + 0.46 * 1000;
+      const INSTAKILL_DEATH_MS = 0.42 * 1000 + 1.06 * 1000;
       const killFireBatch = plan.find((b) => b.actions.some((a) => a.type === 'addKillFire'));
       expect(killFireBatch?.delayMs).toBe(0 + INSTAKILL_DEATH_MS);
       if (killFireBatch?.actions[0].type === 'addKillFire') {
@@ -217,9 +217,9 @@ describe('buildCombatAnimationPlan', () => {
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events, myNowHp: 0 });
 
-      const SWORD_IMPACT_MS = 330; // (0.18 + 0.15) * 1000
-      const ONE_HIT_MS = 530;      // (0.18 + 0.15 + 0.2) * 1000
-      const GAP_MS = 132;
+      const SWORD_IMPACT_MS = 750; // (0.42 + 0.33) * 1000
+      const ONE_HIT_MS = 1200;     // (0.42 + 0.33 + 0.45) * 1000
+      const GAP_MS = 303;
 
       const markDeadBatches = plan.filter((b) => b.actions.some((a) => a.type === 'markDead'));
       // Only one markDead for the whole round...
@@ -299,29 +299,29 @@ describe('buildCombatAnimationPlan', () => {
   });
 
   describe('witnessed eliminations', () => {
-    it('schedules a hit-flash, kill-fire, and kill-banner at wellDelayMs + SWORD_IMPACT_MS + i*297', () => {
+    it('schedules a hit-flash, kill-fire, and kill-banner at wellDelayMs + SWORD_IMPACT_MS + i*682', () => {
       const events: GameEvent[] = [
         { kind: 'witness', attacker: 'Bob', victim: 'Carol' },
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
 
-      const SWORD_IMPACT_MS = 330;
-      const expectedDelay = 0 + SWORD_IMPACT_MS + 0 * 297;
+      const SWORD_IMPACT_MS = 750;
+      const expectedDelay = 0 + SWORD_IMPACT_MS + 0 * 682;
 
       const flashAdd = plan.find((b) => b.actions.some((a) => a.type === 'addHitFlash'));
       expect(flashAdd?.delayMs).toBeCloseTo(expectedDelay, 5);
       const flashRemove = plan.find((b) => b.actions.some((a) => a.type === 'removeHitFlash'));
-      expect(flashRemove?.delayMs).toBeCloseTo(expectedDelay + 429, 5);
+      expect(flashRemove?.delayMs).toBeCloseTo(expectedDelay + 985, 5);
 
       const fireAdd = plan.find((b) => b.actions.some((a) => a.type === 'addKillFire'));
       expect(fireAdd?.delayMs).toBeCloseTo(expectedDelay, 5);
       const bannerAdd = plan.find((b) => b.actions.some((a) => a.type === 'addKillBanner'));
       expect(bannerAdd?.delayMs).toBeCloseTo(expectedDelay, 5);
       const bannerRemove = plan.find((b) => b.actions.some((a) => a.type === 'removeKillBanner'));
-      expect(bannerRemove?.delayMs).toBeCloseTo(expectedDelay + 1716, 5);
+      expect(bannerRemove?.delayMs).toBeCloseTo(expectedDelay + 3939, 5);
     });
 
-    it('staggers multiple witnessed eliminations by 297ms each', () => {
+    it('staggers multiple witnessed eliminations by 682ms each', () => {
       const events: GameEvent[] = [
         { kind: 'witness', attacker: 'Bob', victim: 'Carol' },
         { kind: 'witness', attacker: 'Carol', victim: 'Bob' },
@@ -329,7 +329,7 @@ describe('buildCombatAnimationPlan', () => {
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
       const fireBatches = plan.filter((b) => b.actions.some((a) => a.type === 'addKillFire'));
       expect(fireBatches).toHaveLength(2);
-      expect(fireBatches[1].delayMs - fireBatches[0].delayMs).toBeCloseTo(297, 5);
+      expect(fireBatches[1].delayMs - fireBatches[0].delayMs).toBeCloseTo(682, 5);
     });
   });
 
@@ -365,9 +365,9 @@ describe('buildHadesCoinEvents', () => {
     });
   });
 
-  it('holds off 0.99s before the first coin launches, so it does not overlap the kill-loot coins', () => {
+  it('holds off 2.27s before the first coin launches, so it does not overlap the kill-loot coins', () => {
     const events = buildHadesCoinEvents(bossPos, winnerPositions);
-    expect(events[0].delay).toBe(0.99);
+    expect(events[0].delay).toBe(2.27);
   });
 
   it('staggers each winner so the coins land one at a time', () => {

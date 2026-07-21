@@ -23,7 +23,7 @@ export const WELL_GLOW_HEX: Record<WellGlowColor, string> = {
   red:    '#ef4444',
 };
 
-export const WELL_GLOW_DURATION = 0.99; // seconds -- scaled to 0.66x for snappier pacing
+export const WELL_GLOW_DURATION = 2.27; // seconds -- scaled to 1/0.66x for slower pacing
 const DEFAULT_RADIUS = 1.5;            // disc radius under the well
 const DEFAULT_BLINKS = 3;              // flashes over the duration
 

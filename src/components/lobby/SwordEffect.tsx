@@ -9,11 +9,11 @@ useGLTF.preload('/models/swords/sword_animation-ld.glb');
 
 // Distance the sword hovers from the target while in "ready" or pre-strike state
 const HOVER_DIST = 0.75;
-// Strike animation timing (seconds) -- scaled to 0.66x for snappier pacing
-export const STRIKE_DUR   = 0.18;
-export const HOLD_DUR     = 0.15;
-export const RETREAT_DUR  = 0.2;
-export const BOUNCE_DUR   = 0.36;
+// Strike animation timing (seconds) -- scaled to 1/0.66x for slower pacing
+export const STRIKE_DUR   = 0.42;
+export const HOLD_DUR     = 0.33;
+export const RETREAT_DUR  = 0.45;
+export const BOUNCE_DUR   = 0.83;
 // Peak height (world units) of the bounce-back arch above the straight line
 const BOUNCE_ARCH_HEIGHT = 0.6;
 // Number of end-over-end tumbles during the bounce

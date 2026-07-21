@@ -12,7 +12,7 @@ import * as THREE from 'three';
 // Sparks share one BufferGeometry (matches the KillFireEffect pattern) so
 // mounting/unmounting many of these never triggers a shader recompile.
 
-export const INSTAKILL_BURST_DURATION = 0.46; // seconds -- scaled to 0.66x for snappier pacing
+export const INSTAKILL_BURST_DURATION = 1.06; // seconds -- scaled to 1/0.66x for slower pacing
 export const INSTAKILL_KILL_COLOR = '#2bff6a';
 export const INSTAKILL_BLOCK_COLOR = '#2ec8ff';
 
