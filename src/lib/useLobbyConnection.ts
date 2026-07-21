@@ -71,8 +71,15 @@ export function useLobbyConnection(
       sock.emit('join_room', { lobby_id: lobbyId, token: getStoredToken(lobbyId) });
     };
 
+    // Deliberately does NOT set connectionStatus to 'connected' here --
+    // the raw transport reconnecting doesn't mean the rejoin actually
+    // succeeded. After a backend restart, a stale token/lobby_id means
+    // join_room gets back an "error" (lobby not found), never another
+    // state_update -- so connectionStatus below stays 'disconnected'
+    // instead of flipping back to 'connected' and letting the stale
+    // pre-restart UI reappear with no further signal anything is wrong.
+    // See KNOWN_ISSUES.md #5 in wom-e2e for the CI run that found this.
     const handleConnect = () => {
-      setConnectionStatus('connected');
       rejoin();
     };
     const handleDisconnect = () => {
@@ -84,6 +91,10 @@ export function useLobbyConnection(
     rejoin();
 
     const unsubState = subscribe('state_update', (data) => {
+      // Only a real state_update -- proof this connection is actually
+      // caught up in the lobby's broadcast room, not just that the raw
+      // socket transport is up -- clears a prior 'disconnected' status.
+      setConnectionStatus('connected');
       setState(data);
     });
 
