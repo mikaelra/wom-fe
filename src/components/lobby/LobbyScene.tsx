@@ -26,6 +26,7 @@ import { skinUrl } from '@/lib/frogSkins';
 import {
   buildCombatAnimationPlan,
   buildWellRewardEvents,
+  buildHadesCoinEvents,
   WELL_LOSS_GLOW_RADIUS,
   WELL_LOSS_GLOW_INTENSITY,
   WELL_FX_DURATION,
@@ -313,6 +314,23 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       );
     }
 
+    // Boss fight just won → Hades' coin: a giant golden coin arcs out of the
+    // boss and lands on every surviving human (mirrors the relic-award loop
+    // in engine/boss_ai.py's boss_defeated, which credits the same set).
+    if (state.boss_fight && !prev.gameover && state.gameover && state.winner === 'Players') {
+      const boss = state.players.find((p) => p.boss);
+      const bossPos = boss ? posMapRef.current.get(boss.name) : undefined;
+      if (bossPos) {
+        const winnerPositions = state.players
+          .filter((p) => !p.boss && !p.bot && p.hp > 0)
+          .map((p) => posMapRef.current.get(p.name))
+          .filter((pos): pos is [number, number, number] => !!pos);
+        if (winnerPositions.length) {
+          setWellRewardEvents((ev) => [...ev, ...buildHadesCoinEvents(bossPos, winnerPositions)]);
+        }
+      }
+    }
+
     // Chose The Well but didn't win → small red glow under the well (PvP only).
     // The win case is handled below once we've fetched the reward messages.
     if (currentActionRef.current === 'well' && !state.boss_fight && state.wellwinner !== playerName) {
@@ -550,6 +568,24 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     const interval = setInterval(fire, 4000);
     return () => clearInterval(interval);
   }, [playerName]);
+
+  // ── Debug: preview Hades' coin without actually beating a boss ─────────────
+  // Append `?hadestest=1` to a lobby URL to loop the golden-coin-from-Hades
+  // animation onto every currently seated player every 4s.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.location.search.includes('hadestest')) return;
+
+    const fire = () => {
+      const bossPos = getBossPosition().position;
+      const winnerPositions = Array.from(posMapRef.current.values());
+      if (!winnerPositions.length) return;
+      setWellRewardEvents((ev) => [...ev, ...buildHadesCoinEvents(bossPos, winnerPositions)]);
+    };
+    fire();
+    const interval = setInterval(fire, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Build a map of sender → latest message text if it's within CHAT_BUBBLE_DURATION_MS.
   // bubbleTick forces a re-evaluation when the next bubble expires — previously
@@ -822,7 +858,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           </group>
         ))}
 
-        {/* Well rewards arching out of the well onto the winner */}
+        {/* Well rewards arching out of the well onto the winner (also reused for
+            Hades' coin, which arcs out of the boss instead — see ev.scale) */}
         {wellRewardEvents.map((ev) => (
           <WellRewardEffect
             key={ev.id}
@@ -830,6 +867,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             fromPosition={ev.fromPos}
             toPosition={ev.toPos}
             delay={ev.delay}
+            scale={ev.scale}
             onDone={() => setWellRewardEvents((s) => s.filter((x) => x.id !== ev.id))}
           />
         ))}

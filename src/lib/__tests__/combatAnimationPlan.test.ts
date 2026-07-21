@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildCombatAnimationPlan, WELL_FX_DURATION } from '@/lib/combatAnimationPlan';
+import { buildCombatAnimationPlan, buildHadesCoinEvents, HADES_COIN_SCALE, WELL_FX_DURATION } from '@/lib/combatAnimationPlan';
+import { WELL_REWARD_SCALE } from '@/components/lobby/WellRewardEffect';
 import type { GameEvent } from '@/lib/gameEvents';
 
 const ME = 'Alice';
@@ -349,5 +350,37 @@ describe('buildCombatAnimationPlan', () => {
     expect(actionTypes[0]).toBe('addStrike'); // outgoing
     expect(actionTypes).toContain('addWellWinFx');
     expect(actionTypes.indexOf('addWellWinFx')).toBeLessThan(actionTypes.lastIndexOf('addStrike'));
+  });
+});
+
+describe('buildHadesCoinEvents', () => {
+  const bossPos: [number, number, number] = [0, 0, -5];
+  const winnerPositions: [number, number, number][] = [[1, 0, 0], [2, 0, 0], [3, 0, 0]];
+
+  it('spawns one 3x gold coin per winner, launched from the boss', () => {
+    const events = buildHadesCoinEvents(bossPos, winnerPositions);
+    expect(events).toHaveLength(3);
+    events.forEach((ev, i) => {
+      expect(ev.type).toBe('gold');
+      expect(ev.fromPos).toEqual([bossPos[0], bossPos[1] + 0.5, bossPos[2]]);
+      expect(ev.toPos).toEqual(winnerPositions[i]);
+      expect(ev.scale).toBe(HADES_COIN_SCALE);
+      expect(ev.scale).toBe(WELL_REWARD_SCALE.gold * 3);
+    });
+  });
+
+  it('holds off 1.5s before the first coin launches, so it does not overlap the kill-loot coins', () => {
+    const events = buildHadesCoinEvents(bossPos, winnerPositions);
+    expect(events[0].delay).toBe(1.5);
+  });
+
+  it('staggers each winner so the coins land one at a time', () => {
+    const events = buildHadesCoinEvents(bossPos, winnerPositions);
+    expect(events[1].delay).toBeGreaterThan(events[0].delay);
+    expect(events[2].delay).toBeGreaterThan(events[1].delay);
+  });
+
+  it('returns no events when nobody survived to be credited', () => {
+    expect(buildHadesCoinEvents(bossPos, [])).toEqual([]);
   });
 });
