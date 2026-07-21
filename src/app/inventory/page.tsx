@@ -168,6 +168,14 @@ export default function InventoryPage() {
                         <RelicCoin />
                       </div>
                       <p className="text-sm font-semibold text-center">{relic.name}</p>
+                      {relic.power_category === 'MONETARY' && (
+                        <span className="text-[10px] uppercase tracking-wide text-amber-400/80 border border-amber-400/30 rounded px-1.5 py-0.5">
+                          Consumable
+                        </span>
+                      )}
+                      {relic.flavour_text && (
+                        <p className="text-xs text-white/50 text-center">{relic.flavour_text}</p>
+                      )}
                       {relic.count > 1 && <p className="text-xs text-white/50">×{relic.count}</p>}
                     </div>
                   ))}

@@ -32,6 +32,7 @@ export interface ClientToServerEvents {
   leave_room: (payload: { lobby_id: string }) => void;
   start_game: (payload: { lobby_id: string }) => void;
   kick_player: (payload: { lobby_id: string; target: string }) => void;
+  toggle_relic_selection: (payload: { lobby_id: string; relic_id: number }) => void;
   add_dummy: (payload: { lobby_id: string }) => void;
   submit_choice: (payload: {
     lobby_id: string;

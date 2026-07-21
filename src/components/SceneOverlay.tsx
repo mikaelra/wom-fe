@@ -51,6 +51,7 @@ export type PreGameRenderOpts = {
   onStartGame: () => void;
   onAddDummy: () => void;
   onKick: (name: string) => void;
+  onToggleRelicSelection: (relicId: number) => void;
 };
 
 export type SceneOverlayConfig = {
@@ -270,6 +271,10 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     getSocket().emit('kick_player', { lobby_id: lobbyId, target: targetName });
   };
 
+  const handleToggleRelicSelection = (relicId: number) => {
+    getSocket().emit('toggle_relic_selection', { lobby_id: lobbyId, relic_id: relicId });
+  };
+
   const handleResource = (resId: string) => {
     setResource(resId);
     pendingResourceRef.current = resId;
@@ -441,6 +446,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           onStartGame: handleStartGame,
           onAddDummy: handleAddDummy,
           onKick: handleKick,
+          onToggleRelicSelection: handleToggleRelicSelection,
         })}
         {showChat && (
           <div

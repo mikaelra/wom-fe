@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import LobbyOverlay, { InviteSection, renderGameOver, renderPreGame } from '@/components/lobby/LobbyOverlay';
 import type { GameOverRenderOpts, PreGameRenderOpts } from '@/components/SceneOverlay';
-import type { LobbyState, Player } from '@/types/game';
+import { getPlayerRelics } from '@/lib/api';
+import { COIN_RELIC_ID, type LobbyState, type Player } from '@/types/game';
 
 let capturedOnStateChange: ((s: LobbyState | null) => void) | null = null;
 
@@ -12,6 +13,19 @@ vi.mock('@/components/SceneOverlay', () => ({
     return null;
   },
 }));
+
+vi.mock('@/lib/api', () => ({
+  getPlayerRelics: vi.fn(),
+}));
+
+// Real RelicCoin renders a react-three-fiber <Canvas>, which needs a WebGL
+// context jsdom can't provide -- mocked out wholesale, same as
+// inventory/__tests__/page.test.tsx.
+vi.mock('@/components/RelicCoin', () => ({
+  default: () => <div data-testid="relic-coin" />,
+}));
+
+const mockedGetPlayerRelics = vi.mocked(getPlayerRelics);
 
 const basePlayer: Player = {
   name: 'Alice',
@@ -135,7 +149,13 @@ describe('renderPreGame', () => {
     onStartGame: vi.fn(),
     onAddDummy: vi.fn(),
     onKick: vi.fn(),
+    onToggleRelicSelection: vi.fn(),
   };
+
+  beforeEach(() => {
+    mockedGetPlayerRelics.mockReset();
+    mockedGetPlayerRelics.mockResolvedValue({ relics: [] });
+  });
 
   it('shows a skull for a dead player and a crown for the winner', () => {
     const dead: Player = { ...basePlayer, name: 'Bob', hp: 0 };
@@ -232,6 +252,65 @@ describe('renderPreGame', () => {
     expect(screen.getByText('Hades')).toBeInTheDocument();
     expect(screen.getByText('Lord of the Underworld')).toBeInTheDocument();
     expect(screen.getByText('Boss-fight starts in 1m 30s')).toBeInTheDocument();
+  });
+
+  it('shows the relic-selection trigger only next to the local player\'s own name', () => {
+    const other: Player = { ...basePlayer, name: 'Bob' };
+    render(<>{renderPreGame({
+      ...baseOpts,
+      state: { ...baseState, players: [basePlayer, other] },
+    })}</>);
+    expect(screen.getAllByTitle('View your relics')).toHaveLength(1);
+  });
+
+  it('shows the selected-relic badge for any player, including a non-self player', () => {
+    const other: Player = { ...basePlayer, name: 'Bob', selected_relic_ids: [COIN_RELIC_ID] };
+    render(<>{renderPreGame({
+      ...baseOpts,
+      state: { ...baseState, players: [basePlayer, other] },
+    })}</>);
+    expect(screen.getByTitle('Selected: will start the match with +1 coin')).toBeInTheDocument();
+  });
+
+  it('opens the relic popover on click and shows the fetched inventory', async () => {
+    mockedGetPlayerRelics.mockResolvedValue({
+      relics: [{ id: COIN_RELIC_ID, boss_id: 6, created_at: '', name: 'Coin', power_category: 'MONETARY', count: 2 }],
+    });
+    render(<>{renderPreGame({
+      ...baseOpts,
+      state: { ...baseState, players: [basePlayer] },
+    })}</>);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTitle('View your relics'));
+      await Promise.resolve();
+    });
+
+    expect(mockedGetPlayerRelics).toHaveBeenCalledWith('Alice');
+    expect(screen.getByText('×2')).toBeInTheDocument();
+  });
+
+  it('shows the coin icon instead of "+" for the local player once they are selected', () => {
+    const me: Player = { ...basePlayer, name: 'Alice', selected_relic_ids: [COIN_RELIC_ID] };
+    render(<>{renderPreGame({
+      ...baseOpts,
+      playerName: 'Alice',
+      state: { ...baseState, players: [me] },
+    })}</>);
+    expect(screen.queryByTitle('View your relics')).not.toBeInTheDocument();
+    expect(screen.getByText('🪙')).toBeInTheDocument();
+  });
+
+  it('renders a StartGameButton wired to onStartGame for the admin', () => {
+    const onStartGame = vi.fn();
+    render(<>{renderPreGame({
+      ...baseOpts,
+      isAdmin: true,
+      onStartGame,
+      state: { ...baseState, players: [basePlayer] },
+    })}</>);
+    fireEvent.click(screen.getByText('Start Game'));
+    expect(onStartGame).toHaveBeenCalled();
   });
 });
 

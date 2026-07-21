@@ -178,7 +178,7 @@ describe('pre-game delegation', () => {
     }));
   });
 
-  it('wires onStartGame/onAddDummy/onKick to the right socket emits', () => {
+  it('wires onStartGame/onAddDummy/onKick/onToggleRelicSelection to the right socket emits', () => {
     mockedUseLobbyConnection.mockReturnValue({ state: preGameState, connectionStatus: 'connected' });
     mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult, phase: 'lobby', round: 0 });
     const renderPreGame = vi.fn<(opts: PreGameRenderOpts) => null>(() => null);
@@ -195,6 +195,9 @@ describe('pre-game delegation', () => {
 
     opts.onKick('Bob');
     expect(emit).toHaveBeenCalledWith('kick_player', { lobby_id: 'AAAA', target: 'Bob' });
+
+    opts.onToggleRelicSelection(1);
+    expect(emit).toHaveBeenCalledWith('toggle_relic_selection', { lobby_id: 'AAAA', relic_id: 1 });
   });
 });
 
