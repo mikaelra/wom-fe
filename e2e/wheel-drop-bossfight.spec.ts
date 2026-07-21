@@ -200,10 +200,10 @@ test('a fresh account eventually gets a Wheel drop from repeated boss fights', a
 
     if (!wheelFound) {
       // Two matches for this text once the game-over banner is up: SceneOverlay's
-  // persistent top-left back link (always rendered, from lobbyConfig.backLabel)
-  // and renderGameOver's own copy -- either navigates home, so .first() avoids
-  // the strict-mode ambiguity.
-  await page.getByText('← Back to Home', { exact: true }).first().click({ timeout: 20_000, force: true });
+      // persistent top-left back link (always rendered, from lobbyConfig.backLabel)
+      // and renderGameOver's own copy -- either navigates home, so .first() avoids
+      // the strict-mode ambiguity.
+      await page.getByText('← Back to Home', { exact: true }).first().click({ timeout: 20_000, force: true });
       await page.waitForURL('/', { timeout: 20_000 });
     }
   }
