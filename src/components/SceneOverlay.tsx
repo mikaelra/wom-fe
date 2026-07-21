@@ -142,7 +142,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     setMessages([]);
   }, [lobbyId]);
 
-  const { state } = useLobbyConnection(lobbyId, playerName, {
+  const { state, connectionStatus } = useLobbyConnection(lobbyId, playerName, {
     onChatMessage: () => {
       if (!chatExpandedRef.current) setUnreadChat(true);
     },
@@ -152,6 +152,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       }
     },
   });
+  // useLobbyConnection already tracks this (a real socket 'disconnect'
+  // handler) but it went completely unused here -- state simply keeps its
+  // last-known value forever on a lost connection (e.g. the backend
+  // process itself going away, which loses all in-memory lobby state with
+  // no possible recovery), so the player would otherwise sit on a frozen,
+  // stale screen with zero indication anything is wrong. Reactive, not a
+  // one-way trap: a transient network blip that reconnects on its own
+  // clears this again once connectionStatus flips back to 'connected'.
+  const connectionLost = connectionStatus === 'disconnected';
 
   useEffect(() => {
     onStateChange?.(state);
@@ -377,6 +386,16 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     return (
       <div className={`min-h-screen flex items-center justify-center ${theme.loadingBgClass}`}>
         <p className={`${theme.loadingTextClass} text-lg`}>{loadingText}</p>
+      </div>
+    );
+  }
+
+  if (connectionLost) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${theme.loadingBgClass}`}>
+        <p className={`${theme.loadingTextClass} text-lg font-semibold`}>
+          Connection lost. Please refresh.
+        </p>
       </div>
     );
   }
