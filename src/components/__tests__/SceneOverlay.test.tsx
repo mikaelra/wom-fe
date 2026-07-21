@@ -413,6 +413,29 @@ describe('player list', () => {
   });
 });
 
+describe('kicked mid-lobby', () => {
+  it('shows a removed-from-lobby message once myPlayer disappears after having been present', () => {
+    const { rerender } = render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.queryByText('You were removed from this lobby.')).not.toBeInTheDocument();
+
+    // handle_kick_player is the only thing that removes an entry from
+    // state.players outright -- simulate the resulting state_update by
+    // having useLobbyGame's derived myPlayer disappear on a later render.
+    mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult, myPlayer: undefined });
+    rerender(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+
+    expect(screen.getByText('You were removed from this lobby.')).toBeInTheDocument();
+    expect(screen.getByText('← Back to Home')).toBeInTheDocument();
+  });
+
+  it('does not show the removed message just because myPlayer has never been present yet', () => {
+    // e.g. still connecting/joining -- must not be confused with kicked.
+    mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult, myPlayer: undefined });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.queryByText('You were removed from this lobby.')).not.toBeInTheDocument();
+  });
+});
+
 describe('warn-blink cues', () => {
   it('shows the countdown while <=20s with no action-button warn class above 10s', () => {
     mockedUseRoundTimer.mockReturnValue(15);
