@@ -173,6 +173,18 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const isChoosingDeny = showDenyPicker && isPendingDenyChooser;
   const secondsLeft = useRoundTimer(state?.round_end_time);
 
+  // Kicking (handle_kick_player, wom-be) is the only thing that ever
+  // removes an entry from state.players outright -- a disconnect just
+  // unbinds the socket, it doesn't touch the players list. So "I was a
+  // member, and now I'm not" can only mean I was kicked; previously this
+  // went completely unnoticed (myPlayer just silently became undefined
+  // and the stale pre-kick UI kept rendering forever).
+  const wasEverMyPlayerRef = useRef(false);
+  useEffect(() => {
+    if (myPlayer) wasEverMyPlayerRef.current = true;
+  }, [myPlayer]);
+  const wasKicked = wasEverMyPlayerRef.current && !myPlayer;
+
   useEffect(() => {
     // Play the gain sound for the resource picked last round, then reset selection.
     if (pendingResourceRef.current && (state?.round ?? 0) > 1) {
@@ -377,6 +389,19 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     return (
       <div className={`min-h-screen flex items-center justify-center ${theme.loadingBgClass}`}>
         <p className={`${theme.loadingTextClass} text-lg`}>{loadingText}</p>
+      </div>
+    );
+  }
+
+  if (wasKicked) {
+    return (
+      <div className={`min-h-screen flex flex-col items-center justify-center gap-4 ${theme.loadingBgClass}`}>
+        <p className={`${theme.loadingTextClass} text-lg font-semibold`}>
+          You were removed from this lobby.
+        </p>
+        <Link href="/" className="text-blue-400 hover:underline font-medium">
+          ← Back to Home
+        </Link>
       </div>
     );
   }
