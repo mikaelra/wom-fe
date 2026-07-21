@@ -2,7 +2,7 @@ import type { GameEvent, WellRewardComponent } from '@/lib/gameEvents';
 import { combatFromEvents, wellRewardFromEvents, glowForReward } from '@/lib/gameEvents';
 import type { HpFxEvent } from '@/lib/resourceFx';
 import { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
-import { WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
+import { WELL_REWARD_FLIGHT_DUR, WELL_REWARD_SCALE, type WellRewardType } from '@/components/lobby/WellRewardEffect';
 import { INSTAKILL_BURST_DURATION } from '@/components/lobby/InstakillBurstEffect';
 
 export type StrikeEvent = {
@@ -38,6 +38,8 @@ export type WellRewardEvent = {
   fromPos: [number, number, number];
   toPos:   [number, number, number];
   delay:   number;
+  /** Optional scale override (e.g. Hades' coin renders 3x the normal gold coin). */
+  scale?: number;
 };
 
 // A fiery red glow that erupts under a character when a kill is made. Seen by the
@@ -142,6 +144,36 @@ export function buildWellRewardEvents(
   }
 
   return events;
+}
+
+// Hades' coin: a giant golden coin (3x the well's normal gold coin) flies out
+// of the boss and lands on every player who helped defeat him — "the award of
+// Hades' coin". Mirrors the relic-award loop in engine/boss_ai.py's
+// boss_defeated (surviving, non-bot players), triggered from LobbyScene's
+// round-transition effect on the boss_fight -> gameover/winner="Players" edge.
+export const HADES_COIN_SCALE = WELL_REWARD_SCALE.gold * 3;
+// Slower than the normal well stagger — this is a one-off grand reward, not a
+// flurry of small coins, so each landing should read individually.
+const HADES_COIN_STAGGER = 0.3;
+// Held back so it doesn't play on top of the killing blow's own kill-loot
+// coins (see scheduleKillLoot above), which land around the same moment the
+// boss's death triggers this.
+const HADES_COIN_START_DELAY = 1.5;
+
+export function buildHadesCoinEvents(
+  bossPos: [number, number, number],
+  winnerPositions: [number, number, number][],
+): WellRewardEvent[] {
+  const stamp = Date.now();
+  const from: [number, number, number] = [bossPos[0], bossPos[1] + 0.5, bossPos[2]];
+  return winnerPositions.map((pos, i) => ({
+    id:      `hades-coin-${stamp}-${i}`,
+    type:    'gold',
+    fromPos: from,
+    toPos:   pos,
+    delay:   HADES_COIN_START_DELAY + i * HADES_COIN_STAGGER,
+    scale:   HADES_COIN_SCALE,
+  }));
 }
 
 export type CombatAnimationAction =
