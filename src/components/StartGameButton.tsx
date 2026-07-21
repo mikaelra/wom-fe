@@ -6,8 +6,16 @@ import RelicCooldownOverlay from '@/components/RelicCooldownOverlay';
 
 const GRACE_MS = 5_000;
 
+// Bots are excluded: the admin adds them deliberately, in the same action
+// they're about to click Start Game from, and no other real player's
+// awareness is at stake the way it is for a human join/kick or a relic
+// pick -- blocking the button right after "Add Bot" would just be in the
+// admin's own way for no benefit.
 const fingerprint = (state: LobbyState) =>
-  state.players.map((p) => `${p.name}:${(p.selected_relic_ids ?? []).join(',')}`).join('|');
+  state.players
+    .filter((p) => !p.bot)
+    .map((p) => `${p.name}:${(p.selected_relic_ids ?? []).join(',')}`)
+    .join('|');
 
 type StartGameButtonProps = {
   state: LobbyState;
@@ -24,11 +32,11 @@ type StartGameButtonProps = {
 // reject an immediate start attempt.
 //
 // Triggered by any change to the roster fingerprint above -- not just a
-// relic selection, but also a join or a kick, since `fingerprint` maps
-// over the full player list (a different set of players is a different
-// string) even though it was written to track selected_relic_ids. Gives
-// everyone a moment to notice who just showed up or left, same spirit as
-// the relic-selection grace window.
+// relic selection, but also a real player joining or being kicked, since
+// `fingerprint` maps over the (non-bot) player list and a different set
+// of players is a different string. Gives everyone a moment to notice who
+// just showed up or left, same spirit as the relic-selection grace
+// window. Bots don't count (see fingerprint's own comment).
 export default function StartGameButton({ state, btn, onStartGame }: StartGameButtonProps) {
   const [blockedUntil, setBlockedUntil] = useState<number | null>(null);
   const prevFingerprint = useRef<string | null>(null);

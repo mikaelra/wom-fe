@@ -120,4 +120,13 @@ describe('StartGameButton', () => {
     });
     expect(screen.getByText('Start Game')).not.toBeDisabled();
   });
+
+  it('does not block when a bot is added -- the admin just added it themselves', () => {
+    const { rerender } = render(<StartGameButton state={baseState} btn="" onStartGame={vi.fn()} />);
+
+    const turtle: Player = { ...basePlayer, name: 'TURTLE', admin: false, bot: true };
+    rerender(<StartGameButton state={{ ...baseState, players: [basePlayer, turtle] }} btn="" onStartGame={vi.fn()} />);
+
+    expect(screen.getByText('Start Game')).not.toBeDisabled();
+  });
 });
