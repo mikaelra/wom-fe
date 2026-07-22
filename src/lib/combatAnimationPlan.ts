@@ -75,10 +75,10 @@ export const WELL_LOSS_GLOW_INTENSITY = 0.33;
 export const WELL_SPOUT_POSITION: [number, number, number] = [0, 2.4, 0];
 // Lifetime of the splash/glow before removal (ms) — also how long incoming
 // attacks wait when a win has no flying reward models (e.g. a 0-coin steal).
-// Scaled to 1/0.66x for slower pacing.
-export const WELL_FX_DURATION = 2424;
-// Stagger between successive reward instances (seconds). Scaled to 1/0.66x.
-export const WELL_REWARD_STAGGER = 0.27;
+// Scaled to 0.8x for a modest speedup.
+export const WELL_FX_DURATION = 1939;
+// Stagger between successive reward instances (seconds). Scaled to 0.8x.
+export const WELL_REWARD_STAGGER = 0.22;
 
 // A steal source: one player's seat plus how many coins were stolen from them.
 export type StealSource = { pos: [number, number, number]; count: number };
@@ -155,12 +155,12 @@ export function buildWellRewardEvents(
 export const HADES_COIN_SCALE = WELL_REWARD_SCALE.gold * 3;
 // Slower than the normal well stagger — this is a one-off grand reward, not a
 // flurry of small coins, so each landing should read individually. Scaled to
-// 1/0.66x for slower pacing.
-const HADES_COIN_STAGGER = 0.45;
+// 0.8x for a modest speedup.
+const HADES_COIN_STAGGER = 0.36;
 // Held back so it doesn't play on top of the killing blow's own kill-loot
 // coins (see scheduleKillLoot above), which land around the same moment the
-// boss's death triggers this. Scaled to 1/0.66x.
-const HADES_COIN_START_DELAY = 2.27;
+// boss's death triggers this. Scaled to 0.8x.
+const HADES_COIN_START_DELAY = 1.82;
 
 export function buildHadesCoinEvents(
   bossPos: [number, number, number],
@@ -239,8 +239,8 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   const INSTAKILL_DEATH_MS = STRIKE_DUR * 1000 + INSTAKILL_BURST_DURATION * 1000;
   const killDelayMs = (instakill: boolean) => (instakill ? Math.max(SWORD_IMPACT_MS, INSTAKILL_DEATH_MS) : SWORD_IMPACT_MS);
   // Coins land ~one travel-arc after launch (WellRewardEffect TRAVEL_DUR).
-  // Scaled to 1/0.66x for slower pacing.
-  const KILL_LOOT_LAND_MS = 1288;
+  // Scaled to 0.8x for a modest speedup.
+  const KILL_LOOT_LAND_MS = 1030;
   const killStamp = Date.now();
   let killSeq = 0;
 
@@ -263,7 +263,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     const id = `killbanner-${killStamp}-${killSeq++}`;
     const delayMs = Math.max(0, atMs);
     batches.push({ delayMs, actions: [{ type: 'addKillBanner', banner: { id, killer, pos } }] });
-    batches.push({ delayMs: delayMs + 3939, actions: [{ type: 'removeKillBanner', id }] });
+    batches.push({ delayMs: delayMs + 3151, actions: [{ type: 'removeKillBanner', id }] }); // scaled to 0.8x
   };
 
   // Killer only: fling the victim's coins over and tick up the ATK/coin cards.
@@ -376,7 +376,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     const SHIELD_OFFSET = 0.8;
     const ONE_DEF_MS    = (STRIKE_DUR + HOLD_DUR + BOUNCE_DUR)  * 1000;
     const ONE_HIT_MS    = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR) * 1000;
-    const GAP_MS        = 303; // scaled to 1/0.66x for slower pacing
+    const GAP_MS        = 242; // scaled to 0.8x for a modest speedup
     // Start after the well animation so incoming swords don't overlap it.
     let staggerMs       = wellDelayMs;
 
@@ -454,7 +454,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       let shieldDur = 0;
       if (isDefended) {
         shieldId  = `def-shield-${strike.id}`;
-        shieldDur = ONE_DEF_MS + 530; // scaled to 1/0.66x for slower pacing
+        shieldDur = ONE_DEF_MS + 424; // scaled to 0.8x for a modest speedup
         const rotY = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
         strikeActions.push({ type: 'addImpactShield', shield: { id: shieldId, pos: toPos, rotY, instakill: isInstakill } });
       }
@@ -472,11 +472,11 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   combat.witnessedEliminations.forEach((we, i) => {
     const victimPos = posMap.get(we.victim);
     const killerPos = posMap.get(we.attacker);
-    const delay = wellDelayMs + SWORD_IMPACT_MS + i * 682; // stagger scaled to 1/0.66x
+    const delay = wellDelayMs + SWORD_IMPACT_MS + i * 546; // stagger scaled to 0.8x
     if (victimPos) {
       const fid = `fl-${we.victim}-${Date.now()}`;
       batches.push({ delayMs: delay, actions: [{ type: 'addHitFlash', event: { id: fid, position: victimPos } }] });
-      batches.push({ delayMs: delay + 985, actions: [{ type: 'removeHitFlash', id: fid }] }); // scaled to 1/0.66x
+      batches.push({ delayMs: delay + 788, actions: [{ type: 'removeHitFlash', id: fid }] }); // scaled to 0.8x
     }
     // markDead must fire even if the killer's own position is unknown — only
     // the glow itself needs killerPos, gated inside scheduleKillFire.

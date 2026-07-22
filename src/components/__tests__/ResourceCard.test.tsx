@@ -45,7 +45,7 @@ describe('ResourceCard', () => {
     expect(screen.getByText('10')).toBeInTheDocument();
 
     act(() => {
-      vi.advanceTimersByTime(273);
+      vi.advanceTimersByTime(218);
     });
     expect(screen.getByText('12')).toBeInTheDocument();
 

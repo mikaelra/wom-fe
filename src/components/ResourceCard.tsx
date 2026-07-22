@@ -30,8 +30,8 @@ const BASE_CLASS =
 
 // Delay before the number swaps to its new value — lines up with the bounce's
 // rise so the player sees "bounce, then the number changes". Scaled to
-// 1/0.66x for slower pacing.
-const SWAP_DELAY_MS = 273;
+// 0.8x for a modest speedup.
+const SWAP_DELAY_MS = 218;
 
 /**
  * A single resource stat button (HP / Coins / ATK). Displays the current value
