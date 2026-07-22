@@ -9,7 +9,7 @@ import * as THREE from 'three';
 // ring expands across the well mouth.
 
 const DROPLETS   = 26;
-const DURATION   = 1.82;  // seconds -- scaled to 1/0.66x for slower pacing
+const DURATION   = 1.46;  // seconds -- scaled to 0.8x for a modest speedup
 const GRAVITY    = -9;
 const SPLASH_COLOR = '#bfe9ff';
 

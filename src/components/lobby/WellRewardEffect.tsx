@@ -62,9 +62,9 @@ export function preloadWellRewardModels() {
   }
 }
 
-// ── Animation timing (seconds) -- scaled to 1/0.66x for slower pacing ────────
-const TRAVEL_DUR = 1.29; // arch from source → target
-const HOLD_DUR   = 0.68; // rest on the winner, then disappear instantly
+// ── Animation timing (seconds) -- scaled to 0.8x for a modest speedup ────────
+const TRAVEL_DUR = 1.03; // arch from source → target
+const HOLD_DUR   = 0.54; // rest on the winner, then disappear instantly
 // Total lifetime of one reward instance (no fade-out — it pops away after HOLD).
 export const WELL_REWARD_FLIGHT_DUR = TRAVEL_DUR + HOLD_DUR;
 // Peak height of the arch above the straight line between source and target.
