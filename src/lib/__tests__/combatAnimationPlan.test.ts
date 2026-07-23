@@ -298,6 +298,52 @@ describe('buildCombatAnimationPlan', () => {
     });
   });
 
+  describe('outgoing + incoming in the same round', () => {
+    const findIncomingStrikeBatch = (plan: ReturnType<typeof buildCombatAnimationPlan>) =>
+      plan.find((b) =>
+        b.actions.some((a) => a.type === 'addStrike' && (a as { strike: { isIncoming: boolean } }).strike.isIncoming),
+      );
+
+    it('delays the incoming strike until my own outgoing strike finishes, instead of playing at once', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false },
+        { kind: 'incoming', attacker: 'Carol', outcome: 'hit', attackerDied: false, damage: 1 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const ONE_HIT_MS = 960; // (0.34 + 0.26 + 0.36) * 1000
+
+      expect(plan[0].delayMs).toBe(0); // my outgoing strike plays immediately
+      expect(plan[0].actions[0].type).toBe('addStrike');
+      expect(findIncomingStrikeBatch(plan)?.delayMs).toBeCloseTo(ONE_HIT_MS, 5);
+    });
+
+    it('uses the longer defended-strike duration for the incoming delay when my own attack was blocked', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'blocked', attackerDied: false },
+        { kind: 'incoming', attacker: 'Carol', outcome: 'hit', attackerDied: false, damage: 1 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const ONE_DEF_MS = 1260; // (0.34 + 0.26 + 0.66) * 1000
+
+      expect(findIncomingStrikeBatch(plan)?.delayMs).toBeCloseTo(ONE_DEF_MS, 5);
+    });
+
+    it('stacks the outgoing delay after the well delay when both apply', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false },
+        { kind: 'well_reward', components: [{ type: 'gold', count: 1 }] },
+        { kind: 'incoming', attacker: 'Carol', outcome: 'hit', attackerDied: false, damage: 1 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events, wonWell: true });
+
+      const ONE_HIT_MS = 960;
+
+      expect(findIncomingStrikeBatch(plan)?.delayMs).toBeCloseTo(WELL_FX_DURATION + ONE_HIT_MS, 5);
+    });
+  });
+
   describe('witnessed eliminations', () => {
     it('schedules a hit-flash, kill-fire, and kill-banner at wellDelayMs + SWORD_IMPACT_MS + i*546', () => {
       const events: GameEvent[] = [
