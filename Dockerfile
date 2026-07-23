@@ -1,9 +1,9 @@
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -15,7 +15,7 @@ ARG NEXT_PUBLIC_SENTRY_DSN
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 RUN npm run build
 
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 # Docker sets HOSTNAME to the container ID by default, and Next's standalone
