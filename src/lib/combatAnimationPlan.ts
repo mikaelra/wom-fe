@@ -232,6 +232,11 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   // victim); the killer additionally sees the victim's coins fly over and
   // their ATK/coin cards tick up.
   const SWORD_IMPACT_MS = (STRIKE_DUR + HOLD_DUR) * 1000;
+  // Full duration of one strike's animation, hit vs. defended (includes the
+  // retreat/bounce tail) -- used both for the local player's outgoing strike
+  // and for each incoming strike's stagger below.
+  const ONE_HIT_MS = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR) * 1000;
+  const ONE_DEF_MS = (STRIKE_DUR + HOLD_DUR + BOUNCE_DUR)  * 1000;
   // Instakills layer a burst effect (see InstakillBurstEffect) on top of the
   // strike, kicked off at the same moment as the sword's onStrike (~STRIKE_DUR
   // in). Wait for it to finish before revealing the dead pose, so the model
@@ -298,6 +303,10 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   };
 
   // ── Outgoing: local player attacked someone ──────────────────────────────
+  // How long my own outgoing strike takes to play out -- incoming attacks
+  // below are delayed until it finishes so my attack always reads before the
+  // ones landing on me, instead of both playing at once.
+  let outgoingDelayMs = 0;
   if (combat.outgoing) {
     const { target, outcome } = combat.outgoing;
     const tgtPos = posMap.get(target);
@@ -330,6 +339,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
         instakill:      isInstakill,
       };
       batches.push({ delayMs: 0, actions: [{ type: 'addStrike', strike }] });
+      outgoingDelayMs = tgtDefended ? ONE_DEF_MS : ONE_HIT_MS;
 
       // Kill! At the moment the blow lands: fiery glow under me (the killer,
       // symbolising my +1 ATK) and the victim's coins arch over to me.
@@ -374,11 +384,10 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   // ── Incoming: local player was attacked ──────────────────────────────────
   if (myPos && combat.incoming.length > 0) {
     const SHIELD_OFFSET = 0.8;
-    const ONE_DEF_MS    = (STRIKE_DUR + HOLD_DUR + BOUNCE_DUR)  * 1000;
-    const ONE_HIT_MS    = (STRIKE_DUR + HOLD_DUR + RETREAT_DUR) * 1000;
     const GAP_MS        = 242; // scaled to 0.8x for a modest speedup
-    // Start after the well animation so incoming swords don't overlap it.
-    let staggerMs       = wellDelayMs;
+    // Start after the well animation and my own outgoing strike (if any) so
+    // incoming swords don't overlap either.
+    let staggerMs       = wellDelayMs + outgoingDelayMs;
 
     // When several attackers land hits on me in the same round, only the last
     // one to visually connect should trigger my dead pose — otherwise it flops
