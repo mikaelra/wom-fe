@@ -181,6 +181,7 @@ jobs:
           push: true
           build-args: |
             NEXT_PUBLIC_BACKEND_URL=${{ vars.NEXT_PUBLIC_BACKEND_URL }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
           tags: |
             ghcr.io/mikaelra/wom-fe:latest
             ghcr.io/mikaelra/wom-fe:${{ github.sha }}
