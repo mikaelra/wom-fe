@@ -222,6 +222,13 @@ export default function WorldMapOverlay() {
               {showUserMenu && (
                 <div className="absolute right-0 mt-1 w-40 bg-gray-900 border border-white/20 rounded-lg shadow-xl overflow-hidden">
                   <Link
+                    href="/stats"
+                    onClick={() => setShowUserMenu(false)}
+                    className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors cursor-pointer no-underline"
+                  >
+                    Stats
+                  </Link>
+                  <Link
                     href="/inventory"
                     onClick={() => setShowUserMenu(false)}
                     className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors cursor-pointer no-underline"

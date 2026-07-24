@@ -128,20 +128,14 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
           </Link>
         </p>
       )}
-      {rankedResult && (
+      {/* No raw rating number shown -- only the derived tier, once there is
+          one (rankedResult.tier_after is null while still hidden during
+          placements, docs/RANK_SYSTEM_PLAN.md §4/§5). */}
+      {rankedResult?.tier_after && (
         <p className="mb-2 flex items-center justify-center gap-2 flex-wrap">
-          <span className={rankedResult.mu_delta >= 0 ? 'text-green-400' : 'text-red-400'}>
-            {rankedResult.mu_delta >= 0 ? '+' : ''}
-            {rankedResult.mu_delta.toFixed(1)} rating
-          </span>
-          {rankedResult.tier_before !== rankedResult.tier_after && (
-            <span className="flex items-center gap-1">
-              ·
-              <RankBadge tier={rankedResult.tier_before} />
-              →
-              <RankBadge tier={rankedResult.tier_after} />
-            </span>
-          )}
+          <RankBadge tier={rankedResult.tier_after} />
+          {rankedResult.promoted === true && <span className="text-green-400 font-semibold">Ranked up!</span>}
+          {rankedResult.promoted === false && <span className="text-red-400 font-semibold">Ranked down.</span>}
         </p>
       )}
       <div className="flex flex-col gap-2 items-center">

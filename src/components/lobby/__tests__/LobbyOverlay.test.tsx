@@ -135,42 +135,78 @@ describe('renderGameOver', () => {
     expect(screen.queryByText(/to start earning Wheels/)).not.toBeInTheDocument();
   });
 
-  it('shows the rank-change summary with a tier change', () => {
+  it('shows "Ranked up!" and the new tier on a promotion', () => {
     render(
       <>
         {renderGameOver({
           ...opts,
           state: {
             ...opts.state,
-            ranked_results: { Alice: { mu_delta: 18, tier_before: 'Djinn I', tier_after: 'Djinn II' } },
+            ranked_results: { Alice: { tier_before: 'Djinn I', tier_after: 'Djinn II', promoted: true } },
           },
         })}
       </>,
     );
-    expect(screen.getByText('+18.0 rating')).toBeInTheDocument();
-    expect(screen.getByText('Djinn I')).toBeInTheDocument();
     expect(screen.getByText('Djinn II')).toBeInTheDocument();
+    expect(screen.getByText('Ranked up!')).toBeInTheDocument();
+    expect(screen.queryByText('Djinn I')).not.toBeInTheDocument();
+    expect(screen.queryByText(/rating/)).not.toBeInTheDocument();
   });
 
-  it('shows a negative delta without a tier badge when the tier did not change', () => {
+  it('shows "Ranked down." and the new tier on a demotion', () => {
     render(
       <>
         {renderGameOver({
           ...opts,
           state: {
             ...opts.state,
-            ranked_results: { Alice: { mu_delta: -5.4, tier_before: 'Djinn I', tier_after: 'Djinn I' } },
+            ranked_results: { Alice: { tier_before: 'Djinn II', tier_after: 'Djinn I', promoted: false } },
           },
         })}
       </>,
     );
-    expect(screen.getByText('-5.4 rating')).toBeInTheDocument();
-    expect(screen.queryByText('Djinn I')).not.toBeInTheDocument();
+    expect(screen.getByText('Djinn I')).toBeInTheDocument();
+    expect(screen.getByText('Ranked down.')).toBeInTheDocument();
+  });
+
+  it('shows just the current tier, with no up/down text, when the tier did not change', () => {
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: {
+            ...opts.state,
+            ranked_results: { Alice: { tier_before: 'Djinn I', tier_after: 'Djinn I', promoted: null } },
+          },
+        })}
+      </>,
+    );
+    expect(screen.getByText('Djinn I')).toBeInTheDocument();
+    expect(screen.queryByText('Ranked up!')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ranked down.')).not.toBeInTheDocument();
+  });
+
+  it('shows nothing rank-related while the rank is still hidden (placements)', () => {
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: {
+            ...opts.state,
+            ranked_results: { Alice: { tier_before: null, tier_after: null, promoted: null } },
+          },
+        })}
+      </>,
+    );
+    expect(screen.queryByText('Ranked up!')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ranked down.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Unranked')).not.toBeInTheDocument();
   });
 
   it('shows nothing rank-related for a non-ranked match', () => {
     render(<>{renderGameOver(opts)}</>);
     expect(screen.queryByText(/rating/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Ranked up!')).not.toBeInTheDocument();
   });
 });
 

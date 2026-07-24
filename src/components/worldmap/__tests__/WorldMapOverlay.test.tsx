@@ -288,7 +288,7 @@ describe('WorldMapOverlay', () => {
     expect(screen.getByRole('button', { name: 'Log in' })).toBeInTheDocument();
   });
 
-  it('lists Inventory before Settings in the user menu, with no separate relics entry', () => {
+  it('lists Stats, Inventory, Settings, Sign out in the user menu, with no separate relics entry', () => {
     localStorage.setItem('playerName', 'Alice');
     localStorage.setItem('playerEmail', 'alice@example.com');
     render(<WorldMapOverlay />);
@@ -297,8 +297,9 @@ describe('WorldMapOverlay', () => {
 
     const menu = screen.getByText('Sign out').parentElement;
     const itemOrder = Array.from(menu?.children ?? []).map((el) => el.textContent);
-    expect(itemOrder).toEqual(['Inventory', 'Settings', 'Sign out']);
+    expect(itemOrder).toEqual(['Stats', 'Inventory', 'Settings', 'Sign out']);
     expect(screen.getByText('Inventory')).toHaveAttribute('href', '/inventory');
+    expect(screen.getByText('Stats')).toHaveAttribute('href', '/stats');
   });
 
   it('shows the live online count once a broadcast arrives, not before', () => {

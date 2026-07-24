@@ -62,9 +62,14 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 // Phase 2 (docs/RANK_SYSTEM_PLAN.md §10) post-game rank-change summary:
 // one entry per finisher, keyed by name, on LobbyState.ranked_results.
 export const RankedResultSchema = z.object({
-  mu_delta: z.number(),
+  // Deliberately no raw mu/sigma-derived number -- only the derived tier,
+  // same "hidden rating" principle wom-be's visible_rank/tier_from
+  // enforce (docs/RANK_SYSTEM_PLAN.md §4/§5). null whenever there's
+  // nothing to announce: still hidden, a first-ever debut, or no tier
+  // change at all -- only an actual promotion/demotion is true/false.
   tier_before: z.string().nullable(),
   tier_after: z.string().nullable(),
+  promoted: z.boolean().nullable(),
 });
 export type RankedResult = z.infer<typeof RankedResultSchema>;
 
