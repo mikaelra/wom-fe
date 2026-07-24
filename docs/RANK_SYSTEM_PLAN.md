@@ -102,13 +102,18 @@ net-new system.
 - Seasonal structure that gives players a reason to keep coming back.
 - Reuse the existing game engine untouched — ranked is a different *way to form a
   lobby*, not a different game.
+- Persistently record every distinct rank a player **discovers** (first reaches) within
+  a season, so a future stats page can show a player's full rank history for that season
+  — not just where they ended up. This is captured starting in Phase 0's data model
+  (§7) even though the page itself is future work (§11), the same way elimination order
+  is captured before ranked matchmaking exists to consume it.
 
 **Non-goals (v1)**
 
 - Party/premade queuing (queueing as a group of friends into the same ranked match) —
   flagged as a future addition in §11, not in scope now.
 - Team-based ranked (this game is inherently FFA; no 2v2-style ranked planned).
-- Mid-season rating decay for inactive players — only an end-of-season soft reset (§9).
+- Mid-season rating decay for inactive players — only an end-of-season hard reset (§9).
   Simpler, and avoids punishing casual players mid-season.
 - Precise tier population percentages (e.g. "top 1% reaches the top tier") — cutoffs
   need real population data to calibrate sensibly, and there is no player base to
@@ -343,6 +348,27 @@ reset — `players.rating_mu`/`rating_sigma`/`current_tier`/`ranked_games_played
 back to fresh-account defaults, but the row here preserves what the player achieved that
 season for profile/history display and for resolving the season-end cosmetic reward.
 
+**New `rank_discoveries` table** (feeds a future stats page, §11): one row per
+**distinct tier/division a player has actually been visibly shown at, within a given
+season** — `name`, `season_id`, `tier`, `division` (nullable for the divisionless tiers
+and for Principality, which stores the numeric placement first reached instead),
+`discovered_at`, `game_id` (the ranked match whose result triggered the reveal/promotion
+— traceable back to `ranked_match_results`). Unique on `(name, season_id, tier,
+division)` — **insert-only**: a row is written the first time a player is shown at that
+tier/division and never touched again, including on a later demotion below it. This is
+deliberately "ranks visibly held," not "ranks passed through": because the visible rank
+is hidden for games 1-10 and the game-10 debut is capped at Warlock (§5), nothing is
+written during placements themselves — the first discovery row for a season is whatever
+tier the game-10 debut actually lands at, and further rows are appended one at a time as
+normal (uncapped) promotion from game 11 onward crosses each new tier/division boundary,
+same as it does for a player's ordinary post-placement climb. "Visibly held" means *whatever the display rule in §5 would compute* (hidden during
+placements, capped at the debut, normal after) — it doesn't require an actual UI to
+exist yet. So writing can and should start in Phase 1 shadow mode (§12), computed by the
+same `visible_rank` logic even though no player sees it on screen at that point; by the
+time a stats page exists there's already real history to display rather than a gap —
+the same reasoning as capturing elimination order (above) ahead of ranked matchmaking
+existing to consume it.
+
 **Matchmaking queue itself**: in-memory (mirrors `InMemoryLobbyRepository`), not
 persisted — a queue is inherently ephemeral, and there's precedent for in-memory-only
 game state already.
@@ -450,6 +476,14 @@ state alongside the existing `lobbies` dict.
 - **Countdown/lobby-size constants** (§6) — the 60s hold-open window, 6s collapse
   threshold, and 2/6 min/max players are your specified starting values; revisit once
   there's real queue-time data.
+- **Stats page** (frontend, not scoped/phased yet) — a player profile page showing
+  match/kill/win stats (existing `game_player_stats` data) alongside, per season, every
+  rank tier/division the player has discovered (`rank_discoveries`, §7) — e.g. a
+  checklist-style "Troll I ✓ · Troll II ✓ · Troll III ✓ · Djinn I ✓ · Djinn II ·..."
+  rather than just their current or peak rank. Deliberately not placed in the phased
+  rollout (§12) yet since it's a v-next idea, not v1-committed — but the
+  `rank_discoveries` table is written starting in Phase 1 regardless (§7), so no
+  historical data is lost waiting for this page to get scheduled.
 
 ---
 
@@ -460,9 +494,11 @@ state alongside the existing `lobbies` dict.
    vectors.
 2. **Phase 1 (backend, shadow mode)** — matchmaking queue + `ranked` lobby flag, full
    integration with the existing game engine, rating computed and stored but not shown
-   to players yet (internal dogfooding only).
+   to players yet (internal dogfooding only); `rank_discoveries` rows (§7) start being
+   written here too, off the same `visible_rank` logic, even though nothing is on
+   screen yet.
 3. **Phase 2 (frontend, visible rank)** — "Play Ranked" button + live online-count on the
    world map, rank badge, post-game rank-change screen.
 4. **Phase 3 (frontend, leaderboard)** — leaderboard page, top-tier numeric placement.
-5. **Phase 4 (seasons)** — season table, season-end soft-reset job, cosmetic reward
+5. **Phase 4 (seasons)** — season table, season-end hard-reset job, cosmetic reward
    delivery tied into the existing skin/wheel system.
