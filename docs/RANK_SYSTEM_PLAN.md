@@ -1,6 +1,6 @@
 # Rank & Competitive System Plan
 
-Status: draft for review · Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-21
+Status: draft for review · Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-24
 
 ## 1. Summary
 
@@ -24,13 +24,23 @@ Add a ranked, competitive track on top of the existing free-for-all table game:
   **leaderboard placement** at the top tier once a player is good enough to be ranked
   among the server's best, mirroring Hearthstone's Legend rank number.
 - The first **10 ranked games** are volatile **placement matches**: the hidden rating
-  moves fast and freely, but the *visible* rank is capped at a fixed ceiling until all
-  10 are done, then the cap lifts and the true rank is revealed (§5).
+  moves fast and freely, but the *visible* rank stays **hidden entirely** — no tier or
+  division is shown at all — until all 10 are done. At that point it's revealed for the
+  first time, but **capped at Warlock** (§5): a player can't debut above Warlock at
+  game 10 even if their true hidden rating is higher.
+  From game 11 onward, ordinary per-game promotion applies with no cap, so a player whose
+  hidden rating sits above the ceiling keeps ranking up game after game until the visible
+  rank catches up to the hidden one. This combination — hidden during placements, capped
+  debut, uncapped climb after — is what prevents a player jumping several tiers in the
+  space of a few early games, which the high σ (uncertainty) OpenSkill starts everyone
+  with would otherwise make possible.
 - Grinding out games — even at a break-even win rate — **naturally, slowly nudges the
   visible rank upward over time** toward a player's true rating, with no separate
   mechanism needed (§4).
-- **Seasons** with a soft rating reset and a cosmetic reward tied to peak rank, feeding
-  into the existing skin/wheel inventory system (`MONETIZATION_PLAN.md`).
+- **Seasons**, one per astronomical quarter (aligned to the solstices/equinoxes, fitting
+  the Mythos theme), with a **hard rating reset** at season end — the rank a player
+  ended the season at is archived to their account — and a cosmetic reward tied to peak
+  rank, feeding into the existing skin/wheel inventory system (`MONETIZATION_PLAN.md`).
 
 This document covers rating design, tiers, matchmaking, data model, API/socket
 contract, frontend work, anti-abuse, and a phased rollout. It spans both repos because
@@ -144,12 +154,16 @@ Why not the more familiar options:
   single number" (matchmaking search, initial tier placement) — this is standard OpenSkill
   practice, and self-corrects a new/uncertain player's rank quickly as σ narrows.
 - **Placement matches**: a player's first **10** ranked games start from a high-σ prior
-  (fast-moving, wide swings). The visible rank during this window is additionally capped
-  at a fixed ceiling regardless of how well the player is doing (§5) — a separate,
-  deliberate display rule, not a rating-engine change. Once all 10 are played, the cap
-  lifts and the visible rank jumps straight to wherever `μ - 3σ` actually lands. This is
-  the standard mitigation for smurfs and brand-new players landing in the wrong bracket,
-  with the added benefit of a satisfying "reveal" moment at game 10.
+  (fast-moving, wide swings). The visible rank during this window is **not shown at
+  all** — no tier/division UI — regardless of how well the player is doing (§5): a
+  separate, deliberate display rule, not a rating-engine change. Once all 10 are played,
+  the rank is revealed for the first time, capped at Warlock (§5) even if `μ - 3σ`
+  actually lands higher. This avoids a player swinging several tiers within
+  their first few games purely because σ is still wide, and is the standard mitigation
+  for smurfs and brand-new players landing in the wrong bracket, with the added benefit
+  of a satisfying "reveal" moment at game 10 — and, for a player whose hidden rating
+  really is above the cap, a fast climb through the games right after as normal
+  promotion (§5) catches the visible rank up to it.
 - **Grinding slowly raises visible rank, without a separate mechanism.** σ shrinks a
   little after every game regardless of outcome (more evidence = more certainty), and
   since the visible rank is the *conservative* estimate `μ - 3σ`, a shrinking σ alone
@@ -179,41 +193,69 @@ Why not the more familiar options:
 
 ## 5. Visible rank: tiers and the top-rank leaderboard number
 
-Tier names and theming are yours to decide — not covered by this doc. Structurally, the
-proposal is:
+**Tier ladder** (lowest to highest), themed on the game's Mythos setting:
 
-- A fixed ladder of **N tiers** (exact count and names TBD by you), each with divisions
-  (e.g. III → I) except the top tier.
+| Tier | Divisions (low → high) |
+| --- | --- |
+| Troll | I → II → III |
+| Djinn | I → II → III |
+| Warlock | none |
+| Wizard | I → II |
+| Demi-God | none |
+| God | none |
+| **Principality** | none — top tier, numeric leaderboard placement instead |
+
+Note the division numbering counts *up* toward promotion (I is a tier's entry division,
+its highest roman numeral is what promotes into the next tier up) — the opposite
+convention from Hearthstone, where divisions count *down* (e.g. Bronze 10 → Bronze 1).
+Division counts also vary by tier by design (Troll/Djinn have three, Wizard has two,
+Warlock/Demi-God/God are single-division tiers) — a deliberate uneven pacing rather than
+a uniform three-division band everywhere.
+
 - Each division has a fixed rating-point band (calibrated later against real population
   data, §3). Winning a ranked match (finishing 1st, or top-half in a larger lobby) earns
   rating; finishing near the bottom loses it — the underlying `μ - 3σ` movement from §4
   mapped onto a visible point bar within the division.
 - **Promotion/demotion** between divisions and tiers happens as the visible rating
-  crosses a boundary. **Floor protection per tier** (can't be demoted below the tier you
-  most recently reached) — the standard Hearthstone/League-style mitigation for the
-  frustration of yo-yoing across a boundary.
-- **Top tier**: uncapped, no divisions. Once a player's rating crosses into it, they stop
-  seeing divisions/stars and instead see **their numeric leaderboard placement**
-  (e.g. "#42"), recalculated live as ratings shift — directly mirroring Hearthstone's
-  Legend rank number. This is naturally free real estate for the leaderboard page in
-  §10.
+  crosses a boundary, in either direction — **no floor protection**: a player can be
+  demoted below a tier they previously reached if their rating drops there.
+- **Principality** (top tier): uncapped, no divisions. Once a player's rating crosses
+  into it, they stop seeing divisions/stars and instead see **their numeric leaderboard
+  placement** (e.g. "#42"), recalculated live as ratings shift — directly mirroring
+  Hearthstone's Legend rank number. This is naturally free real estate for the
+  leaderboard page in §10.
 
-**Placement cap (first 10 ranked games).** The hidden `(μ, σ)` engine is left completely
-alone during placements — it needs to move freely and fast to converge on an accurate
-skill estimate. The cap only applies to what's *shown*:
+**Placement games (first 10 ranked matches): hidden, then a capped debut.** The hidden
+`(μ, σ)` engine is left completely alone during placements — it needs to move freely and
+fast to converge on an accurate skill estimate. Two separate display rules layer on top
+of it, both purely cosmetic (neither touches the rating engine or matchmaking, which
+always use the real, uncapped `μ - 3σ`):
+
+1. **Games 1-10: rank hidden entirely.** No tier, no division, nothing shown in the UI.
+2. **Game 10 (debut): revealed, capped at Warlock.** Whatever `μ - 3σ` would translate
+   to, the tier a player is first shown at cannot exceed **Warlock** — even a player
+   whose true rating is Wizard, Demi-God, God, or Principality-caliber debuts no higher
+   than Warlock.
 
 ```
+PLACEMENT_CAP_TIER = WARLOCK
+
 if ranked_games_played < 10:
-    visible_tier = min(tier_from(μ, σ), PLACEMENT_CAP_TIER)
+    visible_rank = None                                        # hidden
+elif ranked_games_played == 10:
+    visible_rank = min(tier_from(μ, σ), PLACEMENT_CAP_TIER)     # capped debut
 else:
-    visible_tier = tier_from(μ, σ)   # cap lifted, true tier revealed
+    visible_rank = tier_from(μ, σ)                              # normal movement, uncapped
 ```
 
-`PLACEMENT_CAP_TIER` is a config constant (exact value TBD by you, alongside tier
-naming). A player who's actually far better than the cap the whole time has an
-accurate, uncapped `μ` behind the scenes (so matchmaking treats them correctly even
-during placements); they just don't *see* it until game 10, at which point their visible
-rank can jump straight up to reflect it.
+From game 11 onward, ordinary per-game promotion/demotion applies with no cap: a player
+whose hidden rating sits above Warlock keeps ranking up game after game
+(§4) until the visible rank catches up to where the hidden rating already is — the cap
+only holds back the *debut*, not the climb afterward. This two-layer approach (hidden,
+then a capped reveal) is what prevents a player visibly swinging several tiers within
+their first few games purely because σ starts wide, with the debut cap as a second
+guardrail right at the reveal moment itself, while still guaranteeing a genuinely
+high-rated player reaches their true tier quickly once placements are behind them.
 
 Exact division counts and point thresholds are a starting proposal, not final — easy to
 retune since they're just config once the rating engine underneath is in place.
@@ -291,6 +333,15 @@ order in which the rest of the lobby died. Needed:
 **New `seasons` table**:
 - `id`, `name`, `starts_at`, `ends_at`, `reward_config` (e.g. which skin/wheel per peak
   tier, tying into the existing `MONETIZATION_PLAN.md` inventory system).
+- `starts_at`/`ends_at` are set to the solstice/equinox timestamps (§9), not calendar
+  month boundaries.
+
+**New `season_rank_history` table** (archived rank per player per season, written at the
+hard reset in §9): `season_id`, `name`, `final_tier`, `final_division`,
+`peak_tier_this_season`, `peak_division_this_season`. This is what survives the hard
+reset — `players.rating_mu`/`rating_sigma`/`current_tier`/`ranked_games_played` all go
+back to fresh-account defaults, but the row here preserves what the player achieved that
+season for profile/history display and for resolving the season-end cosmetic reward.
 
 **Matchmaking queue itself**: in-memory (mirrors `InMemoryLobbyRepository`), not
 persisted — a queue is inherently ephemeral, and there's precedent for in-memory-only
@@ -317,20 +368,26 @@ state alongside the existing `lobbies` dict.
 - **Smurfing**: mitigated primarily by the wide-σ placement window (§4) — a smurf's true
   `μ - 3σ` surfaces within the 10 placement games rather than the 25+ games a flatter
   system would need, since uncertainty (and thus rating movement per game) starts high
-  and narrows fast. The placement cap (§5) adds a second layer: even a smurf stomping
-  every placement match can't display above the cap until game 10 anyway.
+  and narrows fast. Hiding the rank during placements plus the capped debut (§5) add two
+  more layers: nothing is displayed to anyone until game 10, and even then a smurf can't
+  debut above Warlock — they still climb to their true tier quickly in the
+  games right after, but can't land at the top instantly off a single placement run.
 
 ---
 
 ## 9. Seasons and rewards
 
-- **Monthly seasons** — a new season starts every calendar month.
-- **Season-end soft reset**: compress each player's `μ` toward the population mean (e.g.
-  by 30-40%, standard soft-reset practice) rather than a hard reset to zero — preserves
-  relative standing while giving everyone room to climb again. `σ` is widened somewhat
-  too, so the new season effectively starts everyone with a shorter placement phase
-  (server retains a prior, unlike a truly new player).
-- **Reward**: cosmetic tied to `peak_tier_this_season`, delivered through the existing
+- **Quarterly seasons, aligned to the astronomical calendar** — a new season starts at
+  each solstice and equinox (winter solstice, spring equinox, summer solstice, fall
+  equinox), fitting the Mythos theme rather than an arbitrary calendar-month boundary.
+- **Season-end hard reset**: because a season is long (roughly 3 months) compared to a
+  monthly cadence, the reset at season end is a **hard reset** — every player's `(μ, σ)`
+  goes back to the same fresh-player prior used for brand-new accounts, and the rank
+  they ended that season at (`peak_tier_this_season`/`peak_division_this_season`, or the
+  final tier at reset, per §7) is **archived to the account** as season history rather
+  than carried forward or averaged in. The next season effectively starts everyone at
+  placement-match conditions again (§4/§5), same as a new account.
+- **Reward**: cosmetic tied to the archived season rank, delivered through the existing
   skin/wheel inventory system from `MONETIZATION_PLAN.md` (e.g. a season-exclusive skin
   variant, or a guaranteed Wheel scaled by tier reached) — reuses existing plumbing
   rather than inventing a new reward-delivery path.
@@ -353,7 +410,7 @@ state alongside the existing `lobbies` dict.
   connected clients as a broadcast socket event whenever it changes, mirroring how
   `state_update` already pushes lobby state rather than being polled. Exact scope
   (all connected sockets vs. players in an active game) is a small product call to make
-  alongside the tier naming/thresholds, not a technical blocker either way.
+  alongside the exact point thresholds (§11), not a technical blocker either way.
 - **Queue UI**: a "searching" state with a cancel button while waiting for the first
   match; once matched (`ranked_match_found`), transition into the existing lobby-join
   flow (reusing `joinLobby`'s shape in `src/lib/api.ts`) and show the **60s hold-open
@@ -363,7 +420,7 @@ state alongside the existing `lobbies` dict.
 - **Rank badge component**: tier icon + division (or, at the top tier, the numeric
   leaderboard placement) — used in the HUD (`SceneOverlay.tsx`), a player's profile, and
   the post-game screen.
-- **Post-game rank-change summary**: e.g. "+18 rating · Tier X-II → Tier X-I" appended
+- **Post-game rank-change summary**: e.g. "+18 rating · Djinn I → Djinn II" appended
   to the existing game-over flow (`LobbyState.gameover` already exists and is the
   natural hook).
 - **New leaderboard page** (`src/app/leaderboard/` or similar): top-N players, search by
@@ -393,8 +450,6 @@ state alongside the existing `lobbies` dict.
 - **Countdown/lobby-size constants** (§6) — the 60s hold-open window, 6s collapse
   threshold, and 2/6 min/max players are your specified starting values; revisit once
   there's real queue-time data.
-- **`PLACEMENT_CAP_TIER` value** (§5) — which tier placement matches are capped at is a
-  tuning call, same bucket as tier naming/thresholds.
 
 ---
 
