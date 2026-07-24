@@ -765,93 +765,84 @@ Ops: refunds are issued from the **Stripe dashboard** at launch (no admin UI unt
 4); the webhook makes that safe. A player who has had a chargeback cannot check out again
 (`payments_blocked`) until an operator clears it manually.
 
-### 6.6 Tax: merchant of record vs. own VAT registrations
+### 6.6 Tax: what selling from a Norwegian ENK requires
 
-**Context: the business is a Norwegian sole proprietorship (enkeltpersonforetak).** That
-fixes most of the variables below. *General orientation, not tax advice — an hour with a
-Norwegian regnskapsfører before 2f is cheap and is the right way to confirm all of it.*
+**Decided: Stripe, with our own VAT registrations.** Not a merchant of record. *General
+orientation, not tax advice — an hour with a Norwegian regnskapsfører before 2f is cheap
+and is the right way to confirm all of this.*
 
 Selling a digital good to a consumer means charging **VAT at the buyer's country's rate**
-and remitting it there. Stripe is a payment processor, not a seller: with Stripe, the ENK
-is the seller of record and carries that obligation personally — an ENK is not a separate
-legal person, so the liability is the owner's, not a company's. That single fact drives
-the recommendation.
+and remitting it there. Stripe is a payment processor, not a seller, so the ENK is the
+seller of record and carries that obligation. The work this creates is **filings, not
+code** — and it is a fixed, bounded amount of it.
 
-**Recommended: Path A — a merchant of record.** The MoR becomes the legal seller. They
-charge the customer, and handle VAT/GST/sales-tax registration, collection, remittance and
-invoicing worldwide — including Norwegian MVA on Norwegian buyers (they operate under
-VOEC) and EU VAT on EU buyers. They also absorb most chargeback handling, which matters
-disproportionately for the $500 SKU. Cost: roughly **5% + a fixed fee per transaction**.
-Your side becomes a single B2B relationship: you sell to the MoR, they sell to players.
+**The real variable is market scope, not the processor.** Pick the rung before anything
+else; everything below follows from it:
 
-*Provider choice is not neutral for this product.* A **paid randomized item is a loot box**,
-and the general-purpose SaaS-oriented MoRs (Paddle, Lemon Squeezy) have acceptable-use
-policies that restrict gambling-adjacent content; approval is a real, non-trivial risk.
-**Games-specific providers — Xsolla foremost, Paymentwall as an alternative — sell in-game
-items and loot boxes as their core business** and are the safer bet on approval. Apply to a
-games-specific provider first, with a generalist as a fallback.
+| Scope | What it costs you |
+|---|---|
+| Norway only | Norwegian MVA alone, with a NOK 50 000 threshold. Nearly free — but geo-fences away most of the player base, so it is not the plan. |
+| **Norway + EU** *(recommended at launch)* | One **non-Union OSS** registration covering all 27 countries, one quarterly return. |
+| \+ UK | One more registration with HMRC, quarterly. Add when UK players are worth it. |
 
-Steps:
-1. **Entity** — the ENK must be in Enhetsregisteret with an org.nr (free). Foretaksregisteret
-   registration is only required in specific cases (e.g. reselling purchased goods); ask the
-   regnskapsfører whether it applies.
-2. **Onboarding/KYC** — org.nr, ID, Norwegian bank account, and a US tax form. As a sole
-   proprietor that is normally **W-8BEN** (individual), or W-8BEN-E if the provider makes
-   you sign up as a business entity. Either way the Norway–US tax treaty gives 0%
-   withholding when the form is on file.
-3. **Product review — disclose up front** that the catalogue contains a randomized paid
-   item with published odds (§9.2) *and* a single $500 SKU. Both will be reviewed; raising
-   them yourself is much faster than being caught on them. Expect questions about odds
-   disclosure and BE/NL restrictions, both of which this plan already satisfies.
-4. **Integrate** their hosted checkout + webhooks — the same shape as §6.3, which is why
-   §6.2 puts it behind the `PaymentProvider` Protocol.
-5. **Norwegian MVA** — register in Merverdiavgiftsregisteret once taxable turnover passes
-   **NOK 50 000** in a 12-month period. Selling to a foreign MoR is an export of remotely
-   deliverable services, so those sales are expected to be **zero-rated** rather than
-   outside scope — meaning registration is still required at the threshold, and its main
-   benefit to you is deducting input MVA on costs. **Confirm this treatment specifically**;
-   it is the one point here most worth a professional answer.
-6. **Income tax** — MoR payouts are business income (næringsinntekt) in the ENK's tax
-   return, with self-employed national insurance and forskuddsskatt instalments as normal.
+Steps, in order:
 
-Timeline: days to ~2 weeks, dominated by verification and product review.
-
-**Path B — Stripe + your own registrations.** Better margins, permanent accounting
-overhead, and the personal-liability exposure above. For a Norwegian ENK, "VAT OSS
-registration" concretely means:
-
-1. **EU consumers** — Norway is outside the EU, so this is the **non-Union OSS scheme**:
-   register in one EU member state of your choosing (Ireland and the Netherlands are common
-   picks for English-language administration), file one quarterly return covering all 27
-   countries, pay in EUR. **There is no threshold for non-EU sellers — VAT is due from the
-   first EU sale.** Note that Norway and the EU have a VAT administrative-cooperation and
-   recovery-assistance agreement, so unpaid EU VAT is enforceable against a Norwegian
-   business; this is not a theoretical obligation.
-2. **UK consumers** — separate HMRC registration, also **no threshold** for non-UK
-   established sellers of digital services. Quarterly returns.
-3. **Norway** — ordinary MVA registration at 25% past NOK 50 000; bimonthly returns
-   (annual reporting is possible below NOK 1 000 000 on application).
-4. **Everywhere else by threshold** — Switzerland (CHF 100 000 *worldwide* turnover is the
-   trigger, unusually aggressive), Australia (AUD 75 000), Canada, Japan, Singapore,
-   South Korea, India, and US state economic nexus. Stripe Tax flags approaches.
-5. **In Stripe** — enable Stripe Tax (~0.5%/transaction), enter each registration as it is
+1. **Norwegian MVA** — register in Merverdiavgiftsregisteret once taxable turnover passes
+   **NOK 50 000** over 12 months. 25% on Norwegian buyers; bimonthly returns (annual
+   reporting is possible below NOK 1 000 000 on application).
+2. **Non-Union OSS** — Norway is outside the EU, so this is the non-Union scheme: register
+   in one EU member state of your choosing (Ireland and the Netherlands are common picks
+   for English-language administration), file one quarterly return covering all 27
+   countries, pay in EUR. **No threshold for non-EU sellers — VAT is due from the first EU
+   sale.** Norway and the EU have a VAT administrative-cooperation and recovery-assistance
+   agreement, so this is enforceable, not theoretical.
+3. **UK, when in scope** — HMRC registration, also **no threshold** for non-UK established
+   sellers of digital services. Quarterly.
+4. **Stripe Tax** — enable it (~0.5%/transaction), enter each registration as it is
    obtained, set the product tax code to *electronically supplied services*, and price
    **tax-inclusive**: a "$5" wheel must cost $5 at checkout for an EU consumer, so VAT eats
    a variable slice of margin (25% NO, 19% DE, 21% NL…). Exclusive pricing is legal but
-   reads as bait-and-switch.
-6. **Records** — two non-contradictory pieces of location evidence per sale (billing
+   reads as bait-and-switch. Note Stripe Tax **calculates and collects; it does not file** —
+   the returns are still yours.
+5. **Records** — two non-contradictory pieces of location evidence per sale (billing
    country + IP, both stored by Stripe Tax), retained **10 years** under EU rules.
+6. **Watch the other thresholds** — Switzerland (CHF 100 000 *worldwide* turnover is the
+   trigger, unusually aggressive), Australia (AUD 75 000), Canada, Japan, Singapore, South
+   Korea, India, US state economic nexus. Stripe Tax flags approaches; none are near-term.
+7. **Hand the filings to a regnskapsfører.** Two registrations is roughly eight returns a
+   year. This is the whole ongoing cost.
 
-**Recommendation: Path A now, revisit Path B above roughly $100–200k/year**, where 5% of
-revenue starts to exceed accountant + Stripe Tax + your own hours. Below that the MoR is
-cheaper than the time it saves, and for an ENK it converts an unlimited personal VAT
-liability across 28 jurisdictions into someone else's problem. (If Path B ever becomes
-attractive, converting the ENK to an AS first is the usual move, for the liability shield
-rather than the tax.)
+**Why not a merchant of record.** Paddle, Lemon Squeezy, FastSpring or Xsolla would become
+the legal seller and handle all of the above, for **~5% + a fixed fee**. The reason to
+decline is arithmetic: **their cost scales with revenue, ours is fixed.** Two registrations
+plus an accountant is a flat annual number, so it wins early — the crossover is somewhere
+in the **low tens of thousands** of annual revenue, not the six figures an earlier draft of
+this section claimed.
 
-**None of this blocks building.** Phases 2a and 2b — the wheel, the largest remaining
-chunk of work — contain no payment code at all. Start the MoR application now, since
-approval is the long pole, and build the wheel while it is in review.
+Two things genuinely favour an MoR, and they are the triggers to revisit:
+
+- An **ENK is not a separate legal person**, so the VAT liability is personal and
+  unlimited, and a missed filing is your problem. If the returns turn out to be the thing
+  that does not happen, that is the signal to switch — not a revenue number.
+- They absorb most **chargeback** handling, which matters more for the $500 SKU than the $5
+  one. If card fraud on Cherub becomes a real cost, reprice that risk.
+
+Switching later is cheap by construction: §6.2 puts the provider behind the
+`PaymentProvider` Protocol, so an MoR is a second implementation of
+`create_checkout_session` / `verify_webhook` / `refund`, not a rewrite.
+
+**On loot boxes and payment processors.** Stripe's restricted-business list targets
+gambling — games of chance for prizes of *monetary value*. §9.3's absolute rule that skins
+can **never** be cashed out or traded is exactly what keeps a paid randomized item out of
+that category. That rule is therefore load-bearing for payment processing, not merely
+compliance optics: **relaxing it later is a payments decision, not a product one.** (This
+also cuts the other way — the games-specific MoRs exist partly because generalist
+providers' acceptable-use policies are twitchier about randomized paid items. If Stripe
+ever raises it, a pre-sales question to Xsolla or Paymentwall is the fallback.)
+
+**None of this blocks building.** Phases 2a and 2b — the wheel, the largest remaining chunk
+of work — contain no payment code at all, and 2c/2d run against Stripe test mode. The
+registrations only need to exist before `SHOP_ENABLED` flips in 2f.
 
 ### 6.7 Local & CI testing
 
@@ -1188,10 +1179,10 @@ Phase 2 entirely.*
 
 **2f — Compliance & launch**
 `/terms` + `/refunds` pages · 18+ checkbox + `terms_version` · region gating both layers ·
-fraud rules · **MoR approved and integrated, or own VAT registrations obtained** (§6.6) ·
-live keys · `SHOP_ENABLED=true`.
-*If the MoR path wins, this is where `services/payments.py` gets its second
-`PaymentProvider` implementation — the Stripe one stays for local/CI testing.*
+fraud rules · **VAT registrations obtained and entered into Stripe Tax** (§6.6) · live
+Stripe keys · `SHOP_ENABLED=true`.
+*The registrations are the long pole here — non-Union OSS has no threshold, so it must be
+in place before the first EU sale, not after it.*
 *Exit: first real dollar, correctly fulfilled and refundable.*
 
 **Launch checklist (2f):** webhook endpoint registered in the live Stripe dashboard with
@@ -1270,18 +1261,23 @@ Added 2026-07-24:
     (§3.5.5).
 20. **Cruise speed is derived from the ease-out** (`ω_cruise = p·D/T`) so pressing STOP
     ROLL produces no velocity jolt (§3.5.6).
+21. **Stripe, with our own VAT registrations — not a merchant of record** (§6.6). An MoR's
+    ~5% scales with revenue while two registrations plus an accountant is a flat annual
+    cost, so the fixed-cost path wins from the low tens of thousands of revenue upward. An
+    earlier draft put that crossover in the six figures, which was wrong and is corrected
+    here. The triggers to revisit are behavioural, not numeric: filings that don't happen
+    (an ENK's VAT liability is personal and unlimited), or chargeback losses on the $500
+    SKU. The `PaymentProvider` Protocol keeps the switch to one file (§6.2).
+22. **§9.3's no-cash-out/no-trading rule is load-bearing for payments**, not just
+    compliance: it is what keeps a paid randomized item outside the "games of chance for
+    prizes of monetary value" category payment processors restrict. Relaxing it later is a
+    payments decision, not a product one (§6.6).
 
 **Open — needs a decision before 2f can finish:**
 
-- **VAT: merchant of record vs. own registrations** (§6.6, written up against the actual
-  situation — a Norwegian enkeltpersonforetak). Recommendation is a **games-specific MoR**
-  (Xsolla first; Paddle/Lemon Squeezy carry real loot-box approval risk), because an ENK
-  carries VAT liability personally and unlimited. The one genuine launch blocker in Phase
-  2. **Start the application now** — approval is the long pole and 2a/2b contain no payment
-  code, so the wheel gets built while it is in review.
-- **Which provider actually approves us.** A paid randomized item plus a single $500 SKU
-  will both be reviewed. Until one provider says yes in writing, `services/payments.py`
-  targets Stripe test mode and the `PaymentProvider` Protocol (§6.2) is what makes the
-  eventual answer a one-file change.
+- **Which markets to open at launch** (§6.6). Norway + EU is the recommendation: one
+  non-Union OSS registration covers all 27 countries. Adding the UK is one more
+  registration, whenever UK players are worth it. This choice — not the processor — is
+  what determines the tax work.
 - **Is $500 for Cherub real, or a statement piece?** It changes the fraud posture
   (manual-review thresholds, Radar rules) more than it changes the code. Assumed real.
