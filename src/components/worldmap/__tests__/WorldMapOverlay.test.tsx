@@ -304,13 +304,13 @@ describe('WorldMapOverlay', () => {
 
   it('shows the live online count once a broadcast arrives, not before', () => {
     render(<WorldMapOverlay />);
-    expect(screen.queryByText(/playing now/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/playing right now/)).not.toBeInTheDocument();
 
     act(() => {
       socket.__fireSubscribeEvent('online_count', { count: 7 });
     });
 
-    expect(screen.getByText('7 playing now')).toBeInTheDocument();
+    expect(screen.getByText('7 playing right now')).toBeInTheDocument();
   });
 
   it('joins the ranked queue for an already-logged-in player and shows the searching state', async () => {

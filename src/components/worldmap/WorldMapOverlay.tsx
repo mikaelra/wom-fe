@@ -292,7 +292,7 @@ export default function WorldMapOverlay() {
               </RopedButton>
               {onlineCount != null && onlineCount > 0 && (
                 <span className="text-white/70 text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                  {onlineCount} playing now
+                  {onlineCount} playing right now
                 </span>
               )}
             </>
