@@ -7,6 +7,7 @@ import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import { useRoundTimer } from '@/lib/useRoundTimer';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
+import { useCountdown } from '@/lib/useCountdown';
 import { useGameEvents } from '@/lib/useGameEvents';
 import type { LobbyState, Player } from '@/types/game';
 import { playResourceSound } from '@/lib/sounds';
@@ -47,6 +48,7 @@ export type PreGameRenderOpts = {
   boss: Player | undefined;
   raidMins: number | null;
   raidSecs: number | null;
+  rankedSecondsLeft: number | null;
   btn: string;
   onStartGame: () => void;
   onAddDummy: () => void;
@@ -226,6 +228,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const stagedResources = useStagedResources(state, playerName, gameEvents, { stageCombat: stageCombatDamage });
 
   const { raidMins, raidSecs } = useBossfightCountdown(enableRaidTimer && isAlive);
+  const rankedSecondsLeft = useCountdown(state?.ranked_countdown_deadline);
 
   // Detect if messages overflow the collapsed container. We compare the
   // list's natural height against the fixed collapsed limit (the max-h-[4.5rem]
@@ -442,6 +445,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           boss: enemy,
           raidMins,
           raidSecs,
+          rankedSecondsLeft,
           btn,
           onStartGame: handleStartGame,
           onAddDummy: handleAddDummy,

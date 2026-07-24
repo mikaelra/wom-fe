@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { createLobby, joinLobby, logOut } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { useAuthFlow } from '@/lib/useAuthFlow';
+import { useRankedQueue } from '@/lib/useRankedQueue';
+import { subscribe } from '@/lib/socket';
 import RopedButton from '@/components/hud/RopedButton';
 import RopedInput from '@/components/hud/RopedInput';
 import { useToast } from '@/components/Toast';
@@ -18,18 +20,28 @@ export default function WorldMapOverlay() {
 
   const [joinCode, setJoinCode] = useState('');
   const [lobbyLoading, setLobbyLoading] = useState(false);
-  const [loadingAction, setLoadingAction] = useState<'join' | 'create' | null>(null);
+  const [loadingAction, setLoadingAction] = useState<'join' | 'create' | 'ranked' | null>(null);
   const [showNamePopup, setShowNamePopup] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'join' | 'create' | null>(null);
+  const [pendingAction, setPendingAction] = useState<'join' | 'create' | 'ranked' | null>(null);
 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const rankedQueue = useRankedQueue();
+  // Undefined (not 0) until the first broadcast arrives -- distinguishes
+  // "nobody's told us yet" from "genuinely zero players online" so the
+  // count doesn't flash a misleading 0 on first paint.
+  const [onlineCount, setOnlineCount] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
       setLoggedInName(localStorage.getItem('playerName') || '');
     }
+  }, []);
+
+  useEffect(() => {
+    return subscribe('online_count', ({ count }) => setOnlineCount(count));
   }, []);
 
   useEffect(() => {
@@ -89,6 +101,24 @@ export default function WorldMapOverlay() {
     }
   };
 
+  const doRanked = async (name: string) => {
+    setLobbyLoading(true);
+    setLoadingAction('ranked');
+    try {
+      await rankedQueue.startQueue(name);
+      if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
+      // Loading state intentionally left on -- the button area switches to
+      // the "Searching..." + Cancel UI below while rankedQueue.status is
+      // 'searching', so there's no success path that clears it here; it
+      // only resets on cancel or a start failure (rankedQueue.startQueue
+      // throws, caught below), matching doJoin/doCreate's error handling.
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to join the ranked queue');
+      setLobbyLoading(false);
+      setLoadingAction(null);
+    }
+  };
+
   const authFlow = useAuthFlow({
     submitErrorFallback: 'Something went wrong.',
     onAuthenticated: async (trimmedName, trimmedEmail) => {
@@ -104,6 +134,8 @@ export default function WorldMapOverlay() {
       setShowNamePopup(false);
       if (pendingAction === 'join') {
         await doJoin(trimmedName);
+      } else if (pendingAction === 'ranked') {
+        await doRanked(trimmedName);
       } else {
         await doCreate(trimmedName);
       }
@@ -114,7 +146,7 @@ export default function WorldMapOverlay() {
 
   const isLoggedIn = !!loggedInName;
 
-  const openNamePopup = (action: 'join' | 'create') => {
+  const openNamePopup = (action: 'join' | 'create' | 'ranked') => {
     setPendingAction(action);
     authFlow.reset();
     setShowNamePopup(true);
@@ -136,6 +168,21 @@ export default function WorldMapOverlay() {
       return;
     }
     doCreate(name);
+  };
+
+  const handlePlayRanked = () => {
+    const name = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
+    if (!name) {
+      openNamePopup('ranked');
+      return;
+    }
+    doRanked(name);
+  };
+
+  const handleCancelRankedQueue = () => {
+    rankedQueue.cancelQueue();
+    setLobbyLoading(false);
+    setLoadingAction(null);
   };
 
   return (
@@ -251,6 +298,42 @@ export default function WorldMapOverlay() {
             Create Lobby
           </RopedButton>
         </div>
+
+        {/* Ranked entry — swaps to a "searching" state + cancel while queued. */}
+        <div className="pointer-events-auto flex flex-col items-center gap-1">
+          {rankedQueue.status === 'searching' ? (
+            <>
+              <RopedButton width={249} height={54} onClick={handleCancelRankedQueue} ariaLabel="Cancel ranked queue">
+                Searching for a match…
+              </RopedButton>
+              <button
+                type="button"
+                onClick={handleCancelRankedQueue}
+                className="text-white/70 text-xs underline hover:text-white cursor-pointer"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <RopedButton
+                width={249}
+                height={54}
+                onClick={handlePlayRanked}
+                disabled={lobbyLoading && loadingAction !== 'ranked'}
+                loading={lobbyLoading && loadingAction === 'ranked'}
+                ariaLabel="Play ranked"
+              >
+                Play Ranked
+              </RopedButton>
+              {onlineCount != null && onlineCount > 0 && (
+                <span className="text-white/70 text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                  {onlineCount} playing now
+                </span>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Name popup — shown when not logged in */}
@@ -265,7 +348,8 @@ export default function WorldMapOverlay() {
           >
             <h2 className="text-xl font-bold mb-1 text-white">Choose a name</h2>
             <p className="text-sm text-white/60 mb-4">
-              Pick a battle name before you {pendingAction === 'join' ? 'join' : 'create'} a lobby.
+              Pick a battle name before you{' '}
+              {pendingAction === 'join' ? 'join' : pendingAction === 'ranked' ? 'play ranked' : 'create'} a lobby.
             </p>
             <input
               type="text"

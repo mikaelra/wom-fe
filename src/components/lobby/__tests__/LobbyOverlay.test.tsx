@@ -134,6 +134,44 @@ describe('renderGameOver', () => {
     render(<>{renderGameOver(opts)}</>);
     expect(screen.queryByText(/to start earning Wheels/)).not.toBeInTheDocument();
   });
+
+  it('shows the rank-change summary with a tier change', () => {
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: {
+            ...opts.state,
+            ranked_results: { Alice: { mu_delta: 18, tier_before: 'Djinn I', tier_after: 'Djinn II' } },
+          },
+        })}
+      </>,
+    );
+    expect(screen.getByText('+18.0 rating')).toBeInTheDocument();
+    expect(screen.getByText('Djinn I')).toBeInTheDocument();
+    expect(screen.getByText('Djinn II')).toBeInTheDocument();
+  });
+
+  it('shows a negative delta without a tier badge when the tier did not change', () => {
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: {
+            ...opts.state,
+            ranked_results: { Alice: { mu_delta: -5.4, tier_before: 'Djinn I', tier_after: 'Djinn I' } },
+          },
+        })}
+      </>,
+    );
+    expect(screen.getByText('-5.4 rating')).toBeInTheDocument();
+    expect(screen.queryByText('Djinn I')).not.toBeInTheDocument();
+  });
+
+  it('shows nothing rank-related for a non-ranked match', () => {
+    render(<>{renderGameOver(opts)}</>);
+    expect(screen.queryByText(/rating/)).not.toBeInTheDocument();
+  });
 });
 
 describe('renderPreGame', () => {
@@ -145,6 +183,7 @@ describe('renderPreGame', () => {
     boss: undefined,
     raidMins: null,
     raidSecs: null,
+    rankedSecondsLeft: null,
     btn: '',
     onStartGame: vi.fn(),
     onAddDummy: vi.fn(),
@@ -311,6 +350,32 @@ describe('renderPreGame', () => {
     })}</>);
     fireEvent.click(screen.getByText('Start Game'));
     expect(onStartGame).toHaveBeenCalled();
+  });
+
+  it('shows the ranked countdown and join progress for a ranked lobby', () => {
+    render(<>{renderPreGame({
+      ...baseOpts,
+      rankedSecondsLeft: 42,
+      state: { ...baseState, ranked: true, players: [basePlayer, { ...basePlayer, name: 'Bob' }] },
+    })}</>);
+    expect(screen.getByText('Ranked Match')).toBeInTheDocument();
+    expect(screen.getByText('2/6 players joined')).toBeInTheDocument();
+    expect(screen.getByText('Match starts in 42s')).toBeInTheDocument();
+  });
+
+  it('shows no countdown line for a ranked lobby before the deadline is known', () => {
+    render(<>{renderPreGame({
+      ...baseOpts,
+      rankedSecondsLeft: null,
+      state: { ...baseState, ranked: true, players: [basePlayer] },
+    })}</>);
+    expect(screen.getByText('Ranked Match')).toBeInTheDocument();
+    expect(screen.queryByText(/Match starts in/)).not.toBeInTheDocument();
+  });
+
+  it('shows no ranked panel for a non-ranked lobby', () => {
+    render(<>{renderPreGame(baseOpts)}</>);
+    expect(screen.queryByText('Ranked Match')).not.toBeInTheDocument();
   });
 });
 

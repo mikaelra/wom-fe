@@ -59,6 +59,15 @@ export const ChatMessageSchema = z.object({
 });
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
+// Phase 2 (docs/RANK_SYSTEM_PLAN.md §10) post-game rank-change summary:
+// one entry per finisher, keyed by name, on LobbyState.ranked_results.
+export const RankedResultSchema = z.object({
+  mu_delta: z.number(),
+  tier_before: z.string().nullable(),
+  tier_after: z.string().nullable(),
+});
+export type RankedResult = z.infer<typeof RankedResultSchema>;
+
 export const LobbyStateSchema = z.object({
   round: z.number().int(),
   players: z.array(PlayerSchema),
@@ -73,6 +82,14 @@ export const LobbyStateSchema = z.object({
   start_time: z.string().nullable(),
   gameover: z.boolean(),
   chat: z.array(ChatMessageSchema),
+  // Ranked (Phase 2, docs/RANK_SYSTEM_PLAN.md §10). Optional, not just
+  // nullable, per the deploy-independence reasoning above (skin/
+  // wheel_awarded): a wom-be deployed before this shipped simply omits
+  // these keys, and every consumer already treats a missing value the
+  // same as its "not a ranked lobby" default.
+  ranked: z.boolean().optional(),
+  ranked_countdown_deadline: z.string().nullable().optional(),
+  ranked_results: z.record(z.string(), RankedResultSchema).nullable().optional(),
 });
 export type LobbyState = z.infer<typeof LobbyStateSchema>;
 

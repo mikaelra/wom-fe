@@ -10,6 +10,9 @@ import {
   getInventory,
   getPlayerMessages,
   getPlayerRelics,
+  getRankedProfile,
+  joinRankedQueue,
+  leaveRankedQueue,
   logInUser,
   logOut,
   resolveAccountSession,
@@ -74,6 +77,59 @@ describe('createLobby', () => {
     await expect(createLobby('Alice', 'x@example.com')).rejects.toThrow(
       'This name is already claimed.',
     );
+  });
+});
+
+describe('joinRankedQueue', () => {
+  it('posts name and returns the queue status', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'queued' }));
+
+    const result = await joinRankedQueue('Alice');
+
+    expect(result).toEqual({ status: 'queued' });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Alice' }),
+    });
+  });
+});
+
+describe('leaveRankedQueue', () => {
+  it('posts name and returns was_queued', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'left', was_queued: true }));
+
+    const result = await leaveRankedQueue('Alice');
+
+    expect(result).toEqual({ status: 'left', was_queued: true });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/leave`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Alice' }),
+    });
+  });
+});
+
+describe('getRankedProfile', () => {
+  it('GETs the player\'s tier and games played', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ tier: 'Djinn I', ranked_games_played: 12 }));
+
+    const result = await getRankedProfile('Alice');
+
+    expect(result).toEqual({ tier: 'Djinn I', ranked_games_played: 12 });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/profile/Alice`, {
+      method: 'GET',
+      headers: undefined,
+      body: undefined,
+    });
+  });
+
+  it('URL-encodes the player name', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ tier: null, ranked_games_played: 0 }));
+
+    await getRankedProfile('A B');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/profile/A%20B`, expect.anything());
   });
 });
 

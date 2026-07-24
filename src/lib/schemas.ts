@@ -136,6 +136,24 @@ export const SpinWheelResponseSchema = z.object({
   result_skin: z.string(),
 });
 
+// GET /ranked/profile/<name> (docs/RANK_SYSTEM_PLAN.md §4/§5) — deliberately
+// never the raw mu/sigma, just the derived tier (null during placements, or
+// for a player who's never queued).
+export const RankedProfileResponseSchema = z.object({
+  tier: z.string().nullable(),
+  ranked_games_played: z.number().int(),
+});
+
+// POST /ranked/queue/join, /ranked/queue/leave (docs/RANK_SYSTEM_PLAN.md §6).
+export const RankedQueueJoinResponseSchema = z.object({
+  status: z.string(),
+});
+
+export const RankedQueueLeaveResponseSchema = z.object({
+  status: z.string(),
+  was_queued: z.boolean(),
+});
+
 // ── Socket.IO payload schemas (not already in @/types/game) ────────────────
 
 export const JoinedLobbyPayloadSchema = z.object({
@@ -155,4 +173,17 @@ export const LeftPayloadSchema = z.object({
 
 export const ErrorPayloadSchema = z.object({
   message: z.string(),
+});
+
+export const JoinedRankedQueuePayloadSchema = z.object({
+  name: z.string(),
+});
+
+export const RankedMatchFoundPayloadSchema = z.object({
+  lobby_id: z.string(),
+  token: z.string(),
+});
+
+export const OnlineCountPayloadSchema = z.object({
+  count: z.number().int(),
 });
