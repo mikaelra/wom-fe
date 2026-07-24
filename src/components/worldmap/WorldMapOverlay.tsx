@@ -251,10 +251,46 @@ export default function WorldMapOverlay() {
       </div>
 
       {/* Center title */}
-      <div className="absolute top-16 left-0 right-0 z-10 flex justify-center pointer-events-none">
+      <div className="absolute top-16 left-0 right-0 z-10 flex flex-col items-center gap-3 pointer-events-none">
         <h1 className="text-white/80 text-lg font-light tracking-[0.3em] uppercase drop-shadow-lg">
           World of Mythos
         </h1>
+
+        {/* Ranked entry — swaps to a "searching" state + cancel while queued. */}
+        <div className="pointer-events-auto flex flex-col items-center gap-1">
+          {rankedQueue.status === 'searching' ? (
+            <>
+              <RopedButton width={249} height={54} onClick={handleCancelRankedQueue} ariaLabel="Cancel ranked queue">
+                Searching for a match…
+              </RopedButton>
+              <button
+                type="button"
+                onClick={handleCancelRankedQueue}
+                className="text-white/70 text-xs underline hover:text-white cursor-pointer"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <RopedButton
+                width={249}
+                height={54}
+                onClick={handlePlayRanked}
+                disabled={lobbyLoading && loadingAction !== 'ranked'}
+                loading={lobbyLoading && loadingAction === 'ranked'}
+                ariaLabel="Play ranked"
+              >
+                Play Ranked
+              </RopedButton>
+              {onlineCount != null && onlineCount > 0 && (
+                <span className="text-white/70 text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                  {onlineCount} playing now
+                </span>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Bottom: lobby controls */}
@@ -297,42 +333,6 @@ export default function WorldMapOverlay() {
           >
             Create Lobby
           </RopedButton>
-        </div>
-
-        {/* Ranked entry — swaps to a "searching" state + cancel while queued. */}
-        <div className="pointer-events-auto flex flex-col items-center gap-1">
-          {rankedQueue.status === 'searching' ? (
-            <>
-              <RopedButton width={249} height={54} onClick={handleCancelRankedQueue} ariaLabel="Cancel ranked queue">
-                Searching for a match…
-              </RopedButton>
-              <button
-                type="button"
-                onClick={handleCancelRankedQueue}
-                className="text-white/70 text-xs underline hover:text-white cursor-pointer"
-              >
-                Cancel
-              </button>
-            </>
-          ) : (
-            <>
-              <RopedButton
-                width={249}
-                height={54}
-                onClick={handlePlayRanked}
-                disabled={lobbyLoading && loadingAction !== 'ranked'}
-                loading={lobbyLoading && loadingAction === 'ranked'}
-                ariaLabel="Play ranked"
-              >
-                Play Ranked
-              </RopedButton>
-              {onlineCount != null && onlineCount > 0 && (
-                <span className="text-white/70 text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                  {onlineCount} playing now
-                </span>
-              )}
-            </>
-          )}
         </div>
       </div>
 
