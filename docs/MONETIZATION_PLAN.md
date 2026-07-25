@@ -1,6 +1,6 @@
 # Monetization Plan — Frogskins, Wheels & Shop
 
-Status: **Phase 0 + Phase 1 shipped · 2a partial · 2b shipped** · 2c–4 specified below,
+Status: **Phase 0 + Phase 1 shipped · 2a shipped · 2b shipped** · 2c–4 specified below,
 ready to implement
 Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-25
 
@@ -81,8 +81,8 @@ Two conventions worth naming, because Phase 2 must follow them:
 ### 2.3 Debt Phase 1 left that Phase 2 must clear first
 
 These are not nice-to-haves; each one is either a correctness bug the moment a paid wheel
-exists, or a money-safety gap. They make up sub-phase **2a**. Status as of 2026-07-25: 1,
-2, and 5 are resolved; 3 is half-resolved; 4 and 6 are still open and block 2c.
+exists, or a money-safety gap. They make up sub-phase **2a**. Status as of 2026-07-25: all
+six resolved — **2a is fully shipped.**
 
 1. ~~**The spin RNG is `random.choice`.**~~ **Resolved.** `routes/wheel.py`'s `spin()` now
    draws via `secrets.SystemRandom()`, passed into `domain/wheels.py`'s `draw()`.
@@ -91,28 +91,27 @@ exists, or a money-safety gap. They make up sub-phase **2a**. Status as of 2026-
    from the matching table. Verified against a real hand-inserted `kind='special'` row:
    lands on the special pool, grants the right skin, `skin_items.source` records
    `wheel_special`.
-3. **The odds table exists nowhere yet — half-resolved.** `domain/wheels.py`'s
-   `WHEEL_TABLES` is now the single server-side source of truth (`draw()` and
-   `odds_payload()` both read from it), replacing the old `NORMAL_WHEEL_SKINS` duplication
-   on the backend. Still open: **`GET /wheel/tables` doesn't exist yet**, so
-   `odds_payload()` isn't served over HTTP, and `frontend/src/lib/wheelGeometry.ts` still
-   carries its own local copy of the weights (commented as "a stand-in until GET
-   /wheel/tables exists") rather than fetching from the server. §9's "displayed odds
-   generated from the same config the RNG uses" isn't fully true until that route exists
-   and the frontend fetches from it instead.
-4. **There is no multi-statement transaction helper.** `db.execute()` is documented as
-   "its own committed transaction" (`db.py:19`). The spin endpoint therefore consumes the
-   wheel and inserts the skin in two separate transactions — survivable for a free wheel
-   (the audit trail shows the gap), not for webhook fulfillment, where a crash between
-   "grant the item" and "mark the order fulfilled" means a double-grant on Stripe's retry.
-   **Still open.**
+3. ~~**The odds table exists nowhere yet.**~~ **Resolved.** `domain/wheels.py`'s
+   `WHEEL_TABLES` is the single server-side source of truth (`draw()` and `odds_payload()`
+   both read from it), and `GET /wheel/tables` now serves `odds_payload()` for both kinds
+   over HTTP — public, unauthenticated, cacheable. Still open, but out of 2a's own
+   backend-only scope: `frontend/src/lib/wheelGeometry.ts` still carries its own local copy
+   of the weights rather than fetching from this route. §9's "displayed odds generated from
+   the same config the RNG uses" is structurally true server-side now; making the frontend
+   actually consume it is 2c/2d follow-up, not a 2a blocker.
+4. ~~**There is no multi-statement transaction helper.**~~ **Resolved.** `db.transaction()`
+   wraps `get_db_engine().begin()` as a context manager; `/wheel/spin` now consumes the
+   wheel and grants the skin inside one `with transaction() as conn: ...` block instead of
+   two separate `execute()` calls, closing the money-safety gap before anything paid uses
+   the same code path.
 5. ~~**`WheelSpinModal` is a placeholder.**~~ **Resolved — this is Phase 2b, shipped.** See
    §2.5. The old color-cycling placeholder is gone; the free wheel that's already live now
    spins the real wheel built to §3.5's spec.
-6. **No rate limits on the wheel routes.** `routes/wheel.py` has no `@limiter` decorators
-   at all, and `rate_limit.py` has no token-keyed key function. **Still open** — matters
-   more once `wheel_items` can be bought, but a free-wheel spin endpoint with no rate limit
-   is already worth closing before 2c adds a paid one next to it.
+6. ~~**No rate limits on the wheel routes.**~~ **Resolved.** `rate_limit.py` gained
+   `token_from_json_body()` (mirroring `name_from_json_body`/`email_from_json_body`, not
+   lowercased since tokens are case-sensitive); `/wheel/spin` (`10/min` IP, `20/min` token),
+   `/inventory` (`60/min` IP), and `/inventory/equip` (`30/min` token) now carry the exact
+   limits from §5.4's table.
 
 ### 2.4 Not built at all
 
@@ -596,12 +595,13 @@ POST /claim_pending_wheel   {name, email, lobby_id} -> {success, pending_verific
 POST /inventory             {token}          -> {equipped_skin, skins:[{skin,count}], wheels:[{id,kind}]}
 POST /inventory/equip       {token, skin}    -> {success, equipped_skin}   -- 403 if not owned
 POST /wheel/spin            {token, wheel_id}-> {success, result_skin}     -- 403 if unverified
+GET  /wheel/tables          ()               -> {"normal": [...], "special": [...]}
 ```
 
 Note the shipped shapes differ from the sketch in earlier drafts: they are **POST with a
 body token**, not `GET /inventory`. New routes match the shipped convention.
 
-### 5.2 New in 2a — `routes/wheel.py`
+### 5.2 Shipped in 2a — `GET /wheel/tables`
 
 ```
 GET /wheel/tables
@@ -611,8 +611,10 @@ GET /wheel/tables
 
 Public, unauthenticated, cacheable — straight from `domain/wheels.odds_payload()`. The
 spin modal needs the slice table *before* the result arrives in order to draw the wheel
-while the request is in flight (§3.5.12), and `/shop/products` embeds the same `special`
-payload rather than computing its own. One table, one source, three consumers.
+while the request is in flight (§3.5.12), and `/shop/products` will embed the same
+`special` payload rather than computing its own once it ships. One table, one source, three
+consumers. The frontend doesn't fetch it yet (`wheelGeometry.ts` still has its own local
+copy) — wiring that up is 2c/2d follow-up, not part of what shipped here.
 
 ### 5.3 New in Phase 2 — `routes/shop.py`
 
@@ -1181,14 +1183,14 @@ at real screen sizes for weeks before anything is charged for, and turns the $5 
 into "buy another spin of that thing you like" rather than "buy a color flicker".
 
 **2a — Wheel + payment safety prerequisites** *(backend only, no user-visible change)* —
-🟡 **partial, shipped 2026-07-25.** Done: `domain/wheels.py` (tables, `draw`,
-`odds_payload`) · `secrets.SystemRandom` in `routes/wheel.py` · spin dispatches on
-`wheel_items.kind`. Still open: `GET /wheel/tables` · `db.transaction()` · spin becomes
-atomic · `token_from_json_body` + rate limits on the wheel routes. See §2.3.
-*Exit (not yet fully met): a hand-inserted `kind='special'` row spins to a rare skin using
-CSPRNG ✅, in one transaction ❌; the odds table exists in exactly one place ✅ but isn't
-yet served over HTTP ❌.*
-*Size: small. Do this first — it is also a bug fix for what's already live.*
+✅ **shipped 2026-07-25.** Done: `domain/wheels.py` (tables, `draw`, `odds_payload`) ·
+`secrets.SystemRandom` in `routes/wheel.py` · spin dispatches on `wheel_items.kind` ·
+`GET /wheel/tables` · `db.transaction()` · spin's consume + grant now one commit ·
+`token_from_json_body` + rate limits on `/wheel/spin`, `/inventory`, `/inventory/equip`.
+See §2.3.
+*Exit: a hand-inserted `kind='special'` row spins to a rare skin using CSPRNG ✅, in one
+transaction ✅; the odds table exists in exactly one place ✅ and is served over HTTP ✅.*
+*Size: small. Was worth doing first — it was also a bug fix for what's already live.*
 
 **2b — The Wheel** *(the centerpiece, §3.5)* — ✅ **shipped 2026-07-25.** See §2.5.
 `wheelGeometry.ts` + `wheelPhysics.ts` (both pure, both tested) · `WheelCanvas` ·
