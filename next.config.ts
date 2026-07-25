@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
   // (.next/standalone) instead of the full node_modules tree.
   output: "standalone",
 
+  // The dev container is reached through a proxy, so the browser's origin
+  // doesn't match localhost -- Next 15+ blocks HMR/dev-resource requests
+  // from any origin not listed here.
+  allowedDevOrigins: ["158.178.151.93"],
+
   // Next serves /public with `Cache-Control: public, max-age=0` — Netlify's
   // CDN used to absorb that, but self-hosted every visit re-downloads all the
   // models/textures. These assets are versioned by filename (v1, -hd, ...),
