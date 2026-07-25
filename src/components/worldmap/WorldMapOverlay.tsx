@@ -44,6 +44,15 @@ export default function WorldMapOverlay() {
     return subscribe('online_count', ({ count }) => setOnlineCount(count));
   }, []);
 
+  // Animated "." -> ".." -> "..." while queued, so the searching state
+  // reads as active rather than stalled.
+  const [searchingDots, setSearchingDots] = useState(1);
+  useEffect(() => {
+    if (rankedQueue.status !== 'searching') return;
+    const id = setInterval(() => setSearchingDots((d) => (d % 3) + 1), 500);
+    return () => clearInterval(id);
+  }, [rankedQueue.status]);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
@@ -268,7 +277,8 @@ export default function WorldMapOverlay() {
           {rankedQueue.status === 'searching' ? (
             <>
               <RopedButton width={249} height={54} onClick={handleCancelRankedQueue} ariaLabel="Cancel ranked queue">
-                Searching for a match…
+                Searching for a match
+                <span className="inline-block w-4 text-left">{'.'.repeat(searchingDots)}</span>
               </RopedButton>
               <button
                 type="button"

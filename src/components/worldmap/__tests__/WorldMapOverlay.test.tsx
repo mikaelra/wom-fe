@@ -325,8 +325,41 @@ describe('WorldMapOverlay', () => {
 
     expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
     expect(mockedJoinRankedQueue).toHaveBeenCalledWith('Alice');
-    expect(screen.getByText('Searching for a match…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel ranked queue' })).toBeInTheDocument();
+    expect(screen.getByText(/Searching for a match/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Play ranked' })).not.toBeInTheDocument();
+  });
+
+  it('animates the searching dots so the state reads as active, not stalled', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem('playerName', 'Alice');
+    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+    render(<WorldMapOverlay />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play ranked' }));
+      await flush();
+    });
+
+    const button = screen.getByRole('button', { name: 'Cancel ranked queue' });
+    expect(button.textContent).toBe('Searching for a match.');
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(button.textContent).toBe('Searching for a match..');
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(button.textContent).toBe('Searching for a match...');
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(button.textContent).toBe('Searching for a match.');
+
+    vi.useRealTimers();
   });
 
   it('opens the name popup for Play Ranked when logged out', () => {
@@ -373,6 +406,6 @@ describe('WorldMapOverlay', () => {
 
     expect(mockedLeaveRankedQueue).toHaveBeenCalledWith('Alice');
     expect(screen.getByRole('button', { name: 'Play ranked' })).toBeInTheDocument();
-    expect(screen.queryByText('Searching for a match…')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Searching for a match/)).not.toBeInTheDocument();
   });
 });
