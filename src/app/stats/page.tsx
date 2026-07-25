@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getRankedProfile, getWellProfile } from '@/lib/api';
+import { getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
 import RankBadge from '@/components/hud/RankBadge';
 
 // Labels/emoji for every key in wom-be's config.WELL_REWARDS, matching the
@@ -33,6 +33,8 @@ export default function StatsPage() {
   const [rankedGamesPlayed, setRankedGamesPlayed] = useState(0);
   const [wellWins, setWellWins] = useState(0);
   const [wellRewards, setWellRewards] = useState<{ reward: string; count: number }[]>([]);
+  const [accountCreatedAt, setAccountCreatedAt] = useState<string | null>(null);
+  const [gamesWon, setGamesWon] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -55,6 +57,10 @@ export default function StatsPage() {
         setWellWins(data.well_wins);
         setWellRewards(data.rewards);
       }),
+      getPlayerProfile(name).then((data) => {
+        setAccountCreatedAt(data.created_at);
+        setGamesWon(data.wins);
+      }),
     ])
       .catch((err: unknown) => {
         setLoadError(err instanceof Error ? err.message : 'Failed to load stats.');
@@ -73,6 +79,14 @@ export default function StatsPage() {
     rankedGamesPlayed === 0
       ? 'Play 10 matches to get your rank.'
       : `Play ${gamesRemaining} more match${gamesRemaining === 1 ? '' : 'es'} to get your rank.`;
+
+  const formattedAccountCreatedAt = accountCreatedAt
+    ? new Date(accountCreatedAt).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : 'Unknown';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
@@ -113,6 +127,14 @@ export default function StatsPage() {
                   <p className="text-sm text-white/50 mt-3">{placementMessage}</p>
                 </>
               )}
+            </div>
+
+            <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
+              <h2 className="text-sm font-semibold text-white/70 mb-2">Overview</h2>
+              <p className="text-sm text-white/50">Account created: {formattedAccountCreatedAt}</p>
+              <p className="text-sm text-white/50 mt-1">
+                Games won: <span className="text-white font-semibold">{gamesWon}</span>
+              </p>
             </div>
 
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6">

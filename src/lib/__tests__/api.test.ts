@@ -9,6 +9,7 @@ import {
   equipSkin,
   getInventory,
   getPlayerMessages,
+  getPlayerProfile,
   getPlayerRelics,
   getRankedProfile,
   getWellProfile,
@@ -162,6 +163,29 @@ describe('getWellProfile', () => {
     await getWellProfile('A B');
 
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/well/profile/A%20B`, expect.anything());
+  });
+});
+
+describe('getPlayerProfile', () => {
+  it('GETs the player\'s account-created date and games won', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ created_at: '2026-03-05T12:30:00Z', wins: 17 }));
+
+    const result = await getPlayerProfile('Alice');
+
+    expect(result).toEqual({ created_at: '2026-03-05T12:30:00Z', wins: 17 });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/player/profile/Alice`, {
+      method: 'GET',
+      headers: undefined,
+      body: undefined,
+    });
+  });
+
+  it('URL-encodes the player name', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ created_at: null, wins: 0 }));
+
+    await getPlayerProfile('A B');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/player/profile/A%20B`, expect.anything());
   });
 });
 

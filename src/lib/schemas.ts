@@ -168,6 +168,13 @@ export const WellProfileResponseSchema = z.object({
   rewards: z.array(WellRewardEntrySchema),
 });
 
+// GET /player/profile/<name> -- general (non-ranked, non-well) stats for
+// the Stats page's middle section.
+export const PlayerProfileResponseSchema = z.object({
+  created_at: z.string().nullable(),
+  wins: z.number().int(),
+});
+
 // ── Socket.IO payload schemas (not already in @/types/game) ────────────────
 
 export const JoinedLobbyPayloadSchema = z.object({

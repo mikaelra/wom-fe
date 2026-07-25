@@ -26,6 +26,7 @@ import {
   EquipSkinResponseSchema,
   SpinWheelResponseSchema,
   CheckClaimVerifiedResponseSchema,
+  PlayerProfileResponseSchema,
   RankedProfileResponseSchema,
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
@@ -106,6 +107,12 @@ export async function getWellProfile(
 ): Promise<{ well_wins: number; rewards: { reward: string; count: number; first_awarded_at: string }[] }> {
   return request(`/well/profile/${encodeURIComponent(playerName)}`, WellProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch well profile.',
+  });
+}
+
+export async function getPlayerProfile(playerName: string): Promise<{ created_at: string | null; wins: number }> {
+  return request(`/player/profile/${encodeURIComponent(playerName)}`, PlayerProfileResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch player profile.',
   });
 }
 

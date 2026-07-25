@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import StatsPage from '@/app/stats/page';
-import { getRankedProfile, getWellProfile } from '@/lib/api';
+import { getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -11,10 +11,12 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/api', () => ({
   getRankedProfile: vi.fn(),
   getWellProfile: vi.fn(),
+  getPlayerProfile: vi.fn(),
 }));
 
 const mockedGetRankedProfile = vi.mocked(getRankedProfile);
 const mockedGetWellProfile = vi.mocked(getWellProfile);
+const mockedGetPlayerProfile = vi.mocked(getPlayerProfile);
 
 const flush = () => act(async () => Promise.resolve());
 
@@ -22,9 +24,11 @@ beforeEach(() => {
   push.mockClear();
   mockedGetRankedProfile.mockReset();
   mockedGetWellProfile.mockReset();
-  // Every test that doesn't care about the Well section gets a harmless
-  // empty-discoveries default so it doesn't have to stub this itself.
+  mockedGetPlayerProfile.mockReset();
+  // Every test that doesn't care about the Well/Overview sections gets a
+  // harmless default so it doesn't have to stub this itself.
   mockedGetWellProfile.mockResolvedValue({ well_wins: 0, rewards: [] });
+  mockedGetPlayerProfile.mockResolvedValue({ created_at: '2026-03-05T12:30:00Z', wins: 0 });
 });
 
 afterEach(() => {
@@ -42,6 +46,7 @@ describe('StatsPage', () => {
     expect(screen.getByText('Go to log in')).toBeInTheDocument();
     expect(mockedGetRankedProfile).not.toHaveBeenCalled();
     expect(mockedGetWellProfile).not.toHaveBeenCalled();
+    expect(mockedGetPlayerProfile).not.toHaveBeenCalled();
   });
 
   it('shows the current tier once placements are done', async () => {
@@ -136,5 +141,28 @@ describe('StatsPage', () => {
     await flush();
 
     expect(screen.getByText('1 well win')).toBeInTheDocument();
+  });
+
+  it('shows the account-created date and games won, but not games played', async () => {
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 10 });
+    mockedGetPlayerProfile.mockResolvedValue({ created_at: '2026-03-05T12:30:00Z', wins: 17 });
+    render(<StatsPage />);
+    await flush();
+
+    expect(mockedGetPlayerProfile).toHaveBeenCalledWith('Oni');
+    expect(screen.getByText('Account created: March 5, 2026')).toBeInTheDocument();
+    expect(screen.getByText('17')).toBeInTheDocument();
+    expect(screen.queryByText(/games played/i)).not.toBeInTheDocument();
+  });
+
+  it('falls back to "Unknown" when the account has no created_at', async () => {
+    localStorage.setItem('playerName', 'Ghost');
+    mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 0 });
+    mockedGetPlayerProfile.mockResolvedValue({ created_at: null, wins: 0 });
+    render(<StatsPage />);
+    await flush();
+
+    expect(screen.getByText('Account created: Unknown')).toBeInTheDocument();
   });
 });
