@@ -38,10 +38,16 @@ const SKIN_COLORS: Record<string, string> = {
   frog_purple_v1: '#a855f7',
   frog_red_v1: '#ef4444',
   frog_yellow_v1: '#eab308',
-  frog_silver_v1: '#c0c0c0',
-  frog_gold_v1: '#d4af37',
-  frog_rainbow_v2: '#f0abfc',
-  frog_bling_v1: '#111827',
+  frog_silver_v1: '#d9dde3',
+  frog_gold_v1: '#f5c542',
+  // Flat fallback only (inventory grid, canvas-unsupported reveal) -- a
+  // single hex can't actually look like a rainbow. WheelCanvas renders a
+  // real multi-hue horizontal gradient for this skin instead of calling
+  // skinColor() for its slice fill.
+  frog_rainbow_v2: '#e879f9',
+  // Light green base -- WheelCanvas layers many silver sparkle glints on
+  // top of this for this skin's wheel slices.
+  frog_bling_v1: '#86efac',
 };
 
 export function skinColor(skinName: string): string {

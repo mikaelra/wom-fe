@@ -1,104 +1,142 @@
-import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import WheelSpinModal from '@/components/WheelSpinModal';
-import { spinWheel } from '@/lib/api';
+import { equipSkin, spinWheel } from '@/lib/api';
 import { setStoredAccountToken } from '@/lib/http';
 
 vi.mock('@/lib/api', () => ({
   spinWheel: vi.fn(),
+  equipSkin: vi.fn(),
 }));
 
 const mockedSpin = vi.mocked(spinWheel);
+const mockedEquip = vi.mocked(equipSkin);
 
-// The modal pads the reveal out to a fixed minimum duration regardless of
-// how fast the network responds -- advance past it (and let the already-
-// resolved spinWheel promise's microtasks flush) to reach the settled state.
-const advancePastMinDuration = () => act(async () => {
-  await vi.advanceTimersByTimeAsync(1800);
-});
+// jsdom doesn't implement a real canvas 2D context (no `canvas` package
+// installed), so HTMLCanvasElement.getContext('2d') returns null here --
+// WheelSpinModal treats that as canvas-unavailable and renders the §3.5.10
+// fallback (today's simple color-cycle reveal) instead of the animated
+// wheel. That's exactly the path these tests exercise: the animated
+// canvas/rAF path is explicitly not unit-tested (see vitest.config.ts's
+// coverage philosophy and §12 Phase 2b's "verification is by eye" note) --
+// it's covered by manual verification instead.
 
 beforeEach(() => {
   mockedSpin.mockReset();
+  mockedEquip.mockReset();
   setStoredAccountToken('sess-1');
-  vi.useFakeTimers();
 });
 
 afterEach(() => {
   setStoredAccountToken(null);
-  vi.useRealTimers();
 });
 
-describe('WheelSpinModal', () => {
-  it('shows a spinning state, then the result and calls onSpun', async () => {
-    mockedSpin.mockResolvedValue({ success: true, result_skin: 'frog_gold_v1' });
-    const onSpun = vi.fn();
-    render(<WheelSpinModal wheelId={1} onClose={vi.fn()} onSpun={onSpun} />);
+const clickRoll = () => act(() => screen.getByRole('button', { name: 'Roll' }).click());
+const waitForResult = () => waitFor(() => expect(screen.getByText('You got:')).toBeInTheDocument());
 
-    expect(screen.getAllByText('Spinning…').length).toBeGreaterThan(0);
-    await advancePastMinDuration();
+describe('WheelSpinModal', () => {
+  it('does not spin until Roll is clicked', () => {
+    render(<WheelSpinModal wheelId={1} kind="normal" onClose={vi.fn()} onSpun={vi.fn()} />);
+
+    expect(mockedSpin).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Roll' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+  });
+
+  it('closing before Roll never spends the wheel', () => {
+    const onClose = vi.fn();
+    render(<WheelSpinModal wheelId={1} kind="normal" onClose={onClose} onSpun={vi.fn()} />);
+
+    screen.getByRole('button', { name: 'Close' }).click();
+
+    expect(onClose).toHaveBeenCalled();
+    expect(mockedSpin).not.toHaveBeenCalled();
+  });
+
+  it('clicking Roll spins, shows the result, and calls onSpun', async () => {
+    mockedSpin.mockResolvedValue({ success: true, result_skin: 'frog_pink_v1' });
+    const onSpun = vi.fn();
+    render(<WheelSpinModal wheelId={1} kind="normal" onClose={vi.fn()} onSpun={onSpun} />);
+
+    clickRoll();
+
+    expect(screen.queryByRole('button', { name: 'Roll' })).not.toBeInTheDocument();
+    await waitForResult();
 
     expect(mockedSpin).toHaveBeenCalledTimes(1);
     expect(mockedSpin).toHaveBeenCalledWith('sess-1', 1);
-    expect(screen.getByText('You got:')).toBeInTheDocument();
-    expect(screen.getByText('gold')).toBeInTheDocument();
-    expect(onSpun).toHaveBeenCalledWith('frog_gold_v1');
+    expect(screen.getByText('Pretty Pink')).toBeInTheDocument();
+    expect(onSpun).toHaveBeenCalledWith('frog_pink_v1');
   });
 
-  it('does not settle before the minimum spin duration even though the request already resolved', async () => {
-    mockedSpin.mockResolvedValue({ success: true, result_skin: 'frog_gold_v1' });
-    render(<WheelSpinModal wheelId={1} onClose={vi.fn()} onSpun={vi.fn()} />);
+  it('a rapid double-click on Roll only spins once', async () => {
+    mockedSpin.mockResolvedValue({ success: true, result_skin: 'frog_pink_v1' });
+    render(<WheelSpinModal wheelId={1} kind="normal" onClose={vi.fn()} onSpun={vi.fn()} />);
 
-    // Let the (already-mocked, instant) request resolve, but don't advance
-    // the minimum-duration timer yet.
+    const roll = screen.getByRole('button', { name: 'Roll' });
     await act(async () => {
-      await Promise.resolve();
+      roll.click();
+      roll.click();
     });
-    expect(screen.queryByText('You got:')).not.toBeInTheDocument();
 
-    await advancePastMinDuration();
-    expect(screen.getByText('You got:')).toBeInTheDocument();
-  });
-
-  it('calls spinWheel exactly once under StrictMode\'s dev-only double effect run', async () => {
-    // Regression: without a call-once guard, StrictMode's double-invoke
-    // fired a second request that hit "already spun" and clobbered the
-    // first request's success state with an error, even though the skin
-    // had actually been granted.
-    mockedSpin.mockResolvedValue({ success: true, result_skin: 'frog_gold_v1' });
-    render(
-      <StrictMode>
-        <WheelSpinModal wheelId={1} onClose={vi.fn()} onSpun={vi.fn()} />
-      </StrictMode>,
-    );
-
-    await advancePastMinDuration();
-
+    await waitForResult();
     expect(mockedSpin).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('You got:')).toBeInTheDocument();
-    expect(screen.queryByText(/already spun/)).not.toBeInTheDocument();
-  });
-
-  it('disables the close button while spinning, enables it once resolved', async () => {
-    mockedSpin.mockResolvedValue({ success: true, result_skin: 'frog_blue_v1' });
-    render(<WheelSpinModal wheelId={1} onClose={vi.fn()} onSpun={vi.fn()} />);
-
-    expect(screen.getByRole('button', { name: 'Spinning…' })).toBeDisabled();
-
-    await advancePastMinDuration();
-
-    expect(screen.getByRole('button', { name: 'Close' })).not.toBeDisabled();
   });
 
   it('shows an error state and lets the user close without a result', async () => {
     mockedSpin.mockRejectedValue(new Error('Wheel not found or already spun.'));
     const onClose = vi.fn();
-    render(<WheelSpinModal wheelId={1} onClose={onClose} onSpun={vi.fn()} />);
+    render(<WheelSpinModal wheelId={1} kind="normal" onClose={onClose} onSpun={vi.fn()} />);
 
-    await advancePastMinDuration();
+    clickRoll();
+    await waitFor(() => expect(screen.getByText('Wheel not found or already spun.')).toBeInTheDocument());
 
-    expect(screen.getByText('Wheel not found or already spun.')).toBeInTheDocument();
     screen.getByRole('button', { name: 'Close' }).click();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('lets the player equip the won skin and reports the equipped skin up', async () => {
+    mockedSpin.mockResolvedValue({ success: true, result_skin: 'frog_pink_v1' });
+    mockedEquip.mockResolvedValue({ success: true, equipped_skin: 'frog_pink_v1' });
+    const onEquipped = vi.fn();
+    render(<WheelSpinModal wheelId={1} kind="normal" onClose={vi.fn()} onSpun={vi.fn()} onEquipped={onEquipped} />);
+
+    clickRoll();
+    await waitForResult();
+    await act(async () => {
+      screen.getByRole('button', { name: 'Equip' }).click();
+    });
+
+    expect(mockedEquip).toHaveBeenCalledWith('sess-1', 'frog_pink_v1');
+    await waitFor(() => expect(screen.getByText('EQUIPPED')).toBeInTheDocument());
+    expect(onEquipped).toHaveBeenCalledWith('frog_pink_v1');
+  });
+
+  it('shows an inline error if equipping fails, without losing the result', async () => {
+    mockedSpin.mockResolvedValue({ success: true, result_skin: 'frog_pink_v1' });
+    mockedEquip.mockRejectedValue(new Error('Failed to equip skin.'));
+    render(<WheelSpinModal wheelId={1} kind="normal" onClose={vi.fn()} onSpun={vi.fn()} />);
+
+    clickRoll();
+    await waitForResult();
+    await act(async () => {
+      screen.getByRole('button', { name: 'Equip' }).click();
+    });
+
+    await waitFor(() => expect(screen.getByText('Failed to equip skin.')).toBeInTheDocument());
+    // The won-skin result is still shown -- an equip failure isn't a spin failure.
+    expect(screen.getByText('You got:')).toBeInTheDocument();
+    expect(screen.getByText('Pretty Pink')).toBeInTheDocument();
+  });
+
+  it('works for a special-wheel kind too', async () => {
+    mockedSpin.mockResolvedValue({ success: true, result_skin: 'frog_bling_v1' });
+    render(<WheelSpinModal wheelId={2} kind="special" onClose={vi.fn()} onSpun={vi.fn()} />);
+
+    clickRoll();
+    await waitForResult();
+
+    expect(mockedSpin).toHaveBeenCalledWith('sess-1', 2);
+    expect(screen.getByText('bling')).toBeInTheDocument();
   });
 });
