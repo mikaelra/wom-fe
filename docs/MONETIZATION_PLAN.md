@@ -1,7 +1,8 @@
 # Monetization Plan — Frogskins, Wheels & Shop
 
-Status: **Phase 0 + Phase 1 shipped** · Phases 2–4 specified below, ready to implement
-Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-24
+Status: **Phase 0 + Phase 1 shipped · 2a partial · 2b shipped** · 2c–4 specified below,
+ready to implement
+Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-25
 
 ## 1. Summary
 
@@ -35,7 +36,7 @@ as-built state (including the debt Phase 1 left behind); §12 is the build order
 
 ---
 
-## 2. Where we are (as built, 2026-07-24)
+## 2. Where we are (as built, 2026-07-25)
 
 ### 2.1 Shipped — Phase 0, identity prerequisites
 
@@ -80,37 +81,74 @@ Two conventions worth naming, because Phase 2 must follow them:
 ### 2.3 Debt Phase 1 left that Phase 2 must clear first
 
 These are not nice-to-haves; each one is either a correctness bug the moment a paid wheel
-exists, or a money-safety gap. They make up sub-phase **2a**.
+exists, or a money-safety gap. They make up sub-phase **2a**. Status as of 2026-07-25: 1,
+2, and 5 are resolved; 3 is half-resolved; 4 and 6 are still open and block 2c.
 
-1. **The spin RNG is `random.choice`** (`routes/wheel.py:197`) — Mersenne Twister, seeded
-   predictably, explicitly not what §10 promises. Must be `secrets.SystemRandom()` before
-   any spin has cash value.
-2. **`/wheel/spin` ignores `wheel_items.kind`.** It always draws from
-   `NORMAL_WHEEL_SKINS`. A `kind='special'` row bought for $5 would land a common skin.
-3. **The odds table exists nowhere yet.** `NORMAL_WHEEL_SKINS` is duplicated in
-   `routes/wheel.py:21` and `frontend/src/lib/frogSkins.ts:24` with a "mirrors" comment
-   holding them together. §9 requires the *displayed* odds be generated from the same
-   config the RNG uses — that means one server-side table, served over the API.
+1. ~~**The spin RNG is `random.choice`.**~~ **Resolved.** `routes/wheel.py`'s `spin()` now
+   draws via `secrets.SystemRandom()`, passed into `domain/wheels.py`'s `draw()`.
+2. ~~**`/wheel/spin` ignores `wheel_items.kind`.**~~ **Resolved.** `spin()` looks up the
+   wheel's `kind` before drawing and calls `draw(kind, secrets.SystemRandom())`, which picks
+   from the matching table. Verified against a real hand-inserted `kind='special'` row:
+   lands on the special pool, grants the right skin, `skin_items.source` records
+   `wheel_special`.
+3. **The odds table exists nowhere yet — half-resolved.** `domain/wheels.py`'s
+   `WHEEL_TABLES` is now the single server-side source of truth (`draw()` and
+   `odds_payload()` both read from it), replacing the old `NORMAL_WHEEL_SKINS` duplication
+   on the backend. Still open: **`GET /wheel/tables` doesn't exist yet**, so
+   `odds_payload()` isn't served over HTTP, and `frontend/src/lib/wheelGeometry.ts` still
+   carries its own local copy of the weights (commented as "a stand-in until GET
+   /wheel/tables exists") rather than fetching from the server. §9's "displayed odds
+   generated from the same config the RNG uses" isn't fully true until that route exists
+   and the frontend fetches from it instead.
 4. **There is no multi-statement transaction helper.** `db.execute()` is documented as
    "its own committed transaction" (`db.py:19`). The spin endpoint therefore consumes the
    wheel and inserts the skin in two separate transactions — survivable for a free wheel
    (the audit trail shows the gap), not for webhook fulfillment, where a crash between
    "grant the item" and "mark the order fulfilled" means a double-grant on Stripe's retry.
-5. **`WheelSpinModal` is a placeholder.** It cycles colors on a timer
-   (`REVEAL_INTERVAL_MS`) inside a `max-w-sm` card, and never draws a slice; its own
-   comment says the real wheel "only pays for itself once the Special Wheel (uneven odds)
-   exists". It now does — and it also pays for itself on the free wheel that is live
-   today. This is Phase **2b**, specified in §3.5, and it is the largest and most
-   important piece of remaining work in this plan.
+   **Still open.**
+5. ~~**`WheelSpinModal` is a placeholder.**~~ **Resolved — this is Phase 2b, shipped.** See
+   §2.5. The old color-cycling placeholder is gone; the free wheel that's already live now
+   spins the real wheel built to §3.5's spec.
 6. **No rate limits on the wheel routes.** `routes/wheel.py` has no `@limiter` decorators
-   at all, and `rate_limit.py` has no token-keyed key function.
+   at all, and `rate_limit.py` has no token-keyed key function. **Still open** — matters
+   more once `wheel_items` can be bought, but a free-wheel spin endpoint with no rate limit
+   is already worth closing before 2c adds a paid one next to it.
 
 ### 2.4 Not built at all
 
 `orders` table · any Stripe code or dependency (`requirements.txt` has none) · `/shop`
 anything · the Cherub skin-id → model-URL mapping (the asset `public/models/cherub-v01.glb`
 exists, unverified as a player skin) · `auth_identities` / OAuth · admin grant/revoke
-tooling · purchase analytics.
+tooling · purchase analytics. **Also still not built: any way for a real player to obtain a
+`kind='special'` wheel_item** — no Shop, no Stripe, no purchase route exists yet (2c/2d).
+The only way one exists in any environment today is a hand-inserted test-grant row; the
+Special Wheel's draw logic and visuals (2a/2b) are both fully built and correct, but the
+Special Wheel itself is not reachable by a real player until 2c–2d ship.
+
+### 2.5 Shipped — Phase 2b, the Wheel presentation
+
+| Piece | Where |
+|---|---|
+| Pure geometry: responsive layout, Hamilton apportionment, seeded-RNG slice shuffle, landing-rotation math | `frontend/src/lib/wheelGeometry.ts` |
+| Pure flapper physics: damped-spring peg impulses, ease-out stopping curve, settle rock | `frontend/src/lib/wheelPhysics.ts` |
+| Canvas renderer: DPR-scaled, 3D shading/grooves/pegs/brass rim, edge vignette, temporal-supersampled motion blur, single-slice win highlight | `frontend/src/components/wheel/WheelCanvas.tsx` |
+| SVG flapper (spring-driven, peg-impulse-driven) | `frontend/src/components/wheel/WheelFlapper.tsx` |
+| rAF phase machine: spin-up → cruise → stopping → settle → result, reduced-motion and canvas-failure fallbacks | `frontend/src/components/wheel/useWheelAnimation.ts` |
+| Modal rewrite: wheel spins cosmetically on open, Roll commits the server call and lands on the real result with no speed discontinuity, Close before Roll never spends the wheel, geometry frozen at mount so a mid-spin viewport resize can't land the wrong skin | `frontend/src/components/WheelSpinModal.tsx` |
+| Tests | `frontend/src/lib/__tests__/wheelGeometry.test.ts`, `wheelPhysics.test.ts`, `frontend/src/components/__tests__/WheelSpinModal.test.tsx` |
+
+Two bugs this surfaced in already-live code were fixed alongside it: `inventory/page.tsx`
+was firing a "You got: X!" toast the instant the server responded, spoiling the wheel's own
+result reveal before it had visually landed; and `WheelSpinModal` was recomputing geometry
+on every `window resize` (which fires continuously on mobile Safari), which could invalidate
+an in-flight spin's target slice and land the wheel on the wrong skin. Both fixed and
+covered by tests.
+
+*Verified by eye against the live dev backend on a real phone, in addition to the automated
+tests: cosmetic pre-Roll spin, Roll → correct landing → correct result splash, Close before
+Roll spends nothing, and (once 2a's kind-dispatch fix landed) a hand-granted special wheel
+spinning correctly end-to-end. Not yet separately verified on an ultrawide/desktop viewport
+or profiled for 60fps — §12's 2b exit criteria calls both out explicitly.*
 
 ---
 
@@ -356,6 +394,11 @@ clamp |θ| ≤ 34°
 
 #### 3.5.6 Motion timeline
 
+*As built (2026-07-25) deviates from this section in several ways — see decision log
+entries #23-25 (§13): no separate STOP ROLL step (Roll commits and lands the wheel in one
+action), no 15s auto-stop, and the actual cruise speed/minimum landing revolutions are
+much lower than specified below, after three rounds of speed feedback during review.*
+
 | Phase | Behaviour |
 |---|---|
 | **Spin-up** | 450ms ease-in from rest to cruise, on modal open. |
@@ -384,6 +427,9 @@ outcome (§9.3) and the UI never implies otherwise.
 
 #### 3.5.7 Landing rules
 
+*`turns` is chosen so `D ≥ 0.05` revolutions as built, not `≥ 2.5` — see decision log #25
+(§13). Everything else in this section shipped as specified.*
+
 The result is already decided server-side before the first frame. The animation solves for
 a rotation that lands on it:
 
@@ -397,6 +443,9 @@ a rotation that lands on it:
   nothing else. This is §9.3, and it is the one rule here that is legal, not aesthetic.
 
 #### 3.5.8 Result state
+
+*As built, neighbours dim to 32% brightness, not 55%, and the odds line described below
+was cut per product feedback — decision log #26-27 (§13).*
 
 Winning slice keeps a soft outer glow and its neighbours drop to 55% brightness; the
 flapper rests against its peg; the splash names the skin (`skinLabel`) over a
@@ -1131,25 +1180,31 @@ which means it earns its keep before a single dollar moves, gets exercised by re
 at real screen sizes for weeks before anything is charged for, and turns the $5 purchase
 into "buy another spin of that thing you like" rather than "buy a color flicker".
 
-**2a — Wheel + payment safety prerequisites** *(backend only, no user-visible change)*
-`domain/wheels.py` (tables, `draw`, `odds_payload`) · `GET /wheel/tables` ·
-`secrets.SystemRandom` in `routes/wheel.py` · spin dispatches on `wheel_items.kind` ·
-`db.transaction()` · spin becomes atomic · `token_from_json_body` + rate limits on the
-wheel routes.
-*Exit: a hand-inserted `kind='special'` row spins to a rare skin using CSPRNG, in one
-transaction; the odds table exists in exactly one place and is served over HTTP.*
+**2a — Wheel + payment safety prerequisites** *(backend only, no user-visible change)* —
+🟡 **partial, shipped 2026-07-25.** Done: `domain/wheels.py` (tables, `draw`,
+`odds_payload`) · `secrets.SystemRandom` in `routes/wheel.py` · spin dispatches on
+`wheel_items.kind`. Still open: `GET /wheel/tables` · `db.transaction()` · spin becomes
+atomic · `token_from_json_body` + rate limits on the wheel routes. See §2.3.
+*Exit (not yet fully met): a hand-inserted `kind='special'` row spins to a rare skin using
+CSPRNG ✅, in one transaction ❌; the odds table exists in exactly one place ✅ but isn't
+yet served over HTTP ❌.*
 *Size: small. Do this first — it is also a bug fix for what's already live.*
 
-**2b — The Wheel** *(the centerpiece, §3.5)*
+**2b — The Wheel** *(the centerpiece, §3.5)* — ✅ **shipped 2026-07-25.** See §2.5.
 `wheelGeometry.ts` + `wheelPhysics.ts` (both pure, both tested) · `WheelCanvas` ·
 `WheelFlapper` · `useWheelAnimation` · `WheelSpinModal` rewritten full-screen · responsive
 geometry from 320px to ultrawide · 3D shading, grooves, pegs, brass rim, side vignette ·
-flapper spring driven by peg impacts · spin-up → cruise → STOP ROLL → ease-out → settle ·
-motion blur via temporal supersampling keyed to `getQualityTier()` · reduced-motion and
-canvas-failure fallbacks · optional peg ticks.
-*Exit: the free post-match wheel spins the real wheel on a phone and a widescreen at
-60fps, the flapper knocks correctly through every peg, and both tables render true to
-odds. This ships to production on its own, ahead of any payment code.*
+flapper spring driven by peg impacts. Changed from the original spec during build: there's
+no separate STOP ROLL step — the wheel spins cosmetically from the moment the modal opens,
+and Roll both commits the server call and lands the already-spinning wheel on the result
+(spin-up → cruise → stopping → settle → result), per product feedback during review. Also
+built: motion blur via temporal supersampling keyed to `getQualityTier()`, reduced-motion
+and canvas-failure fallbacks.
+*Exit: the free post-match wheel spins the real wheel on a phone ✅ (verified live against
+the dev backend on a real device) and both tables render true to odds ✅. Not yet verified:
+widescreen/ultrawide layout, and no 60fps performance profiling has been done — both still
+open before calling this fully exited. This shipped to `new-wheel` ahead of any payment
+code, matching the plan.*
 *Size: the largest frontend chunk of Phase 2 — and the one worth spending the time on.*
 *Verification is by eye as much as by test: check it on a real phone in portrait and
 landscape, and on the widest monitor available, before calling it done.*
@@ -1272,6 +1327,45 @@ Added 2026-07-24:
     compliance: it is what keeps a paid randomized item outside the "games of chance for
     prizes of monetary value" category payment processors restrict. Relaxing it later is a
     payments decision, not a product one (§6.6).
+
+Added 2026-07-25, during 2b's build — these supersede the corresponding §3.5 spec text,
+which still describes the original design rather than what shipped:
+
+23. **No separate STOP ROLL step.** The wheel spins cosmetically from the moment the modal
+    opens; the single **Roll** button both commits the server call and lets the
+    already-spinning wheel land on the result the instant it's known — no "Stopping…"
+    state, no player-visible stop action. Decision #20's principle (derived cruise speed,
+    zero velocity discontinuity) still holds; only the trigger for entering the stopping
+    phase changed, from a player press to the server response arriving (§3.5.6).
+24. **No auto-stop timer.** The 15s auto-stop in §3.5.6 doesn't exist — the wheel is
+    designed to cruise indefinitely (it's already spinning before the player has done
+    anything to spend a wheel), so there's nothing to time out.
+25. **Cruise speed is ~0.08× the originally-specified `ω_cruise`.** Three rounds of product
+    feedback during review ("too fast", then "slow down to 0.33×", then "another 0.5×")
+    landed the shipped speed at `nominal × 0.5 × 0.33 × 0.5`. `MIN_LANDING_REVOLUTIONS`
+    dropped from 2.5 to 0.05 for the same reason: at the slower cruise speed, the original
+    2.5-turn minimum made the stopping ease-out take 30-60s, which read as broken rather
+    than dramatic. The idle cruise already runs for however long the player takes to press
+    Roll, so the stopping phase doesn't need its own forced extra revolutions to sell "this
+    has been spinning" (§3.5.6, §3.5.7).
+26. **Odds are not shown on the result splash.** §3.5.8 called for showing the odds of the
+    outcome ("Gold — 30%") on win; product feedback during review was "you don't need the
+    odds showing anywhere" and it was cut. The odds-disclosure requirement itself (§9.2) is
+    unaffected — it just isn't satisfied on this specific screen.
+27. **Non-winning slices dim to 32% brightness, not 55%** (§3.5.8's number was a
+    placeholder guess; 32% is what shipped after visual tuning).
+28. **Only the exact landed slice highlights**, addressed as a bug fix during review (an
+    earlier pass briefly highlighted every slice sharing the winning color, which was a
+    misreading of feedback, corrected the same day) — matches §3.5.7's "no ambiguity" intent
+    but is worth naming since it was a real regression along the way, not just spec
+    follow-through.
+29. **The Special Wheel's rare skins render on the wheel with skin-specific treatments, not
+    flat `skinColor()` hexes**: rainbow is a real multi-hue gradient swept across each
+    slice's own width (not anchored to fixed screen coordinates, which was tried first and
+    produced a "same color at the pointer every time" bug — see `WheelCanvas.tsx`), and
+    bling is a light-green base with scattered silver sparkle glints. Not specified in
+    §3.5.4 at all; added because the flat placeholder colors (especially bling's original
+    near-black, and rainbow's single flat pale hue) were "very bland" per product feedback.
 
 **Open — needs a decision before 2f can finish:**
 
