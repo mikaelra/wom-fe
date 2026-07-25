@@ -27,6 +27,7 @@ import {
   SpinWheelResponseSchema,
   CheckClaimVerifiedResponseSchema,
   PlayerProfileResponseSchema,
+  RankedActiveResponseSchema,
   RankedProfileResponseSchema,
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
@@ -99,6 +100,14 @@ export async function leaveRankedQueue(playerName: string): Promise<{ status: st
 export async function getRankedProfile(playerName: string): Promise<{ tier: string | null; ranked_games_played: number }> {
   return request(`/ranked/profile/${encodeURIComponent(playerName)}`, RankedProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch ranked profile.',
+  });
+}
+
+export async function getActiveRankedLobby(
+  playerName: string
+): Promise<{ lobby_id: string | null; token: string | null; ranked_countdown_deadline: string | null; started: boolean }> {
+  return request(`/ranked/active/${encodeURIComponent(playerName)}`, RankedActiveResponseSchema, {
+    defaultErrorMessage: 'Failed to check for an active ranked match.',
   });
 }
 

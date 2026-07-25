@@ -9,6 +9,7 @@ import {
   equipSkin,
   getInventory,
   getPlayerMessages,
+  getActiveRankedLobby,
   getPlayerProfile,
   getPlayerRelics,
   getRankedProfile,
@@ -132,6 +133,43 @@ describe('getRankedProfile', () => {
     await getRankedProfile('A B');
 
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/profile/A%20B`, expect.anything());
+  });
+});
+
+describe('getActiveRankedLobby', () => {
+  it('GETs whether the player has a currently unfinished ranked match', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        lobby_id: 'RNKD',
+        token: 'tok-1',
+        ranked_countdown_deadline: '2026-01-01T00:00:00Z',
+        started: false,
+      }),
+    );
+
+    const result = await getActiveRankedLobby('Alice');
+
+    expect(result).toEqual({
+      lobby_id: 'RNKD',
+      token: 'tok-1',
+      ranked_countdown_deadline: '2026-01-01T00:00:00Z',
+      started: false,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active/Alice`, {
+      method: 'GET',
+      headers: undefined,
+      body: undefined,
+    });
+  });
+
+  it('URL-encodes the player name', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ lobby_id: null, token: null, ranked_countdown_deadline: null, started: false }),
+    );
+
+    await getActiveRankedLobby('A B');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active/A%20B`, expect.anything());
   });
 });
 

@@ -154,6 +154,17 @@ export const RankedQueueLeaveResponseSchema = z.object({
   was_queued: z.boolean(),
 });
 
+// GET /ranked/active/<name> -- does this player have a currently
+// unfinished ranked match to return to (docs/RANK_SYSTEM_PLAN.md §6/§10)?
+// "Back to Home" only navigates away, it never leaves the lobby server-side,
+// so a player can come back here and find their way back in.
+export const RankedActiveResponseSchema = z.object({
+  lobby_id: z.string().nullable(),
+  token: z.string().nullable(),
+  ranked_countdown_deadline: z.string().nullable(),
+  started: z.boolean(),
+});
+
 // GET /well/profile/<name> -- discovery-style: `rewards` only ever lists
 // reward types the player has actually won (backend-filtered, same
 // principle as /get_player_relics), never every possible WELL_REWARDS key.

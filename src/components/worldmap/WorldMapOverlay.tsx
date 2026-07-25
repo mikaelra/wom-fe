@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createLobby, joinLobby, logOut } from '@/lib/api';
-import { getStoredAccountToken } from '@/lib/http';
+import { createLobby, getActiveRankedLobby, joinLobby, logOut } from '@/lib/api';
+import { getStoredAccountToken, setStoredToken } from '@/lib/http';
 import { useAuthFlow } from '@/lib/useAuthFlow';
+import { useCountdown } from '@/lib/useCountdown';
 import { useRankedQueue } from '@/lib/useRankedQueue';
 import { subscribe } from '@/lib/socket';
 import RopedButton from '@/components/hud/RopedButton';
@@ -33,12 +34,40 @@ export default function WorldMapOverlay() {
   // count doesn't flash a misleading 0 on first paint.
   const [onlineCount, setOnlineCount] = useState<number | undefined>(undefined);
 
+  // A ranked match this player is already in (matched, then left via
+  // "Back to Home" -- that only navigates away, it never leaves the lobby
+  // server-side, see wom-be's sockets/lobby.py handle_disconnect) or is
+  // mid-game in. Checked once per mount (i.e. every time this page is
+  // visited), same lifetime as the ranked/well profile fetches on the
+  // Stats page.
+  const [activeMatch, setActiveMatch] = useState<{
+    lobbyId: string;
+    deadline: string | null;
+    started: boolean;
+  } | null>(null);
+  const activeMatchSecondsLeft = useCountdown(activeMatch?.started ? null : activeMatch?.deadline);
+
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
       setLoggedInName(localStorage.getItem('playerName') || '');
     }
   }, []);
+
+  useEffect(() => {
+    if (!loggedInName) return;
+    getActiveRankedLobby(loggedInName)
+      .then((data) => {
+        if (!data.lobby_id || !data.token) return;
+        setStoredToken(data.lobby_id, data.token);
+        setActiveMatch({ lobbyId: data.lobby_id, deadline: data.ranked_countdown_deadline, started: data.started });
+      })
+      .catch(() => {
+        // Best-effort -- worst case the player just sees "Play Ranked"
+        // again and the backend's own duplicate-name guard still protects
+        // them if they re-queue while actually still in the old match.
+      });
+  }, [loggedInName]);
 
   useEffect(() => {
     return subscribe('online_count', ({ count }) => setOnlineCount(count));
@@ -287,6 +316,26 @@ export default function WorldMapOverlay() {
               >
                 Cancel
               </button>
+            </>
+          ) : activeMatch ? (
+            <>
+              <RopedButton
+                width={249}
+                height={54}
+                onClick={() => router.push(`/lobby/${activeMatch.lobbyId}`)}
+                ariaLabel="Return to ranked match"
+              >
+                Return to Match
+              </RopedButton>
+              {activeMatch.started ? (
+                <span className="text-red-500 text-xs font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                  Game started!
+                </span>
+              ) : (
+                <span className="text-white/70 text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                  {activeMatchSecondsLeft != null ? `Starts in ${activeMatchSecondsLeft}s` : 'Starting soon…'}
+                </span>
+              )}
             </>
           ) : (
             <>
