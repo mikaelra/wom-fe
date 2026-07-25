@@ -28,7 +28,7 @@ beforeEach(() => {
   // Every test that doesn't care about the Well/Overview sections gets a
   // harmless default so it doesn't have to stub this itself.
   mockedGetWellProfile.mockResolvedValue({ well_wins: 0, rewards: [] });
-  mockedGetPlayerProfile.mockResolvedValue({ created_at: '2026-03-05T12:30:00Z', wins: 0 });
+  mockedGetPlayerProfile.mockResolvedValue({ created_at: '2026-03-05T12:30:00Z', played_games: 0 });
 });
 
 afterEach(() => {
@@ -143,23 +143,23 @@ describe('StatsPage', () => {
     expect(screen.getByText('1 well win')).toBeInTheDocument();
   });
 
-  it('shows the account-created date and games won, but not games played', async () => {
+  it('shows the account-created date and games played, but not games won', async () => {
     localStorage.setItem('playerName', 'Oni');
     mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 10 });
-    mockedGetPlayerProfile.mockResolvedValue({ created_at: '2026-03-05T12:30:00Z', wins: 17 });
+    mockedGetPlayerProfile.mockResolvedValue({ created_at: '2026-03-05T12:30:00Z', played_games: 23 });
     render(<StatsPage />);
     await flush();
 
     expect(mockedGetPlayerProfile).toHaveBeenCalledWith('Oni');
     expect(screen.getByText('Account created: March 5, 2026')).toBeInTheDocument();
-    expect(screen.getByText('17')).toBeInTheDocument();
-    expect(screen.queryByText(/games played/i)).not.toBeInTheDocument();
+    expect(screen.getByText('23')).toBeInTheDocument();
+    expect(screen.queryByText(/games won/i)).not.toBeInTheDocument();
   });
 
   it('falls back to "Unknown" when the account has no created_at', async () => {
     localStorage.setItem('playerName', 'Ghost');
     mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 0 });
-    mockedGetPlayerProfile.mockResolvedValue({ created_at: null, wins: 0 });
+    mockedGetPlayerProfile.mockResolvedValue({ created_at: null, played_games: 0 });
     render(<StatsPage />);
     await flush();
 

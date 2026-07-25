@@ -34,7 +34,7 @@ export default function StatsPage() {
   const [wellWins, setWellWins] = useState(0);
   const [wellRewards, setWellRewards] = useState<{ reward: string; count: number }[]>([]);
   const [accountCreatedAt, setAccountCreatedAt] = useState<string | null>(null);
-  const [gamesWon, setGamesWon] = useState(0);
+  const [gamesPlayed, setGamesPlayed] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -59,7 +59,7 @@ export default function StatsPage() {
       }),
       getPlayerProfile(name).then((data) => {
         setAccountCreatedAt(data.created_at);
-        setGamesWon(data.wins);
+        setGamesPlayed(data.played_games);
       }),
     ])
       .catch((err: unknown) => {
@@ -133,7 +133,7 @@ export default function StatsPage() {
               <h2 className="text-sm font-semibold text-white/70 mb-2">Overview</h2>
               <p className="text-sm text-white/50">Account created: {formattedAccountCreatedAt}</p>
               <p className="text-sm text-white/50 mt-1">
-                Games won: <span className="text-white font-semibold">{gamesWon}</span>
+                Games played: <span className="text-white font-semibold">{gamesPlayed}</span>
               </p>
             </div>
 

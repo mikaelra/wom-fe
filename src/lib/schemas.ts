@@ -183,7 +183,7 @@ export const WellProfileResponseSchema = z.object({
 // the Stats page's middle section.
 export const PlayerProfileResponseSchema = z.object({
   created_at: z.string().nullable(),
-  wins: z.number().int(),
+  played_games: z.number().int(),
 });
 
 // ── Socket.IO payload schemas (not already in @/types/game) ────────────────
