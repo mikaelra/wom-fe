@@ -55,9 +55,16 @@ describe('StatsPage', () => {
     await flush();
 
     expect(screen.getByText('Unranked')).toBeInTheDocument();
-    expect(
-      screen.getByText("Playing placement matches (4/10) — your rank is revealed once they're done."),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Play 6 more matches to get your rank.')).toBeInTheDocument();
+  });
+
+  it('shows a singular "match" when exactly one placement game remains', async () => {
+    localStorage.setItem('playerName', 'Eleonora');
+    mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 9 });
+    render(<StatsPage />);
+    await flush();
+
+    expect(screen.getByText('Play 1 more match to get your rank.')).toBeInTheDocument();
   });
 
   it('shows a never-queued message for a player with zero ranked games', async () => {
@@ -67,7 +74,7 @@ describe('StatsPage', () => {
     await flush();
 
     expect(screen.getByText('Unranked')).toBeInTheDocument();
-    expect(screen.getByText('Play a ranked match to get your first rank.')).toBeInTheDocument();
+    expect(screen.getByText('Play 10 matches to get your rank.')).toBeInTheDocument();
   });
 
   it('shows the backend error message on failure', async () => {

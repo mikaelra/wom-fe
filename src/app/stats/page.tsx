@@ -44,7 +44,11 @@ export default function StatsPage() {
   // 10 (docs/RANK_SYSTEM_PLAN.md §5) -- same display rule the badge and
   // post-game summary already follow, so this reads identically whether
   // the player has never queued or is still mid-placement.
-  const inPlacements = tier === null && rankedGamesPlayed > 0 && rankedGamesPlayed < 10;
+  const gamesRemaining = 10 - rankedGamesPlayed;
+  const placementMessage =
+    rankedGamesPlayed === 0
+      ? 'Play 10 matches to get your rank.'
+      : `Play ${gamesRemaining} more match${gamesRemaining === 1 ? '' : 'es'} to get your rank.`;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
@@ -81,11 +85,7 @@ export default function StatsPage() {
             ) : (
               <>
                 <RankBadge tier={null} className="text-base px-3 py-1" />
-                <p className="text-sm text-white/50 mt-3">
-                  {inPlacements
-                    ? `Playing placement matches (${rankedGamesPlayed}/10) — your rank is revealed once they're done.`
-                    : 'Play a ranked match to get your first rank.'}
-                </p>
+                <p className="text-sm text-white/50 mt-3">{placementMessage}</p>
               </>
             )}
           </div>
