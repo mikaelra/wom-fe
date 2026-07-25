@@ -134,6 +134,13 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
       {rankedResult?.tier_after && (
         <p className="mb-2 flex items-center justify-center gap-2 flex-wrap">
           <RankBadge tier={rankedResult.tier_after} />
+          {/* tier_before is only ever null here on the game-10 debut reveal
+              (docs/RANK_SYSTEM_PLAN.md §5) -- promoted stays null too since
+              the backend has nothing to compare against, so this and the
+              up/down text below are mutually exclusive. */}
+          {rankedResult.tier_before === null && (
+            <span className="text-cyan-400 font-semibold">Placement complete!</span>
+          )}
           {rankedResult.promoted === true && <span className="text-green-400 font-semibold">Ranked up!</span>}
           {rankedResult.promoted === false && <span className="text-red-400 font-semibold">Ranked down.</span>}
         </p>

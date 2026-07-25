@@ -186,6 +186,24 @@ describe('renderGameOver', () => {
     expect(screen.queryByText('Ranked down.')).not.toBeInTheDocument();
   });
 
+  it('shows "Placement complete!" and the debut tier on the game-10 reveal', () => {
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: {
+            ...opts.state,
+            ranked_results: { Alice: { tier_before: null, tier_after: 'Warlock', promoted: null } },
+          },
+        })}
+      </>,
+    );
+    expect(screen.getByText('Warlock')).toBeInTheDocument();
+    expect(screen.getByText('Placement complete!')).toBeInTheDocument();
+    expect(screen.queryByText('Ranked up!')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ranked down.')).not.toBeInTheDocument();
+  });
+
   it('shows nothing rank-related while the rank is still hidden (placements)', () => {
     render(
       <>
@@ -201,6 +219,7 @@ describe('renderGameOver', () => {
     expect(screen.queryByText('Ranked up!')).not.toBeInTheDocument();
     expect(screen.queryByText('Ranked down.')).not.toBeInTheDocument();
     expect(screen.queryByText('Unranked')).not.toBeInTheDocument();
+    expect(screen.queryByText('Placement complete!')).not.toBeInTheDocument();
   });
 
   it('shows nothing rank-related for a non-ranked match', () => {
