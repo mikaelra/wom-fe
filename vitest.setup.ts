@@ -9,3 +9,19 @@ import '@testing-library/jest-dom/vitest';
 afterEach(() => {
   cleanup();
 });
+
+// jsdom doesn't implement matchMedia -- default to "no preference" so
+// prefers-reduced-motion/prefers-color-scheme checks (e.g. WheelSpinModal)
+// don't throw. Individual tests can still override via vi.stubGlobal.
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  window.matchMedia = (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  });
+}

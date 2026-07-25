@@ -31,7 +31,7 @@ function groupWheels(wheels: WheelEntry[]): WheelGroup[] {
 }
 
 export default function InventoryPage() {
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [equippedSkin, setEquippedSkin] = useState(DEFAULT_SKIN);
@@ -39,7 +39,7 @@ export default function InventoryPage() {
   const [wheels, setWheels] = useState<WheelEntry[]>([]);
   const [relics, setRelics] = useState<Relic[]>([]);
   const [equipping, setEquipping] = useState<string | null>(null);
-  const [spinningWheelId, setSpinningWheelId] = useState<number | null>(null);
+  const [spinningWheel, setSpinningWheel] = useState<{ id: number; kind: string } | null>(null);
   // Set when we're logged out but localStorage remembers a name+email pair
   // (i.e. a claim was submitted from this browser) -- covers verifying that
   // claim's email link on a different device (a phone) than this one, which
@@ -104,8 +104,10 @@ export default function InventoryPage() {
     }
   };
 
-  const handleSpun = (resultSkin: string) => {
-    showSuccess(`You got: ${skinLabel(resultSkin)}!`);
+  // The wheel modal shows its own result splash once it visually lands --
+  // a toast fired the instant the server responds (well before landing)
+  // would spoil it, so this only refreshes the background inventory data.
+  const handleSpun = () => {
     load();
   };
 
@@ -193,7 +195,7 @@ export default function InventoryPage() {
                     <button
                       key={group.kind}
                       type="button"
-                      onClick={() => setSpinningWheelId(group.id)}
+                      onClick={() => setSpinningWheel({ id: group.id, kind: group.kind })}
                       className="px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-semibold hover:bg-amber-600/80 transition-colors cursor-pointer"
                     >
                       🎡 Use {group.kind} Wheel{group.count > 1 ? ` ×${group.count}` : ''}
@@ -243,11 +245,13 @@ export default function InventoryPage() {
         )}
       </div>
 
-      {spinningWheelId !== null && (
+      {spinningWheel !== null && (
         <WheelSpinModal
-          wheelId={spinningWheelId}
-          onClose={() => setSpinningWheelId(null)}
+          wheelId={spinningWheel.id}
+          kind={spinningWheel.kind}
+          onClose={() => setSpinningWheel(null)}
           onSpun={handleSpun}
+          onEquipped={setEquippedSkin}
         />
       )}
     </div>
