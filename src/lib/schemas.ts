@@ -136,6 +136,56 @@ export const SpinWheelResponseSchema = z.object({
   result_skin: z.string(),
 });
 
+// GET /ranked/profile/<name> (docs/RANK_SYSTEM_PLAN.md §4/§5) — deliberately
+// never the raw mu/sigma, just the derived tier (null during placements, or
+// for a player who's never queued).
+export const RankedProfileResponseSchema = z.object({
+  tier: z.string().nullable(),
+  ranked_games_played: z.number().int(),
+});
+
+// POST /ranked/queue/join, /ranked/queue/leave (docs/RANK_SYSTEM_PLAN.md §6).
+export const RankedQueueJoinResponseSchema = z.object({
+  status: z.string(),
+});
+
+export const RankedQueueLeaveResponseSchema = z.object({
+  status: z.string(),
+  was_queued: z.boolean(),
+});
+
+// GET /ranked/active/<name> -- does this player have a currently
+// unfinished ranked match to return to (docs/RANK_SYSTEM_PLAN.md §6/§10)?
+// "Back to Home" only navigates away, it never leaves the lobby server-side,
+// so a player can come back here and find their way back in.
+export const RankedActiveResponseSchema = z.object({
+  lobby_id: z.string().nullable(),
+  token: z.string().nullable(),
+  ranked_countdown_deadline: z.string().nullable(),
+  started: z.boolean(),
+});
+
+// GET /well/profile/<name> -- discovery-style: `rewards` only ever lists
+// reward types the player has actually won (backend-filtered, same
+// principle as /get_player_relics), never every possible WELL_REWARDS key.
+export const WellRewardEntrySchema = z.object({
+  reward: z.string(),
+  count: z.number().int(),
+  first_awarded_at: z.string(),
+});
+
+export const WellProfileResponseSchema = z.object({
+  well_wins: z.number().int(),
+  rewards: z.array(WellRewardEntrySchema),
+});
+
+// GET /player/profile/<name> -- general (non-ranked, non-well) stats for
+// the Stats page's middle section.
+export const PlayerProfileResponseSchema = z.object({
+  created_at: z.string().nullable(),
+  played_games: z.number().int(),
+});
+
 // ── Socket.IO payload schemas (not already in @/types/game) ────────────────
 
 export const JoinedLobbyPayloadSchema = z.object({
@@ -155,4 +205,17 @@ export const LeftPayloadSchema = z.object({
 
 export const ErrorPayloadSchema = z.object({
   message: z.string(),
+});
+
+export const JoinedRankedQueuePayloadSchema = z.object({
+  name: z.string(),
+});
+
+export const RankedMatchFoundPayloadSchema = z.object({
+  lobby_id: z.string(),
+  token: z.string(),
+});
+
+export const OnlineCountPayloadSchema = z.object({
+  count: z.number().int(),
 });

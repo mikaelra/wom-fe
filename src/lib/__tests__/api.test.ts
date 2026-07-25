@@ -9,7 +9,13 @@ import {
   equipSkin,
   getInventory,
   getPlayerMessages,
+  getActiveRankedLobby,
+  getPlayerProfile,
   getPlayerRelics,
+  getRankedProfile,
+  getWellProfile,
+  joinRankedQueue,
+  leaveRankedQueue,
   logInUser,
   logOut,
   resolveAccountSession,
@@ -74,6 +80,150 @@ describe('createLobby', () => {
     await expect(createLobby('Alice', 'x@example.com')).rejects.toThrow(
       'This name is already claimed.',
     );
+  });
+});
+
+describe('joinRankedQueue', () => {
+  it('posts name and returns the queue status', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'queued' }));
+
+    const result = await joinRankedQueue('Alice');
+
+    expect(result).toEqual({ status: 'queued' });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Alice' }),
+    });
+  });
+});
+
+describe('leaveRankedQueue', () => {
+  it('posts name and returns was_queued', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'left', was_queued: true }));
+
+    const result = await leaveRankedQueue('Alice');
+
+    expect(result).toEqual({ status: 'left', was_queued: true });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/leave`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Alice' }),
+    });
+  });
+});
+
+describe('getRankedProfile', () => {
+  it('GETs the player\'s tier and games played', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ tier: 'Djinn I', ranked_games_played: 12 }));
+
+    const result = await getRankedProfile('Alice');
+
+    expect(result).toEqual({ tier: 'Djinn I', ranked_games_played: 12 });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/profile/Alice`, {
+      method: 'GET',
+      headers: undefined,
+      body: undefined,
+    });
+  });
+
+  it('URL-encodes the player name', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ tier: null, ranked_games_played: 0 }));
+
+    await getRankedProfile('A B');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/profile/A%20B`, expect.anything());
+  });
+});
+
+describe('getActiveRankedLobby', () => {
+  it('GETs whether the player has a currently unfinished ranked match', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        lobby_id: 'RNKD',
+        token: 'tok-1',
+        ranked_countdown_deadline: '2026-01-01T00:00:00Z',
+        started: false,
+      }),
+    );
+
+    const result = await getActiveRankedLobby('Alice');
+
+    expect(result).toEqual({
+      lobby_id: 'RNKD',
+      token: 'tok-1',
+      ranked_countdown_deadline: '2026-01-01T00:00:00Z',
+      started: false,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active/Alice`, {
+      method: 'GET',
+      headers: undefined,
+      body: undefined,
+    });
+  });
+
+  it('URL-encodes the player name', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ lobby_id: null, token: null, ranked_countdown_deadline: null, started: false }),
+    );
+
+    await getActiveRankedLobby('A B');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active/A%20B`, expect.anything());
+  });
+});
+
+describe('getWellProfile', () => {
+  it('GETs the player\'s well wins and discovered rewards', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        well_wins: 3,
+        rewards: [{ reward: '2_gold', count: 2, first_awarded_at: '2026-01-01T00:00:00Z' }],
+      }),
+    );
+
+    const result = await getWellProfile('Alice');
+
+    expect(result).toEqual({
+      well_wins: 3,
+      rewards: [{ reward: '2_gold', count: 2, first_awarded_at: '2026-01-01T00:00:00Z' }],
+    });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/well/profile/Alice`, {
+      method: 'GET',
+      headers: undefined,
+      body: undefined,
+    });
+  });
+
+  it('URL-encodes the player name', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ well_wins: 0, rewards: [] }));
+
+    await getWellProfile('A B');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/well/profile/A%20B`, expect.anything());
+  });
+});
+
+describe('getPlayerProfile', () => {
+  it('GETs the player\'s account-created date and games played', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ created_at: '2026-03-05T12:30:00Z', played_games: 23 }));
+
+    const result = await getPlayerProfile('Alice');
+
+    expect(result).toEqual({ created_at: '2026-03-05T12:30:00Z', played_games: 23 });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/player/profile/Alice`, {
+      method: 'GET',
+      headers: undefined,
+      body: undefined,
+    });
+  });
+
+  it('URL-encodes the player name', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ created_at: null, played_games: 0 }));
+
+    await getPlayerProfile('A B');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/player/profile/A%20B`, expect.anything());
   });
 });
 

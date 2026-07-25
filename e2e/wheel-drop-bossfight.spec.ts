@@ -37,9 +37,23 @@ test.setTimeout(25 * 60_000);
 // join-lobby-code input, so a coordinate click there hits the input instead
 // of the canvas -- confirmed empirically (elementFromPoint at Athens'
 // bounding-box centre resolves to the <input>, not <canvas>, at 320x240, but
-// correctly resolves to <canvas> at 480x360 and up). 480x360 is the smallest
-// size that clears the overlap.
-test.use({ viewport: { width: 480, height: 360 } });
+// correctly resolves to <canvas> at 480x360 and up).
+//
+// Height was later bumped from 360 to 640: WorldMapOverlay's ranked-queue
+// entry point (Play Ranked / Searching-for-a-match) sits at a *fixed* pixel
+// offset (`top-16`) under the title, while CameraRig's `camera.lookAt(0,0,0)`
+// projects the centred Athens marker to the canvas's geometric vertical
+// centre (height / 2) -- at 360 tall that's only 180px down, close enough to
+// the fixed-offset button (~104-158px) that a force-click meant for Athens
+// landed on "Play Ranked" instead (confirmed via the CI trace: click point
+// (177, 105) on a 480x360 canvas, squarely inside the button's box), quietly
+// queuing this test's throwaway account for ranked instead of navigating to
+// the boss-fight lobby, so `waitForURL(/\/lobby\//)` then timed out. Growing
+// height (not width -- both the button and the marker are horizontally
+// centred on the viewport's own midpoint, so no width alone ever separates
+// them) pushes the marker's fixed-ratio centre well clear of the button's
+// fixed-pixel band.
+test.use({ viewport: { width: 480, height: 640 } });
 
 const MAX_ATTEMPTS = 20;
 

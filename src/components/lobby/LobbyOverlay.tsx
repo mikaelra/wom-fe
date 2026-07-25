@@ -13,6 +13,7 @@ import BossSignupNudge from '@/components/BossSignupNudge';
 import WheelClaimNudge from '@/components/WheelClaimNudge';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import StartGameButton from '@/components/StartGameButton';
+import RankBadge from '@/components/hud/RankBadge';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import { COIN_RELIC_ID, type LobbyState } from '@/types/game';
 
@@ -108,6 +109,7 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
 
 export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   const myPlayer = state.players.find((p) => p.name === playerName);
+  const rankedResult = state.ranked_results?.[playerName];
 
   return (
     <div className="mt-3 text-center">
@@ -124,6 +126,23 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
           <Link href="/inventory" className="underline hover:text-amber-200">
             Spin it in your inventory
           </Link>
+        </p>
+      )}
+      {/* No raw rating number shown -- only the derived tier, once there is
+          one (rankedResult.tier_after is null while still hidden during
+          placements, docs/RANK_SYSTEM_PLAN.md §4/§5). */}
+      {rankedResult?.tier_after && (
+        <p className="mb-2 flex items-center justify-center gap-2 flex-wrap">
+          <RankBadge tier={rankedResult.tier_after} />
+          {/* tier_before is only ever null here on the game-10 debut reveal
+              (docs/RANK_SYSTEM_PLAN.md §5) -- promoted stays null too since
+              the backend has nothing to compare against, so this and the
+              up/down text below are mutually exclusive. */}
+          {rankedResult.tier_before === null && (
+            <span className="text-cyan-400 font-semibold">Placement complete!</span>
+          )}
+          {rankedResult.promoted === true && <span className="text-green-400 font-semibold">Ranked up!</span>}
+          {rankedResult.promoted === false && <span className="text-red-400 font-semibold">Ranked down.</span>}
         </p>
       )}
       <div className="flex flex-col gap-2 items-center">
@@ -143,6 +162,7 @@ export function renderPreGame({
   boss,
   raidMins,
   raidSecs,
+  rankedSecondsLeft,
   btn,
   onStartGame,
   onAddDummy,
@@ -166,6 +186,20 @@ export function renderPreGame({
               {raidMins != null && raidSecs != null && (
                 <p className="text-gray-500">
                   Boss-fight starts in {raidMins}m {raidSecs}s
+                </p>
+              )}
+            </div>
+          )}
+
+          {state.ranked && (
+            <div className="bg-amber-100 p-4 rounded mb-4 w-full text-center">
+              <h2 className="text-xl font-bold text-amber-900">Ranked Match</h2>
+              <p className="text-gray-600">
+                {state.players.length}/6 players joined
+              </p>
+              {rankedSecondsLeft != null && (
+                <p className="text-gray-600">
+                  Match starts in {rankedSecondsLeft}s
                 </p>
               )}
             </div>

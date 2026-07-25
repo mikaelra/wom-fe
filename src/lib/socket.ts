@@ -7,6 +7,9 @@ import {
   JoinedPayloadSchema,
   LeftPayloadSchema,
   ErrorPayloadSchema,
+  JoinedRankedQueuePayloadSchema,
+  RankedMatchFoundPayloadSchema,
+  OnlineCountPayloadSchema,
 } from '@/lib/schemas';
 
 // Typed event maps, built directly against wom-be's docs/PROTOCOL.md.
@@ -20,6 +23,10 @@ export interface ServerToClientEvents {
   left: (payload: { lobby_id: string; name: string | null }) => void;
   state_update: (payload: LobbyState) => void;
   chat_message: (payload: ChatMessage) => void;
+  // Ranked matchmaking (docs/RANK_SYSTEM_PLAN.md §6/§10).
+  joined_ranked_queue: (payload: { name: string }) => void;
+  ranked_match_found: (payload: { lobby_id: string; token: string }) => void;
+  online_count: (payload: { count: number }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -42,6 +49,7 @@ export interface ClientToServerEvents {
   }) => void;
   submit_deny_target: (payload: { lobby_id: string; target: string }) => void;
   send_message: (payload: { lobby_id: string; message: string }) => void;
+  join_ranked_queue: (payload: { name: string }) => void;
 }
 
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -62,6 +70,9 @@ const EVENT_SCHEMAS = {
   left: LeftPayloadSchema,
   state_update: LobbyStateSchema,
   chat_message: ChatMessageSchema,
+  joined_ranked_queue: JoinedRankedQueuePayloadSchema,
+  ranked_match_found: RankedMatchFoundPayloadSchema,
+  online_count: OnlineCountPayloadSchema,
 } satisfies { [K in keyof ServerToClientEvents]: z.ZodTypeAny };
 
 /**

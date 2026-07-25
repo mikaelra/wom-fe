@@ -26,6 +26,12 @@ import {
   EquipSkinResponseSchema,
   SpinWheelResponseSchema,
   CheckClaimVerifiedResponseSchema,
+  PlayerProfileResponseSchema,
+  RankedActiveResponseSchema,
+  RankedProfileResponseSchema,
+  RankedQueueJoinResponseSchema,
+  RankedQueueLeaveResponseSchema,
+  WellProfileResponseSchema,
 } from '@/lib/schemas';
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
@@ -72,6 +78,50 @@ export async function getBossfightLobby(playerName: string): Promise<{ lobby_id:
 export async function getNextBossfightTime(): Promise<{ start_time: string }> {
   return request('/get_next_bossfight_time', GetNextBossfightTimeResponseSchema, {
     defaultErrorMessage: 'Failed to fetch next boss fight time',
+  });
+}
+
+// docs/RANK_SYSTEM_PLAN.md §6/§10 -- ranked matchmaking queue + rank badge.
+
+export async function joinRankedQueue(playerName: string): Promise<{ status: string }> {
+  return request('/ranked/queue/join', RankedQueueJoinResponseSchema, {
+    body: { name: playerName },
+    defaultErrorMessage: 'Failed to join the ranked queue.',
+  });
+}
+
+export async function leaveRankedQueue(playerName: string): Promise<{ status: string; was_queued: boolean }> {
+  return request('/ranked/queue/leave', RankedQueueLeaveResponseSchema, {
+    body: { name: playerName },
+    defaultErrorMessage: 'Failed to leave the ranked queue.',
+  });
+}
+
+export async function getRankedProfile(playerName: string): Promise<{ tier: string | null; ranked_games_played: number }> {
+  return request(`/ranked/profile/${encodeURIComponent(playerName)}`, RankedProfileResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch ranked profile.',
+  });
+}
+
+export async function getActiveRankedLobby(
+  playerName: string
+): Promise<{ lobby_id: string | null; token: string | null; ranked_countdown_deadline: string | null; started: boolean }> {
+  return request(`/ranked/active/${encodeURIComponent(playerName)}`, RankedActiveResponseSchema, {
+    defaultErrorMessage: 'Failed to check for an active ranked match.',
+  });
+}
+
+export async function getWellProfile(
+  playerName: string
+): Promise<{ well_wins: number; rewards: { reward: string; count: number; first_awarded_at: string }[] }> {
+  return request(`/well/profile/${encodeURIComponent(playerName)}`, WellProfileResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch well profile.',
+  });
+}
+
+export async function getPlayerProfile(playerName: string): Promise<{ created_at: string | null; played_games: number }> {
+  return request(`/player/profile/${encodeURIComponent(playerName)}`, PlayerProfileResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch player profile.',
   });
 }
 
