@@ -11,6 +11,7 @@ import {
   getPlayerMessages,
   getPlayerRelics,
   getRankedProfile,
+  getWellProfile,
   joinRankedQueue,
   leaveRankedQueue,
   logInUser,
@@ -130,6 +131,37 @@ describe('getRankedProfile', () => {
     await getRankedProfile('A B');
 
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/profile/A%20B`, expect.anything());
+  });
+});
+
+describe('getWellProfile', () => {
+  it('GETs the player\'s well wins and discovered rewards', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        well_wins: 3,
+        rewards: [{ reward: '2_gold', count: 2, first_awarded_at: '2026-01-01T00:00:00Z' }],
+      }),
+    );
+
+    const result = await getWellProfile('Alice');
+
+    expect(result).toEqual({
+      well_wins: 3,
+      rewards: [{ reward: '2_gold', count: 2, first_awarded_at: '2026-01-01T00:00:00Z' }],
+    });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/well/profile/Alice`, {
+      method: 'GET',
+      headers: undefined,
+      body: undefined,
+    });
+  });
+
+  it('URL-encodes the player name', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ well_wins: 0, rewards: [] }));
+
+    await getWellProfile('A B');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/well/profile/A%20B`, expect.anything());
   });
 });
 

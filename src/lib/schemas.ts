@@ -154,6 +154,20 @@ export const RankedQueueLeaveResponseSchema = z.object({
   was_queued: z.boolean(),
 });
 
+// GET /well/profile/<name> -- discovery-style: `rewards` only ever lists
+// reward types the player has actually won (backend-filtered, same
+// principle as /get_player_relics), never every possible WELL_REWARDS key.
+export const WellRewardEntrySchema = z.object({
+  reward: z.string(),
+  count: z.number().int(),
+  first_awarded_at: z.string(),
+});
+
+export const WellProfileResponseSchema = z.object({
+  well_wins: z.number().int(),
+  rewards: z.array(WellRewardEntrySchema),
+});
+
 // ── Socket.IO payload schemas (not already in @/types/game) ────────────────
 
 export const JoinedLobbyPayloadSchema = z.object({

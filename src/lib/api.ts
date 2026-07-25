@@ -29,6 +29,7 @@ import {
   RankedProfileResponseSchema,
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
+  WellProfileResponseSchema,
 } from '@/lib/schemas';
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
@@ -97,6 +98,14 @@ export async function leaveRankedQueue(playerName: string): Promise<{ status: st
 export async function getRankedProfile(playerName: string): Promise<{ tier: string | null; ranked_games_played: number }> {
   return request(`/ranked/profile/${encodeURIComponent(playerName)}`, RankedProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch ranked profile.',
+  });
+}
+
+export async function getWellProfile(
+  playerName: string
+): Promise<{ well_wins: number; rewards: { reward: string; count: number; first_awarded_at: string }[] }> {
+  return request(`/well/profile/${encodeURIComponent(playerName)}`, WellProfileResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch well profile.',
   });
 }
 

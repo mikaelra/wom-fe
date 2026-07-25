@@ -3,8 +3,25 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getRankedProfile } from '@/lib/api';
+import { getRankedProfile, getWellProfile } from '@/lib/api';
 import RankBadge from '@/components/hud/RankBadge';
+
+// Labels/emoji for every key in wom-be's config.WELL_REWARDS, matching the
+// emoji already used in that reward's in-game message (engine/rewards.py)
+// so this reads as the same reward the player saw during a match. Keyed by
+// the raw backend reward string, not the frontend's WellRewardType (that's
+// a different, animation-only vocabulary -- see WellRewardEffect.tsx).
+const WELL_REWARD_LABELS: Record<string, { label: string; emoji: string }> = {
+  '2_gold': { label: '2 Gold', emoji: '📦' },
+  '2_hp': { label: '2 Health', emoji: '🤕' },
+  '1_hp_1_gold': { label: '1 Health + 1 Gold', emoji: '☘️' },
+  '1_atkdmg': { label: '+1 Attack Damage', emoji: '🔫' },
+  deny_choice: { label: 'Deny Choice', emoji: '🚫' },
+  '2_hp_2_gold': { label: '2 Health + 2 Gold', emoji: '♦️' },
+  steal_gold: { label: 'Steal-All', emoji: '🏴‍☠️' },
+  instakill: { label: 'Poisoned Dagger', emoji: '🔪' },
+  reveal_info: { label: 'Reveal Info', emoji: '🔍' },
+};
 
 export default function StatsPage() {
   const router = useRouter();
@@ -14,6 +31,8 @@ export default function StatsPage() {
   const [loadError, setLoadError] = useState('');
   const [tier, setTier] = useState<string | null>(null);
   const [rankedGamesPlayed, setRankedGamesPlayed] = useState(0);
+  const [wellWins, setWellWins] = useState(0);
+  const [wellRewards, setWellRewards] = useState<{ reward: string; count: number }[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -27,11 +46,16 @@ export default function StatsPage() {
       return;
     }
 
-    getRankedProfile(name)
-      .then((data) => {
+    Promise.all([
+      getRankedProfile(name).then((data) => {
         setTier(data.tier);
         setRankedGamesPlayed(data.ranked_games_played);
-      })
+      }),
+      getWellProfile(name).then((data) => {
+        setWellWins(data.well_wins);
+        setWellRewards(data.rewards);
+      }),
+    ])
       .catch((err: unknown) => {
         setLoadError(err instanceof Error ? err.message : 'Failed to load stats.');
       })
@@ -77,18 +101,46 @@ export default function StatsPage() {
             </Link>
           </div>
         ) : (
-          <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6">
-            <p className="text-sm text-white/50 mb-3">{playerName}</p>
-            <h2 className="text-sm font-semibold text-white/70 mb-2">Ranked</h2>
-            {tier ? (
-              <RankBadge tier={tier} className="text-base px-3 py-1" />
-            ) : (
-              <>
-                <RankBadge tier={null} className="text-base px-3 py-1" />
-                <p className="text-sm text-white/50 mt-3">{placementMessage}</p>
-              </>
-            )}
-          </div>
+          <>
+            <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
+              <p className="text-sm text-white/50 mb-3">{playerName}</p>
+              <h2 className="text-sm font-semibold text-white/70 mb-2">Ranked</h2>
+              {tier ? (
+                <RankBadge tier={tier} className="text-base px-3 py-1" />
+              ) : (
+                <>
+                  <RankBadge tier={null} className="text-base px-3 py-1" />
+                  <p className="text-sm text-white/50 mt-3">{placementMessage}</p>
+                </>
+              )}
+            </div>
+
+            <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6">
+              <h2 className="text-sm font-semibold text-white/70 mb-2">Well</h2>
+              <p className="text-sm text-white/50 mb-3">
+                {wellWins} well win{wellWins === 1 ? '' : 's'}
+              </p>
+              {wellRewards.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {wellRewards.map(({ reward, count }) => {
+                    const info = WELL_REWARD_LABELS[reward];
+                    return (
+                      <div
+                        key={reward}
+                        className="flex flex-col items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-3"
+                      >
+                        <span className="text-2xl">{info?.emoji ?? '❔'}</span>
+                        <p className="text-xs font-semibold text-center">{info?.label ?? reward}</p>
+                        {count > 1 && <p className="text-[10px] text-white/50">×{count}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-white/50">You haven&apos;t discovered any Well rewards yet.</p>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>

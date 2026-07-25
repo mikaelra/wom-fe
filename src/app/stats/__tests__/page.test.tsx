@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import StatsPage from '@/app/stats/page';
-import { getRankedProfile } from '@/lib/api';
+import { getRankedProfile, getWellProfile } from '@/lib/api';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -10,15 +10,21 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/lib/api', () => ({
   getRankedProfile: vi.fn(),
+  getWellProfile: vi.fn(),
 }));
 
 const mockedGetRankedProfile = vi.mocked(getRankedProfile);
+const mockedGetWellProfile = vi.mocked(getWellProfile);
 
 const flush = () => act(async () => Promise.resolve());
 
 beforeEach(() => {
   push.mockClear();
   mockedGetRankedProfile.mockReset();
+  mockedGetWellProfile.mockReset();
+  // Every test that doesn't care about the Well section gets a harmless
+  // empty-discoveries default so it doesn't have to stub this itself.
+  mockedGetWellProfile.mockResolvedValue({ well_wins: 0, rewards: [] });
 });
 
 afterEach(() => {
@@ -35,6 +41,7 @@ describe('StatsPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Go to log in')).toBeInTheDocument();
     expect(mockedGetRankedProfile).not.toHaveBeenCalled();
+    expect(mockedGetWellProfile).not.toHaveBeenCalled();
   });
 
   it('shows the current tier once placements are done', async () => {
@@ -84,5 +91,50 @@ describe('StatsPage', () => {
     await flush();
 
     expect(screen.getByText('Failed to fetch ranked profile.')).toBeInTheDocument();
+  });
+
+  it('shows well wins and only the reward types actually discovered', async () => {
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 10 });
+    mockedGetWellProfile.mockResolvedValue({
+      well_wins: 5,
+      rewards: [
+        { reward: '2_gold', count: 3, first_awarded_at: '2026-01-01T00:00:00Z' },
+        { reward: 'instakill', count: 1, first_awarded_at: '2026-01-03T00:00:00Z' },
+      ],
+    });
+    render(<StatsPage />);
+    await flush();
+
+    expect(mockedGetWellProfile).toHaveBeenCalledWith('Oni');
+    expect(screen.getByText('5 well wins')).toBeInTheDocument();
+    expect(screen.getByText('2 Gold')).toBeInTheDocument();
+    expect(screen.getByText('×3')).toBeInTheDocument();
+    expect(screen.getByText('Poisoned Dagger')).toBeInTheDocument();
+    // Never-won reward types must not appear at all -- discovery means
+    // absence, not a locked/greyed placeholder.
+    expect(screen.queryByText('Deny Choice')).not.toBeInTheDocument();
+    expect(screen.queryByText('Steal-All')).not.toBeInTheDocument();
+  });
+
+  it('shows an empty-discoveries message for a player with zero well wins', async () => {
+    localStorage.setItem('playerName', 'Newbie');
+    mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 0 });
+    mockedGetWellProfile.mockResolvedValue({ well_wins: 0, rewards: [] });
+    render(<StatsPage />);
+    await flush();
+
+    expect(screen.getByText('0 well wins')).toBeInTheDocument();
+    expect(screen.getByText("You haven't discovered any Well rewards yet.")).toBeInTheDocument();
+  });
+
+  it('shows a singular "win" for exactly one well win', async () => {
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 10 });
+    mockedGetWellProfile.mockResolvedValue({ well_wins: 1, rewards: [] });
+    render(<StatsPage />);
+    await flush();
+
+    expect(screen.getByText('1 well win')).toBeInTheDocument();
   });
 });
