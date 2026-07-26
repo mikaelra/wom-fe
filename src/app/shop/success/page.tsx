@@ -9,6 +9,7 @@ import { getStoredAccountToken } from '@/lib/http';
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 60_000;
+const ALMOST_THERE_DELAY_MS = 10_000;
 
 type Status = 'polling' | 'received' | 'timeout' | 'error';
 
@@ -23,7 +24,14 @@ function ShopSuccessContent() {
   const orderId = searchParams.get('order');
   const [status, setStatus] = useState<Status>('polling');
   const [error, setError] = useState('');
+  const [showAlmostThere, setShowAlmostThere] = useState(false);
   const baselineRef = useRef<{ skinCount: number; wheelCount: number } | null>(null);
+
+  useEffect(() => {
+    if (status !== 'polling') return;
+    const timer = setTimeout(() => setShowAlmostThere(true), ALMOST_THERE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   useEffect(() => {
     const token = getStoredAccountToken();
@@ -84,6 +92,7 @@ function ShopSuccessContent() {
               </span>
               <span className="sr-only">…</span>
             </p>
+            {showAlmostThere && <p className="text-white/50 text-sm mt-2">Almost there…</p>}
           </>
         )}
         {status === 'received' && (

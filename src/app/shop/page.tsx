@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { claimName, getShopProducts, postCheckout, resolveAccountSession, type ShopProduct } from '@/lib/api';
 import { ApiError, getStoredAccountToken } from '@/lib/http';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
-import { skinColor, skinLabel } from '@/lib/frogSkins';
+import { skinLabel, skinUrl } from '@/lib/frogSkins';
+import SpinningModelViewer from '@/components/SpinningModelViewer';
 
 function formatPrice(cents: number, currency: string): string {
   try {
@@ -16,6 +17,13 @@ function formatPrice(cents: number, currency: string): string {
   } catch {
     return `$${(cents / 100).toFixed(2)}`;
   }
+}
+
+// Trims trailing zeros (63.00 -> 63) while still showing real precision where
+// it matters (6.67, 0.33) -- .toFixed(2) alone would show "63.00%" for a
+// round number, which reads oddly next to "6.67%".
+function formatOddsPercent(probability: number): string {
+  return `${Number((probability * 100).toFixed(2))}%`;
 }
 
 type VerifyState = 'idle' | 'sending' | 'awaiting' | 'error';
@@ -32,6 +40,31 @@ export default function ShopPage() {
   const [buying, setBuying] = useState<string | null>(null);
   const [productErrors, setProductErrors] = useState<Record<string, string>>({});
   const [duplicateConfirm, setDuplicateConfirm] = useState<Set<string>>(new Set());
+  const [oddsInfoOpen, setOddsInfoOpen] = useState<Set<string>>(new Set());
+  // Multi-packs are wheel-only (§3.3) -- matches routes/shop.py's
+  // _MAX_WHEEL_QUANTITY; a direct skin purchase has no quantity concept.
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const MAX_WHEEL_QUANTITY = 100;
+
+  const adjustQuantity = (productId: string, delta: number) => {
+    setQuantities((prev) => {
+      const current = prev[productId] ?? 1;
+      const next = Math.min(MAX_WHEEL_QUANTITY, Math.max(1, current + delta));
+      return { ...prev, [productId]: next };
+    });
+  };
+
+  const toggleOddsInfo = (productId: string) => {
+    setOddsInfoOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  };
 
   const [verifyState, setVerifyState] = useState<VerifyState>('idle');
   const [verifyName, setVerifyName] = useState('');
@@ -98,7 +131,8 @@ export default function ShopPage() {
     setProductErrors((prev) => ({ ...prev, [product.id]: '' }));
     setBuying(product.id);
     try {
-      const { checkout_url } = await postCheckout(token, product.id, confirmDuplicate);
+      const quantity = product.kind === 'wheel' ? (quantities[product.id] ?? 1) : undefined;
+      const { checkout_url } = await postCheckout(token, product.id, confirmDuplicate, quantity);
       window.location.href = checkout_url;
       // No finally-reset of `buying` on this path -- the page is navigating
       // away, and leaving the button in its loading state avoids a flash
@@ -183,44 +217,54 @@ export default function ShopPage() {
                   className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6"
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-lg font-semibold">{product.name}</h2>
+                    <h2 className="text-lg font-semibold">
+                      {product.kind === 'skin' ? `${product.name} skin` : product.name}
+                    </h2>
                     <span className="text-amber-300 font-bold text-lg">
-                      {formatPrice(product.price_cents, product.currency)}
+                      {formatPrice(
+                        product.price_cents * (product.kind === 'wheel' ? (quantities[product.id] ?? 1) : 1),
+                        product.currency
+                      )}
                     </span>
                   </div>
 
                   {product.kind === 'wheel' && product.odds && (
                     <div className="mb-4">
-                      <p className="text-xs text-white/50 mb-2">
-                        Every spin is independent — there is no pity mechanic. Odds:
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {product.odds.map((entry) => (
-                          <div
-                            key={entry.skin}
-                            className="flex flex-col items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-2"
-                          >
-                            <span
-                              className="w-6 h-6 rounded-full border border-white/20"
-                              style={{ background: skinColor(entry.skin) }}
-                            />
-                            <p className="text-[11px] font-semibold text-center capitalize">
-                              {skinLabel(entry.skin)}
-                            </p>
-                            <p className="text-[11px] text-white/50">{(entry.probability * 100).toFixed(2)}%</p>
-                          </div>
-                        ))}
+                      <div className="flex justify-center py-4" aria-hidden="true">
+                        <span className="text-5xl">🎡</span>
                       </div>
+                      <div className="flex items-start gap-1.5">
+                        <p className="text-xs text-white/50 flex-1">
+                          Buy a special wheel and roll it to get a special skin
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => toggleOddsInfo(product.id)}
+                          aria-label="Wheel odds info"
+                          aria-expanded={oddsInfoOpen.has(product.id)}
+                          className="shrink-0 w-4 h-4 rounded-full border border-white/30 text-white/60 text-[10px] leading-none flex items-center justify-center hover:bg-white/10 hover:text-white cursor-pointer"
+                        >
+                          i
+                        </button>
+                      </div>
+                      {oddsInfoOpen.has(product.id) && (
+                        <div className="mt-2 text-xs text-white/60 bg-white/5 border border-white/10 rounded-lg p-3">
+                          <p className="mb-1">
+                            You get a random skin when rolling the wheel. The odds for getting each skin is:
+                          </p>
+                          {product.odds.map((entry) => (
+                            <p key={entry.skin} className="capitalize">
+                              {skinLabel(entry.skin)} - {formatOddsPercent(entry.probability)}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {product.kind === 'skin' && product.skin && (
-                    <div className="mb-4 flex items-center gap-3">
-                      <span
-                        className="w-14 h-14 rounded-full border-2 border-white/20 shrink-0"
-                        style={{ background: skinColor(product.skin) }}
-                      />
-                      <p className="text-sm text-white/60">{skinLabel(product.skin)} — a direct purchase, not a wheel.</p>
+                    <div className="mb-4 w-32 h-32 mx-auto">
+                      <SpinningModelViewer url={skinUrl(product.skin)} targetSize={1.8} spinSpeed={0.6} />
                     </div>
                   )}
 
@@ -263,14 +307,41 @@ export default function ShopPage() {
                       Log in to buy
                     </Link>
                   ) : (
-                    <button
-                      type="button"
-                      disabled={!agreed || buying === product.id}
-                      onClick={() => handleBuy(product)}
-                      className="w-full px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-bold hover:bg-amber-600/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      {buying === product.id ? 'Starting checkout…' : 'Buy'}
-                    </button>
+                    <div className="flex items-center gap-3">
+                      {product.kind === 'wheel' && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => adjustQuantity(product.id, -1)}
+                            disabled={(quantities[product.id] ?? 1) <= 1}
+                            aria-label="Decrease quantity"
+                            className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            −
+                          </button>
+                          <span className="w-6 text-center font-semibold" aria-label="Quantity">
+                            {quantities[product.id] ?? 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => adjustQuantity(product.id, 1)}
+                            disabled={(quantities[product.id] ?? 1) >= MAX_WHEEL_QUANTITY}
+                            aria-label="Increase quantity"
+                            className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        disabled={!agreed || buying === product.id}
+                        onClick={() => handleBuy(product)}
+                        className="flex-1 px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-bold hover:bg-amber-600/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {buying === product.id ? 'Starting checkout…' : 'Buy'}
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}

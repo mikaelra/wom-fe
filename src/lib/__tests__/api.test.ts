@@ -598,6 +598,15 @@ describe('postCheckout', () => {
     const [, init] = fetchMock.mock.calls[0];
     expect(JSON.parse(init.body)).toEqual({ token: 'sess-1', product: 'skin_cherub', confirm_duplicate: true });
   });
+
+  it('passes quantity through to the request body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ checkout_url: 'https://x', order_id: 1 }));
+    await postCheckout('sess-1', 'wheel_special', false, 3);
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({
+      token: 'sess-1', product: 'wheel_special', confirm_duplicate: false, quantity: 3,
+    });
+  });
 });
 
 describe('getWheelTables', () => {

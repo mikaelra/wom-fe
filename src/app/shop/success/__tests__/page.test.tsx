@@ -50,6 +50,18 @@ describe('ShopSuccessPage', () => {
     expect(screen.getByText('Go to Inventory')).toHaveAttribute('href', '/inventory');
   });
 
+  it('shows "Almost there…" once polling has taken more than 10s', async () => {
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({ equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+
+    render(<ShopSuccessPage />);
+    await advance(0);
+    expect(screen.queryByText('Almost there…')).not.toBeInTheDocument();
+
+    await advance(10_000);
+    expect(screen.getByText('Almost there…')).toBeInTheDocument();
+  });
+
   it('stops polling and shows the support message with the order number after 60s with no change', async () => {
     searchParams.set('order', '42');
     setStoredAccountToken('sess-1');
