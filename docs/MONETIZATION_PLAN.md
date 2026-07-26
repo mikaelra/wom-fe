@@ -1,7 +1,7 @@
 # Monetization Plan — Frogskins, Wheels & Shop
 
-Status: **Phase 0 + Phase 1 shipped · 2a shipped · 2b shipped · 2c shipped · 2d partial**
-· 2e–4 specified below, ready to implement
+Status: **Phase 0 + Phase 1 shipped · 2a shipped · 2b shipped · 2c shipped · 2d partial ·
+2e shipped** · 2f specified below, ready to implement
 Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-25
 
 ## 1. Summary
@@ -1261,30 +1261,24 @@ message after the timeout. Exit (not yet met): a real test-mode purchase complet
 end-to-end from the browser, and the Special Wheel it grants spins on the wheel built in
 2b -- do this once real Stripe test keys are available (same gap as 2c).*
 
-**2e — Cherub** *(independent; can move anywhere after 2c)* — 🟡 **in progress, not
-shipped** (branch `monetization-2e-cherub-dev`, unmerged by design -- this is a live
-art/feel pass, not something to push to production sight-unseen).
-Done: `SKIN_MODEL_URLS` exception in `frogSkins.ts` (`cherub_v1` → `/models/cherub-v01.glb`,
-not the `frogs/<skin>.glb` pattern) · color (`#fef08a`) + label ("Cherub") · a hover bob in
+**2e — Cherub** *(independent; can move anywhere after 2c)* — ✅ **shipped 2026-07-26.**
+`SKIN_MODEL_URLS` exception in `frogSkins.ts` (`cherub_v1` → `/models/cherub-v01.glb`, not
+the `frogs/<skin>.glb` pattern) · color (`#fef08a`) + label ("Cherub") · a hover bob in
 `PlayerAvatars.tsx` (`cherub_v1` only, disabled while dead) so it reads as flying rather
-than standing flat like a frog -- amplitude/speed are two named constants
-(`CHERUB_HOVER_AMPLITUDE`/`CHERUB_HOVER_SPEED`) meant to be hand-tuned while watching it
-live, not derived from anything · `cherub_v1` granted directly to a dev account (`grant`
-source, bypassing the shop) so it can be equipped and taken into a real match without
-`SHOP_ENABLED`/Stripe. `fulfillment`/duplicate-confirm/shop-card-preview already came for
-free from 2c/2d's generic-by-`kind` handling, not new work here.
-Still open: **live scale/rig verification** -- this build's environment has no working
-WebGL (confirmed via a real headless-browser pass: the match loads with zero console
-errors and the cherub asset serves correctly, but the canvas itself can't paint here), so
-the actual look -- size relative to the frogs, whether the rig/pose reads correctly,
-whether the hover amplitude/speed feels right -- needs a real browser with a GPU. The
-`SpinningModelViewer` preview (shop card, inventory) was deliberately left untouched
-(no hover there) pending a decision on whether it should also bob once the in-match look
-is confirmed.
-*Exit (not yet met): buying Cherub grants `cherub_v1`, it equips, and it renders correctly
-in a match -- blocked on the live-eyeball pass above, not on anything left to build.*
-*Risk: if the model doesn't work as a player skin, this becomes art work and drops out of
-Phase 2 entirely -- still the open question this phase exists to answer.*
+than standing flat like a frog (`CHERUB_HOVER_AMPLITUDE`/`CHERUB_HOVER_SPEED`, hand-tuned
+live rather than derived) · `WellCrown` synced to the same speed/phase so it doesn't drift
+apart from a hovering Cherub underneath it (`WinnerCrown` deliberately left on its own
+original 2.2 rad/s -- only the well crown sits directly above a possibly-Cherub player).
+Verified live in a real browser by eye: scale, rig/pose, and hover feel all confirmed
+good as shipped, no further tuning requested. `fulfillment`/duplicate-confirm/shop-card
+preview came for free from 2c/2d's generic-by-`kind` handling, not new work here. The
+`SpinningModelViewer` preview (shop card, inventory) intentionally has no hover -- not
+asked for, left as a future call.
+*Exit: Cherub equips and renders correctly in a match, confirmed live. ✅ Not yet
+exercised: buying it for real -- that path is `SHOP_ENABLED`/Stripe-gated, same as every
+other product, and opens in 2f.*
+*Risk (resolved): the model works as a player skin -- this phase's original open question
+is answered.*
 
 **2f — Compliance & launch**
 `/terms` + `/refunds` pages · 18+ checkbox + `terms_version` · region gating both layers ·
