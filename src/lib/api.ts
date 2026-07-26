@@ -32,7 +32,21 @@ import {
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
   WellProfileResponseSchema,
+  ShopProductsResponseSchema,
+  CheckoutResponseSchema,
+  WheelTablesResponseSchema,
 } from '@/lib/schemas';
+
+export type ShopProduct = {
+  id: string;
+  name: string;
+  price_cents: number;
+  currency: string;
+  kind: 'wheel' | 'skin';
+  odds_denominator?: number;
+  odds?: { skin: string; weight: number; probability: number }[];
+  skin?: string;
+};
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
   const data = await request('/create_lobby', CreateLobbyResponseSchema, {
@@ -349,6 +363,44 @@ export async function resolveAccountSession(
   return request('/resolve_account_session', ResolveAccountSessionResponseSchema, {
     body: { token },
     defaultErrorMessage: 'Invalid or expired session.',
+  });
+}
+
+// docs/MONETIZATION_PLAN.md §5.3/§8 -- shop, checkout.
+
+export async function getShopProducts(): Promise<{
+  shop_enabled: boolean;
+  terms_version: string;
+  products: ShopProduct[];
+}> {
+  return request('/shop/products', ShopProductsResponseSchema, {
+    defaultErrorMessage: 'Failed to load the shop.',
+  });
+}
+
+export async function postCheckout(
+  token: string,
+  product: string,
+  confirmDuplicate?: boolean
+): Promise<{ checkout_url: string; order_id: number }> {
+  return request('/shop/checkout', CheckoutResponseSchema, {
+    body: { token, product, confirm_duplicate: confirmDuplicate },
+    defaultErrorMessage: 'Failed to start checkout.',
+  });
+}
+
+// GET /wheel/tables -- public, unauthenticated. Not currently used by
+// WheelSpinModal (still its own local table, docs/MONETIZATION_PLAN.md
+// §2.3 item 3's remaining tail -- both copies are hand-verified identical
+// today, so this is a maintenance debt, not a live discrepancy); exposed
+// here for the shop page's own odds display if it ever needs a table
+// outside a specific product's already-embedded `odds`.
+export async function getWheelTables(): Promise<{
+  normal: { skin: string; weight: number; probability: number }[];
+  special: { skin: string; weight: number; probability: number }[];
+}> {
+  return request('/wheel/tables', WheelTablesResponseSchema, {
+    defaultErrorMessage: 'Failed to load wheel odds.',
   });
 }
 

@@ -37,6 +37,13 @@ export function wheelKindFromString(kind: string): WheelKind {
   return kind === 'special' ? 'special' : 'normal';
 }
 
+// wheel_items.kind is the raw backend string ('normal' | 'special') --
+// interpolating it directly used to render "Use special Wheel" on the
+// inventory page (docs/MONETIZATION_PLAN.md §8.3).
+export function wheelKindLabel(kind: string): string {
+  return wheelKindFromString(kind) === 'special' ? 'Special Wheel' : 'Wheel';
+}
+
 const TWO_PI = Math.PI * 2;
 
 function clamp(value: number, min: number, max: number): number {

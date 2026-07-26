@@ -13,16 +13,19 @@ import {
   getPlayerProfile,
   getPlayerRelics,
   getRankedProfile,
+  getShopProducts,
   getWellProfile,
+  getWheelTables,
   joinRankedQueue,
   leaveRankedQueue,
   logInUser,
   logOut,
+  postCheckout,
   resolveAccountSession,
   spinWheel,
   verifyLoginCode,
 } from '@/lib/api';
-import { getStoredAccountToken, getStoredToken, setStoredAccountToken, setStoredToken } from '@/lib/http';
+import { ApiError, getStoredAccountToken, getStoredToken, setStoredAccountToken, setStoredToken } from '@/lib/http';
 
 const jsonResponse = (data: unknown, status = 200) =>
   ({
@@ -542,5 +545,68 @@ describe('spinWheel', () => {
   it('maps 404 to an already-spun error', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: 'Wheel not found or already spun.' }, 404));
     await expect(spinWheel('sess-1', 1)).rejects.toThrow('Wheel not found or already spun.');
+  });
+});
+
+describe('getShopProducts', () => {
+  it('returns the product list as served', async () => {
+    const body = {
+      shop_enabled: true,
+      terms_version: '2026-07',
+      products: [
+        {
+          id: 'wheel_special', name: 'Special Wheel', price_cents: 500, currency: 'usd',
+          kind: 'wheel', odds_denominator: 30000,
+          odds: [{ skin: 'frog_silver_v1', weight: 18900, probability: 0.63 }],
+        },
+        { id: 'skin_cherub', name: 'Cherub', price_cents: 50000, currency: 'usd', kind: 'skin', skin: 'cherub_v1' },
+      ],
+    };
+    fetchMock.mockResolvedValue(jsonResponse(body));
+    await expect(getShopProducts()).resolves.toEqual(body);
+  });
+
+  it('returns shop_enabled: false with an empty product list when disabled', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ shop_enabled: false, terms_version: '2026-07', products: [] }));
+    await expect(getShopProducts()).resolves.toEqual({
+      shop_enabled: false, terms_version: '2026-07', products: [],
+    });
+  });
+});
+
+describe('postCheckout', () => {
+  it('returns the checkout url and order id', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ checkout_url: 'https://checkout.stripe.com/pay/cs_1', order_id: 42 }));
+    await expect(postCheckout('sess-1', 'wheel_special')).resolves.toEqual({
+      checkout_url: 'https://checkout.stripe.com/pay/cs_1', order_id: 42,
+    });
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({ token: 'sess-1', product: 'wheel_special', confirm_duplicate: undefined });
+  });
+
+  it('surfaces the error code on ApiError so callers can branch without matching prose', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Email not verified.', code: 'email_unverified' }, 403));
+    const err = await postCheckout('sess-1', 'wheel_special').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe('email_unverified');
+    expect((err as ApiError).status).toBe(403);
+  });
+
+  it('passes confirm_duplicate through to the request body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ checkout_url: 'https://x', order_id: 1 }));
+    await postCheckout('sess-1', 'skin_cherub', true);
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({ token: 'sess-1', product: 'skin_cherub', confirm_duplicate: true });
+  });
+});
+
+describe('getWheelTables', () => {
+  it('returns both odds tables as served', async () => {
+    const body = {
+      normal: [{ skin: 'frog_blue_v1', weight: 1, probability: 0.16666666666666666 }],
+      special: [{ skin: 'frog_silver_v1', weight: 18900, probability: 0.63 }],
+    };
+    fetchMock.mockResolvedValue(jsonResponse(body));
+    await expect(getWheelTables()).resolves.toEqual(body);
   });
 });

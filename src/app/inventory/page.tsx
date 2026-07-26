@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getInventory, equipSkin, getPlayerRelics } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel, skinUrl } from '@/lib/frogSkins';
+import { wheelKindLabel } from '@/lib/wheelGeometry';
 import WheelSpinModal from '@/components/WheelSpinModal';
 import RelicCoin from '@/components/RelicCoin';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
@@ -187,9 +188,17 @@ export default function InventoryPage() {
               )}
             </div>
 
-            {wheelGroups.length > 0 && (
-              <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
-                <h2 className="text-lg font-semibold mb-4">Wheels</h2>
+            <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Wheels</h2>
+                <Link
+                  href="/shop"
+                  className="text-xs text-amber-300 hover:text-amber-200 transition-colors no-underline"
+                >
+                  Shop →
+                </Link>
+              </div>
+              {wheelGroups.length > 0 ? (
                 <div className="flex flex-wrap gap-3">
                   {wheelGroups.map((group) => (
                     <button
@@ -198,12 +207,22 @@ export default function InventoryPage() {
                       onClick={() => setSpinningWheel({ id: group.id, kind: group.kind })}
                       className="px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-semibold hover:bg-amber-600/80 transition-colors cursor-pointer"
                     >
-                      🎡 Use {group.kind} Wheel{group.count > 1 ? ` ×${group.count}` : ''}
+                      🎡 Use {wheelKindLabel(group.kind)}{group.count > 1 ? ` ×${group.count}` : ''}
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-center py-2">
+                  <p className="text-white/60 text-sm mb-3">You don&apos;t have any wheels yet.</p>
+                  <Link
+                    href="/shop"
+                    className="inline-block px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-semibold hover:bg-amber-600/80 transition-colors no-underline text-sm"
+                  >
+                    Get a Special Wheel
+                  </Link>
+                </div>
+              )}
+            </div>
 
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4">Skins</h2>
