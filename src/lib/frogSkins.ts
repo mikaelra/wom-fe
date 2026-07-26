@@ -23,8 +23,17 @@ export const ALL_FROG_SKINS = [...COMMON_SKINS, ...RARE_SKINS] as const;
 // odds) -- mirrors wom-be's routes/wheel.py NORMAL_WHEEL_SKINS exactly.
 export const NORMAL_WHEEL_SKINS = COMMON_SKINS.filter((s) => s !== 'frog_green_v1');
 
+// Every regular skin lives at /models/frogs/<skin>.glb, but a direct-purchase
+// skin like Cherub (docs/MONETIZATION_PLAN.md §3.4/§8.3) isn't a frog at all
+// -- its asset lives wherever it was dropped in public/models/, under its own
+// filename. One exception map, checked before falling back to the frog
+// pattern, rather than teaching every skinUrl() caller two different rules.
+const SKIN_MODEL_URLS: Record<string, string> = {
+  cherub_v1: '/models/cherub-v01.glb',
+};
+
 export function skinUrl(skinName: string): string {
-  return `/models/frogs/${skinName}.glb`;
+  return SKIN_MODEL_URLS[skinName] ?? `/models/frogs/${skinName}.glb`;
 }
 
 // No pre-rendered 2D thumbnails exist for these models yet (only .glb) --
@@ -48,6 +57,9 @@ const SKIN_COLORS: Record<string, string> = {
   // Light green base -- WheelCanvas layers many silver sparkle glints on
   // top of this for this skin's wheel slices.
   frog_bling_v1: '#86efac',
+  // Cherub (§3.4/§8.3, 2e) -- a direct $500 purchase, not a wheel skin.
+  // Soft halo-gold, distinct from frog_gold_v1's brighter #f5c542.
+  cherub_v1: '#fef08a',
 };
 
 export function skinColor(skinName: string): string {
@@ -64,6 +76,7 @@ const SKIN_DISPLAY_NAMES: Record<string, string> = {
   frog_purple_v1: 'Ponder Purple',
   frog_red_v1: 'Zonked Red',
   frog_yellow_v1: 'Yucky Yellow',
+  cherub_v1: 'Cherub',
 };
 
 export function skinLabel(skinName: string): string {

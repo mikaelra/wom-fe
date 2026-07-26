@@ -26,7 +26,27 @@ import {
   EquipSkinResponseSchema,
   SpinWheelResponseSchema,
   CheckClaimVerifiedResponseSchema,
+  PlayerProfileResponseSchema,
+  RankedActiveResponseSchema,
+  RankedProfileResponseSchema,
+  RankedQueueJoinResponseSchema,
+  RankedQueueLeaveResponseSchema,
+  WellProfileResponseSchema,
+  ShopProductsResponseSchema,
+  CheckoutResponseSchema,
+  WheelTablesResponseSchema,
 } from '@/lib/schemas';
+
+export type ShopProduct = {
+  id: string;
+  name: string;
+  price_cents: number;
+  currency: string;
+  kind: 'wheel' | 'skin';
+  odds_denominator?: number;
+  odds?: { skin: string; weight: number; probability: number }[];
+  skin?: string;
+};
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
   const data = await request('/create_lobby', CreateLobbyResponseSchema, {
@@ -72,6 +92,50 @@ export async function getBossfightLobby(playerName: string): Promise<{ lobby_id:
 export async function getNextBossfightTime(): Promise<{ start_time: string }> {
   return request('/get_next_bossfight_time', GetNextBossfightTimeResponseSchema, {
     defaultErrorMessage: 'Failed to fetch next boss fight time',
+  });
+}
+
+// docs/RANK_SYSTEM_PLAN.md §6/§10 -- ranked matchmaking queue + rank badge.
+
+export async function joinRankedQueue(playerName: string): Promise<{ status: string }> {
+  return request('/ranked/queue/join', RankedQueueJoinResponseSchema, {
+    body: { name: playerName },
+    defaultErrorMessage: 'Failed to join the ranked queue.',
+  });
+}
+
+export async function leaveRankedQueue(playerName: string): Promise<{ status: string; was_queued: boolean }> {
+  return request('/ranked/queue/leave', RankedQueueLeaveResponseSchema, {
+    body: { name: playerName },
+    defaultErrorMessage: 'Failed to leave the ranked queue.',
+  });
+}
+
+export async function getRankedProfile(playerName: string): Promise<{ tier: string | null; ranked_games_played: number }> {
+  return request(`/ranked/profile/${encodeURIComponent(playerName)}`, RankedProfileResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch ranked profile.',
+  });
+}
+
+export async function getActiveRankedLobby(
+  playerName: string
+): Promise<{ lobby_id: string | null; token: string | null; ranked_countdown_deadline: string | null; started: boolean }> {
+  return request(`/ranked/active/${encodeURIComponent(playerName)}`, RankedActiveResponseSchema, {
+    defaultErrorMessage: 'Failed to check for an active ranked match.',
+  });
+}
+
+export async function getWellProfile(
+  playerName: string
+): Promise<{ well_wins: number; rewards: { reward: string; count: number; first_awarded_at: string }[] }> {
+  return request(`/well/profile/${encodeURIComponent(playerName)}`, WellProfileResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch well profile.',
+  });
+}
+
+export async function getPlayerProfile(playerName: string): Promise<{ created_at: string | null; played_games: number }> {
+  return request(`/player/profile/${encodeURIComponent(playerName)}`, PlayerProfileResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch player profile.',
   });
 }
 
@@ -299,6 +363,44 @@ export async function resolveAccountSession(
   return request('/resolve_account_session', ResolveAccountSessionResponseSchema, {
     body: { token },
     defaultErrorMessage: 'Invalid or expired session.',
+  });
+}
+
+// docs/MONETIZATION_PLAN.md §5.3/§8 -- shop, checkout.
+
+export async function getShopProducts(): Promise<{
+  shop_enabled: boolean;
+  terms_version: string;
+  products: ShopProduct[];
+}> {
+  return request('/shop/products', ShopProductsResponseSchema, {
+    defaultErrorMessage: 'Failed to load the shop.',
+  });
+}
+
+export async function postCheckout(
+  token: string,
+  product: string,
+  confirmDuplicate?: boolean
+): Promise<{ checkout_url: string; order_id: number }> {
+  return request('/shop/checkout', CheckoutResponseSchema, {
+    body: { token, product, confirm_duplicate: confirmDuplicate },
+    defaultErrorMessage: 'Failed to start checkout.',
+  });
+}
+
+// GET /wheel/tables -- public, unauthenticated. Not currently used by
+// WheelSpinModal (still its own local table, docs/MONETIZATION_PLAN.md
+// §2.3 item 3's remaining tail -- both copies are hand-verified identical
+// today, so this is a maintenance debt, not a live discrepancy); exposed
+// here for the shop page's own odds display if it ever needs a table
+// outside a specific product's already-embedded `odds`.
+export async function getWheelTables(): Promise<{
+  normal: { skin: string; weight: number; probability: number }[];
+  special: { skin: string; weight: number; probability: number }[];
+}> {
+  return request('/wheel/tables', WheelTablesResponseSchema, {
+    defaultErrorMessage: 'Failed to load wheel odds.',
   });
 }
 

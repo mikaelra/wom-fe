@@ -5,6 +5,10 @@ describe('skinUrl', () => {
   it('builds the model path', () => {
     expect(skinUrl('frog_green_v1')).toBe('/models/frogs/frog_green_v1.glb');
   });
+
+  it('routes Cherub to its own asset instead of the frogs/ pattern (§3.4/§8.3)', () => {
+    expect(skinUrl('cherub_v1')).toBe('/models/cherub-v01.glb');
+  });
 });
 
 describe('NORMAL_WHEEL_SKINS', () => {
@@ -21,6 +25,10 @@ describe('skinColor', () => {
 
   it('falls back to a default color for an unknown skin', () => {
     expect(skinColor('frog_mystery_v99')).toBe('#6b7280');
+  });
+
+  it('has a color for Cherub', () => {
+    expect(skinColor('cherub_v1')).toBe('#fef08a');
   });
 });
 
@@ -39,5 +47,9 @@ describe('skinLabel', () => {
 
   it('falls back to a derived label (frog_ prefix/_vN suffix stripped) for a skin with no custom name', () => {
     expect(skinLabel('frog_gold_v1')).toBe('gold');
+  });
+
+  it('gives Cherub its own display name, not a derived one', () => {
+    expect(skinLabel('cherub_v1')).toBe('Cherub');
   });
 });

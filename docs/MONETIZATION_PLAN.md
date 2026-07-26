@@ -1,7 +1,7 @@
 # Monetization Plan — Frogskins, Wheels & Shop
 
-Status: **Phase 0 + Phase 1 shipped · 2a partial · 2b shipped** · 2c–4 specified below,
-ready to implement
+Status: **Phase 0 + Phase 1 shipped · 2a shipped · 2b shipped · 2c shipped · 2d partial ·
+2e shipped** · 2f specified below, ready to implement
 Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-25
 
 ## 1. Summary
@@ -81,8 +81,8 @@ Two conventions worth naming, because Phase 2 must follow them:
 ### 2.3 Debt Phase 1 left that Phase 2 must clear first
 
 These are not nice-to-haves; each one is either a correctness bug the moment a paid wheel
-exists, or a money-safety gap. They make up sub-phase **2a**. Status as of 2026-07-25: 1,
-2, and 5 are resolved; 3 is half-resolved; 4 and 6 are still open and block 2c.
+exists, or a money-safety gap. They make up sub-phase **2a**. Status as of 2026-07-25: all
+six resolved — **2a is fully shipped.**
 
 1. ~~**The spin RNG is `random.choice`.**~~ **Resolved.** `routes/wheel.py`'s `spin()` now
    draws via `secrets.SystemRandom()`, passed into `domain/wheels.py`'s `draw()`.
@@ -91,39 +91,39 @@ exists, or a money-safety gap. They make up sub-phase **2a**. Status as of 2026-
    from the matching table. Verified against a real hand-inserted `kind='special'` row:
    lands on the special pool, grants the right skin, `skin_items.source` records
    `wheel_special`.
-3. **The odds table exists nowhere yet — half-resolved.** `domain/wheels.py`'s
-   `WHEEL_TABLES` is now the single server-side source of truth (`draw()` and
-   `odds_payload()` both read from it), replacing the old `NORMAL_WHEEL_SKINS` duplication
-   on the backend. Still open: **`GET /wheel/tables` doesn't exist yet**, so
-   `odds_payload()` isn't served over HTTP, and `frontend/src/lib/wheelGeometry.ts` still
-   carries its own local copy of the weights (commented as "a stand-in until GET
-   /wheel/tables exists") rather than fetching from the server. §9's "displayed odds
-   generated from the same config the RNG uses" isn't fully true until that route exists
-   and the frontend fetches from it instead.
-4. **There is no multi-statement transaction helper.** `db.execute()` is documented as
-   "its own committed transaction" (`db.py:19`). The spin endpoint therefore consumes the
-   wheel and inserts the skin in two separate transactions — survivable for a free wheel
-   (the audit trail shows the gap), not for webhook fulfillment, where a crash between
-   "grant the item" and "mark the order fulfilled" means a double-grant on Stripe's retry.
-   **Still open.**
+3. ~~**The odds table exists nowhere yet.**~~ **Resolved.** `domain/wheels.py`'s
+   `WHEEL_TABLES` is the single server-side source of truth (`draw()` and `odds_payload()`
+   both read from it), and `GET /wheel/tables` now serves `odds_payload()` for both kinds
+   over HTTP — public, unauthenticated, cacheable. Still open, but out of 2a's own
+   backend-only scope: `frontend/src/lib/wheelGeometry.ts` still carries its own local copy
+   of the weights rather than fetching from this route. §9's "displayed odds generated from
+   the same config the RNG uses" is structurally true server-side now; making the frontend
+   actually consume it is 2c/2d follow-up, not a 2a blocker.
+4. ~~**There is no multi-statement transaction helper.**~~ **Resolved.** `db.transaction()`
+   wraps `get_db_engine().begin()` as a context manager; `/wheel/spin` now consumes the
+   wheel and grants the skin inside one `with transaction() as conn: ...` block instead of
+   two separate `execute()` calls, closing the money-safety gap before anything paid uses
+   the same code path.
 5. ~~**`WheelSpinModal` is a placeholder.**~~ **Resolved — this is Phase 2b, shipped.** See
    §2.5. The old color-cycling placeholder is gone; the free wheel that's already live now
    spins the real wheel built to §3.5's spec.
-6. **No rate limits on the wheel routes.** `routes/wheel.py` has no `@limiter` decorators
-   at all, and `rate_limit.py` has no token-keyed key function. **Still open** — matters
-   more once `wheel_items` can be bought, but a free-wheel spin endpoint with no rate limit
-   is already worth closing before 2c adds a paid one next to it.
+6. ~~**No rate limits on the wheel routes.**~~ **Resolved.** `rate_limit.py` gained
+   `token_from_json_body()` (mirroring `name_from_json_body`/`email_from_json_body`, not
+   lowercased since tokens are case-sensitive); `/wheel/spin` (`10/min` IP, `20/min` token),
+   `/inventory` (`60/min` IP), and `/inventory/equip` (`30/min` token) now carry the exact
+   limits from §5.4's table.
 
 ### 2.4 Not built at all
 
-`orders` table · any Stripe code or dependency (`requirements.txt` has none) · `/shop`
-anything · the Cherub skin-id → model-URL mapping (the asset `public/models/cherub-v01.glb`
-exists, unverified as a player skin) · `auth_identities` / OAuth · admin grant/revoke
-tooling · purchase analytics. **Also still not built: any way for a real player to obtain a
-`kind='special'` wheel_item** — no Shop, no Stripe, no purchase route exists yet (2c/2d).
-The only way one exists in any environment today is a hand-inserted test-grant row; the
-Special Wheel's draw logic and visuals (2a/2b) are both fully built and correct, but the
-Special Wheel itself is not reachable by a real player until 2c–2d ship.
+The Cherub skin-id → model-URL mapping (the asset `public/models/cherub-v01.glb` exists,
+unverified as a player skin) · `/shop` frontend (2d) · `auth_identities` / OAuth · admin
+grant/revoke tooling · purchase analytics. `orders` + the Stripe backend shipped in 2c
+(§12) — but **there is still no way for a real player to reach a `kind='special'`
+wheel_item**: `SHOP_ENABLED` defaults false, and even once flipped there's no `/shop`
+frontend yet to call `/shop/checkout` from (2d). The only way one exists in any environment
+today is a hand-inserted test-grant row; the Special Wheel's draw logic, visuals, and now
+its full backend purchase/fulfillment/revocation path (2a/2b/2c) are all built and correct,
+but the Special Wheel itself is not reachable by a real player until 2d ships.
 
 ### 2.5 Shipped — Phase 2b, the Wheel presentation
 
@@ -596,12 +596,13 @@ POST /claim_pending_wheel   {name, email, lobby_id} -> {success, pending_verific
 POST /inventory             {token}          -> {equipped_skin, skins:[{skin,count}], wheels:[{id,kind}]}
 POST /inventory/equip       {token, skin}    -> {success, equipped_skin}   -- 403 if not owned
 POST /wheel/spin            {token, wheel_id}-> {success, result_skin}     -- 403 if unverified
+GET  /wheel/tables          ()               -> {"normal": [...], "special": [...]}
 ```
 
 Note the shipped shapes differ from the sketch in earlier drafts: they are **POST with a
 body token**, not `GET /inventory`. New routes match the shipped convention.
 
-### 5.2 New in 2a — `routes/wheel.py`
+### 5.2 Shipped in 2a — `GET /wheel/tables`
 
 ```
 GET /wheel/tables
@@ -611,8 +612,10 @@ GET /wheel/tables
 
 Public, unauthenticated, cacheable — straight from `domain/wheels.odds_payload()`. The
 spin modal needs the slice table *before* the result arrives in order to draw the wheel
-while the request is in flight (§3.5.12), and `/shop/products` embeds the same `special`
-payload rather than computing its own. One table, one source, three consumers.
+while the request is in flight (§3.5.12), and `/shop/products` will embed the same
+`special` payload rather than computing its own once it ships. One table, one source, three
+consumers. The frontend doesn't fetch it yet (`wheelGeometry.ts` still has its own local
+copy) — wiring that up is 2c/2d follow-up, not part of what shipped here.
 
 ### 5.3 New in Phase 2 — `routes/shop.py`
 
@@ -951,7 +954,7 @@ verified emails.
 
 ## 8. Frontend work
 
-### 8.1 New — `/shop` (sub-phase 2c)
+### 8.1 Shipped (partial) — `/shop` (sub-phase 2d)
 
 `src/app/shop/page.tsx`:
 - Fetches `/shop/products` on mount (public — renders for logged-out visitors too, with
@@ -1181,14 +1184,14 @@ at real screen sizes for weeks before anything is charged for, and turns the $5 
 into "buy another spin of that thing you like" rather than "buy a color flicker".
 
 **2a — Wheel + payment safety prerequisites** *(backend only, no user-visible change)* —
-🟡 **partial, shipped 2026-07-25.** Done: `domain/wheels.py` (tables, `draw`,
-`odds_payload`) · `secrets.SystemRandom` in `routes/wheel.py` · spin dispatches on
-`wheel_items.kind`. Still open: `GET /wheel/tables` · `db.transaction()` · spin becomes
-atomic · `token_from_json_body` + rate limits on the wheel routes. See §2.3.
-*Exit (not yet fully met): a hand-inserted `kind='special'` row spins to a rare skin using
-CSPRNG ✅, in one transaction ❌; the odds table exists in exactly one place ✅ but isn't
-yet served over HTTP ❌.*
-*Size: small. Do this first — it is also a bug fix for what's already live.*
+✅ **shipped 2026-07-25.** Done: `domain/wheels.py` (tables, `draw`, `odds_payload`) ·
+`secrets.SystemRandom` in `routes/wheel.py` · spin dispatches on `wheel_items.kind` ·
+`GET /wheel/tables` · `db.transaction()` · spin's consume + grant now one commit ·
+`token_from_json_body` + rate limits on `/wheel/spin`, `/inventory`, `/inventory/equip`.
+See §2.3.
+*Exit: a hand-inserted `kind='special'` row spins to a rare skin using CSPRNG ✅, in one
+transaction ✅; the odds table exists in exactly one place ✅ and is served over HTTP ✅.*
+*Size: small. Was worth doing first — it was also a bug fix for what's already live.*
 
 **2b — The Wheel** *(the centerpiece, §3.5)* — ✅ **shipped 2026-07-25.** See §2.5.
 `wheelGeometry.ts` + `wheelPhysics.ts` (both pure, both tested) · `WheelCanvas` ·
@@ -1209,28 +1212,73 @@ code, matching the plan.*
 *Verification is by eye as much as by test: check it on a real phone in portrait and
 landscape, and on the widest monitor available, before calling it done.*
 
-**2c — Orders + Stripe backend** *(backend only)*
-`orders` table + migration · `stripe` dependency · config vars + boot validation ·
-`services/payments.py` behind the `PaymentProvider` Protocol · `routes/shop.py`
-(`/shop/products`, `/shop/checkout`, `/stripe/webhook`) · `fulfill_order` + revocation ·
-§7.4's toggle guard · the pending-order expiry sweeper · `tests/test_shop_routes.py`.
-*Exit: `stripe trigger` in test mode moves an order pending → fulfilled with exactly one
-item granted, replays are no-ops, and `charge.refunded` cleanly revokes.*
+**2c — Orders + Stripe backend** *(backend only)* — ✅ **shipped 2026-07-25.**
+`orders` table + migration · `stripe` dependency · config vars + boot validation (fails to
+boot if `SHOP_ENABLED=true` with any Stripe var missing) · `services/payments.py`'s
+`PaymentProvider` Protocol (`StripePaymentProvider` + an in-process price cache;
+`FakePaymentProvider` in `tests/conftest.py`) · `routes/shop.py` (`/shop/products`,
+`/shop/checkout`, `/stripe/webhook`) · `fulfill_order` (atomic, `FOR UPDATE`-locked) ·
+region-blocked-at-fulfillment refund path (§9.1) · `revoke_order` (refund/chargeback
+revocation, §6.5) · §7.4's `paid_account` toggle guard in `routes/auth.py` · the
+pending-order expiry sweeper · rate limits on `/shop/checkout`/`/shop/products` ·
+`tests/test_shop_routes.py` + `tests/test_payments.py` (StripePaymentProvider mocked at
+the SDK boundary, no real keys).
+*Exit, automated-test level (met): same event delivered twice grants exactly once ✅,
+region-blocked fulfillment refunds without granting ✅, refund/chargeback revocation
+deletes the right rows and resets `equipped_skin` ✅, bad webhook signature grants nothing
+✅. Exit, §6.7's manual pass (not yet done -- needs real Stripe test-mode keys, which this
+build didn't have): `stripe trigger checkout.session.completed` against a live
+`stripe listen`-forwarded webhook, plus the `4000 0000 0000 0341` and
+`charge.dispute.created` manual passes. Do this once real Stripe test keys are available,
+before flipping `SHOP_ENABLED` for real (2f).*
 *Size: the biggest single chunk of backend work in Phase 2.*
 
-**2d — Shop frontend**
-`/shop`, `/shop/success`, `/shop/cancel` · `getShopProducts` / `postCheckout` + schemas ·
-error-`code` handling incl. the inline verification flow · inventory wheel labels + Shop
-links · odds table on the card *and* in the wheel modal.
-*Exit: a test-mode purchase completes end-to-end from the browser, and the Special Wheel
-it grants spins on the wheel built in 2b.*
+**2d — Shop frontend** — 🟡 **partial, shipped 2026-07-26.**
+Done: `/shop` (fetches `/shop/products`, renders each product generically by `kind`,
+odds table straight from the product's embedded `odds` -- never hardcoded, guards §9.2) ·
+`/shop/success` (polls `/inventory` for the item-count change, 60s timeout message,
+never claims the payment failed) · `/shop/cancel` · `/terms` + `/refunds` (pulled forward
+from 2f -- the checkbox needed somewhere real to link to) · `getShopProducts` /
+`postCheckout` + schemas · `ApiError.code` widened generically in `http.ts` (not shop-only)
+so every call site can branch on the machine-readable code · the inline email-verification
+gate (reuses `claimName`'s existing idempotent resend + `useClaimVerificationPoll`, not a
+new component) · `already_owned` duplicate-confirm flow · `region_blocked` inline message ·
+inventory wheel labels (`wheelKindLabel`: "Special Wheel" vs "Wheel", not the raw backend
+string) + a Shop link and empty-state CTA on the Wheels card · a Shop entry in the home
+page's user menu.
+Still open: **`WheelSpinModal`'s odds table** -- still its own local copy in
+`wheelGeometry.ts`, not fetched from `GET /wheel/tables` (§2.3 item 3's original tail;
+both copies are hand-verified byte-for-byte identical today, so this is a maintenance
+debt, not a live discrepancy, but it's the one piece of "odds table ... in the wheel
+modal" not done here). **A real Stripe test-mode click-through** (§12's own exit
+criterion below) -- this build had no real Stripe test keys available; only automated
+tests (mocked `ShopProduct`/`ApiError` responses) and a live, unauthenticated smoke check
+against the real dev backend (confirms `/shop` correctly shows "not open yet" while
+`SHOP_ENABLED=false`) were possible in this environment.
+*Exit (automated-test level, met): odds render exactly the served numbers, every error
+`code` drives the right UI branch, the success page stops polling and shows the support
+message after the timeout. Exit (not yet met): a real test-mode purchase completes
+end-to-end from the browser, and the Special Wheel it grants spins on the wheel built in
+2b -- do this once real Stripe test keys are available (same gap as 2c).*
 
-**2e — Cherub** *(independent; can move anywhere after 2c)*
-Asset verification in a live lobby (scale/rig/size) → `SKIN_MODEL_URLS` exception, color +
-label, shop card with model preview, duplicate-confirm flow, `skin_cherub` fulfillment.
-*Exit: buying Cherub grants `cherub_v1`, it equips, and it renders correctly in a match.*
-*Risk: if the model doesn't work as a player skin, this becomes art work and drops out of
-Phase 2 entirely.*
+**2e — Cherub** *(independent; can move anywhere after 2c)* — ✅ **shipped 2026-07-26.**
+`SKIN_MODEL_URLS` exception in `frogSkins.ts` (`cherub_v1` → `/models/cherub-v01.glb`, not
+the `frogs/<skin>.glb` pattern) · color (`#fef08a`) + label ("Cherub") · a hover bob in
+`PlayerAvatars.tsx` (`cherub_v1` only, disabled while dead) so it reads as flying rather
+than standing flat like a frog (`CHERUB_HOVER_AMPLITUDE`/`CHERUB_HOVER_SPEED`, hand-tuned
+live rather than derived) · `WellCrown` synced to the same speed/phase so it doesn't drift
+apart from a hovering Cherub underneath it (`WinnerCrown` deliberately left on its own
+original 2.2 rad/s -- only the well crown sits directly above a possibly-Cherub player).
+Verified live in a real browser by eye: scale, rig/pose, and hover feel all confirmed
+good as shipped, no further tuning requested. `fulfillment`/duplicate-confirm/shop-card
+preview came for free from 2c/2d's generic-by-`kind` handling, not new work here. The
+`SpinningModelViewer` preview (shop card, inventory) intentionally has no hover -- not
+asked for, left as a future call.
+*Exit: Cherub equips and renders correctly in a match, confirmed live. ✅ Not yet
+exercised: buying it for real -- that path is `SHOP_ENABLED`/Stripe-gated, same as every
+other product, and opens in 2f.*
+*Risk (resolved): the model works as a player skin -- this phase's original open question
+is answered.*
 
 **2f — Compliance & launch**
 `/terms` + `/refunds` pages · 18+ checkbox + `terms_version` · region gating both layers ·

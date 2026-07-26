@@ -115,7 +115,7 @@ describe('InventoryPage', () => {
     render(<InventoryPage />);
     await flush();
 
-    expect(screen.getByRole('button', { name: /Use normal Wheel/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Use Wheel/ })).toBeInTheDocument();
   });
 
   it('opens the spin modal when a wheel is used', async () => {
@@ -129,7 +129,7 @@ describe('InventoryPage', () => {
     await flush();
 
     mockedSpinWheel.mockReturnValue(new Promise(() => {})); // never resolves; only the open state matters here
-    fireEvent.click(screen.getByRole('button', { name: /Use normal Wheel/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Use Wheel/ }));
 
     expect(screen.getByText('🎡')).toBeInTheDocument();
   });
@@ -187,7 +187,30 @@ describe('InventoryPage', () => {
     render(<InventoryPage />);
     await flush();
 
-    expect(screen.getByRole('button', { name: '🎡 Use normal Wheel ×3' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '🎡 Use Wheel ×3' })).toBeInTheDocument();
+  });
+
+  it('labels a special-kind wheel "Special Wheel", not the raw backend kind', async () => {
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({
+      equipped_skin: 'frog_green_v1',
+      skins: [],
+      wheels: [{ id: 1, kind: 'special' }],
+    });
+    render(<InventoryPage />);
+    await flush();
+
+    expect(screen.getByRole('button', { name: '🎡 Use Special Wheel' })).toBeInTheDocument();
+  });
+
+  it('shows a Shop link and empty-state CTA when there are no wheels', async () => {
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({ equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+    render(<InventoryPage />);
+    await flush();
+
+    expect(screen.getByText('Get a Special Wheel')).toHaveAttribute('href', '/shop');
+    expect(screen.getByText('Shop →')).toHaveAttribute('href', '/shop');
   });
 
   it('shows a waiting-for-verification message when a claim is pending on this browser', async () => {

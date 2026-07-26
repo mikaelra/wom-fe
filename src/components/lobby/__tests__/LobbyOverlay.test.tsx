@@ -134,6 +134,99 @@ describe('renderGameOver', () => {
     render(<>{renderGameOver(opts)}</>);
     expect(screen.queryByText(/to start earning Wheels/)).not.toBeInTheDocument();
   });
+
+  it('shows "Ranked up!" and the new tier on a promotion', () => {
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: {
+            ...opts.state,
+            ranked_results: { Alice: { tier_before: 'Djinn I', tier_after: 'Djinn II', promoted: true } },
+          },
+        })}
+      </>,
+    );
+    expect(screen.getByText('Djinn II')).toBeInTheDocument();
+    expect(screen.getByText('Ranked up!')).toBeInTheDocument();
+    expect(screen.queryByText('Djinn I')).not.toBeInTheDocument();
+    expect(screen.queryByText(/rating/)).not.toBeInTheDocument();
+  });
+
+  it('shows "Ranked down." and the new tier on a demotion', () => {
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: {
+            ...opts.state,
+            ranked_results: { Alice: { tier_before: 'Djinn II', tier_after: 'Djinn I', promoted: false } },
+          },
+        })}
+      </>,
+    );
+    expect(screen.getByText('Djinn I')).toBeInTheDocument();
+    expect(screen.getByText('Ranked down.')).toBeInTheDocument();
+  });
+
+  it('shows just the current tier, with no up/down text, when the tier did not change', () => {
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: {
+            ...opts.state,
+            ranked_results: { Alice: { tier_before: 'Djinn I', tier_after: 'Djinn I', promoted: null } },
+          },
+        })}
+      </>,
+    );
+    expect(screen.getByText('Djinn I')).toBeInTheDocument();
+    expect(screen.queryByText('Ranked up!')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ranked down.')).not.toBeInTheDocument();
+  });
+
+  it('shows "Placement complete!" and the debut tier on the game-10 reveal', () => {
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: {
+            ...opts.state,
+            ranked_results: { Alice: { tier_before: null, tier_after: 'Warlock', promoted: null } },
+          },
+        })}
+      </>,
+    );
+    expect(screen.getByText('Warlock')).toBeInTheDocument();
+    expect(screen.getByText('Placement complete!')).toBeInTheDocument();
+    expect(screen.queryByText('Ranked up!')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ranked down.')).not.toBeInTheDocument();
+  });
+
+  it('shows nothing rank-related while the rank is still hidden (placements)', () => {
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: {
+            ...opts.state,
+            ranked_results: { Alice: { tier_before: null, tier_after: null, promoted: null } },
+          },
+        })}
+      </>,
+    );
+    expect(screen.queryByText('Ranked up!')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ranked down.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Unranked')).not.toBeInTheDocument();
+    expect(screen.queryByText('Placement complete!')).not.toBeInTheDocument();
+  });
+
+  it('shows nothing rank-related for a non-ranked match', () => {
+    render(<>{renderGameOver(opts)}</>);
+    expect(screen.queryByText(/rating/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Ranked up!')).not.toBeInTheDocument();
+  });
 });
 
 describe('renderPreGame', () => {
@@ -145,6 +238,7 @@ describe('renderPreGame', () => {
     boss: undefined,
     raidMins: null,
     raidSecs: null,
+    rankedSecondsLeft: null,
     btn: '',
     onStartGame: vi.fn(),
     onAddDummy: vi.fn(),
@@ -311,6 +405,32 @@ describe('renderPreGame', () => {
     })}</>);
     fireEvent.click(screen.getByText('Start Game'));
     expect(onStartGame).toHaveBeenCalled();
+  });
+
+  it('shows the ranked countdown and join progress for a ranked lobby', () => {
+    render(<>{renderPreGame({
+      ...baseOpts,
+      rankedSecondsLeft: 42,
+      state: { ...baseState, ranked: true, players: [basePlayer, { ...basePlayer, name: 'Bob' }] },
+    })}</>);
+    expect(screen.getByText('Ranked Match')).toBeInTheDocument();
+    expect(screen.getByText('2/6 players joined')).toBeInTheDocument();
+    expect(screen.getByText('Match starts in 42s')).toBeInTheDocument();
+  });
+
+  it('shows no countdown line for a ranked lobby before the deadline is known', () => {
+    render(<>{renderPreGame({
+      ...baseOpts,
+      rankedSecondsLeft: null,
+      state: { ...baseState, ranked: true, players: [basePlayer] },
+    })}</>);
+    expect(screen.getByText('Ranked Match')).toBeInTheDocument();
+    expect(screen.queryByText(/Match starts in/)).not.toBeInTheDocument();
+  });
+
+  it('shows no ranked panel for a non-ranked lobby', () => {
+    render(<>{renderPreGame(baseOpts)}</>);
+    expect(screen.queryByText('Ranked Match')).not.toBeInTheDocument();
   });
 });
 

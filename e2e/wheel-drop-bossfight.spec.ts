@@ -37,9 +37,28 @@ test.setTimeout(25 * 60_000);
 // join-lobby-code input, so a coordinate click there hits the input instead
 // of the canvas -- confirmed empirically (elementFromPoint at Athens'
 // bounding-box centre resolves to the <input>, not <canvas>, at 320x240, but
-// correctly resolves to <canvas> at 480x360 and up). 480x360 is the smallest
-// size that clears the overlap.
-test.use({ viewport: { width: 480, height: 360 } });
+// correctly resolves to <canvas> at 480x360 and up).
+//
+// Height was bumped 360 -> 640 -> 900: WorldMapOverlay's ranked-queue entry
+// point (Play Ranked / Searching-for-a-match) sits at a *fixed* pixel offset
+// (`top-16` under the title, a 249x54 box spanning y:104-158 regardless of
+// viewport size) while the Athens marker's on-screen position turned out NOT
+// to be a clean height/2 projection as first assumed -- measured directly
+// against the live dev stack via boundingBox() polling, it settles around
+// y:125-155 at 640 tall and y:178-183 at 900 tall (moves down with height,
+// but nowhere near proportionally). At 640 that still lands the marker
+// squarely inside the button's box, so a force-click meant for Athens landed
+// on "Play Ranked" instead (confirmed via a CI trace: click point (143, 155)
+// on a 480x640 canvas), quietly queuing this test's throwaway account for
+// ranked matchmaking instead of navigating to the boss-fight lobby --
+// `waitForURL(/\/lobby\//)` then timed out waiting for a match that had no
+// second player to pair with. 900 gives ~20-25px of measured clearance
+// between the two boxes. Width alone never separates them (both the button
+// and the marker are horizontally centred on the viewport's own midpoint).
+// If this starts flaking again, don't re-guess -- open the dev stack and
+// poll both elements' boundingBox() over a couple seconds like this fix did,
+// rather than assuming a projection formula that isn't actually true.
+test.use({ viewport: { width: 480, height: 900 } });
 
 const MAX_ATTEMPTS = 20;
 

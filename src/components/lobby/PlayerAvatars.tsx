@@ -2,7 +2,7 @@
 
 import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
-import { useRef, useMemo, memo, Suspense, type CSSProperties } from 'react';
+import { useRef, useMemo, memo, Suspense, type CSSProperties, type ReactNode } from 'react';
 import * as THREE from 'three';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
@@ -91,12 +91,21 @@ function InfoRevealContent({ badge }: { badge: InfoRevealBadge }) {
 
 // Inner components mount only while a crown is visible, so the bobbing
 // useFrame (and the GLB clone) costs nothing the rest of the game.
-function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale }: {
+function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale, speed = 2.2, phase = 0 }: {
   url: string;
   worldPosition: [number, number, number];
   yOffset: number;
   bobAmp: number;
   scale: number;
+  /** Radians/sec. Defaults to the crown's own original speed -- WellCrown
+      overrides this to match CHERUB_HOVER_SPEED below so the two don't
+      visibly drift out of sync when the well winner has Cherub equipped. */
+  speed?: number;
+  /** Phase offset (radians), same role as HoveringModel's -- WellCrown
+      passes the well winner's own worldPosition[0], the same value used as
+      that player's hoverPhase, so a synced crown+Cherub move in lockstep
+      rather than merely sharing a frequency. */
+  phase?: number;
 }) {
   const { scene } = useGLTF(url);
   const crownScene = useMemo(() => scene.clone(), [scene]);
@@ -104,7 +113,8 @@ function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale }: {
 
   useFrame((clockState) => {
     if (ref.current) {
-      ref.current.position.y = worldPosition[1] + yOffset + Math.sin(clockState.clock.elapsedTime * 2.2) * bobAmp;
+      ref.current.position.y =
+        worldPosition[1] + yOffset + Math.sin(clockState.clock.elapsedTime * speed + phase) * bobAmp;
       ref.current.rotation.y = clockState.clock.elapsedTime * 0.45;
     }
   });
@@ -123,29 +133,76 @@ export function WinnerCrown({ worldPosition }: { worldPosition: [number, number,
 
 export function WellCrown({ worldPosition }: { worldPosition: [number, number, number] | null }) {
   if (!worldPosition) return null;
-  return <BobbingCrown url="/models/crowns/well_crown_v1.glb" worldPosition={worldPosition} yOffset={0.65} bobAmp={0.07} scale={0.2} />;
+  // Synced to the Cherub hover below (same speed, same phase source --
+  // worldPosition[0], which is exactly what PlayerWithName passes as that
+  // player's own hoverPhase) so the well winner's crown and their Cherub
+  // (if equipped) bob together instead of drifting apart.
+  return (
+    <BobbingCrown
+      url="/models/crowns/well_crown_v1.glb"
+      worldPosition={worldPosition}
+      yOffset={0.65}
+      bobAmp={0.07}
+      scale={0.2}
+      speed={CHERUB_HOVER_SPEED}
+      phase={worldPosition[0]}
+    />
+  );
 }
 
 
+// Cherub (2e, docs/MONETIZATION_PLAN.md §3.4/§8.3) hovers in place rather
+// than standing flat on the ground like a frog -- an angel that doesn't fly
+// reads wrong. A separate outer group (not a change to PlayerV1 itself) so
+// this sinusoidal Y offset composes with PlayerV1's own attack-lunge/death
+// positioning (it damps modelRef.current.position toward a local target)
+// instead of fighting it -- same "wrap, don't modify" approach as
+// LostSoulModel's bob above.
+//
+// Tunable while live-testing: amplitude (world units) and speed
+// (radians/sec) are the two knobs, angelBob is the phase offset so several
+// hovering players don't bob in lockstep.
+const CHERUB_HOVER_AMPLITUDE = 0.08;
+const CHERUB_HOVER_SPEED = 1.6;
+
+function HoveringModel({ children, phase = 0 }: { children: ReactNode; phase?: number }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame((state) => {
+    if (ref.current) {
+      ref.current.position.y =
+        Math.sin(state.clock.elapsedTime * CHERUB_HOVER_SPEED + phase) * CHERUB_HOVER_AMPLITUDE;
+    }
+  });
+  return <group ref={ref}>{children}</group>;
+}
+
 // Holds only the GLB-dependent parts of a player slot so it can be Suspense-wrapped
 // independently of the HTML UI (names / action buttons) rendered by PlayerWithName.
-function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield }: {
+function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, hover, hoverPhase }: {
   modelUrl: string;
   isBoss: boolean;
   isAnimating: boolean;
   isDead?: boolean;
   showShield?: boolean;
+  /** Cherub-only: bob gently in place instead of standing flat. */
+  hover?: boolean;
+  hoverPhase?: number;
 }) {
+  const model = (
+    <PlayerV1
+      url={modelUrl}
+      scale={isBoss ? 1.44 : 0.6}
+      position={[0, 0, 0]}
+      rotation={[0, 0, 0]}
+      isAnimating={isAnimating}
+      isDead={isDead}
+    />
+  );
   return (
     <>
-      <PlayerV1
-        url={modelUrl}
-        scale={isBoss ? 1.44 : 0.6}
-        position={[0, 0, 0]}
-        rotation={[0, 0, 0]}
-        isAnimating={isAnimating}
-        isDead={isDead}
-      />
+      {/* No hover once dead -- a defeated Cherub tips onto its side (PlayerV1's
+          own isDead pose) rather than floating, same as every other skin. */}
+      {hover && !isDead ? <HoveringModel phase={hoverPhase}>{model}</HoveringModel> : model}
       {showShield && <ShieldEffect />}
     </>
   );
@@ -202,6 +259,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   infoReveal?: InfoRevealBadge | null;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
+  const isCherub = modelUrl === skinUrl('cherub_v1');
   // Welcome-tour highlights — glow the real button(s) the current slide points at.
   const hl = highlight ?? {};
   const hlAttack = guideGlowClass(hl.attack);
@@ -210,7 +268,15 @@ export const PlayerWithName = memo(function PlayerWithName({
     <group position={position} rotation={[rotation[0], rotation[1] + Math.PI / 2, rotation[2]]}>
       {/* 3D model — lazy; suspends until GLB is ready */}
       <Suspense fallback={null}>
-        <PlayerModelLayer modelUrl={modelUrl} isBoss={!!isBoss} isAnimating={isAnimating} isDead={isDead} showShield={showShield} />
+        <PlayerModelLayer
+          modelUrl={modelUrl}
+          isBoss={!!isBoss}
+          isAnimating={isAnimating}
+          isDead={isDead}
+          showShield={showShield}
+          hover={isCherub}
+          hoverPhase={position[0]}
+        />
       </Suspense>
 
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
