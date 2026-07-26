@@ -91,12 +91,21 @@ function InfoRevealContent({ badge }: { badge: InfoRevealBadge }) {
 
 // Inner components mount only while a crown is visible, so the bobbing
 // useFrame (and the GLB clone) costs nothing the rest of the game.
-function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale }: {
+function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale, speed = 2.2, phase = 0 }: {
   url: string;
   worldPosition: [number, number, number];
   yOffset: number;
   bobAmp: number;
   scale: number;
+  /** Radians/sec. Defaults to the crown's own original speed -- WellCrown
+      overrides this to match CHERUB_HOVER_SPEED below so the two don't
+      visibly drift out of sync when the well winner has Cherub equipped. */
+  speed?: number;
+  /** Phase offset (radians), same role as HoveringModel's -- WellCrown
+      passes the well winner's own worldPosition[0], the same value used as
+      that player's hoverPhase, so a synced crown+Cherub move in lockstep
+      rather than merely sharing a frequency. */
+  phase?: number;
 }) {
   const { scene } = useGLTF(url);
   const crownScene = useMemo(() => scene.clone(), [scene]);
@@ -104,7 +113,8 @@ function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale }: {
 
   useFrame((clockState) => {
     if (ref.current) {
-      ref.current.position.y = worldPosition[1] + yOffset + Math.sin(clockState.clock.elapsedTime * 2.2) * bobAmp;
+      ref.current.position.y =
+        worldPosition[1] + yOffset + Math.sin(clockState.clock.elapsedTime * speed + phase) * bobAmp;
       ref.current.rotation.y = clockState.clock.elapsedTime * 0.45;
     }
   });
@@ -123,7 +133,21 @@ export function WinnerCrown({ worldPosition }: { worldPosition: [number, number,
 
 export function WellCrown({ worldPosition }: { worldPosition: [number, number, number] | null }) {
   if (!worldPosition) return null;
-  return <BobbingCrown url="/models/crowns/well_crown_v1.glb" worldPosition={worldPosition} yOffset={0.65} bobAmp={0.07} scale={0.2} />;
+  // Synced to the Cherub hover below (same speed, same phase source --
+  // worldPosition[0], which is exactly what PlayerWithName passes as that
+  // player's own hoverPhase) so the well winner's crown and their Cherub
+  // (if equipped) bob together instead of drifting apart.
+  return (
+    <BobbingCrown
+      url="/models/crowns/well_crown_v1.glb"
+      worldPosition={worldPosition}
+      yOffset={0.65}
+      bobAmp={0.07}
+      scale={0.2}
+      speed={CHERUB_HOVER_SPEED}
+      phase={worldPosition[0]}
+    />
+  );
 }
 
 
