@@ -81,6 +81,14 @@ describe('ShopPage', () => {
     expect(screen.getByText(/isn't open yet/)).toBeInTheDocument();
   });
 
+  it('links to the inventory page next to the Shop heading', async () => {
+    mockedGetShopProducts.mockResolvedValue({ shop_enabled: false, terms_version: '2026-07', products: [] });
+    render(<ShopPage />);
+    await flush();
+
+    expect(screen.getByText('Inventory')).toHaveAttribute('href', '/inventory');
+  });
+
   it('reveals the wheel odds, matching the served numbers exactly, behind the info toggle (§9.2)', async () => {
     mockedGetShopProducts.mockResolvedValue({
       shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],

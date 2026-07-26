@@ -169,7 +169,15 @@ export default function ShopPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
       <div className="w-full max-w-2xl">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold tracking-wide">Shop</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-wide">Shop</h1>
+            <Link
+              href="/inventory"
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-white/20 transition-colors no-underline"
+            >
+              Inventory
+            </Link>
+          </div>
           <Link
             href="/"
             className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-white/20 transition-colors no-underline"
