@@ -821,9 +821,25 @@ Ops: refunds are issued from the **Stripe dashboard** at launch (no admin UI unt
 
 ### 6.6 Tax: what selling from a Norwegian ENK requires
 
-**Decided: Stripe, with our own VAT registrations.** Not a merchant of record. *General
-orientation, not tax advice — an hour with a Norwegian regnskapsfører before 2f is cheap
-and is the right way to confirm all of this.*
+**Superseded 2026-07-26: Stripe Managed Payments chosen instead.** Stripe now offers this
+natively (not just the third-party MoRs discussed below) — enrolling makes Stripe the
+liable party for global sales tax/VAT and folds in automated fraud prevention and dispute
+handling, for a **3.5% add-on fee per transaction** (on top of standard processing fees).
+That removes every registration/filing step below (Norwegian MVA, non-Union OSS) and the
+manual Radar dashboard config in §12's checklist — none of it is needed while enrolled.
+Chosen because it means launching **worldwide immediately**, not gated on Norway-only
+scope while registrations land, and 3.5% of a small early-revenue number is a rounding
+error next to that speed. The analysis below (self-managed VAT, the crossover math, the
+`ALLOWED_COUNTRIES` allowlist in §9.1a) is kept as the fallback: the `PaymentProvider`
+Protocol (§6.2) makes switching back a config change, not a rewrite, and the crossover
+point — where a flat registration+accountant cost beats a percentage of revenue — is the
+trigger to revisit, same logic as the MoR comparison below just flipped. *Not tax advice
+either way — worth confirming Managed Payments' exact terms (fee stacking, availability
+for a paid-loot-box business) directly with Stripe, and/or an hour with a Norwegian
+regnskapsfører, before real money moves.*
+
+**Original decision (superseded above): Stripe, with our own VAT registrations.** Not a
+merchant of record. *General orientation, not tax advice.*
 
 Selling a digital good to a consumer means charging **VAT at the buyer's country's rate**
 and remitting it there. Stripe is a payment processor, not a seller, so the ENK is the
@@ -1308,22 +1324,25 @@ both layers -- pre-check at checkout and the authoritative check at fulfillment 
 **support email published on the shop pages**, shipped 2026-07-26 (`SUPPORT_EMAIL` in
 `config.ts`, `support@worldofmythos.net`, linked from `/terms`, `/refunds`, and
 `/shop/success`'s timeout state) ·
-**temporary Norway-only launch-scope allowlist**, shipped 2026-07-26 (`ALLOWED_COUNTRIES`
-in `config.py`, §9.1a -- lets the shop go live scoped to Norway before non-Union OSS is
-registered, without waiting on the rest of §6.6).
-Still open -- all of it business/ops action outside what code can do: set
-`ALLOWED_COUNTRIES=NO` and register **Norwegian MVA only** (not the full non-Union OSS --
-deferred until expanding past Norway; §6.6) · **fraud rules** (Stripe Radar dashboard
-config -- default rules + "block if CVC fails" + manual review above $100) · live Stripe
-keys · webhook endpoint registered in the live Stripe dashboard with the right events
+**`ALLOWED_COUNTRIES` launch-scope allowlist**, shipped 2026-07-26 (`config.py`, §9.1a --
+built for a Norway-only interim launch, kept as dormant fallback infrastructure now that
+§6.6 chose Managed Payments instead; leave unset so it restricts nothing).
+**Decided 2026-07-26: Stripe Managed Payments** (§6.6) over self-managed VAT
+registrations -- Stripe is liable for VAT globally and automates fraud/dispute handling
+for 3.5%/transaction, so the shop launches **worldwide immediately**, not scoped to
+Norway, and `ALLOWED_COUNTRIES` stays unset. `BLOCKED_COUNTRIES` (BE/NL, the loot-box
+gambling-law gate) is unrelated to this and still applies regardless.
+Still open -- all of it business/ops action outside what code can do: **enroll in
+Managed Payments** in the Stripe dashboard and confirm its exact terms (fee stacking with
+standard processing, availability for a paid-loot-box business) · live Stripe keys ·
+webhook endpoint registered in the live Stripe dashboard with the right events
 (`STRIPE_WEBHOOK_SECRET` must be the **live** one -- a test-mode secret against live
 traffic fails every signature silently) · prices created in live mode and the ids swapped
-· a real NOK purchase made and refunded end-to-end · `SHOP_ENABLED=true`.
-*Once ready to expand past Norway: get the non-Union OSS registration (§6.6, no
-threshold -- must be in place before the first EU sale, not after it), enable Stripe Tax
-with tax-inclusive pricing, then widen or clear `ALLOWED_COUNTRIES`.*
-*Exit (interim, Norway-only): first real NOK purchase, correctly fulfilled and
-refundable. Exit (full): first EU sale, VAT correctly collected via Stripe Tax.*
+· a real purchase made and refunded end-to-end · `SHOP_ENABLED=true`.
+*If Managed Payments turns out not to fit (business-type restriction, cost past the
+crossover) fall back to §6.6's self-managed path: Norwegian MVA + non-Union OSS
+registration, Stripe Tax, and set `ALLOWED_COUNTRIES=NO` while only Norway is registered.*
+*Exit: first real purchase, correctly fulfilled and refundable.*
 
 ### Phase 3 — Social login *(on hold, no active work)*
 
@@ -1394,13 +1413,15 @@ Added 2026-07-24:
     (§3.5.5).
 20. **Cruise speed is derived from the ease-out** (`ω_cruise = p·D/T`) so pressing STOP
     ROLL produces no velocity jolt (§3.5.6).
-21. **Stripe, with our own VAT registrations — not a merchant of record** (§6.6). An MoR's
-    ~5% scales with revenue while two registrations plus an accountant is a flat annual
-    cost, so the fixed-cost path wins from the low tens of thousands of revenue upward. An
-    earlier draft put that crossover in the six figures, which was wrong and is corrected
-    here. The triggers to revisit are behavioural, not numeric: filings that don't happen
-    (an ENK's VAT liability is personal and unlimited), or chargeback losses on the $500
-    SKU. The `PaymentProvider` Protocol keeps the switch to one file (§6.2).
+21. **Stripe Managed Payments (3.5%/transaction), not self-managed VAT registrations**
+    (§6.6, decided 2026-07-26, supersedes an earlier self-managed decision here). Stripe
+    becomes liable for global VAT and automates fraud/dispute handling, which is what lets
+    the shop launch worldwide immediately instead of scoped to Norway pending
+    registrations. The self-managed math is kept as the fallback: an MoR's cut scales with
+    revenue while two registrations plus an accountant is a flat annual cost, so the
+    fixed-cost path wins from the low tens of thousands of revenue upward — that crossover,
+    not a fixed date, is the trigger to revisit. The `PaymentProvider` Protocol keeps the
+    switch to one file either direction (§6.2).
 22. **§9.3's no-cash-out/no-trading rule is load-bearing for payments**, not just
     compliance: it is what keeps a paid randomized item outside the "games of chance for
     prizes of monetary value" category payment processors restrict. Relaxing it later is a
