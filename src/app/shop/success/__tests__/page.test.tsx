@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import ShopSuccessPage from '@/app/shop/success/page';
 import { getInventory } from '@/lib/api';
+import { SUPPORT_EMAIL } from '@/config';
 import { setStoredAccountToken } from '@/lib/http';
 
 const searchParams = new URLSearchParams();
@@ -58,6 +59,7 @@ describe('ShopSuccessPage', () => {
     await advance(60_000);
 
     expect(screen.getByText(/order #42/)).toBeInTheDocument();
+    expect(screen.getByText(SUPPORT_EMAIL)).toHaveAttribute('href', `mailto:${SUPPORT_EMAIL}`);
 
     const callsAtTimeout = mockedGetInventory.mock.calls.length;
     await advance(10_000);

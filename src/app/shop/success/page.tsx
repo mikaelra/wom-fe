@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getInventory } from '@/lib/api';
+import { SUPPORT_EMAIL } from '@/config';
 import { getStoredAccountToken } from '@/lib/http';
 
 const POLL_INTERVAL_MS = 2000;
@@ -94,8 +95,11 @@ function ShopSuccessContent() {
           <>
             <p className="text-3xl mb-3">📬</p>
             <p className="text-white/70 mb-2">
-              Payment received. If it isn&apos;t in your inventory in a few minutes, contact
-              support{orderId ? ` with order #${orderId}` : ''}.
+              Payment received. If it isn&apos;t in your inventory in a few minutes, contact{' '}
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-300 underline hover:text-amber-200">
+                {SUPPORT_EMAIL}
+              </a>
+              {orderId ? ` with order #${orderId}` : ''}.
             </p>
             <Link
               href="/inventory"

@@ -1,7 +1,8 @@
 # Monetization Plan — Frogskins, Wheels & Shop
 
 Status: **Phase 0 + Phase 1 shipped · 2a shipped · 2b shipped · 2c shipped · 2d partial ·
-2e shipped** · 2f specified below, ready to implement
+2e shipped · 2f partial (code-actionable pieces done; VAT/live-keys/Stripe-dashboard work
+outstanding)**
 Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-25
 
 ## 1. Summary
@@ -1280,20 +1281,24 @@ other product, and opens in 2f.*
 *Risk (resolved): the model works as a player skin -- this phase's original open question
 is answered.*
 
-**2f — Compliance & launch**
-`/terms` + `/refunds` pages · 18+ checkbox + `terms_version` · region gating both layers ·
-fraud rules · **VAT registrations obtained and entered into Stripe Tax** (§6.6) · live
-Stripe keys · `SHOP_ENABLED=true`.
+**2f — Compliance & launch** — 🟡 **partial.** Every piece that's just code is done:
+`/terms` + `/refunds` pages (2d) · 18+ checkbox + `terms_version` (2d) · region gating
+both layers -- pre-check at checkout and the authoritative check at fulfillment (2c) ·
+**Sentry alert on any order older than 10 minutes still in `pending`/`paid`**, shipped
+2026-07-26 (`routes/shop.py`'s `alert_stuck_orders`/`stuck_order_alert_task`, backend) ·
+**support email published on the shop pages**, shipped 2026-07-26 (`SUPPORT_EMAIL` in
+`config.ts`, `support@worldofmythos.net`, linked from `/terms`, `/refunds`, and
+`/shop/success`'s timeout state).
+Still open -- all of it business/ops action outside what code can do: **fraud rules**
+(Stripe Radar dashboard config -- default rules + "block if CVC fails" + manual review
+above $100) · **VAT registrations obtained and entered into Stripe Tax** (§6.6) · live
+Stripe keys · webhook endpoint registered in the live Stripe dashboard with the right
+events (`STRIPE_WEBHOOK_SECRET` must be the **live** one -- a test-mode secret against
+live traffic fails every signature silently) · prices created in live mode and the ids
+swapped · a real €/$ purchase made and refunded end-to-end · `SHOP_ENABLED=true`.
 *The registrations are the long pole here — non-Union OSS has no threshold, so it must be
 in place before the first EU sale, not after it.*
 *Exit: first real dollar, correctly fulfilled and refundable.*
-
-**Launch checklist (2f):** webhook endpoint registered in the live Stripe dashboard with
-the right events · `STRIPE_WEBHOOK_SECRET` is the **live** one (a test-mode secret against
-live traffic fails every signature silently) · prices created in live mode and the ids
-swapped · a real €/$ purchase made and refunded end-to-end · Sentry alert on any order
-older than 10 minutes still in `pending`/`paid` · support email published on the shop
-pages.
 
 ### Phase 3 — Social login *(on hold, no active work)*
 
