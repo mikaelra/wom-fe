@@ -2,7 +2,7 @@
 
 import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
-import { useRef, useMemo, memo, Suspense, type CSSProperties } from 'react';
+import { useRef, useMemo, memo, Suspense, type CSSProperties, type ReactNode } from 'react';
 import * as THREE from 'three';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
@@ -127,25 +127,58 @@ export function WellCrown({ worldPosition }: { worldPosition: [number, number, n
 }
 
 
+// Cherub (2e, docs/MONETIZATION_PLAN.md §3.4/§8.3) hovers in place rather
+// than standing flat on the ground like a frog -- an angel that doesn't fly
+// reads wrong. A separate outer group (not a change to PlayerV1 itself) so
+// this sinusoidal Y offset composes with PlayerV1's own attack-lunge/death
+// positioning (it damps modelRef.current.position toward a local target)
+// instead of fighting it -- same "wrap, don't modify" approach as
+// LostSoulModel's bob above.
+//
+// Tunable while live-testing: amplitude (world units) and speed
+// (radians/sec) are the two knobs, angelBob is the phase offset so several
+// hovering players don't bob in lockstep.
+const CHERUB_HOVER_AMPLITUDE = 0.08;
+const CHERUB_HOVER_SPEED = 1.6;
+
+function HoveringModel({ children, phase = 0 }: { children: ReactNode; phase?: number }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame((state) => {
+    if (ref.current) {
+      ref.current.position.y =
+        Math.sin(state.clock.elapsedTime * CHERUB_HOVER_SPEED + phase) * CHERUB_HOVER_AMPLITUDE;
+    }
+  });
+  return <group ref={ref}>{children}</group>;
+}
+
 // Holds only the GLB-dependent parts of a player slot so it can be Suspense-wrapped
 // independently of the HTML UI (names / action buttons) rendered by PlayerWithName.
-function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield }: {
+function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, hover, hoverPhase }: {
   modelUrl: string;
   isBoss: boolean;
   isAnimating: boolean;
   isDead?: boolean;
   showShield?: boolean;
+  /** Cherub-only: bob gently in place instead of standing flat. */
+  hover?: boolean;
+  hoverPhase?: number;
 }) {
+  const model = (
+    <PlayerV1
+      url={modelUrl}
+      scale={isBoss ? 1.44 : 0.6}
+      position={[0, 0, 0]}
+      rotation={[0, 0, 0]}
+      isAnimating={isAnimating}
+      isDead={isDead}
+    />
+  );
   return (
     <>
-      <PlayerV1
-        url={modelUrl}
-        scale={isBoss ? 1.44 : 0.6}
-        position={[0, 0, 0]}
-        rotation={[0, 0, 0]}
-        isAnimating={isAnimating}
-        isDead={isDead}
-      />
+      {/* No hover once dead -- a defeated Cherub tips onto its side (PlayerV1's
+          own isDead pose) rather than floating, same as every other skin. */}
+      {hover && !isDead ? <HoveringModel phase={hoverPhase}>{model}</HoveringModel> : model}
       {showShield && <ShieldEffect />}
     </>
   );
@@ -202,6 +235,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   infoReveal?: InfoRevealBadge | null;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
+  const isCherub = modelUrl === skinUrl('cherub_v1');
   // Welcome-tour highlights — glow the real button(s) the current slide points at.
   const hl = highlight ?? {};
   const hlAttack = guideGlowClass(hl.attack);
@@ -210,7 +244,15 @@ export const PlayerWithName = memo(function PlayerWithName({
     <group position={position} rotation={[rotation[0], rotation[1] + Math.PI / 2, rotation[2]]}>
       {/* 3D model — lazy; suspends until GLB is ready */}
       <Suspense fallback={null}>
-        <PlayerModelLayer modelUrl={modelUrl} isBoss={!!isBoss} isAnimating={isAnimating} isDead={isDead} showShield={showShield} />
+        <PlayerModelLayer
+          modelUrl={modelUrl}
+          isBoss={!!isBoss}
+          isAnimating={isAnimating}
+          isDead={isDead}
+          showShield={showShield}
+          hover={isCherub}
+          hoverPhase={position[0]}
+        />
       </Suspense>
 
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
