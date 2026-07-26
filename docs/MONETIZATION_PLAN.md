@@ -692,6 +692,7 @@ STRIPE_PRICE_WHEEL_SPECIAL = os.environ.get("STRIPE_PRICE_WHEEL_SPECIAL")  # pri
 STRIPE_PRICE_CHERUB        = os.environ.get("STRIPE_PRICE_CHERUB")
 SHOP_ENABLED           = os.environ.get("SHOP_ENABLED", "false").lower() == "true"
 BLOCKED_COUNTRIES      = set(filter(None, os.environ.get("BLOCKED_COUNTRIES", "BE,NL").split(",")))
+ALLOWED_COUNTRIES      = set(filter(None, os.environ.get("ALLOWED_COUNTRIES", "").split(",")))  # §9.1a
 TERMS_VERSION          = os.environ.get("TERMS_VERSION", "2026-07")
 ```
 
@@ -1034,6 +1035,24 @@ alone is sufficient:
   Also set `payment_method_options` / Checkout's own country restrictions where Stripe
   supports it, so the common case is caught before money moves.
 
+### 9.1a Temporary launch-scope allowlist (`ALLOWED_COUNTRIES`)
+
+Separate knob from the above, added to let the shop go live in Norway before the non-Union
+OSS registration (§6.6) covers the rest of the EU. `ALLOWED_COUNTRIES` (`config.py`, empty
+by default = no extra restriction) works the same two-layer way as `BLOCKED_COUNTRIES`, but
+as an allowlist and applied to **every product**, not just `wheel_special`:
+
+- **Pre-check at `/shop/checkout`** — same `CF-IPCountry` best-effort read, same
+  courtesy-only rule (unknown country still lets the request through to the authoritative
+  check).
+- **Authoritative check at fulfillment** — Stripe's `customer_details.address.country`; not
+  in the allowlist → same `_block_region` path as a `BLOCKED_COUNTRIES` hit (refund, order
+  set to `refunded`/`region_blocked`).
+
+Set `ALLOWED_COUNTRIES=NO` to restrict checkout to Norwegian buyers only. This is meant to
+be widened (add country codes as each VAT registration lands) and eventually cleared once
+non-Union OSS is in place — not a permanent feature.
+
 ### 9.2 Odds disclosure
 
 Mandatory in China, required by Apple/Google if this ever ships as an app, expected by EU
@@ -1288,17 +1307,23 @@ both layers -- pre-check at checkout and the authoritative check at fulfillment 
 2026-07-26 (`routes/shop.py`'s `alert_stuck_orders`/`stuck_order_alert_task`, backend) ·
 **support email published on the shop pages**, shipped 2026-07-26 (`SUPPORT_EMAIL` in
 `config.ts`, `support@worldofmythos.net`, linked from `/terms`, `/refunds`, and
-`/shop/success`'s timeout state).
-Still open -- all of it business/ops action outside what code can do: **fraud rules**
-(Stripe Radar dashboard config -- default rules + "block if CVC fails" + manual review
-above $100) · **VAT registrations obtained and entered into Stripe Tax** (§6.6) · live
-Stripe keys · webhook endpoint registered in the live Stripe dashboard with the right
-events (`STRIPE_WEBHOOK_SECRET` must be the **live** one -- a test-mode secret against
-live traffic fails every signature silently) · prices created in live mode and the ids
-swapped · a real €/$ purchase made and refunded end-to-end · `SHOP_ENABLED=true`.
-*The registrations are the long pole here — non-Union OSS has no threshold, so it must be
-in place before the first EU sale, not after it.*
-*Exit: first real dollar, correctly fulfilled and refundable.*
+`/shop/success`'s timeout state) ·
+**temporary Norway-only launch-scope allowlist**, shipped 2026-07-26 (`ALLOWED_COUNTRIES`
+in `config.py`, §9.1a -- lets the shop go live scoped to Norway before non-Union OSS is
+registered, without waiting on the rest of §6.6).
+Still open -- all of it business/ops action outside what code can do: set
+`ALLOWED_COUNTRIES=NO` and register **Norwegian MVA only** (not the full non-Union OSS --
+deferred until expanding past Norway; §6.6) · **fraud rules** (Stripe Radar dashboard
+config -- default rules + "block if CVC fails" + manual review above $100) · live Stripe
+keys · webhook endpoint registered in the live Stripe dashboard with the right events
+(`STRIPE_WEBHOOK_SECRET` must be the **live** one -- a test-mode secret against live
+traffic fails every signature silently) · prices created in live mode and the ids swapped
+· a real NOK purchase made and refunded end-to-end · `SHOP_ENABLED=true`.
+*Once ready to expand past Norway: get the non-Union OSS registration (§6.6, no
+threshold -- must be in place before the first EU sale, not after it), enable Stripe Tax
+with tax-inclusive pricing, then widen or clear `ALLOWED_COUNTRIES`.*
+*Exit (interim, Norway-only): first real NOK purchase, correctly fulfilled and
+refundable. Exit (full): first EU sale, VAT correctly collected via Stripe Tax.*
 
 ### Phase 3 — Social login *(on hold, no active work)*
 
