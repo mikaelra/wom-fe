@@ -50,6 +50,31 @@ describe('ShopSuccessPage', () => {
     expect(screen.getByText('Go to Inventory')).toHaveAttribute('href', '/inventory');
   });
 
+  it('stacks progressively later reassurance text at 10s, 20s, and 30s of polling', async () => {
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({ equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+
+    render(<ShopSuccessPage />);
+    await advance(0);
+    expect(screen.queryByText('Almost there…')).not.toBeInTheDocument();
+    expect(screen.queryByText('So close…')).not.toBeInTheDocument();
+    expect(screen.queryByText('Any second now…')).not.toBeInTheDocument();
+
+    await advance(10_000);
+    expect(screen.getByText('Almost there…')).toBeInTheDocument();
+    expect(screen.queryByText('So close…')).not.toBeInTheDocument();
+
+    await advance(10_000); // 20s total
+    expect(screen.getByText('Almost there…')).toBeInTheDocument();
+    expect(screen.getByText('So close…')).toBeInTheDocument();
+    expect(screen.queryByText('Any second now…')).not.toBeInTheDocument();
+
+    await advance(10_000); // 30s total
+    expect(screen.getByText('Almost there…')).toBeInTheDocument();
+    expect(screen.getByText('So close…')).toBeInTheDocument();
+    expect(screen.getByText('Any second now…')).toBeInTheDocument();
+  });
+
   it('stops polling and shows the support message with the order number after 60s with no change', async () => {
     searchParams.set('order', '42');
     setStoredAccountToken('sess-1');

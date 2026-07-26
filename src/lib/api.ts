@@ -381,10 +381,11 @@ export async function getShopProducts(): Promise<{
 export async function postCheckout(
   token: string,
   product: string,
-  confirmDuplicate?: boolean
+  confirmDuplicate?: boolean,
+  quantity?: number
 ): Promise<{ checkout_url: string; order_id: number }> {
   return request('/shop/checkout', CheckoutResponseSchema, {
-    body: { token, product, confirm_duplicate: confirmDuplicate },
+    body: { token, product, confirm_duplicate: confirmDuplicate, quantity },
     defaultErrorMessage: 'Failed to start checkout.',
   });
 }

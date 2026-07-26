@@ -10,6 +10,15 @@ import { getStoredAccountToken } from '@/lib/http';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 60_000;
 
+// Progressively smaller, progressively later reassurance while still
+// polling -- each stage's text stays on screen once shown (they stack),
+// so by 30s all three lines are visible under the main message.
+const REASSURANCE_STAGES = [
+  { delayMs: 10_000, text: 'Almost there…', className: 'text-white/50 text-sm' },
+  { delayMs: 20_000, text: 'So close…', className: 'text-white/40 text-xs' },
+  { delayMs: 30_000, text: 'Any second now…', className: 'text-white/30 text-[11px]' },
+] as const;
+
 type Status = 'polling' | 'received' | 'timeout' | 'error';
 
 // The redirect here grants nothing -- it's cosmetic and forgeable
@@ -23,7 +32,16 @@ function ShopSuccessContent() {
   const orderId = searchParams.get('order');
   const [status, setStatus] = useState<Status>('polling');
   const [error, setError] = useState('');
+  const [reassuranceStage, setReassuranceStage] = useState(0);
   const baselineRef = useRef<{ skinCount: number; wheelCount: number } | null>(null);
+
+  useEffect(() => {
+    if (status !== 'polling') return;
+    const timers = REASSURANCE_STAGES.map((stage, i) =>
+      setTimeout(() => setReassuranceStage(i + 1), stage.delayMs)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [status]);
 
   useEffect(() => {
     const token = getStoredAccountToken();
@@ -84,6 +102,11 @@ function ShopSuccessContent() {
               </span>
               <span className="sr-only">…</span>
             </p>
+            {REASSURANCE_STAGES.slice(0, reassuranceStage).map((stage) => (
+              <p key={stage.text} className={`${stage.className} mt-2`}>
+                {stage.text}
+              </p>
+            ))}
           </>
         )}
         {status === 'received' && (
