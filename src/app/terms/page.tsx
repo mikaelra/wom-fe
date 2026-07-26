@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SUPPORT_EMAIL } from '@/config';
 
 export const metadata = { title: 'Terms — World of Mythos' };
 
@@ -54,7 +55,11 @@ export default function TermsPage() {
             available for purchase from Belgium or the Netherlands.
           </p>
           <p className="text-white/50 text-xs pt-2">
-            Questions about a purchase? Contact support and reference your order number.
+            Questions about a purchase? Contact{' '}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-300 underline hover:text-amber-200">
+              {SUPPORT_EMAIL}
+            </a>{' '}
+            and reference your order number.
           </p>
         </div>
       </div>
