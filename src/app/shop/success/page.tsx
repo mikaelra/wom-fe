@@ -75,7 +75,15 @@ function ShopSuccessContent() {
         {status === 'polling' && (
           <>
             <p className="text-3xl mb-3">⏳</p>
-            <p className="text-white/70">Confirming your payment…</p>
+            <p className="text-white/70">
+              Confirming your payment
+              <span aria-hidden="true">
+                <span className="ellipsis-dot">.</span>
+                <span className="ellipsis-dot">.</span>
+                <span className="ellipsis-dot">.</span>
+              </span>
+              <span className="sr-only">…</span>
+            </p>
           </>
         )}
         {status === 'received' && (
