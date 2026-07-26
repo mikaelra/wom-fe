@@ -2,13 +2,20 @@ import { z } from 'zod';
 import { BACKEND_URL } from '@/config';
 
 /** A non-2xx HTTP response. Carries the server's {error} message when the
- *  body had one, or a per-call fallback string otherwise. */
+ *  body had one, or a per-call fallback string otherwise. `code` is the
+ *  machine-readable discriminator some routes (docs/MONETIZATION_PLAN.md
+ *  §5.3's /shop/checkout, e.g. "email_unverified"/"already_owned") add
+ *  alongside {error} so callers can branch on it instead of matching on
+ *  prose -- set generically here (not just for shop calls) so every call
+ *  site stays uniform. */
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -157,8 +164,9 @@ export async function request<S extends z.ZodTypeAny>(
 
   if (!res.ok) {
     const body: unknown = await res.json().catch(() => ({}));
-    const serverMessage = (body as { error?: string })?.error;
-    throw new ApiError(res.status, serverMessage ?? opts.defaultErrorMessage ?? `Request to ${path} failed`);
+    const serverMessage = (body as { error?: string; code?: string })?.error;
+    const code = (body as { error?: string; code?: string })?.code;
+    throw new ApiError(res.status, serverMessage ?? opts.defaultErrorMessage ?? `Request to ${path} failed`, code);
   }
 
   const json = await res.json();

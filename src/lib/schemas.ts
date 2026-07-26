@@ -186,6 +186,47 @@ export const PlayerProfileResponseSchema = z.object({
   played_games: z.number().int(),
 });
 
+// docs/MONETIZATION_PLAN.md §5.2/§5.3/§8 -- shop, checkout, wheel odds.
+
+export const WheelOddsEntrySchema = z.object({
+  skin: z.string(),
+  weight: z.number().int(),
+  probability: z.number(),
+});
+
+// GET /wheel/tables -- public, unauthenticated, the same source
+// /shop/products' embedded `odds` reads from (§5.2).
+export const WheelTablesResponseSchema = z.object({
+  normal: z.array(WheelOddsEntrySchema),
+  special: z.array(WheelOddsEntrySchema),
+});
+
+// One entry of GET /shop/products' `products` array -- `odds`/`odds_denominator`
+// only present on kind: 'wheel', `skin` only on kind: 'skin' (§5.3).
+export const ShopProductSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  price_cents: z.number().int(),
+  currency: z.string(),
+  kind: z.enum(['wheel', 'skin']),
+  odds_denominator: z.number().int().optional(),
+  odds: z.array(WheelOddsEntrySchema).optional(),
+  skin: z.string().optional(),
+});
+
+export const ShopProductsResponseSchema = z.object({
+  shop_enabled: z.boolean(),
+  terms_version: z.string(),
+  products: z.array(ShopProductSchema),
+});
+
+// POST /shop/checkout -- the 200 shape; error shapes ({error, code}) go
+// through ApiError.code instead (see http.ts).
+export const CheckoutResponseSchema = z.object({
+  checkout_url: z.string(),
+  order_id: z.number().int(),
+});
+
 // ── Socket.IO payload schemas (not already in @/types/game) ────────────────
 
 export const JoinedLobbyPayloadSchema = z.object({

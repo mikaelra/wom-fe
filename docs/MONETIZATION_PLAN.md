@@ -1,7 +1,7 @@
 # Monetization Plan — Frogskins, Wheels & Shop
 
-Status: **Phase 0 + Phase 1 shipped · 2a shipped · 2b shipped · 2c shipped** · 2d–4
-specified below, ready to implement
+Status: **Phase 0 + Phase 1 shipped · 2a shipped · 2b shipped · 2c shipped · 2d partial**
+· 2e–4 specified below, ready to implement
 Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-25
 
 ## 1. Summary
@@ -954,7 +954,7 @@ verified emails.
 
 ## 8. Frontend work
 
-### 8.1 New — `/shop` (sub-phase 2c)
+### 8.1 Shipped (partial) — `/shop` (sub-phase 2d)
 
 `src/app/shop/page.tsx`:
 - Fetches `/shop/products` on mount (public — renders for logged-out visitors too, with
@@ -1233,12 +1233,33 @@ build didn't have): `stripe trigger checkout.session.completed` against a live
 before flipping `SHOP_ENABLED` for real (2f).*
 *Size: the biggest single chunk of backend work in Phase 2.*
 
-**2d — Shop frontend**
-`/shop`, `/shop/success`, `/shop/cancel` · `getShopProducts` / `postCheckout` + schemas ·
-error-`code` handling incl. the inline verification flow · inventory wheel labels + Shop
-links · odds table on the card *and* in the wheel modal.
-*Exit: a test-mode purchase completes end-to-end from the browser, and the Special Wheel
-it grants spins on the wheel built in 2b.*
+**2d — Shop frontend** — 🟡 **partial, shipped 2026-07-26.**
+Done: `/shop` (fetches `/shop/products`, renders each product generically by `kind`,
+odds table straight from the product's embedded `odds` -- never hardcoded, guards §9.2) ·
+`/shop/success` (polls `/inventory` for the item-count change, 60s timeout message,
+never claims the payment failed) · `/shop/cancel` · `/terms` + `/refunds` (pulled forward
+from 2f -- the checkbox needed somewhere real to link to) · `getShopProducts` /
+`postCheckout` + schemas · `ApiError.code` widened generically in `http.ts` (not shop-only)
+so every call site can branch on the machine-readable code · the inline email-verification
+gate (reuses `claimName`'s existing idempotent resend + `useClaimVerificationPoll`, not a
+new component) · `already_owned` duplicate-confirm flow · `region_blocked` inline message ·
+inventory wheel labels (`wheelKindLabel`: "Special Wheel" vs "Wheel", not the raw backend
+string) + a Shop link and empty-state CTA on the Wheels card · a Shop entry in the home
+page's user menu.
+Still open: **`WheelSpinModal`'s odds table** -- still its own local copy in
+`wheelGeometry.ts`, not fetched from `GET /wheel/tables` (§2.3 item 3's original tail;
+both copies are hand-verified byte-for-byte identical today, so this is a maintenance
+debt, not a live discrepancy, but it's the one piece of "odds table ... in the wheel
+modal" not done here). **A real Stripe test-mode click-through** (§12's own exit
+criterion below) -- this build had no real Stripe test keys available; only automated
+tests (mocked `ShopProduct`/`ApiError` responses) and a live, unauthenticated smoke check
+against the real dev backend (confirms `/shop` correctly shows "not open yet" while
+`SHOP_ENABLED=false`) were possible in this environment.
+*Exit (automated-test level, met): odds render exactly the served numbers, every error
+`code` drives the right UI branch, the success page stops polling and shows the support
+message after the timeout. Exit (not yet met): a real test-mode purchase completes
+end-to-end from the browser, and the Special Wheel it grants spins on the wheel built in
+2b -- do this once real Stripe test keys are available (same gap as 2c).*
 
 **2e — Cherub** *(independent; can move anywhere after 2c)*
 Asset verification in a live lobby (scale/rig/size) → `SKIN_MODEL_URLS` exception, color +

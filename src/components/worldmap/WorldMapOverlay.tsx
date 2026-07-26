@@ -274,6 +274,13 @@ export default function WorldMapOverlay() {
                     Inventory
                   </Link>
                   <Link
+                    href="/shop"
+                    onClick={() => setShowUserMenu(false)}
+                    className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors cursor-pointer no-underline"
+                  >
+                    Shop
+                  </Link>
+                  <Link
                     href="/settings"
                     onClick={() => setShowUserMenu(false)}
                     className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors cursor-pointer no-underline"

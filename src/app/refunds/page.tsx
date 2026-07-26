@@ -1,0 +1,45 @@
+import Link from 'next/link';
+
+export const metadata = { title: 'Refund Policy — World of Mythos' };
+
+export default function RefundsPage() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
+      <div className="w-full max-w-2xl">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold tracking-wide">Refund Policy</h1>
+          <Link
+            href="/"
+            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-white/20 transition-colors no-underline"
+          >
+            ← Back to Home
+          </Link>
+        </div>
+
+        <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 space-y-4 text-sm text-white/80 leading-relaxed">
+          <p>
+            World of Mythos purchases are digital goods, delivered instantly to your account.
+          </p>
+          <p>
+            <strong className="text-white">An unspun Special Wheel is refundable</strong>{' '}
+            within 14 days of purchase, since nothing has been drawn yet.
+          </p>
+          <p>
+            <strong className="text-white">A spun wheel is not refundable.</strong> Spinning
+            it is treated as immediate performance of the purchase — the result is delivered
+            the moment you spin, which is why we don&apos;t ask for confirmation again after
+            that point.
+          </p>
+          <p>
+            <strong className="text-white">Direct skin purchases</strong> (e.g. Cherub) are
+            refundable within 14 days if the skin has not been equipped.
+          </p>
+          <p>
+            To request a refund, contact support with your order number. Refunds are issued
+            to the original payment method.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
