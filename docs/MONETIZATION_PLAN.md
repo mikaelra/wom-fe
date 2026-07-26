@@ -1,7 +1,7 @@
 # Monetization Plan — Frogskins, Wheels & Shop
 
-Status: **Phase 0 + Phase 1 shipped · 2a shipped · 2b shipped** · 2c–4 specified below,
-ready to implement
+Status: **Phase 0 + Phase 1 shipped · 2a shipped · 2b shipped · 2c shipped** · 2d–4
+specified below, ready to implement
 Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-25
 
 ## 1. Summary
@@ -115,14 +115,15 @@ six resolved — **2a is fully shipped.**
 
 ### 2.4 Not built at all
 
-`orders` table · any Stripe code or dependency (`requirements.txt` has none) · `/shop`
-anything · the Cherub skin-id → model-URL mapping (the asset `public/models/cherub-v01.glb`
-exists, unverified as a player skin) · `auth_identities` / OAuth · admin grant/revoke
-tooling · purchase analytics. **Also still not built: any way for a real player to obtain a
-`kind='special'` wheel_item** — no Shop, no Stripe, no purchase route exists yet (2c/2d).
-The only way one exists in any environment today is a hand-inserted test-grant row; the
-Special Wheel's draw logic and visuals (2a/2b) are both fully built and correct, but the
-Special Wheel itself is not reachable by a real player until 2c–2d ship.
+The Cherub skin-id → model-URL mapping (the asset `public/models/cherub-v01.glb` exists,
+unverified as a player skin) · `/shop` frontend (2d) · `auth_identities` / OAuth · admin
+grant/revoke tooling · purchase analytics. `orders` + the Stripe backend shipped in 2c
+(§12) — but **there is still no way for a real player to reach a `kind='special'`
+wheel_item**: `SHOP_ENABLED` defaults false, and even once flipped there's no `/shop`
+frontend yet to call `/shop/checkout` from (2d). The only way one exists in any environment
+today is a hand-inserted test-grant row; the Special Wheel's draw logic, visuals, and now
+its full backend purchase/fulfillment/revocation path (2a/2b/2c) are all built and correct,
+but the Special Wheel itself is not reachable by a real player until 2d ships.
 
 ### 2.5 Shipped — Phase 2b, the Wheel presentation
 
@@ -1211,13 +1212,25 @@ code, matching the plan.*
 *Verification is by eye as much as by test: check it on a real phone in portrait and
 landscape, and on the widest monitor available, before calling it done.*
 
-**2c — Orders + Stripe backend** *(backend only)*
-`orders` table + migration · `stripe` dependency · config vars + boot validation ·
-`services/payments.py` behind the `PaymentProvider` Protocol · `routes/shop.py`
-(`/shop/products`, `/shop/checkout`, `/stripe/webhook`) · `fulfill_order` + revocation ·
-§7.4's toggle guard · the pending-order expiry sweeper · `tests/test_shop_routes.py`.
-*Exit: `stripe trigger` in test mode moves an order pending → fulfilled with exactly one
-item granted, replays are no-ops, and `charge.refunded` cleanly revokes.*
+**2c — Orders + Stripe backend** *(backend only)* — ✅ **shipped 2026-07-25.**
+`orders` table + migration · `stripe` dependency · config vars + boot validation (fails to
+boot if `SHOP_ENABLED=true` with any Stripe var missing) · `services/payments.py`'s
+`PaymentProvider` Protocol (`StripePaymentProvider` + an in-process price cache;
+`FakePaymentProvider` in `tests/conftest.py`) · `routes/shop.py` (`/shop/products`,
+`/shop/checkout`, `/stripe/webhook`) · `fulfill_order` (atomic, `FOR UPDATE`-locked) ·
+region-blocked-at-fulfillment refund path (§9.1) · `revoke_order` (refund/chargeback
+revocation, §6.5) · §7.4's `paid_account` toggle guard in `routes/auth.py` · the
+pending-order expiry sweeper · rate limits on `/shop/checkout`/`/shop/products` ·
+`tests/test_shop_routes.py` + `tests/test_payments.py` (StripePaymentProvider mocked at
+the SDK boundary, no real keys).
+*Exit, automated-test level (met): same event delivered twice grants exactly once ✅,
+region-blocked fulfillment refunds without granting ✅, refund/chargeback revocation
+deletes the right rows and resets `equipped_skin` ✅, bad webhook signature grants nothing
+✅. Exit, §6.7's manual pass (not yet done -- needs real Stripe test-mode keys, which this
+build didn't have): `stripe trigger checkout.session.completed` against a live
+`stripe listen`-forwarded webhook, plus the `4000 0000 0000 0341` and
+`charge.dispute.created` manual passes. Do this once real Stripe test keys are available,
+before flipping `SHOP_ENABLED` for real (2f).*
 *Size: the biggest single chunk of backend work in Phase 2.*
 
 **2d — Shop frontend**
