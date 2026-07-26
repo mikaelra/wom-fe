@@ -54,6 +54,19 @@ export default function ShopPage() {
     });
   };
 
+  // Typing "10" one keystroke at a time passes through "1" first -- clamping
+  // per-keystroke only ever narrows toward valid range, never blocks the
+  // next digit, so this stays smooth to type into.
+  const setQuantityFromInput = (productId: string, raw: string) => {
+    const digitsOnly = raw.replace(/\D/g, '');
+    if (digitsOnly === '') {
+      setQuantities((prev) => ({ ...prev, [productId]: 1 }));
+      return;
+    }
+    const clamped = Math.min(MAX_WHEEL_QUANTITY, Math.max(1, parseInt(digitsOnly, 10)));
+    setQuantities((prev) => ({ ...prev, [productId]: clamped }));
+  };
+
   const toggleOddsInfo = (productId: string) => {
     setOddsInfoOpen((prev) => {
       const next = new Set(prev);
@@ -327,9 +340,15 @@ export default function ShopPage() {
                           >
                             −
                           </button>
-                          <span className="w-6 text-center font-semibold" aria-label="Quantity">
-                            {quantities[product.id] ?? 1}
-                          </span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={quantities[product.id] ?? 1}
+                            onChange={(e) => setQuantityFromInput(product.id, e.target.value)}
+                            aria-label="Quantity"
+                            className="w-10 text-center font-semibold bg-white/5 border border-white/20 rounded-lg py-1"
+                          />
                           <button
                             type="button"
                             onClick={() => adjustQuantity(product.id, 1)}

@@ -159,20 +159,20 @@ describe('ShopPage', () => {
     const decrease = screen.getByLabelText('Decrease quantity');
     const increase = screen.getByLabelText('Increase quantity');
 
-    expect(screen.getByLabelText('Quantity')).toHaveTextContent('1');
+    expect(screen.getByLabelText('Quantity')).toHaveValue('1');
     expect(decrease).toBeDisabled(); // can't go below 1
     expect(screen.getByText('$5.00')).toBeInTheDocument();
 
     fireEvent.click(increase);
     fireEvent.click(increase);
-    expect(screen.getByLabelText('Quantity')).toHaveTextContent('3');
+    expect(screen.getByLabelText('Quantity')).toHaveValue('3');
     expect(decrease).not.toBeDisabled();
     // The header price is the running total, not the flat per-wheel price.
     expect(screen.getByText('$15.00')).toBeInTheDocument();
     expect(screen.queryByText('$5.00')).not.toBeInTheDocument();
 
     for (let i = 0; i < 100; i++) fireEvent.click(increase);
-    expect(screen.getByLabelText('Quantity')).toHaveTextContent('100');
+    expect(screen.getByLabelText('Quantity')).toHaveValue('100');
     expect(increase).toBeDisabled(); // can't go above 100
 
     fireEvent.click(screen.getByRole('checkbox'));
@@ -180,6 +180,27 @@ describe('ShopPage', () => {
     await flush();
 
     expect(mockedPostCheckout).toHaveBeenCalledWith('sess-1', 'wheel_special', false, 100);
+  });
+
+  it('lets the wheel quantity be typed directly into the field, clamped 1..100', async () => {
+    loginAs();
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
+    });
+    render(<ShopPage />);
+    await flush();
+
+    const input = screen.getByLabelText('Quantity');
+
+    fireEvent.change(input, { target: { value: '7' } });
+    expect(input).toHaveValue('7');
+    expect(screen.getByText('$35.00')).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: '250' } });
+    expect(input).toHaveValue('100'); // clamped to the max
+
+    fireEvent.change(input, { target: { value: 'abc' } });
+    expect(input).toHaveValue('1'); // non-digits strip to nothing -> falls back to 1
   });
 
   it('does not show a quantity counter for a direct skin purchase', async () => {
