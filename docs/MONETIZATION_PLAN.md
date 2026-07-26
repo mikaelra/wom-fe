@@ -1,7 +1,7 @@
 # Monetization Plan — Frogskins, Wheels & Shop
 
-Status: **Phase 0 + Phase 1 shipped · 2a shipped · 2b shipped · 2c shipped · 2d partial**
-· 2e–4 specified below, ready to implement
+Status: **Phase 0 + Phase 1 shipped · 2a shipped · 2b shipped · 2c shipped · 2d partial ·
+2e shipped** · 2f specified below, ready to implement
 Scope: `game/frontend` + `game/backend` · Last updated: 2026-07-25
 
 ## 1. Summary
@@ -1261,12 +1261,24 @@ message after the timeout. Exit (not yet met): a real test-mode purchase complet
 end-to-end from the browser, and the Special Wheel it grants spins on the wheel built in
 2b -- do this once real Stripe test keys are available (same gap as 2c).*
 
-**2e — Cherub** *(independent; can move anywhere after 2c)*
-Asset verification in a live lobby (scale/rig/size) → `SKIN_MODEL_URLS` exception, color +
-label, shop card with model preview, duplicate-confirm flow, `skin_cherub` fulfillment.
-*Exit: buying Cherub grants `cherub_v1`, it equips, and it renders correctly in a match.*
-*Risk: if the model doesn't work as a player skin, this becomes art work and drops out of
-Phase 2 entirely.*
+**2e — Cherub** *(independent; can move anywhere after 2c)* — ✅ **shipped 2026-07-26.**
+`SKIN_MODEL_URLS` exception in `frogSkins.ts` (`cherub_v1` → `/models/cherub-v01.glb`, not
+the `frogs/<skin>.glb` pattern) · color (`#fef08a`) + label ("Cherub") · a hover bob in
+`PlayerAvatars.tsx` (`cherub_v1` only, disabled while dead) so it reads as flying rather
+than standing flat like a frog (`CHERUB_HOVER_AMPLITUDE`/`CHERUB_HOVER_SPEED`, hand-tuned
+live rather than derived) · `WellCrown` synced to the same speed/phase so it doesn't drift
+apart from a hovering Cherub underneath it (`WinnerCrown` deliberately left on its own
+original 2.2 rad/s -- only the well crown sits directly above a possibly-Cherub player).
+Verified live in a real browser by eye: scale, rig/pose, and hover feel all confirmed
+good as shipped, no further tuning requested. `fulfillment`/duplicate-confirm/shop-card
+preview came for free from 2c/2d's generic-by-`kind` handling, not new work here. The
+`SpinningModelViewer` preview (shop card, inventory) intentionally has no hover -- not
+asked for, left as a future call.
+*Exit: Cherub equips and renders correctly in a match, confirmed live. ✅ Not yet
+exercised: buying it for real -- that path is `SHOP_ENABLED`/Stripe-gated, same as every
+other product, and opens in 2f.*
+*Risk (resolved): the model works as a player skin -- this phase's original open question
+is answered.*
 
 **2f — Compliance & launch**
 `/terms` + `/refunds` pages · 18+ checkbox + `terms_version` · region gating both layers ·
