@@ -1,16 +1,16 @@
-// Prevent resource sounds from interrupting background music on mobile (iOS/Android)
+// Prevent combat sounds from interrupting background music on mobile (iOS/Android)
 if (typeof navigator !== 'undefined' && 'audioSession' in navigator) {
   (navigator as Navigator & { audioSession: { type: string } }).audioSession.type = 'ambient';
 }
 
-const RESOURCE_SOUNDS: Record<string, string> = {
-  gain_hp: '/sounds/resources/GainHP.wav',
-  gain_coin: '/sounds/resources/GainGold.wav',
-  gain_attack: '/sounds/resources/UpgradeWpn.wav',
+const COMBAT_SOUNDS: Record<string, string> = {
+  attack_hit: '/sounds/resources/GainHP.wav',
+  attack_blocked: '/sounds/resources/GainGold.wav',
+  attacked: '/sounds/resources/UpgradeWpn.wav',
 };
 
-export function playResourceSound(resource: string): void {
-  const src = RESOURCE_SOUNDS[resource];
+export function playCombatSound(event: string): void {
+  const src = COMBAT_SOUNDS[event];
   if (!src) return;
   try {
     new Audio(src).play().catch(() => {});

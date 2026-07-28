@@ -21,6 +21,7 @@ import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { emitHpFx } from '@/lib/resourceFx';
+import { playCombatSound } from '@/lib/sounds';
 import { glowForReward, wellRewardFromEvents, type WellRewardComponent } from '@/lib/gameEvents';
 import { skinUrl } from '@/lib/frogSkins';
 import {
@@ -812,6 +813,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             mode="execute"
             postImpact={ev.postImpact}
             onStrike={() => {
+              if (ev.isIncoming) {
+                playCombatSound('attacked');
+              } else if (ev.targetHit) {
+                playCombatSound('attack_hit');
+              } else if (ev.targetDefended) {
+                playCombatSound('attack_blocked');
+              }
               if (ev.targetDefended && !ev.isIncoming) {
                 const rotY = Math.atan2(ev.fromPos[0] - ev.toPos[0], ev.fromPos[2] - ev.toPos[2]);
                 const sid  = `shield-${ev.id}`;
