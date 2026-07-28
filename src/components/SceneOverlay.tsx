@@ -9,6 +9,7 @@ import { useRoundTimer } from '@/lib/useRoundTimer';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useCountdown } from '@/lib/useCountdown';
 import { useGameEvents } from '@/lib/useGameEvents';
+import { buildCombatAnimationPlan } from '@/lib/combatAnimationPlan';
 import type { LobbyState, Player } from '@/types/game';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import ResourceCard from '@/components/ResourceCard';
@@ -16,6 +17,10 @@ import { useStagedResources } from '@/lib/useStagedResources';
 import { useToast } from '@/components/Toast';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
+
+// Mirrors LobbyScene's DEATH_POSE_FALLBACK_MS -- if this round's events
+// never arrive, don't hold the Game Over screen back indefinitely.
+const GAMEOVER_REVEAL_FALLBACK_MS = 4000;
 
 export type SceneOverlayTheme = {
   accentColorClass: string;   // Round label color, e.g. 'text-green-400'
@@ -121,7 +126,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [messagesOverflow, setMessagesOverflow] = useState(false);
   const [messagesHidden, setMessagesHidden] = useState(false);
-  const lastMessagesFlat = useRef('');
   const messagesRef = useRef<HTMLUListElement>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatExpanded, setChatExpanded] = useState(false);
@@ -204,16 +208,64 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
 
+  // Which round's messages + Game Over screen have actually been revealed.
+  // Ordinary rounds reveal the instant their events arrive (unchanged from
+  // before); a round that ends the game holds off until the kill animation
+  // that caused it (the sword strike, kill-fire glow, dead-pose reveal --
+  // timed identically to LobbyScene's own buildCombatAnimationPlan, just
+  // re-run here with placeholder positions since only the *timing* matters
+  // off the 3D scene) has actually finished, instead of "Game Over" and the
+  // kill message flashing up before the animation even starts.
+  const [revealedRound, setRevealedRound] = useState<number | null>(null);
+
   useEffect(() => {
-    if (!gameEvents || gameEvents.round !== state?.round) return;
+    if (!state || !gameEvents || gameEvents.round !== state.round) return;
+    // Already handled this round -- gated on the round number itself (not
+    // message content) since a round can legitimately have empty/repeated
+    // content and still need its one-time reveal to fire.
+    if (revealedRound === gameEvents.round) return;
+
     const newMsgs = gameEvents.messages ?? [];
-    const newFlat = newMsgs.flat().join('\n');
-    if (newFlat !== lastMessagesFlat.current) {
-      lastMessagesFlat.current = newFlat;
+
+    const reveal = () => {
       setMessages(newMsgs);
       setMessagesExpanded(false);
+      setRevealedRound(gameEvents.round);
+    };
+
+    if (!state.gameover) {
+      reveal();
+      return;
     }
-  }, [gameEvents, state?.round]);
+
+    const myNowHp = myPlayer?.hp ?? 1;
+    const wonWell = state.wellwinner === playerName;
+    // Positions don't affect batch *timing*, only whether an outgoing strike
+    // is added at all (skipped when the target's position is unknown) --
+    // a placeholder for every real player in the lobby keeps that check a
+    // no-op here, so the duration matches what LobbyScene will actually play.
+    const placeholderPosMap = new Map(state.players.map((p) => [p.name, [0, 0, 0] as [number, number, number]]));
+    const plan = buildCombatAnimationPlan({
+      events: gameEvents.events,
+      playerName,
+      posMap: placeholderPosMap,
+      myNowHp,
+      wonWell,
+    });
+    const holdMs = plan.length ? Math.max(...plan.map((b) => b.delayMs)) : 0;
+    const timer = setTimeout(reveal, holdMs);
+    return () => clearTimeout(timer);
+  }, [gameEvents, state, playerName, myPlayer?.hp, revealedRound]);
+
+  // Safety net: the hold above only ever starts once this round's events have
+  // actually arrived (a second fetch, separate from `state`). If that fetch
+  // is slow or fails, don't leave the player stuck without a Game Over
+  // screen forever -- reveal anyway after a short grace window.
+  useEffect(() => {
+    if (!gameOver || revealedRound === (state?.round ?? null)) return;
+    const fallback = setTimeout(() => setRevealedRound(state?.round ?? null), GAMEOVER_REVEAL_FALLBACK_MS);
+    return () => clearTimeout(fallback);
+  }, [gameOver, state?.round, revealedRound]);
 
   // Staged display values for the resource cards: holds back a Well reward at
   // round start and ticks it up when the reward lands (Phase 2). Falls back to
@@ -576,7 +628,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             </div>
           )}
 
-          {gameOver && renderGameOver({ state, playerName, enemy, btn })}
+          {gameOver && revealedRound === state?.round && renderGameOver({ state, playerName, enemy, btn })}
         </div>
       </div>
 

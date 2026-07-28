@@ -206,6 +206,11 @@ describe('game over', () => {
     localStorage.setItem('playerName', 'Alice');
     const enemy: Player = { ...basePlayer, name: 'Hades', boss: true };
     mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult, phase: 'gameover', enemy });
+    // The Game Over screen is now gated on this round's messages having been
+    // "revealed" (see the reveal-hold effect in SceneOverlay) -- baseState's
+    // own gameover flag is false, so this round reveals synchronously the
+    // instant gameEvents for it arrive, same as any ordinary round.
+    mockedUseGameEvents.mockReturnValue({ round: baseState.round, messages: [], events: [] });
     const renderGameOver = vi.fn(() => <div data-testid="game-over" />);
 
     render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, renderGameOver }} />);
@@ -217,6 +222,55 @@ describe('game over', () => {
       enemy,
       btn: expect.any(String),
     }));
+  });
+
+  it('holds off Game Over (and this round\'s messages) until the eliminating kill animation has played', () => {
+    vi.useFakeTimers();
+    localStorage.setItem('playerName', 'Alice');
+    const bob: Player = { ...basePlayer, name: 'Bob', hp: 0 };
+    const gameoverState: LobbyState = { ...baseState, gameover: true, winner: 'Alice', players: [basePlayer, bob] };
+    mockConnection(gameoverState);
+    mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult, phase: 'gameover' });
+    mockedUseGameEvents.mockReturnValue({
+      round: gameoverState.round,
+      messages: [['Alice eliminated Bob!']],
+      events: [{ kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 0 }],
+    });
+    const renderGameOver = vi.fn(() => <div data-testid="game-over" />);
+
+    render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, renderGameOver }} />);
+
+    // Not shown yet -- the kill animation hasn't finished. Even coinless,
+    // buildCombatAnimationPlan's ATK-gain hpFx batch (which every kill
+    // schedules) lands at SWORD_IMPACT_MS (600ms) + KILL_LOOT_LAND_MS
+    // (1030ms) = 1630ms, the actual last batch in the plan.
+    expect(screen.queryByTestId('game-over')).not.toBeInTheDocument();
+    expect(screen.queryByText('Alice eliminated Bob!')).not.toBeInTheDocument();
+
+    act(() => { vi.advanceTimersByTime(1630); });
+
+    expect(screen.getByTestId('game-over')).toBeInTheDocument();
+    expect(screen.getByText('Alice eliminated Bob!')).toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+  it('falls back to revealing Game Over after a grace window if this round\'s events never arrive', () => {
+    vi.useFakeTimers();
+    localStorage.setItem('playerName', 'Alice');
+    mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult, phase: 'gameover' });
+    mockedUseGameEvents.mockReturnValue(null); // events fetch never resolves
+    const renderGameOver = vi.fn(() => <div data-testid="game-over" />);
+
+    render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, renderGameOver }} />);
+
+    expect(screen.queryByTestId('game-over')).not.toBeInTheDocument();
+
+    act(() => { vi.advanceTimersByTime(4000); });
+
+    expect(screen.getByTestId('game-over')).toBeInTheDocument();
+
+    vi.useRealTimers();
   });
 });
 
