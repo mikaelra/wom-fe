@@ -223,7 +223,6 @@ export const PlayerWithName = memo(function PlayerWithName({
   isBoss,
   bossHp,
   bossMaxHp,
-  bossTitle,
   frogSkinUrl,
   // own-player action UI
   showOwnActions,
@@ -248,7 +247,6 @@ export const PlayerWithName = memo(function PlayerWithName({
   isBoss?: boolean;
   bossHp?: number;
   bossMaxHp?: number;
-  bossTitle?: string;
   frogSkinUrl?: string;
   showOwnActions?: boolean;
   currentAction?: string;
@@ -389,29 +387,21 @@ export const PlayerWithName = memo(function PlayerWithName({
           </div>
         </Html>
       )}
-      {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
-          zIndexRange sits above the lost-soul/action buttons ([0,0]) so clicks land here
-          first, but stays below the CSS overlay panels (waiting lobby + round messages,
-          which use Tailwind z-10/z-20) so the card renders beneath them rather than
-          covering them. */}
+      {/* Boss HP display — floats above the Hades model in world space, tracks with camera.
+          No card/title, just the name and the life bar, left-aligned. zIndexRange sits
+          above the lost-soul/action buttons ([0,0]) so clicks land here first, but stays
+          below the CSS overlay panels (waiting lobby + round messages, which use Tailwind
+          z-10/z-20) so it renders beneath them rather than covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
         <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
-            textAlign: 'center',
-            background: 'rgba(0,0,0,0.75)',
-            border: '2px solid rgba(239,68,68,0.4)',
-            borderRadius: '20px',
-            padding: '12px 28px',
-            backdropFilter: 'blur(4px)',
+            textAlign: 'left',
             minWidth: '240px',
           }}>
             <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '26px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
-            {bossTitle && (
-              <p style={{ color: '#d1d5db', fontSize: '22px', margin: '2px 0 8px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
-            )}
-            <div style={{ width: '100%', height: '12px', background: '#374151', borderRadius: '6px', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '12px', background: '#374151', borderRadius: '6px', overflow: 'hidden', marginTop: '8px' }}>
               <div style={{
                 height: '100%',
                 width: `${Math.max(0, (bossHp / bossMaxHp) * 100)}%`,
