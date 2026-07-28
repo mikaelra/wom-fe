@@ -43,7 +43,7 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
   return (
     <>
       <div className="flex flex-col items-center gap-1">
-        <span className="text-sm font-semibold text-gray-600">Invite</span>
+        <span className="text-sm font-semibold text-white/70">Invite</span>
         <div className="flex gap-2">
           <button
             type="button"
@@ -169,100 +169,103 @@ export function renderPreGame({
   onKick,
   onToggleRelicSelection,
 }: PreGameRenderOpts) {
+  // Deliberately no full-screen backdrop here -- the 3D scene (well,
+  // players seated at the table) stays visible around and behind this
+  // panel while everyone waits for the round to start, instead of being
+  // hidden behind an opaque wait screen.
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-8">
-      <div className="absolute top-4 left-4 z-20">
-        <Link href="/" className="text-blue-600 hover:underline font-medium">
+    <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8 pointer-events-none">
+      <div className="absolute top-4 left-4 z-20 pointer-events-auto">
+        <Link href="/" className="text-white/90 hover:underline font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
           ← Back to Home
         </Link>
       </div>
-      <div className="relative z-10 min-h-screen w-full flex items-center justify-center">
-        <div className="w-full max-w-3xl flex flex-col items-center justify-center rounded-2xl shadow-xl bg-white/80 backdrop-blur-sm transition-all duration-300 p-6 text-gray-900">
-          {state.boss_fight && boss && (
-            <div className="bg-red-200 p-4 rounded mb-4 w-full text-center">
-              <h2 className="text-2xl font-bold">{boss.name}</h2>
-              <p className="text-gray-500">{boss.title}</p>
-              <p>HP: {boss.hp}</p>
-              {raidMins != null && raidSecs != null && (
-                <p className="text-gray-500">
-                  Boss-fight starts in {raidMins}m {raidSecs}s
-                </p>
-              )}
-            </div>
-          )}
-
-          {state.ranked && (
-            <div className="bg-amber-100 p-4 rounded mb-4 w-full text-center">
-              <h2 className="text-xl font-bold text-amber-900">Ranked Match</h2>
-              <p className="text-gray-600">
-                {state.players.length}/6 players joined
+      <div className="relative z-10 w-full max-w-2xl flex flex-col items-center justify-center rounded-2xl shadow-xl bg-black/35 backdrop-blur-md border border-white/10 transition-all duration-300 p-6 text-white pointer-events-auto">
+        {state.boss_fight && boss && (
+          <div className="bg-red-500/15 border border-red-400/30 p-4 rounded mb-4 w-full text-center">
+            <h2 className="text-2xl font-bold">{boss.name}</h2>
+            <p className="text-white/60">{boss.title}</p>
+            <p>HP: {boss.hp}</p>
+            {raidMins != null && raidSecs != null && (
+              <p className="text-white/60">
+                Boss-fight starts in {raidMins}m {raidSecs}s
               </p>
-              {rankedSecondsLeft != null && (
-                <p className="text-gray-600">
-                  Match starts in {rankedSecondsLeft}s
-                </p>
-              )}
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
+        {state.ranked && (
+          <div className="bg-amber-400/15 border border-amber-300/30 p-4 rounded mb-4 w-full text-center">
+            <h2 className="text-xl font-bold text-amber-300">Ranked Match</h2>
+            <p className="text-white/70">
+              {state.players.length}/6 players joined
+            </p>
+            {rankedSecondsLeft != null && (
+              <p className="text-white/70">
+                Match starts in {rankedSecondsLeft}s
+              </p>
+            )}
+          </div>
+        )}
+
+        {!state.ranked && !state.boss_fight && (
           <h2 className="text-3xl font-extrabold mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
-          <p className="mb-3 text-lg text-gray-600">Round: {state.round ?? '?'}</p>
-          <p className="mb-6 text-lg text-gray-600">Your Name: {playerName}</p>
+        )}
+        <p className="mb-6 text-lg text-white/70">Your Name: {playerName}</p>
 
-          <div className="w-full mb-6 bg-white p-6 rounded-xl shadow-sm">
-            <h3 className="font-semibold text-xl text-gray-800 mb-4">Players in Lobby</h3>
-            <ul className="list-disc pl-6 text-gray-700 space-y-2">
-              {state.players.map((p) => (
-                <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
-                  {p.hp <= 0 && <span className="text-red-500">☠️</span>}
-                  {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
-                    <span className="text-yellow-500">👑</span>
-                  )}
-                  {p.spectator && <span className="text-yellow-500">👁</span>}
-                  <span className="font-medium">{p.name}</span>
-                  {p.name === playerName && state.round === 0 ? (
-                    <RelicSelectionPopover
-                      playerName={playerName}
-                      selectedRelicIds={p.selected_relic_ids ?? []}
-                      onToggle={onToggleRelicSelection}
-                    />
-                  ) : (
-                    p.selected_relic_ids?.includes(COIN_RELIC_ID) && (
-                      <span title="Selected: will start the match with +1 coin">🪙</span>
-                    )
-                  )}
-                  {isAdmin && p.name !== playerName && p.hp > 0 && state.round === 0 && (
-                    <span
-                      className="ml-2 text-red-500 text-sm cursor-pointer"
-                      title="Kick player"
-                      onClick={() => onKick(p.name)}
-                    >
-                      ❌
-                    </span>
-                  )}
-                  {state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>}
-                  {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
-                </li>
-              ))}
-            </ul>
+        <div className="w-full mb-6 bg-white/5 border border-white/10 p-6 rounded-xl">
+          <h3 className="font-semibold text-xl mb-4">Players in Lobby</h3>
+          <ul className="list-disc pl-6 text-white/90 space-y-2">
+            {state.players.map((p) => (
+              <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
+                {p.hp <= 0 && <span className="text-red-500">☠️</span>}
+                {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
+                  <span className="text-yellow-500">👑</span>
+                )}
+                {p.spectator && <span className="text-yellow-500">👁</span>}
+                <span className="font-medium">{p.name}</span>
+                {p.name === playerName && state.round === 0 ? (
+                  <RelicSelectionPopover
+                    playerName={playerName}
+                    selectedRelicIds={p.selected_relic_ids ?? []}
+                    onToggle={onToggleRelicSelection}
+                  />
+                ) : (
+                  p.selected_relic_ids?.includes(COIN_RELIC_ID) && (
+                    <span title="Selected: will start the match with +1 coin">🪙</span>
+                  )
+                )}
+                {isAdmin && p.name !== playerName && p.hp > 0 && state.round === 0 && (
+                  <span
+                    className="ml-2 text-red-400 text-sm cursor-pointer"
+                    title="Kick player"
+                    onClick={() => onKick(p.name)}
+                  >
+                    ❌
+                  </span>
+                )}
+                {state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>}
+                {p.idle_rounds >= 2 && <span className="text-white/40">👻</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {isAdmin && (
+          <div className="flex flex-wrap gap-3 mb-4 items-end">
+            <StartGameButton state={state} btn={btn} onStartGame={onStartGame} />
+            <button
+              type="button"
+              onClick={onAddDummy}
+              className={`${btn} bg-gray-600 text-white`}
+            >
+              Add Bot
+            </button>
           </div>
+        )}
 
-          {isAdmin && (
-            <div className="flex flex-wrap gap-3 mb-4 items-end">
-              <StartGameButton state={state} btn={btn} onStartGame={onStartGame} />
-              <button
-                type="button"
-                onClick={onAddDummy}
-                className={`${btn} bg-gray-600 text-white`}
-              >
-                Add Bot
-              </button>
-            </div>
-          )}
-
-          <div className="mb-4">
-            <InviteSection lobbyId={lobbyId} />
-          </div>
+        <div className="mb-4">
+          <InviteSection lobbyId={lobbyId} />
         </div>
       </div>
     </div>
