@@ -363,7 +363,7 @@ export default function Page() {
           <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
             <WorldMap
               onCityClick={handleCityClick}
-              athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil, bossName: 'Hades' }}
+              athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil }}
               rankedInfo={rankedInfo}
             />
           </Canvas>
