@@ -3,10 +3,20 @@ import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react';
 import * as THREE from 'three';
 import Page from '@/app/page';
-import { checkName, logInUser, verifyLoginCode, getBossfightLobby } from '@/lib/api';
+import {
+  checkName,
+  logInUser,
+  verifyLoginCode,
+  getBossfightLobby,
+  getActiveRankedLobby,
+  joinRankedQueue,
+  leaveRankedQueue,
+} from '@/lib/api';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import type { City } from '@/lib/cities';
+import type { RankedLabelInfo } from '@/components/worldmap/CityMarker';
 import { ToastProvider } from '@/components/Toast';
+import * as socketModule from '@/lib/socket';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -18,9 +28,43 @@ vi.mock('@/lib/api', () => ({
   logInUser: vi.fn(),
   verifyLoginCode: vi.fn(),
   getBossfightLobby: vi.fn(),
+  getActiveRankedLobby: vi.fn(),
+  joinRankedQueue: vi.fn(),
+  leaveRankedQueue: vi.fn(),
 }));
 
 vi.mock('@/lib/useBossfightCountdown', () => ({ useBossfightCountdown: vi.fn() }));
+
+// Same fake-subscribe pattern as WorldMapOverlay.test.tsx -- useRankedQueue
+// (now driven from page.tsx via the New York marker) talks to the socket
+// directly for join_ranked_queue/ranked_match_found.
+vi.mock('@/lib/socket', () => {
+  const subscribeListeners = new Map<string, Set<(...args: unknown[]) => void>>();
+  const emit = vi.fn();
+
+  return {
+    getSocket: () => ({ emit }),
+    subscribe: (event: string, handler: (...args: unknown[]) => void) => {
+      if (!subscribeListeners.has(event)) subscribeListeners.set(event, new Set());
+      subscribeListeners.get(event)!.add(handler);
+      return () => subscribeListeners.get(event)?.delete(handler);
+    },
+    __fireSubscribeEvent: (event: string, payload: unknown) => {
+      subscribeListeners.get(event)?.forEach((h) => h(payload));
+    },
+    __emit: emit,
+    __reset: () => {
+      subscribeListeners.clear();
+      emit.mockClear();
+    },
+  };
+});
+
+const socket = socketModule as unknown as {
+  __fireSubscribeEvent: (event: string, payload: unknown) => void;
+  __emit: ReturnType<typeof vi.fn>;
+  __reset: () => void;
+};
 
 // @react-three/fiber's real Canvas needs a WebGL context jsdom can't provide.
 // Rendering children directly (no real <canvas>) keeps the rest of the page's
@@ -40,11 +84,14 @@ vi.mock('@react-three/fiber', () => ({
 const ATHENS: City = { id: 1, name: 'Athens', country: 'Greece', lat: 0, lng: 0, color: '#fff', tag: '' };
 const VAULT: City = { id: 2, name: 'Vault City', country: '', lat: 0, lng: 0, color: '#fff', tag: '', isVault: true };
 const RULES: City = { id: 3, name: 'Rules City', country: '', lat: 0, lng: 0, color: '#fff', tag: '', isRules: true };
+const NEW_YORK: City = { id: 4, name: 'New York', country: 'USA', lat: 0, lng: 0, color: '#fff', tag: '' };
 
 let cityClickHandler: ((city: City) => void) | undefined;
+let lastRankedInfo: RankedLabelInfo | undefined;
 vi.mock('@/components/worldmap/WorldMap', () => ({
-  default: ({ onCityClick }: { onCityClick: (city: City) => void }) => {
+  default: ({ onCityClick, rankedInfo }: { onCityClick: (city: City) => void; rankedInfo?: RankedLabelInfo }) => {
     cityClickHandler = onCityClick;
+    lastRankedInfo = rankedInfo;
     return null;
   },
 }));
@@ -57,6 +104,9 @@ const mockedCheckName = vi.mocked(checkName);
 const mockedLogInUser = vi.mocked(logInUser);
 const mockedVerifyLoginCode = vi.mocked(verifyLoginCode);
 const mockedGetBossfightLobby = vi.mocked(getBossfightLobby);
+const mockedGetActiveRankedLobby = vi.mocked(getActiveRankedLobby);
+const mockedJoinRankedQueue = vi.mocked(joinRankedQueue);
+const mockedLeaveRankedQueue = vi.mocked(leaveRankedQueue);
 const mockedUseBossfightCountdown = vi.mocked(useBossfightCountdown);
 
 const flush = () => act(async () => Promise.resolve());
@@ -71,15 +121,26 @@ const clickCity = async (city: City) => {
   await act(async () => { cityClickHandler!(city); await flush(); });
 };
 const clickAthens = () => clickCity(ATHENS);
+const clickNewYork = () => clickCity(NEW_YORK);
 
 beforeEach(() => {
   push.mockClear();
   cityClickHandler = undefined;
+  lastRankedInfo = undefined;
   mockedCheckName.mockReset();
   mockedLogInUser.mockReset();
   mockedVerifyLoginCode.mockReset();
   mockedGetBossfightLobby.mockReset();
+  mockedGetActiveRankedLobby.mockReset();
+  mockedJoinRankedQueue.mockReset();
+  mockedLeaveRankedQueue.mockReset();
+  // Harmless "no active ranked match" default for every test that isn't
+  // specifically exercising the New York ranked flow.
+  mockedGetActiveRankedLobby.mockResolvedValue({
+    lobby_id: null, token: null, ranked_countdown_deadline: null, started: false,
+  });
   mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: null, raidMins: null, raidSecs: null });
+  socket.__reset();
 });
 
 afterEach(() => {
@@ -224,5 +285,108 @@ describe('Page (world map view, Athens raid popup)', () => {
     expect(await screen.findByText('Raid full')).toBeInTheDocument();
     expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
+  });
+});
+
+// The "Play Ranked" button used to live in WorldMapOverlay -- it's now driven
+// by clicking the New York sword marker instead, with status text reported
+// via the `rankedInfo` prop WorldMap passes down to CityMarker (mocked out
+// above, so we assert on the captured prop rather than rendered 3D text).
+describe('Page (world map view, New York ranked queue)', () => {
+  it('opens the ranked popup when logged out, and starts the queue for an unclaimed name', async () => {
+    mockedCheckName.mockResolvedValue({ claimed: false });
+    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+    render(<Page />);
+
+    await clickNewYork();
+    expect(screen.getByText('Play Ranked')).toBeInTheDocument();
+    expect(lastRankedInfo?.status).toBe('idle');
+
+    fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Continue'));
+      await flush();
+    });
+
+    expect(mockedCheckName).toHaveBeenCalledWith('Alice');
+    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+    expect(mockedJoinRankedQueue).toHaveBeenCalledWith('Alice');
+    expect(localStorage.getItem('playerName')).toBe('Alice');
+    expect(screen.queryByText('Play Ranked')).not.toBeInTheDocument();
+    expect(lastRankedInfo?.status).toBe('searching');
+  });
+
+  it('starts the ranked queue directly when already logged in, reporting searching status', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+    render(<Page />);
+
+    await clickNewYork();
+
+    expect(mockedCheckName).not.toHaveBeenCalled();
+    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+    expect(lastRankedInfo?.status).toBe('searching');
+  });
+
+  it('cancels the ranked queue on a second click while searching', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+    mockedLeaveRankedQueue.mockResolvedValue({ status: 'left', was_queued: true });
+    render(<Page />);
+
+    await clickNewYork();
+    expect(lastRankedInfo?.status).toBe('searching');
+
+    await clickNewYork();
+    expect(mockedLeaveRankedQueue).toHaveBeenCalledWith('Alice');
+    expect(lastRankedInfo?.status).toBe('idle');
+  });
+
+  it('lands the matched player via join_room and navigates, mirroring the lobby-join pattern', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+    render(<Page />);
+
+    await clickNewYork();
+
+    act(() => {
+      socket.__fireSubscribeEvent('ranked_match_found', { lobby_id: 'RNKD', token: 'tok-1' });
+    });
+
+    expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'RNKD', token: 'tok-1' });
+    expect(push).toHaveBeenCalledWith('/lobby/RNKD');
+  });
+
+  it('reports an active match on mount, and navigates to it on click instead of re-queueing', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedGetActiveRankedLobby.mockResolvedValue({
+      lobby_id: 'RNKD',
+      token: 'tok-active',
+      ranked_countdown_deadline: new Date(Date.now() + 30_000).toISOString(),
+      started: false,
+    });
+    render(<Page />);
+    await waitFor(() => expect(lastRankedInfo?.status).toBe('activeMatch'));
+
+    expect(mockedGetActiveRankedLobby).toHaveBeenCalledWith('Alice');
+    expect(lastRankedInfo?.activeMatchStarted).toBe(false);
+
+    await clickNewYork();
+    expect(mockedJoinRankedQueue).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith('/lobby/RNKD');
+  });
+
+  it('reports the match as started once the countdown deadline has passed', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedGetActiveRankedLobby.mockResolvedValue({
+      lobby_id: 'RNKD',
+      token: 'tok-active',
+      ranked_countdown_deadline: null,
+      started: true,
+    });
+    render(<Page />);
+    await waitFor(() => expect(lastRankedInfo?.status).toBe('activeMatch'));
+
+    expect(lastRankedInfo?.activeMatchStarted).toBe(true);
   });
 });

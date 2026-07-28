@@ -8,9 +8,19 @@ import type { City } from '@/lib/cities';
 import { latLngToVec3 } from '@/lib/cities';
 import { isLowQuality } from '@/lib/deviceQuality';
 
-interface SwordPinProps { hovered: boolean }
+interface SwordPinProps {
+  hovered: boolean;
+  /** Impact glow theme (sprite/ring/point-light colour) — defaults to blue. */
+  swordColor?: 'blue' | 'red';
+}
 
-function SwordPinFigure({ hovered }: SwordPinProps) {
+const SWORD_GLOW_COLORS: Record<'blue' | 'red', { glow: string; ring: string }> = {
+  blue: { glow: '#6ec8ff', ring: '#4ae4ff' },
+  red:  { glow: '#ff4d4d', ring: '#ff2222' },
+};
+
+function SwordPinFigure({ hovered, swordColor = 'blue' }: SwordPinProps) {
+  const { glow: glowHex, ring: ringHex } = SWORD_GLOW_COLORS[swordColor];
   const swordModel = isLowQuality() ? '/models/swords/sword_ld_v1.glb' : '/models/swords/sword_hd_v1.glb';
   const { scene } = useGLTF(swordModel, '/draco/');
   const clone = useMemo(() => scene.clone(), [scene]);
@@ -46,27 +56,27 @@ function SwordPinFigure({ hovered }: SwordPinProps) {
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    color: new THREE.Color('#6ec8ff'),
-  }), [glowMap]);
+    color: new THREE.Color(glowHex),
+  }), [glowMap, glowHex]);
 
   const ringMat = useMemo(() => new THREE.MeshBasicMaterial({
-    color: new THREE.Color('#4ae4ff'),
+    color: new THREE.Color(ringHex),
     transparent: true,
     opacity: 0.55,
     side: THREE.DoubleSide,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
-  }), []);
+  }), [ringHex]);
 
   const pointLightObj = useMemo(() => {
-    const l = new THREE.PointLight(new THREE.Color('#6ec8ff'), 2.5, 3.5, 2);
+    const l = new THREE.PointLight(new THREE.Color(glowHex), 2.5, 3.5, 2);
     return l;
-  }, []);
+  }, [glowHex]);
 
   // Pre-created color targets — avoid per-frame allocations
-  const blueColor  = useMemo(() => new THREE.Color('#6ec8ff'), []);
+  const baseColor  = useMemo(() => new THREE.Color(glowHex), [glowHex]);
   const orangeColor = useMemo(() => new THREE.Color('#ff8800'), []);
-  const blueRing   = useMemo(() => new THREE.Color('#4ae4ff'), []);
+  const baseRing   = useMemo(() => new THREE.Color(ringHex), [ringHex]);
   const orangeRing = useMemo(() => new THREE.Color('#ff7700'), []);
 
   useEffect(() => () => {
@@ -92,9 +102,9 @@ function SwordPinFigure({ hovered }: SwordPinProps) {
 
     // Smooth color transition on hover (lerp rate ≈ 0.12 per frame → ~0.3 s transition at 60 fps)
     const rate = 0.12;
-    spriteMat.color.lerp(hovered ? orangeColor : blueColor, rate);
-    ringMat.color.lerp(hovered ? orangeRing : blueRing, rate);
-    pointLightObj.color.lerp(hovered ? orangeColor : blueColor, rate);
+    spriteMat.color.lerp(hovered ? orangeColor : baseColor, rate);
+    ringMat.color.lerp(hovered ? orangeRing : baseRing, rate);
+    pointLightObj.color.lerp(hovered ? orangeColor : baseColor, rate);
     pointLightObj.intensity = THREE.MathUtils.lerp(
       pointLightObj.intensity,
       hovered ? 4.0 : 2.5,
@@ -125,15 +135,27 @@ function SwordPinFigure({ hovered }: SwordPinProps) {
 
 useGLTF.preload(isLowQuality() ? '/models/swords/sword_ld_v1.glb' : '/models/swords/sword_hd_v1.glb', '/draco/');
 
+/** Ranked-queue status to display over the New York marker, in place of the
+ *  "Play Ranked" button that used to live in the overlay bar. */
+export interface RankedLabelInfo {
+  status: 'idle' | 'searching' | 'activeMatch';
+  /** 1-3, cycling while `status === 'searching'`, for the animated "..." */
+  searchingDots: number;
+  activeMatchStarted?: boolean;
+  activeMatchSecondsLeft?: number | null;
+}
+
 interface CityMarkerProps {
   city: City;
   globeRadius: number;
   onClick: (city: City) => void;
   /** Raid info to display over Athens */
   raidInfo?: { secondsUntil: number | null; bossName?: string };
+  /** Ranked-queue info to display over New York */
+  rankedInfo?: RankedLabelInfo;
 }
 
-export default function CityMarker({ city, globeRadius, onClick, raidInfo }: CityMarkerProps) {
+export default function CityMarker({ city, globeRadius, onClick, raidInfo, rankedInfo }: CityMarkerProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -167,7 +189,7 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo }: Cit
         document.body.style.cursor = 'auto';
       }}
     >
-      <SwordPinFigure hovered={hovered} />
+      <SwordPinFigure hovered={hovered} swordColor={city.swordColor} />
 
       {/* Label (HTML overlay) */}
       <Html
@@ -205,6 +227,32 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo }: Cit
                   RAID ACTIVE
                 </span>
               ) : null}
+            </>
+          )}
+          {rankedInfo && (
+            <>
+              {rankedInfo.status === 'searching' ? (
+                <span style={{ color: '#9fd8ff', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
+                  Searching{'.'.repeat(rankedInfo.searchingDots)}
+                </span>
+              ) : rankedInfo.status === 'activeMatch' ? (
+                <>
+                  <span style={{ color: '#ffcc00', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
+                    Return to Match
+                  </span>
+                  <span style={{ color: rankedInfo.activeMatchStarted ? '#ff4444' : '#ff9966', fontSize: hovered ? 11 : 8, fontWeight: rankedInfo.activeMatchStarted ? 900 : 400 }}>
+                    {rankedInfo.activeMatchStarted
+                      ? 'Game started!'
+                      : rankedInfo.activeMatchSecondsLeft != null
+                        ? `Starts in ${rankedInfo.activeMatchSecondsLeft}s`
+                        : 'Starting soon…'}
+                  </span>
+                </>
+              ) : (
+                <span style={{ color: '#ff6666', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
+                  Play Ranked
+                </span>
+              )}
             </>
           )}
         </div>
