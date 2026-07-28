@@ -10,7 +10,6 @@ import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useCountdown } from '@/lib/useCountdown';
 import { useGameEvents } from '@/lib/useGameEvents';
 import type { LobbyState, Player } from '@/types/game';
-import { playResourceSound } from '@/lib/sounds';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import ResourceCard from '@/components/ResourceCard';
 import { useStagedResources } from '@/lib/useStagedResources';
@@ -118,7 +117,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [messages, setMessages] = useState<(string | string[])[]>([]);
   const [action, setAction] = useState('');
   const [resource, setResource] = useState('');
-  const pendingResourceRef = useRef('');
   const [denyTarget, setDenyTarget] = useState('');
   const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [messagesOverflow, setMessagesOverflow] = useState(false);
@@ -198,11 +196,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const wasKicked = wasEverMyPlayerRef.current && !myPlayer;
 
   useEffect(() => {
-    // Play the gain sound for the resource picked last round, then reset selection.
-    if (pendingResourceRef.current && (state?.round ?? 0) > 1) {
-      playResourceSound(pendingResourceRef.current);
-      pendingResourceRef.current = '';
-    }
     setDenyTarget('');
     setAction('');
     setResource('');
@@ -280,7 +273,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   const handleResource = (resId: string) => {
     setResource(resId);
-    pendingResourceRef.current = resId;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, resource: resId, action: '' });
   };
 
