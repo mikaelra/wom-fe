@@ -5,7 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
-import CityMarker from './CityMarker';
+import CityMarker, { type RankedLabelInfo } from './CityMarker';
 import GlobeCrackleEffect from './GlobeCrackleEffect';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
@@ -809,10 +809,11 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
 interface GlobeProps {
   onCityClick: (city: City) => void;
   athensRaidInfo?: { secondsUntil: number | null; bossName?: string };
+  rankedInfo?: RankedLabelInfo;
   onReady?: () => void;
 }
 
-function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
+function Globe({ onCityClick, athensRaidInfo, rankedInfo, onReady }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
   // Epicenter for the crackle effect — Athens on the globe surface
@@ -893,6 +894,7 @@ function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
           globeRadius={GLOBE_RADIUS}
           onClick={onCityClick}
           raidInfo={city.name === 'Athens' ? athensRaidInfo : undefined}
+          rankedInfo={city.name === 'New York' ? rankedInfo : undefined}
         />
       ))}
 
@@ -1132,9 +1134,10 @@ function CameraRig({
 interface WorldMapProps {
   onCityClick: (city: City) => void;
   athensRaidInfo?: { secondsUntil: number | null; bossName?: string };
+  rankedInfo?: RankedLabelInfo;
 }
 
-export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps) {
+export default function WorldMap({ onCityClick, athensRaidInfo, rankedInfo }: WorldMapProps) {
   const [phase, setPhase] = useState(0);
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
@@ -1185,7 +1188,7 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
           textures are ready without waiting for moon/star textures. */}
       {phase >= 1 && (
         <Suspense fallback={null}>
-          <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} onReady={() => setGlobeReady(true)} />
+          <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} rankedInfo={rankedInfo} onReady={() => setGlobeReady(true)} />
         </Suspense>
       )}
 

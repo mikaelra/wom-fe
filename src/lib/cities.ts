@@ -17,6 +17,8 @@ export interface City {
   isVault?: boolean;
   /** If true, clicking this marker navigates directly to the rules page */
   isRules?: boolean;
+  /** Sword marker impact glow theme (sprite/ring/point-light colour) — defaults to blue. */
+  swordColor?: 'blue' | 'red';
 }
 
 /**
@@ -38,6 +40,7 @@ export interface City {
  */
 export const CITIES: City[] = [
   { id: 3, name: "Athens", country: "Greece", lat: 37.9838, lng: -25, color: "#fa0202", tag: "Marble Columns" },
+  { id: 4, name: "New York", country: "USA", lat: 40.7128, lng: -122.7, color: "#ff3333", tag: "Ranked Arena", swordColor: "red" },
   // { id: 13, name: "Rules", country: "North Pole", lat: 90, lng: 0, color: "#ffffff", tag: "The Rules", isRules: true },
   // { id: 12, name: "The Vault", country: "South Pole", lat: -90, lng: 0, color: "#FFD700", tag: "The Vault", isVault: true },
 ];

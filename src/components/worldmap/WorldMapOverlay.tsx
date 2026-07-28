@@ -3,11 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createLobby, getActiveRankedLobby, joinLobby, logOut } from '@/lib/api';
-import { getStoredAccountToken, setStoredToken } from '@/lib/http';
+import { createLobby, joinLobby, logOut } from '@/lib/api';
+import { getStoredAccountToken } from '@/lib/http';
 import { useAuthFlow } from '@/lib/useAuthFlow';
-import { useCountdown } from '@/lib/useCountdown';
-import { useRankedQueue } from '@/lib/useRankedQueue';
 import { subscribe } from '@/lib/socket';
 import RopedButton from '@/components/hud/RopedButton';
 import RopedInput from '@/components/hud/RopedInput';
@@ -21,31 +19,17 @@ export default function WorldMapOverlay() {
 
   const [joinCode, setJoinCode] = useState('');
   const [lobbyLoading, setLobbyLoading] = useState(false);
-  const [loadingAction, setLoadingAction] = useState<'join' | 'create' | 'ranked' | null>(null);
+  const [loadingAction, setLoadingAction] = useState<'join' | 'create' | null>(null);
   const [showNamePopup, setShowNamePopup] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'join' | 'create' | 'ranked' | null>(null);
+  const [pendingAction, setPendingAction] = useState<'join' | 'create' | null>(null);
 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  const rankedQueue = useRankedQueue();
   // Undefined (not 0) until the first broadcast arrives -- distinguishes
   // "nobody's told us yet" from "genuinely zero players online" so the
   // count doesn't flash a misleading 0 on first paint.
   const [onlineCount, setOnlineCount] = useState<number | undefined>(undefined);
-
-  // A ranked match this player is already in (matched, then left via
-  // "Back to Home" -- that only navigates away, it never leaves the lobby
-  // server-side, see wom-be's sockets/lobby.py handle_disconnect) or is
-  // mid-game in. Checked once per mount (i.e. every time this page is
-  // visited), same lifetime as the ranked/well profile fetches on the
-  // Stats page.
-  const [activeMatch, setActiveMatch] = useState<{
-    lobbyId: string;
-    deadline: string | null;
-    started: boolean;
-  } | null>(null);
-  const activeMatchSecondsLeft = useCountdown(activeMatch?.started ? null : activeMatch?.deadline);
 
   useEffect(() => {
     setMounted(true);
@@ -55,32 +39,8 @@ export default function WorldMapOverlay() {
   }, []);
 
   useEffect(() => {
-    if (!loggedInName) return;
-    getActiveRankedLobby(loggedInName)
-      .then((data) => {
-        if (!data.lobby_id || !data.token) return;
-        setStoredToken(data.lobby_id, data.token);
-        setActiveMatch({ lobbyId: data.lobby_id, deadline: data.ranked_countdown_deadline, started: data.started });
-      })
-      .catch(() => {
-        // Best-effort -- worst case the player just sees "Play Ranked"
-        // again and the backend's own duplicate-name guard still protects
-        // them if they re-queue while actually still in the old match.
-      });
-  }, [loggedInName]);
-
-  useEffect(() => {
     return subscribe('online_count', ({ count }) => setOnlineCount(count));
   }, []);
-
-  // Animated "." -> ".." -> "..." while queued, so the searching state
-  // reads as active rather than stalled.
-  const [searchingDots, setSearchingDots] = useState(1);
-  useEffect(() => {
-    if (rankedQueue.status !== 'searching') return;
-    const id = setInterval(() => setSearchingDots((d) => (d % 3) + 1), 500);
-    return () => clearInterval(id);
-  }, [rankedQueue.status]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -139,24 +99,6 @@ export default function WorldMapOverlay() {
     }
   };
 
-  const doRanked = async (name: string) => {
-    setLobbyLoading(true);
-    setLoadingAction('ranked');
-    try {
-      await rankedQueue.startQueue(name);
-      if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
-      // Loading state intentionally left on -- the button area switches to
-      // the "Searching..." + Cancel UI below while rankedQueue.status is
-      // 'searching', so there's no success path that clears it here; it
-      // only resets on cancel or a start failure (rankedQueue.startQueue
-      // throws, caught below), matching doJoin/doCreate's error handling.
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to join the ranked queue');
-      setLobbyLoading(false);
-      setLoadingAction(null);
-    }
-  };
-
   const authFlow = useAuthFlow({
     submitErrorFallback: 'Something went wrong.',
     onAuthenticated: async (trimmedName, trimmedEmail) => {
@@ -172,8 +114,6 @@ export default function WorldMapOverlay() {
       setShowNamePopup(false);
       if (pendingAction === 'join') {
         await doJoin(trimmedName);
-      } else if (pendingAction === 'ranked') {
-        await doRanked(trimmedName);
       } else {
         await doCreate(trimmedName);
       }
@@ -184,7 +124,7 @@ export default function WorldMapOverlay() {
 
   const isLoggedIn = !!loggedInName;
 
-  const openNamePopup = (action: 'join' | 'create' | 'ranked') => {
+  const openNamePopup = (action: 'join' | 'create') => {
     setPendingAction(action);
     authFlow.reset();
     setShowNamePopup(true);
@@ -206,21 +146,6 @@ export default function WorldMapOverlay() {
       return;
     }
     doCreate(name);
-  };
-
-  const handlePlayRanked = () => {
-    const name = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
-    if (!name) {
-      openNamePopup('ranked');
-      return;
-    }
-    doRanked(name);
-  };
-
-  const handleCancelRankedQueue = () => {
-    rankedQueue.cancelQueue();
-    setLobbyLoading(false);
-    setLoadingAction(null);
   };
 
   return (
@@ -303,67 +228,18 @@ export default function WorldMapOverlay() {
       </div>
 
       {/* Center title */}
-      <div className="absolute top-16 left-0 right-0 z-10 flex flex-col items-center gap-3 pointer-events-none">
+      <div className="absolute top-16 left-0 right-0 z-10 flex flex-col items-center gap-1 pointer-events-none">
         <h1 className="text-white/80 text-lg font-light tracking-[0.3em] uppercase drop-shadow-lg">
           World of Mythos
         </h1>
 
-        {/* Ranked entry — swaps to a "searching" state + cancel while queued. */}
-        <div className="pointer-events-auto flex flex-col items-center gap-1">
-          {rankedQueue.status === 'searching' ? (
-            <>
-              <RopedButton width={249} height={54} onClick={handleCancelRankedQueue} ariaLabel="Cancel ranked queue">
-                Searching for a match
-                <span className="inline-block w-4 text-left">{'.'.repeat(searchingDots)}</span>
-              </RopedButton>
-              <button
-                type="button"
-                onClick={handleCancelRankedQueue}
-                className="text-white/70 text-xs underline hover:text-white cursor-pointer"
-              >
-                Cancel
-              </button>
-            </>
-          ) : activeMatch ? (
-            <>
-              <RopedButton
-                width={249}
-                height={54}
-                onClick={() => router.push(`/lobby/${activeMatch.lobbyId}`)}
-                ariaLabel="Return to ranked match"
-              >
-                Return to Match
-              </RopedButton>
-              {activeMatch.started ? (
-                <span className="text-red-500 text-xs font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                  Game started!
-                </span>
-              ) : (
-                <span className="text-white/70 text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                  {activeMatchSecondsLeft != null ? `Starts in ${activeMatchSecondsLeft}s` : 'Starting soon…'}
-                </span>
-              )}
-            </>
-          ) : (
-            <>
-              <RopedButton
-                width={249}
-                height={54}
-                onClick={handlePlayRanked}
-                disabled={lobbyLoading && loadingAction !== 'ranked'}
-                loading={lobbyLoading && loadingAction === 'ranked'}
-                ariaLabel="Play ranked"
-              >
-                Play Ranked
-              </RopedButton>
-              {onlineCount != null && onlineCount > 0 && (
-                <span className="text-white/70 text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                  {onlineCount} playing right now
-                </span>
-              )}
-            </>
-          )}
-        </div>
+        {/* Ranked queueing itself now lives on the New York sword marker
+            (see CityMarker's rankedInfo) -- this is just the player count. */}
+        {onlineCount != null && onlineCount > 0 && (
+          <span className="text-white/70 text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+            {onlineCount} playing right now
+          </span>
+        )}
       </div>
 
       {/* Bottom: lobby controls */}
@@ -422,7 +298,7 @@ export default function WorldMapOverlay() {
             <h2 className="text-xl font-bold mb-1 text-white">Choose a name</h2>
             <p className="text-sm text-white/60 mb-4">
               Pick a battle name before you{' '}
-              {pendingAction === 'join' ? 'join' : pendingAction === 'ranked' ? 'play ranked' : 'create'} a lobby.
+              {pendingAction === 'join' ? 'join' : 'create'} a lobby.
             </p>
             <input
               type="text"

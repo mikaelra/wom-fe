@@ -7,11 +7,7 @@ import {
   verifyLoginCode,
   createLobby,
   joinLobby,
-  joinRankedQueue,
-  leaveRankedQueue,
-  getActiveRankedLobby,
 } from '@/lib/api';
-import { setStoredToken } from '@/lib/http';
 import * as socketModule from '@/lib/socket';
 
 const push = vi.fn();
@@ -26,19 +22,12 @@ vi.mock('@/lib/api', () => ({
   createLobby: vi.fn(),
   joinLobby: vi.fn(),
   logOut: vi.fn(),
-  joinRankedQueue: vi.fn(),
-  leaveRankedQueue: vi.fn(),
-  getActiveRankedLobby: vi.fn(),
 }));
 
-vi.mock('@/lib/http', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/http')>();
-  return { ...actual, setStoredToken: vi.fn() };
-});
-
 // Same fake-subscribe pattern as useLobbyConnection.test.tsx -- WorldMapOverlay
-// now uses the socket directly (online_count) and via useRankedQueue
-// (join_ranked_queue/ranked_match_found).
+// uses the socket directly for the online_count broadcast (ranked-queue
+// wiring, previously here via useRankedQueue, now lives in page.tsx/CityMarker
+// alongside the New York sword marker).
 vi.mock('@/lib/socket', () => {
   const subscribeListeners = new Map<string, Set<(...args: unknown[]) => void>>();
   const emit = vi.fn();
@@ -72,10 +61,6 @@ const mockedLogInUser = vi.mocked(logInUser);
 const mockedVerifyLoginCode = vi.mocked(verifyLoginCode);
 const mockedCreateLobby = vi.mocked(createLobby);
 const mockedJoinLobby = vi.mocked(joinLobby);
-const mockedJoinRankedQueue = vi.mocked(joinRankedQueue);
-const mockedLeaveRankedQueue = vi.mocked(leaveRankedQueue);
-const mockedGetActiveRankedLobby = vi.mocked(getActiveRankedLobby);
-const mockedSetStoredToken = vi.mocked(setStoredToken);
 
 const flush = () => act(async () => Promise.resolve());
 
@@ -91,16 +76,6 @@ beforeEach(() => {
   mockedVerifyLoginCode.mockReset();
   mockedCreateLobby.mockReset();
   mockedJoinLobby.mockReset();
-  mockedJoinRankedQueue.mockReset();
-  mockedLeaveRankedQueue.mockReset();
-  mockedGetActiveRankedLobby.mockReset();
-  mockedSetStoredToken.mockClear();
-  // Every test that doesn't care about the "return to your match" banner
-  // gets a harmless no-active-match default so it doesn't have to stub
-  // this itself.
-  mockedGetActiveRankedLobby.mockResolvedValue({
-    lobby_id: null, token: null, ranked_countdown_deadline: null, started: false,
-  });
   socket.__reset();
 });
 
@@ -333,162 +308,5 @@ describe('WorldMapOverlay', () => {
     });
 
     expect(screen.getByText('7 playing right now')).toBeInTheDocument();
-  });
-
-  it('joins the ranked queue for an already-logged-in player and shows the searching state', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
-    render(<WorldMapOverlay />);
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Play ranked' }));
-      await flush();
-    });
-
-    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
-    expect(mockedJoinRankedQueue).toHaveBeenCalledWith('Alice');
-    expect(screen.getByRole('button', { name: 'Cancel ranked queue' })).toBeInTheDocument();
-    expect(screen.getByText(/Searching for a match/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Play ranked' })).not.toBeInTheDocument();
-  });
-
-  it('animates the searching dots so the state reads as active, not stalled', async () => {
-    vi.useFakeTimers();
-    localStorage.setItem('playerName', 'Alice');
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
-    render(<WorldMapOverlay />);
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Play ranked' }));
-      await flush();
-    });
-
-    const button = screen.getByRole('button', { name: 'Cancel ranked queue' });
-    expect(button.textContent).toBe('Searching for a match.');
-
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
-    expect(button.textContent).toBe('Searching for a match..');
-
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
-    expect(button.textContent).toBe('Searching for a match...');
-
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
-    expect(button.textContent).toBe('Searching for a match.');
-
-    vi.useRealTimers();
-  });
-
-  it('opens the name popup for Play Ranked when logged out', () => {
-    render(<WorldMapOverlay />);
-    fireEvent.click(screen.getByRole('button', { name: 'Play ranked' }));
-
-    expect(screen.getByText('Choose a name')).toBeInTheDocument();
-    expect(screen.getByText(/play ranked a lobby\.$/)).toBeInTheDocument();
-  });
-
-  it('lands the matched player via join_room and navigates, mirroring the lobby-join pattern', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
-    render(<WorldMapOverlay />);
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Play ranked' }));
-      await flush();
-    });
-
-    act(() => {
-      socket.__fireSubscribeEvent('ranked_match_found', { lobby_id: 'RNKD', token: 'tok-1' });
-    });
-
-    expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'RNKD', token: 'tok-1' });
-    expect(push).toHaveBeenCalledWith('/lobby/RNKD');
-  });
-
-  it('Cancel leaves the queue and returns to the Play Ranked button', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
-    mockedLeaveRankedQueue.mockResolvedValue({ status: 'left', was_queued: true });
-    render(<WorldMapOverlay />);
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Play ranked' }));
-      await flush();
-    });
-
-    await act(async () => {
-      fireEvent.click(screen.getByText('Cancel'));
-      await flush();
-    });
-
-    expect(mockedLeaveRankedQueue).toHaveBeenCalledWith('Alice');
-    expect(screen.getByRole('button', { name: 'Play ranked' })).toBeInTheDocument();
-    expect(screen.queryByText(/Searching for a match/)).not.toBeInTheDocument();
-  });
-
-  it('offers to return to a still-forming ranked match found on mount, with a countdown', async () => {
-    vi.useFakeTimers();
-    localStorage.setItem('playerName', 'Alice');
-    mockedGetActiveRankedLobby.mockResolvedValue({
-      lobby_id: 'RNKD',
-      token: 'tok-active',
-      ranked_countdown_deadline: new Date(Date.now() + 30_000).toISOString(),
-      started: false,
-    });
-
-    render(<WorldMapOverlay />);
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(mockedGetActiveRankedLobby).toHaveBeenCalledWith('Alice');
-    expect(mockedSetStoredToken).toHaveBeenCalledWith('RNKD', 'tok-active');
-    expect(screen.getByRole('button', { name: 'Return to ranked match' })).toBeInTheDocument();
-    expect(screen.getByText('Starts in 30s')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Play ranked' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Game started!')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Return to ranked match' }));
-    expect(push).toHaveBeenCalledWith('/lobby/RNKD');
-
-    vi.useRealTimers();
-  });
-
-  it('shows red "Game started!" text for a match already in progress', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedGetActiveRankedLobby.mockResolvedValue({
-      lobby_id: 'RNKD',
-      token: 'tok-active',
-      ranked_countdown_deadline: null,
-      started: true,
-    });
-
-    render(<WorldMapOverlay />);
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    const started = screen.getByText('Game started!');
-    expect(started).toBeInTheDocument();
-    expect(started).toHaveClass('text-red-500');
-    expect(screen.queryByText(/Starts in/)).not.toBeInTheDocument();
-  });
-
-  it('shows the ordinary Play Ranked button when there is no active match', async () => {
-    localStorage.setItem('playerName', 'Alice');
-
-    render(<WorldMapOverlay />);
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(screen.getByRole('button', { name: 'Play ranked' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Return to ranked match' })).not.toBeInTheDocument();
-    expect(mockedSetStoredToken).not.toHaveBeenCalled();
   });
 });
