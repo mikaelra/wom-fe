@@ -150,7 +150,7 @@ interface CityMarkerProps {
   globeRadius: number;
   onClick: (city: City) => void;
   /** Raid info to display over Athens */
-  raidInfo?: { secondsUntil: number | null; bossName?: string };
+  raidInfo?: { secondsUntil: number | null };
   /** Ranked-queue info to display over New York */
   rankedInfo?: RankedLabelInfo;
 }
@@ -212,47 +212,44 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo, ranke
             gap: 2,
           }}
         >
-          {city.name}
+          {/* Action label -- what clicking this marker does -- reads above
+              the city name, bigger, with a white outline so it stands out
+              as the primary call to action. */}
           {raidInfo && (
+            <span style={{ color: '#4da6ff', fontSize: hovered ? 17 : 13, fontWeight: 900, letterSpacing: '0.05em', WebkitTextStroke: '0.5px #fff' }}>
+              Bossfight
+            </span>
+          )}
+          {rankedInfo?.status === 'idle' && (
+            <span style={{ color: '#ff6666', fontSize: hovered ? 17 : 13, fontWeight: 900, letterSpacing: '0.05em', WebkitTextStroke: '0.5px #fff' }}>
+              Play Ranked
+            </span>
+          )}
+
+          {city.name}
+
+          {raidInfo && raidInfo.secondsUntil !== null && raidInfo.secondsUntil > 0 && (
+            <span style={{ color: '#ff9966', fontSize: hovered ? 11 : 8 }}>
+              {Math.floor(raidInfo.secondsUntil / 60)}m {raidInfo.secondsUntil % 60}s
+            </span>
+          )}
+          {rankedInfo?.status === 'searching' && (
+            <span style={{ color: '#9fd8ff', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
+              Searching{'.'.repeat(rankedInfo.searchingDots)}
+            </span>
+          )}
+          {rankedInfo?.status === 'activeMatch' && (
             <>
               <span style={{ color: '#ffcc00', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
-                {raidInfo.bossName ?? 'Hades'}
+                Return to Match
               </span>
-              {raidInfo.secondsUntil !== null && raidInfo.secondsUntil > 0 ? (
-                <span style={{ color: '#ff9966', fontSize: hovered ? 11 : 8 }}>
-                  {Math.floor(raidInfo.secondsUntil / 60)}m {raidInfo.secondsUntil % 60}s
-                </span>
-              ) : raidInfo.secondsUntil === 0 ? (
-                <span style={{ color: '#ff4444', fontSize: hovered ? 11 : 8, fontWeight: 900 }}>
-                  RAID ACTIVE
-                </span>
-              ) : null}
-            </>
-          )}
-          {rankedInfo && (
-            <>
-              {rankedInfo.status === 'searching' ? (
-                <span style={{ color: '#9fd8ff', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
-                  Searching{'.'.repeat(rankedInfo.searchingDots)}
-                </span>
-              ) : rankedInfo.status === 'activeMatch' ? (
-                <>
-                  <span style={{ color: '#ffcc00', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
-                    Return to Match
-                  </span>
-                  <span style={{ color: rankedInfo.activeMatchStarted ? '#ff4444' : '#ff9966', fontSize: hovered ? 11 : 8, fontWeight: rankedInfo.activeMatchStarted ? 900 : 400 }}>
-                    {rankedInfo.activeMatchStarted
-                      ? 'Game started!'
-                      : rankedInfo.activeMatchSecondsLeft != null
-                        ? `Starts in ${rankedInfo.activeMatchSecondsLeft}s`
-                        : 'Starting soon…'}
-                  </span>
-                </>
-              ) : (
-                <span style={{ color: '#ff6666', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
-                  Play Ranked
-                </span>
-              )}
+              <span style={{ color: rankedInfo.activeMatchStarted ? '#ff4444' : '#ff9966', fontSize: hovered ? 11 : 8, fontWeight: rankedInfo.activeMatchStarted ? 900 : 400 }}>
+                {rankedInfo.activeMatchStarted
+                  ? 'Game started!'
+                  : rankedInfo.activeMatchSecondsLeft != null
+                    ? `Starts in ${rankedInfo.activeMatchSecondsLeft}s`
+                    : 'Starting soon…'}
+              </span>
             </>
           )}
         </div>

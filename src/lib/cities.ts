@@ -24,23 +24,30 @@ export interface City {
 /**
  * COORDINATE SYSTEM NOTE — read this before adding new cities.
  *
- * The globe texture is offset from standard geographic coordinates.
- * Do NOT use real-world longitude values directly; use the calibrated
- * values below as reference points when placing new markers:
+ * The globe texture is MIRRORED (east/west flipped) relative to standard
+ * geographic longitude, not just rotationally offset — a simple "subtract a
+ * constant" rule only happens to fit at a single calibration point, then
+ * diverges everywhere else (verified: it placed New York's marker over
+ * China). The relationship, solved from Athens (the one confirmed-correct
+ * marker):
  *
- *   Athens, Greece        → lat: 37.9838,  lng: -25   (real-world lng ≈ 23.7°E)
- *   The Vault (South Pole) → lat: -90, lng: 0  (no longitude correction needed at the pole)
+ *   system_lng = -1.3 - real_lng
  *
- * Rule of thumb: subtract roughly 48–49 degrees from the real-world longitude
- * to get the correct visual placement on this globe.
- * Example: real 23.7°E → use -25  (23.7 - 48.7 ≈ -25)
- *          real 10°E   → use -5   (10 - ~15 offset... use the reference cities to interpolate)
+ * Do NOT use real-world longitude values directly — negate them and shift
+ * by -1.3. Reference points:
+ *
+ *   Athens, Greece → lat: 37.9838, lng: -25   (real-world ≈ 23.7°E)
+ *   New York, USA  → lat: 40.7128, lng: 72.7  (real-world ≈ 74.0°W)
+ *   The poles      → lng: 0  (longitude is meaningless there — every lng
+ *                     value collapses to the same point at lat ±90, so the
+ *                     poles cannot calibrate or confirm the longitude
+ *                     mapping either way, only the latitude one below)
  *
  * Latitude values match real-world values without adjustment.
  */
 export const CITIES: City[] = [
   { id: 3, name: "Athens", country: "Greece", lat: 37.9838, lng: -25, color: "#fa0202", tag: "Marble Columns" },
-  { id: 4, name: "New York", country: "USA", lat: 40.7128, lng: -122.7, color: "#ff3333", tag: "Ranked Arena", swordColor: "red" },
+  { id: 4, name: "New York", country: "USA", lat: 40.7128, lng: 72.7, color: "#ff3333", tag: "Ranked Arena", swordColor: "red" },
   // { id: 13, name: "Rules", country: "North Pole", lat: 90, lng: 0, color: "#ffffff", tag: "The Rules", isRules: true },
   // { id: 12, name: "The Vault", country: "South Pole", lat: -90, lng: 0, color: "#FFD700", tag: "The Vault", isVault: true },
 ];
