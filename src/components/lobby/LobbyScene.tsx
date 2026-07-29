@@ -47,6 +47,7 @@ import {
   getPlayerPositions,
   getBossPosition,
   getBossPlayerPositions,
+  radiusGrowthFactor,
 } from '@/lib/sceneConstants';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
@@ -236,6 +237,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     let nbi = 0;
     return players.map((p) => (p.boss ? bossSlot : nonBossSlots[nbi++]));
   }, [players, isBossFight]);
+
+  // Boss-fight seating never grows past its fixed base radius (getBossPlayerPositions
+  // doesn't scale with count), so only back the camera off for the regular circle.
+  const cameraRadiusFactor = isBossFight ? 1 : radiusGrowthFactor(players.length);
 
   // Keep posMapRef up-to-date each render (synchronous ref write — no re-render triggered).
   // This is read by the round-transition effect below.
@@ -657,7 +662,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   return (
     <>
-      <CameraFlyIn />
+      <CameraFlyIn round={state?.round ?? 0} radiusFactor={cameraRadiusFactor} />
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 10]} intensity={1.2} />
 

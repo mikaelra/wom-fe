@@ -6,9 +6,16 @@ export const MAX_PLAYERS = 24;
 const BASE_PLAYER_RADIUS = 2.1;
 export const PLAYER_Y = 3.2;
 
-// Radius grows by 10% for every 6 players: 1–6 → base, 7–12 → +10%, 13–18 → +20%, etc.
+// Radius grows by 15% for every 6 players: 1–6 → base, 7–12 → +15%, 13–18 → +30%, etc.
+// Exported so the lobby camera can back off by the same factor as the seat
+// circle grows -- otherwise a full table stays framed the same as a table of
+// 4, and players on the far side fall out of view.
+export function radiusGrowthFactor(count: number): number {
+  return 1 + Math.floor((count - 1) / 6) * 0.15;
+}
+
 function playerRadius(count: number): number {
-  return BASE_PLAYER_RADIUS * (1 + Math.floor((count - 1) / 6) * 0.15);
+  return BASE_PLAYER_RADIUS * radiusGrowthFactor(count);
 }
 
 // Returns `count` seats evenly distributed around The Well.
@@ -86,9 +93,12 @@ export function getResponsiveFov(width: number, height: number): number {
   const aspect = width / height;
   return aspect > 1.5 ? 82 : aspect > 1 ? 78 : 75;
 }
-export function getCameraTargetPosition(width: number, height: number): [number, number, number] {
+// `radiusFactor` scales both distance and elevation by however much the seat
+// circle itself has grown (see radiusGrowthFactor) -- pass 1 (the default)
+// wherever the seat radius never grows, e.g. boss fights.
+export function getCameraTargetPosition(width: number, height: number, radiusFactor: number = 1): [number, number, number] {
   const aspect = width / height;
-  const dist = aspect > 1.5 ? 3.68 : 4.03;
-  const elevation = aspect > 1 ? 2.53 : 2.88;
+  const dist = (aspect > 1.5 ? 3.68 : 4.03) * radiusFactor;
+  const elevation = (aspect > 1 ? 2.53 : 2.88) * radiusFactor;
   return [0, SCENE_CENTER[1] + elevation, dist];
 }
