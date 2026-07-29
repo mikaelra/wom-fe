@@ -338,7 +338,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           {/* Name tag, plus (pre-game only) the kick/relic/status row -- laid out
               as one horizontal group so the lobby controls sit right next to the
               name instead of stacking underneath it. */}
-          <div style={{ ...stackItem(0, showLobbyControls), display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ ...stackItem(0, showLobbyControls), display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{
               fontSize: '26px',
               fontWeight: 'bold',
@@ -367,11 +367,16 @@ export const PlayerWithName = memo(function PlayerWithName({
                 {isIdle && <span title="Idle">👻</span>}
                 {isOwnPlayer ? (
                   onToggleRelicSelection && (
-                    <RelicSelectionPopover
-                      playerName={name}
-                      selectedRelicIds={selectedRelicIds ?? []}
-                      onToggle={onToggleRelicSelection}
-                    />
+                    // Small upward nudge -- its own 36px flex-centered box sits a
+                    // touch lower than the status emoji next to it, whose glyphs
+                    // render higher within their (taller, font-size-driven) line box.
+                    <span style={{ display: 'inline-flex', transform: 'translateY(-3px)' }}>
+                      <RelicSelectionPopover
+                        playerName={name}
+                        selectedRelicIds={selectedRelicIds ?? []}
+                        onToggle={onToggleRelicSelection}
+                      />
+                    </span>
                   )
                 ) : (
                   selectedRelicIds?.includes(COIN_RELIC_ID) && (
