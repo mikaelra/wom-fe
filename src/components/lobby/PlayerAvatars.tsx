@@ -6,8 +6,10 @@ import { useRef, useMemo, memo, Suspense, type CSSProperties, type ReactNode } f
 import * as THREE from 'three';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
+import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { skinUrl } from '@/lib/frogSkins';
+import { COIN_RELIC_ID } from '@/types/game';
 
 // ── Per-player HTML stack ───────────────────────────────────────────────────
 // Chat bubble, ATTACK, name and DEFEND used to be four separate drei <Html>
@@ -21,6 +23,10 @@ const STACK_BUBBLE_Y = -184;
 const STACK_ATTACK_Y = -92;
 const STACK_INFO_Y = 130;
 const STACK_DEFEND_Y = 138;
+// Lobby-wait row (kick / relic pick / status badges) — sits just below the
+// name tag. Only ever shown pre-game (round 0), a window where none of the
+// other rows above are active, so there's no risk of overlap.
+const STACK_LOBBY_Y = 24;
 
 // A player's stats as revealed by an opponent's "info" Well reward. `stale`
 // marks the one extra round it's shown greyed-out with a "last round" label
@@ -231,6 +237,16 @@ export const PlayerWithName = memo(function PlayerWithName({
   showShield,
   highlight,
   infoReveal,
+  // Lobby-wait row (pre-game only)
+  showLobbyControls,
+  isOwnPlayer,
+  isSpectator,
+  isReady,
+  isIdle,
+  selectedRelicIds,
+  viewerIsAdmin,
+  onKick,
+  onToggleRelicSelection,
 }: {
   name: string;
   position: [number, number, number];
@@ -255,6 +271,17 @@ export const PlayerWithName = memo(function PlayerWithName({
   highlight?: GuideHighlights;
   /** Stats revealed by the local player's "info" Well reward, or null when none is active. */
   infoReveal?: InfoRevealBadge | null;
+  /** True pre-game (round 0) — renders the kick/relic/status row below the name. */
+  showLobbyControls?: boolean;
+  isOwnPlayer?: boolean;
+  isSpectator?: boolean;
+  isReady?: boolean;
+  isIdle?: boolean;
+  selectedRelicIds?: number[];
+  /** Whether the *viewer* (not this player) is the lobby admin — gates the kick icon. */
+  viewerIsAdmin?: boolean;
+  onKick?: (name: string) => void;
+  onToggleRelicSelection?: (relicId: number) => void;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   const isCherub = modelUrl === skinUrl('cherub_v1');
@@ -326,6 +353,46 @@ export const PlayerWithName = memo(function PlayerWithName({
             {isWinner && ' 👑'}
             {isDead && ' ☠️'}
           </div>
+
+          {/* Lobby-wait row: kick (admin, other players only), relic pick (self)
+              or the selected-relic badge (others), and status icons — the
+              replacement for the old "Players in Lobby" overlay list, now living
+              next to each seated player instead of in a separate 2D panel. */}
+          {showLobbyControls && (
+            <div style={{
+              ...stackItem(STACK_LOBBY_Y, true),
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '16px',
+            }}>
+              {isSpectator && <span title="Spectator">👁</span>}
+              {isReady && <span title="Ready">✅</span>}
+              {isIdle && <span title="Idle">👻</span>}
+              {isOwnPlayer ? (
+                onToggleRelicSelection && (
+                  <RelicSelectionPopover
+                    playerName={name}
+                    selectedRelicIds={selectedRelicIds ?? []}
+                    onToggle={onToggleRelicSelection}
+                  />
+                )
+              ) : (
+                selectedRelicIds?.includes(COIN_RELIC_ID) && (
+                  <span title="Selected: will start the match with +1 coin">🪙</span>
+                )
+              )}
+              {viewerIsAdmin && !isOwnPlayer && !isDead && (
+                <span
+                  onClick={() => onKick?.(name)}
+                  title="Kick player"
+                  style={{ color: '#f87171', cursor: 'pointer' }}
+                >
+                  ❌
+                </span>
+              )}
+            </div>
+          )}
 
           {showAttackButton && !isBoss && (
             <button

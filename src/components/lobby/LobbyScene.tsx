@@ -181,7 +181,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const allPlayers = useMemo(() => state?.players ?? [], [state?.players]);
   const lostSouls = useMemo(() => allPlayers.filter((p) => p.lost_soul), [allPlayers]);
 
-  const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase } = useLobbyGame(state, playerName);
+  const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase, isAdmin } = useLobbyGame(state, playerName);
+  const showLobbyControls = state?.round === 0;
   const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
   const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
@@ -643,6 +644,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     onActionChange?.('well');
   }, [lobbyId, onActionChange]);
 
+  // Lobby-wait controls (pre-game only) — kicking and relic selection used to
+  // live in the 2D "Players in Lobby" overlay list; that list is gone, so
+  // they're wired up here instead, next to each player's name.
+  const handleKick = useCallback((targetName: string) => {
+    getSocket().emit('kick_player', { lobby_id: lobbyId, target: targetName });
+  }, [lobbyId]);
+
+  const handleToggleRelicSelection = useCallback((relicId: number) => {
+    getSocket().emit('toggle_relic_selection', { lobby_id: lobbyId, relic_id: relicId });
+  }, [lobbyId]);
+
   return (
     <>
       <CameraFlyIn />
@@ -709,6 +721,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             showShield={isOwnPlayer && currentAction === 'defend'}
             highlight={guideHighlight}
             infoReveal={infoBadge}
+            showLobbyControls={showLobbyControls}
+            isOwnPlayer={isOwnPlayer}
+            isSpectator={player.spectator}
+            isReady={state?.readyPlayers?.includes(player.name) ?? false}
+            isIdle={(player.idle_rounds ?? 0) >= 2}
+            selectedRelicIds={player.selected_relic_ids}
+            viewerIsAdmin={isAdmin}
+            onKick={handleKick}
+            onToggleRelicSelection={handleToggleRelicSelection}
           />
         );
       })}
