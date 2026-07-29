@@ -34,6 +34,11 @@ const PLAYING_YAW = -Math.PI / 12; // -15°
 // Guarantees at least half a turn of visible motion before landing, even if
 // the ambient orbit happened to already be near a landing point.
 const MIN_EXTRA_SPIN = Math.PI;
+// The settle transition always resets zoom to this, regardless of whatever
+// the player had scrolled/pinched to during the wait -- otherwise a zoomed-in
+// view can crop the DEFEND button right out of frame the moment the round
+// starts, and worse, inconsistently from one game to the next.
+const SETTLE_TARGET_ZOOM = 1;
 
 function easeOutCubic(t: number): number {
   return 1 - (1 - t) ** 3;
@@ -57,9 +62,11 @@ type CameraFlyInProps = {
 //
 // Also owns the lobby-wait ambient orbit: while round is 0 the camera spins
 // slowly around the table (yaw only -- pitch/zoom stay whatever the player
-// left them at), and the moment the round starts it keeps spinning briefly
-// before easing to a stop directly behind the local player's own seat, with
-// every other seat in frame.
+// left them at). The moment the round starts, it always eases into the
+// settled view (never an instant jump, whether or not spin was on) -- also
+// resetting zoom back to its default, so the local player's seat and DEFEND
+// button end up framed the same way every game regardless of how zoomed in
+// they'd gotten during the wait.
 export default function CameraFlyIn({ round, radiusFactor, spinEnabled }: CameraFlyInProps) {
   const { camera, size } = useThree();
   // Start at the target position (not the Canvas default [33,26,33]) so there is no fly-in
@@ -78,11 +85,14 @@ export default function CameraFlyIn({ round, radiusFactor, spinEnabled }: Camera
   const didInitLateJoinRef = useRef(false);
   if (!didInitLateJoinRef.current) {
     didInitLateJoinRef.current = true;
-    if (round > 0) panOffset.current.yaw = PLAYING_YAW;
+    if (round > 0) {
+      panOffset.current.yaw = PLAYING_YAW;
+      panOffset.current.zoom = SETTLE_TARGET_ZOOM;
+    }
   }
   const phaseRef = useRef<Phase>(round > 0 ? 'playing' : 'waiting');
   const prevRoundRef = useRef(round);
-  const settleRef = useRef({ startYaw: 0, targetYaw: 0, elapsed: 0 });
+  const settleRef = useRef({ startYaw: 0, targetYaw: 0, startZoom: 1, elapsed: 0 });
 
   useFrame((_, delta) => {
     if (round === 0) {
@@ -92,18 +102,16 @@ export default function CameraFlyIn({ round, radiusFactor, spinEnabled }: Camera
     } else if (prevRoundRef.current === 0 && phaseRef.current === 'waiting') {
       // This edge always fires exactly once when the round starts, regardless
       // of spinEnabled -- so toggling spin off mid-wait can never leave the
-      // camera stuck orbiting forever once play begins.
+      // camera stuck orbiting forever once play begins. Always animates into
+      // place (never an instant jump) -- with the flourish of an extra spin
+      // only if spin was actually on; spin off still eases smoothly to the
+      // nearest equivalent of the landing angle, just without circling round.
       const startYaw = panOffset.current.yaw;
-      if (spinEnabled) {
-        const targetYaw = Math.ceil((startYaw + MIN_EXTRA_SPIN - PLAYING_YAW) / TWO_PI) * TWO_PI + PLAYING_YAW;
-        settleRef.current = { startYaw, targetYaw, elapsed: 0 };
-        phaseRef.current = 'settling';
-      } else {
-        // Spin was off for the whole wait -- snap straight to the settled
-        // view instead of flourishing through an animation nobody asked for.
-        panOffset.current.yaw = Math.round((startYaw - PLAYING_YAW) / TWO_PI) * TWO_PI + PLAYING_YAW;
-        phaseRef.current = 'playing';
-      }
+      const targetYaw = spinEnabled
+        ? Math.ceil((startYaw + MIN_EXTRA_SPIN - PLAYING_YAW) / TWO_PI) * TWO_PI + PLAYING_YAW
+        : Math.round((startYaw - PLAYING_YAW) / TWO_PI) * TWO_PI + PLAYING_YAW;
+      settleRef.current = { startYaw, targetYaw, startZoom: panOffset.current.zoom, elapsed: 0 };
+      phaseRef.current = 'settling';
     }
     prevRoundRef.current = round;
 
@@ -113,10 +121,12 @@ export default function CameraFlyIn({ round, radiusFactor, spinEnabled }: Camera
       const s = settleRef.current;
       s.elapsed += delta;
       const t = Math.min(1, s.elapsed / SETTLE_DURATION_S);
-      panOffset.current.yaw = s.startYaw + (s.targetYaw - s.startYaw) * easeOutCubic(t);
+      const eased = easeOutCubic(t);
+      panOffset.current.yaw = s.startYaw + (s.targetYaw - s.startYaw) * eased;
+      panOffset.current.zoom = s.startZoom + (SETTLE_TARGET_ZOOM - s.startZoom) * eased;
       if (t >= 1) phaseRef.current = 'playing';
     }
-    // 'playing': yaw is left alone from here -- back to fully player-controlled drag/zoom.
+    // 'playing': yaw/zoom are left alone from here -- back to fully player-controlled drag/zoom.
 
     const [x, y, z] = getCameraTargetPosition(size.width, size.height, radiusFactor);
     camTarget.set(x, y, z);
