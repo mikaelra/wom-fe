@@ -6,8 +6,10 @@ import { useRef, useMemo, memo, Suspense, type CSSProperties, type ReactNode } f
 import * as THREE from 'three';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
+import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { skinUrl } from '@/lib/frogSkins';
+import { COIN_RELIC_ID } from '@/types/game';
 
 // ── Per-player HTML stack ───────────────────────────────────────────────────
 // Chat bubble, ATTACK, name and DEFEND used to be four separate drei <Html>
@@ -231,6 +233,16 @@ export const PlayerWithName = memo(function PlayerWithName({
   showShield,
   highlight,
   infoReveal,
+  // Lobby-wait row (pre-game only)
+  showLobbyControls,
+  isOwnPlayer,
+  isSpectator,
+  isReady,
+  isIdle,
+  selectedRelicIds,
+  viewerIsAdmin,
+  onKick,
+  onToggleRelicSelection,
 }: {
   name: string;
   position: [number, number, number];
@@ -255,6 +267,17 @@ export const PlayerWithName = memo(function PlayerWithName({
   highlight?: GuideHighlights;
   /** Stats revealed by the local player's "info" Well reward, or null when none is active. */
   infoReveal?: InfoRevealBadge | null;
+  /** True pre-game (round 0) — renders the kick/relic/status row below the name. */
+  showLobbyControls?: boolean;
+  isOwnPlayer?: boolean;
+  isSpectator?: boolean;
+  isReady?: boolean;
+  isIdle?: boolean;
+  selectedRelicIds?: number[];
+  /** Whether the *viewer* (not this player) is the lobby admin — gates the kick icon. */
+  viewerIsAdmin?: boolean;
+  onKick?: (name: string) => void;
+  onToggleRelicSelection?: (relicId: number) => void;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   const isCherub = modelUrl === skinUrl('cherub_v1');
@@ -312,19 +335,64 @@ export const PlayerWithName = memo(function PlayerWithName({
             </div>
           )}
 
-          <div style={{
-            ...stackItem(0),
-            fontSize: '12px',
-            fontWeight: 'bold',
-            color: isDead ? '#888' : isWinner ? 'gold' : 'white',
-            textShadow: '0 0 4px rgba(0,0,0,0.8)',
-            padding: '2px 6px',
-            background: 'rgba(0,0,0,0.6)',
-            borderRadius: '4px',
-          }}>
-            {name}
-            {isWinner && ' 👑'}
-            {isDead && ' ☠️'}
+          {/* Name tag, plus (pre-game only) the kick/relic/status row -- laid out
+              as one horizontal group so the lobby controls sit right next to the
+              name instead of stacking underneath it. */}
+          <div style={{ ...stackItem(0, showLobbyControls), display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{
+              fontSize: '26px',
+              fontWeight: 'bold',
+              // Own player gets a distinct amber tint so it reads apart from
+              // everyone else's white nametag at a glance.
+              color: isDead ? '#888' : isWinner ? 'gold' : isOwnPlayer ? '#fbbf24' : 'white',
+              textShadow: '0 0 4px rgba(0,0,0,0.8)',
+              padding: '4px 10px',
+              background: 'rgba(0,0,0,0.6)',
+              borderRadius: '6px',
+              whiteSpace: 'nowrap',
+            }}>
+              {name}
+              {isWinner && ' 👑'}
+              {isDead && ' ☠️'}
+            </div>
+
+            {/* Lobby-wait controls: kick (admin, other players only), relic pick
+                (self) or the selected-relic badge (others), and status icons --
+                the replacement for the old "Players in Lobby" overlay list, now
+                living next to each seated player instead of in a separate 2D panel. */}
+            {showLobbyControls && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '40px' }}>
+                {isSpectator && <span title="Spectator">👁</span>}
+                {isReady && <span title="Ready">✅</span>}
+                {isIdle && <span title="Idle">👻</span>}
+                {isOwnPlayer ? (
+                  onToggleRelicSelection && (
+                    // Small upward nudge to level it with the status emoji next to
+                    // it, whose glyphs render higher within their own line box.
+                    <span style={{ display: 'inline-flex', transform: 'translateY(-3px)' }}>
+                      <RelicSelectionPopover
+                        playerName={name}
+                        selectedRelicIds={selectedRelicIds ?? []}
+                        onToggle={onToggleRelicSelection}
+                      />
+                    </span>
+                  )
+                ) : (
+                  selectedRelicIds?.includes(COIN_RELIC_ID) && (
+                    <span title="Selected: will start the match with +1 coin">🪙</span>
+                  )
+                )}
+                {viewerIsAdmin && !isOwnPlayer && !isDead && (
+                  <span
+                    onClick={() => onKick?.(name)}
+                    title="Kick player"
+                    style={{ color: '#f87171', cursor: 'pointer' }}
+                  >
+                    ❌
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {showAttackButton && !isBoss && (

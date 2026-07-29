@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import LobbyOverlay, { InviteSection, renderGameOver, renderPreGame } from '@/components/lobby/LobbyOverlay';
 import type { GameOverRenderOpts, PreGameRenderOpts } from '@/components/SceneOverlay';
-import { getPlayerRelics } from '@/lib/api';
-import { COIN_RELIC_ID, type LobbyState, type Player } from '@/types/game';
+import type { LobbyState, Player } from '@/types/game';
 
 let capturedOnStateChange: ((s: LobbyState | null) => void) | null = null;
 
@@ -13,19 +12,6 @@ vi.mock('@/components/SceneOverlay', () => ({
     return null;
   },
 }));
-
-vi.mock('@/lib/api', () => ({
-  getPlayerRelics: vi.fn(),
-}));
-
-// Real RelicCoin renders a react-three-fiber <Canvas>, which needs a WebGL
-// context jsdom can't provide -- mocked out wholesale, same as
-// inventory/__tests__/page.test.tsx.
-vi.mock('@/components/RelicCoin', () => ({
-  default: () => <div data-testid="relic-coin" />,
-}));
-
-const mockedGetPlayerRelics = vi.mocked(getPlayerRelics);
 
 const basePlayer: Player = {
   name: 'Alice',
@@ -230,6 +216,9 @@ describe('renderGameOver', () => {
 });
 
 describe('renderPreGame', () => {
+  // Player list, kick icon, and relic selection all moved into the 3D scene
+  // (PlayerAvatars' lobby-controls row, wired up by LobbyScene) — this overlay
+  // is now just the top status pill and the bottom admin/invite controls.
   const baseOpts: PreGameRenderOpts = {
     state: baseState,
     lobbyId: 'AAAA',
@@ -242,92 +231,36 @@ describe('renderPreGame', () => {
     btn: '',
     onStartGame: vi.fn(),
     onAddDummy: vi.fn(),
-    onKick: vi.fn(),
-    onToggleRelicSelection: vi.fn(),
   };
 
-  beforeEach(() => {
-    mockedGetPlayerRelics.mockReset();
-    mockedGetPlayerRelics.mockResolvedValue({ relics: [] });
+  it('shows the Lobby ID for a private lobby', () => {
+    render(<>{renderPreGame(baseOpts)}</>);
+    expect(screen.getByText('Lobby ID: AAAA')).toBeInTheDocument();
   });
 
-  it('shows a skull for a dead player and a crown for the winner', () => {
-    const dead: Player = { ...basePlayer, name: 'Bob', hp: 0 };
-    const winner: Player = { ...basePlayer, name: 'Carol' };
-    render(<>{renderPreGame({
-      ...baseOpts,
-      state: { ...baseState, players: [dead, winner], winner: 'Carol' },
-    })}</>);
-    expect(screen.getByText('☠️')).toBeInTheDocument();
-    expect(screen.getByText('👑')).toBeInTheDocument();
-  });
-
-  it('shows a crown for the well winner only when there is no game winner yet', () => {
-    const wellWinner: Player = { ...basePlayer, name: 'Dave' };
-    render(<>{renderPreGame({
-      ...baseOpts,
-      state: { ...baseState, players: [wellWinner], winner: null, wellwinner: 'Dave' },
-    })}</>);
-    expect(screen.getByText('👑')).toBeInTheDocument();
-  });
-
-  it('shows spectator, ready, and idle indicators', () => {
-    const spectator: Player = { ...basePlayer, name: 'Eve', spectator: true };
-    render(<>{renderPreGame({
-      ...baseOpts,
-      state: { ...baseState, players: [spectator], readyPlayers: ['Eve'] },
-    })}</>);
-    expect(screen.getByText('👁')).toBeInTheDocument();
-    expect(screen.getByText('✅')).toBeInTheDocument();
-  });
-
-  it('shows the idle ghost only once idle_rounds reaches 2', () => {
-    const almostIdle: Player = { ...basePlayer, name: 'Frank', idle_rounds: 1 };
-    const { rerender } = render(<>{renderPreGame({
-      ...baseOpts,
-      state: { ...baseState, players: [almostIdle] },
-    })}</>);
-    expect(screen.queryByText('👻')).not.toBeInTheDocument();
-
-    rerender(<>{renderPreGame({
-      ...baseOpts,
-      state: { ...baseState, players: [{ ...almostIdle, idle_rounds: 2 }] },
-    })}</>);
-    expect(screen.getByText('👻')).toBeInTheDocument();
-  });
-
-  it('shows Start Game/Add Bot and a kick icon for admins, hides them otherwise', () => {
-    const other: Player = { ...basePlayer, name: 'Bob' };
-    const { rerender } = render(<>{renderPreGame({
-      ...baseOpts,
-      isAdmin: false,
-      state: { ...baseState, players: [basePlayer, other] },
-    })}</>);
+  it('shows Start Game/Add Bot for admins, hides them otherwise', () => {
+    const { rerender } = render(<>{renderPreGame({ ...baseOpts, isAdmin: false })}</>);
     expect(screen.queryByText('Start Game')).not.toBeInTheDocument();
-    expect(screen.queryByTitle('Kick player')).not.toBeInTheDocument();
+    expect(screen.queryByText('Add Bot')).not.toBeInTheDocument();
 
-    rerender(<>{renderPreGame({
-      ...baseOpts,
-      isAdmin: true,
-      state: { ...baseState, players: [basePlayer, other] },
-    })}</>);
+    rerender(<>{renderPreGame({ ...baseOpts, isAdmin: true })}</>);
     expect(screen.getByText('Start Game')).toBeInTheDocument();
     expect(screen.getByText('Add Bot')).toBeInTheDocument();
-    // Only the *other* player gets a kick icon, not the admin viewing the list.
-    expect(screen.getAllByTitle('Kick player')).toHaveLength(1);
   });
 
-  it('does not show a kick icon for a player once the round has started', () => {
-    const other: Player = { ...basePlayer, name: 'Bob' };
-    render(<>{renderPreGame({
-      ...baseOpts,
-      isAdmin: true,
-      state: { ...baseState, round: 1, players: [basePlayer, other] },
-    })}</>);
-    expect(screen.queryByTitle('Kick player')).not.toBeInTheDocument();
+  it('always shows the Invite section, regardless of admin status', () => {
+    render(<>{renderPreGame({ ...baseOpts, isAdmin: false })}</>);
+    expect(screen.getByText('Invite')).toBeInTheDocument();
   });
 
-  it('shows the boss-fight banner only when boss_fight and a boss are both present', () => {
+  it('renders a StartGameButton wired to onStartGame for the admin', () => {
+    const onStartGame = vi.fn();
+    render(<>{renderPreGame({ ...baseOpts, isAdmin: true, onStartGame })}</>);
+    fireEvent.click(screen.getByText('Start Game'));
+    expect(onStartGame).toHaveBeenCalled();
+  });
+
+  it('shows the boss-fight banner, not the Lobby ID, when boss_fight and a boss are both present', () => {
     const boss: Player = { ...basePlayer, name: 'Hades', boss: true, hp: 8, title: 'Lord of the Underworld' };
     const { rerender } = render(<>{renderPreGame({
       ...baseOpts,
@@ -346,68 +279,10 @@ describe('renderPreGame', () => {
     expect(screen.getByText('Hades')).toBeInTheDocument();
     expect(screen.getByText('Lord of the Underworld')).toBeInTheDocument();
     expect(screen.getByText('Boss-fight starts in 1m 30s')).toBeInTheDocument();
+    expect(screen.queryByText(/Lobby ID/)).not.toBeInTheDocument();
   });
 
-  it('shows the relic-selection trigger only next to the local player\'s own name', () => {
-    const other: Player = { ...basePlayer, name: 'Bob' };
-    render(<>{renderPreGame({
-      ...baseOpts,
-      state: { ...baseState, players: [basePlayer, other] },
-    })}</>);
-    expect(screen.getAllByTitle('View your relics')).toHaveLength(1);
-  });
-
-  it('shows the selected-relic badge for any player, including a non-self player', () => {
-    const other: Player = { ...basePlayer, name: 'Bob', selected_relic_ids: [COIN_RELIC_ID] };
-    render(<>{renderPreGame({
-      ...baseOpts,
-      state: { ...baseState, players: [basePlayer, other] },
-    })}</>);
-    expect(screen.getByTitle('Selected: will start the match with +1 coin')).toBeInTheDocument();
-  });
-
-  it('opens the relic popover on click and shows the fetched inventory', async () => {
-    mockedGetPlayerRelics.mockResolvedValue({
-      relics: [{ id: COIN_RELIC_ID, boss_id: 6, created_at: '', name: 'Coin', power_category: 'MONETARY', count: 2 }],
-    });
-    render(<>{renderPreGame({
-      ...baseOpts,
-      state: { ...baseState, players: [basePlayer] },
-    })}</>);
-
-    await act(async () => {
-      fireEvent.click(screen.getByTitle('View your relics'));
-      await Promise.resolve();
-    });
-
-    expect(mockedGetPlayerRelics).toHaveBeenCalledWith('Alice');
-    expect(screen.getByText('×2')).toBeInTheDocument();
-  });
-
-  it('shows the coin icon instead of "+" for the local player once they are selected', () => {
-    const me: Player = { ...basePlayer, name: 'Alice', selected_relic_ids: [COIN_RELIC_ID] };
-    render(<>{renderPreGame({
-      ...baseOpts,
-      playerName: 'Alice',
-      state: { ...baseState, players: [me] },
-    })}</>);
-    expect(screen.queryByTitle('View your relics')).not.toBeInTheDocument();
-    expect(screen.getByText('🪙')).toBeInTheDocument();
-  });
-
-  it('renders a StartGameButton wired to onStartGame for the admin', () => {
-    const onStartGame = vi.fn();
-    render(<>{renderPreGame({
-      ...baseOpts,
-      isAdmin: true,
-      onStartGame,
-      state: { ...baseState, players: [basePlayer] },
-    })}</>);
-    fireEvent.click(screen.getByText('Start Game'));
-    expect(onStartGame).toHaveBeenCalled();
-  });
-
-  it('shows the ranked countdown and join progress for a ranked lobby', () => {
+  it('shows the ranked countdown and join progress, not the Lobby ID, for a ranked lobby', () => {
     render(<>{renderPreGame({
       ...baseOpts,
       rankedSecondsLeft: 42,
@@ -416,6 +291,7 @@ describe('renderPreGame', () => {
     expect(screen.getByText('Ranked Match')).toBeInTheDocument();
     expect(screen.getByText('2/6 players joined')).toBeInTheDocument();
     expect(screen.getByText('Match starts in 42s')).toBeInTheDocument();
+    expect(screen.queryByText(/Lobby ID/)).not.toBeInTheDocument();
   });
 
   it('shows no countdown line for a ranked lobby before the deadline is known', () => {
