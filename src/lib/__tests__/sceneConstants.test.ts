@@ -65,7 +65,7 @@ describe('responsive camera', () => {
   it('picks the fov by aspect ratio', () => {
     expect(getResponsiveFov(1600, 900)).toBe(82); // wide
     expect(getResponsiveFov(1200, 1000)).toBe(78); // landscape
-    expect(getResponsiveFov(800, 1000)).toBe(75); // portrait
+    expect(getResponsiveFov(800, 1000)).toBe(80); // portrait
   });
 
   it('moves the camera closer on wide screens', () => {

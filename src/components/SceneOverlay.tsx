@@ -132,6 +132,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [messagesOverflow, setMessagesOverflow] = useState(false);
   const [messagesHidden, setMessagesHidden] = useState(false);
+  const [playerListCollapsed, setPlayerListCollapsed] = useState(false);
   const messagesRef = useRef<HTMLUListElement>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatExpanded, setChatExpanded] = useState(false);
@@ -630,22 +631,34 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         </div>
       </div>
 
-      {/* Player list — bottom right (optional) */}
+      {/* Player list — bottom right (optional). Collapsible: a full/near-full
+          lobby can run quite tall, especially on a phone, so clicking the
+          header hides everything but the count. */}
       {showPlayerList && (
         <div className="absolute bottom-4 right-4 pointer-events-auto z-20 max-w-[calc(50%-7.5rem)] sm:max-w-none">
           <div className="bg-black/70 backdrop-blur-sm rounded-xl border border-white/20 p-2 sm:p-3 text-white text-sm">
-            <ul className="space-y-1">
-              {state.players.filter((p) => !p.spectator).map((p, i) => (
-                <li key={`${p.name}-${i}`} className={`flex items-center gap-1 ${p.hp <= 0 ? 'opacity-40' : ''}`}>
-                  {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && <span className="shrink-0">👑</span>}
-                  {p.hp <= 0 && <span className="shrink-0">☠️</span>}
-                  {p.idle_rounds >= 2 && <span className="shrink-0">👻</span>}
-                  <span className={`truncate min-w-0 ${p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}`}>
-                    {p.name}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <button
+              type="button"
+              onClick={() => setPlayerListCollapsed((c) => !c)}
+              className="flex items-center gap-2 w-full text-left text-xs text-gray-300 font-semibold cursor-pointer"
+            >
+              <span>Players ({state.players.filter((p) => !p.spectator).length})</span>
+              <span className="text-gray-400">{playerListCollapsed ? '▸' : '▾'}</span>
+            </button>
+            {!playerListCollapsed && (
+              <ul className="space-y-1 mt-1">
+                {state.players.filter((p) => !p.spectator).map((p, i) => (
+                  <li key={`${p.name}-${i}`} className={`flex items-center gap-1 ${p.hp <= 0 ? 'opacity-40' : ''}`}>
+                    {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && <span className="shrink-0">👑</span>}
+                    {p.hp <= 0 && <span className="shrink-0">☠️</span>}
+                    {p.idle_rounds >= 2 && <span className="shrink-0">👻</span>}
+                    <span className={`truncate min-w-0 ${p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}`}>
+                      {p.name}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}

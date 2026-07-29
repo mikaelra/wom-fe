@@ -480,6 +480,22 @@ describe('player list', () => {
     render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, showPlayerList: true }} />);
     expect(screen.getByText('👑')).toBeInTheDocument();
   });
+
+  it('collapses to just the header/count on click, and expands again on a second click', () => {
+    const bob: Player = { ...basePlayer, name: 'Bob' };
+    mockConnection({ ...baseState, players: [basePlayer, bob] });
+    render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, showPlayerList: true }} />);
+
+    const header = screen.getByText('Players (2)');
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+
+    fireEvent.click(header);
+    expect(screen.queryByText('Bob')).not.toBeInTheDocument();
+    expect(screen.getByText('Players (2)')).toBeInTheDocument();
+
+    fireEvent.click(header);
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+  });
 });
 
 describe('kicked mid-lobby', () => {

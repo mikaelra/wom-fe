@@ -91,14 +91,18 @@ export const INITIAL_CAMERA_YAW = -Math.PI / 6;
 
 export function getResponsiveFov(width: number, height: number): number {
   const aspect = width / height;
-  return aspect > 1.5 ? 82 : aspect > 1 ? 78 : 75;
+  // Portrait (phones) widened 75 -> 80: with a full or near-full table of
+  // players, the seat circle was running off the sides of a narrow frame.
+  return aspect > 1.5 ? 82 : aspect > 1 ? 78 : 80;
 }
 // `radiusFactor` scales both distance and elevation by however much the seat
 // circle itself has grown (see radiusGrowthFactor) -- pass 1 (the default)
 // wherever the seat radius never grows, e.g. boss fights.
 export function getCameraTargetPosition(width: number, height: number, radiusFactor: number = 1): [number, number, number] {
   const aspect = width / height;
-  const dist = (aspect > 1.5 ? 3.68 : 4.03) * radiusFactor;
-  const elevation = (aspect > 1 ? 2.53 : 2.88) * radiusFactor;
+  // Portrait's base distance/elevation (4.03/2.88) weren't backed off enough
+  // once a lobby fills up on a phone -- widened alongside the fov bump above.
+  const dist = (aspect > 1.5 ? 3.68 : 4.9) * radiusFactor;
+  const elevation = (aspect > 1 ? 2.53 : 3.3) * radiusFactor;
   return [0, SCENE_CENTER[1] + elevation, dist];
 }
