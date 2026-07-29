@@ -23,10 +23,6 @@ const STACK_BUBBLE_Y = -184;
 const STACK_ATTACK_Y = -92;
 const STACK_INFO_Y = 130;
 const STACK_DEFEND_Y = 138;
-// Lobby-wait row (kick / relic pick / status badges) — sits just below the
-// name tag. Only ever shown pre-game (round 0), a window where none of the
-// other rows above are active, so there's no risk of overlap.
-const STACK_LOBBY_Y = 46;
 
 // A player's stats as revealed by an opponent's "info" Well reward. `stale`
 // marks the one extra round it's shown greyed-out with a "last round" label
@@ -339,67 +335,66 @@ export const PlayerWithName = memo(function PlayerWithName({
             </div>
           )}
 
-          <div style={{
-            ...stackItem(0),
-            fontSize: '26px',
-            fontWeight: 'bold',
-            // Own player gets a distinct amber tint so it reads apart from
-            // everyone else's white nametag at a glance.
-            color: isDead ? '#888' : isWinner ? 'gold' : isOwnPlayer ? '#fbbf24' : 'white',
-            textShadow: '0 0 4px rgba(0,0,0,0.8)',
-            padding: '4px 10px',
-            background: 'rgba(0,0,0,0.6)',
-            borderRadius: '6px',
-          }}>
-            {name}
-            {isWinner && ' 👑'}
-            {isDead && ' ☠️'}
-          </div>
-
-          {/* Lobby-wait row: kick (admin, other players only), relic pick (self)
-              or the selected-relic badge (others), and status icons — the
-              replacement for the old "Players in Lobby" overlay list, now living
-              next to each seated player instead of in a separate 2D panel. */}
-          {showLobbyControls && (
+          {/* Name tag, plus (pre-game only) the kick/relic/status row -- laid out
+              as one horizontal group so the lobby controls sit right next to the
+              name instead of stacking underneath it. */}
+          <div style={{ ...stackItem(0, showLobbyControls), display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{
-              ...stackItem(STACK_LOBBY_Y, true),
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              fontSize: '40px',
+              fontSize: '26px',
+              fontWeight: 'bold',
+              // Own player gets a distinct amber tint so it reads apart from
+              // everyone else's white nametag at a glance.
+              color: isDead ? '#888' : isWinner ? 'gold' : isOwnPlayer ? '#fbbf24' : 'white',
+              textShadow: '0 0 4px rgba(0,0,0,0.8)',
+              padding: '4px 10px',
+              background: 'rgba(0,0,0,0.6)',
+              borderRadius: '6px',
+              whiteSpace: 'nowrap',
             }}>
-              {isSpectator && <span title="Spectator">👁</span>}
-              {isReady && <span title="Ready">✅</span>}
-              {isIdle && <span title="Idle">👻</span>}
-              {isOwnPlayer ? (
-                onToggleRelicSelection && (
-                  // RelicSelectionPopover's trigger is built from fixed Tailwind
-                  // sizes (w-5/h-5/text-sm) that don't inherit this row's larger
-                  // font-size, so it's scaled up directly to match.
-                  <span style={{ display: 'inline-flex', transform: 'scale(2.5)' }}>
-                    <RelicSelectionPopover
-                      playerName={name}
-                      selectedRelicIds={selectedRelicIds ?? []}
-                      onToggle={onToggleRelicSelection}
-                    />
-                  </span>
-                )
-              ) : (
-                selectedRelicIds?.includes(COIN_RELIC_ID) && (
-                  <span title="Selected: will start the match with +1 coin">🪙</span>
-                )
-              )}
-              {viewerIsAdmin && !isOwnPlayer && !isDead && (
-                <span
-                  onClick={() => onKick?.(name)}
-                  title="Kick player"
-                  style={{ color: '#f87171', cursor: 'pointer' }}
-                >
-                  ❌
-                </span>
-              )}
+              {name}
+              {isWinner && ' 👑'}
+              {isDead && ' ☠️'}
             </div>
-          )}
+
+            {/* Lobby-wait controls: kick (admin, other players only), relic pick
+                (self) or the selected-relic badge (others), and status icons --
+                the replacement for the old "Players in Lobby" overlay list, now
+                living next to each seated player instead of in a separate 2D panel. */}
+            {showLobbyControls && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '40px' }}>
+                {isSpectator && <span title="Spectator">👁</span>}
+                {isReady && <span title="Ready">✅</span>}
+                {isIdle && <span title="Idle">👻</span>}
+                {isOwnPlayer ? (
+                  onToggleRelicSelection && (
+                    // RelicSelectionPopover's trigger is built from fixed Tailwind
+                    // sizes (w-5/h-5/text-sm) that don't inherit this row's larger
+                    // font-size, so it's scaled up directly to match.
+                    <span style={{ display: 'inline-flex', transform: 'scale(2.5)' }}>
+                      <RelicSelectionPopover
+                        playerName={name}
+                        selectedRelicIds={selectedRelicIds ?? []}
+                        onToggle={onToggleRelicSelection}
+                      />
+                    </span>
+                  )
+                ) : (
+                  selectedRelicIds?.includes(COIN_RELIC_ID) && (
+                    <span title="Selected: will start the match with +1 coin">🪙</span>
+                  )
+                )}
+                {viewerIsAdmin && !isOwnPlayer && !isDead && (
+                  <span
+                    onClick={() => onKick?.(name)}
+                    title="Kick player"
+                    style={{ color: '#f87171', cursor: 'pointer' }}
+                  >
+                    ❌
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
 
           {showAttackButton && !isBoss && (
             <button
