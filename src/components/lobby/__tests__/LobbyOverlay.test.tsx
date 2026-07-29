@@ -240,15 +240,16 @@ describe('renderPreGame', () => {
     expect(screen.getByText('Lobby ID: AAAA')).toBeInTheDocument();
   });
 
-  it('shows the spin toggle labeled with the action a click would take, and calls onToggleSpin when clicked', () => {
+  it('shows the spin toggle icon-only, labeled (for a11y) with the action a click would take', () => {
     const onToggleSpin = vi.fn();
     const { rerender } = render(<>{renderPreGame({ ...baseOpts, spinEnabled: true, onToggleSpin })}</>);
-    const button = screen.getByText('⏸ Pause camera spin');
+    const button = screen.getByTitle('Pause camera spin');
+    expect(button).toHaveTextContent('⏸');
     fireEvent.click(button);
     expect(onToggleSpin).toHaveBeenCalledTimes(1);
 
     rerender(<>{renderPreGame({ ...baseOpts, spinEnabled: false, onToggleSpin })}</>);
-    expect(screen.getByText('▶️ Play camera spin')).toBeInTheDocument();
+    expect(screen.getByTitle('Play camera spin')).toHaveTextContent('▶️');
   });
 
   it('shows Start Game/Add Bot for admins, hides them otherwise', () => {
