@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { attackAndAdvance, submitUntilRoundAdvances } from './lobbyCombat';
 
 // Confirms the boss-fight Wheel drop end to end (engine/combat.py's
 // _roll_wheel_drop: 25% independent chance per non-spectator, non-bot
@@ -121,26 +122,29 @@ test('a fresh account eventually gets a Wheel drop from repeated boss fights', a
   // upgrade, then always attack and buy ATK whenever affordable (otherwise
   // bank) -- omitting the ATK purchases (as an earlier version of this file
   // did) leaves damage flat at 1 forever and the match never concludes.
-  await attack.dispatchEvent('click');
-  await coins.click({ timeout: 20_000, force: true });
-  await expect(roundNumber).not.toHaveText('1', { timeout: 30_000 });
+  await submitUntilRoundAdvances(
+    roundNumber,
+    async () => {
+      await attack.dispatchEvent('click').catch(() => {});
+      await coins.click({ timeout: 20_000, force: true }).catch(() => {});
+    },
+    gameOverBanner,
+  );
 
   if (!(await gameOverBanner.isVisible().catch(() => false))) {
-    await well.dispatchEvent('click');
-    await atk.click({ timeout: 20_000, force: true });
-    await expect(roundNumber).not.toHaveText('2', { timeout: 30_000 }).catch(() => {});
+    await submitUntilRoundAdvances(
+      roundNumber,
+      async () => {
+        await well.dispatchEvent('click').catch(() => {});
+        await atk.click({ timeout: 20_000, force: true }).catch(() => {});
+      },
+      gameOverBanner,
+    );
   }
 
   for (let round = 3; round <= 100; round++) {
     if (await gameOverBanner.isVisible().catch(() => false)) break;
-    const currentRound = await roundNumber.textContent();
-    await attack.dispatchEvent('click');
-    if (await atk.isEnabled().catch(() => false)) {
-      await atk.click({ timeout: 20_000, force: true });
-    } else {
-      await coins.click({ timeout: 20_000, force: true }).catch(() => {});
-    }
-    await expect(roundNumber).not.toHaveText(currentRound ?? String(round), { timeout: 30_000 }).catch(() => {});
+    await attackAndAdvance(roundNumber, attack, atk, coins, gameOverBanner);
     if (round % 5 === 0) console.log(`[setup] round ${round}, still fighting TURTLE...`);
   }
   await expect(gameOverBanner).toBeVisible({ timeout: 20_000 });
@@ -203,16 +207,7 @@ test('a fresh account eventually gets a Wheel drop from repeated boss fights', a
     for (let round = 1; round <= 50; round++) {
       const done = await gameOverBanner.isVisible().catch(() => false);
       if (done) break;
-      const currentRound = await roundNumber.textContent();
-      await attack.dispatchEvent('click');
-      if (await atk.isEnabled().catch(() => false)) {
-        await atk.click({ timeout: 20_000, force: true });
-      } else {
-        await coins.click({ timeout: 20_000, force: true }).catch(() => {});
-      }
-      await expect(roundNumber).not.toHaveText(currentRound ?? String(round), { timeout: 30_000 })
-        .catch(() => {}); // the round may not advance if this exact click ended the match
-      if (await gameOverBanner.isVisible().catch(() => false)) break;
+      await attackAndAdvance(roundNumber, attack, atk, coins, gameOverBanner);
       if (round % 5 === 0) console.log(`[boss-fight] attempt ${attempt}: round ${round}, still fighting...`);
     }
     await expect(gameOverBanner).toBeVisible({ timeout: 20_000 });
