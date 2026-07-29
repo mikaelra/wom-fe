@@ -149,7 +149,7 @@ export default function RelicSelectionPopover({
       </span>
 
       {open && (
-        <div className="absolute z-30 top-full left-0 mt-1 w-max max-w-56 backdrop-blur-md border border-white/40 rounded-lg shadow-lg p-3">
+        <div className="absolute z-30 top-full left-0 mt-1 w-max max-w-56 bg-white/20 backdrop-blur-md border border-white/40 rounded-lg shadow-lg p-3">
           {relics.length > 0 ? (
             <div className="flex flex-wrap gap-3">
               {relics.map((relic) => {
