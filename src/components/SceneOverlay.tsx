@@ -577,8 +577,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         </Link>
       </div>
 
-      {/* Round messages panel — top center */}
-      <div className="absolute top-12 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4 pointer-events-auto z-20">
+      {/* Round messages panel — top right, half width */}
+      <div className="absolute top-12 right-4 w-1/2 max-w-2xl px-4 pointer-events-auto z-20">
         <div className={`bg-black/80 backdrop-blur-sm rounded-xl border ${theme.panelBorderClass} p-3 sm:p-4 text-white`}>
           <div className="flex justify-between items-center">
             <span className={`${theme.accentColorClass} font-semibold`}>
