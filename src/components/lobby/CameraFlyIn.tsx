@@ -4,7 +4,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import * as THREE from 'three';
 import { usePanOffset } from '@/lib/usePanOffset';
-import { SCENE_CENTER, getCameraTargetPosition, getResponsiveFov } from '@/lib/sceneConstants';
+import { SCENE_CENTER, INITIAL_CAMERA_YAW, getCameraTargetPosition, getResponsiveFov } from '@/lib/sceneConstants';
 
 const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
@@ -19,10 +19,18 @@ const TWO_PI = Math.PI * 2;
 // read as a lazy establishing shot, not a spinning-room effect.
 const AMBIENT_ROTATE_SPEED = 0.18; // rad/sec
 // When the round starts, the orbit doesn't just stop -- it keeps going for a
-// bit (the "fast around" the player asked for) and eases into landing exactly
-// behind the local player's own seat (yaw's equivalent of 0, seat slot 0 is
-// always on the near/z+ side -- see sceneConstants' getPlayerPositions).
+// bit (the "fast around" the player asked for) and eases into landing behind
+// the local player's own seat (seat slot 0 is always on the near/z+ side --
+// see sceneConstants' getPlayerPositions), offset by PLAYING_YAW below rather
+// than dead-center.
 const SETTLE_DURATION_S = 2.4;
+// The settled "playing" view isn't yaw 0 (dead-center behind the local
+// player) -- it reuses the same offset the static pre-orbit camera always
+// landed at (INITIAL_CAMERA_YAW), pushed a little further the same direction
+// so the local player's own seat (and its floating DEFEND button) clears the
+// fixed HP/Coins/ATK resource cards pinned to screen-bottom-center instead of
+// overlapping them.
+const PLAYING_YAW = INITIAL_CAMERA_YAW - 0.25;
 // Guarantees at least half a turn of visible motion before landing, even if
 // the ambient orbit happened to already be near a landing point.
 const MIN_EXTRA_SPIN = Math.PI;
@@ -61,7 +69,17 @@ export default function CameraFlyIn({ round, radiusFactor, spinEnabled }: Camera
   const panOffset = usePanOffset();
 
   // A late joiner (round already > 0) skips straight to 'playing' -- no
-  // spin-up for someone dropping into a game already in progress.
+  // spin-up for someone dropping into a game already in progress. Also
+  // starts them at PLAYING_YAW directly (same resting view as everyone who
+  // went through the settle transition), rather than usePanOffset's own
+  // default. Guarded to run only once -- this component re-renders on every
+  // state_update, and re-running this every time would stomp the player's
+  // own manual pan mid-game.
+  const didInitLateJoinRef = useRef(false);
+  if (!didInitLateJoinRef.current) {
+    didInitLateJoinRef.current = true;
+    if (round > 0) panOffset.current.yaw = PLAYING_YAW;
+  }
   const phaseRef = useRef<Phase>(round > 0 ? 'playing' : 'waiting');
   const prevRoundRef = useRef(round);
   const settleRef = useRef({ startYaw: 0, targetYaw: 0, elapsed: 0 });
@@ -77,13 +95,13 @@ export default function CameraFlyIn({ round, radiusFactor, spinEnabled }: Camera
       // camera stuck orbiting forever once play begins.
       const startYaw = panOffset.current.yaw;
       if (spinEnabled) {
-        const targetYaw = Math.ceil((startYaw + MIN_EXTRA_SPIN) / TWO_PI) * TWO_PI;
+        const targetYaw = Math.ceil((startYaw + MIN_EXTRA_SPIN - PLAYING_YAW) / TWO_PI) * TWO_PI + PLAYING_YAW;
         settleRef.current = { startYaw, targetYaw, elapsed: 0 };
         phaseRef.current = 'settling';
       } else {
         // Spin was off for the whole wait -- snap straight to the settled
         // view instead of flourishing through an animation nobody asked for.
-        panOffset.current.yaw = Math.round(startYaw / TWO_PI) * TWO_PI;
+        panOffset.current.yaw = Math.round((startYaw - PLAYING_YAW) / TWO_PI) * TWO_PI + PLAYING_YAW;
         phaseRef.current = 'playing';
       }
     }
