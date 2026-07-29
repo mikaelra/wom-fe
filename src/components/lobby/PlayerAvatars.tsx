@@ -19,7 +19,7 @@ import { COIN_RELIC_ID } from '@/types/game';
 // positioned around it in pre-scale pixels. ~230px ≈ 1 world unit here, so the
 // offsets below mirror the old world-space anchors (bubble 1.3, attack 0.9,
 // defend −0.1).
-const STACK_BUBBLE_Y = -184;
+const STACK_BUBBLE_Y = -70;
 const STACK_ATTACK_Y = -92;
 const STACK_INFO_Y = 130;
 const STACK_DEFEND_Y = 138;
@@ -308,29 +308,29 @@ export const PlayerWithName = memo(function PlayerWithName({
           {chatBubble && (
             <div style={{
               ...stackItem(STACK_BUBBLE_Y),
-              maxWidth: '156px',
+              maxWidth: '281px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              padding: '4px 7px',
+              padding: '7px 13px',
               background: 'rgba(255,255,255,0.92)',
               color: '#111',
-              fontSize: '11px',
+              fontSize: '20px',
               fontWeight: '500',
-              borderRadius: '9px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+              borderRadius: '16px',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
               textAlign: 'center',
             }}>
               {chatBubble}
               <div style={{
                 position: 'absolute',
-                bottom: '-6px',
+                bottom: '-11px',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 width: 0,
                 height: 0,
-                borderLeft: '6px solid transparent',
-                borderRight: '6px solid transparent',
-                borderTop: '6px solid rgba(255,255,255,0.92)',
+                borderLeft: '11px solid transparent',
+                borderRight: '11px solid transparent',
+                borderTop: '11px solid rgba(255,255,255,0.92)',
               }} />
             </div>
           )}
