@@ -129,7 +129,7 @@ export default function RelicSelectionPopover({
   return (
     <div ref={containerRef} className="relative inline-block">
       <span
-        className="relative w-9 h-9 inline-flex items-center justify-center text-blue-600 text-2xl font-bold cursor-pointer select-none"
+        className="relative inline-flex items-center justify-center text-blue-600 text-2xl font-bold cursor-pointer select-none px-1"
         title={badgeTitle}
         onClick={handleBadgeClick}
       >
