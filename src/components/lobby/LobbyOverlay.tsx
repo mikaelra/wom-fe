@@ -215,7 +215,7 @@ export function renderPreGame({
           onClick={onToggleSpin}
           className="text-xs px-2 py-1 rounded-md border border-white/20 bg-white/10 hover:bg-white/20 text-white/80 transition-colors"
         >
-          {spinEnabled ? '🌀' : '⏸'} Camera spin
+          {spinEnabled ? '⏸ Pause camera spin' : '▶️ Play camera spin'}
         </button>
       </div>
 
