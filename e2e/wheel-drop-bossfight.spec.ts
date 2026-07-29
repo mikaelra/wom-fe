@@ -89,7 +89,10 @@ test('a fresh account eventually gets a Wheel drop from repeated boss fights', a
   await expect(page.getByText(/^Lobby ID:/)).toBeVisible({ timeout: 20_000 });
 
   await page.getByText('Add Bot', { exact: true }).click({ timeout: 20_000, force: true });
-  await expect(page.getByRole('list').getByText('TURTLE', { exact: true })).toBeVisible({ timeout: 20_000 });
+  // The pre-game "Players in Lobby" list is gone -- players (including bots)
+  // now only show up as a floating 3D name tag above their avatar
+  // (PlayerAvatars.tsx), which is the only place "TURTLE" appears pre-game.
+  await expect(page.getByText('TURTLE', { exact: true })).toBeVisible({ timeout: 20_000 });
   await page.getByText('Start Game', { exact: true }).click({ timeout: 20_000, force: true });
 
   // .first(): a boss fight can have more than one attackable target (the
