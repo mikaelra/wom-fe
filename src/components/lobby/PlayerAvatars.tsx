@@ -367,16 +367,11 @@ export const PlayerWithName = memo(function PlayerWithName({
                 {isIdle && <span title="Idle">👻</span>}
                 {isOwnPlayer ? (
                   onToggleRelicSelection && (
-                    // RelicSelectionPopover's trigger is built from fixed Tailwind
-                    // sizes (w-5/h-5/text-sm) that don't inherit this row's larger
-                    // font-size, so it's scaled up directly to match.
-                    <span style={{ display: 'inline-flex', transform: 'scale(2.5)' }}>
-                      <RelicSelectionPopover
-                        playerName={name}
-                        selectedRelicIds={selectedRelicIds ?? []}
-                        onToggle={onToggleRelicSelection}
-                      />
-                    </span>
+                    <RelicSelectionPopover
+                      playerName={name}
+                      selectedRelicIds={selectedRelicIds ?? []}
+                      onToggle={onToggleRelicSelection}
+                    />
                   )
                 ) : (
                   selectedRelicIds?.includes(COIN_RELIC_ID) && (
