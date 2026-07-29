@@ -56,6 +56,11 @@ export type PreGameRenderOpts = {
   btn: string;
   onStartGame: () => void;
   onAddDummy: () => void;
+  /** Whether the 3D scene's ambient pre-round camera orbit is on, and a way
+   *  to flip it -- surfaced here so renderPreGame can put a toggle button
+   *  in the overlay even though the camera itself lives outside this tree. */
+  spinEnabled: boolean;
+  onToggleSpin: () => void;
 };
 
 export type SceneOverlayConfig = {
@@ -96,9 +101,12 @@ type SceneOverlayProps = {
   onActionChange?: (action: string) => void;
   /** Welcome-tour highlights — glows the matching resource cards. */
   guideHighlight?: GuideHighlights;
+  /** Passed straight through to renderPreGame's opts -- see PreGameRenderOpts. */
+  spinEnabled?: boolean;
+  onToggleSpin?: () => void;
 };
 
-export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, guideHighlight }: SceneOverlayProps) {
+export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, guideHighlight, spinEnabled = true, onToggleSpin }: SceneOverlayProps) {
   const {
     theme,
     backLabel,
@@ -483,6 +491,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           btn,
           onStartGame: handleStartGame,
           onAddDummy: handleAddDummy,
+          spinEnabled,
+          onToggleSpin: onToggleSpin ?? (() => {}),
         })}
         {showChat && (
           <div

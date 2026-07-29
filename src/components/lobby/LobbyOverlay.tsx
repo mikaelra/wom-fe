@@ -22,6 +22,10 @@ type LobbyOverlayProps = {
   externalAction?: string;
   onActionChange?: (action: string) => void;
   guideHighlight?: GuideHighlights;
+  /** Ambient pre-round camera orbit (see CameraFlyIn/LobbyScene) -- lifted up
+   *  to the page since the camera and this overlay are separate render trees. */
+  spinEnabled?: boolean;
+  onToggleSpin?: () => void;
 };
 
 export function InviteSection({ lobbyId }: { lobbyId: string }) {
@@ -164,6 +168,8 @@ export function renderPreGame({
   btn,
   onStartGame,
   onAddDummy,
+  spinEnabled,
+  onToggleSpin,
 }: PreGameRenderOpts) {
   // Deliberately no full-screen backdrop and no player list here -- the 3D
   // scene (players seated at the table) is the primary view while everyone
@@ -178,7 +184,7 @@ export function renderPreGame({
         </Link>
       </div>
 
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-2">
         <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
           {state.boss_fight && boss ? (
             <>
@@ -201,6 +207,16 @@ export function renderPreGame({
             <p className="font-bold tracking-tight">Lobby ID: {lobbyId}</p>
           )}
         </div>
+        {/* Pauses CameraFlyIn's ambient pre-round orbit -- it's hard to land a
+            kick/relic click in the 3D scene while the table is drifting. Its own
+            box, separate from the status pill above. */}
+        <button
+          type="button"
+          onClick={onToggleSpin}
+          className="text-xs px-2 py-1 rounded-md border border-white/20 bg-white/10 hover:bg-white/20 text-white/80 transition-colors"
+        >
+          {spinEnabled ? '🌀' : '⏸'} Camera spin
+        </button>
       </div>
 
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-4">
@@ -251,7 +267,7 @@ const lobbyConfig: SceneOverlayConfig = {
   renderGameOver,
 };
 
-export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, guideHighlight }: LobbyOverlayProps) {
+export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, guideHighlight, spinEnabled, onToggleSpin }: LobbyOverlayProps) {
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [wheelNudgeDismissed, setWheelNudgeDismissed] = useState(false);
@@ -291,6 +307,8 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
         externalAction={externalAction}
         onActionChange={onActionChange}
         guideHighlight={guideHighlight}
+        spinEnabled={spinEnabled}
+        onToggleSpin={onToggleSpin}
       />
       {showNudge && (
         <BossSignupNudge

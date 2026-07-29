@@ -115,9 +115,13 @@ type LobbySceneProps = {
   /** Welcome-tour highlights, lifted to the page so the overlay can glow the
    *  resource cards too. The 3D scene uses it for attack/defend/well. */
   guideHighlight?: GuideHighlights;
+  /** Player-toggleable (button lives in the pre-game overlay) -- off pauses
+   *  CameraFlyIn's ambient pre-round orbit so kick/relic clicks are easier
+   *  to land. Defaults on. */
+  spinEnabled?: boolean;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {} }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {}, spinEnabled = true }: LobbySceneProps) {
   // Countdown warning level for the action buttons. We deliberately do NOT
   // store the remaining seconds here — that re-rendered the whole scene every
   // second. The level only changes twice per round ('' → gold → red), and
@@ -662,7 +666,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   return (
     <>
-      <CameraFlyIn round={state?.round ?? 0} radiusFactor={cameraRadiusFactor} />
+      <CameraFlyIn round={state?.round ?? 0} radiusFactor={cameraRadiusFactor} spinEnabled={spinEnabled} />
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 10]} intensity={1.2} />
 

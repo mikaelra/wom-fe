@@ -39,6 +39,9 @@ type CameraFlyInProps = {
   /** How much the seat circle itself has grown (radiusGrowthFactor); the
    *  camera backs off by the same factor so a full table stays framed. */
   radiusFactor: number;
+  /** Player-toggleable -- off pauses the ambient orbit in place (handy for
+   *  lining up a kick/relic click without the table drifting under you). */
+  spinEnabled: boolean;
 };
 
 // Camera controller — snaps to target immediately on mount so Html buttons appear in the
@@ -49,7 +52,7 @@ type CameraFlyInProps = {
 // left them at), and the moment the round starts it keeps spinning briefly
 // before easing to a stop directly behind the local player's own seat, with
 // every other seat in frame.
-export default function CameraFlyIn({ round, radiusFactor }: CameraFlyInProps) {
+export default function CameraFlyIn({ round, radiusFactor, spinEnabled }: CameraFlyInProps) {
   const { camera, size } = useThree();
   // Start at the target position (not the Canvas default [33,26,33]) so there is no fly-in
   // delay and Html elements are projected correctly on the very first frame.
@@ -66,17 +69,27 @@ export default function CameraFlyIn({ round, radiusFactor }: CameraFlyInProps) {
   useFrame((_, delta) => {
     if (round === 0) {
       // Also covers a rematch in the same lobby: round drops back to 0, and
-      // the ambient orbit picks up again for the next wait.
+      // the ambient orbit (if still enabled) picks up again for the next wait.
       phaseRef.current = 'waiting';
     } else if (prevRoundRef.current === 0 && phaseRef.current === 'waiting') {
+      // This edge always fires exactly once when the round starts, regardless
+      // of spinEnabled -- so toggling spin off mid-wait can never leave the
+      // camera stuck orbiting forever once play begins.
       const startYaw = panOffset.current.yaw;
-      const targetYaw = Math.ceil((startYaw + MIN_EXTRA_SPIN) / TWO_PI) * TWO_PI;
-      settleRef.current = { startYaw, targetYaw, elapsed: 0 };
-      phaseRef.current = 'settling';
+      if (spinEnabled) {
+        const targetYaw = Math.ceil((startYaw + MIN_EXTRA_SPIN) / TWO_PI) * TWO_PI;
+        settleRef.current = { startYaw, targetYaw, elapsed: 0 };
+        phaseRef.current = 'settling';
+      } else {
+        // Spin was off for the whole wait -- snap straight to the settled
+        // view instead of flourishing through an animation nobody asked for.
+        panOffset.current.yaw = Math.round(startYaw / TWO_PI) * TWO_PI;
+        phaseRef.current = 'playing';
+      }
     }
     prevRoundRef.current = round;
 
-    if (phaseRef.current === 'waiting') {
+    if (phaseRef.current === 'waiting' && spinEnabled) {
       panOffset.current.yaw += AMBIENT_ROTATE_SPEED * delta;
     } else if (phaseRef.current === 'settling') {
       const s = settleRef.current;
