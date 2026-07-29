@@ -441,7 +441,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           tag, nudged over/up in CSS pixels to sit roughly beside it. */}
       {showLobbyControls && isOwnPlayer && onToggleRelicSelection && (
         <Html position={[0, 0.5, 0]} center zIndexRange={[7, 7]}>
-          <div style={{ transform: 'translate(64px, -18px)' }}>
+          <div style={{ transform: 'translate(26px, 4px)' }}>
             <RelicSelectionPopover
               playerName={name}
               selectedRelicIds={selectedRelicIds ?? []}
