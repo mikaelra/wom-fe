@@ -10,7 +10,10 @@ test.use({ viewport: { width: 320, height: 240 } });
 // has no GPU (SwiftShader software rendering), and at a normal viewport the
 // continuous 3D rendering was found to starve the page's JS main thread
 // badly enough that even click event dispatch could take 10s+ or hang.
-test.setTimeout(5 * 60_000);
+// Bumped 5 -> 10 min: the combat loop is RNG-driven (allowed up to round 100
+// below) and repeatedly ran past 5 minutes in CI without actually being
+// stuck -- just an unlucky, long-running fight.
+test.setTimeout(10 * 60_000);
 
 test('create a lobby, add a bot, and fight it to a win', async ({ page }) => {
   // Surface network/console failures directly in the test log -- a failed

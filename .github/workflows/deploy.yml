@@ -49,15 +49,18 @@ jobs:
     # build-and-deploy's `needs:` below can gate on it -- `needs:` can only
     # reference jobs in the same workflow file.
     runs-on: ubuntu-latest
-    # lobby-smoke.spec.ts is capped at 5 minutes and observed to finish in
-    # ~3. wheel-drop-bossfight.spec.ts is capped at 25 minutes (up to 20
-    # boss-fight attempts at p=0.25 each) -- BOSSFIGHT_INTERVAL_MINUTES below
-    # keeps each attempt's countdown to ~6s instead of the real 1-minute
-    # default, so the worst case (20 attempts, no wheel yet) is ~13 minutes
-    # of boss-fighting plus ~5 minutes of infra/build setup observed here.
-    # 20 minutes covers that with margin, rather than relying on the
-    # 360-minute default.
-    timeout-minutes: 20
+    # lobby-smoke.spec.ts is capped at 10 minutes per attempt (bumped from 5
+    # -- its combat loop is RNG-driven and repeatedly ran past 5 minutes on a
+    # long-but-not-stuck fight; with Playwright's 1 CI retry, worst case is
+    # 20 minutes). wheel-drop-bossfight.spec.ts is capped at 25 minutes (up
+    # to 20 boss-fight attempts at p=0.25 each) -- BOSSFIGHT_INTERVAL_MINUTES
+    # below keeps each attempt's countdown to ~6s instead of the real
+    # 1-minute default, so its worst case (20 attempts, no wheel yet) is ~13
+    # minutes of boss-fighting. Both specs run in parallel, so the job's
+    # bound is ~5 minutes of infra/build setup plus the slower of the two
+    # (lobby-smoke's 20-minute worst case) -- 30 minutes covers that with
+    # margin, rather than relying on the 360-minute default.
+    timeout-minutes: 30
 
     services:
       postgres:
