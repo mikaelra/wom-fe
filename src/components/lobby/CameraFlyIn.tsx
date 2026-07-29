@@ -4,7 +4,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import * as THREE from 'three';
 import { usePanOffset } from '@/lib/usePanOffset';
-import { SCENE_CENTER, INITIAL_CAMERA_YAW, getCameraTargetPosition, getResponsiveFov } from '@/lib/sceneConstants';
+import { SCENE_CENTER, getCameraTargetPosition, getResponsiveFov } from '@/lib/sceneConstants';
 
 const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
@@ -25,12 +25,12 @@ const AMBIENT_ROTATE_SPEED = 0.18; // rad/sec
 // than dead-center.
 const SETTLE_DURATION_S = 2.4;
 // The settled "playing" view isn't yaw 0 (dead-center behind the local
-// player) -- it reuses the same offset the static pre-orbit camera always
-// landed at (INITIAL_CAMERA_YAW), pushed a little further the same direction
-// so the local player's own seat (and its floating DEFEND button) clears the
-// fixed HP/Coins/ATK resource cards pinned to screen-bottom-center instead of
-// overlapping them.
-const PLAYING_YAW = INITIAL_CAMERA_YAW - 0.25;
+// player) -- a small offset so the local player's own seat (and its floating
+// DEFEND button) clears the fixed HP/Coins/ATK resource cards pinned to
+// screen-bottom-center instead of overlapping them. -0.25 rad (~14° --
+// stacked on top of the -30° the camera already carried) turned out to be
+// too much on mobile: it pushed the DEFEND button off-screen entirely.
+const PLAYING_YAW = -Math.PI / 12; // -15°
 // Guarantees at least half a turn of visible motion before landing, even if
 // the ambient orbit happened to already be near a landing point.
 const MIN_EXTRA_SPIN = Math.PI;
