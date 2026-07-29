@@ -26,7 +26,7 @@ const STACK_DEFEND_Y = 138;
 // Lobby-wait row (kick / relic pick / status badges) — sits just below the
 // name tag. Only ever shown pre-game (round 0), a window where none of the
 // other rows above are active, so there's no risk of overlap.
-const STACK_LOBBY_Y = 24;
+const STACK_LOBBY_Y = 36;
 
 // A player's stats as revealed by an opponent's "info" Well reward. `stale`
 // marks the one extra round it's shown greyed-out with a "last round" label
@@ -365,8 +365,8 @@ export const PlayerWithName = memo(function PlayerWithName({
               ...stackItem(STACK_LOBBY_Y, true),
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
-              fontSize: '24px',
+              gap: '16px',
+              fontSize: '40px',
             }}>
               {isSpectator && <span title="Spectator">👁</span>}
               {isReady && <span title="Ready">✅</span>}
@@ -376,7 +376,7 @@ export const PlayerWithName = memo(function PlayerWithName({
                   // RelicSelectionPopover's trigger is built from fixed Tailwind
                   // sizes (w-5/h-5/text-sm) that don't inherit this row's larger
                   // font-size, so it's scaled up directly to match.
-                  <span style={{ display: 'inline-flex', transform: 'scale(1.5)' }}>
+                  <span style={{ display: 'inline-flex', transform: 'scale(2.5)' }}>
                     <RelicSelectionPopover
                       playerName={name}
                       selectedRelicIds={selectedRelicIds ?? []}
