@@ -213,11 +213,9 @@ export function renderPreGame({
         <button
           type="button"
           onClick={onToggleSpin}
-          title={spinEnabled ? 'Pause camera spin' : 'Play camera spin'}
-          aria-label={spinEnabled ? 'Pause camera spin' : 'Play camera spin'}
           className="text-xs px-2 py-1 rounded-md border border-white/20 bg-white/10 hover:bg-white/20 text-white/80 transition-colors"
         >
-          {spinEnabled ? '⏸' : '▶️'}
+          {spinEnabled ? '⏸' : '▶️'} Camera Spin
         </button>
       </div>
 
