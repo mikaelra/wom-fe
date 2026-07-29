@@ -149,9 +149,9 @@ export default function RelicSelectionPopover({
       </span>
 
       {open && (
-        <div className="absolute z-30 top-full left-0 mt-1 w-max max-w-56 bg-white/20 backdrop-blur-md border border-white/40 rounded-lg shadow-lg p-3">
+        <div className="absolute z-30 top-full left-0 mt-1 w-max max-w-56 bg-white/20 backdrop-blur-md border border-white/40 rounded-lg shadow-lg p-4">
           {relics.length > 0 ? (
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-4">
               {relics.map((relic) => {
                 const relicId = typeof relic.id === 'number' ? relic.id : Number(relic.id);
                 return (
@@ -165,14 +165,19 @@ export default function RelicSelectionPopover({
                         : (RELIC_SELECT_HELP[relicId] ?? relic.flavour_text ?? relic.name)
                     }
                     onClick={() => handleSelect(relicId)}
-                    className={`relative flex flex-col items-center gap-1 p-2 rounded-lg border-2 border-transparent transition-colors ${
+                    className={`relative flex flex-col items-center gap-1 p-3 rounded-lg border-2 border-transparent transition-colors ${
                       onCooldown ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-gray-100'
                     }`}
                   >
-                    <div className="w-10 h-10 overflow-hidden">
+                    {/* Sized well beyond its old 40px -- this whole popover still
+                        shrinks with camera distance (it lives in the same
+                        distance-scaled Html as the name tag), so a bigger base
+                        size keeps the coin legible even when the camera pulls
+                        back, without needing to decouple its screen position. */}
+                    <div className="w-20 h-20 overflow-hidden">
                       <RelicCoin />
                     </div>
-                    <span className="text-xs text-gray-700">×{relic.count}</span>
+                    <span className="text-lg text-gray-700">×{relic.count}</span>
                     {onCooldown && (
                       <RelicCooldownOverlay untilMs={cooldownUntil!} totalMs={COOLDOWN_MS} rounded="rounded-lg" />
                     )}
@@ -181,7 +186,7 @@ export default function RelicSelectionPopover({
               })}
             </div>
           ) : (
-            <p className="text-xs text-gray-500">You have no relics yet.</p>
+            <p className="text-base text-gray-500">You have no relics yet.</p>
           )}
         </div>
       )}
