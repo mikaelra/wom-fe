@@ -343,7 +343,9 @@ export const PlayerWithName = memo(function PlayerWithName({
             ...stackItem(0),
             fontSize: '12px',
             fontWeight: 'bold',
-            color: isDead ? '#888' : isWinner ? 'gold' : 'white',
+            // Own player gets a distinct amber tint so it reads apart from
+            // everyone else's white nametag at a glance.
+            color: isDead ? '#888' : isWinner ? 'gold' : isOwnPlayer ? '#fbbf24' : 'white',
             textShadow: '0 0 4px rgba(0,0,0,0.8)',
             padding: '2px 6px',
             background: 'rgba(0,0,0,0.6)',
@@ -363,19 +365,24 @@ export const PlayerWithName = memo(function PlayerWithName({
               ...stackItem(STACK_LOBBY_Y, true),
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '16px',
+              gap: '10px',
+              fontSize: '24px',
             }}>
               {isSpectator && <span title="Spectator">👁</span>}
               {isReady && <span title="Ready">✅</span>}
               {isIdle && <span title="Idle">👻</span>}
               {isOwnPlayer ? (
                 onToggleRelicSelection && (
-                  <RelicSelectionPopover
-                    playerName={name}
-                    selectedRelicIds={selectedRelicIds ?? []}
-                    onToggle={onToggleRelicSelection}
-                  />
+                  // RelicSelectionPopover's trigger is built from fixed Tailwind
+                  // sizes (w-5/h-5/text-sm) that don't inherit this row's larger
+                  // font-size, so it's scaled up directly to match.
+                  <span style={{ display: 'inline-flex', transform: 'scale(1.5)' }}>
+                    <RelicSelectionPopover
+                      playerName={name}
+                      selectedRelicIds={selectedRelicIds ?? []}
+                      onToggle={onToggleRelicSelection}
+                    />
+                  </span>
                 )
               ) : (
                 selectedRelicIds?.includes(COIN_RELIC_ID) && (
