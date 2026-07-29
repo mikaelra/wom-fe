@@ -26,7 +26,7 @@ const STACK_DEFEND_Y = 138;
 // Lobby-wait row (kick / relic pick / status badges) — sits just below the
 // name tag. Only ever shown pre-game (round 0), a window where none of the
 // other rows above are active, so there's no risk of overlap.
-const STACK_LOBBY_Y = 36;
+const STACK_LOBBY_Y = 46;
 
 // A player's stats as revealed by an opponent's "info" Well reward. `stale`
 // marks the one extra round it's shown greyed-out with a "last round" label
@@ -341,15 +341,15 @@ export const PlayerWithName = memo(function PlayerWithName({
 
           <div style={{
             ...stackItem(0),
-            fontSize: '12px',
+            fontSize: '26px',
             fontWeight: 'bold',
             // Own player gets a distinct amber tint so it reads apart from
             // everyone else's white nametag at a glance.
             color: isDead ? '#888' : isWinner ? 'gold' : isOwnPlayer ? '#fbbf24' : 'white',
             textShadow: '0 0 4px rgba(0,0,0,0.8)',
-            padding: '2px 6px',
+            padding: '4px 10px',
             background: 'rgba(0,0,0,0.6)',
-            borderRadius: '4px',
+            borderRadius: '6px',
           }}>
             {name}
             {isWinner && ' 👑'}
