@@ -365,23 +365,10 @@ export const PlayerWithName = memo(function PlayerWithName({
                 {isSpectator && <span title="Spectator">👁</span>}
                 {isReady && <span title="Ready">✅</span>}
                 {isIdle && <span title="Idle">👻</span>}
-                {isOwnPlayer ? (
-                  onToggleRelicSelection && (
-                    // Small upward nudge -- its own 36px flex-centered box sits a
-                    // touch lower than the status emoji next to it, whose glyphs
-                    // render higher within their (taller, font-size-driven) line box.
-                    <span style={{ display: 'inline-flex', transform: 'translateY(-3px)' }}>
-                      <RelicSelectionPopover
-                        playerName={name}
-                        selectedRelicIds={selectedRelicIds ?? []}
-                        onToggle={onToggleRelicSelection}
-                      />
-                    </span>
-                  )
-                ) : (
-                  selectedRelicIds?.includes(COIN_RELIC_ID) && (
-                    <span title="Selected: will start the match with +1 coin">🪙</span>
-                  )
+                {/* Own player's relic trigger renders in its own non-distance-scaled
+                    Html below instead of here -- see the comment there. */}
+                {!isOwnPlayer && selectedRelicIds?.includes(COIN_RELIC_ID) && (
+                  <span title="Selected: will start the match with +1 coin">🪙</span>
                 )}
                 {viewerIsAdmin && !isOwnPlayer && !isDead && (
                   <span
@@ -446,6 +433,23 @@ export const PlayerWithName = memo(function PlayerWithName({
           )}
         </div>
       </Html>
+      {/* Relic-selection trigger + dropdown — deliberately NOT distance-scaled
+          (no distanceFactor prop) so the relic art inside stays a fixed,
+          legible size on screen even when the camera is far from this player,
+          unlike the shared stack above which shrinks with distance like
+          everything else in the scene. Anchored at the same point as the name
+          tag, nudged over/up in CSS pixels to sit roughly beside it. */}
+      {showLobbyControls && isOwnPlayer && onToggleRelicSelection && (
+        <Html position={[0, 0.5, 0]} center zIndexRange={[7, 7]}>
+          <div style={{ transform: 'translate(64px, -18px)' }}>
+            <RelicSelectionPopover
+              playerName={name}
+              selectedRelicIds={selectedRelicIds ?? []}
+              onToggle={onToggleRelicSelection}
+            />
+          </div>
+        </Html>
+      )}
       {/* Info-reward badge — its own Html mount (same anchor/scale as the stack
           above) so its zIndexRange can sit above the boss HP card ([5,5])
           instead of being drawn underneath it when the two overlap on Hades. */}
