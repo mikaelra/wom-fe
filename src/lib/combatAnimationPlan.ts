@@ -302,58 +302,9 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     });
   };
 
-  // ── Outgoing: local player attacked someone ──────────────────────────────
-  // How long my own outgoing strike takes to play out -- incoming attacks
-  // below are delayed until it finishes so my attack always reads before the
-  // ones landing on me, instead of both playing at once.
-  let outgoingDelayMs = 0;
-  if (combat.outgoing) {
-    const { target, outcome } = combat.outgoing;
-    const tgtPos = posMap.get(target);
-    if (myPos && tgtPos) {
-      const tgtDefended = outcome === 'blocked' || outcome === 'reflected' || outcome === 'instakill_blocked';
-      const tgtHit      = outcome === 'hit' || outcome === 'instakill';
-      const reflected   = outcome === 'reflected';
-      const isInstakill = outcome === 'instakill' || outcome === 'instakill_blocked';
-
-      const fromPos: [number, number, number]    = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
-      const baseToPos: [number, number, number]  = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
-
-      const SHIELD_OFFSET = 0.8;
-      let toPos = baseToPos;
-      if (tgtDefended) {
-        const dx = fromPos[0] - baseToPos[0];
-        const dz = fromPos[2] - baseToPos[2];
-        const len = Math.sqrt(dx * dx + dz * dz);
-        if (len > 0) {
-          toPos = [baseToPos[0] + (dx / len) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / len) * SHIELD_OFFSET];
-        }
-      }
-
-      const strike: StrikeEvent = {
-        id: `out-${Date.now()}`, fromPos, toPos,
-        targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false,
-        postImpact:     tgtDefended ? (reflected ? 'bounce' : 'stop') : 'retreat',
-        flashPosition:  tgtHit    ? tgtPos : undefined,
-        bounceFlashPos: reflected ? myPos  : undefined,
-        instakill:      isInstakill,
-      };
-      batches.push({ delayMs: 0, actions: [{ type: 'addStrike', strike }] });
-      outgoingDelayMs = tgtDefended ? ONE_DEF_MS : ONE_HIT_MS;
-
-      // Kill! At the moment the blow lands: fiery glow under me (the killer,
-      // symbolising my +1 ATK) and the victim's coins arch over to me.
-      if (combat.outgoing.eliminated) {
-        const atMs = killDelayMs(isInstakill);
-        scheduleKillFire(myPos, atMs, target);
-        scheduleKillLoot(tgtPos, myPos, combat.outgoing.coinsReceived ?? 0, atMs);
-      }
-    }
-  }
-
   // ── Well reward: only for the player who actually won the well ──────────
   // (steal *victims* also receive a "Steal-all!" line, so gate on wellwinner.)
-  // Spawned first; incoming attacks below are delayed until it finishes so
+  // Spawned first; the combat strikes below are delayed until it finishes so
   // the two don't play at once and confuse the player.
   let wellDelayMs = 0;
   if (myPos && wonWell) {
@@ -375,19 +326,23 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
         ? (Math.max(...rewardEvents.map((e) => e.delay)) + WELL_REWARD_FLIGHT_DUR) * 1000
         : 0;
       if (rewardEvents.length) batches.push({ delayMs: 0, actions: [{ type: 'addWellRewardEvents', events: rewardEvents }] });
-      // Hold incoming attacks until both the splash/glow and any reward
+      // Hold combat strikes until both the splash/glow and any reward
       // models have finished.
       wellDelayMs = Math.max(rewardDurMs, WELL_FX_DURATION);
     }
   }
 
-  // ── Incoming: local player was attacked ──────────────────────────────────
-  if (myPos && combat.incoming.length > 0) {
+  // ── Combat strikes: my own attack (outgoing) and attacks landing on me
+  // (incoming), played in the order `events` lists them -- which mirrors the
+  // round's message log -- rather than always playing my own attack first.
+  // The backend appends outgoing/incoming events to each player's list as
+  // it processes attackers in turn (engine/phases/attacks.py), so an attack
+  // landing on me can genuinely be recorded before my own strike in the same
+  // round; forcing "mine first" made that play back out of order.
+  if (myPos) {
     const SHIELD_OFFSET = 0.8;
     const GAP_MS        = 242; // scaled to 0.8x for a modest speedup
-    // Start after the well animation and my own outgoing strike (if any) so
-    // incoming swords don't overlap either.
-    let staggerMs       = wellDelayMs + outgoingDelayMs;
+    let staggerMs       = wellDelayMs;
 
     // When several attackers land hits on me in the same round, only the last
     // one to visually connect should trigger my dead pose — otherwise it flops
@@ -400,78 +355,126 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       combat.incoming.forEach((inc, idx) => { if (isFatalHit(inc)) lastFatalIdx = idx; });
     }
 
-    combat.incoming.forEach((inc, i) => {
-      const atkPos  = inc.attacker ? posMap.get(inc.attacker) : undefined;
-      const fromPos: [number, number, number] = atkPos
-        ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
-        : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
-      const baseToPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
+    let incomingIdx = 0;
+    for (const e of events) {
+      if (e.kind === 'outgoing') {
+        const tgtPos = posMap.get(e.target);
+        if (!tgtPos) continue;
 
-      const isDefended   = inc.outcome === 'blocked' || inc.outcome === 'reflected_back' || inc.outcome === 'instakill_blocked';
-      const atkReflected = inc.outcome === 'reflected_back';
-      const isInstakill  = inc.outcome === 'instakill' || inc.outcome === 'instakill_blocked';
-      const incomingFx: HpFxEvent = isDefended
-        ? { kind: 'block' }
-        : inc.outcome === 'instakill'
-          ? { kind: 'kill' }
-          : { kind: 'hit', damage: inc.damage ?? 1 };
+        const tgtDefended = e.outcome === 'blocked' || e.outcome === 'reflected' || e.outcome === 'instakill_blocked';
+        const tgtHit      = e.outcome === 'hit' || e.outcome === 'instakill';
+        const reflected   = e.outcome === 'reflected';
+        const isInstakill = e.outcome === 'instakill' || e.outcome === 'instakill_blocked';
 
-      let toPos = baseToPos;
-      if (isDefended) {
-        const dx = fromPos[0] - baseToPos[0];
-        const dz = fromPos[2] - baseToPos[2];
-        const ld = Math.sqrt(dx * dx + dz * dz);
-        if (ld > 0) {
-          toPos = [baseToPos[0] + (dx / ld) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / ld) * SHIELD_OFFSET];
+        const fromPos: [number, number, number]   = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
+        const baseToPos: [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
+
+        let toPos = baseToPos;
+        if (tgtDefended) {
+          const dx = fromPos[0] - baseToPos[0];
+          const dz = fromPos[2] - baseToPos[2];
+          const len = Math.sqrt(dx * dx + dz * dz);
+          if (len > 0) {
+            toPos = [baseToPos[0] + (dx / len) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / len) * SHIELD_OFFSET];
+          }
+        }
+
+        const strike: StrikeEvent = {
+          id: `out-${Date.now()}`, fromPos, toPos,
+          targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false,
+          postImpact:     tgtDefended ? (reflected ? 'bounce' : 'stop') : 'retreat',
+          flashPosition:  tgtHit    ? tgtPos : undefined,
+          bounceFlashPos: reflected ? myPos  : undefined,
+          instakill:      isInstakill,
+        };
+        const delay = staggerMs;
+        batches.push({ delayMs: delay, actions: [{ type: 'addStrike', strike }] });
+        staggerMs += tgtDefended ? ONE_DEF_MS : ONE_HIT_MS;
+
+        // Kill! At the moment the blow lands: fiery glow under me (the killer,
+        // symbolising my +1 ATK) and the victim's coins arch over to me.
+        if (e.eliminated) {
+          const atMs = delay + killDelayMs(isInstakill);
+          scheduleKillFire(myPos, atMs, e.target);
+          scheduleKillLoot(tgtPos, myPos, e.coinsReceived ?? 0, atMs);
+        }
+      } else if (e.kind === 'incoming') {
+        const inc = combat.incoming[incomingIdx];
+        const i = incomingIdx;
+        incomingIdx += 1;
+
+        const atkPos  = inc.attacker ? posMap.get(inc.attacker) : undefined;
+        const fromPos: [number, number, number] = atkPos
+          ? [atkPos[0], atkPos[1] + 0.3, atkPos[2]]
+          : [myPos[0] + 0.9, myPos[1] + 0.3, myPos[2] + 0.9];
+        const baseToPos: [number, number, number] = [myPos[0], myPos[1] + 0.3, myPos[2]];
+
+        const isDefended   = inc.outcome === 'blocked' || inc.outcome === 'reflected_back' || inc.outcome === 'instakill_blocked';
+        const atkReflected = inc.outcome === 'reflected_back';
+        const isInstakill  = inc.outcome === 'instakill' || inc.outcome === 'instakill_blocked';
+        const incomingFx: HpFxEvent = isDefended
+          ? { kind: 'block' }
+          : inc.outcome === 'instakill'
+            ? { kind: 'kill' }
+            : { kind: 'hit', damage: inc.damage ?? 1 };
+
+        let toPos = baseToPos;
+        if (isDefended) {
+          const dx = fromPos[0] - baseToPos[0];
+          const dz = fromPos[2] - baseToPos[2];
+          const ld = Math.sqrt(dx * dx + dz * dz);
+          if (ld > 0) {
+            toPos = [baseToPos[0] + (dx / ld) * SHIELD_OFFSET, baseToPos[1], baseToPos[2] + (dz / ld) * SHIELD_OFFSET];
+          }
+        }
+
+        const strike: StrikeEvent = {
+          id:             `in-${inc.attacker ?? 'anon'}-${Date.now()}-${i}`,
+          fromPos, toPos,
+          targetDefended: isDefended,
+          targetHit:      !isDefended,
+          isIncoming:     true,
+          postImpact:     isDefended ? (atkReflected ? 'bounce' : 'stop') : 'retreat',
+          flashPosition:  !isDefended         ? myPos  : undefined,
+          bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
+          incomingFx,
+          instakill:      isInstakill,
+        };
+
+        const ONE_ANIM_MS = isDefended ? ONE_DEF_MS : ONE_HIT_MS;
+        const delay        = staggerMs;
+        staggerMs += ONE_ANIM_MS + GAP_MS;
+
+        // Reflection kill: my shield bounced the attack back and finished the
+        // attacker. I'm the killer — fiery glow under me + their coins fly over.
+        if (atkReflected && inc.attackerDied && inc.coinsReceived != null && atkPos) {
+          scheduleKillFire(myPos, delay + ONE_DEF_MS, inc.attacker ?? undefined);
+          scheduleKillLoot(atkPos, myPos, inc.coinsReceived, delay + ONE_DEF_MS);
+        }
+        // I was killed this round: I see the fiery glow erupt under my killer
+        // (no coins — those go to them, not me). Only the last fatal-looking
+        // blow reveals my dead pose (see lastFatalIdx above); earlier attacks
+        // in the same round still play out their own strike/flash normally,
+        // they just don't flip me into the dead pose themselves.
+        if (iDied && i === lastFatalIdx) {
+          scheduleKillFire(atkPos, delay + killDelayMs(isInstakill), playerName);
+        }
+
+        const strikeActions: CombatAnimationAction[] = [{ type: 'addStrike', strike }];
+        let shieldId: string | undefined;
+        let shieldDur = 0;
+        if (isDefended) {
+          shieldId  = `def-shield-${strike.id}`;
+          shieldDur = ONE_DEF_MS + 424; // scaled to 0.8x for a modest speedup
+          const rotY = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
+          strikeActions.push({ type: 'addImpactShield', shield: { id: shieldId, pos: toPos, rotY, instakill: isInstakill } });
+        }
+        batches.push({ delayMs: delay, actions: strikeActions });
+        if (shieldId) {
+          batches.push({ delayMs: delay + shieldDur, actions: [{ type: 'removeImpactShield', id: shieldId }] });
         }
       }
-
-      const strike: StrikeEvent = {
-        id:             `in-${inc.attacker ?? 'anon'}-${Date.now()}-${i}`,
-        fromPos, toPos,
-        targetDefended: isDefended,
-        targetHit:      !isDefended,
-        isIncoming:     true,
-        postImpact:     isDefended ? (atkReflected ? 'bounce' : 'stop') : 'retreat',
-        flashPosition:  !isDefended         ? myPos  : undefined,
-        bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
-        incomingFx,
-        instakill:      isInstakill,
-      };
-
-      const ONE_ANIM_MS = isDefended ? ONE_DEF_MS : ONE_HIT_MS;
-      const delay       = staggerMs;
-      staggerMs += ONE_ANIM_MS + GAP_MS;
-
-      // Reflection kill: my shield bounced the attack back and finished the
-      // attacker. I'm the killer — fiery glow under me + their coins fly over.
-      if (atkReflected && inc.attackerDied && inc.coinsReceived != null && atkPos) {
-        scheduleKillFire(myPos, delay + ONE_DEF_MS, inc.attacker ?? undefined);
-        scheduleKillLoot(atkPos, myPos, inc.coinsReceived, delay + ONE_DEF_MS);
-      }
-      // I was killed this round: I see the fiery glow erupt under my killer
-      // (no coins — those go to them, not me). Only the last fatal-looking
-      // blow reveals my dead pose (see lastFatalIdx above); earlier attacks
-      // in the same round still play out their own strike/flash normally,
-      // they just don't flip me into the dead pose themselves.
-      if (iDied && i === lastFatalIdx) {
-        scheduleKillFire(atkPos, delay + killDelayMs(isInstakill), playerName);
-      }
-
-      const strikeActions: CombatAnimationAction[] = [{ type: 'addStrike', strike }];
-      let shieldId: string | undefined;
-      let shieldDur = 0;
-      if (isDefended) {
-        shieldId  = `def-shield-${strike.id}`;
-        shieldDur = ONE_DEF_MS + 424; // scaled to 0.8x for a modest speedup
-        const rotY = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
-        strikeActions.push({ type: 'addImpactShield', shield: { id: shieldId, pos: toPos, rotY, instakill: isInstakill } });
-      }
-      batches.push({ delayMs: delay, actions: strikeActions });
-      if (shieldId) {
-        batches.push({ delayMs: delay + shieldDur, actions: [{ type: 'removeImpactShield', id: shieldId }] });
-      }
-    });
+    }
   }
 
   // ── Witnessed eliminations ────────────────────────────────────────────────

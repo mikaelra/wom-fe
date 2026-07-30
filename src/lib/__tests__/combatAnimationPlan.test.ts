@@ -387,11 +387,39 @@ describe('buildCombatAnimationPlan', () => {
     ];
     const plan = buildCombatAnimationPlan({ ...baseInput, events, wonWell: true });
     const actionTypes = plan.flatMap((b) => b.actions.map((a) => a.type));
-    // Outgoing strike first, then its kill-fire/loot, then the well fx, then the
-    // delayed incoming strike -- matching the original code's section order.
-    expect(actionTypes[0]).toBe('addStrike'); // outgoing
-    expect(actionTypes).toContain('addWellWinFx');
-    expect(actionTypes.indexOf('addWellWinFx')).toBeLessThan(actionTypes.lastIndexOf('addStrike'));
+    // The well fx still always reads first, by design (it's a rewarding
+    // moment we don't want interrupted by combat -- see the well block's own
+    // comment); the two combat strikes follow in event order, outgoing (as
+    // listed first here) before incoming.
+    expect(actionTypes[0]).toBe('addWellWinFx');
+    const outgoingIdx = actionTypes.indexOf('addStrike');
+    const incomingStrikeBatch = plan.find((b) =>
+      b.actions.some((a) => a.type === 'addStrike' && (a as { strike: { isIncoming: boolean } }).strike.isIncoming),
+    );
+    const incomingIdx = plan.indexOf(incomingStrikeBatch!);
+    expect(outgoingIdx).toBeGreaterThan(-1);
+    expect(incomingIdx).toBeGreaterThan(-1);
+    expect(outgoingIdx).toBeLessThan(incomingIdx);
+  });
+
+  it('plays the incoming strike before my own outgoing strike when the incoming event is listed first', () => {
+    const events: GameEvent[] = [
+      { kind: 'incoming', attacker: 'Carol', outcome: 'hit', attackerDied: false, damage: 1 },
+      { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false },
+    ];
+    const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+    const ONE_HIT_MS = 960; // (0.34 + 0.26 + 0.36) * 1000
+    const GAP_MS = 242;
+
+    const strikeBatches = plan.filter((b) => b.actions.some((a) => a.type === 'addStrike'));
+    expect(strikeBatches).toHaveLength(2);
+    const incomingBatch = strikeBatches[0];
+    const outgoingBatch = strikeBatches[1];
+    expect((incomingBatch.actions[0] as { strike: { isIncoming: boolean } }).strike.isIncoming).toBe(true);
+    expect((outgoingBatch.actions[0] as { strike: { isIncoming: boolean } }).strike.isIncoming).toBe(false);
+    expect(incomingBatch.delayMs).toBe(0);
+    expect(outgoingBatch.delayMs).toBe(ONE_HIT_MS + GAP_MS);
   });
 });
 
