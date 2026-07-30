@@ -5,7 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
-import CityMarker from './CityMarker';
+import CityMarker, { type RankedLabelInfo } from './CityMarker';
 import GlobeCrackleEffect from './GlobeCrackleEffect';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
@@ -808,11 +808,12 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
 
 interface GlobeProps {
   onCityClick: (city: City) => void;
-  athensRaidInfo?: { secondsUntil: number | null; bossName?: string };
+  athensRaidInfo?: { secondsUntil: number | null };
+  rankedInfo?: RankedLabelInfo;
   onReady?: () => void;
 }
 
-function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
+function Globe({ onCityClick, athensRaidInfo, rankedInfo, onReady }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
   // Epicenter for the crackle effect — Athens on the globe surface
@@ -893,6 +894,7 @@ function Globe({ onCityClick, athensRaidInfo, onReady }: GlobeProps) {
           globeRadius={GLOBE_RADIUS}
           onClick={onCityClick}
           raidInfo={city.name === 'Athens' ? athensRaidInfo : undefined}
+          rankedInfo={city.name === 'New York' ? rankedInfo : undefined}
         />
       ))}
 
@@ -917,25 +919,46 @@ const _driftQ   = new THREE.Quaternion();
 const _yAxis    = new THREE.Vector3(0, 1, 0);
 
 const CAMERA_RADIUS = 13;
-// If the ambient auto-rotate hasn't carried Athens into view within this
-// window, a corrective pan kicks in.
+// If the ambient auto-rotate hasn't carried the Athens/New York midpoint
+// (PAN_TARGET_DIR, below) into view within this window, a corrective pan
+// kicks in.
 const SHOW_CHECK_SECONDS = 10;
 const CATCHUP_SECONDS = 5;
 // "Roughly centred" cone half-angle used to decide whether the ambient
-// auto-rotate has already brought Athens into view.
+// auto-rotate has already brought that midpoint into view.
 const SHOWN_ANGLE_THRESHOLD = 35 * RAD;
-// The catch-up pan lands with Athens a smidge left of dead-centre rather
-// than exactly on it — see the sign derivation in CameraRig below.
+// The catch-up pan lands with the target a smidge left of dead-centre
+// rather than exactly on it — see the sign derivation in CameraRig below.
 const CATCHUP_LEFT_BIAS = 12 * RAD;
 
-// Athens' world-space direction from the globe centre, on the same Y
-// rotation the Globe applies to its texture — so a camera positioned along
-// this same ray, looking at the origin, has Athens dead-centre in frame.
+// Athens' and New York's world-space directions from the globe centre, on
+// the same Y rotation the Globe applies to its texture -- so a camera
+// positioned along one of these rays, looking at the origin, has that city
+// dead-centre in frame.
 const ATHENS_DIR = (() => {
   const athens = CITIES.find((c) => c.name === 'Athens')!;
   const [x, y, z] = latLngToVec3(athens.lat, athens.lng, 1);
   return new THREE.Vector3(x, y, z).applyAxisAngle(_yAxis, EARTH_ROTATION_Y).normalize();
 })();
+
+// Used to zoom the camera in on New York while the ranked queue is
+// searching (see RankedZoomRig below).
+const NEW_YORK_DIR = (() => {
+  const newYork = CITIES.find((c) => c.name === 'New York')!;
+  const [x, y, z] = latLngToVec3(newYork.lat, newYork.lng, 1);
+  return new THREE.Vector3(x, y, z).applyAxisAngle(_yAxis, EARTH_ROTATION_Y).normalize();
+})();
+// Closer than the ambient CAMERA_RADIUS (13) so New York reads clearly
+// while its "Searching..." label is the thing the player is waiting on.
+const RANKED_ZOOM_RADIUS = 6;
+const RANKED_ZOOM_SECONDS = 1.6;
+
+// The ambient corrective pan (CameraRig, below) used to target Athens alone;
+// it now aims at the midpoint between Athens and New York instead, so the
+// initial wide shot brings both cities toward view rather than favouring
+// just the one. The angular bisector of two unit vectors is their normalized
+// sum (valid as long as they aren't antipodal, which these two aren't).
+const PAN_TARGET_DIR = ATHENS_DIR.clone().add(NEW_YORK_DIR).normalize();
 
 // Cubic Hermite interpolation between p0 (t=0) and p1 (t=1), with tangents
 // m0/m1 giving dp/dt at each end (total change over the unit parameter).
@@ -979,23 +1002,28 @@ function azimuthOf(v: THREE.Vector3, up: THREE.Vector3, e1: THREE.Vector3, e2: T
 }
 
 // Camera behaviour: the ambient auto-rotate (owned by OrbitControls) runs
-// from the very first frame. We just watch whether Athens comes into view
-// on its own within SHOW_CHECK_SECONDS. If it doesn't, we take over for a
-// corrective pan that stays on the *same orbit ring* — same radius, same
-// elevation off the orbit pole, only the azimuth changes — turning until
-// Athens lands a smidge left of dead-centre. That's different from a
-// straight-line slerp between two arbitrary directions, which would also
-// drag the camera's elevation around and cut across the sky at an angle
-// unrelated to the ring the ambient orbit runs on.
+// from the very first frame. We just watch whether the Athens/New York
+// midpoint (PAN_TARGET_DIR) comes into view on its own within
+// SHOW_CHECK_SECONDS. If it doesn't, we take over for a corrective pan that
+// stays on the *same orbit ring* — same radius, same elevation off the
+// orbit pole, only the azimuth changes — turning until that midpoint lands
+// a smidge left of dead-centre. That's different from a straight-line slerp
+// between two arbitrary directions, which would also drag the camera's
+// elevation around and cut across the sky at an angle unrelated to the ring
+// the ambient orbit runs on.
 // The turn itself is a Hermite ease whose start/end tangents match the
 // ambient orbit's own measured angular speed, so the hand-off into and out
 // of the pan doesn't dip to zero speed and then jump back to full speed.
 function CameraRig({
   onCatchupStart,
   onCatchupEnd,
+  paused,
 }: {
   onCatchupStart?: () => void;
   onCatchupEnd?: () => void;
+  /** Skips this rig's own camera control entirely -- used while
+   *  RankedZoomRig owns the camera, so the two don't fight over it. */
+  paused?: boolean;
 }) {
   const { camera } = useThree();
   const initialized = useRef(false);
@@ -1037,6 +1065,8 @@ function CameraRig({
       return;
     }
 
+    if (paused) return;
+
     if (catchingUp.current) {
       catchupElapsed.current += delta;
       const t = Math.min(catchupElapsed.current / CATCHUP_SECONDS, 1);
@@ -1075,7 +1105,7 @@ function CameraRig({
       prevAmbientAz.current = az;
 
       elapsed.current += delta;
-      if (camera.position.angleTo(ATHENS_DIR) < SHOWN_ANGLE_THRESHOLD) {
+      if (camera.position.angleTo(PAN_TARGET_DIR) < SHOWN_ANGLE_THRESHOLD) {
         shown.current = true;
       } else if (elapsed.current >= SHOW_CHECK_SECONDS) {
         const uComp = camera.position.dot(up);
@@ -1087,7 +1117,7 @@ function CameraRig({
         catchupUComp.current = uComp;
         catchupPerpLen.current = perp.length();
         catchupStartAz.current = az;
-        catchupTargetAz.current = azimuthOf(ATHENS_DIR, up, e1, e2) + CATCHUP_LEFT_BIAS;
+        catchupTargetAz.current = azimuthOf(PAN_TARGET_DIR, up, e1, e2) + CATCHUP_LEFT_BIAS;
 
         // Always turn the same way the ambient orbit is already spinning,
         // even if that's the "long way round" — reversing direction for a
@@ -1116,6 +1146,65 @@ function CameraRig({
   return null;
 }
 
+// Zooms the camera in on New York while `active` (the ranked queue is
+// searching for a match) so the "Searching..." label reads clearly, instead
+// of leaving it small and easy to lose on the ambient wide shot. Eases both
+// in and back out with a smoothstep rather than a hard cut; on the way back
+// out it returns to exactly the camera pose it left the ambient orbit at,
+// so CameraRig (paused meanwhile, see `paused` above) picks back up clean.
+function RankedZoomRig({ active }: { active: boolean }) {
+  const { camera } = useThree();
+  const wasActive = useRef(false);
+  const transitioning = useRef(false);
+  const elapsed = useRef(0);
+  const startPos = useRef(new THREE.Vector3());
+  const startUp = useRef(new THREE.Vector3());
+  const targetPos = useRef(new THREE.Vector3());
+  const targetUp = useRef(new THREE.Vector3());
+  // Camera pose captured the instant the zoom-in starts, so cancelling can
+  // ease back to exactly where the ambient orbit was left.
+  const preZoomPos = useRef(new THREE.Vector3());
+  const preZoomUp = useRef(new THREE.Vector3());
+
+  useFrame((_, delta) => {
+    if (active && !wasActive.current) {
+      preZoomPos.current.copy(camera.position);
+      preZoomUp.current.copy(camera.up);
+      startPos.current.copy(camera.position);
+      startUp.current.copy(camera.up);
+      targetPos.current.copy(NEW_YORK_DIR).multiplyScalar(RANKED_ZOOM_RADIUS);
+      targetUp.current.copy(ECLIPTIC_POLE);
+      elapsed.current = 0;
+      transitioning.current = true;
+    } else if (!active && wasActive.current) {
+      startPos.current.copy(camera.position);
+      startUp.current.copy(camera.up);
+      targetPos.current.copy(preZoomPos.current);
+      targetUp.current.copy(preZoomUp.current);
+      elapsed.current = 0;
+      transitioning.current = true;
+    }
+    wasActive.current = active;
+
+    if (transitioning.current) {
+      elapsed.current += delta;
+      const t = Math.min(elapsed.current / RANKED_ZOOM_SECONDS, 1);
+      const eased = t * t * (3 - 2 * t); // smoothstep
+      camera.position.lerpVectors(startPos.current, targetPos.current, eased);
+      camera.up.lerpVectors(startUp.current, targetUp.current, eased).normalize();
+      camera.lookAt(0, 0, 0);
+      if (t >= 1) transitioning.current = false;
+    } else if (active) {
+      // Hold steady on New York for the rest of the search.
+      camera.position.copy(targetPos.current);
+      camera.up.copy(targetUp.current);
+      camera.lookAt(0, 0, 0);
+    }
+  });
+
+  return null;
+}
+
 // ── WorldMap ───────────────────────────────────────────────────────────────
 //
 // Progressive load phases (staggered with timers so the UI stays responsive):
@@ -1131,10 +1220,11 @@ function CameraRig({
 
 interface WorldMapProps {
   onCityClick: (city: City) => void;
-  athensRaidInfo?: { secondsUntil: number | null; bossName?: string };
+  athensRaidInfo?: { secondsUntil: number | null };
+  rankedInfo?: RankedLabelInfo;
 }
 
-export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps) {
+export default function WorldMap({ onCityClick, athensRaidInfo, rankedInfo }: WorldMapProps) {
   const [phase, setPhase] = useState(0);
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
@@ -1142,6 +1232,9 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
   // True only while the corrective pan to Athens is running; gates
   // OrbitControls so user input/autoRotate can't fight it mid-turn.
   const [catchingUp, setCatchingUp] = useState(false);
+  // True while the ranked queue is searching -- camera zooms in and locks
+  // onto New York for the duration (see RankedZoomRig).
+  const rankedSearching = rankedInfo?.status === 'searching';
 
   // Phase 1: mount the Globe immediately.
   useEffect(() => { setPhase(1); }, []);
@@ -1167,7 +1260,9 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
       <CameraRig
         onCatchupStart={() => setCatchingUp(true)}
         onCatchupEnd={() => setCatchingUp(false)}
+        paused={rankedSearching}
       />
+      <RankedZoomRig active={rankedSearching} />
       <color attach="background" args={['#070b15']} />
       {/* Raised from 0.05 so the dark side of the globe stays readable */}
       <ambientLight intensity={0.12} />
@@ -1185,7 +1280,7 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
           textures are ready without waiting for moon/star textures. */}
       {phase >= 1 && (
         <Suspense fallback={null}>
-          <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} onReady={() => setGlobeReady(true)} />
+          <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} rankedInfo={rankedInfo} onReady={() => setGlobeReady(true)} />
         </Suspense>
       )}
 
@@ -1202,12 +1297,12 @@ export default function WorldMap({ onCityClick, athensRaidInfo }: WorldMapProps)
 
       <OrbitControls
         makeDefault
-        enabled={!catchingUp}
+        enabled={!catchingUp && !rankedSearching}
         enablePan={false}
         enableZoom
         minDistance={4}
         maxDistance={18}
-        autoRotate={!catchingUp}
+        autoRotate={!catchingUp && !rankedSearching}
         autoRotateSpeed={0.4}
         maxPolarAngle={Math.PI * 0.80}
         minPolarAngle={Math.PI * 0.10}

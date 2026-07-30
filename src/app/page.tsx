@@ -13,9 +13,13 @@ import HomeOverlay from '@/components/home/HomeOverlay';
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
-import { getBossfightLobby } from '@/lib/api';
+import type { RankedLabelInfo } from '@/components/worldmap/CityMarker';
+import { getBossfightLobby, getActiveRankedLobby } from '@/lib/api';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useAuthFlow } from '@/lib/useAuthFlow';
+import { useRankedQueue } from '@/lib/useRankedQueue';
+import { useCountdown } from '@/lib/useCountdown';
+import { setStoredToken } from '@/lib/http';
 import { useToast } from '@/components/Toast';
 
 // Dynamically import heavy 3D models
@@ -220,6 +224,104 @@ export default function Page() {
   // useCallback(..., []) internally.
   const resetAuthFlow = authFlow.reset;
 
+  // ---- Ranked queue handlers (New York sword) --------------------------------
+  // Moved here from WorldMapOverlay's "Play Ranked" button -- the queue
+  // state/text now lives on the New York marker's label instead, following
+  // the same pattern as Athens' raid countdown above.
+  const [showRankedPopup, setShowRankedPopup] = useState(false);
+  const [rankedLoading, setRankedLoading] = useState(false);
+  const rankedQueue = useRankedQueue();
+
+  // A ranked match this player is already in (matched, then left via "Back
+  // to Home" -- that only navigates away, it never leaves the lobby
+  // server-side, see wom-be's sockets/lobby.py handle_disconnect) or is
+  // mid-game in. Checked once per mount, same lifetime as the ranked/well
+  // profile fetches on the Stats page.
+  const [activeMatch, setActiveMatch] = useState<{
+    lobbyId: string;
+    deadline: string | null;
+    started: boolean;
+  } | null>(null);
+  const activeMatchSecondsLeft = useCountdown(activeMatch?.started ? null : activeMatch?.deadline);
+
+  useEffect(() => {
+    const name = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
+    if (!name) return;
+    getActiveRankedLobby(name)
+      .then((data) => {
+        if (!data.lobby_id || !data.token) return;
+        setStoredToken(data.lobby_id, data.token);
+        setActiveMatch({ lobbyId: data.lobby_id, deadline: data.ranked_countdown_deadline, started: data.started });
+      })
+      .catch(() => {
+        // Best-effort -- worst case the player just sees "Play Ranked"
+        // again and the backend's own duplicate-name guard still protects
+        // them if they re-queue while actually still in the old match.
+      });
+  }, []);
+
+  // Animated "." -> ".." -> "..." while queued, so the New York label's
+  // "Searching" text reads as active rather than stalled.
+  const [searchingDots, setSearchingDots] = useState(1);
+  useEffect(() => {
+    if (rankedQueue.status !== 'searching') return;
+    const id = setInterval(() => setSearchingDots((d) => (d % 3) + 1), 500);
+    return () => clearInterval(id);
+  }, [rankedQueue.status]);
+
+  const doRanked = useCallback(async (name: string) => {
+    setRankedLoading(true);
+    try {
+      await rankedQueue.startQueue(name);
+      if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to join the ranked queue');
+    } finally {
+      setRankedLoading(false);
+    }
+  }, [rankedQueue, showError]);
+
+  const proceedRanked = useCallback((name: string, email: string) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('playerName', name);
+      if (email) localStorage.setItem('playerEmail', email);
+    }
+    setShowRankedPopup(false);
+    doRanked(name);
+  }, [doRanked]);
+
+  const rankedAuthFlow = useAuthFlow({
+    submitErrorFallback: 'Failed to join the ranked queue.',
+    onAuthenticated: proceedRanked,
+  });
+  const resetRankedAuthFlow = rankedAuthFlow.reset;
+
+  const handleRankedClick = useCallback(() => {
+    if (rankedQueue.status === 'searching') {
+      rankedQueue.cancelQueue();
+      return;
+    }
+    if (activeMatch) {
+      router.push(`/lobby/${activeMatch.lobbyId}`);
+      return;
+    }
+    if (rankedLoading) return;
+    const name = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
+    if (!name) {
+      resetRankedAuthFlow();
+      setShowRankedPopup(true);
+      return;
+    }
+    doRanked(name);
+  }, [rankedQueue, activeMatch, rankedLoading, router, doRanked, resetRankedAuthFlow]);
+
+  const rankedInfo: RankedLabelInfo = {
+    status: rankedQueue.status === 'searching' ? 'searching' : activeMatch ? 'activeMatch' : 'idle',
+    searchingDots,
+    activeMatchStarted: activeMatch?.started,
+    activeMatchSecondsLeft,
+  };
+
   const handleCityClick = useCallback((city: City) => {
     if (city.isVault) {
       router.push('/vault');
@@ -240,8 +342,13 @@ export default function Page() {
       enterAthensRaid(playerName);
       return;
     }
+    // New York → ranked queue instead of the City Hub
+    if (city.name === 'New York') {
+      handleRankedClick();
+      return;
+    }
     setSelectedCity(city);
-  }, [router, enterAthensRaid, resetAuthFlow]);
+  }, [router, enterAthensRaid, resetAuthFlow, handleRankedClick]);
 
   const handleBackToMap = useCallback(() => {
     setSelectedCity(null);
@@ -256,7 +363,8 @@ export default function Page() {
           <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
             <WorldMap
               onCityClick={handleCityClick}
-              athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil, bossName: 'Hades' }}
+              athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil }}
+              rankedInfo={rankedInfo}
             />
           </Canvas>
         )}
@@ -396,6 +504,145 @@ export default function Page() {
                       type="button"
                       onClick={() => setShowAthensPopup(false)}
                       className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Ranked queue login popup — shown when clicking the New York sword with no stored name */}
+        {showRankedPopup && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+            onClick={() => setShowRankedPopup(false)}
+          >
+            <div
+              className="bg-gray-900 border border-blue-700/60 text-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-xl font-bold mb-1 text-blue-400">Play Ranked</h2>
+              <p className="text-sm text-white/60 mb-4">Choose a battle name to join the ranked queue.</p>
+              <input
+                type="text"
+                placeholder="Your battle name"
+                value={rankedAuthFlow.name}
+                onChange={(e) => rankedAuthFlow.setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  if (rankedAuthFlow.codeMode) rankedAuthFlow.handleVerifyCode();
+                  else if (rankedAuthFlow.emailMode) rankedAuthFlow.handleLogin();
+                  else rankedAuthFlow.handleSubmitName();
+                }}
+                autoFocus
+                readOnly={rankedAuthFlow.emailMode}
+                className={`w-full p-2 rounded-md bg-gray-800 border border-blue-700/50 text-white placeholder-white/30 focus:outline-none focus:border-blue-500 mb-3 ${rankedAuthFlow.emailMode ? 'opacity-70' : ''}`}
+              />
+              {rankedAuthFlow.error && !rankedAuthFlow.emailMode && (
+                <p className="text-red-400 text-sm mb-3">{rankedAuthFlow.error}</p>
+              )}
+
+              {rankedAuthFlow.emailMode && (
+                <>
+                  <p className="text-sm text-white/80 mb-2">
+                    This name is claimed. Type your email if you have claimed this username.
+                  </p>
+                  <input
+                    type="email"
+                    placeholder="email"
+                    value={rankedAuthFlow.email}
+                    onChange={(e) => rankedAuthFlow.setEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !rankedAuthFlow.codeMode) rankedAuthFlow.handleLogin(); }}
+                    autoFocus={!rankedAuthFlow.codeMode}
+                    readOnly={rankedAuthFlow.codeMode}
+                    className={`w-full p-2 rounded-md bg-gray-800 border border-blue-700/50 text-white placeholder-white/30 focus:outline-none focus:border-blue-500 mb-1 ${rankedAuthFlow.codeMode ? 'opacity-70' : ''}`}
+                  />
+                  <p className="text-xs text-white/50 mb-3">email</p>
+                  {rankedAuthFlow.emailError && !rankedAuthFlow.codeMode && (
+                    <p className="text-red-500 text-sm mb-3 font-semibold">{rankedAuthFlow.emailError}</p>
+                  )}
+                </>
+              )}
+
+              {rankedAuthFlow.codeMode && (
+                <>
+                  <p className="text-sm text-white/80 mb-2">
+                    We sent a 6-digit code to <strong>{rankedAuthFlow.email}</strong>.
+                  </p>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="6-digit code"
+                    value={rankedAuthFlow.code}
+                    onChange={(e) => rankedAuthFlow.setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    onKeyDown={(e) => e.key === 'Enter' && rankedAuthFlow.handleVerifyCode()}
+                    autoFocus
+                    className="w-full p-2 rounded-md bg-gray-800 border border-blue-700/50 text-white placeholder-white/30 tracking-[0.3em] font-mono text-center focus:outline-none focus:border-blue-500 mb-3"
+                  />
+                  {rankedAuthFlow.codeError && (
+                    <p className="text-red-500 text-sm mb-3 font-semibold">{rankedAuthFlow.codeError}</p>
+                  )}
+                </>
+              )}
+
+              <div className="flex gap-3">
+                {rankedAuthFlow.codeMode ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={rankedAuthFlow.handleVerifyCode}
+                      disabled={rankedAuthFlow.loading}
+                      className="flex-1 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {rankedAuthFlow.loading ? 'Verifying...' : 'Verify'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={rankedAuthFlow.backToEmailStep}
+                      disabled={rankedAuthFlow.loading}
+                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      Back
+                    </button>
+                  </>
+                ) : rankedAuthFlow.emailMode ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={rankedAuthFlow.handleLogin}
+                      disabled={rankedAuthFlow.loading}
+                      className="flex-1 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {rankedAuthFlow.loading ? 'Logging in...' : 'Log in'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={rankedAuthFlow.reset}
+                      disabled={rankedAuthFlow.loading}
+                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      Choose new name
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={rankedAuthFlow.handleSubmitName}
+                      disabled={rankedAuthFlow.loading}
+                      className="flex-1 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {rankedAuthFlow.loading ? 'Checking...' : 'Continue'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowRankedPopup(false)}
+                      disabled={rankedAuthFlow.loading}
+                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       Cancel
                     </button>
