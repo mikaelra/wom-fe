@@ -125,7 +125,10 @@ test('a fresh account eventually gets a Wheel drop from repeated boss fights', a
   await submitUntilRoundAdvances(
     roundNumber,
     async () => {
-      await attack.dispatchEvent('click').catch(() => {});
+      // Explicit timeout -- see lobbyCombat.ts's attackAndAdvance comment:
+      // an un-timed-out dispatchEvent can hang until the test's own timeout
+      // if the locator vanishes between retries.
+      await attack.dispatchEvent('click', undefined, { timeout: 5_000 }).catch(() => {});
       await coins.click({ timeout: 20_000, force: true }).catch(() => {});
     },
     gameOverBanner,
@@ -135,7 +138,7 @@ test('a fresh account eventually gets a Wheel drop from repeated boss fights', a
     await submitUntilRoundAdvances(
       roundNumber,
       async () => {
-        await well.dispatchEvent('click').catch(() => {});
+        await well.dispatchEvent('click', undefined, { timeout: 5_000 }).catch(() => {});
         await atk.click({ timeout: 20_000, force: true }).catch(() => {});
       },
       gameOverBanner,

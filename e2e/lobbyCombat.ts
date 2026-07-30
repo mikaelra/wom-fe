@@ -65,7 +65,17 @@ export async function attackAndAdvance(
   await submitUntilRoundAdvances(
     roundNumber,
     async () => {
-      await attack.dispatchEvent('click').catch(() => {});
+      // Explicit timeout is load-bearing: dispatchEvent's default action
+      // timeout is unbounded (no actionTimeout set in playwright.config.ts),
+      // so if this locator vanishes (e.g. the round ends and the button is
+      // replaced by the game-over screen) between one retry cycle and the
+      // next, an un-timed-out call here would hang until the *test's*
+      // timeout fires, burning the whole remaining budget on one stuck call
+      // instead of failing fast and letting the `done` check above catch it
+      // on the next iteration. Reproduced directly in CI: a match that had
+      // already won sat for the rest of the 12-minute test timeout with no
+      // further progress, stuck on exactly this call.
+      await attack.dispatchEvent('click', undefined, { timeout: 5_000 }).catch(() => {});
       if (await atk.isEnabled().catch(() => false)) {
         await atk.click({ timeout: 20_000, force: true }).catch(() => {});
       } else {
