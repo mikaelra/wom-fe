@@ -6,15 +6,19 @@ import { attackAndAdvance, submitUntilRoundAdvances } from './lobbyCombat';
 // dummy, start the game, and fight it to a win. Built up step by step
 // against real, running dev containers rather than debugged as one large
 // unit -- each step below was independently verified before being added.
-test.use({ viewport: { width: 320, height: 240 } });
-// Small viewport cuts WebGL fill-rate cost -- this box's headless Chromium
-// has no GPU (SwiftShader software rendering), and at a normal viewport the
-// continuous 3D rendering was found to starve the page's JS main thread
-// badly enough that even click event dispatch could take 10s+ or hang.
-// 15 min covers MAX_MATCH_ATTEMPTS (below) worth of matches -- normal matches
-// finish in well under a minute, but the combat loop is RNG-driven (allowed
-// up to round 100 per attempt) and can occasionally run long.
-test.setTimeout(15 * 60_000);
+// 480x900 matches wheel-drop-bossfight.spec.ts's viewport -- a much smaller
+// 320x240 was tried to cut WebGL fill-rate cost on this box's GPU-less
+// (SwiftShader) headless Chromium, but at that size the HUD cards
+// (Round/HP/Coins/ATK/players list) visibly overlap each other, which is
+// not how the app is meant to render and isn't worth the rendering-cost
+// savings.
+test.use({ viewport: { width: 480, height: 900 } });
+// Real timing observed against a live stack: ~25s/round, matches deciding
+// (win or TURTLE-reflect death) by round ~15-20. 12 min comfortably covers
+// MAX_MATCH_ATTEMPTS (below) worth of matches in the realistic case; with
+// Playwright's 1 CI retry, worst case is ~24 minutes (see deploy.yml's e2e
+// job timeout-minutes).
+test.setTimeout(12 * 60_000);
 
 // engine/phases/attacks.py: every attack has an independent 20% chance to
 // reflect the attacker's own damage back onto them (rng.random() < 0.2) --
@@ -28,8 +32,11 @@ test.setTimeout(15 * 60_000);
 // uses for its own probabilistic (25%-per-attempt) outcome -- turns that
 // expected RNG variance into a bounded number of extra attempts instead of
 // a test failure (or, before the loss was even detected, an indefinite
-// hang: see lobbyCombat.ts and the loss-detection note below).
-const MAX_MATCH_ATTEMPTS = 3;
+// hang: see lobbyCombat.ts and the loss-detection note below). Capped at 2,
+// not more -- each extra attempt adds real time (see test.setTimeout above),
+// and two attempts already bounds the false-negative rate on a single
+// TURTLE-reflect death low enough for a smoke test.
+const MAX_MATCH_ATTEMPTS = 2;
 
 test('create a lobby, add a bot, and fight it to a win', async ({ page }) => {
   // Surface network/console failures directly in the test log -- a failed
