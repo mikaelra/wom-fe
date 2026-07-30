@@ -26,6 +26,9 @@ export default function LobbyPage() {
   const [sharedAction, setSharedAction] = useState('');
   const [sharedAttackTarget, setSharedAttackTarget] = useState('');
   const [guideHighlight, setGuideHighlight] = useState<GuideHighlights>({});
+  // Lifted here since LobbyScene (the camera) and LobbyOverlay (the toggle
+  // button) are separate render trees -- see CameraFlyIn's ambient orbit.
+  const [spinEnabled, setSpinEnabled] = useState(true);
 
   const hasAutoJoined = useRef(false);
   const [hasJoined, setHasJoined] = useState(false);
@@ -128,6 +131,7 @@ export default function LobbyPage() {
           onAttackSelect={handleAttackSelect}
           onActionChange={setSharedAction}
           guideHighlight={guideHighlight}
+          spinEnabled={spinEnabled}
         />
       </Canvas>
 
@@ -139,6 +143,8 @@ export default function LobbyPage() {
             externalAction={sharedAction}
             onActionChange={setSharedAction}
             guideHighlight={guideHighlight}
+            spinEnabled={spinEnabled}
+            onToggleSpin={() => setSpinEnabled((v) => !v)}
           />
           {/* In-game welcome tour — floats in the UI overlay layer just above
               the resource cards (lives outside the 3D canvas now). */}

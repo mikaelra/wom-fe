@@ -47,6 +47,7 @@ import {
   getPlayerPositions,
   getBossPosition,
   getBossPlayerPositions,
+  radiusGrowthFactor,
 } from '@/lib/sceneConstants';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
@@ -114,9 +115,13 @@ type LobbySceneProps = {
   /** Welcome-tour highlights, lifted to the page so the overlay can glow the
    *  resource cards too. The 3D scene uses it for attack/defend/well. */
   guideHighlight?: GuideHighlights;
+  /** Player-toggleable (button lives in the pre-game overlay) -- off pauses
+   *  CameraFlyIn's ambient pre-round orbit so kick/relic clicks are easier
+   *  to land. Defaults on. */
+  spinEnabled?: boolean;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {} }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {}, spinEnabled = true }: LobbySceneProps) {
   // Countdown warning level for the action buttons. We deliberately do NOT
   // store the remaining seconds here — that re-rendered the whole scene every
   // second. The level only changes twice per round ('' → gold → red), and
@@ -181,7 +186,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const allPlayers = useMemo(() => state?.players ?? [], [state?.players]);
   const lostSouls = useMemo(() => allPlayers.filter((p) => p.lost_soul), [allPlayers]);
 
-  const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase } = useLobbyGame(state, playerName);
+  const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase, isAdmin } = useLobbyGame(state, playerName);
+  const showLobbyControls = state?.round === 0;
   const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
   const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
@@ -235,6 +241,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     let nbi = 0;
     return players.map((p) => (p.boss ? bossSlot : nonBossSlots[nbi++]));
   }, [players, isBossFight]);
+
+  // Boss-fight seating never grows past its fixed base radius (getBossPlayerPositions
+  // doesn't scale with count), so only back the camera off for the regular circle.
+  const cameraRadiusFactor = isBossFight ? 1 : radiusGrowthFactor(players.length);
 
   // Keep posMapRef up-to-date each render (synchronous ref write — no re-render triggered).
   // This is read by the round-transition effect below.
@@ -643,9 +653,20 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     onActionChange?.('well');
   }, [lobbyId, onActionChange]);
 
+  // Lobby-wait controls (pre-game only) — kicking and relic selection used to
+  // live in the 2D "Players in Lobby" overlay list; that list is gone, so
+  // they're wired up here instead, next to each player's name.
+  const handleKick = useCallback((targetName: string) => {
+    getSocket().emit('kick_player', { lobby_id: lobbyId, target: targetName });
+  }, [lobbyId]);
+
+  const handleToggleRelicSelection = useCallback((relicId: number) => {
+    getSocket().emit('toggle_relic_selection', { lobby_id: lobbyId, relic_id: relicId });
+  }, [lobbyId]);
+
   return (
     <>
-      <CameraFlyIn />
+      <CameraFlyIn round={state?.round ?? 0} radiusFactor={cameraRadiusFactor} spinEnabled={spinEnabled} />
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 10]} intensity={1.2} />
 
@@ -697,7 +718,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             isBoss={isBoss}
             bossHp={isBoss ? player.hp : undefined}
             bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
-            bossTitle={isBoss ? player.title ?? undefined : undefined}
             frogSkinUrl={skinMap.get(player.name)}
             showAttackButton={showAttackButtons && isOpponent && !isDead && (!isBossFight || isBoss)}
             onAttack={handleAttack}
@@ -710,6 +730,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             showShield={isOwnPlayer && currentAction === 'defend'}
             highlight={guideHighlight}
             infoReveal={infoBadge}
+            showLobbyControls={showLobbyControls}
+            isOwnPlayer={isOwnPlayer}
+            isSpectator={player.spectator}
+            isReady={state?.readyPlayers?.includes(player.name) ?? false}
+            isIdle={(player.idle_rounds ?? 0) >= 2}
+            selectedRelicIds={player.selected_relic_ids}
+            viewerIsAdmin={isAdmin}
+            onKick={handleKick}
+            onToggleRelicSelection={handleToggleRelicSelection}
           />
         );
       })}
