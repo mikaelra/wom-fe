@@ -53,6 +53,16 @@ export default function ActionImageButton({
         draggable={false}
         style={{
           width,
+          // Tailwind's preflight sets `img { max-width: 100% }`. The button
+          // wrapper here has no defined width of its own (it shrink-wraps to
+          // this image), so that percentage is indeterminate and resolves to
+          // 0 per the CSS auto-sizing algorithm -- which then clamps the
+          // explicit width above down to 0px too. Reproduced on both a
+          // desktop browser and a real phone: the image loads fine
+          // (naturalWidth/Height correct) but getComputedStyle reports
+          // width/height of 0. maxWidth: 'none' opts this image out of that
+          // preflight rule so the explicit width actually applies.
+          maxWidth: 'none',
           height: 'auto',
           display: 'block',
           pointerEvents: 'none',
