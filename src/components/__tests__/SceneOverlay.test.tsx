@@ -135,7 +135,7 @@ describe('connection lost', () => {
     mockedUseLobbyConnection.mockReturnValue({ state: baseState, connectionStatus: 'disconnected' });
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
     expect(screen.getByText('Connection lost. Please refresh.')).toBeInTheDocument();
-    expect(screen.queryByText('🏴 The Well')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'The Well' })).not.toBeInTheDocument();
   });
 
   it('does not show the connection-lost message while connected', () => {
@@ -271,22 +271,22 @@ describe('game over', () => {
 describe('action-availability gating', () => {
   it('shows the WELL/DEFEND buttons and top-of-arena resource cards when canAct is true', () => {
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
-    expect(screen.getByText('🏴 The Well')).toBeInTheDocument();
-    expect(screen.getByText('🛡 DEFEND')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'The Well' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Defend' })).toBeInTheDocument();
     expect(screen.getByText('HP')).toBeInTheDocument();
   });
 
   it('hides the WELL/DEFEND buttons when canAct is false', () => {
     mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult, canAct: false });
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
-    expect(screen.queryByText('🏴 The Well')).not.toBeInTheDocument();
-    expect(screen.queryByText('🛡 DEFEND')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'The Well' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Defend' })).not.toBeInTheDocument();
   });
 
   it('hides the WELL/DEFEND buttons and top-of-arena cards, but still shows bottom-of-screen cards, when hidePlayerActionButtons is set', () => {
     render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, hidePlayerActionButtons: true }} />);
-    expect(screen.queryByText('🏴 The Well')).not.toBeInTheDocument();
-    expect(screen.queryByText('🛡 DEFEND')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'The Well' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Defend' })).not.toBeInTheDocument();
     // Resource cards still render, just in the bottom-of-screen block.
     expect(screen.getByText('HP')).toBeInTheDocument();
   });
@@ -526,7 +526,7 @@ describe('warn-blink cues', () => {
     mockedUseRoundTimer.mockReturnValue(15);
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
     expect(screen.getByText('15s')).toHaveClass('text-yellow-400');
-    const well = screen.getByText('🏴 The Well');
+    const well = screen.getByRole('button', { name: 'The Well' });
     expect(well).not.toHaveClass('warn-blink-gold');
     expect(well).not.toHaveClass('warn-blink-red');
   });
@@ -539,7 +539,7 @@ describe('warn-blink cues', () => {
     mockedUseRoundTimer.mockReturnValue(8);
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
     expect(screen.getByText('8s')).toHaveClass('text-red-500');
-    const well = screen.getByText('🏴 The Well');
+    const well = screen.getByRole('button', { name: 'The Well' });
     expect(well).toHaveClass('warn-blink-gold');
     expect(well).not.toHaveClass('warn-blink-red');
   });
@@ -548,13 +548,13 @@ describe('warn-blink cues', () => {
     mockedUseRoundTimer.mockReturnValue(3);
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
     expect(screen.getByText('3s')).toHaveClass('text-red-500');
-    expect(screen.getByText('🏴 The Well')).toHaveClass('warn-blink-red');
+    expect(screen.getByRole('button', { name: 'The Well' })).toHaveClass('warn-blink-red');
   });
 
   it('does not warn-blink once an action has already been chosen', () => {
     mockedUseRoundTimer.mockReturnValue(3);
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} externalAction="well" />);
-    const well = screen.getByText('🏴 The Well');
+    const well = screen.getByRole('button', { name: 'The Well' });
     expect(well).not.toHaveClass('warn-blink-red');
     expect(well).not.toHaveClass('warn-blink-gold');
   });

@@ -17,6 +17,7 @@ import KillFireEffect from '@/components/lobby/KillFireEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
 import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
+import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
@@ -777,28 +778,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       {/* Well button — immediate; the Table GLB loads separately below */}
       {showAttackButtons && (
         <Html position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
-          <button
+          <ActionImageButton
+            src="/images/buttons/well-ld.png"
+            alt="The Well"
             onClick={handleWell}
+            selected={currentAction === 'well'}
+            glowColor="rgba(167,139,250,0.7)"
+            width={180}
             className={`${actionCue} ${guideGlowClass(guideHighlight?.well)}`}
-            style={{
-              pointerEvents: 'auto',
-              cursor: 'pointer',
-              padding: '14px 28px',
-              fontSize: '26px',
-              fontWeight: 'bold',
-              color: currentAction === 'well' ? '#ffffff' : '#d8b4fe',
-              background: currentAction === 'well' ? 'rgba(126,34,206,0.95)' : 'rgba(46,16,101,0.85)',
-              border: currentAction === 'well' ? '2px solid #d8b4fe' : '2px solid #7e22ce',
-              borderRadius: '8px',
-              whiteSpace: 'nowrap',
-              backdropFilter: 'blur(4px)',
-              boxShadow: currentAction === 'well'
-                ? '0 0 8px rgba(167,139,250,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-            }}
-          >
-            🏴 The Well
-          </button>
+            style={{ pointerEvents: 'auto' }}
+          />
         </Html>
       )}
 
