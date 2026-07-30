@@ -4,10 +4,18 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getInventory } from '@/lib/api';
+import { SUPPORT_EMAIL } from '@/config';
 import { getStoredAccountToken } from '@/lib/http';
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 60_000;
+
+// Fulfillment can occasionally take well beyond 30s, so rather than
+// stacking reassurance lines (which runs out of new things to say), the
+// single line under the main message rotates through these every 10s
+// for as long as polling continues.
+const REASSURANCE_TEXTS = ['Almost there…', 'So close…', 'Any second now…'] as const;
+const REASSURANCE_INTERVAL_MS = 10_000;
 
 type Status = 'polling' | 'received' | 'timeout' | 'error';
 
@@ -22,7 +30,16 @@ function ShopSuccessContent() {
   const orderId = searchParams.get('order');
   const [status, setStatus] = useState<Status>('polling');
   const [error, setError] = useState('');
+  const [reassuranceIndex, setReassuranceIndex] = useState<number | null>(null);
   const baselineRef = useRef<{ skinCount: number; wheelCount: number } | null>(null);
+
+  useEffect(() => {
+    if (status !== 'polling') return;
+    const interval = setInterval(() => {
+      setReassuranceIndex((prev) => (prev === null ? 0 : (prev + 1) % REASSURANCE_TEXTS.length));
+    }, REASSURANCE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [status]);
 
   useEffect(() => {
     const token = getStoredAccountToken();
@@ -74,7 +91,18 @@ function ShopSuccessContent() {
         {status === 'polling' && (
           <>
             <p className="text-3xl mb-3">⏳</p>
-            <p className="text-white/70">Confirming your payment…</p>
+            <p className="text-white/70">
+              Confirming your payment
+              <span aria-hidden="true">
+                <span className="ellipsis-dot">.</span>
+                <span className="ellipsis-dot">.</span>
+                <span className="ellipsis-dot">.</span>
+              </span>
+              <span className="sr-only">…</span>
+            </p>
+            {reassuranceIndex !== null && (
+              <p className="text-white/50 text-sm mt-2">{REASSURANCE_TEXTS[reassuranceIndex]}</p>
+            )}
           </>
         )}
         {status === 'received' && (
@@ -94,8 +122,11 @@ function ShopSuccessContent() {
           <>
             <p className="text-3xl mb-3">📬</p>
             <p className="text-white/70 mb-2">
-              Payment received. If it isn&apos;t in your inventory in a few minutes, contact
-              support{orderId ? ` with order #${orderId}` : ''}.
+              Payment received. If it isn&apos;t in your inventory in a few minutes, contact{' '}
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-300 underline hover:text-amber-200">
+                {SUPPORT_EMAIL}
+              </a>
+              {orderId ? ` with order #${orderId}` : ''}.
             </p>
             <Link
               href="/inventory"

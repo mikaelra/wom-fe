@@ -25,3 +25,14 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     dispatchEvent: () => false,
   });
 }
+
+// jsdom doesn't implement ResizeObserver either (e.g. SceneOverlay's
+// messages-overflow measurement) -- a no-op stub is enough, since none of
+// these tests assert on live resize-driven behavior.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}

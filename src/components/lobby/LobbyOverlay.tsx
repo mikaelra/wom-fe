@@ -11,11 +11,10 @@ import SceneOverlay, {
 import type { GuideHighlights } from '@/lib/guideHighlights';
 import BossSignupNudge from '@/components/BossSignupNudge';
 import WheelClaimNudge from '@/components/WheelClaimNudge';
-import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import StartGameButton from '@/components/StartGameButton';
 import RankBadge from '@/components/hud/RankBadge';
 import { useLobbyGame } from '@/lib/useLobbyGame';
-import { COIN_RELIC_ID, type LobbyState } from '@/types/game';
+import type { LobbyState } from '@/types/game';
 
 type LobbyOverlayProps = {
   lobbyId: string;
@@ -23,6 +22,10 @@ type LobbyOverlayProps = {
   externalAction?: string;
   onActionChange?: (action: string) => void;
   guideHighlight?: GuideHighlights;
+  /** Ambient pre-round camera orbit (see CameraFlyIn/LobbyScene) -- lifted up
+   *  to the page since the camera and this overlay are separate render trees. */
+  spinEnabled?: boolean;
+  onToggleSpin?: () => void;
 };
 
 export function InviteSection({ lobbyId }: { lobbyId: string }) {
@@ -43,7 +46,7 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
   return (
     <>
       <div className="flex flex-col items-center gap-1">
-        <span className="text-sm font-semibold text-gray-600">Invite</span>
+        <span className="text-sm font-semibold text-white/70">Invite</span>
         <div className="flex gap-2">
           <button
             type="button"
@@ -157,7 +160,6 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
 export function renderPreGame({
   state,
   lobbyId,
-  playerName,
   isAdmin,
   boss,
   raidMins,
@@ -166,106 +168,73 @@ export function renderPreGame({
   btn,
   onStartGame,
   onAddDummy,
-  onKick,
-  onToggleRelicSelection,
+  spinEnabled,
+  onToggleSpin,
 }: PreGameRenderOpts) {
+  // Deliberately no full-screen backdrop and no player list here -- the 3D
+  // scene (players seated at the table) is the primary view while everyone
+  // waits, complete with its own per-player kick/relic/status controls (see
+  // PlayerAvatars' lobby-controls row). This overlay is now just a thin top
+  // status pill plus the admin/invite controls pinned to the bottom.
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-8">
-      <div className="absolute top-4 left-4 z-20">
-        <Link href="/" className="text-blue-600 hover:underline font-medium">
+    <>
+      <div className="absolute top-4 left-4 z-20 pointer-events-auto">
+        <Link href="/" className="text-white/90 hover:underline font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
           ← Back to Home
         </Link>
       </div>
-      <div className="relative z-10 min-h-screen w-full flex items-center justify-center">
-        <div className="w-full max-w-3xl flex flex-col items-center justify-center rounded-2xl shadow-xl bg-white/80 backdrop-blur-sm transition-all duration-300 p-6 text-gray-900">
-          {state.boss_fight && boss && (
-            <div className="bg-red-200 p-4 rounded mb-4 w-full text-center">
-              <h2 className="text-2xl font-bold">{boss.name}</h2>
-              <p className="text-gray-500">{boss.title}</p>
-              <p>HP: {boss.hp}</p>
+
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-2">
+        <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
+          {state.boss_fight && boss ? (
+            <>
+              <p className="font-bold">{boss.name}</p>
+              <p className="text-white/60 text-xs">{boss.title}</p>
+              <p className="text-sm">HP: {boss.hp}</p>
               {raidMins != null && raidSecs != null && (
-                <p className="text-gray-500">
-                  Boss-fight starts in {raidMins}m {raidSecs}s
-                </p>
+                <p className="text-white/60 text-xs">Boss-fight starts in {raidMins}m {raidSecs}s</p>
               )}
-            </div>
-          )}
-
-          {state.ranked && (
-            <div className="bg-amber-100 p-4 rounded mb-4 w-full text-center">
-              <h2 className="text-xl font-bold text-amber-900">Ranked Match</h2>
-              <p className="text-gray-600">
-                {state.players.length}/6 players joined
-              </p>
+            </>
+          ) : state.ranked ? (
+            <>
+              <p className="font-bold text-amber-300">Ranked Match</p>
+              <p className="text-white/70 text-sm">{state.players.length}/6 players joined</p>
               {rankedSecondsLeft != null && (
-                <p className="text-gray-600">
-                  Match starts in {rankedSecondsLeft}s
-                </p>
+                <p className="text-white/70 text-xs">Match starts in {rankedSecondsLeft}s</p>
               )}
-            </div>
+            </>
+          ) : (
+            <p className="font-bold tracking-tight">Lobby ID: {lobbyId}</p>
           )}
-
-          <h2 className="text-3xl font-extrabold mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
-          <p className="mb-3 text-lg text-gray-600">Round: {state.round ?? '?'}</p>
-          <p className="mb-6 text-lg text-gray-600">Your Name: {playerName}</p>
-
-          <div className="w-full mb-6 bg-white p-6 rounded-xl shadow-sm">
-            <h3 className="font-semibold text-xl text-gray-800 mb-4">Players in Lobby</h3>
-            <ul className="list-disc pl-6 text-gray-700 space-y-2">
-              {state.players.map((p) => (
-                <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
-                  {p.hp <= 0 && <span className="text-red-500">☠️</span>}
-                  {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
-                    <span className="text-yellow-500">👑</span>
-                  )}
-                  {p.spectator && <span className="text-yellow-500">👁</span>}
-                  <span className="font-medium">{p.name}</span>
-                  {p.name === playerName && state.round === 0 ? (
-                    <RelicSelectionPopover
-                      playerName={playerName}
-                      selectedRelicIds={p.selected_relic_ids ?? []}
-                      onToggle={onToggleRelicSelection}
-                    />
-                  ) : (
-                    p.selected_relic_ids?.includes(COIN_RELIC_ID) && (
-                      <span title="Selected: will start the match with +1 coin">🪙</span>
-                    )
-                  )}
-                  {isAdmin && p.name !== playerName && p.hp > 0 && state.round === 0 && (
-                    <span
-                      className="ml-2 text-red-500 text-sm cursor-pointer"
-                      title="Kick player"
-                      onClick={() => onKick(p.name)}
-                    >
-                      ❌
-                    </span>
-                  )}
-                  {state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>}
-                  {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {isAdmin && (
-            <div className="flex flex-wrap gap-3 mb-4 items-end">
-              <StartGameButton state={state} btn={btn} onStartGame={onStartGame} />
-              <button
-                type="button"
-                onClick={onAddDummy}
-                className={`${btn} bg-gray-600 text-white`}
-              >
-                Add Bot
-              </button>
-            </div>
-          )}
-
-          <div className="mb-4">
-            <InviteSection lobbyId={lobbyId} />
-          </div>
         </div>
+        {/* Pauses CameraFlyIn's ambient pre-round orbit -- it's hard to land a
+            kick/relic click in the 3D scene while the table is drifting. Its own
+            box, separate from the status pill above. */}
+        <button
+          type="button"
+          onClick={onToggleSpin}
+          className="text-xs px-2 py-1 rounded-md border border-white/20 bg-white/10 hover:bg-white/20 text-white/80 transition-colors"
+        >
+          {spinEnabled ? '⏸' : '▶️'} Camera Spin
+        </button>
       </div>
-    </div>
+
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-4">
+        {isAdmin && (
+          <div className="flex flex-wrap gap-3 justify-center">
+            <StartGameButton state={state} btn={btn} onStartGame={onStartGame} />
+            <button
+              type="button"
+              onClick={onAddDummy}
+              className={`${btn} bg-gray-600 text-white`}
+            >
+              Add Bot
+            </button>
+          </div>
+        )}
+        <InviteSection lobbyId={lobbyId} />
+      </div>
+    </>
   );
 }
 
@@ -298,7 +267,7 @@ const lobbyConfig: SceneOverlayConfig = {
   renderGameOver,
 };
 
-export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, guideHighlight }: LobbyOverlayProps) {
+export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, guideHighlight, spinEnabled, onToggleSpin }: LobbyOverlayProps) {
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [wheelNudgeDismissed, setWheelNudgeDismissed] = useState(false);
@@ -338,6 +307,8 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
         externalAction={externalAction}
         onActionChange={onActionChange}
         guideHighlight={guideHighlight}
+        spinEnabled={spinEnabled}
+        onToggleSpin={onToggleSpin}
       />
       {showNudge && (
         <BossSignupNudge

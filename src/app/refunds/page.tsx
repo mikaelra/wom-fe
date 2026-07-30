@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SUPPORT_EMAIL } from '@/config';
 
 export const metadata = { title: 'Refund Policy — World of Mythos' };
 
@@ -35,8 +36,11 @@ export default function RefundsPage() {
             refundable within 14 days if the skin has not been equipped.
           </p>
           <p>
-            To request a refund, contact support with your order number. Refunds are issued
-            to the original payment method.
+            To request a refund, email{' '}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-300 underline hover:text-amber-200">
+              {SUPPORT_EMAIL}
+            </a>{' '}
+            with your order number. Refunds are issued to the original payment method.
           </p>
         </div>
       </div>

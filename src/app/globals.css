@@ -44,6 +44,19 @@ body {
 .warn-blink-gold { animation: blink-gold 0.8s ease-in-out infinite; }
 .warn-blink-red  { animation: blink-red  0.5s ease-in-out infinite; }
 
+/* Three dots appearing in sequence then resetting -- used for "waiting on
+   something async" text (e.g. shop/success's "Confirming your payment"). */
+@keyframes ellipsis-dot {
+  0%, 20%   { opacity: 0; }
+  40%, 100% { opacity: 1; }
+}
+.ellipsis-dot {
+  animation: ellipsis-dot 1.4s infinite;
+  animation-fill-mode: both;
+}
+.ellipsis-dot:nth-child(2) { animation-delay: 0.2s; }
+.ellipsis-dot:nth-child(3) { animation-delay: 0.4s; }
+
 /* Dedicated welcome-tour glows — ~3x the strength of the warning blink above. */
 @keyframes guide-glow-blue {
   0%, 100% { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0); }

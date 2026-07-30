@@ -15,3 +15,10 @@ function resolveBackendUrl(): string {
 }
 
 export const BACKEND_URL = resolveBackendUrl();
+
+// Support contact shown on the shop/terms/refunds pages
+// (docs/MONETIZATION_PLAN.md §12 2f's launch checklist: "support email
+// published on the shop pages"). Env-overridable but defaults to a real
+// address rather than throwing like BACKEND_URL above -- a missing value
+// here doesn't break the app, just the contact info a player sees.
+export const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@worldofmythos.net";

@@ -6,6 +6,7 @@ import {
   getPlayerFrontPositions,
   getPlayerPositions,
   getResponsiveFov,
+  radiusGrowthFactor,
   PLAYER_Y,
   SCENE_CENTER,
 } from '@/lib/sceneConstants';
@@ -64,7 +65,7 @@ describe('responsive camera', () => {
   it('picks the fov by aspect ratio', () => {
     expect(getResponsiveFov(1600, 900)).toBe(82); // wide
     expect(getResponsiveFov(1200, 1000)).toBe(78); // landscape
-    expect(getResponsiveFov(800, 1000)).toBe(75); // portrait
+    expect(getResponsiveFov(800, 1000)).toBe(80); // portrait
   });
 
   it('moves the camera closer on wide screens', () => {
@@ -72,6 +73,27 @@ describe('responsive camera', () => {
     const portrait = getCameraTargetPosition(800, 1000);
     expect(wide[2]).toBeLessThan(portrait[2]);
     expect(wide[1]).toBeGreaterThan(SCENE_CENTER[1]);
+  });
+
+  it('defaults to a radiusFactor of 1, unchanged from before the param existed', () => {
+    expect(getCameraTargetPosition(1600, 900, 1)).toEqual(getCameraTargetPosition(1600, 900));
+  });
+
+  it('backs the camera off (and raises it) proportionally to radiusFactor', () => {
+    const base = getCameraTargetPosition(1600, 900);
+    const widened = getCameraTargetPosition(1600, 900, 1.3);
+    expect(widened[2]).toBeCloseTo(base[2] * 1.3, 5);
+    expect(widened[1] - SCENE_CENTER[1]).toBeCloseTo((base[1] - SCENE_CENTER[1]) * 1.3, 5);
+  });
+});
+
+describe('radiusGrowthFactor', () => {
+  it('stays at 1 for up to 6 players, then grows 15% for every 6 more', () => {
+    expect(radiusGrowthFactor(1)).toBe(1);
+    expect(radiusGrowthFactor(6)).toBe(1);
+    expect(radiusGrowthFactor(7)).toBeCloseTo(1.15, 5);
+    expect(radiusGrowthFactor(12)).toBeCloseTo(1.15, 5);
+    expect(radiusGrowthFactor(13)).toBeCloseTo(1.3, 5);
   });
 });
 

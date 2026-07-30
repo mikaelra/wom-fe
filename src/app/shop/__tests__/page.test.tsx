@@ -17,6 +17,13 @@ vi.mock('@/lib/api', () => ({
   checkClaimVerified: vi.fn(),
 }));
 
+// Real SpinningModelViewer renders a react-three-fiber <Canvas>, which needs
+// a WebGL context jsdom can't provide -- mocked out, same as
+// inventory/__tests__/page.test.tsx's identical R3F leaf-component mock.
+vi.mock('@/components/SpinningModelViewer', () => ({
+  default: ({ url }: { url: string }) => <div data-testid="skin-preview" data-url={url} />,
+}));
+
 const mockedGetShopProducts = vi.mocked(getShopProducts);
 const mockedPostCheckout = vi.mocked(postCheckout);
 const mockedResolveAccountSession = vi.mocked(resolveAccountSession);
@@ -74,16 +81,31 @@ describe('ShopPage', () => {
     expect(screen.getByText(/isn't open yet/)).toBeInTheDocument();
   });
 
-  it('renders the wheel odds table with exactly the served numbers (§9.2)', async () => {
+  it('links to the inventory page next to the Shop heading', async () => {
+    mockedGetShopProducts.mockResolvedValue({ shop_enabled: false, terms_version: '2026-07', products: [] });
+    render(<ShopPage />);
+    await flush();
+
+    expect(screen.getByText('Inventory')).toHaveAttribute('href', '/inventory');
+  });
+
+  it('reveals the wheel odds, matching the served numbers exactly, behind the info toggle (§9.2)', async () => {
     mockedGetShopProducts.mockResolvedValue({
       shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
     });
     render(<ShopPage />);
     await flush();
 
-    for (const entry of WHEEL_PRODUCT.odds) {
-      expect(screen.getByText(`${(entry.probability * 100).toFixed(2)}%`)).toBeInTheDocument();
-    }
+    // Not shown until the info icon is clicked -- the odds table used to be
+    // always visible, now it's disclosed on demand.
+    expect(screen.queryByText(/silver - /)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Wheel odds info'));
+
+    expect(screen.getByText('silver - 63%')).toBeInTheDocument();
+    expect(screen.getByText('gold - 30%')).toBeInTheDocument();
+    expect(screen.getByText('rainbow - 6.67%')).toBeInTheDocument();
+    expect(screen.getByText('bling - 0.33%')).toBeInTheDocument();
   });
 
   it('renders a skin product generically', async () => {
@@ -93,8 +115,9 @@ describe('ShopPage', () => {
     render(<ShopPage />);
     await flush();
 
-    expect(screen.getByText('Cherub')).toBeInTheDocument();
+    expect(screen.getByText('Cherub skin')).toBeInTheDocument();
     expect(screen.getByText('$500.00')).toBeInTheDocument();
+    expect(screen.getByTestId('skin-preview')).toHaveAttribute('data-url', expect.stringContaining('cherub'));
   });
 
   it('shows a log-in CTA instead of Buy when logged out', async () => {
@@ -121,6 +144,74 @@ describe('ShopPage', () => {
 
     fireEvent.click(screen.getByRole('checkbox'));
     expect(buyButton).not.toBeDisabled();
+  });
+
+  it('lets the wheel quantity be adjusted with + and -, clamped to 1..100, and passes it to checkout', async () => {
+    loginAs();
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
+    });
+    mockedPostCheckout.mockResolvedValue({ checkout_url: 'https://checkout.stripe.com/pay/cs_1', order_id: 42 });
+
+    render(<ShopPage />);
+    await flush();
+
+    const decrease = screen.getByLabelText('Decrease quantity');
+    const increase = screen.getByLabelText('Increase quantity');
+
+    expect(screen.getByLabelText('Quantity')).toHaveValue('1');
+    expect(decrease).toBeDisabled(); // can't go below 1
+    expect(screen.getByText('$5.00')).toBeInTheDocument();
+
+    fireEvent.click(increase);
+    fireEvent.click(increase);
+    expect(screen.getByLabelText('Quantity')).toHaveValue('3');
+    expect(decrease).not.toBeDisabled();
+    // The header price is the running total, not the flat per-wheel price.
+    expect(screen.getByText('$15.00')).toBeInTheDocument();
+    expect(screen.queryByText('$5.00')).not.toBeInTheDocument();
+
+    for (let i = 0; i < 100; i++) fireEvent.click(increase);
+    expect(screen.getByLabelText('Quantity')).toHaveValue('100');
+    expect(increase).toBeDisabled(); // can't go above 100
+
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Buy' }));
+    await flush();
+
+    expect(mockedPostCheckout).toHaveBeenCalledWith('sess-1', 'wheel_special', false, 100);
+  });
+
+  it('lets the wheel quantity be typed directly into the field, clamped 1..100', async () => {
+    loginAs();
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
+    });
+    render(<ShopPage />);
+    await flush();
+
+    const input = screen.getByLabelText('Quantity');
+
+    fireEvent.change(input, { target: { value: '7' } });
+    expect(input).toHaveValue('7');
+    expect(screen.getByText('$35.00')).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: '250' } });
+    expect(input).toHaveValue('100'); // clamped to the max
+
+    fireEvent.change(input, { target: { value: 'abc' } });
+    expect(input).toHaveValue('1'); // non-digits strip to nothing -> falls back to 1
+  });
+
+  it('does not show a quantity counter for a direct skin purchase', async () => {
+    loginAs();
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [SKIN_PRODUCT],
+    });
+    render(<ShopPage />);
+    await flush();
+
+    expect(screen.queryByLabelText('Increase quantity')).not.toBeInTheDocument();
   });
 
   it('redirects to the Stripe checkout url on success', async () => {
@@ -176,7 +267,9 @@ describe('ShopPage', () => {
     const locationStub = { href: '' };
     vi.stubGlobal('location', locationStub);
     fireEvent.click(screen.getByRole('button', { name: 'Buy anyway' }));
-    await waitFor(() => expect(mockedPostCheckout).toHaveBeenLastCalledWith('sess-1', 'skin_cherub', true));
+    await waitFor(() =>
+      expect(mockedPostCheckout).toHaveBeenLastCalledWith('sess-1', 'skin_cherub', true, undefined)
+    );
     vi.unstubAllGlobals();
   });
 

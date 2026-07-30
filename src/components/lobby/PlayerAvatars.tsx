@@ -6,8 +6,10 @@ import { useRef, useMemo, memo, Suspense, type CSSProperties, type ReactNode } f
 import * as THREE from 'three';
 import PlayerV1 from '@/components/Playerv1';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
+import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { skinUrl } from '@/lib/frogSkins';
+import { COIN_RELIC_ID } from '@/types/game';
 
 // ── Per-player HTML stack ───────────────────────────────────────────────────
 // Chat bubble, ATTACK, name and DEFEND used to be four separate drei <Html>
@@ -17,7 +19,7 @@ import { skinUrl } from '@/lib/frogSkins';
 // positioned around it in pre-scale pixels. ~230px ≈ 1 world unit here, so the
 // offsets below mirror the old world-space anchors (bubble 1.3, attack 0.9,
 // defend −0.1).
-const STACK_BUBBLE_Y = -184;
+const STACK_BUBBLE_Y = -70;
 const STACK_ATTACK_Y = -92;
 const STACK_INFO_Y = 130;
 const STACK_DEFEND_Y = 138;
@@ -223,7 +225,6 @@ export const PlayerWithName = memo(function PlayerWithName({
   isBoss,
   bossHp,
   bossMaxHp,
-  bossTitle,
   frogSkinUrl,
   // own-player action UI
   showOwnActions,
@@ -232,6 +233,16 @@ export const PlayerWithName = memo(function PlayerWithName({
   showShield,
   highlight,
   infoReveal,
+  // Lobby-wait row (pre-game only)
+  showLobbyControls,
+  isOwnPlayer,
+  isSpectator,
+  isReady,
+  isIdle,
+  selectedRelicIds,
+  viewerIsAdmin,
+  onKick,
+  onToggleRelicSelection,
 }: {
   name: string;
   position: [number, number, number];
@@ -248,7 +259,6 @@ export const PlayerWithName = memo(function PlayerWithName({
   isBoss?: boolean;
   bossHp?: number;
   bossMaxHp?: number;
-  bossTitle?: string;
   frogSkinUrl?: string;
   showOwnActions?: boolean;
   currentAction?: string;
@@ -257,6 +267,17 @@ export const PlayerWithName = memo(function PlayerWithName({
   highlight?: GuideHighlights;
   /** Stats revealed by the local player's "info" Well reward, or null when none is active. */
   infoReveal?: InfoRevealBadge | null;
+  /** True pre-game (round 0) — renders the kick/relic/status row below the name. */
+  showLobbyControls?: boolean;
+  isOwnPlayer?: boolean;
+  isSpectator?: boolean;
+  isReady?: boolean;
+  isIdle?: boolean;
+  selectedRelicIds?: number[];
+  /** Whether the *viewer* (not this player) is the lobby admin — gates the kick icon. */
+  viewerIsAdmin?: boolean;
+  onKick?: (name: string) => void;
+  onToggleRelicSelection?: (relicId: number) => void;
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   const isCherub = modelUrl === skinUrl('cherub_v1');
@@ -287,46 +308,91 @@ export const PlayerWithName = memo(function PlayerWithName({
           {chatBubble && (
             <div style={{
               ...stackItem(STACK_BUBBLE_Y),
-              maxWidth: '156px',
+              maxWidth: '281px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              padding: '4px 7px',
+              padding: '7px 13px',
               background: 'rgba(255,255,255,0.92)',
               color: '#111',
-              fontSize: '11px',
+              fontSize: '20px',
               fontWeight: '500',
-              borderRadius: '9px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+              borderRadius: '16px',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
               textAlign: 'center',
             }}>
               {chatBubble}
               <div style={{
                 position: 'absolute',
-                bottom: '-6px',
+                bottom: '-11px',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 width: 0,
                 height: 0,
-                borderLeft: '6px solid transparent',
-                borderRight: '6px solid transparent',
-                borderTop: '6px solid rgba(255,255,255,0.92)',
+                borderLeft: '11px solid transparent',
+                borderRight: '11px solid transparent',
+                borderTop: '11px solid rgba(255,255,255,0.92)',
               }} />
             </div>
           )}
 
-          <div style={{
-            ...stackItem(0),
-            fontSize: '12px',
-            fontWeight: 'bold',
-            color: isDead ? '#888' : isWinner ? 'gold' : 'white',
-            textShadow: '0 0 4px rgba(0,0,0,0.8)',
-            padding: '2px 6px',
-            background: 'rgba(0,0,0,0.6)',
-            borderRadius: '4px',
-          }}>
-            {name}
-            {isWinner && ' 👑'}
-            {isDead && ' ☠️'}
+          {/* Name tag, plus (pre-game only) the kick/relic/status row -- laid out
+              as one horizontal group so the lobby controls sit right next to the
+              name instead of stacking underneath it. */}
+          <div style={{ ...stackItem(0, showLobbyControls), display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{
+              fontSize: '26px',
+              fontWeight: 'bold',
+              // Own player gets a distinct amber tint so it reads apart from
+              // everyone else's white nametag at a glance.
+              color: isDead ? '#888' : isWinner ? 'gold' : isOwnPlayer ? '#fbbf24' : 'white',
+              textShadow: '0 0 4px rgba(0,0,0,0.8)',
+              padding: '4px 10px',
+              background: 'rgba(0,0,0,0.6)',
+              borderRadius: '6px',
+              whiteSpace: 'nowrap',
+            }}>
+              {name}
+              {isWinner && ' 👑'}
+              {isDead && ' ☠️'}
+            </div>
+
+            {/* Lobby-wait controls: kick (admin, other players only), relic pick
+                (self) or the selected-relic badge (others), and status icons --
+                the replacement for the old "Players in Lobby" overlay list, now
+                living next to each seated player instead of in a separate 2D panel. */}
+            {showLobbyControls && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '40px' }}>
+                {isSpectator && <span title="Spectator">👁</span>}
+                {isReady && <span title="Ready">✅</span>}
+                {isIdle && <span title="Idle">👻</span>}
+                {isOwnPlayer ? (
+                  onToggleRelicSelection && (
+                    // Small upward nudge to level it with the status emoji next to
+                    // it, whose glyphs render higher within their own line box.
+                    <span style={{ display: 'inline-flex', transform: 'translateY(-3px)' }}>
+                      <RelicSelectionPopover
+                        playerName={name}
+                        selectedRelicIds={selectedRelicIds ?? []}
+                        onToggle={onToggleRelicSelection}
+                      />
+                    </span>
+                  )
+                ) : (
+                  selectedRelicIds?.includes(COIN_RELIC_ID) && (
+                    <span title="Selected: will start the match with +1 coin">🪙</span>
+                  )
+                )}
+                {viewerIsAdmin && !isOwnPlayer && !isDead && (
+                  <span
+                    onClick={() => onKick?.(name)}
+                    title="Kick player"
+                    style={{ color: '#f87171', cursor: 'pointer' }}
+                  >
+                    ❌
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {showAttackButton && !isBoss && (
@@ -389,29 +455,21 @@ export const PlayerWithName = memo(function PlayerWithName({
           </div>
         </Html>
       )}
-      {/* Boss HP card — floats above the Hades model in world space, tracks with camera.
-          zIndexRange sits above the lost-soul/action buttons ([0,0]) so clicks land here
-          first, but stays below the CSS overlay panels (waiting lobby + round messages,
-          which use Tailwind z-10/z-20) so the card renders beneath them rather than
-          covering them. */}
+      {/* Boss HP display — floats above the Hades model in world space, tracks with camera.
+          No card/title, just the name and the life bar, left-aligned. zIndexRange sits
+          above the lost-soul/action buttons ([0,0]) so clicks land here first, but stays
+          below the CSS overlay panels (waiting lobby + round messages, which use Tailwind
+          z-10/z-20) so it renders beneath them rather than covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
         <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
-            textAlign: 'center',
-            background: 'rgba(0,0,0,0.75)',
-            border: '2px solid rgba(239,68,68,0.4)',
-            borderRadius: '20px',
-            padding: '12px 28px',
-            backdropFilter: 'blur(4px)',
+            textAlign: 'left',
             minWidth: '240px',
           }}>
             <p style={{ color: '#f87171', fontWeight: 'bold', fontSize: '26px', margin: 0, whiteSpace: 'nowrap' }}>{name}</p>
-            {bossTitle && (
-              <p style={{ color: '#d1d5db', fontSize: '22px', margin: '2px 0 8px', whiteSpace: 'nowrap' }}>{bossTitle}</p>
-            )}
-            <div style={{ width: '100%', height: '12px', background: '#374151', borderRadius: '6px', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '12px', background: '#374151', borderRadius: '6px', overflow: 'hidden', marginTop: '8px' }}>
               <div style={{
                 height: '100%',
                 width: `${Math.max(0, (bossHp / bossMaxHp) * 100)}%`,
