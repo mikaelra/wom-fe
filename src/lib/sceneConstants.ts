@@ -6,6 +6,15 @@ export const MAX_PLAYERS = 24;
 const BASE_PLAYER_RADIUS = 2.1;
 export const PLAYER_Y = 3.2;
 
+// Hades' seat sits this much higher than a regular player's -- composition
+// for its much larger model (PlayerAvatars.tsx scales the boss 1.44x vs a
+// frog's 0.6x). Exported (not just inlined into getBossPosition below) so
+// anything anchoring to the boss's ground level specifically -- rather than
+// its seat position -- can subtract it back out; LobbyScene's attack-target
+// selection glow does exactly that, otherwise it renders floating partway
+// up Hades' body instead of at its feet, level with a frog's.
+export const BOSS_Y_LIFT = 0.65;
+
 // Radius grows by 15% for every 6 players: 1–6 → base, 7–12 → +15%, 13–18 → +30%, etc.
 // Exported so the lobby camera can back off by the same factor as the seat
 // circle grows -- otherwise a full table stays framed the same as a table of
@@ -44,7 +53,7 @@ export function getBossPosition(): { position: [number, number, number]; rotatio
   return {
     position: [
       BASE_PLAYER_RADIUS * Math.sin(angle),
-      PLAYER_Y + 0.65,
+      PLAYER_Y + BOSS_Y_LIFT,
       BASE_PLAYER_RADIUS * Math.cos(angle),
     ] as [number, number, number],
     rotation: [0, angle + Math.PI / 2, 0] as [number, number, number],
