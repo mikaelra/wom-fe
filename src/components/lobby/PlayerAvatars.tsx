@@ -1,6 +1,6 @@
 'use client';
 
-import { useFrame } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, memo, Suspense, type CSSProperties, type ReactNode } from 'react';
 import * as THREE from 'three';
@@ -286,8 +286,35 @@ export const PlayerWithName = memo(function PlayerWithName({
   const hl = highlight ?? {};
   const hlAttack = guideGlowClass(hl.attack);
   const hlDefend = guideGlowClass(hl.defend);
+  // Clicking the model itself selects the same action as its button --
+  // attack this player if they're a legal target, or defend if this is your
+  // own model. The two flags are never both true for the same player (an
+  // opponent can't also be showOwnActions), so there's no ambiguity about
+  // which action a click means.
+  const clickSelectable = !!showAttackButton || !!showOwnActions;
+  const handleModelClick = (e: ThreeEvent<MouseEvent>) => {
+    if (!clickSelectable) return;
+    e.stopPropagation();
+    if (showAttackButton) onAttack?.(name);
+    else onDefend?.();
+  };
+  const handleModelPointerOver = (e: ThreeEvent<PointerEvent>) => {
+    if (!clickSelectable) return;
+    e.stopPropagation();
+    document.body.style.cursor = 'pointer';
+  };
+  const handleModelPointerOut = () => {
+    if (clickSelectable) document.body.style.cursor = 'default';
+  };
+
   return (
-    <group position={position} rotation={[rotation[0], rotation[1] + Math.PI / 2, rotation[2]]}>
+    <group
+      position={position}
+      rotation={[rotation[0], rotation[1] + Math.PI / 2, rotation[2]]}
+      onClick={handleModelClick}
+      onPointerOver={handleModelPointerOver}
+      onPointerOut={handleModelPointerOut}
+    >
       {/* 3D model — lazy; suspends until GLB is ready */}
       <Suspense fallback={null}>
         <PlayerModelLayer
@@ -526,7 +553,21 @@ export const LostSoulModel = memo(function LostSoulModel({
   });
 
   return (
-    <group ref={ref} position={position}>
+    <group
+      ref={ref}
+      position={position}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (!showAttackButton) return;
+        e.stopPropagation();
+        onAttack?.(name, index);
+      }}
+      onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+        if (!showAttackButton) return;
+        e.stopPropagation();
+        document.body.style.cursor = 'pointer';
+      }}
+      onPointerOut={() => { if (showAttackButton) document.body.style.cursor = 'default'; }}
+    >
       {/* 3D model — lazy; name label and attack button render immediately */}
       <Suspense fallback={null}>
         <LostSoulMesh />

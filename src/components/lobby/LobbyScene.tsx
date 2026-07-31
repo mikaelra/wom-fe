@@ -13,6 +13,7 @@ import SwordEffect, { STRIKE_DUR, HOLD_DUR, BOUNCE_DUR } from '@/components/lobb
 import WellRewardEffect, { preloadWellRewardModels, type WellRewardType } from '@/components/lobby/WellRewardEffect';
 import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight } from '@/components/lobby/WellGlowEffect';
+import SelectionGlow from '@/components/lobby/SelectionGlow';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
@@ -77,6 +78,20 @@ preloadWellRewardModels();
 // Where the splash erupts (well mouth) and where the rarity glow lies (under it).
 const WELL_SPLASH_POSITION: [number, number, number] = [0, 2.4, 0];
 const WELL_GLOW_POSITION:   [number, number, number] = [0, 2.3, 0];
+
+// Persistent selection-glow colours -- each matches the same action's button
+// glow (ActionImageButton's glowColor) so the 3D cue and the 2D button read
+// as the same accent. Defend's blue is also literally WellGlowEffect's
+// reward-rarity blue (WELL_GLOW_HEX.blue) -- same hex, different fixture.
+const WELL_SELECT_GLOW_COLOR   = '#a78bfa';
+const ATTACK_SELECT_GLOW_COLOR = '#ef4444';
+const DEFEND_SELECT_GLOW_COLOR = '#3b82f6';
+// Parked off-scene when a selection glow has no live target this render, so
+// the (inactive, intensity-0) light/disc still has somewhere valid to sit.
+const GLOW_PARK_POSITION: [number, number, number] = [0, -10, 0];
+// Selection glows sit at a character's feet, same offset KillFireEffect uses
+// to line its splash up with the base of the model rather than its center.
+const SELECTION_GLOW_Y_OFFSET = -0.5;
 
 function AuraFlash({ position }: { position: [number, number, number] }) {
   const meshRef  = useRef<THREE.Mesh>(null);
@@ -260,6 +275,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     });
     posMapRef.current = m;
   }
+
+  // Live targets for the persistent selection glows below -- undefined when
+  // that action isn't the current choice, in which case the glow just fades
+  // out rather than unmounting (see SelectionGlow's comment on why).
+  const defendGlowPos: [number, number, number] | undefined =
+    currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
+  const attackTargetGlowPos: [number, number, number] | undefined =
+    currentAction === 'attack' && attackTarget
+      ? (selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === attackTarget
+          ? LOST_SOUL_POSITIONS[selectedSoulIdx % LOST_SOUL_POSITIONS.length]
+          : posMapRef.current.get(attackTarget))
+      : undefined;
 
   // Compute world-space position for the crown (above winner's head, private lobbies only)
   const crownPosition = useMemo((): [number, number, number] | null => {
@@ -791,9 +818,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         </Html>
       )}
 
-      {/* Stage 2: Well/Table model */}
+      {/* Stage 2: Well/Table model -- also clickable, same as its 2D button */}
       <Suspense fallback={null}>
-        <Table position={TABLE_POSITION} scale={1.2} />
+        <Table position={TABLE_POSITION} scale={1.2} onClick={showAttackButtons ? handleWell : undefined} />
       </Suspense>
 
       {/* Stage 4: Well/lobby crown (floats above current well winner) */}
@@ -913,6 +940,36 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         glows={wellWinFx
           .filter((f) => f.glow && f.glowStartMs != null)
           .map((f) => ({ glow: f.glow!, startMs: f.glowStartMs!, intensity: f.glowIntensity, blinks: f.glow === 'red' ? 2 : 3 }))}
+      />
+
+      {/* Persistent selection glows -- one steady light per action, always
+          mounted and just faded via `active` (see SelectionGlow) so picking
+          well/attack-target/defend lights up the 3D scene under it, not just
+          the 2D button. */}
+      <SelectionGlow
+        position={WELL_GLOW_POSITION}
+        color={WELL_SELECT_GLOW_COLOR}
+        active={currentAction === 'well'}
+        radius={1.2}
+        intensity={4.5}
+      />
+      <SelectionGlow
+        position={defendGlowPos ?? GLOW_PARK_POSITION}
+        yOffset={SELECTION_GLOW_Y_OFFSET}
+        color={DEFEND_SELECT_GLOW_COLOR}
+        active={!!defendGlowPos}
+        radius={1.1}
+        intensity={2}
+        gradient
+      />
+      <SelectionGlow
+        position={attackTargetGlowPos ?? GLOW_PARK_POSITION}
+        yOffset={SELECTION_GLOW_Y_OFFSET}
+        color={ATTACK_SELECT_GLOW_COLOR}
+        active={!!attackTargetGlowPos}
+        radius={1.1}
+        intensity={2}
+        gradient
       />
 
       {/* Red aura — pure geometry, no model; renders immediately */}
