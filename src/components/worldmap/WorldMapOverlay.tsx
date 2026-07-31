@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createLobby, joinLobby, logOut } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
-import { useAuthFlow } from '@/lib/useAuthFlow';
+import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import { subscribe } from '@/lib/socket';
 import RopedButton from '@/components/hud/RopedButton';
 import RopedInput from '@/components/hud/RopedInput';
@@ -302,6 +302,7 @@ export default function WorldMapOverlay() {
             </p>
             <input
               type="text"
+              maxLength={NAME_MAX_LENGTH}
               placeholder="Your battle name"
               value={authFlow.name}
               onChange={(e) => authFlow.setName(e.target.value)}

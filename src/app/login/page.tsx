@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuthFlow } from '@/lib/useAuthFlow';
+import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -37,6 +37,7 @@ export default function LoginPage() {
           <>
             <input
               type="text"
+              maxLength={NAME_MAX_LENGTH}
               placeholder="Enter your name"
               value={authFlow.name}
               onChange={(e) => authFlow.setName(e.target.value)}

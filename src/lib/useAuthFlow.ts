@@ -15,6 +15,29 @@ export interface UseAuthFlowOptions {
 
 const DEFAULT_SUBMIT_ERROR_FALLBACK = 'Something went wrong.';
 
+// Mirrors wom-be's regex_name_check (helpers.py): 3-12 chars, no spaces or
+// / \ @ " ' -. Catching this client-side, before the round trip, matters
+// because a rejected name here doesn't fail loudly -- WorldMapOverlay.tsx's
+// onAuthenticated already closes the name popup before its own doCreate/
+// doJoin call resolves, so a bad name previously surfaced only as an
+// easy-to-miss toast (or, for a caller with no toast at all, nothing
+// visible whatsoever -- confirmed for real via wom-e2e's own
+// turtle-fight-win.spec.ts: a 17-character name 400'd on POST
+// /create_lobby with zero UI feedback, just a stuck popup).
+export const NAME_MIN_LENGTH = 3;
+export const NAME_MAX_LENGTH = 12;
+const NAME_INVALID_CHARS = /[ \\/@"'-]/;
+
+function validateName(name: string): string | null {
+  if (name.length < NAME_MIN_LENGTH || name.length > NAME_MAX_LENGTH) {
+    return `Name must be ${NAME_MIN_LENGTH}–${NAME_MAX_LENGTH} characters long`;
+  }
+  if (NAME_INVALID_CHARS.test(name)) {
+    return `Name cannot contain spaces or special characters like / \\ @ " ' -`;
+  }
+  return null;
+}
+
 export interface UseAuthFlowResult {
   name: string;
   setName: (name: string) => void;
@@ -63,6 +86,11 @@ export function useAuthFlow({
     const trimmed = name.trim();
     if (!trimmed) {
       setError('Please enter a username.');
+      return;
+    }
+    const nameError = validateName(trimmed);
+    if (nameError) {
+      setError(nameError);
       return;
     }
     setError('');

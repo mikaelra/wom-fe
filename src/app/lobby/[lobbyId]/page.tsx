@@ -10,7 +10,7 @@ import { BASE_FOV } from '@/lib/sceneConstants';
 import { joinLobby } from '@/lib/api';
 import { getSocket, subscribe } from '@/lib/socket';
 import { getStoredToken } from '@/lib/http';
-import { useAuthFlow } from '@/lib/useAuthFlow';
+import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { LobbyState } from '@/types/game';
 import type { GuideHighlights } from '@/lib/guideHighlights';
 
@@ -180,7 +180,7 @@ export default function LobbyPage() {
                 {/* Name input — read-only once we move to email step */}
                 <input
                   type="text"
-                  maxLength={30}
+                  maxLength={NAME_MAX_LENGTH}
                   placeholder="Name"
                   value={authFlow.name}
                   onChange={(e) => authFlow.setName(e.target.value)}
