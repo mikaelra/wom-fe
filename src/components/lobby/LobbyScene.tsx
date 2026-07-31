@@ -50,6 +50,7 @@ import {
   getBossPosition,
   getBossPlayerPositions,
   radiusGrowthFactor,
+  BOSS_Y_LIFT,
 } from '@/lib/sceneConstants';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
@@ -92,6 +93,12 @@ const GLOW_PARK_POSITION: [number, number, number] = [0, -10, 0];
 // Selection glows sit at a character's feet, same offset KillFireEffect uses
 // to line its splash up with the base of the model rather than its center.
 const SELECTION_GLOW_Y_OFFSET = -0.5;
+// Hades' model is scaled 1.44x vs a frog's 0.6x (PlayerAvatars.tsx) -- even
+// after undoing getBossPosition()'s BOSS_Y_LIFT seat boost, its visual feet
+// still sit lower than a frog's relative to that shared seat coordinate, so
+// the attack-target glow needs this extra drop on top to land level with a
+// frog's. Tuned by eye against the live scene, not derived from the model.
+const BOSS_ATTACK_GLOW_EXTRA_DROP = 0.2;
 
 function AuraFlash({ position }: { position: [number, number, number] }) {
   const meshRef  = useRef<THREE.Mesh>(null);
@@ -279,14 +286,27 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // Live targets for the persistent selection glows below -- undefined when
   // that action isn't the current choice, in which case the glow just fades
   // out rather than unmounting (see SelectionGlow's comment on why).
+  const bossName = allPlayers.find((p) => p.boss)?.name;
   const defendGlowPos: [number, number, number] | undefined =
     currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
-  const attackTargetGlowPos: [number, number, number] | undefined =
-    currentAction === 'attack' && attackTarget
-      ? (selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === attackTarget
-          ? LOST_SOUL_POSITIONS[selectedSoulIdx % LOST_SOUL_POSITIONS.length]
-          : posMapRef.current.get(attackTarget))
-      : undefined;
+  const attackTargetGlowPos: [number, number, number] | undefined = (() => {
+    if (currentAction !== 'attack' || !attackTarget) return undefined;
+    if (selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === attackTarget) {
+      return LOST_SOUL_POSITIONS[selectedSoulIdx % LOST_SOUL_POSITIONS.length];
+    }
+    const pos = posMapRef.current.get(attackTarget);
+    if (!pos) return undefined;
+    // getBossPosition() lifts Hades' seat PLAYER_Y + BOSS_Y_LIFT above the
+    // regular player ground level (composition for its much larger model)
+    // -- correct for that here, plus BOSS_ATTACK_GLOW_EXTRA_DROP for the
+    // model's own larger visual footprint, so the ground glow reads at the
+    // same floor level under Hades as it does under a frog, instead of
+    // floating partway up its body.
+    if (attackTarget === bossName) {
+      return [pos[0], pos[1] - BOSS_Y_LIFT - BOSS_ATTACK_GLOW_EXTRA_DROP, pos[2]] as [number, number, number];
+    }
+    return pos;
+  })();
 
   // Compute world-space position for the crown (above winner's head, private lobbies only)
   const crownPosition = useMemo((): [number, number, number] | null => {
@@ -968,7 +988,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         color={ATTACK_SELECT_GLOW_COLOR}
         active={!!attackTargetGlowPos}
         radius={1.1}
-        intensity={2}
+        // Hades' much larger model makes the same-strength glow read as
+        // visibly weaker under it than under a frog -- boosted 1.5x
+        // (tuned by eye) specifically for that target, not globally.
+        intensity={attackTarget === bossName ? 2 * 1.5 : 2}
         gradient
       />
 

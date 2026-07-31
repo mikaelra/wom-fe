@@ -8,6 +8,7 @@ import {
   getResponsiveFov,
   radiusGrowthFactor,
   PLAYER_Y,
+  BOSS_Y_LIFT,
   SCENE_CENTER,
 } from '@/lib/sceneConstants';
 import { guideGlowClass } from '@/lib/guideHighlights';
@@ -37,7 +38,7 @@ describe('boss layout', () => {
   it('puts the boss elevated on the far side', () => {
     const boss = getBossPosition();
     expect(boss.position[2]).toBeCloseTo(-2.1, 5);
-    expect(boss.position[1]).toBeCloseTo(PLAYER_Y + 0.65, 5);
+    expect(boss.position[1]).toBeCloseTo(PLAYER_Y + BOSS_Y_LIFT, 5);
   });
 
   it('centers a single player opposite the boss', () => {
