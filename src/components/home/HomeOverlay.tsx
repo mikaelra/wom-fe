@@ -12,7 +12,7 @@ import {
 } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
-import { useAuthFlow } from '@/lib/useAuthFlow';
+import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
 import type { City } from '@/lib/cities';
 import { useToast } from '@/components/Toast';
@@ -401,6 +401,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
             <>
               <input
                 type="text"
+                maxLength={NAME_MAX_LENGTH}
                 placeholder="Enter your name"
                 value={authFlow.name}
                 onChange={(e) => authFlow.setName(e.target.value)}

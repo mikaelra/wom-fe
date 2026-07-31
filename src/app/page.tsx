@@ -16,7 +16,7 @@ import type { City } from '@/lib/cities';
 import type { RankedLabelInfo } from '@/components/worldmap/CityMarker';
 import { getBossfightLobby, getActiveRankedLobby } from '@/lib/api';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
-import { useAuthFlow } from '@/lib/useAuthFlow';
+import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import { useRankedQueue } from '@/lib/useRankedQueue';
 import { useCountdown } from '@/lib/useCountdown';
 import { setStoredToken } from '@/lib/http';
@@ -390,6 +390,7 @@ export default function Page() {
               <p className="text-sm text-white/60 mb-4">Choose a battle name to face Hades.</p>
               <input
                 type="text"
+                maxLength={NAME_MAX_LENGTH}
                 placeholder="Your battle name"
                 value={authFlow.name}
                 onChange={(e) => authFlow.setName(e.target.value)}
@@ -528,6 +529,7 @@ export default function Page() {
               <p className="text-sm text-white/60 mb-4">Choose a battle name to join the ranked queue.</p>
               <input
                 type="text"
+                maxLength={NAME_MAX_LENGTH}
                 placeholder="Your battle name"
                 value={rankedAuthFlow.name}
                 onChange={(e) => rankedAuthFlow.setName(e.target.value)}

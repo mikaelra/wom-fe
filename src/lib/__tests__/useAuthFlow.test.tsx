@@ -36,6 +36,52 @@ describe('useAuthFlow', () => {
     expect(mockedCheckName).not.toHaveBeenCalled();
   });
 
+  it('shows an error and does not call checkName when the name is too short', async () => {
+    const onAuthenticated = vi.fn();
+    const { result } = renderHook(() =>
+      useAuthFlow({ onAuthenticated, submitErrorFallback: 'Failed.' })
+    );
+
+    act(() => result.current.setName('Al'));
+    await act(async () => {
+      result.current.handleSubmitName();
+    });
+
+    expect(result.current.error).toBe('Name must be 3–12 characters long');
+    expect(mockedCheckName).not.toHaveBeenCalled();
+  });
+
+  it('shows an error and does not call checkName when the name is too long', async () => {
+    const onAuthenticated = vi.fn();
+    const { result } = renderHook(() =>
+      useAuthFlow({ onAuthenticated, submitErrorFallback: 'Failed.' })
+    );
+
+    // 13 characters -- one over wom-be's regex_name_check cap.
+    act(() => result.current.setName('ThirteenChars'));
+    await act(async () => {
+      result.current.handleSubmitName();
+    });
+
+    expect(result.current.error).toBe('Name must be 3–12 characters long');
+    expect(mockedCheckName).not.toHaveBeenCalled();
+  });
+
+  it('shows an error and does not call checkName when the name has a disallowed character', async () => {
+    const onAuthenticated = vi.fn();
+    const { result } = renderHook(() =>
+      useAuthFlow({ onAuthenticated, submitErrorFallback: 'Failed.' })
+    );
+
+    act(() => result.current.setName("Bob's"));
+    await act(async () => {
+      result.current.handleSubmitName();
+    });
+
+    expect(result.current.error).toBe(`Name cannot contain spaces or special characters like / \\ @ " ' -`);
+    expect(mockedCheckName).not.toHaveBeenCalled();
+  });
+
   it('calls onAuthenticated immediately when the name is unclaimed', async () => {
     mockedCheckName.mockResolvedValue({ claimed: false });
     const onAuthenticated = vi.fn();
