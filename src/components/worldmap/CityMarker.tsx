@@ -226,8 +226,6 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo, ranke
             </span>
           )}
 
-          {city.name}
-
           {raidInfo && raidInfo.secondsUntil !== null && raidInfo.secondsUntil > 0 && (
             <span style={{ color: '#ff9966', fontSize: hovered ? 11 : 8 }}>
               {Math.floor(raidInfo.secondsUntil / 60)}m {raidInfo.secondsUntil % 60}s
