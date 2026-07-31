@@ -15,6 +15,7 @@ import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import ResourceCard from '@/components/ResourceCard';
 import { useStagedResources } from '@/lib/useStagedResources';
 import { useToast } from '@/components/Toast';
+import ActionImageButton from '@/components/lobby/ActionImageButton';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -680,17 +681,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             </div>
             <p className={`${theme.enemyHpTextClass} text-xs mt-1`}>{Math.max(0, enemy!.hp)} / {enemyMaxHp} HP</p>
             {canAct && (
-              <button
-                type="button"
+              <ActionImageButton
+                src="/images/buttons/attack-ld.png"
+                alt="Attack"
                 onClick={() => handleAction('attack')}
-                className={`${btn} text-sm backdrop-blur-sm shadow-lg mt-2 ${actionCue} ${
-                  effectiveAction === 'attack'
-                    ? 'bg-red-600 text-white border-red-400'
-                    : 'bg-red-900/80 text-red-200 border-red-700 hover:bg-red-800/90'
-                }`}
-              >
-                ⚔ ATTACK
-              </button>
+                selected={effectiveAction === 'attack'}
+                glowColor="rgba(239,68,68,0.7)"
+                width={150}
+                className={`mt-2 ${actionCue}`}
+              />
             )}
           </div>
         </div>
@@ -702,17 +701,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           className="absolute pointer-events-auto"
           style={{ top: '54%', left: '50%', transform: 'translate(-50%, -50%)' }}
         >
-          <button
-            type="button"
+          <ActionImageButton
+            src="/images/buttons/well-ld.png"
+            alt="The Well"
             onClick={() => handleAction('well')}
-            className={`${btn} text-sm backdrop-blur-sm shadow-lg ${actionCue} ${
-              effectiveAction === 'well'
-                ? 'bg-purple-600 text-white border-purple-400'
-                : 'bg-purple-900/80 text-purple-200 border-purple-700 hover:bg-purple-800/90'
-            }`}
-          >
-            🏴 The Well
-          </button>
+            selected={effectiveAction === 'well'}
+            glowColor="rgba(167,139,250,0.7)"
+            width={150}
+            className={actionCue}
+          />
         </div>
       )}
 
@@ -739,17 +736,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           className="absolute pointer-events-auto"
           style={{ top: '65%', left: '50%', transform: 'translateX(-50%)' }}
         >
-          <button
-            type="button"
+          <ActionImageButton
+            src="/images/buttons/defend-ld.png"
+            alt="Defend"
             onClick={() => handleAction('defend')}
-            className={`${btn} text-sm backdrop-blur-sm shadow-lg ${actionCue} ${
-              effectiveAction === 'defend'
-                ? 'bg-blue-600 text-white border-blue-400'
-                : 'bg-blue-900/80 text-blue-200 border-blue-700 hover:bg-blue-800/90'
-            }`}
-          >
-            🛡 DEFEND
-          </button>
+            selected={effectiveAction === 'defend'}
+            glowColor="rgba(59,130,246,0.7)"
+            width={150}
+            className={actionCue}
+          />
         </div>
       )}
 

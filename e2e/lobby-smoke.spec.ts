@@ -91,12 +91,13 @@ test('create a lobby, add a bot, and fight it to a win', async ({ page }) => {
     await expect(page.getByText('TURTLE', { exact: true })).toBeVisible({ timeout: 20_000 });
     await page.getByText('Start Game', { exact: true }).click({ timeout: 20_000, force: true });
 
-    // "⚔ ATTACK"/"🏴 The Well" here are specifically the per-avatar/in-game
-    // action buttons (PlayerAvatars.tsx / SceneOverlay.tsx), which submit a
-    // correctly-targeted action -- confirmed by reading useLobbyGame.ts: the
-    // generic, untargeted attack button in SceneOverlay.tsx only renders
-    // behind a boss-fight `enemy`, which a plain TURTLE-dummy lobby never
-    // has, so it never appears here at all.
+    // "Attack"/"The Well" here are specifically the per-avatar/in-game action
+    // buttons (PlayerAvatars.tsx / SceneOverlay.tsx, image-based via
+    // ActionImageButton -- queried by accessible name/alt text, not label
+    // text), which submit a correctly-targeted action -- confirmed by
+    // reading useLobbyGame.ts: the generic, untargeted attack button in
+    // SceneOverlay.tsx only renders behind a boss-fight `enemy`, which a
+    // plain TURTLE-dummy lobby never has, so it never appears here at all.
     //
     // dispatchEvent, not click({force: true}), for these specifically --
     // verified directly against a live backend that force-click completes
@@ -110,8 +111,8 @@ test('create a lobby, add a bot, and fight it to a win', async ({ page }) => {
     // are repositioned every frame via a drei <Html> anchor, but Well is a
     // plain 2D `position: absolute` button in SceneOverlay.tsx and was
     // *also* affected, so it isn't simply a 3D-vs-2D-DOM distinction.
-    const attack = page.getByText('⚔ ATTACK', { exact: true });
-    const well = page.getByText('🏴 The Well', { exact: true });
+    const attack = page.getByRole('button', { name: 'Attack', exact: true });
+    const well = page.getByRole('button', { name: 'The Well', exact: true });
     const atk = page.getByText('ATK', { exact: true });
     const coins = page.getByText('Coins', { exact: true });
     // SceneOverlay.tsx: `Round <span className="round-zoom">{state.round}</span>`

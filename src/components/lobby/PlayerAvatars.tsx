@@ -1,10 +1,11 @@
 'use client';
 
-import { useFrame } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, memo, Suspense, type CSSProperties, type ReactNode } from 'react';
 import * as THREE from 'three';
 import PlayerV1 from '@/components/Playerv1';
+import ActionImageButton from '@/components/lobby/ActionImageButton';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
@@ -285,8 +286,35 @@ export const PlayerWithName = memo(function PlayerWithName({
   const hl = highlight ?? {};
   const hlAttack = guideGlowClass(hl.attack);
   const hlDefend = guideGlowClass(hl.defend);
+  // Clicking the model itself selects the same action as its button --
+  // attack this player if they're a legal target, or defend if this is your
+  // own model. The two flags are never both true for the same player (an
+  // opponent can't also be showOwnActions), so there's no ambiguity about
+  // which action a click means.
+  const clickSelectable = !!showAttackButton || !!showOwnActions;
+  const handleModelClick = (e: ThreeEvent<MouseEvent>) => {
+    if (!clickSelectable) return;
+    e.stopPropagation();
+    if (showAttackButton) onAttack?.(name);
+    else onDefend?.();
+  };
+  const handleModelPointerOver = (e: ThreeEvent<PointerEvent>) => {
+    if (!clickSelectable) return;
+    e.stopPropagation();
+    document.body.style.cursor = 'pointer';
+  };
+  const handleModelPointerOut = () => {
+    if (clickSelectable) document.body.style.cursor = 'default';
+  };
+
   return (
-    <group position={position} rotation={[rotation[0], rotation[1] + Math.PI / 2, rotation[2]]}>
+    <group
+      position={position}
+      rotation={[rotation[0], rotation[1] + Math.PI / 2, rotation[2]]}
+      onClick={handleModelClick}
+      onPointerOver={handleModelPointerOver}
+      onPointerOut={handleModelPointerOut}
+    >
       {/* 3D model — lazy; suspends until GLB is ready */}
       <Suspense fallback={null}>
         <PlayerModelLayer
@@ -396,52 +424,30 @@ export const PlayerWithName = memo(function PlayerWithName({
           </div>
 
           {showAttackButton && !isBoss && (
-            <button
+            <ActionImageButton
+              src="/images/buttons/attack-ld.png"
+              alt="Attack"
               onClick={() => onAttack?.(name)}
+              selected={isAttackSelected}
+              glowColor="rgba(239,68,68,0.7)"
+              width={180}
               className={`${actionCue} ${hlAttack}`}
-              style={{
-                ...stackItem(STACK_ATTACK_Y, true),
-                cursor: 'pointer',
-                padding: '16px 32px',
-                fontSize: '28px',
-                fontWeight: 'bold',
-                color: isAttackSelected ? '#ffffff' : '#fca5a5',
-                background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
-                border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
-                borderRadius: '8px',
-                backdropFilter: 'blur(4px)',
-                boxShadow: isAttackSelected
-                  ? '0 0 8px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                  : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-              }}
-            >
-              ⚔ ATTACK
-            </button>
+              style={stackItem(STACK_ATTACK_Y, true)}
+            />
           )}
 
           {/* DEFEND button — own player only */}
           {showOwnActions && (
-            <button
+            <ActionImageButton
+              src="/images/buttons/defend-ld.png"
+              alt="Defend"
               onClick={onDefend}
+              selected={currentAction === 'defend'}
+              glowColor="rgba(59,130,246,0.7)"
+              width={180}
               className={`${actionCue} ${hlDefend}`}
-              style={{
-                ...stackItem(STACK_DEFEND_Y, true),
-                cursor: 'pointer',
-                padding: '14px 28px',
-                fontSize: '26px',
-                fontWeight: 'bold',
-                color: currentAction === 'defend' ? '#ffffff' : '#93c5fd',
-                background: currentAction === 'defend' ? 'rgba(37,99,235,0.95)' : 'rgba(30,27,75,0.85)',
-                border: currentAction === 'defend' ? '2px solid #93c5fd' : '2px solid #1d4ed8',
-                borderRadius: '8px',
-                backdropFilter: 'blur(4px)',
-                boxShadow: currentAction === 'defend'
-                  ? '0 0 8px rgba(59,130,246,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                  : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-              }}
-            >
-              🛡 DEFEND
-            </button>
+              style={stackItem(STACK_DEFEND_Y, true)}
+            />
           )}
         </div>
       </Html>
@@ -482,29 +488,16 @@ export const PlayerWithName = memo(function PlayerWithName({
               {Math.max(0, bossHp)} / {bossMaxHp} HP
             </p>
             {showAttackButton && (
-              <button
+              <ActionImageButton
+                src="/images/buttons/attack-ld.png"
+                alt="Attack"
                 onClick={() => onAttack?.(name)}
+                selected={isAttackSelected}
+                glowColor="rgba(239,68,68,0.7)"
+                width={170}
                 className={actionCue}
-                style={{
-                  marginTop: '10px',
-                  pointerEvents: 'auto',
-                  cursor: 'pointer',
-                  padding: '14px 28px',
-                  fontSize: '24px',
-                  fontWeight: 'bold',
-                  color: isAttackSelected ? '#ffffff' : '#fca5a5',
-                  background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
-                  border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
-                  borderRadius: '10px',
-                  whiteSpace: 'nowrap',
-                  backdropFilter: 'blur(4px)',
-                  boxShadow: isAttackSelected
-                    ? '0 0 16px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                    : '0 10px 15px -3px rgba(0,0,0,0.3)',
-                }}
-              >
-                ⚔ ATTACK
-              </button>
+                style={{ marginTop: '10px', pointerEvents: 'auto' }}
+              />
             )}
           </div>
         </Html>
@@ -560,7 +553,21 @@ export const LostSoulModel = memo(function LostSoulModel({
   });
 
   return (
-    <group ref={ref} position={position}>
+    <group
+      ref={ref}
+      position={position}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (!showAttackButton) return;
+        e.stopPropagation();
+        onAttack?.(name, index);
+      }}
+      onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+        if (!showAttackButton) return;
+        e.stopPropagation();
+        document.body.style.cursor = 'pointer';
+      }}
+      onPointerOut={() => { if (showAttackButton) document.body.style.cursor = 'default'; }}
+    >
       {/* 3D model — lazy; name label and attack button render immediately */}
       <Suspense fallback={null}>
         <LostSoulMesh />
@@ -582,27 +589,16 @@ export const LostSoulModel = memo(function LostSoulModel({
             {name}
           </div>
           {showAttackButton && (
-            <button
+            <ActionImageButton
+              src="/images/buttons/attack-ld.png"
+              alt="Attack"
               onClick={() => onAttack?.(name, index)}
+              selected={isAttackSelected}
+              glowColor="rgba(239,68,68,0.7)"
+              width={180}
               className={actionCue}
-              style={{
-                ...stackItem(-35, true),
-                cursor: 'pointer',
-                padding: '16px 32px',
-                fontSize: '28px',
-                fontWeight: 'bold',
-                color: isAttackSelected ? '#ffffff' : '#fca5a5',
-                background: isAttackSelected ? 'rgba(220,38,38,0.95)' : 'rgba(127,29,29,0.85)',
-                border: isAttackSelected ? '2px solid #fca5a5' : '2px solid #b91c1c',
-                borderRadius: '8px',
-                backdropFilter: 'blur(4px)',
-                boxShadow: isAttackSelected
-                  ? '0 0 8px rgba(239,68,68,0.6), 0 4px 6px -4px rgba(0,0,0,0.2)'
-                  : '0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2)',
-              }}
-            >
-              ⚔ ATTACK
-            </button>
+              style={stackItem(-35, true)}
+            />
           )}
         </div>
       </Html>

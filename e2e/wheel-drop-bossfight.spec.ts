@@ -98,12 +98,13 @@ test('a fresh account eventually gets a Wheel drop from repeated boss fights', a
 
   // .first(): a boss fight can have more than one attackable target (the
   // boss itself plus any Lost Souls Hades has summoned, see
-  // engine/bosses.py's hades_ability), each rendering their own "⚔ ATTACK"
-  // button (PlayerAvatars.tsx) -- confirmed for real (two matched here).
-  // Which target we hit doesn't matter for this test, only that the match
-  // concludes.
-  const attack = page.getByText('⚔ ATTACK', { exact: true }).first();
-  const well = page.getByText('🏴 The Well', { exact: true });
+  // engine/bosses.py's hades_ability), each rendering their own "Attack"
+  // button (PlayerAvatars.tsx, image-based via ActionImageButton -- queried
+  // by accessible name/alt text, not label text) -- confirmed for real (two
+  // matched here). Which target we hit doesn't matter for this test, only
+  // that the match concludes.
+  const attack = page.getByRole('button', { name: 'Attack', exact: true }).first();
+  const well = page.getByRole('button', { name: 'The Well', exact: true });
   const atk = page.getByText('ATK', { exact: true });
   const coins = page.getByText('Coins', { exact: true });
   const roundNumber = page.locator('.round-zoom');
