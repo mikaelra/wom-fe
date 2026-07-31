@@ -44,132 +44,21 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
 
-  e2e:
-    # In the same workflow (not a separate one) specifically so
-    # build-and-deploy's `needs:` below can gate on it -- `needs:` can only
-    # reference jobs in the same workflow file.
-    runs-on: ubuntu-latest
-    # lobby-smoke.spec.ts is capped at 12 minutes per attempt -- it now
-    # retries the whole match on a loss (TURTLE's reflect mechanic can
-    # genuinely kill the always-attack test player), and real timing
-    # observed against a live stack is ~25s/round with matches deciding by
-    # round ~15-20, so 2 match attempts average well under 12 minutes; with
-    # Playwright's 1 CI retry, worst case is ~24 minutes. wheel-drop-
-    # bossfight.spec.ts is capped at 25 minutes (up to 20 boss-fight attempts
-    # at p=0.25 each) -- BOSSFIGHT_INTERVAL_MINUTES below keeps each
-    # attempt's countdown to ~6s instead of the real 1-minute default, so its
-    # worst case (20 attempts, no wheel yet) is ~13 minutes of boss-fighting.
-    # Both specs run in parallel and share CPU on the runner, so 40 minutes
-    # covers the slower spec's CI-retried worst case plus setup and
-    # contention overhead, rather than relying on the 360-minute default.
-    timeout-minutes: 40
-
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: wom
-          POSTGRES_PASSWORD: wom
-          POSTGRES_DB: wom
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U wom -d wom"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      DATABASE_URL: postgresql://wom:wom@localhost:5432/wom
-
-    steps:
-      - uses: actions/checkout@v7
-
-      # ghcr.io/mikaelra/wom-be is a private package owned by a different
-      # repo -- this workflow's own GITHUB_TOKEN has no read access to it,
-      # so a PAT scoped to that repo (read:packages) is required. See
-      # docs/CODEBASE_HARDENING_PLAN.md's Phase 3 Playwright section for
-      # how to create WOM_BE_PACKAGE_TOKEN.
-      - name: Log in to ghcr.io for the wom-be image
-        run: echo "${{ secrets.WOM_BE_PACKAGE_TOKEN }}" | docker login ghcr.io -u mikaelra --password-stdin
-
-      # wom-be's own alembic "baseline" migration is a no-op -- the actual
-      # schema (tables like `players`) comes from a Supabase SQL dump that
-      # lives in the private wom-infra repo (contains sensitive data, so
-      # not vendored into this repo or made public). Needs its own PAT
-      # (contents:read on wom-infra) -- see the hardening doc.
-      - name: Checkout wom-infra (DB schema dump)
-        uses: actions/checkout@v7
-        with:
-          repository: mikaelra/wom-infra
-          token: ${{ secrets.WOM_INFRA_READ_TOKEN }}
-          path: wom-infra
-
-      - name: Load DB schema from the Supabase dump
-        run: psql "$DATABASE_URL" -f wom-infra/db/init/001_supabase_dump.sql
-
-      - name: Run wom-be migrations
-        run: |
-          docker run --rm --network host \
-            -e DATABASE_URL \
-            ghcr.io/mikaelra/wom-be:latest \
-            alembic upgrade head
-
-      - name: Start wom-be
-        # BOSSFIGHT_INTERVAL_MINUTES=0.1 (6s instead of the real 1-minute
-        # default) so wheel-drop-bossfight.spec.ts's repeated boss-fight
-        # attempts don't blow the e2e job's timeout-minutes above -- same
-        # knob wom-e2e/lib/knobs.ts uses, safe here because this container
-        # is fresh and disposable for this CI run only (unlike a shared dev
-        # backend).
-        run: |
-          docker run -d --network host --name wom-be \
-            -e DATABASE_URL \
-            -e BOSSFIGHT_INTERVAL_MINUTES=0.1 \
-            ghcr.io/mikaelra/wom-be:latest
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          cache: "npm"
-
-      - run: npm ci
-
-      - name: Build and start the frontend
-        env:
-          NEXT_PUBLIC_BACKEND_URL: http://localhost:5000
-        run: |
-          npm run build
-          npm start &
-          for url in http://localhost:5000 http://localhost:3000; do
-            for i in $(seq 1 30); do
-              curl -sf "$url" > /dev/null && break
-              sleep 2
-            done
-          done
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - run: npm run test:e2e
-
-      - uses: actions/upload-artifact@v7
-        if: failure() || cancelled()
-        with:
-          name: playwright-test-results
-          # Traces/screenshots/error-context.md land here, not
-          # playwright-report/ -- that only exists with the html reporter,
-          # which reporter: 'list' (playwright.config.ts) doesn't enable.
-          path: test-results/
-          retention-days: 7
-
   build-and-deploy:
     # PRs only run the checks above; the image is built and deployed on
-    # push to master, and only once e2e (not just lint/test/typecheck) is
-    # green -- a real end-to-end regression shouldn't be able to reach the
-    # production VM just because the unit-level checks passed.
+    # push to master, gated on lint/test/typecheck only. The full
+    # round-by-round game-flow e2e coverage (real lobby, real backend, real
+    # browser) moved to wom-e2e -- it was previously an in-repo blocking job
+    # here, but its own real-stack setup cost + WebGL-rendering flakiness
+    # under CI's GPU-less headless Chromium made it the long pole on every
+    # deploy (up to 40 minutes, and prone to environmental stalls unrelated
+    # to actual regressions -- see wom-e2e's PR for the migration). wom-e2e
+    # now covers this via its nightly (03:00 UTC) + on-demand run instead of
+    # gating every push; a real regression can reach prod and sit there
+    # until the next wom-e2e run catches it, a deliberate speed/safety
+    # tradeoff, not an oversight.
     if: github.event_name != 'pull_request'
-    needs: [lint, test, typecheck, e2e]
+    needs: [lint, test, typecheck]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
