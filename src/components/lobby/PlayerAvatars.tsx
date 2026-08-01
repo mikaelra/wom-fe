@@ -20,6 +20,23 @@ import { COIN_RELIC_ID } from '@/types/game';
 // positioned around it in pre-scale pixels. ~230px ≈ 1 world unit here, so the
 // offsets below mirror the old world-space anchors (bubble 1.3, attack 0.9,
 // defend −0.1).
+// drei's Html only recomputes its CSS `scale()` when the object's projected
+// 2D screen position moves by more than `eps` (default 0.001px) since the
+// last update -- it never checks camera *distance* directly. A camera dolly
+// (zoom) aimed roughly at an object near screen-center barely shifts that
+// object's 2D projection even though the true distance -- and so the
+// correct scale -- changes a lot; once CameraFlyIn's per-frame lerp fully
+// converges (steady state, zero further 2D movement), whatever scale got
+// computed on the last frame that *did* cross the threshold is frozen
+// indefinitely. Confirmed live: name tags/action buttons/info badges
+// occasionally render far too large right after a round starts (or a
+// player joins mid-game) and only correct once the camera is dragged --
+// which perturbs the 2D projection enough to force a recompute. Since this
+// scene already renders continuously (frameloop="always"), forcing every
+// frame to recompute (eps=0) costs nothing extra and removes the
+// possibility of a stuck stale scale entirely.
+export const HTML_EPS = 0;
+
 const STACK_BUBBLE_Y = -70;
 const STACK_ATTACK_Y = -92;
 const STACK_INFO_Y = 130;
@@ -331,7 +348,7 @@ export const PlayerWithName = memo(function PlayerWithName({
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
           (see stackItem above). The boss HP card below stays separate — it uses
           a different scale (4.2) and z-order. */}
-      <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
+      <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           {chatBubble && (
             <div style={{
@@ -455,7 +472,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           above) so its zIndexRange can sit above the boss HP card ([5,5])
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
-        <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
+        <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>
@@ -469,7 +486,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           panels (waiting lobby + round messages, which use Tailwind
           z-10/z-20) so it renders beneath them rather than covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]}>
+        <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]} eps={HTML_EPS}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
@@ -575,7 +592,7 @@ export const LostSoulModel = memo(function LostSoulModel({
       </Suspense>
       {/* Name + attack button share one Html root (was two per soul). The
           button sits ~0.15 world units (≈35px pre-scale) above the name. */}
-      <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
+      <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           <div style={{
             ...stackItem(0),
@@ -604,7 +621,7 @@ export const LostSoulModel = memo(function LostSoulModel({
         </div>
       </Html>
       {infoReveal && (
-        <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
+        <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>

@@ -17,7 +17,7 @@ import SelectionGlow from '@/components/lobby/SelectionGlow';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
-import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
+import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, HTML_EPS, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket } from '@/lib/socket';
@@ -822,9 +822,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         );
       })}
 
-      {/* Well button — immediate; the Table GLB loads separately below */}
+      {/* Well button — immediate; the Table GLB loads separately below.
+          eps={HTML_EPS}: see PlayerAvatars.tsx's HTML_EPS comment -- without
+          it this can render stuck at the wrong (often much larger) size
+          after a camera dolly settles near screen-center, until the
+          camera is dragged. */}
       {showAttackButtons && (
-        <Html position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
+        <Html position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
           <ActionImageButton
             src="/images/buttons/well-ld.png"
             alt="The Well"
@@ -1034,6 +1038,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           center
           distanceFactor={3}
           zIndexRange={[0, 0]}
+          eps={HTML_EPS}
           style={{ pointerEvents: 'none', userSelect: 'none' }}
         >
           <div className="kill-witness-banner">💀 {b.killer} got a kill! 🔥</div>
