@@ -37,7 +37,9 @@ export type SwordEffectProps = {
   postImpact?: 'retreat' | 'stop' | 'bounce';
   /** Called the frame the sword makes contact. */
   onStrike?: () => void;
-  /** Called when the entire animation sequence finishes. */
+  /** Called when the entire animation sequence finishes -- for 'bounce',
+   *  this lands on the exact frame the sword arrives back on the
+   *  attacker (a second impact, distinct from onStrike's first one). */
   onDone?: () => void;
 };
 
