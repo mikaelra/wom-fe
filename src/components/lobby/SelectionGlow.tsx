@@ -57,6 +57,13 @@ type SelectionGlowProps = {
   intensity?: number;
   /** Soft center-bright/edge-fade falloff instead of a flat-opacity disc. */
   gradient?: boolean;
+  /** Envelope lerp speed while rising toward active. Defaults to FADE_RATE. */
+  fadeInRate?: number;
+  /** Envelope lerp speed while falling toward inactive. Defaults to
+   *  FADE_RATE -- lower it for an instance that should linger/decay more
+   *  slowly than it rises (e.g. an impact flash: quick to peak, slow to
+   *  fade), without touching every other SelectionGlow's timing. */
+  fadeOutRate?: number;
 };
 
 export default function SelectionGlow({
@@ -67,6 +74,8 @@ export default function SelectionGlow({
   radius = 0.9,
   intensity = 4,
   gradient = false,
+  fadeInRate = FADE_RATE,
+  fadeOutRate = FADE_RATE,
 }: SelectionGlowProps) {
   const discRef  = useRef<THREE.Mesh>(null);
   const lightRef = useRef<THREE.PointLight>(null);
@@ -75,7 +84,8 @@ export default function SelectionGlow({
 
   useFrame((state, delta) => {
     const target = active ? 1 : 0;
-    envRef.current += (target - envRef.current) * Math.min(1, FADE_RATE * delta);
+    const rate = active ? fadeInRate : fadeOutRate;
+    envRef.current += (target - envRef.current) * Math.min(1, rate * delta);
     const pulse = 1 - PULSE_DEPTH + PULSE_DEPTH * Math.sin(state.clock.elapsedTime * PULSE_SPEED);
     const env = envRef.current * pulse;
 

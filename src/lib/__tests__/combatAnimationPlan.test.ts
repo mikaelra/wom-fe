@@ -60,17 +60,22 @@ describe('buildCombatAnimationPlan', () => {
       expect(strike.toPos[0]).toBeCloseTo(1 - 0.8, 5);
     });
 
-    it('schedules a block glow at the strike delay, removed after ONE_DEF_MS, when the target blocks', () => {
+    it('ramps the block glow up before impact and cuts it to fade out right on impact, under the target, when the target blocks', () => {
       const events: GameEvent[] = [
         { kind: 'outgoing', target: 'Bob', outcome: 'blocked', attackerDied: false },
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
 
-      const ONE_DEF_MS = 1260; // (0.34 + 0.26 + 0.66) * 1000
+      const SWORD_IMPACT_MS = 600; // (0.34 + 0.26) * 1000
+      const BLOCK_GLOW_EARLY_MS = 100;
+      const BLOCK_GLOW_LEAD_MS = 150;
+      const impactMs = 0 + SWORD_IMPACT_MS - BLOCK_GLOW_EARLY_MS;
       const addBatch = plan.find((b) => b.actions.some((a) => a.type === 'addBlockGlow'));
       const removeBatch = plan.find((b) => b.actions.some((a) => a.type === 'removeBlockGlow'));
-      expect(addBatch?.delayMs).toBe(0);
-      expect(removeBatch?.delayMs).toBeCloseTo(0 + ONE_DEF_MS, 5);
+      expect(addBatch?.delayMs).toBeCloseTo(impactMs - BLOCK_GLOW_LEAD_MS, 5);
+      expect(removeBatch?.delayMs).toBeCloseTo(impactMs, 5);
+      const event = addBatch?.actions.find((a) => a.type === 'addBlockGlow') as { event: { pos: number[] } };
+      expect(event.event.pos).toEqual([1, 0, 0]); // Bob's seat, not mine
     });
 
     it('does not schedule a block glow for a plain (unblocked) hit', () => {
@@ -177,18 +182,22 @@ describe('buildCombatAnimationPlan', () => {
       expect(plan[1].actions[0].type).toBe('removeImpactShield');
     });
 
-    it('schedules a block glow alongside the shield, removed at the same time, when I block', () => {
+    it('ramps the block glow up before impact and cuts it to fade out right on impact, under me, when I block', () => {
       const events: GameEvent[] = [
         { kind: 'incoming', attacker: 'Bob', outcome: 'blocked', attackerDied: false },
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
 
-      const ONE_DEF_MS = 1260; // (0.34 + 0.26 + 0.66) * 1000
-      const shieldDur = ONE_DEF_MS + 424;
+      const SWORD_IMPACT_MS = 600; // (0.34 + 0.26) * 1000
+      const BLOCK_GLOW_EARLY_MS = 100;
+      const BLOCK_GLOW_LEAD_MS = 150;
+      const impactMs = 0 + SWORD_IMPACT_MS - BLOCK_GLOW_EARLY_MS;
       const addBatch = plan.find((b) => b.actions.some((a) => a.type === 'addBlockGlow'));
       const removeBatch = plan.find((b) => b.actions.some((a) => a.type === 'removeBlockGlow'));
-      expect(addBatch?.delayMs).toBe(0);
-      expect(removeBatch?.delayMs).toBeCloseTo(shieldDur, 5);
+      expect(addBatch?.delayMs).toBeCloseTo(impactMs - BLOCK_GLOW_LEAD_MS, 5);
+      expect(removeBatch?.delayMs).toBeCloseTo(impactMs, 5);
+      const event = addBatch?.actions.find((a) => a.type === 'addBlockGlow') as { event: { pos: number[] } };
+      expect(event.event.pos).toEqual([0, 0, 0]); // my own seat
     });
 
     it('does not schedule a block glow for a plain (unblocked) incoming hit', () => {

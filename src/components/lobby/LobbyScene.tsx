@@ -94,6 +94,11 @@ const DEFEND_SELECT_GLOW_INTENSITY = 2;
 // Half the strength so it reads as a smaller "impact" beat, not a repeat of
 // the steadier selection glow.
 const BLOCK_GLOW_INTENSITY = DEFEND_SELECT_GLOW_INTENSITY / 2;
+// Quick to peak on the hit (SelectionGlow's default fade-in rate), but
+// noticeably slower to fade back out than that -- an impact should land
+// sharp and linger a moment, not snap off. Doesn't touch the other
+// SelectionGlow instances, which keep the default rate both ways.
+const BLOCK_GLOW_FADE_OUT_RATE = 2;
 // Parked off-scene when a selection glow has no live target this render, so
 // the (inactive, intensity-0) light/disc still has somewhere valid to sit.
 const GLOW_PARK_POSITION: [number, number, number] = [0, -10, 0];
@@ -297,12 +302,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const bossName = allPlayers.find((p) => p.boss)?.name;
   const defendGlowPos: [number, number, number] | undefined =
     currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
-  // Unlike defendGlowPos, not gated on currentAction -- the block glow fires
-  // from round-resolution playback (see buildCombatAnimationPlan's
-  // scheduleBlockGlow), which can land after the next round's action choice
-  // (or lack of one) has already replaced 'defend'. It should still show up
-  // at the local player's own seat regardless.
-  const myGlowPos = posMapRef.current.get(playerName);
+  // Block-glow position comes from the event itself (buildCombatAnimationPlan
+  // stamps in the shield-holder's seat -- the local player's own when they
+  // blocked, the target's when the local player's own attack got blocked),
+  // not from any live selection state. Only one blink plays at a time in
+  // practice (a single outgoing attack, or incoming attacks staggered apart),
+  // so the most recent event's position is what's live.
+  const blockGlowPos = blockGlowEvents.at(-1)?.pos;
   const attackTargetGlowPos: [number, number, number] | undefined = (() => {
     if (currentAction !== 'attack' || !attackTarget) return undefined;
     if (selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === attackTarget) {
@@ -1002,17 +1008,22 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         intensity={DEFEND_SELECT_GLOW_INTENSITY}
         gradient
       />
-      {/* Block glow -- same blue, half the defend-selection glow's strength,
-          flashed under the local player for either side of a block (see
-          buildCombatAnimationPlan's scheduleBlockGlow). Always parked at the
-          local player's own seat, not gated on the current action choice. */}
+      {/* Block glow -- same blue, half the defend-selection glow's strength.
+          buildCombatAnimationPlan's scheduleBlockGlow switches it on shortly
+          before impact and off right on impact -- SelectionGlow's own
+          fade envelope turns that into a rise that peaks on the hit and
+          decays after, rather than a flat-on blink. Shows up under whoever
+          actually held the shield -- the local player's own seat when they
+          blocked, the target's seat when the local player's own attack got
+          blocked. */}
       <SelectionGlow
-        position={myGlowPos ?? GLOW_PARK_POSITION}
+        position={blockGlowPos ?? GLOW_PARK_POSITION}
         yOffset={SELECTION_GLOW_Y_OFFSET}
         color={DEFEND_SELECT_GLOW_COLOR}
         active={blockGlowEvents.length > 0}
         radius={1.1}
         intensity={BLOCK_GLOW_INTENSITY}
+        fadeOutRate={BLOCK_GLOW_FADE_OUT_RATE}
         gradient
       />
       <SelectionGlow

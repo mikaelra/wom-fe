@@ -49,13 +49,13 @@ export type KillFireEvent = {
   pos: [number, number, number];
 };
 
-// A blue glow under the LOCAL player -- for a block, either side of it:
-// their own shield stopping an incoming attack, or an attack of theirs
-// getting blocked by its target. Always plays under the local player's own
-// seat (LobbyScene looks that position up itself, live, same as the persistent
-// defend-selection glow), so no position is carried on the event itself.
+// A single blue blink at the moment a block lands -- under whoever actually
+// held the shield: the local player's own seat when they blocked an
+// incoming attack, or the target's seat when the local player's own attack
+// got blocked.
 export type BlockGlowEvent = {
   id: string;
+  pos: [number, number, number];
 };
 
 // Text shown to the lone witness of a kill, naming the killer in a fiery style.
@@ -243,6 +243,16 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   // victim); the killer additionally sees the victim's coins fly over and
   // their ATK/coin cards tick up.
   const SWORD_IMPACT_MS = (STRIKE_DUR + HOLD_DUR) * 1000;
+  // Block glow: peaks exactly on the hit, not a flat-on blink. Switched on
+  // BLOCK_GLOW_LEAD_MS before impact and straight back off at impact --
+  // SelectionGlow's own envelope (FADE_RATE) does the actual rise/fall, so
+  // "on" for LEAD_MS before the hit means brightness is still climbing
+  // toward the hit and starts decaying the instant it lands, landing the
+  // visual peak on the hit itself rather than sometime after it.
+  const BLOCK_GLOW_LEAD_MS = 150;
+  // Tuned by eye against the live sword-swing animation -- the shield visibly
+  // meets the blade a smidge before SWORD_IMPACT_MS itself.
+  const BLOCK_GLOW_EARLY_MS = 100;
   // Full duration of one strike's animation, hit vs. defended (includes the
   // retreat/bounce tail) -- used both for the local player's outgoing strike
   // and for each incoming strike's stagger below.
@@ -275,16 +285,18 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     if (actions.length) batches.push({ delayMs: Math.max(0, atMs), actions });
   };
 
-  // Blue block glow under the local player -- fired for either side of a
-  // block: their shield stopping an incoming attack, or their own attack
-  // getting blocked. `durationMs` mirrors however long the corresponding
-  // strike's own defended animation plays, so the glow doesn't outlast (or
-  // cut off before) the block it's illustrating.
-  const scheduleBlockGlow = (atMs: number, durationMs: number) => {
+  // Blue block glow -- fired for either side of a block: under the
+  // shield-holder's own seat when they blocked an incoming attack, or under
+  // the target's seat when the local player's own attack got blocked.
+  // `atMs` is the strike's start; impact (and so the glow's peak) lands
+  // BLOCK_GLOW_EARLY_MS before SWORD_IMPACT_MS after that.
+  const scheduleBlockGlow = (pos: [number, number, number], atMs: number) => {
     const id = `blockglow-${killStamp}-${killSeq++}`;
-    const delayMs = Math.max(0, atMs);
-    batches.push({ delayMs, actions: [{ type: 'addBlockGlow', event: { id } }] });
-    batches.push({ delayMs: delayMs + durationMs, actions: [{ type: 'removeBlockGlow', id }] });
+    const impactMs = atMs + SWORD_IMPACT_MS - BLOCK_GLOW_EARLY_MS;
+    const onMs  = Math.max(0, impactMs - BLOCK_GLOW_LEAD_MS);
+    const offMs = Math.max(0, impactMs);
+    batches.push({ delayMs: onMs,  actions: [{ type: 'addBlockGlow', event: { id, pos } }] });
+    batches.push({ delayMs: offMs, actions: [{ type: 'removeBlockGlow', id }] });
   };
 
   const scheduleKillBanner = (killer: string, pos: [number, number, number], atMs: number) => {
@@ -414,9 +426,9 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
         batches.push({ delayMs: delay, actions: [{ type: 'addStrike', strike }] });
         staggerMs += tgtDefended ? ONE_DEF_MS : ONE_HIT_MS;
 
-        // My attack got blocked -- blue glow under me for the same span the
-        // target's own stop/bounce recoil plays.
-        if (tgtDefended) scheduleBlockGlow(delay, ONE_DEF_MS);
+        // My attack got blocked -- blue blink under the target, who actually
+        // held the shield.
+        if (tgtDefended) scheduleBlockGlow(tgtPos, delay);
 
         // Kill! At the moment the blow lands: fiery glow under me (the killer,
         // symbolising my +1 ATK) and the victim's coins arch over to me.
@@ -499,11 +511,12 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
         batches.push({ delayMs: delay, actions: strikeActions });
         if (shieldId) {
           batches.push({ delayMs: delay + shieldDur, actions: [{ type: 'removeImpactShield', id: shieldId }] });
-          // I blocked -- blue glow under me for the same span my own shield is up.
-          // Scheduled after the strike/shield/removal batches above (not
-          // merged into strikeActions) so it doesn't shift their positions
-          // in the returned plan.
-          scheduleBlockGlow(delay, shieldDur);
+          // I blocked -- blue blink under my own seat. Scheduled after the
+          // strike/shield/removal batches above (not merged into
+          // strikeActions) so it doesn't shift their positions in the
+          // returned plan. myPos is guaranteed here -- this whole `for`
+          // loop only runs inside `if (myPos)` above.
+          scheduleBlockGlow(myPos, delay);
         }
       }
     }
