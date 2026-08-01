@@ -948,14 +948,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             onDone={() => {
               if (ev.postImpact === 'bounce') {
                 // The reflected sword just landed back on the attacker --
-                // the normal hit sound, same as any other unblocked strike.
-                // Plays on both ends: this fires identically whether `ev`
-                // came from the outgoing branch (I attacked, got blocked +
-                // reflected -- I hear my own strike land back on me) or the
-                // incoming branch (I blocked + reflected -- I hear it land
-                // on my attacker), since both flow through this same
+                // an attack connecting, same cue as any other incoming
+                // impact, not a fresh successful hit of my own. Plays on
+                // both ends: this fires identically whether `ev` came from
+                // the outgoing branch (I attacked, got blocked + reflected
+                // -- I hear the attack land back on me) or the incoming
+                // branch (I blocked + reflected -- I hear it land on my
+                // attacker), since both flow through this same
                 // strikeEvents/SwordEffect rendering path.
-                playCombatSound('attack_hit');
+                playCombatSound('attacked');
                 if (ev.bounceFlashPos) {
                   const fid = `fl-bounce-${ev.id}`;
                   setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
