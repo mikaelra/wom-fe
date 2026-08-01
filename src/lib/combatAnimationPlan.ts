@@ -49,6 +49,15 @@ export type KillFireEvent = {
   pos: [number, number, number];
 };
 
+// A blue glow under the LOCAL player -- for a block, either side of it:
+// their own shield stopping an incoming attack, or an attack of theirs
+// getting blocked by its target. Always plays under the local player's own
+// seat (LobbyScene looks that position up itself, live, same as the persistent
+// defend-selection glow), so no position is carried on the event itself.
+export type BlockGlowEvent = {
+  id: string;
+};
+
 // Text shown to the lone witness of a kill, naming the killer in a fiery style.
 export type KillBanner = {
   id:     string;
@@ -191,7 +200,9 @@ export type CombatAnimationAction =
   | { type: 'addWellWinFx'; fx: WellWinFx }
   | { type: 'removeWellWinFx'; id: string }
   | { type: 'addHitFlash'; event: HitFlashEvent }
-  | { type: 'removeHitFlash'; id: string };
+  | { type: 'removeHitFlash'; id: string }
+  | { type: 'addBlockGlow'; event: BlockGlowEvent }
+  | { type: 'removeBlockGlow'; id: string };
 
 export interface CombatAnimationBatch {
   /** Absolute ms from "now" (the round-processing moment). 0 = apply synchronously,
@@ -262,6 +273,18 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     }
     if (victim) actions.push({ type: 'markDead', name: victim });
     if (actions.length) batches.push({ delayMs: Math.max(0, atMs), actions });
+  };
+
+  // Blue block glow under the local player -- fired for either side of a
+  // block: their shield stopping an incoming attack, or their own attack
+  // getting blocked. `durationMs` mirrors however long the corresponding
+  // strike's own defended animation plays, so the glow doesn't outlast (or
+  // cut off before) the block it's illustrating.
+  const scheduleBlockGlow = (atMs: number, durationMs: number) => {
+    const id = `blockglow-${killStamp}-${killSeq++}`;
+    const delayMs = Math.max(0, atMs);
+    batches.push({ delayMs, actions: [{ type: 'addBlockGlow', event: { id } }] });
+    batches.push({ delayMs: delayMs + durationMs, actions: [{ type: 'removeBlockGlow', id }] });
   };
 
   const scheduleKillBanner = (killer: string, pos: [number, number, number], atMs: number) => {
@@ -391,6 +414,10 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
         batches.push({ delayMs: delay, actions: [{ type: 'addStrike', strike }] });
         staggerMs += tgtDefended ? ONE_DEF_MS : ONE_HIT_MS;
 
+        // My attack got blocked -- blue glow under me for the same span the
+        // target's own stop/bounce recoil plays.
+        if (tgtDefended) scheduleBlockGlow(delay, ONE_DEF_MS);
+
         // Kill! At the moment the blow lands: fiery glow under me (the killer,
         // symbolising my +1 ATK) and the victim's coins arch over to me.
         if (e.eliminated) {
@@ -472,6 +499,11 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
         batches.push({ delayMs: delay, actions: strikeActions });
         if (shieldId) {
           batches.push({ delayMs: delay + shieldDur, actions: [{ type: 'removeImpactShield', id: shieldId }] });
+          // I blocked -- blue glow under me for the same span my own shield is up.
+          // Scheduled after the strike/shield/removal batches above (not
+          // merged into strikeActions) so it doesn't shift their positions
+          // in the returned plan.
+          scheduleBlockGlow(delay, shieldDur);
         }
       }
     }

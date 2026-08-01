@@ -60,6 +60,27 @@ describe('buildCombatAnimationPlan', () => {
       expect(strike.toPos[0]).toBeCloseTo(1 - 0.8, 5);
     });
 
+    it('schedules a block glow at the strike delay, removed after ONE_DEF_MS, when the target blocks', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'blocked', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const ONE_DEF_MS = 1260; // (0.34 + 0.26 + 0.66) * 1000
+      const addBatch = plan.find((b) => b.actions.some((a) => a.type === 'addBlockGlow'));
+      const removeBatch = plan.find((b) => b.actions.some((a) => a.type === 'removeBlockGlow'));
+      expect(addBatch?.delayMs).toBe(0);
+      expect(removeBatch?.delayMs).toBeCloseTo(0 + ONE_DEF_MS, 5);
+    });
+
+    it('does not schedule a block glow for a plain (unblocked) hit', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+      expect(plan.some((b) => b.actions.some((a) => a.type === 'addBlockGlow'))).toBe(false);
+    });
+
     it('marks a reflected block as bounce, flashing back at the attacker', () => {
       const events: GameEvent[] = [
         { kind: 'outgoing', target: 'Bob', outcome: 'reflected', attackerDied: false },
@@ -154,6 +175,28 @@ describe('buildCombatAnimationPlan', () => {
 
       expect(plan[1].delayMs).toBeCloseTo(shieldDur, 5);
       expect(plan[1].actions[0].type).toBe('removeImpactShield');
+    });
+
+    it('schedules a block glow alongside the shield, removed at the same time, when I block', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'blocked', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const ONE_DEF_MS = 1260; // (0.34 + 0.26 + 0.66) * 1000
+      const shieldDur = ONE_DEF_MS + 424;
+      const addBatch = plan.find((b) => b.actions.some((a) => a.type === 'addBlockGlow'));
+      const removeBatch = plan.find((b) => b.actions.some((a) => a.type === 'removeBlockGlow'));
+      expect(addBatch?.delayMs).toBe(0);
+      expect(removeBatch?.delayMs).toBeCloseTo(shieldDur, 5);
+    });
+
+    it('does not schedule a block glow for a plain (unblocked) incoming hit', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'hit', attackerDied: false, damage: 1 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+      expect(plan.some((b) => b.actions.some((a) => a.type === 'addBlockGlow'))).toBe(false);
     });
 
     it('staggers a second incoming attack after the first one finishes, plus GAP_MS', () => {

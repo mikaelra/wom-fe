@@ -36,6 +36,7 @@ import {
   WELL_REWARD_STAGGER,
   type StrikeEvent,
   type HitFlashEvent,
+  type BlockGlowEvent,
   type WellRewardEvent,
   type KillFireEvent,
   type KillBanner,
@@ -87,6 +88,12 @@ const WELL_GLOW_POSITION:   [number, number, number] = [0, 2.3, 0];
 const WELL_SELECT_GLOW_COLOR   = '#a78bfa';
 const ATTACK_SELECT_GLOW_COLOR = '#ef4444';
 const DEFEND_SELECT_GLOW_COLOR = '#3b82f6';
+const DEFEND_SELECT_GLOW_INTENSITY = 2;
+// Same blue as the defend-selection glow above, but for the moment of an
+// actual block landing (either side of it) rather than the pre-round choice.
+// Half the strength so it reads as a smaller "impact" beat, not a repeat of
+// the steadier selection glow.
+const BLOCK_GLOW_INTENSITY = DEFEND_SELECT_GLOW_INTENSITY / 2;
 // Parked off-scene when a selection glow has no live target this render, so
 // the (inactive, intensity-0) light/disc still has somewhere valid to sit.
 const GLOW_PARK_POSITION: [number, number, number] = [0, -10, 0];
@@ -160,6 +167,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const posMapRef     = useRef(new Map<string, [number, number, number]>());
   const [strikeEvents,  setStrikeEvents]  = useState<StrikeEvent[]>([]);
   const [hitFlashEvents, setHitFlashEvents] = useState<HitFlashEvent[]>([]);
+  const [blockGlowEvents, setBlockGlowEvents] = useState<BlockGlowEvent[]>([]);
   const [impactShields, setImpactShields] = useState<ImpactShield[]>([]);
   const [wellRewardEvents, setWellRewardEvents] = useState<WellRewardEvent[]>([]);
   const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
@@ -289,6 +297,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const bossName = allPlayers.find((p) => p.boss)?.name;
   const defendGlowPos: [number, number, number] | undefined =
     currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
+  // Unlike defendGlowPos, not gated on currentAction -- the block glow fires
+  // from round-resolution playback (see buildCombatAnimationPlan's
+  // scheduleBlockGlow), which can land after the next round's action choice
+  // (or lack of one) has already replaced 'defend'. It should still show up
+  // at the local player's own seat regardless.
+  const myGlowPos = posMapRef.current.get(playerName);
   const attackTargetGlowPos: [number, number, number] | undefined = (() => {
     if (currentAction !== 'attack' || !attackTarget) return undefined;
     if (selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === attackTarget) {
@@ -489,6 +503,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         case 'removeWellWinFx': setWellWinFx((fx) => fx.filter((x) => x.id !== action.id)); break;
         case 'addHitFlash': setHitFlashEvents((ev) => [...ev, action.event]); break;
         case 'removeHitFlash': setHitFlashEvents((ev) => ev.filter((x) => x.id !== action.id)); break;
+        case 'addBlockGlow': setBlockGlowEvents((ev) => [...ev, action.event]); break;
+        case 'removeBlockGlow': setBlockGlowEvents((ev) => ev.filter((x) => x.id !== action.id)); break;
       }
     };
 
@@ -983,7 +999,20 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         color={DEFEND_SELECT_GLOW_COLOR}
         active={!!defendGlowPos}
         radius={1.1}
-        intensity={2}
+        intensity={DEFEND_SELECT_GLOW_INTENSITY}
+        gradient
+      />
+      {/* Block glow -- same blue, half the defend-selection glow's strength,
+          flashed under the local player for either side of a block (see
+          buildCombatAnimationPlan's scheduleBlockGlow). Always parked at the
+          local player's own seat, not gated on the current action choice. */}
+      <SelectionGlow
+        position={myGlowPos ?? GLOW_PARK_POSITION}
+        yOffset={SELECTION_GLOW_Y_OFFSET}
+        color={DEFEND_SELECT_GLOW_COLOR}
+        active={blockGlowEvents.length > 0}
+        radius={1.1}
+        intensity={BLOCK_GLOW_INTENSITY}
         gradient
       />
       <SelectionGlow
