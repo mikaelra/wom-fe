@@ -36,6 +36,7 @@ import {
   WELL_REWARD_STAGGER,
   type StrikeEvent,
   type HitFlashEvent,
+  type BlockGlowEvent,
   type WellRewardEvent,
   type KillFireEvent,
   type KillBanner,
@@ -87,6 +88,17 @@ const WELL_GLOW_POSITION:   [number, number, number] = [0, 2.3, 0];
 const WELL_SELECT_GLOW_COLOR   = '#a78bfa';
 const ATTACK_SELECT_GLOW_COLOR = '#ef4444';
 const DEFEND_SELECT_GLOW_COLOR = '#3b82f6';
+const DEFEND_SELECT_GLOW_INTENSITY = 2;
+// Same blue as the defend-selection glow above, but for the moment of an
+// actual block landing (either side of it) rather than the pre-round choice.
+// Half the strength so it reads as a smaller "impact" beat, not a repeat of
+// the steadier selection glow.
+const BLOCK_GLOW_INTENSITY = DEFEND_SELECT_GLOW_INTENSITY / 2;
+// Quick to peak on the hit (SelectionGlow's default fade-in rate), but
+// noticeably slower to fade back out than that -- an impact should land
+// sharp and linger a moment, not snap off. Doesn't touch the other
+// SelectionGlow instances, which keep the default rate both ways.
+const BLOCK_GLOW_FADE_OUT_RATE = 0.5;
 // Parked off-scene when a selection glow has no live target this render, so
 // the (inactive, intensity-0) light/disc still has somewhere valid to sit.
 const GLOW_PARK_POSITION: [number, number, number] = [0, -10, 0];
@@ -160,6 +172,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const posMapRef     = useRef(new Map<string, [number, number, number]>());
   const [strikeEvents,  setStrikeEvents]  = useState<StrikeEvent[]>([]);
   const [hitFlashEvents, setHitFlashEvents] = useState<HitFlashEvent[]>([]);
+  const [blockGlowEvents, setBlockGlowEvents] = useState<BlockGlowEvent[]>([]);
   const [impactShields, setImpactShields] = useState<ImpactShield[]>([]);
   const [wellRewardEvents, setWellRewardEvents] = useState<WellRewardEvent[]>([]);
   const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
@@ -289,6 +302,28 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const bossName = allPlayers.find((p) => p.boss)?.name;
   const defendGlowPos: [number, number, number] | undefined =
     currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
+  // Block-glow position comes from the event itself (buildCombatAnimationPlan
+  // stamps in the shield-holder's seat -- the local player's own when they
+  // blocked, the target's when the local player's own attack got blocked),
+  // not from any live selection state. Only one blink plays at a time in
+  // practice (a single outgoing attack, or incoming attacks staggered apart),
+  // so the most recent event's position is what's live.
+  //
+  // Deliberately NOT `?? GLOW_PARK_POSITION` the way defendGlowPos/
+  // attackTargetGlowPos are -- those glows fade in and out at the same
+  // (short, symmetric) rate, so snapping their position underground the
+  // instant they go inactive is imperceptible. The block glow's fade-out is
+  // intentionally much slower than its fade-in (see BLOCK_GLOW_FADE_OUT_RATE
+  // below): if position snapped to GLOW_PARK_POSITION the moment the event
+  // is removed (which happens right as the blink turns off, at the hit),
+  // the still-fading-out light would teleport 10 units underground before
+  // any of that fade-out was ever visible. Remembered instead, so the light
+  // keeps shining from wherever it last blinked while it fades.
+  const lastBlockGlowPosRef = useRef<[number, number, number]>(GLOW_PARK_POSITION);
+  if (blockGlowEvents.length > 0) {
+    lastBlockGlowPosRef.current = blockGlowEvents[blockGlowEvents.length - 1].pos;
+  }
+  const blockGlowPos = lastBlockGlowPosRef.current;
   const attackTargetGlowPos: [number, number, number] | undefined = (() => {
     if (currentAction !== 'attack' || !attackTarget) return undefined;
     if (selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === attackTarget) {
@@ -489,6 +524,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         case 'removeWellWinFx': setWellWinFx((fx) => fx.filter((x) => x.id !== action.id)); break;
         case 'addHitFlash': setHitFlashEvents((ev) => [...ev, action.event]); break;
         case 'removeHitFlash': setHitFlashEvents((ev) => ev.filter((x) => x.id !== action.id)); break;
+        case 'addBlockGlow': setBlockGlowEvents((ev) => [...ev, action.event]); break;
+        case 'removeBlockGlow': setBlockGlowEvents((ev) => ev.filter((x) => x.id !== action.id)); break;
       }
     };
 
@@ -909,10 +946,22 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               }
             }}
             onDone={() => {
-              if (ev.postImpact === 'bounce' && ev.bounceFlashPos) {
-                const fid = `fl-bounce-${ev.id}`;
-                setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
-                setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 788); // scaled to 0.8x
+              if (ev.postImpact === 'bounce') {
+                // The reflected sword just landed back on the attacker --
+                // an attack connecting, same cue as any other incoming
+                // impact, not a fresh successful hit of my own. Plays on
+                // both ends: this fires identically whether `ev` came from
+                // the outgoing branch (I attacked, got blocked + reflected
+                // -- I hear the attack land back on me) or the incoming
+                // branch (I blocked + reflected -- I hear it land on my
+                // attacker), since both flow through this same
+                // strikeEvents/SwordEffect rendering path.
+                playCombatSound('attacked');
+                if (ev.bounceFlashPos) {
+                  const fid = `fl-bounce-${ev.id}`;
+                  setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
+                  setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 788); // scaled to 0.8x
+                }
               }
               setStrikeEvents((s) => s.filter((x) => x.id !== ev.id));
             }}
@@ -983,7 +1032,25 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         color={DEFEND_SELECT_GLOW_COLOR}
         active={!!defendGlowPos}
         radius={1.1}
-        intensity={2}
+        intensity={DEFEND_SELECT_GLOW_INTENSITY}
+        gradient
+      />
+      {/* Block glow -- same blue, half the defend-selection glow's strength.
+          buildCombatAnimationPlan's scheduleBlockGlow switches it on shortly
+          before impact and off right on impact -- SelectionGlow's own
+          fade envelope turns that into a rise that peaks on the hit and
+          decays after, rather than a flat-on blink. Shows up under whoever
+          actually held the shield -- the local player's own seat when they
+          blocked, the target's seat when the local player's own attack got
+          blocked. */}
+      <SelectionGlow
+        position={blockGlowPos}
+        yOffset={SELECTION_GLOW_Y_OFFSET}
+        color={DEFEND_SELECT_GLOW_COLOR}
+        active={blockGlowEvents.length > 0}
+        radius={1.1}
+        intensity={BLOCK_GLOW_INTENSITY}
+        fadeOutRate={BLOCK_GLOW_FADE_OUT_RATE}
         gradient
       />
       <SelectionGlow

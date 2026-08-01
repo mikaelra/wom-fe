@@ -44,6 +44,23 @@ export default function ActionImageButton({
         border: 'none',
         padding: 0,
         lineHeight: 0,
+        // Shapes the warn-blink-gold/red box-shadow (globals.css) to the
+        // art's own rounded-pill silhouette instead of tracing the button's
+        // full rectangular box (which has visible transparent margin in the
+        // corners). Measured against attack-ld.png/defend-ld.png/well-ld.png's
+        // actual alpha channel: the corner rounding is close to circular in
+        // absolute terms (~55-60px on the ~613x218 source art), NOT
+        // elliptical -- a single percentage (e.g. 28%) stretches the corner
+        // into a flat ellipse on these wide, short buttons (28% of the
+        // ~613px width is ~168px, nearly 3x the vertical rounding), which
+        // undershoots the curve and leaves the shadow sitting behind the
+        // art's own corners instead of around them. `H% / V%` sizes each
+        // axis off its own dimension (width vs height) so the two roughly
+        // cancel out to a near-circular radius despite the button's ~2.8:1
+        // aspect ratio. The "selected" glow (below, a per-pixel drop-shadow
+        // on the <img> itself) already hugs the art correctly and isn't
+        // affected by this.
+        borderRadius: '9% / 26%',
         ...style,
       }}
     >

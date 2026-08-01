@@ -4,9 +4,16 @@ if (typeof navigator !== 'undefined' && 'audioSession' in navigator) {
 }
 
 const COMBAT_SOUNDS: Record<string, string> = {
-  attack_hit: '/sounds/resources/GainHP.wav',
-  attack_blocked: '/sounds/resources/GainGold.wav',
-  attacked: '/sounds/resources/UpgradeWpn.wav',
+  // My own outgoing attack lands unblocked (LobbyScene's onStrike), or a
+  // reflected sword's second impact landing at the end of its bounce arc
+  // (onDone) -- either side of a block+reflect hears this.
+  attack_hit: '/sounds/resources/AttackHit.wav',
+  // My own outgoing attack gets blocked (onStrike) -- heard by the attacker,
+  // not the defender (see `attacked` below for what the defender hears).
+  attack_blocked: '/sounds/resources/AttackBlocked.wav',
+  // An incoming attack makes contact with the local player (onStrike),
+  // regardless of whether it's about to hit or get blocked.
+  attacked: '/sounds/resources/AttackIncoming.wav',
 };
 
 export function playCombatSound(event: string): void {
