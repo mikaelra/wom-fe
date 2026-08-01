@@ -98,7 +98,7 @@ const BLOCK_GLOW_INTENSITY = DEFEND_SELECT_GLOW_INTENSITY / 2;
 // noticeably slower to fade back out than that -- an impact should land
 // sharp and linger a moment, not snap off. Doesn't touch the other
 // SelectionGlow instances, which keep the default rate both ways.
-const BLOCK_GLOW_FADE_OUT_RATE = 2;
+const BLOCK_GLOW_FADE_OUT_RATE = 0.5;
 // Parked off-scene when a selection glow has no live target this render, so
 // the (inactive, intensity-0) light/disc still has somewhere valid to sit.
 const GLOW_PARK_POSITION: [number, number, number] = [0, -10, 0];
@@ -308,7 +308,22 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // not from any live selection state. Only one blink plays at a time in
   // practice (a single outgoing attack, or incoming attacks staggered apart),
   // so the most recent event's position is what's live.
-  const blockGlowPos = blockGlowEvents.at(-1)?.pos;
+  //
+  // Deliberately NOT `?? GLOW_PARK_POSITION` the way defendGlowPos/
+  // attackTargetGlowPos are -- those glows fade in and out at the same
+  // (short, symmetric) rate, so snapping their position underground the
+  // instant they go inactive is imperceptible. The block glow's fade-out is
+  // intentionally much slower than its fade-in (see BLOCK_GLOW_FADE_OUT_RATE
+  // below): if position snapped to GLOW_PARK_POSITION the moment the event
+  // is removed (which happens right as the blink turns off, at the hit),
+  // the still-fading-out light would teleport 10 units underground before
+  // any of that fade-out was ever visible. Remembered instead, so the light
+  // keeps shining from wherever it last blinked while it fades.
+  const lastBlockGlowPosRef = useRef<[number, number, number]>(GLOW_PARK_POSITION);
+  if (blockGlowEvents.length > 0) {
+    lastBlockGlowPosRef.current = blockGlowEvents[blockGlowEvents.length - 1].pos;
+  }
+  const blockGlowPos = lastBlockGlowPosRef.current;
   const attackTargetGlowPos: [number, number, number] | undefined = (() => {
     if (currentAction !== 'attack' || !attackTarget) return undefined;
     if (selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === attackTarget) {
@@ -1017,7 +1032,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           blocked, the target's seat when the local player's own attack got
           blocked. */}
       <SelectionGlow
-        position={blockGlowPos ?? GLOW_PARK_POSITION}
+        position={blockGlowPos}
         yOffset={SELECTION_GLOW_Y_OFFSET}
         color={DEFEND_SELECT_GLOW_COLOR}
         active={blockGlowEvents.length > 0}

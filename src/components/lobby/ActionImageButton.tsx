@@ -44,6 +44,15 @@ export default function ActionImageButton({
         border: 'none',
         padding: 0,
         lineHeight: 0,
+        // Shapes the warn-blink-gold/red box-shadow (globals.css) to the
+        // art's own rounded-pill silhouette instead of tracing the button's
+        // full rectangular box (which has visible transparent margin in the
+        // corners -- measured against attack-ld.png/defend-ld.png/well-ld.png's
+        // actual alpha channel: content reaches full width by roughly 26% of
+        // the way down from the top edge). The "selected" glow (below, a
+        // per-pixel drop-shadow on the <img> itself) already hugs the art
+        // correctly and isn't affected by this.
+        borderRadius: '28%',
         ...style,
       }}
     >
