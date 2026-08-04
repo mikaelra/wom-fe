@@ -510,7 +510,7 @@ describe('kicked mid-lobby', () => {
     rerender(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
 
     expect(screen.getByText('You were removed from this lobby.')).toBeInTheDocument();
-    expect(screen.getByText('← Back to Home')).toBeInTheDocument();
+    expect(screen.getByLabelText('Back to Home')).toBeInTheDocument();
   });
 
   it('does not show the removed message just because myPlayer has never been present yet', () => {

@@ -191,7 +191,13 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo, ranke
     >
       <SwordPinFigure hovered={hovered} swordColor={city.swordColor} />
 
-      {/* Label (HTML overlay) */}
+      {/* Label (HTML overlay).
+          Tried occlude="blending" here to fade the label out when its
+          marker rotates to the far side of the globe -- reverted: broke the
+          rest of the page's rendering on real devices (confirmed on both
+          Safari and Firefox on a phone), not just caught by headless
+          testing. Labels on the far side stay visible through the globe for
+          now; that's a lesser issue than taking down the whole page. */}
       <Html
         position={[0, 1.0, 0]}
         center

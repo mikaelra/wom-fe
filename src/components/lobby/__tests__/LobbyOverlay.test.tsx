@@ -233,11 +233,19 @@ describe('renderPreGame', () => {
     onAddDummy: vi.fn(),
     spinEnabled: true,
     onToggleSpin: vi.fn(),
+    onOpenRules: vi.fn(),
   };
 
   it('shows the Lobby ID for a private lobby', () => {
     render(<>{renderPreGame(baseOpts)}</>);
     expect(screen.getByText('Lobby ID: AAAA')).toBeInTheDocument();
+  });
+
+  it('opens the rules via the provided callback, visible to non-admins too', () => {
+    const onOpenRules = vi.fn();
+    render(<>{renderPreGame({ ...baseOpts, isAdmin: false, onOpenRules })}</>);
+    fireEvent.click(screen.getByText('Rules'));
+    expect(onOpenRules).toHaveBeenCalledTimes(1);
   });
 
   it('shows "Camera Spin" with a leading icon reflecting the action a click would take', () => {

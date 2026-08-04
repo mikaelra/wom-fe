@@ -90,8 +90,8 @@ export default function VaultPage() {
         </button>
 
         <div className="mt-4">
-          <Link href="/" className="underline text-blue-600" style={{ fontSize: '2rem', marginRight: '20px' }}>
-            ← Back to Home 🏠
+          <Link href="/" className="no-underline" style={{ fontSize: '2rem' }} aria-label="Back to Home">
+            🏠
           </Link>
         </div>
       </div>

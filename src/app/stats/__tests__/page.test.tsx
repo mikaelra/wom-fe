@@ -113,7 +113,7 @@ describe('StatsPage', () => {
 
     expect(mockedGetWellProfile).toHaveBeenCalledWith('Oni');
     expect(screen.getByText('5 well wins')).toBeInTheDocument();
-    expect(screen.getByText('2 Gold')).toBeInTheDocument();
+    expect(screen.getByText('2 Coins')).toBeInTheDocument();
     expect(screen.getByText('×3')).toBeInTheDocument();
     expect(screen.getByText('Poisoned Dagger')).toBeInTheDocument();
     // Never-won reward types must not appear at all -- discovery means

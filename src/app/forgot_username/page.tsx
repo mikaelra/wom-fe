@@ -65,8 +65,8 @@ export default function ForgotUsernamePage() {
         )}
 
         <div className="mt-4 flex justify-between">
-          <Link href="/" className="text-blue-600 underline">
-            ← Back to Home
+          <Link href="/" className="text-xl no-underline" aria-label="Back to Home">
+            🏠
           </Link>
           <Link href="/login" className="text-blue-600 underline">
             Back to log in

@@ -44,7 +44,7 @@ function easeOutCubic(t: number): number {
   return 1 - (1 - t) ** 3;
 }
 
-type Phase = 'waiting' | 'settling' | 'playing';
+type Phase = 'waiting' | 'settling' | 'playing' | 'resetting';
 
 type CameraFlyInProps = {
   /** Current round -- 0 means still waiting in the lobby. */
@@ -55,6 +55,15 @@ type CameraFlyInProps = {
   /** Player-toggleable -- off pauses the ambient orbit in place (handy for
    *  lining up a kick/relic click without the table drifting under you). */
   spinEnabled: boolean;
+  /** Bumped (any change in value) by the "Reset Camera" button to trigger an
+   *  ease back to the settled start-of-match view. A counter rather than a
+   *  boolean so clicking Reset twice in a row (e.g. after dragging again)
+   *  still fires -- see SceneOverlay's Reset Camera button. */
+  resetSignal?: number;
+  /** Fired on genuine player-driven drag/scroll (not the ambient orbit or
+   *  any programmatic settle/reset tween) -- lets the caller show the Reset
+   *  Camera button only once the player has actually touched the camera. */
+  onUserAdjust?: () => void;
 };
 
 // Camera controller — snaps to target immediately on mount so Html buttons appear in the
@@ -67,13 +76,13 @@ type CameraFlyInProps = {
 // resetting zoom back to its default, so the local player's seat and DEFEND
 // button end up framed the same way every game regardless of how zoomed in
 // they'd gotten during the wait.
-export default function CameraFlyIn({ round, radiusFactor, spinEnabled }: CameraFlyInProps) {
+export default function CameraFlyIn({ round, radiusFactor, spinEnabled, resetSignal, onUserAdjust }: CameraFlyInProps) {
   const { camera, size } = useThree();
   // Start at the target position (not the Canvas default [33,26,33]) so there is no fly-in
   // delay and Html elements are projected correctly on the very first frame.
   const [tx, ty, tz] = getCameraTargetPosition(size.width, size.height, radiusFactor);
   const currentPosition = useRef(new THREE.Vector3(tx, ty, tz));
-  const panOffset = usePanOffset();
+  const panOffset = usePanOffset(onUserAdjust);
 
   // A late joiner (round already > 0) skips straight to 'playing' -- no
   // spin-up for someone dropping into a game already in progress. Also
@@ -92,7 +101,8 @@ export default function CameraFlyIn({ round, radiusFactor, spinEnabled }: Camera
   }
   const phaseRef = useRef<Phase>(round > 0 ? 'playing' : 'waiting');
   const prevRoundRef = useRef(round);
-  const settleRef = useRef({ startYaw: 0, targetYaw: 0, startZoom: 1, elapsed: 0 });
+  const prevResetSignalRef = useRef(resetSignal);
+  const settleRef = useRef({ startYaw: 0, targetYaw: 0, startPitch: 0, startZoom: 1, elapsed: 0 });
 
   useFrame((_, delta) => {
     if (round === 0) {
@@ -110,10 +120,20 @@ export default function CameraFlyIn({ round, radiusFactor, spinEnabled }: Camera
       const targetYaw = spinEnabled
         ? Math.ceil((startYaw + MIN_EXTRA_SPIN - PLAYING_YAW) / TWO_PI) * TWO_PI + PLAYING_YAW
         : Math.round((startYaw - PLAYING_YAW) / TWO_PI) * TWO_PI + PLAYING_YAW;
-      settleRef.current = { startYaw, targetYaw, startZoom: panOffset.current.zoom, elapsed: 0 };
+      settleRef.current = { startYaw, targetYaw, startPitch: panOffset.current.pitch, startZoom: panOffset.current.zoom, elapsed: 0 };
       phaseRef.current = 'settling';
+    } else if (resetSignal !== prevResetSignalRef.current && phaseRef.current === 'playing') {
+      // "Reset Camera" button: ease straight back to the same settled view a
+      // fresh round lands on -- yaw/zoom via the same tween the round-start
+      // settle uses, plus pitch (which that settle deliberately leaves alone,
+      // since round-start never needs to touch it) back to its own default.
+      const startYaw = panOffset.current.yaw;
+      const targetYaw = Math.round((startYaw - PLAYING_YAW) / TWO_PI) * TWO_PI + PLAYING_YAW;
+      settleRef.current = { startYaw, targetYaw, startPitch: panOffset.current.pitch, startZoom: panOffset.current.zoom, elapsed: 0 };
+      phaseRef.current = 'resetting';
     }
     prevRoundRef.current = round;
+    prevResetSignalRef.current = resetSignal;
 
     if (phaseRef.current === 'waiting' && spinEnabled) {
       panOffset.current.yaw += AMBIENT_ROTATE_SPEED * delta;
@@ -123,6 +143,15 @@ export default function CameraFlyIn({ round, radiusFactor, spinEnabled }: Camera
       const t = Math.min(1, s.elapsed / SETTLE_DURATION_S);
       const eased = easeOutCubic(t);
       panOffset.current.yaw = s.startYaw + (s.targetYaw - s.startYaw) * eased;
+      panOffset.current.zoom = s.startZoom + (SETTLE_TARGET_ZOOM - s.startZoom) * eased;
+      if (t >= 1) phaseRef.current = 'playing';
+    } else if (phaseRef.current === 'resetting') {
+      const s = settleRef.current;
+      s.elapsed += delta;
+      const t = Math.min(1, s.elapsed / SETTLE_DURATION_S);
+      const eased = easeOutCubic(t);
+      panOffset.current.yaw = s.startYaw + (s.targetYaw - s.startYaw) * eased;
+      panOffset.current.pitch = s.startPitch + (0 - s.startPitch) * eased;
       panOffset.current.zoom = s.startZoom + (SETTLE_TARGET_ZOOM - s.startZoom) * eased;
       if (t >= 1) phaseRef.current = 'playing';
     }

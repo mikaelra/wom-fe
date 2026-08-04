@@ -93,8 +93,8 @@ export default function SignupPage() {
         )}
 
         <p className="mt-4 text-center">
-          <Link href="/" className="text-blue-600 underline">
-            ← Back to Home
+          <Link href="/" className="text-xl no-underline" aria-label="Back to Home">
+            🏠
           </Link>
         </p>
       </div>

@@ -19,11 +19,18 @@ const MAX_ZOOM = 3.0;
  * - Pitch is capped so the camera cannot go below the table surface.
  * - Scroll wheel adjusts zoom (arm-length multiplier, clamped to 0.4–3.0).
  * - Position is retained when the pointer is released (no snap-back).
+ *
+ * @param onUserAdjust Fired on genuine player-driven drag/scroll only (not
+ *   the ambient pre-round spin or the round-start settle tween, which write
+ *   to this same offset ref elsewhere) -- lets a caller show a "Reset
+ *   Camera" button only once the player has actually touched the camera.
  */
-export function usePanOffset() {
+export function usePanOffset(onUserAdjust?: () => void) {
   const { gl } = useThree();
   const drag = useRef({ active: false, lastX: 0, lastY: 0 });
   const offset = useRef({ yaw: INITIAL_CAMERA_YAW, pitch: 0, zoom: 1 });
+  const onUserAdjustRef = useRef(onUserAdjust);
+  onUserAdjustRef.current = onUserAdjust;
 
   useEffect(() => {
     const el = gl.domElement;
@@ -42,6 +49,7 @@ export function usePanOffset() {
         MIN_PITCH,
         Math.min(MAX_PITCH, offset.current.pitch - dy * SENSITIVITY),
       );
+      onUserAdjustRef.current?.();
     };
     const onUp = () => { drag.current.active = false; };
     const onWheel = (e: WheelEvent) => {
@@ -50,6 +58,7 @@ export function usePanOffset() {
         MIN_ZOOM,
         Math.min(MAX_ZOOM, offset.current.zoom + e.deltaY * ZOOM_SENSITIVITY),
       );
+      onUserAdjustRef.current?.();
     };
 
     el.addEventListener('pointerdown', onDown);

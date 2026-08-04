@@ -12,12 +12,12 @@ import RankBadge from '@/components/hud/RankBadge';
 // the raw backend reward string, not the frontend's WellRewardType (that's
 // a different, animation-only vocabulary -- see WellRewardEffect.tsx).
 const WELL_REWARD_LABELS: Record<string, { label: string; emoji: string }> = {
-  '2_gold': { label: '2 Gold', emoji: '📦' },
+  '2_gold': { label: '2 Coins', emoji: '📦' },
   '2_hp': { label: '2 Health', emoji: '🤕' },
-  '1_hp_1_gold': { label: '1 Health + 1 Gold', emoji: '☘️' },
+  '1_hp_1_gold': { label: '1 Health + 1 Coin', emoji: '☘️' },
   '1_atkdmg': { label: '+1 Attack Damage', emoji: '🔫' },
   deny_choice: { label: 'Deny Choice', emoji: '🚫' },
-  '2_hp_2_gold': { label: '2 Health + 2 Gold', emoji: '♦️' },
+  '2_hp_2_gold': { label: '2 Health + 2 Coins', emoji: '♦️' },
   steal_gold: { label: 'Steal-All', emoji: '🏴‍☠️' },
   instakill: { label: 'Poisoned Dagger', emoji: '🔪' },
   reveal_info: { label: 'Reveal Info', emoji: '🔍' },
@@ -92,14 +92,15 @@ export default function StatsPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
       <div className="w-full max-w-xl">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold tracking-wide">Stats</h1>
           <button
             type="button"
             onClick={() => router.push('/')}
-            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+            aria-label="Back to Home"
           >
-            ← Back to Home
+            🏠
           </button>
+          <h1 className="text-2xl font-bold tracking-wide">Stats</h1>
         </div>
 
         {loading ? (

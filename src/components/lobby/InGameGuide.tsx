@@ -1,40 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGuideEnabled } from '@/lib/useGuideEnabled';
 import type { GuideHighlights } from '@/lib/guideHighlights';
+import { GUIDE_STEPS as STEPS } from '@/lib/guideSteps';
 import GuideBubble from './GuideBubble';
-
-type Step = {
-  text: ReactNode;
-  highlights: GuideHighlights;
-  // When set, the slide alternates between `highlights` and `altHighlights`
-  // every blink so the two button groups flash in turn (every other).
-  altHighlights?: GuideHighlights;
-};
-
-const STEPS: Step[] = [
-  { text: 'Welcome to World of Mythos! Be the last one standing!', highlights: {} },
-  { text: 'This is your health. When it reaches 0 or lower, you are out.', highlights: { hp: 'blue' } },
-  {
-    text: 'Each turn you must do one main action and one resource action.',
-    highlights: { attack: 'blue', well: 'blue', defend: 'blue' },
-    altHighlights: { hp: 'blue', coins: 'blue', atk: 'blue' },
-  },
-  { text: 'The main actions are ATTACK, WELL or DEFEND.', highlights: { attack: 'blue', well: 'blue', defend: 'blue' } },
-  { text: 'The resource actions are Gain 1 HP, Gain 1 Gold or upgrade ATK.', highlights: { hp: 'blue', coins: 'blue', atk: 'blue' } },
-  { text: 'How much damage you do to enemies is determined by your ATK.', highlights: { atk: 'blue' } },
-  { text: 'To upgrade your ATK, you need to spend your current ATK value in GOLD.', highlights: { coins: 'gold', atk: 'blue' } },
-  { text: 'Choosing DEFEND gives you a 50% chance to each incoming attack…', highlights: { defend: 'blue' } },
-  { text: '…and a 10% chance of REFLECTING the attack back to your attacker!', highlights: { defend: 'blue' } },
-  { text: 'The WELL is where you go to play the game of chance.', highlights: { well: 'blue' } },
-  { text: 'One player wins among all those who chose the WELL.', highlights: { well: 'blue' } },
-  { text: 'That player STARTS each round, shown with the crown, and gets a random prize.', highlights: { well: 'blue' } },
-  { text: 'The prize can be some gold, information and many more things.', highlights: { well: 'blue' } },
-  { text: 'You might get lucky and find the poisoned dagger.', highlights: { well: 'gold' } },
-  { text: 'World of Mythos is a social game, so don’t forget that you can team up, lie or scheme when playing.', highlights: {} },
-  { text: 'Good luck!', highlights: {} },
-];
 
 type Props = {
   gameStarted: boolean;

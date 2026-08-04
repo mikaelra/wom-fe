@@ -11,6 +11,7 @@ import CameraFlyIn from '@/components/lobby/CameraFlyIn';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import WellRewardEffect, { preloadWellRewardModels, type WellRewardType } from '@/components/lobby/WellRewardEffect';
+import ResourceGainEffect, { isGainedResource, RESOURCE_GAIN_DUR, type GainedResource } from '@/components/lobby/ResourceGainEffect';
 import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight } from '@/components/lobby/WellGlowEffect';
 import SelectionGlow from '@/components/lobby/SelectionGlow';
@@ -64,6 +65,11 @@ const SEA_LEVEL = 2;                       // water height; lower = sea drops
 const SUN_POSITION: [number, number, number] = [100, 20, 100]; // sun direction
 
 const CHAT_BUBBLE_DURATION_MS = 4000;
+// Resource-gain (ResourceGainEffect) plays first, at t=0 of round-resolution;
+// combat/well are held back to start after it finishes instead of landing on
+// top of it, so the two read as two separate beats, not one jumbled effect.
+// RESOURCE_GAIN_DUR (rise+hang+descend) is 0.5s -- a bit of buffer on top.
+const RESOURCE_GAIN_START_DELAY_MS = RESOURCE_GAIN_DUR * 1000 + 50;
 // Safety net for the death-pose delay below: if a player's HP hits 0 but the
 // combat plan never sends a matching 'markDead' (e.g. events fetch hiccup),
 // force their dead pose to show after this long rather than leaving them
@@ -147,6 +153,10 @@ type LobbySceneProps = {
   attackTarget?: string;
   onAttackSelect?: (target: string) => void;
   onActionChange?: (action: string) => void;
+  /** The local player's chosen resource this round (gain_hp/gain_coin/
+   *  gain_attack), lifted from SceneOverlay the same way currentAction is --
+   *  drives ResourceGainEffect at round-resolution. */
+  chosenResource?: string;
   /** Welcome-tour highlights, lifted to the page so the overlay can glow the
    *  resource cards too. The 3D scene uses it for attack/defend/well. */
   guideHighlight?: GuideHighlights;
@@ -154,9 +164,13 @@ type LobbySceneProps = {
    *  CameraFlyIn's ambient pre-round orbit so kick/relic clicks are easier
    *  to land. Defaults on. */
   spinEnabled?: boolean;
+  /** Bumped by the in-round "Reset Camera" button -- see CameraFlyIn. */
+  resetCameraSignal?: number;
+  /** Fired on genuine player camera drag/scroll -- see CameraFlyIn. */
+  onCameraUserAdjust?: () => void;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, guideHighlight = {}, spinEnabled = true }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, chosenResource, guideHighlight = {}, spinEnabled = true, resetCameraSignal, onCameraUserAdjust }: LobbySceneProps) {
   // Countdown warning level for the action buttons. We deliberately do NOT
   // store the remaining seconds here — that re-rendered the whole scene every
   // second. The level only changes twice per round ('' → gold → red), and
@@ -175,6 +189,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [blockGlowEvents, setBlockGlowEvents] = useState<BlockGlowEvent[]>([]);
   const [impactShields, setImpactShields] = useState<ImpactShield[]>([]);
   const [wellRewardEvents, setWellRewardEvents] = useState<WellRewardEvent[]>([]);
+  const [resourceGainEvents, setResourceGainEvents] = useState<
+    { id: string; resource: GainedResource; pos: [number, number, number] }[]
+  >([]);
   const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
   const [killFireEvents, setKillFireEvents] = useState<KillFireEvent[]>([]);
   const [killBanners, setKillBanners] = useState<KillBanner[]>([]);
@@ -205,6 +222,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // round-transition effect fires this still holds the resolved round's choice.
   const currentActionRef = useRef(currentAction);
   currentActionRef.current = currentAction;
+  // Same "capture on every render, read the ref inside the async
+  // round-transition effect" trick as currentActionRef above -- the parent
+  // clears chosenResource on the new round too.
+  const chosenResourceRef = useRef(chosenResource);
+  chosenResourceRef.current = chosenResource;
 
 
   useEffect(() => {
@@ -516,6 +538,31 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       wonWell,
     });
 
+    // Resource-gain flask/coin/sword rise-and-absorb -- fires first, at t=0,
+    // with combat/well (below) held back to start after it finishes instead
+    // of the other way around, so the two never land on top of each other.
+    // chosenResourceRef (not the chosenResource prop): the page deliberately
+    // never resets chosenResource itself (see its own comment on why an
+    // "action"-style parent-side reset would clobber this ref before this
+    // async-gated effect ever gets to read it). processedEventsRoundRef
+    // above already stops this from firing twice for the same round; the
+    // one accepted tradeoff of never resetting is that a round the player
+    // goes fully idle in (submits nothing at all) replays their last actual
+    // choice's animation rather than showing none -- a harmless cosmetic
+    // edge case, not worth the added complexity to close.
+    const myPosForGain = posMapRef.current.get(playerName);
+    const chosen = chosenResourceRef.current;
+    const playingResourceGain = !!(myPosForGain && chosen && isGainedResource(chosen));
+    if (playingResourceGain) {
+      const gainId = `resgain-${chosen}-${state.round}`;
+      setResourceGainEvents((ev) => [...ev, { id: gainId, resource: chosen as GainedResource, pos: myPosForGain! }]);
+    }
+    // Only combat/well need pushing back, and only on rounds where the
+    // resource-gain effect is actually going to play -- a round without one
+    // (e.g. the player was denied, or picked well/attack has no matching
+    // gained resource) shouldn't gain a dead pause for nothing to precede.
+    const combatStartOffsetMs = playingResourceGain ? RESOURCE_GAIN_START_DELAY_MS : 0;
+
     // "info" Well reward: snapshot every other player's current stats so
     // PlayerAvatars can badge them for this round (then one more, greyed).
     if (wonWell && wellRewardFromEvents(gameEvents.events).some((c) => c.type === 'info')) {
@@ -553,10 +600,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
     for (const batch of plan) {
       const apply = () => batch.actions.forEach(applyAction);
-      if (batch.delayMs <= 0) {
+      const delayMs = batch.delayMs + combatStartOffsetMs;
+      if (delayMs <= 0) {
         apply();
       } else {
-        staggerTimeoutsRef.current.push(setTimeout(apply, batch.delayMs));
+        staggerTimeoutsRef.current.push(setTimeout(apply, delayMs));
       }
     }
     // gameEvents as a whole (not just its round) is a safe dep here: unlike
@@ -773,7 +821,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   return (
     <>
-      <CameraFlyIn round={state?.round ?? 0} radiusFactor={cameraRadiusFactor} spinEnabled={spinEnabled} />
+      <CameraFlyIn
+        round={state?.round ?? 0}
+        radiusFactor={cameraRadiusFactor}
+        spinEnabled={spinEnabled}
+        resetSignal={resetCameraSignal}
+        onUserAdjust={onCameraUserAdjust}
+      />
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 10]} intensity={1.2} />
 
@@ -1017,6 +1071,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             delay={ev.delay}
             scale={ev.scale}
             onDone={() => setWellRewardEvents((s) => s.filter((x) => x.id !== ev.id))}
+          />
+        ))}
+
+        {/* Flask/coin/sword rising above and falling back into the player at
+            round-start, for whichever resource they chose that round. */}
+        {resourceGainEvents.map((ev) => (
+          <ResourceGainEffect
+            key={ev.id}
+            resource={ev.resource}
+            position={ev.pos}
+            onDone={() => setResourceGainEvents((s) => s.filter((x) => x.id !== ev.id))}
           />
         ))}
       </Suspense>

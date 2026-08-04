@@ -12,6 +12,7 @@ import type { GuideHighlights } from '@/lib/guideHighlights';
 import BossSignupNudge from '@/components/BossSignupNudge';
 import WheelClaimNudge from '@/components/WheelClaimNudge';
 import StartGameButton from '@/components/StartGameButton';
+import RulesModal from '@/components/lobby/RulesModal';
 import RankBadge from '@/components/hud/RankBadge';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
@@ -21,11 +22,17 @@ type LobbyOverlayProps = {
   onStateChange?: (state: LobbyState | null) => void;
   externalAction?: string;
   onActionChange?: (action: string) => void;
+  /** Called whenever the player picks a resource -- see SceneOverlayProps. */
+  onResourceChange?: (resource: string) => void;
   guideHighlight?: GuideHighlights;
   /** Ambient pre-round camera orbit (see CameraFlyIn/LobbyScene) -- lifted up
    *  to the page since the camera and this overlay are separate render trees. */
   spinEnabled?: boolean;
   onToggleSpin?: () => void;
+  /** In-round camera drag/zoom state -- same lift-to-the-page split as
+   *  spinEnabled above. Drives the Reset Camera button. */
+  cameraMoved?: boolean;
+  onResetCamera?: () => void;
 };
 
 export function InviteSection({ lobbyId }: { lobbyId: string }) {
@@ -149,8 +156,8 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
         </p>
       )}
       <div className="flex flex-col gap-2 items-center">
-        <Link href="/" className="text-blue-400 hover:underline font-medium">
-          ← Back to Home
+        <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
+          🏠
         </Link>
       </div>
     </div>
@@ -170,6 +177,7 @@ export function renderPreGame({
   onAddDummy,
   spinEnabled,
   onToggleSpin,
+  onOpenRules,
 }: PreGameRenderOpts) {
   // Deliberately no full-screen backdrop and no player list here -- the 3D
   // scene (players seated at the table) is the primary view while everyone
@@ -179,8 +187,8 @@ export function renderPreGame({
   return (
     <>
       <div className="absolute top-4 left-4 z-20 pointer-events-auto">
-        <Link href="/" className="text-white/90 hover:underline font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
-          ← Back to Home
+        <Link href="/" className="text-white/90 no-underline text-2xl drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" aria-label="Back to Home">
+          🏠
         </Link>
       </div>
 
@@ -221,7 +229,17 @@ export function renderPreGame({
 
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-4">
         {isAdmin && (
-          <div className="flex flex-wrap gap-3 justify-center">
+          // w-max, not the default auto: this div's ancestor is centered via
+          // `left-1/2 -translate-x-1/2`, and for an absolutely-positioned
+          // auto-width box, `left: 50%` caps the shrink-to-fit available
+          // width to (containing block width - left offset) = half the
+          // viewport, computed *before* the translate re-centers it -- so on
+          // a narrow phone Start Game + Add Bot didn't actually have room to
+          // sit side by side and wrapped onto separate lines even though
+          // there was plenty of real screen width either side. w-max sizes
+          // this row to its own content instead of that phantom half-width
+          // cap, so flex-wrap never needs to trigger.
+          <div className="flex w-max gap-3">
             <StartGameButton state={state} btn={btn} onStartGame={onStartGame} />
             <button
               type="button"
@@ -232,6 +250,13 @@ export function renderPreGame({
             </button>
           </div>
         )}
+        <button
+          type="button"
+          onClick={onOpenRules}
+          className="text-sm px-3 py-1.5 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white/80 transition-colors"
+        >
+          Rules
+        </button>
         <InviteSection lobbyId={lobbyId} />
       </div>
     </>
@@ -253,7 +278,7 @@ const lobbyConfig: SceneOverlayConfig = {
     loadingTextClass: 'text-gray-700',
     loadingBgClass: 'bg-gray-100',
   },
-  backLabel: '← Back to Home',
+  backLabel: '🏠',
   loadingText: 'Loading lobby…',
   enemyMaxHp: 8,
   suppressEnemyPanel: true,
@@ -267,10 +292,11 @@ const lobbyConfig: SceneOverlayConfig = {
   renderGameOver,
 };
 
-export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, guideHighlight, spinEnabled, onToggleSpin }: LobbyOverlayProps) {
+export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, onResourceChange, guideHighlight, spinEnabled, onToggleSpin, cameraMoved, onResetCamera }: LobbyOverlayProps) {
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [wheelNudgeDismissed, setWheelNudgeDismissed] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const [playerName, setPlayerName] = useState('');
 
   useEffect(() => {
@@ -306,10 +332,15 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
         renderPreGame={renderPreGame}
         externalAction={externalAction}
         onActionChange={onActionChange}
+        onResourceChange={onResourceChange}
         guideHighlight={guideHighlight}
         spinEnabled={spinEnabled}
         onToggleSpin={onToggleSpin}
+        onOpenRules={() => setShowRules(true)}
+        cameraMoved={cameraMoved}
+        onResetCamera={onResetCamera}
       />
+      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
       {showNudge && (
         <BossSignupNudge
           lobbyId={lobbyId}

@@ -16,6 +16,7 @@ import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
 import type { City } from '@/lib/cities';
 import { useToast } from '@/components/Toast';
+import RulesModal from '@/components/lobby/RulesModal';
 
 const buttonBase =
   'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
@@ -36,6 +37,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const { showError } = useToast();
   const [joinCode, setJoinCode] = useState('');
   const [showRelics, setShowRelics] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const [relics, setRelics] = useState<Relic[]>([]);
   const [relicsLoading, setRelicsLoading] = useState(false);
 
@@ -186,8 +188,15 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
 
   return (
     <>
-      {/* Top-left: back button + auth + relics */}
+      {/* Top-left: rules + back button + auth + relics */}
       <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
+        <button
+          type="button"
+          onClick={() => setShowRules(true)}
+          className={`${buttonBase} bg-gray-200 text-black text-center`}
+        >
+          Rules
+        </button>
         {/* Back to map button */}
         {city && onBackToMap && (
           <button
@@ -447,17 +456,10 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
           >
             Enter Boss-fight
           </button>
-
-          <div className="flex flex-col gap-2 mt-4">
-            <Link href="/rules" className="text-xl underline" style={{ color: 'yellow' }}>
-              Rules
-            </Link>
-            <Link href="/rules/p1" className="text-xl underline" style={{ color: 'lightgreen' }}>
-              Rules For Nerds
-            </Link>
-          </div>
         </div>
       </div>
+
+      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
     </>
   );
 }

@@ -36,18 +36,21 @@ describe('useAuthFlow', () => {
     expect(mockedCheckName).not.toHaveBeenCalled();
   });
 
-  it('shows an error and does not call checkName when the name is too short', async () => {
+  it('shows an error and does not call checkName when the name is empty', async () => {
     const onAuthenticated = vi.fn();
     const { result } = renderHook(() =>
       useAuthFlow({ onAuthenticated, submitErrorFallback: 'Failed.' })
     );
 
-    act(() => result.current.setName('Al'));
+    act(() => result.current.setName('   '));
     await act(async () => {
       result.current.handleSubmitName();
     });
 
-    expect(result.current.error).toBe('Name must be 3–12 characters long');
+    // The min-length is now 1, so any non-empty trimmed name is valid --
+    // only a blank/whitespace-only name is still rejected, earlier than
+    // validateName, with its own message.
+    expect(result.current.error).toBe('Please enter a username.');
     expect(mockedCheckName).not.toHaveBeenCalled();
   });
 
@@ -63,7 +66,7 @@ describe('useAuthFlow', () => {
       result.current.handleSubmitName();
     });
 
-    expect(result.current.error).toBe('Name must be 3–12 characters long');
+    expect(result.current.error).toBe('Name must be 1–12 characters long');
     expect(mockedCheckName).not.toHaveBeenCalled();
   });
 

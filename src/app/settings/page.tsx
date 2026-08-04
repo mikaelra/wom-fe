@@ -98,14 +98,15 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
       <div className="w-full max-w-xl">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold tracking-wide">Settings</h1>
           <button
             type="button"
             onClick={() => router.push('/')}
-            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+            aria-label="Back to Home"
           >
-            ← Back to Home
+            🏠
           </button>
+          <h1 className="text-2xl font-bold tracking-wide">Settings</h1>
         </div>
 
         {loading ? (
