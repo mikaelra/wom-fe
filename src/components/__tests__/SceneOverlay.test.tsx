@@ -299,6 +299,52 @@ describe('action-availability gating', () => {
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
     expect(screen.queryByText('HP')).not.toBeInTheDocument();
   });
+
+  it('keeps the resource cards looking alive while dead but the staged HP hasn\'t visibly reached 0 yet', () => {
+    mockedUseLobbyGame.mockReturnValue({
+      ...baseLobbyGameResult,
+      myPlayer: { ...basePlayer, hp: 0 },
+      isAlive: false,
+      canAct: false,
+    });
+    // Staged HP still mid-peel (see useStagedResources) -- the death strike's
+    // animation hasn't landed yet.
+    mockedUseStagedResources.mockReturnValue({ hp: 3, coins: 2, attackDamage: 1, hpAnim: 'shake', hpBlockPulse: 0 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    const hpButton = screen.getByText('HP').closest('button');
+    // Genuinely non-interactive (they can't actually act once dead)...
+    expect(hpButton).toBeDisabled();
+    // ...but doesn't yet show the dimmed "dead" look.
+    expect(hpButton?.className).not.toContain('opacity-60');
+  });
+
+  it('shows the dimmed look once the staged HP has visibly reached 0', () => {
+    mockedUseLobbyGame.mockReturnValue({
+      ...baseLobbyGameResult,
+      myPlayer: { ...basePlayer, hp: 0 },
+      isAlive: false,
+      canAct: false,
+    });
+    mockedUseStagedResources.mockReturnValue({ hp: 0, coins: 2, attackDamage: 1, hpAnim: 'shake', hpBlockPulse: 0 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    const hpButton = screen.getByText('HP').closest('button');
+    expect(hpButton).toBeDisabled();
+    expect(hpButton?.className).toContain('opacity-60');
+  });
+
+  it('still dims the cards immediately when canAct is false for a reason other than death', () => {
+    mockedUseLobbyGame.mockReturnValue({
+      ...baseLobbyGameResult,
+      isAlive: true,
+      isDenied: true,
+      canAct: false,
+    });
+    mockedUseStagedResources.mockReturnValue({ hp: 5, coins: 2, attackDamage: 1, hpAnim: 'bounce', hpBlockPulse: 0 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    const hpButton = screen.getByText('HP').closest('button');
+    expect(hpButton).toBeDisabled();
+    expect(hpButton?.className).toContain('opacity-60');
+  });
 });
 
 describe('deny picker', () => {

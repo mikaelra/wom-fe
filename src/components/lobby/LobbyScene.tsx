@@ -228,6 +228,33 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const chosenResourceRef = useRef(chosenResource);
   chosenResourceRef.current = chosenResource;
 
+  // "Ready" sword/shield previews (shown while choosing a target / choosing
+  // defend) used to vanish the instant the parent's per-round reset cleared
+  // currentAction/attackTarget -- well before the round's own combat
+  // animations even start fetching -- then reappear later when the actual
+  // strike/block animation mounted a wholly separate instance. These sticky
+  // copies persist across that reset (only ever SET by the effects below,
+  // never cleared by a currentAction/attackTarget prop change) so the same
+  // visual instance carries through to the moment it hands off to the real
+  // animation. Cleared by the round-resolution effect below, at the exact
+  // moment that handoff happens (or immediately/at round-end when there's
+  // nothing to hand off to -- see combatAnimationPlan's clearDefendShield
+  // and the addStrike case in applyAction).
+  const [stickyAttackTarget, setStickyAttackTarget] = useState<string | null>(null);
+  const [defendShieldActive, setDefendShieldActive] = useState(false);
+  // Read inside the async round-resolution effect below -- same "capture on
+  // every render" reasoning as currentActionRef/chosenResourceRef above,
+  // since that effect can't safely depend on defendShieldActive directly
+  // (it would either read a stale closure value or re-run on every toggle).
+  const defendShieldActiveRef = useRef(defendShieldActive);
+  defendShieldActiveRef.current = defendShieldActive;
+  useEffect(() => {
+    if (currentAction === 'attack' && attackTarget) setStickyAttackTarget(attackTarget);
+  }, [currentAction, attackTarget]);
+  useEffect(() => {
+    if (currentAction === 'defend') setDefendShieldActive(true);
+  }, [currentAction]);
+
 
   useEffect(() => {
     if (!state?.round_end_time) { setWarnLevel(''); return; }
@@ -429,6 +456,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     setDenyRingFx([]);
     setDeathPending(new Set());
 
+    // Safety net for the sticky ready-sword/defend-shield above: the
+    // round-resolution effect below (gated on the async useGameEvents fetch)
+    // is what normally clears these, right when the real animation takes
+    // over. If that fetch ever hiccups and the effect never runs for this
+    // round, this guarantees they don't stay stuck forever.
+    staggerTimeoutsRef.current.push(
+      setTimeout(() => {
+        setStickyAttackTarget(null);
+        setDefendShieldActive(false);
+      }, DEATH_POSE_FALLBACK_MS),
+    );
+
     // Hold off newly-eliminated players' dead pose until buildCombatAnimationPlan's
     // kill-fire timing (below) reveals it via 'markDead' — otherwise they flop
     // over/gray out this instant, before the sword animation has even played.
@@ -536,6 +575,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       posMap: posMapRef.current,
       myNowHp,
       wonWell,
+      iChoseDefend: defendShieldActiveRef.current,
     });
 
     // Resource-gain flask/coin/sword rise-and-absorb -- fires first, at t=0,
@@ -563,6 +603,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     // gained resource) shouldn't gain a dead pause for nothing to precede.
     const combatStartOffsetMs = playingResourceGain ? RESOURCE_GAIN_START_DELAY_MS : 0;
 
+    // Ready-sword fallback: if this round's plan has no outgoing strike for
+    // me at all (denied, target's position vanished, etc.), there's nothing
+    // for the sticky preview to hand off to -- clear it now rather than
+    // leaving it stuck. The normal case (an outgoing strike does play) is
+    // handled by applyAction's addStrike case below, right as that strike
+    // takes over.
+    const hasOutgoingStrike = plan.some((b) => b.actions.some((a) => a.type === 'addStrike' && !a.strike.isIncoming));
+    if (!hasOutgoingStrike) {
+      if (combatStartOffsetMs <= 0) setStickyAttackTarget(null);
+      else staggerTimeoutsRef.current.push(setTimeout(() => setStickyAttackTarget(null), combatStartOffsetMs));
+    }
+
     // "info" Well reward: snapshot every other player's current stats so
     // PlayerAvatars can badge them for this round (then one more, greyed).
     if (wonWell && wellRewardFromEvents(gameEvents.events).some((c) => c.type === 'info')) {
@@ -575,7 +627,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
     const applyAction = (action: CombatAnimationAction) => {
       switch (action.type) {
-        case 'addStrike': setStrikeEvents((s) => [...s, action.strike]); break;
+        case 'addStrike':
+          setStrikeEvents((s) => [...s, action.strike]);
+          // My own outgoing strike is taking over from the sticky ready-sword
+          // preview right now -- hand off in the same tick, no gap.
+          if (!action.strike.isIncoming) setStickyAttackTarget(null);
+          break;
         case 'addImpactShield': setImpactShields((s) => [...s, action.shield]); break;
         case 'removeImpactShield': setImpactShields((s) => s.filter((x) => x.id !== action.id)); break;
         case 'addKillFire': setKillFireEvents((e) => [...e, action.event]); break;
@@ -595,6 +652,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         case 'removeHitFlash': setHitFlashEvents((ev) => ev.filter((x) => x.id !== action.id)); break;
         case 'addBlockGlow': setBlockGlowEvents((ev) => [...ev, action.event]); break;
         case 'removeBlockGlow': setBlockGlowEvents((ev) => ev.filter((x) => x.id !== action.id)); break;
+        case 'clearDefendShield': setDefendShieldActive(false); break;
       }
     };
 
@@ -888,7 +946,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             showOwnActions={isOwnPlayer && showAttackButtons && !isDead}
             currentAction={currentAction}
             onDefend={handleDefend}
-            showShield={isOwnPlayer && currentAction === 'defend'}
+            showShield={isOwnPlayer && defendShieldActive}
             highlight={guideHighlight}
             infoReveal={infoBadge}
             showLobbyControls={showLobbyControls}
@@ -967,19 +1025,19 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       {/* Stage 5: Sword and shield combat effects */}
       <Suspense fallback={null}>
-        {currentAction === 'attack' && attackTarget && (() => {
+        {stickyAttackTarget && (() => {
           const myPos  = posMapRef.current.get(playerName);
           // Souls share one name (the posMap entry is whichever came last), so
           // aim at the specific soul the player clicked instead.
-          const tgtPos = selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === attackTarget
+          const tgtPos = selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === stickyAttackTarget
             ? LOST_SOUL_POSITIONS[selectedSoulIdx % LOST_SOUL_POSITIONS.length]
-            : posMapRef.current.get(attackTarget);
+            : posMapRef.current.get(stickyAttackTarget);
           if (!myPos || !tgtPos) return null;
           const fp: [number, number, number] = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
           const tp: [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
           return (
             <SwordEffect
-              key={`ready-${attackTarget}`}
+              key={`ready-${stickyAttackTarget}`}
               fromPosition={fp}
               toPosition={tp}
               mode="ready"

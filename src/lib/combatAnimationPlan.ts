@@ -205,7 +205,8 @@ export type CombatAnimationAction =
   | { type: 'addHitFlash'; event: HitFlashEvent }
   | { type: 'removeHitFlash'; id: string }
   | { type: 'addBlockGlow'; event: BlockGlowEvent }
-  | { type: 'removeBlockGlow'; id: string };
+  | { type: 'removeBlockGlow'; id: string }
+  | { type: 'clearDefendShield' };
 
 export interface CombatAnimationBatch {
   /** Absolute ms from "now" (the round-processing moment). 0 = apply synchronously,
@@ -225,6 +226,11 @@ export interface BuildCombatAnimationPlanInput {
   myNowHp: number;
   /** state.wellwinner === playerName */
   wonWell: boolean;
+  /** True when the local player has a defend-preview shield up this round
+   *  (LobbyScene's defendShieldActive) -- gates the clearDefendShield batch
+   *  below, so rounds where they didn't choose defend get no extra batch at
+   *  all rather than an always-present no-op entry. */
+  iChoseDefend?: boolean;
 }
 
 /**
@@ -234,7 +240,7 @@ export interface BuildCombatAnimationPlanInput {
  * addStrike) must be applied in the order returned here.
  */
 export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): CombatAnimationBatch[] {
-  const { events, playerName, posMap, myNowHp, wonWell } = input;
+  const { events, playerName, posMap, myNowHp, wonWell, iChoseDefend } = input;
   const combat = combatFromEvents(events);
   const myPos = posMap.get(playerName);
   const iDied = myNowHp <= 0;
@@ -381,6 +387,9 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     const SHIELD_OFFSET = 0.8;
     const GAP_MS        = 242; // scaled to 0.8x for a modest speedup
     let staggerMs       = wellDelayMs;
+    // ms into combat when my own first successful block starts, if any -- see
+    // the clearDefendShield batch pushed after this loop.
+    let firstBlockAtMs: number | null = null;
 
     // When several attackers land hits on me in the same round, only the last
     // one to visually connect should trigger my dead pose — otherwise it flops
@@ -511,6 +520,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           shieldDur = ONE_DEF_MS + 424; // scaled to 0.8x for a modest speedup
           const rotY = Math.atan2(fromPos[0] - baseToPos[0], fromPos[2] - baseToPos[2]);
           strikeActions.push({ type: 'addImpactShield', shield: { id: shieldId, pos: toPos, rotY, instakill: isInstakill } });
+          if (firstBlockAtMs === null) firstBlockAtMs = delay;
         }
         batches.push({ delayMs: delay, actions: strikeActions });
         if (shieldId) {
@@ -540,6 +550,24 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       if (batch.actions.length === 1 && batch.actions[0].type === 'removeImpactShield') {
         batch.delayMs = Math.max(batch.delayMs, staggerMs);
       }
+    }
+
+    // Tell the scene when the local player's own defend-preview shield (see
+    // PlayerAvatars' showShield / LobbyScene's defendShieldActive) should stop
+    // showing. Gated on iChoseDefend so rounds where they weren't defending
+    // get no extra batch at all. Immediately (0) if nothing attacked them
+    // this round (nothing to hold it up for); right when their own first
+    // successful block's world-space shield flourish takes over if they
+    // blocked (so the preview and the block shield don't double up);
+    // otherwise once their round's combat is fully done playing (staggerMs,
+    // the same "fight's over" value the shield-persistence loop above uses)
+    // -- covers "attacked but the block failed", where the shield should
+    // keep standing through the rest of the round rather than vanish on a
+    // failed block.
+    if (iChoseDefend) {
+      const anyIncoming = events.some((e) => e.kind === 'incoming');
+      const defendShieldClearMs = !anyIncoming ? 0 : (firstBlockAtMs ?? staggerMs);
+      batches.push({ delayMs: defendShieldClearMs, actions: [{ type: 'clearDefendShield' }] });
     }
   }
 

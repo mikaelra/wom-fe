@@ -242,6 +242,43 @@ describe('buildCombatAnimationPlan', () => {
       expect(removeBatch?.delayMs).toBeCloseTo(0 + shieldDur, 5);
     });
 
+    it('does not schedule a clearDefendShield batch when the player never had a defend shield up', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'blocked', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events }); // iChoseDefend omitted
+      expect(plan.some((b) => b.actions.some((a) => a.type === 'clearDefendShield'))).toBe(false);
+    });
+
+    it('clears the defend shield immediately when nobody attacked this round', () => {
+      const plan = buildCombatAnimationPlan({ ...baseInput, events: [], iChoseDefend: true });
+      const clearBatch = plan.find((b) => b.actions.some((a) => a.type === 'clearDefendShield'));
+      expect(clearBatch?.delayMs).toBe(0);
+    });
+
+    it('keeps the defend shield up (clears only at round-end) when attacked but the block failed', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'hit', attackerDied: false, damage: 1 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events, iChoseDefend: true });
+      const ONE_HIT_MS = 960; // (0.34 + 0.26 + 0.36) * 1000
+      const GAP_MS = 242;
+      const clearBatch = plan.find((b) => b.actions.some((a) => a.type === 'clearDefendShield'));
+      // staggerMs accumulates GAP_MS after every incoming strike, even a lone one.
+      expect(clearBatch?.delayMs).toBeCloseTo(ONE_HIT_MS + GAP_MS, 5);
+    });
+
+    it('clears the defend shield right when a successful block hands off to the block-shield flourish', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'blocked', attackerDied: false },
+        { kind: 'incoming', attacker: 'Carol', outcome: 'hit', attackerDied: false, damage: 1 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events, iChoseDefend: true });
+      const clearBatch = plan.find((b) => b.actions.some((a) => a.type === 'clearDefendShield'));
+      // Handoff happens at the block's own start (0), not the round's end.
+      expect(clearBatch?.delayMs).toBe(0);
+    });
+
     it('ramps the block glow up before impact and cuts it to fade out right on impact, under me, when I block', () => {
       const events: GameEvent[] = [
         { kind: 'incoming', attacker: 'Bob', outcome: 'blocked', attackerDied: false },

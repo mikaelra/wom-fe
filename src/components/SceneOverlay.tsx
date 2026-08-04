@@ -203,6 +203,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     enemy,
     isPendingDenyChooser,
     eligibleDenyTargets,
+    isDenied,
     canAct,
     phase,
   } = useLobbyGame(state, playerName);
@@ -430,6 +431,18 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     // Displayed values may be staged (Well tick-up); affordability still uses
     // the player's real values.
     const shown = stagedResources ?? player;
+    // canAct flips false the instant the server reports hp<=0 -- immediately
+    // greying out/disabling these cards, well before the 3D death animation
+    // (sword strike, kill-fire, dead-pose reveal) has even started, which
+    // gives the death away early. shown.hp is the *staged* display value
+    // (see useStagedResources) -- while it's still peeling down in sync
+    // with the strike animation and hasn't visibly reached 0 yet, keep the
+    // cards looking alive. Narrowly scoped to exactly the "just died" case
+    // (every other canAct condition still holds) so denied/game-over/
+    // spectator/pre-round dimming is untouched -- disabled= below still
+    // uses the real, immediate canAct, so nothing becomes functionally
+    // clickable that wasn't already.
+    const canActLook = canAct || (!isAlive && !gameOver && !isDenied && !player.spectator && round > 0 && shown.hp > 0);
     return (
       <>
         <ResourceCard
@@ -442,7 +455,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           blockPulse={stagedResources?.hpBlockPulse ?? 0}
           disabled={!canAct}
           onClick={() => handleResource('gain_hp')}
-          className={`${!canAct ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+          className={`${!canActLook ? 'opacity-60 cursor-default' : 'cursor-pointer'}
             ${resourceCue} ${guideGlowClass(guideHighlight?.hp)}
             ${resource === 'gain_hp'
               ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
@@ -457,7 +470,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabelClass="text-yellow-400/70"
           disabled={!canAct}
           onClick={() => handleResource('gain_coin')}
-          className={`${!canAct ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+          className={`${!canActLook ? 'opacity-60 cursor-default' : 'cursor-pointer'}
             ${resourceCue} ${guideGlowClass(guideHighlight?.coins)}
             ${resource === 'gain_coin'
               ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
@@ -473,7 +486,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           disabled={!canAct || cannotAffordAtk}
           onClick={() => handleResource('gain_attack')}
           className={`relative overflow-hidden
-            ${!canAct || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+            ${!canActLook || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
             ${cannotAffordAtk ? '' : resourceCue} ${guideGlowClass(guideHighlight?.atk)}
             ${resource === 'gain_attack'
               ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
