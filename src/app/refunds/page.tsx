@@ -11,9 +11,10 @@ export default function RefundsPage() {
           <h1 className="text-2xl font-bold tracking-wide">Refund Policy</h1>
           <Link
             href="/"
-            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-white/20 transition-colors no-underline"
+            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+            aria-label="Back to Home"
           >
-            ← Back to Home
+            🏠
           </Link>
         </div>
 

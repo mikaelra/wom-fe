@@ -9,6 +9,7 @@ import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import { subscribe } from '@/lib/socket';
 import RopedButton from '@/components/hud/RopedButton';
 import RopedInput from '@/components/hud/RopedInput';
+import RulesModal from '@/components/lobby/RulesModal';
 import { useToast } from '@/components/Toast';
 
 export default function WorldMapOverlay() {
@@ -24,6 +25,7 @@ export default function WorldMapOverlay() {
   const [pendingAction, setPendingAction] = useState<'join' | 'create' | null>(null);
 
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Undefined (not 0) until the first broadcast arrives -- distinguishes
@@ -150,9 +152,45 @@ export default function WorldMapOverlay() {
 
   return (
     <>
-      {/* Top bar */}
+      {/* Top bar -- left and right groups are independently pinned to their
+          own corner (not one flex row with justify-between) so that if one
+          side wraps/shrinks on a narrow phone, it can never bump the other
+          side out of position. justify-between only distributes items
+          within a shared row; once wrapping split them onto separate rows,
+          the lone item left on its own row collapsed to that row's start
+          instead of staying pinned right. */}
       <div
-        className="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-center justify-end gap-2 px-3 py-2 pointer-events-none"
+        className="absolute top-0 left-0 z-20 px-3 pointer-events-none"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
+      >
+        <div className="pointer-events-auto">
+          <RopedButton
+            // 163 -- same exact-fit width as the user-menu chip (see its own
+            // comment): rope_button-ld-v2.png's natural size is 595x197
+            // (~3.02:1), and 163 is the exact width at which it fills a
+            // 54px-tall box edge-to-edge, so every RopedButton in this top
+            // bar reads as the same consistent chip size.
+            width={163}
+            height={54}
+            onClick={() => setShowRules(true)}
+            ariaLabel="Rules"
+          >
+            Rules
+          </RopedButton>
+        </div>
+      </div>
+      <div
+        // The bottom lobby-controls row (below) is centered, not edge-anchored
+        // -- "Join Lobby"'s right edge sits at a fixed offset from center:
+        // RopedInput(184) + RopedButton(168), no gap between them = 352px
+        // total, so its right edge is 176px right of center, i.e. inset
+        // (50% - 176px) from the viewport's right edge. On a narrow phone,
+        // lining this chip's right edge up with that reads as one aligned
+        // column; on a wide desktop viewport that offset would be huge
+        // (Join Lobby stays near center while the screen keeps growing), so
+        // from `sm` up this instead just hugs the real edge like the rest of
+        // the top bar always did.
+        className="absolute top-0 right-[calc(50%-176px)] sm:right-3 z-20 pointer-events-none"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
       >
         {/* Right: player info */}
@@ -170,7 +208,17 @@ export default function WorldMapOverlay() {
           {isLoggedIn && (
             <div className="relative" ref={userMenuRef}>
               <RopedButton
-                width={248}
+                // rope_button-ld-v2.png's natural size is 595x197 (~3.02:1).
+                // object-contain fits by height whenever the box is wider
+                // than that ratio, so any width above ~163 (595/197*54)
+                // just letterboxes -- empty transparent margin on both
+                // sides of the art, with the box's true edges landing well
+                // outside the visibly drawn rope frame. 163 is the exact
+                // width at which the art fills the box edge-to-edge, so
+                // this chip's visible right edge lines up precisely with
+                // Join Lobby's (see the `right` calc below) instead of
+                // sitting inside a padded box that only *measures* aligned.
+                width={163}
                 height={54}
                 onClick={() => setShowUserMenu((v) => !v)}
                 ariaLabel="Open user menu"
@@ -430,6 +478,8 @@ export default function WorldMapOverlay() {
           </div>
         </div>
       )}
+
+      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
     </>
   );
 }

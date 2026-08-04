@@ -25,10 +25,18 @@ export default function LobbyPage() {
   const [playerNameInit, setPlayerNameInit] = useState(false);
   const [sharedAction, setSharedAction] = useState('');
   const [sharedAttackTarget, setSharedAttackTarget] = useState('');
+  const [sharedResource, setSharedResource] = useState('');
   const [guideHighlight, setGuideHighlight] = useState<GuideHighlights>({});
   // Lifted here since LobbyScene (the camera) and LobbyOverlay (the toggle
   // button) are separate render trees -- see CameraFlyIn's ambient orbit.
   const [spinEnabled, setSpinEnabled] = useState(true);
+  // Same split -- the Reset Camera button (LobbyOverlay) needs to know
+  // whether the player has actually touched the camera (CameraFlyIn/
+  // usePanOffset) and to be able to command it back to the start-of-match
+  // view. resetCameraSignal is a counter (not a boolean) so clicking Reset
+  // again after dragging some more still fires the tween.
+  const [cameraMoved, setCameraMoved] = useState(false);
+  const [resetCameraSignal, setResetCameraSignal] = useState(0);
 
   const hasAutoJoined = useRef(false);
   const [hasJoined, setHasJoined] = useState(false);
@@ -93,11 +101,26 @@ export default function LobbyPage() {
     setSharedAction('');
     setSharedAttackTarget('');
   }, [lobbyState?.round]);
+  // sharedResource is deliberately NOT reset here, unlike sharedAction above:
+  // this effect and LobbyScene's round-resolution effect (which needs to read
+  // the *resolved* round's choice via chosenResourceRef) both react to the
+  // same lobbyState.round change, but LobbyScene's is gated behind an async
+  // per-round events fetch (useGameEvents) -- by the time that resolves, this
+  // effect (synchronous, same commit as the round change) has already fired
+  // and re-rendered LobbyScene with the cleared value, clobbering the ref
+  // before the async effect ever gets to read it. LobbyScene clears
+  // chosenResourceRef itself, right after consuming it, instead.
 
   // Stable identity — flows into memo()ed scene components via LobbyScene.
   const handleAttackSelect = useCallback((target: string) => {
     setSharedAction('attack');
     setSharedAttackTarget(target);
+  }, []);
+
+  const handleCameraUserAdjust = useCallback(() => setCameraMoved(true), []);
+  const handleResetCamera = useCallback(() => {
+    setResetCameraSignal((n) => n + 1);
+    setCameraMoved(false);
   }, []);
 
   if (!lobbyId) {
@@ -130,8 +153,11 @@ export default function LobbyPage() {
           attackTarget={sharedAttackTarget}
           onAttackSelect={handleAttackSelect}
           onActionChange={setSharedAction}
+          chosenResource={sharedResource}
           guideHighlight={guideHighlight}
           spinEnabled={spinEnabled}
+          resetCameraSignal={resetCameraSignal}
+          onCameraUserAdjust={handleCameraUserAdjust}
         />
       </Canvas>
 
@@ -142,9 +168,12 @@ export default function LobbyPage() {
             onStateChange={setLobbyState}
             externalAction={sharedAction}
             onActionChange={setSharedAction}
+            onResourceChange={setSharedResource}
             guideHighlight={guideHighlight}
             spinEnabled={spinEnabled}
             onToggleSpin={() => setSpinEnabled((v) => !v)}
+            cameraMoved={cameraMoved}
+            onResetCamera={handleResetCamera}
           />
           {/* In-game welcome tour — floats in the UI overlay layer just above
               the resource cards (lives outside the 3D canvas now). */}
@@ -164,9 +193,10 @@ export default function LobbyPage() {
                 <button
                   type="button"
                   onClick={() => router.push('/')}
-                  className="block w-full text-center text-blue-500 hover:underline text-sm bg-transparent border-none cursor-pointer"
+                  className="block w-full text-center text-blue-500 hover:underline text-lg bg-transparent border-none cursor-pointer"
+                  aria-label="Back to Home"
                 >
-                  ← Back to Home
+                  🏠
                 </button>
               </>
             ) : (
@@ -296,9 +326,10 @@ export default function LobbyPage() {
                 <button
                   type="button"
                   onClick={() => router.push('/')}
-                  className="block w-full text-center text-blue-400 hover:underline text-sm bg-transparent border-none cursor-pointer"
+                  className="block w-full text-center text-blue-400 hover:underline text-lg bg-transparent border-none cursor-pointer"
+                  aria-label="Back to Home"
                 >
-                  ← Back to Home
+                  🏠
                 </button>
               </>
             )}

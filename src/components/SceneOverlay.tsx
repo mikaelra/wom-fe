@@ -62,6 +62,9 @@ export type PreGameRenderOpts = {
    *  in the overlay even though the camera itself lives outside this tree. */
   spinEnabled: boolean;
   onToggleSpin: () => void;
+  /** Opens the Rules popup -- owned by the caller (see LobbyOverlay), same
+   *  pattern as spinEnabled/onToggleSpin above. */
+  onOpenRules: () => void;
 };
 
 export type SceneOverlayConfig = {
@@ -100,14 +103,27 @@ type SceneOverlayProps = {
   externalAction?: string;
   /** Called whenever the player selects an action, so callers can sync external state */
   onActionChange?: (action: string) => void;
+  /** Called whenever the player picks a resource (gain_hp/gain_coin/
+   *  gain_attack), so LobbyScene can play the matching flask/coin/sword
+   *  rise-and-absorb effect once the round resolves -- see ResourceGainEffect. */
+  onResourceChange?: (resource: string) => void;
   /** Welcome-tour highlights — glows the matching resource cards. */
   guideHighlight?: GuideHighlights;
   /** Passed straight through to renderPreGame's opts -- see PreGameRenderOpts. */
   spinEnabled?: boolean;
   onToggleSpin?: () => void;
+  onOpenRules?: () => void;
+  /** In-round camera drag/zoom state, lifted to the page the same way
+   *  spinEnabled is -- drives the Reset Camera button shown once the player
+   *  has actually moved the camera during an active round (see
+   *  CameraFlyIn/LobbyScene). Unlike spinEnabled/onOpenRules this isn't
+   *  part of PreGameRenderOpts -- the button only makes sense once
+   *  gameStarted, in this component's own in-game JSX, not renderPreGame. */
+  cameraMoved?: boolean;
+  onResetCamera?: () => void;
 };
 
-export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, guideHighlight, spinEnabled = true, onToggleSpin }: SceneOverlayProps) {
+export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, guideHighlight, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera }: SceneOverlayProps) {
   const {
     theme,
     backLabel,
@@ -327,6 +343,22 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     </div>
   );
 
+  // Shown once the player has actually dragged/scrolled the in-round camera
+  // (cameraMoved, lifted to the page -- see CameraFlyIn/usePanOffset's
+  // onUserAdjust) so it doesn't clutter the screen for anyone who never
+  // touches it. Same visual treatment as the pre-game "Camera Spin" toggle
+  // for a consistent camera-control affordance. Sits directly above the
+  // resource cards, in both render sites, same pattern as resourceReminder.
+  const resetCameraButton = cameraMoved && onResetCamera && (
+    <button
+      type="button"
+      onClick={onResetCamera}
+      className="text-xs px-2 py-1 rounded-md border border-white/20 bg-white/10 hover:bg-white/20 text-white/80 transition-colors pointer-events-auto"
+    >
+      Reset Camera
+    </button>
+  );
+
   const handleStartGame = () => {
     getSocket().emit('start_game', { lobby_id: lobbyId });
   };
@@ -337,6 +369,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   const handleResource = (resId: string) => {
     setResource(resId);
+    onResourceChange?.(resId);
     getSocket().emit('submit_choice', { lobby_id: lobbyId, resource: resId, action: '' });
   };
 
@@ -482,8 +515,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         <p className={`${theme.loadingTextClass} text-lg font-semibold`}>
           You were removed from this lobby.
         </p>
-        <Link href="/" className="text-blue-400 hover:underline font-medium">
-          ← Back to Home
+        <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
+          🏠
         </Link>
       </div>
     );
@@ -507,6 +540,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           onAddDummy: handleAddDummy,
           spinEnabled,
           onToggleSpin: onToggleSpin ?? (() => {}),
+          onOpenRules: onOpenRules ?? (() => {}),
         })}
         {showChat && (
           <div
@@ -585,7 +619,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
       {/* Back button */}
       <div className="absolute top-4 left-4 pointer-events-auto z-20">
-        <Link href="/" className={`${theme.backLinkClass} hover:underline font-medium drop-shadow-md`}>
+        <Link href="/" className={`${theme.backLinkClass} no-underline text-2xl drop-shadow-md`} aria-label="Back to Home">
           {backLabel}
         </Link>
       </div>
@@ -779,6 +813,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           style={{ top: '72%', left: '50%', transform: 'translateX(-50%)' }}
         >
           {resourceReminder}
+          {resetCameraButton}
           <div className="flex gap-2">{renderResourceCards(myPlayer)}</div>
         </div>
       )}
@@ -789,6 +824,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       {hidePlayerActionButtons && myPlayer && !myPlayer.spectator && (
         <div className="absolute flex flex-col items-center gap-2 pointer-events-auto z-20 bottom-6 left-1/2 -translate-x-1/2">
           {resourceReminder}
+          {resetCameraButton}
           <div className="flex gap-2">{renderResourceCards(myPlayer)}</div>
         </div>
       )}

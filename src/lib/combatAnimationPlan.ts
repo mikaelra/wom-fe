@@ -524,6 +524,23 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
         }
       }
     }
+
+    // Successfully-blocked shields stay up for the rest of the round's
+    // combat, not just their own strike's brief aftermath -- staggerMs has
+    // now accumulated through every strike this player is involved in this
+    // round (outgoing and incoming, in order), so by this point it holds
+    // exactly "when the round's combat is fully done playing" from this
+    // player's perspective. Only pushes shields *later*, never earlier --
+    // a shield whose own strike is the last one in the round already has a
+    // later or equal removal time and is left alone. Doesn't wait on
+    // anything scheduled outside this loop (other players' well-reward
+    // flights, etc.) -- just this player's own combat exchanges, which is
+    // what "the shield stays up while the fight plays out" actually refers to.
+    for (const batch of batches) {
+      if (batch.actions.length === 1 && batch.actions[0].type === 'removeImpactShield') {
+        batch.delayMs = Math.max(batch.delayMs, staggerMs);
+      }
+    }
   }
 
   // ── Witnessed eliminations ────────────────────────────────────────────────

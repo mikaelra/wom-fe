@@ -2,7 +2,7 @@
 
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
-import { useRef, useMemo, memo, Suspense, type CSSProperties, type ReactNode } from 'react';
+import { useRef, useMemo, useState, useEffect, memo, Suspense, type CSSProperties, type ReactNode } from 'react';
 import * as THREE from 'three';
 import PlayerV1 from '@/components/Playerv1';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
@@ -40,6 +40,31 @@ import { COIN_RELIC_ID } from '@/types/game';
 // frame to recompute (eps=0) costs nothing extra and removes the
 // possibility of a stuck stale scale entirely.
 export const HTML_EPS = 0;
+
+// eps=0 above is not a complete fix, though: reading drei's own Html source
+// (node_modules/@react-three/drei/web/Html.js), its per-frame recompute is
+// gated on the object's projected 2D screen position and camera.zoom only --
+// it never checks camera.fov. This scene's FOV is responsive
+// (getResponsiveFov, re-applied every frame in CameraFlyIn) and can still be
+// settling right when a conditionally-mounted Html first appears (e.g. the
+// info-reveal badge below, which mounts fresh exactly at round-transition
+// time); if that first frame's scale is computed against a transient FOV
+// value and the object's 2D position doesn't keep moving afterwards, eps=0
+// never gets a reason to recompute again, and the stale (often oversized)
+// scale sticks until the player drags the camera -- which perturbs the 2D
+// position enough to force drei's own recompute. Confirmed live. Remounting
+// the badge once, a beat after it appears, gets it a second attempt after
+// FOV/camera have had time to settle -- same effect as dragging the camera,
+// on a timer instead of waiting for the player to notice and do it.
+function useRemountKeyOnceSettled(dep: unknown, delayMs = 400): number {
+  const [key, setKey] = useState(0);
+  useEffect(() => {
+    if (dep == null) return;
+    const t = setTimeout(() => setKey((k) => k + 1), delayMs);
+    return () => clearTimeout(t);
+  }, [dep, delayMs]);
+  return key;
+}
 
 const STACK_BUBBLE_Y = -70;
 // Attack sits below the name now, at the same spot as DEFEND (the two never
@@ -307,6 +332,10 @@ export const PlayerWithName = memo(function PlayerWithName({
 }) {
   const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   const isCherub = modelUrl === skinUrl('cherub_v1');
+  // See useRemountKeyOnceSettled's own comment -- forces the info-reveal
+  // badge below to recompute its scale a beat after it appears, so a
+  // transient FOV value at mount time can't leave it stuck oversized.
+  const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
   // Welcome-tour highlights — glow the real button(s) the current slide points at.
   const hl = highlight ?? {};
   const hlAttack = guideGlowClass(hl.attack);
@@ -480,7 +509,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           above) so its zIndexRange can sit above the boss HP card ([5,5])
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
-        <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
+        <Html key={infoRevealRemountKey} position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>
@@ -571,6 +600,8 @@ export const LostSoulModel = memo(function LostSoulModel({
   infoReveal?: InfoRevealBadge | null;
 }) {
   const ref = useRef<THREE.Group>(null);
+  // See useRemountKeyOnceSettled's own comment, and PlayerWithName's use of it.
+  const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
 
   useFrame((state) => {
     if (ref.current) {
@@ -629,7 +660,7 @@ export const LostSoulModel = memo(function LostSoulModel({
         </div>
       </Html>
       {infoReveal && (
-        <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
+        <Html key={infoRevealRemountKey} position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>

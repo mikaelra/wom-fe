@@ -202,6 +202,46 @@ describe('buildCombatAnimationPlan', () => {
       expect(plan[1].actions[0].type).toBe('removeImpactShield');
     });
 
+    it('keeps a blocked shield up through the rest of the round\'s combat, not just its own strike', () => {
+      // A block early in the round followed by a later staggered hit: the
+      // shield must stay up through that later strike too, not disappear
+      // right after its own (earlier) strike's brief aftermath.
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'blocked', attackerDied: false },
+        { kind: 'incoming', attacker: 'Carol', outcome: 'hit', attackerDied: false, damage: 1 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const ONE_DEF_MS = 1260; // (0.34 + 0.26 + 0.66) * 1000
+      const ONE_HIT_MS = 960;  // (0.34 + 0.26 + 0.36) * 1000
+      const GAP_MS = 242;
+      const shieldDur = ONE_DEF_MS + 424;
+      const secondStrikeDelay = ONE_DEF_MS + GAP_MS;
+      const roundEndMs = secondStrikeDelay + ONE_HIT_MS + GAP_MS;
+
+      // Without the fix this would be delay(0) + shieldDur -- earlier than
+      // the round actually finishes playing out.
+      expect(0 + shieldDur).toBeLessThan(roundEndMs);
+
+      const removeBatch = plan.find((b) => b.actions.some((a) => a.type === 'removeImpactShield'));
+      expect(removeBatch?.delayMs).toBeCloseTo(roundEndMs, 5);
+    });
+
+    it('leaves a blocked shield\'s own removal time alone when it is already the last thing in the round', () => {
+      // A lone block (nothing staggered after it): the shield's own
+      // lingering-after-impact duration is already the round's end, so the
+      // fix should be a no-op here -- covered by the "bundles the strike and
+      // its shield" test above staying unchanged.
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'blocked', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+      const ONE_DEF_MS = 1260;
+      const shieldDur = ONE_DEF_MS + 424;
+      const removeBatch = plan.find((b) => b.actions.some((a) => a.type === 'removeImpactShield'));
+      expect(removeBatch?.delayMs).toBeCloseTo(0 + shieldDur, 5);
+    });
+
     it('ramps the block glow up before impact and cuts it to fade out right on impact, under me, when I block', () => {
       const events: GameEvent[] = [
         { kind: 'incoming', attacker: 'Bob', outcome: 'blocked', attackerDied: false },
