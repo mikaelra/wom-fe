@@ -6,8 +6,9 @@ import * as THREE from 'three';
 
 // Three red hoops that drop down over a denied player's body, one after
 // another, from roughly head height down to their feet where they vanish.
-// Driven by shared lobby state (`deny_target`), so it plays identically for
-// the denier, the denied player, and every bystander — see LobbyScene.tsx.
+// Driven by shared lobby state (`deny_target`/`deny_denier`), but only
+// rendered for the denier and the denied player -- see LobbyScene.tsx's
+// gating -- not for bystanders/spectators in the lobby.
 
 export const DENY_RING_COUNT = 3;
 const RING_STAGGER = 0.16;        // seconds between each ring's drop starting

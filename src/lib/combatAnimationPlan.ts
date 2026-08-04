@@ -12,6 +12,9 @@ export type StrikeEvent = {
   targetDefended: boolean;
   targetHit: boolean;
   isIncoming: boolean;
+  // For incoming strikes with a known (non-anonymised) attacker: their name,
+  // so the scene can glow their seat while this strike is live.
+  attackerName?: string;
   // 'retreat' = normal hit, 'stop' = blocked no reflect, 'bounce' = blocked + reflected
   postImpact: 'retreat' | 'stop' | 'bounce';
   // World-space position to aura-flash on strike (undefined = no flash)
@@ -473,6 +476,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           targetDefended: isDefended,
           targetHit:      !isDefended,
           isIncoming:     true,
+          attackerName:   atkPos ? (inc.attacker ?? undefined) : undefined,
           postImpact:     isDefended ? (atkReflected ? 'bounce' : 'stop') : 'retreat',
           flashPosition:  !isDefended         ? myPos  : undefined,
           bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
