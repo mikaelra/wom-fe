@@ -315,6 +315,18 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const actionCue   = needsAction   ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '') : '';
   const resourceCue = needsResource ? (isRedWarn ? 'warn-blink-red' : isGoldWarn ? 'warn-blink-gold' : '') : '';
 
+  // Reminder bubble stacked above the resource cards. Only shows up once
+  // the same 10s/5s warning window as the blinking buttons kicks in (not
+  // the instant the round starts), and blinks along with it. Rendered at
+  // both resource-card sites (2D overlay + 3D-lobby-owned layout) so it
+  // shows wherever the cards themselves currently show. Vanishes the
+  // moment the player picks a resource.
+  const resourceReminder = resourceCue && (
+    <div className={`bg-black/80 backdrop-blur-sm rounded-xl border ${theme.panelBorderClass} p-3 text-white text-sm text-center max-w-xs ${resourceCue}`}>
+      You must choose a resource: Get HP, Get Coin or Upgrade Attack.
+    </div>
+  );
+
   const handleStartGame = () => {
     getSocket().emit('start_game', { lobby_id: lobbyId });
   };
@@ -578,6 +590,18 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         </Link>
       </div>
 
+      {/* Missing-action reminder — top left, below the back button. Only
+          shows up once the same 10s/5s warning window as the blinking
+          buttons kicks in, and blinks along with it. Vanishes the moment
+          the player picks attack/well/defend. */}
+      {actionCue && (
+        <div className="absolute top-16 left-4 w-1/2 max-w-xs px-4 z-20">
+          <div className={`bg-black/80 backdrop-blur-sm rounded-xl border ${theme.panelBorderClass} p-3 text-white text-sm ${actionCue}`}>
+            You must choose an action: Attack someone, Well or Defend.
+          </div>
+        </div>
+      )}
+
       {/* Round messages panel — top right, half width */}
       <div className="absolute top-12 right-4 w-1/2 max-w-2xl px-4 pointer-events-auto z-20">
         <div className={`bg-black/80 backdrop-blur-sm rounded-xl border ${theme.panelBorderClass} p-3 sm:p-4 text-white`}>
@@ -751,10 +775,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       {/* Resource stat cards (hidden when 3D scene owns player action UI) */}
       {!hidePlayerActionButtons && myPlayer && !myPlayer.spectator && (
         <div
-          className="absolute flex gap-2 pointer-events-auto"
+          className="absolute flex flex-col items-center gap-2 pointer-events-auto"
           style={{ top: '72%', left: '50%', transform: 'translateX(-50%)' }}
         >
-          {renderResourceCards(myPlayer)}
+          {resourceReminder}
+          <div className="flex gap-2">{renderResourceCards(myPlayer)}</div>
         </div>
       )}
 
@@ -762,8 +787,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           player action buttons (lobby): the cards live on this screen-fixed
           overlay layer so they stay put regardless of the camera. */}
       {hidePlayerActionButtons && myPlayer && !myPlayer.spectator && (
-        <div className="absolute flex gap-2 pointer-events-auto z-20 bottom-6 left-1/2 -translate-x-1/2">
-          {renderResourceCards(myPlayer)}
+        <div className="absolute flex flex-col items-center gap-2 pointer-events-auto z-20 bottom-6 left-1/2 -translate-x-1/2">
+          {resourceReminder}
+          <div className="flex gap-2">{renderResourceCards(myPlayer)}</div>
         </div>
       )}
 
