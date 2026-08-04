@@ -33,6 +33,17 @@ const BASE_CLASS =
 // 0.8x for a modest speedup.
 const SWAP_DELAY_MS = 218;
 
+// Must match globals.css's .resource-bounce / .resource-shake animation
+// durations. The bounce/shake class is only applied for this long -- left
+// on longer than that, it permanently wins the CSS cascade over
+// .warn-blink-gold/.warn-blink-red (same specificity, declared later in
+// the stylesheet), silencing the 10s/5s warning blink on any card whose
+// value has ever changed.
+const ANIM_DURATION_MS: Record<'bounce' | 'shake', number> = {
+  bounce: 490,
+  shake: 420,
+};
+
 /**
  * A single resource stat button (HP / Coins / ATK). Displays the current value
  * and plays a small bounce whenever that value changes, swapping to the new
@@ -60,6 +71,12 @@ export default function ResourceCard({
   const animRef = useRef(anim);
   animRef.current = anim;
   const [animClass, setAnimClass] = useState('resource-bounce');
+  // Whether the bounce/shake is actively playing right now -- distinct from
+  // bounceCount > 0, which stays true forever after the first change. Gating
+  // the class on this instead keeps it from permanently blocking the
+  // warn-blink cue once the animation has actually finished.
+  const [isAnimating, setIsAnimating] = useState(false);
+  const animEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (value === prevValueRef.current) return;
@@ -67,13 +84,18 @@ export default function ResourceCard({
 
     // Retrigger the animation (key-remount) with the kind for this change, and
     // swap the number after the animation's rise.
-    setAnimClass(animRef.current === 'shake' ? 'resource-shake' : 'resource-bounce');
+    const kind = animRef.current === 'shake' ? 'shake' : 'bounce';
+    setAnimClass(kind === 'shake' ? 'resource-shake' : 'resource-bounce');
     setBounceCount((c) => c + 1);
+    setIsAnimating(true);
     if (swapTimerRef.current) clearTimeout(swapTimerRef.current);
     swapTimerRef.current = setTimeout(() => setDisplayValue(value), SWAP_DELAY_MS);
+    if (animEndTimerRef.current) clearTimeout(animEndTimerRef.current);
+    animEndTimerRef.current = setTimeout(() => setIsAnimating(false), ANIM_DURATION_MS[kind]);
 
     return () => {
       if (swapTimerRef.current) clearTimeout(swapTimerRef.current);
+      if (animEndTimerRef.current) clearTimeout(animEndTimerRef.current);
     };
   }, [value]);
 
@@ -87,7 +109,7 @@ export default function ResourceCard({
         type="button"
         disabled={disabled}
         onClick={onClick}
-        className={`${BASE_CLASS} ${bounceCount > 0 ? animClass : ''} ${className}`}
+        className={`${BASE_CLASS} ${isAnimating ? animClass : ''} ${className}`}
       >
         <p className="text-gray-400 text-xs uppercase tracking-wide">{label}</p>
         <p className={`${valueClass} font-bold text-xl leading-tight`}>{displayValue}</p>
