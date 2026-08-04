@@ -213,15 +213,44 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo, ranke
           }}
         >
           {/* Action label -- what clicking this marker does -- reads above
-              the city name, bigger, with a white outline so it stands out
-              as the primary call to action. */}
+              the city name, bigger, wrapped in a pill so it reads as a
+              button rather than plain text, with a white outline so it
+              stands out as the primary call to action. */}
           {raidInfo && (
-            <span style={{ color: '#4da6ff', fontSize: hovered ? 17 : 13, fontWeight: 900, letterSpacing: '0.05em', WebkitTextStroke: '0.5px #fff' }}>
+            <span
+              style={{
+                color: '#4da6ff',
+                fontSize: hovered ? 22 : 18,
+                fontWeight: 900,
+                letterSpacing: '0.05em',
+                WebkitTextStroke: '0.5px #fff',
+                padding: '4px 14px',
+                borderRadius: 999,
+                background: 'rgba(77,166,255,0.18)',
+                border: '2px solid #4da6ff',
+                boxShadow: '0 0 10px rgba(77,166,255,0.5)',
+                transition: 'font-size 0.2s',
+              }}
+            >
               Bossfight
             </span>
           )}
           {rankedInfo?.status === 'idle' && (
-            <span style={{ color: '#ff6666', fontSize: hovered ? 17 : 13, fontWeight: 900, letterSpacing: '0.05em', WebkitTextStroke: '0.5px #fff' }}>
+            <span
+              style={{
+                color: '#ff6666',
+                fontSize: hovered ? 22 : 18,
+                fontWeight: 900,
+                letterSpacing: '0.05em',
+                WebkitTextStroke: '0.5px #fff',
+                padding: '4px 14px',
+                borderRadius: 999,
+                background: 'rgba(255,102,102,0.18)',
+                border: '2px solid #ff6666',
+                boxShadow: '0 0 10px rgba(255,102,102,0.5)',
+                transition: 'font-size 0.2s',
+              }}
+            >
               Play Ranked
             </span>
           )}

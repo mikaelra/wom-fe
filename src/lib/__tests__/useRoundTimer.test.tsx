@@ -16,13 +16,13 @@ describe('useRoundTimer', () => {
     expect(result.current).toBeNull();
   });
 
-  it('is null until the first tick, then counts down every second', () => {
+  it('computes the remaining time immediately, then counts down every second', () => {
     const now = new Date('2026-01-01T12:00:00.000Z');
     vi.setSystemTime(now);
     const roundEndTime = new Date(now.getTime() + 5000).toISOString();
 
     const { result } = renderHook(() => useRoundTimer(roundEndTime));
-    expect(result.current).toBeNull();
+    expect(result.current).toBe(5);
 
     act(() => {
       vi.advanceTimersByTime(1000);
@@ -82,6 +82,14 @@ describe('useRoundTimer', () => {
     expect(result.current).toBe(4);
 
     rerender({ endTime: secondEnd });
+    // Regression: secondsLeft must reflect the new deadline as soon as
+    // roundEndTime changes, not hold onto the old round's stale low value
+    // (4, here) until the next interval tick a second later -- that stale
+    // low value briefly satisfies the warn-blink threshold and made every
+    // resource/action button (and the reminder bubbles) flash at the start
+    // of every round.
+    expect(result.current).toBe(19);
+
     // A total of 2000ms of fake-clock time has now passed since `now` (the
     // first 1000ms before rerender, plus this one) -- the new interval's
     // own first tick reflects that, not just the 1000ms since rerender.

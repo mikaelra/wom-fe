@@ -166,6 +166,26 @@ describe('buildCombatAnimationPlan', () => {
       ]);
     });
 
+    it('carries the attacker name on the strike when their position is known, for the attacker glow', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'hit', attackerDied: false, damage: 2 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { attackerName?: string } };
+      expect(strike.strike.attackerName).toBe('Bob');
+    });
+
+    it('omits the attacker name when the attacker is anonymised (no known position)', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: null, outcome: 'hit', attackerDied: false, damage: 2 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { attackerName?: string } };
+      expect(strike.strike.attackerName).toBeUndefined();
+    });
+
     it('bundles the strike and its shield in one batch, and schedules shield removal separately', () => {
       const events: GameEvent[] = [
         { kind: 'incoming', attacker: 'Bob', outcome: 'blocked', attackerDied: false },

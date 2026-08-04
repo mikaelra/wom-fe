@@ -52,6 +52,29 @@ describe('ResourceCard', () => {
     vi.useRealTimers();
   });
 
+  it('removes the bounce/shake class once the animation finishes, instead of leaving it on forever', () => {
+    // Regression test: .resource-bounce/.resource-shake and .warn-blink-gold/
+    // .warn-blink-red both set the CSS `animation` shorthand. Previously the
+    // bounce/shake class was gated on bounceCount > 0, which never resets --
+    // so after a card's first-ever value change, that class permanently won
+    // the cascade over the warn-blink cue passed in via `className`, and the
+    // 10s/5s warning stopped blinking on that card for the rest of the game.
+    vi.useFakeTimers();
+    const { rerender } = render(<ResourceCard {...baseProps} value={10} className="warn-blink-gold" />);
+    expect(screen.getByRole('button').className).not.toContain('resource-bounce');
+
+    rerender(<ResourceCard {...baseProps} value={12} className="warn-blink-gold" />);
+    expect(screen.getByRole('button').className).toContain('resource-bounce');
+
+    act(() => {
+      vi.advanceTimersByTime(490);
+    });
+    expect(screen.getByRole('button').className).not.toContain('resource-bounce');
+    expect(screen.getByRole('button').className).toContain('warn-blink-gold');
+
+    vi.useRealTimers();
+  });
+
   it('does not collide React keys when a value change and a block pulse land on the same count', () => {
     // Regression test: bounceCount (the button's remount key) and
     // blockPulse (the aura span's key) are independent counters that both

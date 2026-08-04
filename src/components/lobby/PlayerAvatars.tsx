@@ -18,8 +18,12 @@ import { COIN_RELIC_ID } from '@/types/game';
 // the DOM every frame. They now share ONE <Html> root anchored at the name
 // (world y 0.5, distanceFactor 3.45) with the other elements absolutely
 // positioned around it in pre-scale pixels. ~230px ≈ 1 world unit here, so the
-// offsets below mirror the old world-space anchors (bubble 1.3, attack 0.9,
-// defend −0.1).
+// bubble/defend offsets below mirror the old world-space anchors (bubble
+// 1.3, defend −0.1). ATTACK was originally up at 0.9 (above the name, right
+// where the chat bubble sits) but that hid the bubble whenever a targetable
+// player was chatting, so it now shares DEFEND's spot below the name instead
+// -- the two never appear on the same player (attack targets other players,
+// defend only ever shows on your own).
 // drei's Html only recomputes its CSS `scale()` when the object's projected
 // 2D screen position moves by more than `eps` (default 0.001px) since the
 // last update -- it never checks camera *distance* directly. A camera dolly
@@ -38,7 +42,11 @@ import { COIN_RELIC_ID } from '@/types/game';
 export const HTML_EPS = 0;
 
 const STACK_BUBBLE_Y = -70;
-const STACK_ATTACK_Y = -92;
+// Attack sits below the name now, at the same spot as DEFEND (the two never
+// show on the same player -- attack targets other players, defend only ever
+// shows on your own) -- moved down from above the name so it stops
+// overlapping/hiding the chat bubble when a player is chatting.
+const STACK_ATTACK_Y = 138;
 const STACK_INFO_Y = 130;
 const STACK_DEFEND_Y = 138;
 

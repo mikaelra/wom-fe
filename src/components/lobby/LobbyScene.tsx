@@ -343,6 +343,25 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return pos;
   })();
 
+  // Same red glow as attackTargetGlowPos above, but from the other side: lit
+  // under whoever is attacking ME, for as long as their strike against me is
+  // playing out. strikeEvents already only holds an incoming entry for its
+  // animation's exact lifetime (added on 'addStrike', removed in SwordEffect's
+  // onDone -- see the strikeEvents.map render below), so "an incoming strike
+  // with a known attacker exists" is itself the correct on/off window; no
+  // separate timer needed. attackerName is unset for anonymised attackers
+  // (deception mechanic) -- nothing to glow under in that case.
+  const attackedByName = strikeEvents.find((s) => s.isIncoming && s.attackerName)?.attackerName;
+  const attackedByGlowPos: [number, number, number] | undefined = (() => {
+    if (!attackedByName) return undefined;
+    const pos = posMapRef.current.get(attackedByName);
+    if (!pos) return undefined;
+    if (attackedByName === bossName) {
+      return [pos[0], pos[1] - BOSS_Y_LIFT - BOSS_ATTACK_GLOW_EXTRA_DROP, pos[2]] as [number, number, number];
+    }
+    return pos;
+  })();
+
   // Compute world-space position for the crown (above winner's head, private lobbies only)
   const crownPosition = useMemo((): [number, number, number] | null => {
     if (!gameOver || isBossFight || !winner) return null;
@@ -437,21 +456,24 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   }, [state, playerName]);
 
   // Deny-ring drop: fires the moment `deny_target` newly names someone (set
-  // synchronously server-side on submit_deny_target, see lobby.py), riding the
-  // same state_update broadcast every client already receives — so the denier,
-  // the denied player, and bystanders all see it at the same instant without a
-  // dedicated event. Own ref (not prevStateRef) so ordering vs. the effect above
-  // doesn't matter.
+  // synchronously server-side on submit_deny_target, see lobby.py). Still
+  // rides the shared state_update broadcast every client receives, but the
+  // animation itself is private -- only rendered for the denier and the
+  // denied player (deny_denier is broadcast alongside deny_target for
+  // exactly this check), not for bystanders/spectators in the lobby. Own ref
+  // (not prevStateRef) so ordering vs. the effect above doesn't matter.
   useEffect(() => {
     const target = state?.deny_target ?? null;
     const prevTarget = prevDenyTargetRef.current;
     prevDenyTargetRef.current = target;
     if (!target || target === prevTarget) return;
+    const denier = state?.deny_denier ?? null;
+    if (playerName !== target && playerName !== denier) return;
     const pos = posMapRef.current.get(target);
     if (!pos) return;
     const id = `deny-${target}-${Date.now()}`;
     setDenyRingFx((fx) => [...fx, { id, pos }]);
-  }, [state?.deny_target]);
+  }, [state?.deny_target, state?.deny_denier, playerName]);
 
   // Dev preview: append ?debugDenyRing=1 to a lobby URL to replay the deny-ring
   // drop on the first seated player every few seconds, without needing to
@@ -1063,6 +1085,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         // visibly weaker under it than under a frog -- boosted 1.5x
         // (tuned by eye) specifically for that target, not globally.
         intensity={attackTarget === bossName ? 2 * 1.5 : 2}
+        gradient
+      />
+      {/* Same red glow as the attack-target one above, but under whoever is
+          attacking ME, while their strike animation plays. */}
+      <SelectionGlow
+        position={attackedByGlowPos ?? GLOW_PARK_POSITION}
+        yOffset={SELECTION_GLOW_Y_OFFSET}
+        color={ATTACK_SELECT_GLOW_COLOR}
+        active={!!attackedByGlowPos}
+        radius={1.1}
+        intensity={attackedByName === bossName ? 2 * 1.5 : 2}
         gradient
       />
 

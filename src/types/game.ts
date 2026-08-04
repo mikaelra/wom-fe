@@ -80,6 +80,10 @@ export const LobbyStateSchema = z.object({
   wellwinner: z.string().nullable(),
   pending_deny: z.string().nullable(),
   deny_target: z.string().nullable(),
+  // Who performed the deny that set deny_target -- lets a client tell
+  // whether it was the denier or the denied target, so the deny-ring
+  // animation can be scoped to just those two players, not the whole lobby.
+  deny_denier: z.string().nullable().optional(),
   readyPlayers: z.array(z.string()),
   history: z.array(z.string()),
   round_end_time: z.string().nullable(),
