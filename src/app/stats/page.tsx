@@ -143,20 +143,31 @@ export default function StatsPage() {
                 {wellWins} well win{wellWins === 1 ? '' : 's'}
               </p>
               {wellRewards.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {wellRewards.map(({ reward, count }) => {
-                    const info = WELL_REWARD_LABELS[reward];
-                    return (
-                      <div
-                        key={reward}
-                        className="flex flex-col items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-3"
-                      >
-                        <span className="text-2xl">{info?.emoji ?? '❔'}</span>
-                        <p className="text-xs font-semibold text-center">{info?.label ?? reward}</p>
-                        {count > 1 && <p className="text-[10px] text-white/50">×{count}</p>}
-                      </div>
-                    );
-                  })}
+                <div className="flex flex-col gap-1">
+                  {(() => {
+                    const maxCount = Math.max(...wellRewards.map(({ count }) => count));
+                    const sortedRewards = [...wellRewards].sort((a, b) => b.count - a.count);
+                    return sortedRewards.map(({ reward, count }) => {
+                      const info = WELL_REWARD_LABELS[reward];
+                      const barWidthPercent = (count / maxCount) * 80;
+                      return (
+                        <div
+                          key={reward}
+                          className="relative flex items-center justify-between rounded-lg px-3 py-2 overflow-hidden"
+                        >
+                          <div
+                            className="absolute inset-y-0 left-0 bg-white/10 rounded-lg"
+                            style={{ width: `${barWidthPercent}%` }}
+                          />
+                          <span className="relative text-sm">
+                            <span className="mr-2">{info?.emoji ?? '❔'}</span>
+                            {info?.label ?? reward}
+                          </span>
+                          <span className="relative text-xs text-white/50">×{count}</span>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               ) : (
                 <p className="text-sm text-white/50">You haven&apos;t discovered any Well rewards yet.</p>
