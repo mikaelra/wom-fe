@@ -10,7 +10,7 @@ import Table from '@/components/Table';
 import CameraFlyIn from '@/components/lobby/CameraFlyIn';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
-import WellRewardEffect, { preloadWellRewardModels, type WellRewardType } from '@/components/lobby/WellRewardEffect';
+import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
 import ResourceGainEffect, { isGainedResource, RESOURCE_GAIN_DUR, type GainedResource } from '@/components/lobby/ResourceGainEffect';
 import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight } from '@/components/lobby/WellGlowEffect';
@@ -24,7 +24,7 @@ import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { emitHpFx } from '@/lib/resourceFx';
 import { playCombatSound } from '@/lib/sounds';
-import { glowForReward, wellRewardFromEvents, type WellRewardComponent } from '@/lib/gameEvents';
+import { glowForReward, type WellRewardComponent } from '@/lib/gameEvents';
 import { skinUrl } from '@/lib/frogSkins';
 import {
   buildCombatAnimationPlan,
@@ -623,16 +623,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       else staggerTimeoutsRef.current.push(setTimeout(() => setStickyAttackTarget(null), combatStartOffsetMs));
     }
 
-    // "info" Well reward: snapshot every other player's current stats so
-    // PlayerAvatars can badge them for this round (then one more, greyed).
-    if (wonWell && wellRewardFromEvents(gameEvents.events).some((c) => c.type === 'info')) {
-      const stats = new Map<string, { hp: number; coins: number; attackDamage: number }>();
-      state.players.forEach((p) => {
-        if (p.name !== playerName) stats.set(p.name, { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage });
-      });
-      setInfoReveal({ round: state.round, stats });
-    }
-
     const applyAction = (action: CombatAnimationAction) => {
       switch (action.type) {
         case 'addStrike':
@@ -652,7 +642,28 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         }); break;
         case 'addKillBanner': setKillBanners((b) => [...b, action.banner]); break;
         case 'removeKillBanner': setKillBanners((b) => b.filter((x) => x.id !== action.id)); break;
-        case 'addWellRewardEvents': setWellRewardEvents((ev) => [...ev, ...action.events]); break;
+        case 'addWellRewardEvents': {
+          setWellRewardEvents((ev) => [...ev, ...action.events]);
+          // "info" Well reward: snapshot every other player's current stats
+          // so PlayerAvatars can badge them for this round (then one more,
+          // greyed) -- held back until the magnifying-glass model this same
+          // action just scheduled has actually landed (its own delay, e.g.
+          // staggered behind other rewards won the same round, plus the
+          // full travel+hold flight before it disappears into the player),
+          // rather than revealing the stats the instant the round resolves.
+          const infoEvent = action.events.find((e) => e.type === 'info');
+          if (infoEvent) {
+            const stats = new Map<string, { hp: number; coins: number; attackDamage: number }>();
+            state.players.forEach((p) => {
+              if (p.name !== playerName) stats.set(p.name, { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage });
+            });
+            const revealDelayMs = (infoEvent.delay + WELL_REWARD_FLIGHT_DUR) * 1000;
+            staggerTimeoutsRef.current.push(
+              setTimeout(() => setInfoReveal({ round: state.round, stats }), revealDelayMs),
+            );
+          }
+          break;
+        }
         case 'emitHpFx': emitHpFx(action.event); break;
         case 'addWellWinFx': setWellWinFx((fx) => [...fx, action.fx]); break;
         case 'removeWellWinFx': setWellWinFx((fx) => fx.filter((x) => x.id !== action.id)); break;
