@@ -286,7 +286,6 @@ const lobbyConfig: SceneOverlayConfig = {
   suppressEnemyPanel: true,
   showEnemyAlways: false,
   showPlayerList: true,
-  showDenyPicker: true,
   showChat: true,
   enableRaidTimer: true,
   hidePlayerActionButtons: true,

@@ -304,7 +304,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const allPlayers = useMemo(() => state?.players ?? [], [state?.players]);
   const lostSouls = useMemo(() => allPlayers.filter((p) => p.lost_soul), [allPlayers]);
 
-  const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase, isAdmin } = useLobbyGame(state, playerName);
+  const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase, isAdmin, isPendingDenyChooser } = useLobbyGame(state, playerName);
+  // While the local player holds a pending deny (won it a previous round,
+  // hasn't used it yet this round), Attack is blocked in favor of a Deny
+  // button on every eligible target -- see the players.map loop below.
+  // Folded with showAttackButtons (not showActionButtonsLook) so this only
+  // ever applies while the player could otherwise actually act right now.
+  const pendingDenyActive = isPendingDenyChooser && showAttackButtons;
   // showAttackButtons flips false the instant canAct's isAlive check does --
   // well before the kill animation (deathPending, see above) has revealed my
   // own death, instantly giving it away. While my own dead pose is still
@@ -934,20 +940,28 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // showAttackButtons so a click landing in that window can't submit
   // anything for an already-dead player.
   const handleAttack = useCallback((targetName: string) => {
-    if (!showAttackButtons) return;
+    if (!showAttackButtons || pendingDenyActive) return;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'attack', target: targetName, resource: '' });
     setSelectedSoulIdx(null);
     onAttackSelect?.(targetName);
-  }, [lobbyId, onAttackSelect, showAttackButtons]);
+  }, [lobbyId, onAttackSelect, showAttackButtons, pendingDenyActive]);
 
   // Lost souls all share one server name, so the emitted target is the shared
   // name while the clicked index is remembered locally for selection UI.
   const handleSoulAttack = useCallback((targetName: string, index: number) => {
-    if (!showAttackButtons) return;
+    if (!showAttackButtons || pendingDenyActive) return;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'attack', target: targetName, resource: '' });
     setSelectedSoulIdx(index);
     onAttackSelect?.(targetName);
-  }, [lobbyId, onAttackSelect, showAttackButtons]);
+  }, [lobbyId, onAttackSelect, showAttackButtons, pendingDenyActive]);
+
+  // Clicking a Deny symbol immediately resolves the pending deny -- the
+  // symbol disappears (pendingDenyActive flips false once the server
+  // confirms) and Attack becomes available again the same round.
+  const handleDeny = useCallback((targetName: string) => {
+    if (!pendingDenyActive) return;
+    getSocket().emit('submit_deny_target', { lobby_id: lobbyId, target: targetName });
+  }, [lobbyId, pendingDenyActive]);
 
   const handleDefend = useCallback(() => {
     if (!showAttackButtons) return;
@@ -1033,8 +1047,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             bossHp={isBoss ? player.hp : undefined}
             bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
             frogSkinUrl={skinMap.get(player.name)}
-            showAttackButton={showActionButtonsLook && isOpponent && !isDead && (!isBossFight || isBoss)}
+            showAttackButton={showActionButtonsLook && !pendingDenyActive && isOpponent && !isDead && (!isBossFight || isBoss)}
             onAttack={handleAttack}
+            showDenyButton={pendingDenyActive && isOpponent && !isDead && (!isBossFight || isBoss)}
+            onDeny={handleDeny}
             isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
             actionCue={actionCue}
             instakillActive={instakillVisualActive}
@@ -1079,7 +1095,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             name={soul.name}
             index={i}
             position={pos}
-            showAttackButton={showActionButtonsLook && !isDead}
+            showAttackButton={showActionButtonsLook && !pendingDenyActive && !isDead}
             onAttack={handleSoulAttack}
             isAttackSelected={currentAction === 'attack' && attackTarget === soul.name && selectedSoulIdx === i}
             actionCue={actionCue}

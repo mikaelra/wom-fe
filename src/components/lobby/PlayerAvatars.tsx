@@ -260,6 +260,37 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, h
   );
 }
 
+// Deny symbol — no dedicated button art exists yet (unlike attack/defend/
+// well, which are all cropped PNGs), so this reuses the same 🚫 glyph the
+// backend's deny message uses (sockets/lobby.py), sized/glowed to read at
+// roughly the visual weight of the image buttons it swaps places with.
+function DenySymbolButton({ onClick, style }: { onClick?: () => void; style?: CSSProperties }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Deny this player's choices this round"
+      style={{
+        cursor: 'pointer',
+        background: 'rgba(0,0,0,0.55)',
+        border: '3px solid rgba(248,113,113,0.9)',
+        borderRadius: '50%',
+        width: '92px',
+        height: '92px',
+        fontSize: '52px',
+        lineHeight: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        filter: 'drop-shadow(0 0 10px rgba(239,68,68,0.85))',
+        ...style,
+      }}
+    >
+      🚫
+    </button>
+  );
+}
+
 export const PlayerWithName = memo(function PlayerWithName({
   name,
   position,
@@ -269,6 +300,8 @@ export const PlayerWithName = memo(function PlayerWithName({
   isWinner,
   showAttackButton,
   onAttack,
+  showDenyButton,
+  onDeny,
   isAttackSelected,
   actionCue,
   instakillActive,
@@ -303,6 +336,11 @@ export const PlayerWithName = memo(function PlayerWithName({
   showAttackButton?: boolean;
   /** Called with this player's name — stable across renders so memo() holds. */
   onAttack?: (name: string) => void;
+  /** Deny reward: shown instead of the Attack button (same stack slot, never
+   *  both at once) while the viewer holds a pending deny and this player is
+   *  an eligible target. Clicking resolves the deny immediately. */
+  showDenyButton?: boolean;
+  onDeny?: (name: string) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
   /** Poisoned Dagger (instakill Well reward) active cue on this player's own
@@ -338,15 +376,18 @@ export const PlayerWithName = memo(function PlayerWithName({
   // transient FOV value at mount time can't leave it stuck oversized.
   const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
   // Clicking the model itself selects the same action as its button --
-  // attack this player if they're a legal target, or defend if this is your
-  // own model. The two flags are never both true for the same player (an
-  // opponent can't also be showOwnActions), so there's no ambiguity about
-  // which action a click means.
-  const clickSelectable = !!showAttackButton || !!showOwnActions;
+  // attack this player if they're a legal target, deny them if a deny is
+  // pending, or defend if this is your own model. The three flags are
+  // never more than one true for the same player (an opponent can't also
+  // be showOwnActions, and showAttackButton/showDenyButton are mutually
+  // exclusive -- see LobbyScene.tsx), so there's no ambiguity about which
+  // action a click means.
+  const clickSelectable = !!showAttackButton || !!showDenyButton || !!showOwnActions;
   const handleModelClick = (e: ThreeEvent<MouseEvent>) => {
     if (!clickSelectable) return;
     e.stopPropagation();
     if (showAttackButton) onAttack?.(name);
+    else if (showDenyButton) onDeny?.(name);
     else onDefend?.();
   };
   const handleModelPointerOver = (e: ThreeEvent<PointerEvent>) => {
@@ -487,6 +528,16 @@ export const PlayerWithName = memo(function PlayerWithName({
             />
           )}
 
+          {/* DENY symbol -- same stack slot as Attack (the two never show on
+              the same player at once, see LobbyScene.tsx's pendingDenyActive
+              gating). Clicking resolves the deny immediately. */}
+          {showDenyButton && !isBoss && (
+            <DenySymbolButton
+              onClick={() => onDeny?.(name)}
+              style={stackItem(STACK_ATTACK_Y, true)}
+            />
+          )}
+
           {/* DEFEND button — own player only */}
           {showOwnActions && (
             <ActionImageButton
@@ -522,7 +573,7 @@ export const PlayerWithName = memo(function PlayerWithName({
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
         <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]} eps={HTML_EPS}>
           <div style={{
-            pointerEvents: showAttackButton ? 'auto' : 'none',
+            pointerEvents: (showAttackButton || showDenyButton) ? 'auto' : 'none',
             userSelect: 'none',
             textAlign: 'left',
             minWidth: '240px',
@@ -548,6 +599,12 @@ export const PlayerWithName = memo(function PlayerWithName({
                 glowColor="rgba(239,68,68,0.7)"
                 width={170}
                 className={`${actionCue} ${instakillActive ? 'instakill-flame' : ''}`}
+                style={{ marginTop: '10px', pointerEvents: 'auto' }}
+              />
+            )}
+            {showDenyButton && (
+              <DenySymbolButton
+                onClick={() => onDeny?.(name)}
                 style={{ marginTop: '10px', pointerEvents: 'auto' }}
               />
             )}
