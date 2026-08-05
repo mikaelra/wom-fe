@@ -79,6 +79,10 @@ const DEATH_POSE_FALLBACK_MS = 4000;
 // finishes landing -- a beat ahead of the full reveal, not simultaneous
 // with it. Tuned by eye; bump it up for an earlier cue, down for later.
 const INSTAKILL_GLOW_LEAD_MS = 300;
+// Deny prompt (floating model + Attack block) fires this much before the
+// deny reward's WellRewardEffect model finishes landing -- see
+// INSTAKILL_GLOW_LEAD_MS above, same idea. Tuned by eye.
+const DENY_REVEAL_LEAD_MS = 600;
 
 useGLTF.preload('/models/shields/shield_animation-ld.glb');
 
@@ -99,6 +103,13 @@ const WELL_SELECT_GLOW_COLOR   = '#a78bfa';
 const ATTACK_SELECT_GLOW_COLOR = '#ef4444';
 const DEFEND_SELECT_GLOW_COLOR = '#3b82f6';
 const DEFEND_SELECT_GLOW_INTENSITY = 2;
+// Deny prompt: an orange ground glow under every eligible target at once
+// (unlike the other SelectionGlow uses below, which each track a single
+// current choice) -- see the players.map/lostSouls.map loops, which each
+// render one of these per eligible player/soul.
+const DENY_TARGET_GLOW_COLOR = '#f97316';
+const DENY_TARGET_GLOW_RADIUS = 1.1;
+const DENY_TARGET_GLOW_INTENSITY = 2.5;
 // Poisoned Dagger (instakill) cue -- a larger, slower-breathing green glow
 // layered under the red attack-target glow when picking who to attack. Same
 // "always on" WIP status as the instakill-flame CSS cue on the ATK card/
@@ -210,6 +221,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [killFireEvents, setKillFireEvents] = useState<KillFireEvent[]>([]);
   const [killBanners, setKillBanners] = useState<KillBanner[]>([]);
   const [denyRingFx, setDenyRingFx] = useState<{ id: string; pos: [number, number, number] }[]>([]);
+  // Denier glow: only shown to the denied player themself, under whoever
+  // denied them -- see the same trigger effect as denyRingFx below. A
+  // single persistent SelectionGlow (position parked, active toggled) like
+  // the attack/defend/well glows below, not a one-shot mounted effect, so
+  // it fades in/out with the same gradual SelectionGlow envelope those use
+  // instead of a sharper hand-timed blink.
+  const [denierGlowPos, setDenierGlowPos] = useState<[number, number, number]>(GLOW_PARK_POSITION);
+  const [denierGlowActive, setDenierGlowActive] = useState(false);
+  const denierGlowTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const prevDenyTargetRef = useRef<string | null>(null);
   // Opponent stats captured when the local player wins the Well's "info"
   // reward. Rendered on each opponent for the round it's captured (fresh),
@@ -305,12 +325,21 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const lostSouls = useMemo(() => allPlayers.filter((p) => p.lost_soul), [allPlayers]);
 
   const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase, isAdmin, isPendingDenyChooser } = useLobbyGame(state, playerName);
-  // While the local player holds a pending deny (won it a previous round,
-  // hasn't used it yet this round), Attack is blocked in favor of a Deny
-  // button on every eligible target -- see the players.map loop below.
-  // Folded with showAttackButtons (not showActionButtonsLook) so this only
-  // ever applies while the player could otherwise actually act right now.
-  const pendingDenyActive = isPendingDenyChooser && showAttackButtons;
+  // Whether the deny prompt (floating model + Attack block, see the
+  // players.map loop below) should actually be showing. Deliberately NOT
+  // just isPendingDenyChooser -- that flips true the instant the round
+  // resolves, well before the deny reward's WellRewardEffect model has
+  // even started its arc. A forfeited-if-unused pending deny (see wom-be's
+  // engine/phases/well.py) is always freshly won the round it's live for,
+  // so unlike instakillVisualActive there's no "already held entering this
+  // round" case to short-circuit -- every activation waits for that
+  // round's addWellRewardEvents 'deny' case (below) to reveal it a beat
+  // before the model lands. Cleared immediately (no delay) the moment
+  // pending_deny stops being mine -- used, forfeited, or round moved on.
+  const [pendingDenyActive, setPendingDenyActive] = useState(false);
+  useEffect(() => {
+    if (!isPendingDenyChooser) setPendingDenyActive(false);
+  }, [isPendingDenyChooser]);
   // showAttackButtons flips false the instant canAct's isAlive check does --
   // well before the kill animation (deathPending, see above) has revealed my
   // own death, instantly giving it away. While my own dead pose is still
@@ -505,6 +534,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     setKillFireEvents([]);
     setKillBanners([]);
     setDenyRingFx([]);
+    denierGlowTimeoutsRef.current.forEach(clearTimeout);
+    denierGlowTimeoutsRef.current = [];
+    setDenierGlowActive(false);
     setDeathPending(new Set());
 
     // Safety net for the sticky ready-sword/defend-shield above: the
@@ -567,6 +599,25 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     }
   }, [state, playerName]);
 
+  // Drives denierGlowActive through two on/off blinks, letting
+  // SelectionGlow's own gradual FADE_RATE lerp handle each transition
+  // (same envelope the attack/defend/well glows use) rather than a sharper
+  // hand-timed one. Stable identity (only depends on the ref) so it's safe
+  // in both the real trigger effect below and the debug-preview interval.
+  const triggerDenierGlow = useCallback((pos: [number, number, number]) => {
+    denierGlowTimeoutsRef.current.forEach(clearTimeout);
+    denierGlowTimeoutsRef.current = [];
+    setDenierGlowPos(pos);
+    setDenierGlowActive(true);
+    const BLINK_ON_MS = 350;
+    const BLINK_GAP_MS = 200;
+    denierGlowTimeoutsRef.current.push(setTimeout(() => setDenierGlowActive(false), BLINK_ON_MS));
+    denierGlowTimeoutsRef.current.push(setTimeout(() => setDenierGlowActive(true), BLINK_ON_MS + BLINK_GAP_MS));
+    denierGlowTimeoutsRef.current.push(
+      setTimeout(() => setDenierGlowActive(false), BLINK_ON_MS * 2 + BLINK_GAP_MS),
+    );
+  }, []);
+
   // Deny-ring drop: fires the moment `deny_target` newly names someone (set
   // synchronously server-side on submit_deny_target, see lobby.py). Still
   // rides the shared state_update broadcast every client receives, but the
@@ -582,10 +633,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     const denier = state?.deny_denier ?? null;
     if (playerName !== target && playerName !== denier) return;
     const pos = posMapRef.current.get(target);
-    if (!pos) return;
-    const id = `deny-${target}-${Date.now()}`;
-    setDenyRingFx((fx) => [...fx, { id, pos }]);
-  }, [state?.deny_target, state?.deny_denier, playerName]);
+    if (pos) {
+      const id = `deny-${target}-${Date.now()}`;
+      setDenyRingFx((fx) => [...fx, { id, pos }]);
+    }
+    // Denier glow: only the denied player themself sees this one, under
+    // whoever denied them.
+    if (playerName === target && denier) {
+      const denierPos = posMapRef.current.get(denier);
+      if (denierPos) triggerDenierGlow(denierPos);
+    }
+  }, [state?.deny_target, state?.deny_denier, playerName, triggerDenierGlow]);
 
   // Dev preview: append ?debugDenyRing=1 to a lobby URL to replay the deny-ring
   // drop on the first seated player every few seconds, without needing to
@@ -733,6 +791,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             );
             staggerTimeoutsRef.current.push(
               setTimeout(() => setInstakillVisualActive(true), revealDelayMs),
+            );
+          }
+          // Deny reward: same "wait for the model to land" reveal -- see
+          // pendingDenyActive's own comment.
+          const denyEvent = action.events.find((e) => e.type === 'deny');
+          if (denyEvent) {
+            const revealDelayMs = Math.max(
+              0,
+              (denyEvent.delay + WELL_REWARD_FLIGHT_DUR) * 1000 - DENY_REVEAL_LEAD_MS,
+            );
+            staggerTimeoutsRef.current.push(
+              setTimeout(() => setPendingDenyActive(true), revealDelayMs),
             );
           }
           break;
@@ -1034,42 +1104,57 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           if (s && infoReveal.round === state?.round) infoBadge = { ...s, stale: false };
           else if (s && infoReveal.round === (state?.round ?? 0) - 1) infoBadge = { ...s, stale: true };
         }
+        const showDenyForThisPlayer = pendingDenyActive && isOpponent && !isDead && (!isBossFight || isBoss);
         return (
-          <PlayerWithName
-            key={player.name}
-            name={player.name}
-            position={position}
-            rotation={rotation}
-            isAnimating={true}
-            isDead={showDeadPose}
-            isWinner={!!isWinner}
-            isBoss={isBoss}
-            bossHp={isBoss ? player.hp : undefined}
-            bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
-            frogSkinUrl={skinMap.get(player.name)}
-            showAttackButton={showActionButtonsLook && !pendingDenyActive && isOpponent && !isDead && (!isBossFight || isBoss)}
-            onAttack={handleAttack}
-            showDenyButton={pendingDenyActive && isOpponent && !isDead && (!isBossFight || isBoss)}
-            onDeny={handleDeny}
-            isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
-            actionCue={actionCue}
-            instakillActive={instakillVisualActive}
-            chatBubble={chatBubbles.get(player.name)}
-            showOwnActions={isOwnPlayer && showActionButtonsLook && !showDeadPose}
-            currentAction={currentAction}
-            onDefend={handleDefend}
-            showShield={isOwnPlayer && defendShieldActive}
-            infoReveal={infoBadge}
-            showLobbyControls={showLobbyControls}
-            isOwnPlayer={isOwnPlayer}
-            isSpectator={player.spectator}
-            isReady={state?.readyPlayers?.includes(player.name) ?? false}
-            isIdle={(player.idle_rounds ?? 0) >= 2}
-            selectedRelicIds={player.selected_relic_ids}
-            viewerIsAdmin={isAdmin}
-            onKick={handleKick}
-            onToggleRelicSelection={handleToggleRelicSelection}
-          />
+          <group key={player.name}>
+            <PlayerWithName
+              name={player.name}
+              position={position}
+              rotation={rotation}
+              isAnimating={true}
+              isDead={showDeadPose}
+              isWinner={!!isWinner}
+              isBoss={isBoss}
+              bossHp={isBoss ? player.hp : undefined}
+              bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
+              frogSkinUrl={skinMap.get(player.name)}
+              showAttackButton={showActionButtonsLook && !pendingDenyActive && isOpponent && !isDead && (!isBossFight || isBoss)}
+              onAttack={handleAttack}
+              showDenyButton={showDenyForThisPlayer}
+              onDeny={handleDeny}
+              isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
+              actionCue={actionCue}
+              instakillActive={instakillVisualActive}
+              chatBubble={chatBubbles.get(player.name)}
+              showOwnActions={isOwnPlayer && showActionButtonsLook && !showDeadPose}
+              currentAction={currentAction}
+              onDefend={handleDefend}
+              showShield={isOwnPlayer && defendShieldActive}
+              infoReveal={infoBadge}
+              showLobbyControls={showLobbyControls}
+              isOwnPlayer={isOwnPlayer}
+              isSpectator={player.spectator}
+              isReady={state?.readyPlayers?.includes(player.name) ?? false}
+              isIdle={(player.idle_rounds ?? 0) >= 2}
+              selectedRelicIds={player.selected_relic_ids}
+              viewerIsAdmin={isAdmin}
+              onKick={handleKick}
+              onToggleRelicSelection={handleToggleRelicSelection}
+            />
+            <SelectionGlow
+              // Exact same BOSS_Y_LIFT + BOSS_ATTACK_GLOW_EXTRA_DROP
+              // correction the attack-target glow applies (attackTargetGlowPos
+              // above) -- several rounds of independent tuning here never
+              // clearly beat just matching that one, so back to matching it.
+              position={isBoss ? [position[0], position[1] - BOSS_Y_LIFT - BOSS_ATTACK_GLOW_EXTRA_DROP, position[2]] : position}
+              yOffset={SELECTION_GLOW_Y_OFFSET}
+              color={DENY_TARGET_GLOW_COLOR}
+              active={showDenyForThisPlayer}
+              radius={DENY_TARGET_GLOW_RADIUS}
+              intensity={isBoss ? DENY_TARGET_GLOW_INTENSITY * 1.5 : DENY_TARGET_GLOW_INTENSITY}
+              gradient
+            />
+          </group>
         );
       })}
 
@@ -1086,22 +1171,35 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           if (s && infoReveal.round === state?.round) infoBadge = { ...s, stale: false };
           else if (s && infoReveal.round === (state?.round ?? 0) - 1) infoBadge = { ...s, stale: true };
         }
+        const showDenyForThisSoul = pendingDenyActive && !isDead;
         return (
-          <LostSoulModel
-            // All souls share the same server name, so the name alone is
-            // neither a unique key nor a unique attack target (clicking one
-            // used to light up every soul's button).
-            key={`${soul.name}-${i}`}
-            name={soul.name}
-            index={i}
-            position={pos}
-            showAttackButton={showActionButtonsLook && !pendingDenyActive && !isDead}
-            onAttack={handleSoulAttack}
-            isAttackSelected={currentAction === 'attack' && attackTarget === soul.name && selectedSoulIdx === i}
-            actionCue={actionCue}
-            infoReveal={infoBadge}
-            instakillActive={instakillVisualActive}
-          />
+          // All souls share the same server name, so the name alone is
+          // neither a unique key nor a unique attack target (clicking one
+          // used to light up every soul's button).
+          <group key={`${soul.name}-${i}`}>
+            <LostSoulModel
+              name={soul.name}
+              index={i}
+              position={pos}
+              showAttackButton={showActionButtonsLook && !pendingDenyActive && !isDead}
+              onAttack={handleSoulAttack}
+              showDenyButton={showDenyForThisSoul}
+              onDeny={handleDeny}
+              isAttackSelected={currentAction === 'attack' && attackTarget === soul.name && selectedSoulIdx === i}
+              actionCue={actionCue}
+              infoReveal={infoBadge}
+              instakillActive={instakillVisualActive}
+            />
+            <SelectionGlow
+              position={pos}
+              yOffset={SELECTION_GLOW_Y_OFFSET}
+              color={DENY_TARGET_GLOW_COLOR}
+              active={showDenyForThisSoul}
+              radius={DENY_TARGET_GLOW_RADIUS * 0.6}
+              intensity={DENY_TARGET_GLOW_INTENSITY * 0.7}
+              gradient
+            />
+          </group>
         );
       })}
 
@@ -1292,6 +1390,19 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         intensity={DEFEND_SELECT_GLOW_INTENSITY}
         gradient
       />
+      {/* Denier glow -- only the player who was just denied sees this one,
+          under whoever denied them. Blinked twice via triggerDenierGlow
+          toggling `active`, so it fades in/out gradually each time (same
+          envelope as this Defend glow above) instead of a sharper blink. */}
+      <SelectionGlow
+        position={denierGlowPos}
+        yOffset={SELECTION_GLOW_Y_OFFSET}
+        color={DENY_TARGET_GLOW_COLOR}
+        active={denierGlowActive}
+        radius={DENY_TARGET_GLOW_RADIUS * 1.5}
+        intensity={DENY_TARGET_GLOW_INTENSITY}
+        gradient
+      />
       {/* Block glow -- same blue, half the defend-selection glow's strength.
           buildCombatAnimationPlan's scheduleBlockGlow switches it on shortly
           before impact and off right on impact -- SelectionGlow's own
@@ -1385,6 +1496,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           onDone={() => setDenyRingFx((e) => e.filter((x) => x.id !== fx.id))}
         />
       ))}
+
 
       {/* Witness banner — names the killer in a fiery style above their head */}
       {killBanners.map((b) => (

@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import PlayerV1 from '@/components/Playerv1';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
+import DenyModelButton from '@/components/lobby/DenyModelButton';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { skinUrl } from '@/lib/frogSkins';
 import { COIN_RELIC_ID } from '@/types/game';
@@ -260,37 +261,6 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, h
   );
 }
 
-// Deny symbol — no dedicated button art exists yet (unlike attack/defend/
-// well, which are all cropped PNGs), so this reuses the same 🚫 glyph the
-// backend's deny message uses (sockets/lobby.py), sized/glowed to read at
-// roughly the visual weight of the image buttons it swaps places with.
-function DenySymbolButton({ onClick, style }: { onClick?: () => void; style?: CSSProperties }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title="Deny this player's choices this round"
-      style={{
-        cursor: 'pointer',
-        background: 'rgba(0,0,0,0.55)',
-        border: '3px solid rgba(248,113,113,0.9)',
-        borderRadius: '50%',
-        width: '92px',
-        height: '92px',
-        fontSize: '52px',
-        lineHeight: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        filter: 'drop-shadow(0 0 10px rgba(239,68,68,0.85))',
-        ...style,
-      }}
-    >
-      🚫
-    </button>
-  );
-}
-
 export const PlayerWithName = memo(function PlayerWithName({
   name,
   position,
@@ -420,6 +390,17 @@ export const PlayerWithName = memo(function PlayerWithName({
         />
       </Suspense>
 
+      {/* Deny prompt -- a ghosted copy of the Well's deny reward model,
+          floating in front of this player. Inside the same group as the
+          model above (and this group's own onClick/hover, wired above), so
+          the whole avatar plus this float is one clickable target while a
+          deny is pending -- no click handler of its own needed. */}
+      {showDenyButton && (
+        <Suspense fallback={null}>
+          <DenyModelButton variant={isBoss ? 'boss' : 'player'} />
+        </Suspense>
+      )}
+
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
           (see stackItem above). The boss HP card below stays separate — it uses
           a different scale (4.2) and z-order. */}
@@ -528,16 +509,6 @@ export const PlayerWithName = memo(function PlayerWithName({
             />
           )}
 
-          {/* DENY symbol -- same stack slot as Attack (the two never show on
-              the same player at once, see LobbyScene.tsx's pendingDenyActive
-              gating). Clicking resolves the deny immediately. */}
-          {showDenyButton && !isBoss && (
-            <DenySymbolButton
-              onClick={() => onDeny?.(name)}
-              style={stackItem(STACK_ATTACK_Y, true)}
-            />
-          )}
-
           {/* DEFEND button — own player only */}
           {showOwnActions && (
             <ActionImageButton
@@ -573,7 +544,7 @@ export const PlayerWithName = memo(function PlayerWithName({
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
         <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]} eps={HTML_EPS}>
           <div style={{
-            pointerEvents: (showAttackButton || showDenyButton) ? 'auto' : 'none',
+            pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
             textAlign: 'left',
             minWidth: '240px',
@@ -599,12 +570,6 @@ export const PlayerWithName = memo(function PlayerWithName({
                 glowColor="rgba(239,68,68,0.7)"
                 width={170}
                 className={`${actionCue} ${instakillActive ? 'instakill-flame' : ''}`}
-                style={{ marginTop: '10px', pointerEvents: 'auto' }}
-              />
-            )}
-            {showDenyButton && (
-              <DenySymbolButton
-                onClick={() => onDeny?.(name)}
                 style={{ marginTop: '10px', pointerEvents: 'auto' }}
               />
             )}
@@ -637,6 +602,8 @@ export const LostSoulModel = memo(function LostSoulModel({
   position,
   showAttackButton,
   onAttack,
+  showDenyButton,
+  onDeny,
   isAttackSelected,
   actionCue,
   instakillActive,
@@ -649,6 +616,10 @@ export const LostSoulModel = memo(function LostSoulModel({
   showAttackButton?: boolean;
   /** Called with (name, index) — stable across renders so memo() holds. */
   onAttack?: (name: string, index: number) => void;
+  /** Deny reward: shown instead of the Attack button while the viewer holds
+   *  a pending deny -- same mutual-exclusion as PlayerWithName. */
+  showDenyButton?: boolean;
+  onDeny?: (name: string) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
   /** Poisoned Dagger (instakill Well reward) active cue -- see globals.css'
@@ -660,6 +631,7 @@ export const LostSoulModel = memo(function LostSoulModel({
   const ref = useRef<THREE.Group>(null);
   // See useRemountKeyOnceSettled's own comment, and PlayerWithName's use of it.
   const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
+  const clickSelectable = !!showAttackButton || !!showDenyButton;
 
   useFrame((state) => {
     if (ref.current) {
@@ -672,21 +644,29 @@ export const LostSoulModel = memo(function LostSoulModel({
       ref={ref}
       position={position}
       onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (!showAttackButton) return;
+        if (!clickSelectable) return;
         e.stopPropagation();
-        onAttack?.(name, index);
+        if (showAttackButton) onAttack?.(name, index);
+        else onDeny?.(name);
       }}
       onPointerOver={(e: ThreeEvent<PointerEvent>) => {
-        if (!showAttackButton) return;
+        if (!clickSelectable) return;
         e.stopPropagation();
         document.body.style.cursor = 'pointer';
       }}
-      onPointerOut={() => { if (showAttackButton) document.body.style.cursor = 'default'; }}
+      onPointerOut={() => { if (clickSelectable) document.body.style.cursor = 'default'; }}
     >
       {/* 3D model — lazy; name label and attack button render immediately */}
       <Suspense fallback={null}>
         <LostSoulMesh />
       </Suspense>
+      {/* Deny prompt -- see PlayerWithName's identical comment on why this
+          needs no click handler of its own. */}
+      {showDenyButton && (
+        <Suspense fallback={null}>
+          <DenyModelButton variant="lostSoul" />
+        </Suspense>
+      )}
       {/* Name + attack button share one Html root (was two per soul). The
           button sits ~0.15 world units (≈35px pre-scale) above the name. */}
       <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
