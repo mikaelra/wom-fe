@@ -401,47 +401,6 @@ describe('action-availability gating', () => {
   });
 });
 
-describe('deny picker', () => {
-  const bob: Player = { ...basePlayer, name: 'Bob' };
-
-  it('is hidden when the config does not enable it, even if this player is the pending chooser', () => {
-    mockedUseLobbyGame.mockReturnValue({
-      ...baseLobbyGameResult,
-      isPendingDenyChooser: true,
-      eligibleDenyTargets: [bob],
-    });
-    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
-    expect(screen.queryByText('Choose someone to deny next round')).not.toBeInTheDocument();
-  });
-
-  it('is hidden when this player is not the pending chooser, even if the config enables it', () => {
-    mockedUseLobbyGame.mockReturnValue({
-      ...baseLobbyGameResult,
-      isPendingDenyChooser: false,
-      eligibleDenyTargets: [bob],
-    });
-    render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, showDenyPicker: true }} />);
-    expect(screen.queryByText('Choose someone to deny next round')).not.toBeInTheDocument();
-  });
-
-  it('lists eligible targets and emits submit_deny_target once one is picked', () => {
-    mockedUseLobbyGame.mockReturnValue({
-      ...baseLobbyGameResult,
-      isPendingDenyChooser: true,
-      eligibleDenyTargets: [bob],
-    });
-    render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, showDenyPicker: true }} />);
-
-    const denyButton = screen.getByText('Deny');
-    expect(denyButton).toBeDisabled();
-
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'Bob' } });
-    expect(denyButton).not.toBeDisabled();
-
-    fireEvent.click(denyButton);
-    expect(emit).toHaveBeenCalledWith('submit_deny_target', { lobby_id: 'AAAA', target: 'Bob' });
-  });
-});
 
 describe('chat panel', () => {
   const chatConfig = { ...baseConfig, showChat: true };

@@ -75,7 +75,6 @@ export type SceneOverlayConfig = {
    *  If false, only shown when state.boss_fight is truthy. */
   showEnemyAlways?: boolean;
   showPlayerList?: boolean;
-  showDenyPicker?: boolean;
   showChat?: boolean;
   enableRaidTimer?: boolean;
   /** When true the WELL/DEFEND/resource/nametag buttons are suppressed from the
@@ -141,7 +140,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     enemyMaxHp,
     showEnemyAlways = false,
     showPlayerList = false,
-    showDenyPicker = false,
     showChat = false,
     enableRaidTimer = false,
     hidePlayerActionButtons = false,
@@ -155,7 +153,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [messages, setMessages] = useState<(string | string[])[]>([]);
   const [action, setAction] = useState('');
   const [resource, setResource] = useState('');
-  const [denyTarget, setDenyTarget] = useState('');
   const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [messagesOverflow, setMessagesOverflow] = useState(false);
   const [messagesHidden, setMessagesHidden] = useState(false);
@@ -211,15 +208,12 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     isAlive,
     isAdmin,
     enemy,
-    isPendingDenyChooser,
-    eligibleDenyTargets,
     isDenied,
     canAct,
     phase,
   } = useLobbyGame(state, playerName);
   const gameStarted = round > 0;
   const gameOver = phase === 'gameover';
-  const isChoosingDeny = showDenyPicker && isPendingDenyChooser;
   const secondsLeft = useRoundTimer(state?.round_end_time);
 
   // Kicking (handle_kick_player, wom-be) is the only thing that ever
@@ -235,7 +229,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const wasKicked = wasEverMyPlayerRef.current && !myPlayer;
 
   useEffect(() => {
-    setDenyTarget('');
     setAction('');
     setResource('');
     setMessagesExpanded(false);
@@ -405,10 +398,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       resource: '',
       target: act === 'attack' && enemy ? enemy.name : undefined,
     });
-  };
-
-  const handleDeny = () => {
-    getSocket().emit('submit_deny_target', { lobby_id: lobbyId, target: denyTarget });
   };
 
   useEffect(() => {
@@ -865,38 +854,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           {resourceReminder}
           {resetCameraButton}
           <div className="flex gap-2">{renderResourceCards(myPlayer)}</div>
-        </div>
-      )}
-
-      {/* Deny target picker (optional) */}
-      {isChoosingDeny && (
-        <div
-          className="absolute pointer-events-auto z-30"
-          style={{ bottom: '4%', left: '50%', transform: 'translateX(-50%)' }}
-        >
-          <div className="bg-black/80 backdrop-blur-sm rounded-xl border border-amber-500/30 p-4 text-white">
-            <h3 className="font-semibold text-sm text-amber-400 mb-3">Choose someone to deny next round</h3>
-            <div className="flex gap-3 items-center">
-              <select
-                value={denyTarget}
-                onChange={(e) => setDenyTarget(e.target.value)}
-                className="border border-gray-600 rounded-lg p-2 bg-black/80 text-white text-sm flex-1 min-w-[120px]"
-              >
-                <option value="">Select player</option>
-                {eligibleDenyTargets.map((p, i) => (
-                  <option key={`${p.name}-${i}`} value={p.name}>{p.name}</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                disabled={!denyTarget}
-                onClick={handleDeny}
-                className={`${btn} bg-amber-700/80 text-amber-200 border-amber-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                Deny
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

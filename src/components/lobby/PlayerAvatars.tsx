@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import PlayerV1 from '@/components/Playerv1';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
+import DenyModelButton from '@/components/lobby/DenyModelButton';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { skinUrl } from '@/lib/frogSkins';
 import { COIN_RELIC_ID } from '@/types/game';
@@ -269,6 +270,8 @@ export const PlayerWithName = memo(function PlayerWithName({
   isWinner,
   showAttackButton,
   onAttack,
+  showDenyButton,
+  onDeny,
   isAttackSelected,
   actionCue,
   instakillActive,
@@ -303,6 +306,11 @@ export const PlayerWithName = memo(function PlayerWithName({
   showAttackButton?: boolean;
   /** Called with this player's name — stable across renders so memo() holds. */
   onAttack?: (name: string) => void;
+  /** Deny reward: shown instead of the Attack button (same stack slot, never
+   *  both at once) while the viewer holds a pending deny and this player is
+   *  an eligible target. Clicking resolves the deny immediately. */
+  showDenyButton?: boolean;
+  onDeny?: (name: string) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
   /** Poisoned Dagger (instakill Well reward) active cue on this player's own
@@ -338,15 +346,18 @@ export const PlayerWithName = memo(function PlayerWithName({
   // transient FOV value at mount time can't leave it stuck oversized.
   const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
   // Clicking the model itself selects the same action as its button --
-  // attack this player if they're a legal target, or defend if this is your
-  // own model. The two flags are never both true for the same player (an
-  // opponent can't also be showOwnActions), so there's no ambiguity about
-  // which action a click means.
-  const clickSelectable = !!showAttackButton || !!showOwnActions;
+  // attack this player if they're a legal target, deny them if a deny is
+  // pending, or defend if this is your own model. The three flags are
+  // never more than one true for the same player (an opponent can't also
+  // be showOwnActions, and showAttackButton/showDenyButton are mutually
+  // exclusive -- see LobbyScene.tsx), so there's no ambiguity about which
+  // action a click means.
+  const clickSelectable = !!showAttackButton || !!showDenyButton || !!showOwnActions;
   const handleModelClick = (e: ThreeEvent<MouseEvent>) => {
     if (!clickSelectable) return;
     e.stopPropagation();
     if (showAttackButton) onAttack?.(name);
+    else if (showDenyButton) onDeny?.(name);
     else onDefend?.();
   };
   const handleModelPointerOver = (e: ThreeEvent<PointerEvent>) => {
@@ -378,6 +389,17 @@ export const PlayerWithName = memo(function PlayerWithName({
           hoverPhase={position[0]}
         />
       </Suspense>
+
+      {/* Deny prompt -- a ghosted copy of the Well's deny reward model,
+          floating in front of this player. Inside the same group as the
+          model above (and this group's own onClick/hover, wired above), so
+          the whole avatar plus this float is one clickable target while a
+          deny is pending -- no click handler of its own needed. */}
+      {showDenyButton && (
+        <Suspense fallback={null}>
+          <DenyModelButton variant={isBoss ? 'boss' : 'player'} />
+        </Suspense>
+      )}
 
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
           (see stackItem above). The boss HP card below stays separate — it uses
@@ -580,6 +602,8 @@ export const LostSoulModel = memo(function LostSoulModel({
   position,
   showAttackButton,
   onAttack,
+  showDenyButton,
+  onDeny,
   isAttackSelected,
   actionCue,
   instakillActive,
@@ -592,6 +616,10 @@ export const LostSoulModel = memo(function LostSoulModel({
   showAttackButton?: boolean;
   /** Called with (name, index) — stable across renders so memo() holds. */
   onAttack?: (name: string, index: number) => void;
+  /** Deny reward: shown instead of the Attack button while the viewer holds
+   *  a pending deny -- same mutual-exclusion as PlayerWithName. */
+  showDenyButton?: boolean;
+  onDeny?: (name: string) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
   /** Poisoned Dagger (instakill Well reward) active cue -- see globals.css'
@@ -603,6 +631,7 @@ export const LostSoulModel = memo(function LostSoulModel({
   const ref = useRef<THREE.Group>(null);
   // See useRemountKeyOnceSettled's own comment, and PlayerWithName's use of it.
   const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
+  const clickSelectable = !!showAttackButton || !!showDenyButton;
 
   useFrame((state) => {
     if (ref.current) {
@@ -615,21 +644,29 @@ export const LostSoulModel = memo(function LostSoulModel({
       ref={ref}
       position={position}
       onClick={(e: ThreeEvent<MouseEvent>) => {
-        if (!showAttackButton) return;
+        if (!clickSelectable) return;
         e.stopPropagation();
-        onAttack?.(name, index);
+        if (showAttackButton) onAttack?.(name, index);
+        else onDeny?.(name);
       }}
       onPointerOver={(e: ThreeEvent<PointerEvent>) => {
-        if (!showAttackButton) return;
+        if (!clickSelectable) return;
         e.stopPropagation();
         document.body.style.cursor = 'pointer';
       }}
-      onPointerOut={() => { if (showAttackButton) document.body.style.cursor = 'default'; }}
+      onPointerOut={() => { if (clickSelectable) document.body.style.cursor = 'default'; }}
     >
       {/* 3D model — lazy; name label and attack button render immediately */}
       <Suspense fallback={null}>
         <LostSoulMesh />
       </Suspense>
+      {/* Deny prompt -- see PlayerWithName's identical comment on why this
+          needs no click handler of its own. */}
+      {showDenyButton && (
+        <Suspense fallback={null}>
+          <DenyModelButton variant="lostSoul" />
+        </Suspense>
+      )}
       {/* Name + attack button share one Html root (was two per soul). The
           button sits ~0.15 world units (≈35px pre-scale) above the name. */}
       <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
