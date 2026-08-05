@@ -68,6 +68,18 @@ type SelectionGlowProps = {
    *  lower it for an instance that should pulse noticeably slower than the
    *  rest, without touching every other SelectionGlow's timing. */
   pulseSpeed?: number;
+  /** 'additive' (default) sums colour with whatever's already drawn -- right
+   *  for a lone glow, but two overlapping additive discs just mix toward a
+   *  muddy blend instead of one reading as "on top of" the other. 'normal'
+   *  draws this instance with ordinary alpha compositing instead, so it
+   *  visually covers anything drawn before it (proportional to its own
+   *  gradient falloff) rather than summing with it -- use it for a smaller
+   *  glow meant to sit legibly on top of a larger one underneath. */
+  blending?: 'additive' | 'normal';
+  /** Draw order for the ground disc. Defaults to 18. Bump an instance above
+   *  another co-located SelectionGlow's so it's guaranteed to draw (and so,
+   *  with blending="normal", visually composite) after it. */
+  discRenderOrder?: number;
 };
 
 export default function SelectionGlow({
@@ -81,6 +93,8 @@ export default function SelectionGlow({
   fadeInRate = FADE_RATE,
   fadeOutRate = FADE_RATE,
   pulseSpeed = PULSE_SPEED,
+  blending = 'additive',
+  discRenderOrder = 18,
 }: SelectionGlowProps) {
   const discRef  = useRef<THREE.Mesh>(null);
   const lightRef = useRef<THREE.PointLight>(null);
@@ -104,7 +118,7 @@ export default function SelectionGlow({
 
   return (
     <group position={[position[0], position[1] + yOffset, position[2]]}>
-      <mesh ref={discRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={18}>
+      <mesh ref={discRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={discRenderOrder}>
         {gradient ? <planeGeometry args={[radius * 2, radius * 2]} /> : <circleGeometry args={[radius, 40]} />}
         <meshBasicMaterial
           color={color}
@@ -113,7 +127,7 @@ export default function SelectionGlow({
           opacity={0}
           side={THREE.DoubleSide}
           depthWrite={false}
-          blending={THREE.AdditiveBlending}
+          blending={blending === 'normal' ? THREE.NormalBlending : THREE.AdditiveBlending}
         />
       </mesh>
       <pointLight ref={lightRef} color={color} intensity={0} distance={3.2} position={[0, 0.35, 0]} />

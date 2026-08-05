@@ -1255,6 +1255,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         // visibly weaker under it than under a frog -- boosted 1.5x
         // (tuned by eye) specifically for that target, not globally.
         intensity={attackTarget === bossName ? 2 * 1.5 : 2}
+        // Additive blending (the poison glow above) just sums colour, so the
+        // much larger/stronger green washed the red out to a muddy blend
+        // instead of reading as "red on top". Normal blending + a higher
+        // draw order makes this one visually composite over the green
+        // instead, covering it (by its own gradient falloff) within its
+        // radius while the green aura still shows past that edge.
+        blending="normal"
+        discRenderOrder={19}
         gradient
       />
       {/* Same red glow as the attack-target one above, but under whoever is
