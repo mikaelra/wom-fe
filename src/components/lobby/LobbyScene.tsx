@@ -268,6 +268,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const lostSouls = useMemo(() => allPlayers.filter((p) => p.lost_soul), [allPlayers]);
 
   const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase, isAdmin } = useLobbyGame(state, playerName);
+  // showAttackButtons flips false the instant canAct's isAlive check does --
+  // well before the kill animation (deathPending, see above) has revealed my
+  // own death, instantly giving it away. While my own dead pose is still
+  // being held back, keep my action buttons (Well/Defend/Attack-target
+  // selection) showing as if I could still act -- same reasoning as the
+  // resource cards' canActLook (SceneOverlay.tsx). Any OTHER reason canAct
+  // is false (denied/game-over/round 0/spectator) never puts my own name in
+  // deathPending, so this only ever relaxes the "just died" case. The real,
+  // immediate showAttackButtons still gates the actual socket emits (see
+  // handleWell/handleDefend/handleAttack below), so a click landing in this
+  // window can't actually submit anything.
+  const showActionButtonsLook = showAttackButtons || deathPending.has(playerName);
   const showLobbyControls = state?.round === 0;
   const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
@@ -427,7 +439,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return PLAYER_POSITIONS[idx]?.position ?? null;
   }, [wellCrownHolder, players, PLAYER_POSITIONS]);
 
-  const actionCue  = !currentAction && showAttackButtons
+  const actionCue  = !currentAction && showActionButtonsLook
     ? (warnLevel === 'red' ? 'warn-blink-red' : warnLevel === 'gold' ? 'warn-blink-gold' : '')
     : '';
 
@@ -838,29 +850,38 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   // Stable identities — these are passed to memo()ed players/souls, so a fresh
   // closure per render would defeat the memoization.
+  // The buttons that call these stay showing (showActionButtonsLook) a beat
+  // past the real death reveal so the kill animation gets to play before the
+  // UI gives it away -- guard the actual submission on the real, immediate
+  // showAttackButtons so a click landing in that window can't submit
+  // anything for an already-dead player.
   const handleAttack = useCallback((targetName: string) => {
+    if (!showAttackButtons) return;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'attack', target: targetName, resource: '' });
     setSelectedSoulIdx(null);
     onAttackSelect?.(targetName);
-  }, [lobbyId, onAttackSelect]);
+  }, [lobbyId, onAttackSelect, showAttackButtons]);
 
   // Lost souls all share one server name, so the emitted target is the shared
   // name while the clicked index is remembered locally for selection UI.
   const handleSoulAttack = useCallback((targetName: string, index: number) => {
+    if (!showAttackButtons) return;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'attack', target: targetName, resource: '' });
     setSelectedSoulIdx(index);
     onAttackSelect?.(targetName);
-  }, [lobbyId, onAttackSelect]);
+  }, [lobbyId, onAttackSelect, showAttackButtons]);
 
   const handleDefend = useCallback(() => {
+    if (!showAttackButtons) return;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'defend', resource: '' });
     onActionChange?.('defend');
-  }, [lobbyId, onActionChange]);
+  }, [lobbyId, onActionChange, showAttackButtons]);
 
   const handleWell = useCallback(() => {
+    if (!showAttackButtons) return;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'well', resource: '' });
     onActionChange?.('well');
-  }, [lobbyId, onActionChange]);
+  }, [lobbyId, onActionChange, showAttackButtons]);
 
   // Lobby-wait controls (pre-game only) — kicking and relic selection used to
   // live in the 2D "Players in Lobby" overlay list; that list is gone, so
@@ -934,12 +955,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             bossHp={isBoss ? player.hp : undefined}
             bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
             frogSkinUrl={skinMap.get(player.name)}
-            showAttackButton={showAttackButtons && isOpponent && !isDead && (!isBossFight || isBoss)}
+            showAttackButton={showActionButtonsLook && isOpponent && !isDead && (!isBossFight || isBoss)}
             onAttack={handleAttack}
             isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
             actionCue={actionCue}
             chatBubble={chatBubbles.get(player.name)}
-            showOwnActions={isOwnPlayer && showAttackButtons && !isDead}
+            showOwnActions={isOwnPlayer && showActionButtonsLook && !showDeadPose}
             currentAction={currentAction}
             onDefend={handleDefend}
             showShield={isOwnPlayer && defendShieldActive}
@@ -979,7 +1000,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             name={soul.name}
             index={i}
             position={pos}
-            showAttackButton={showAttackButtons && !isDead}
+            showAttackButton={showActionButtonsLook && !isDead}
             onAttack={handleSoulAttack}
             isAttackSelected={currentAction === 'attack' && attackTarget === soul.name && selectedSoulIdx === i}
             actionCue={actionCue}
@@ -993,7 +1014,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           it this can render stuck at the wrong (often much larger) size
           after a camera dolly settles near screen-center, until the
           camera is dragged. */}
-      {showAttackButtons && (
+      {showActionButtonsLook && (
         <Html position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
           <ActionImageButton
             src="/images/buttons/well-ld.png"
@@ -1010,7 +1031,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       {/* Stage 2: Well/Table model -- also clickable, same as its 2D button */}
       <Suspense fallback={null}>
-        <Table position={TABLE_POSITION} scale={1.2} onClick={showAttackButtons ? handleWell : undefined} />
+        <Table position={TABLE_POSITION} scale={1.2} onClick={showActionButtonsLook ? handleWell : undefined} />
       </Suspense>
 
       {/* Stage 4: Well/lobby crown (floats above current well winner) */}
