@@ -44,9 +44,9 @@ export default async function RulesWalkerPage({ params }: { params: Promise<{ pa
         {/* The real in-game buttons/cards this step describes -- not a
             screenshot, so it can't go stale the way a captured image would
             the next time these are restyled. There's no live round here for
-            a step's highlighted elements to actually blink (unlike
-            InGameGuide during a match), so altHighlights are folded in and
-            shown statically alongside the primary highlights. */}
+            a step's highlighted elements to actually blink, so altHighlights
+            are folded in and shown statically alongside the primary
+            highlights. */}
         <GuideStepPreview step={step} />
 
         <div className="flex flex-wrap items-center justify-center gap-4 mt-2">

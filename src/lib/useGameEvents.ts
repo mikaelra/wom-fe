@@ -7,6 +7,8 @@ export interface GameEventsResult {
   round: number;
   messages: (string | string[])[];
   events: GameEvent[];
+  /** Whether the local player currently holds an active Poisoned Dagger charge. */
+  instakill: boolean;
 }
 
 /**
@@ -35,7 +37,7 @@ export function useGameEvents(
 
     getPlayerMessages(lobbyId, playerName).then((json) => {
       if (cancelled) return;
-      setResult({ round, messages: json.messages, events: json.events });
+      setResult({ round, messages: json.messages, events: json.events, instakill: json.instakill });
     });
 
     return () => {

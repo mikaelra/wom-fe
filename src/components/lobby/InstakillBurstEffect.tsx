@@ -19,6 +19,10 @@ export const INSTAKILL_BLOCK_COLOR = '#2ec8ff';
 const SPARK_COUNT = 22;
 const CORE_MAX_SCALE = 1.1;
 const RING_MAX_SCALE = 2.0;
+// Overall burst size -- scales core, ring, and spark travel distance
+// together (all nested under the same group below), so both the kill and
+// block colourings (same component, different `color`) grow together.
+const BURST_SCALE = 1.5;
 
 /** Quick ignite, long decay — shared so the core/ring/sparks stay in sync. */
 function burstEnvelope(t: number, duration: number): number {
@@ -117,7 +121,7 @@ export default function InstakillBurstEffect({
   });
 
   return (
-    <group position={position}>
+    <group position={position} scale={BURST_SCALE}>
       <mesh ref={coreRef} renderOrder={21}>
         <sphereGeometry args={[0.4, 16, 16]} />
         <meshBasicMaterial

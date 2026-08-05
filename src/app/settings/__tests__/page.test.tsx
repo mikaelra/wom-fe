@@ -40,10 +40,10 @@ describe('SettingsPage', () => {
 
     expect(screen.getByText('You must be logged in to view settings.')).toBeInTheDocument();
     expect(screen.getByText('Go to log in')).toBeInTheDocument();
-    // The verify-email toggle is gated behind login; the in-game tutorial
-    // toggle below it isn't, so it still renders here (1 checkbox, not 0).
+    // The verify-email toggle is gated behind login, and it's the only
+    // setting on this page now -- nothing renders here.
     expect(screen.queryByText('Toggle always e-mail verificiation.')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     expect(mockedGetFlag).not.toHaveBeenCalled();
   });
 
@@ -148,20 +148,5 @@ describe('SettingsPage', () => {
     fireEvent.click(screen.getByText('Refresh page'));
 
     expect(reload).toHaveBeenCalled();
-  });
-
-  it('toggles the in-game tutorial flag through the real useGuideEnabled hook', async () => {
-    loginAs('Alice', 'alice@example.com');
-    mockedGetFlag.mockResolvedValue({ always_verify_email: false });
-    render(<SettingsPage />);
-    await flush();
-
-    const guideCheckbox = screen.getByRole('checkbox', { name: /Show the in-game tutorial/ });
-    expect(guideCheckbox).toBeChecked();
-
-    fireEvent.click(guideCheckbox);
-
-    expect(guideCheckbox).not.toBeChecked();
-    expect(localStorage.getItem('womGuideEnabled')).toBe('false');
   });
 });

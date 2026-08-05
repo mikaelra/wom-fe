@@ -44,6 +44,16 @@ body {
 .warn-blink-gold { animation: blink-gold 0.8s ease-in-out infinite; }
 .warn-blink-red  { animation: blink-red  0.5s ease-in-out infinite; }
 
+/* Poisoned Dagger (instakill Well reward) active cue -- a solid green glow
+   around the ATK resource card and every Attack button (no flicker/pulse --
+   a steady presence, not an alert). Currently applied unconditionally at
+   its call sites (SceneOverlay's ATK card, PlayerAvatars' Attack buttons)
+   for live visual iteration -- not yet wired to the real "do I actually
+   have the dagger" game state. */
+.instakill-flame {
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.85), 0 0 22px 8px rgba(34, 197, 94, 0.75);
+}
+
 /* Three dots appearing in sequence then resetting -- used for "waiting on
    something async" text (e.g. shop/success's "Confirming your payment"). */
 @keyframes ellipsis-dot {
@@ -56,26 +66,6 @@ body {
 }
 .ellipsis-dot:nth-child(2) { animation-delay: 0.2s; }
 .ellipsis-dot:nth-child(3) { animation-delay: 0.4s; }
-
-/* Dedicated welcome-tour glows — ~3x the strength of the warning blink above. */
-@keyframes guide-glow-blue {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0); }
-  50%       { box-shadow:
-                0 0 0 6px rgba(59, 130, 246, 1),
-                0 0 36px 15px rgba(59, 130, 246, 0.75),
-                0 0 84px 30px rgba(59, 130, 246, 0.45); }
-}
-
-@keyframes guide-glow-gold {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0); }
-  50%       { box-shadow:
-                0 0 0 6px rgba(234, 179, 8, 1),
-                0 0 36px 15px rgba(234, 179, 8, 0.75),
-                0 0 84px 30px rgba(234, 179, 8, 0.45); }
-}
-
-.guide-glow-blue { animation: guide-glow-blue 0.8s ease-in-out infinite; }
-.guide-glow-gold { animation: guide-glow-gold 0.8s ease-in-out infinite; }
 
 /* Resource card feedback: a small bounce whenever an HP/Coins/ATK value
    changes. Retriggered via the React key-remount trick (see ResourceCard). */

@@ -10,7 +10,7 @@ import Table from '@/components/Table';
 import CameraFlyIn from '@/components/lobby/CameraFlyIn';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
-import WellRewardEffect, { preloadWellRewardModels, type WellRewardType } from '@/components/lobby/WellRewardEffect';
+import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
 import ResourceGainEffect, { isGainedResource, RESOURCE_GAIN_DUR, type GainedResource } from '@/components/lobby/ResourceGainEffect';
 import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight } from '@/components/lobby/WellGlowEffect';
@@ -20,12 +20,11 @@ import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
 import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, HTML_EPS, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
-import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { emitHpFx } from '@/lib/resourceFx';
 import { playCombatSound } from '@/lib/sounds';
-import { glowForReward, wellRewardFromEvents, type WellRewardComponent } from '@/lib/gameEvents';
+import { glowForReward, type WellRewardComponent } from '@/lib/gameEvents';
 import { skinUrl } from '@/lib/frogSkins';
 import {
   buildCombatAnimationPlan,
@@ -75,6 +74,11 @@ const RESOURCE_GAIN_START_DELAY_MS = RESOURCE_GAIN_DUR * 1000 + 50;
 // force their dead pose to show after this long rather than leaving them
 // looking alive indefinitely.
 const DEATH_POSE_FALLBACK_MS = 4000;
+// Poisoned Dagger visual cues (green ground glow, Attack-button/ATK-card
+// flame) fire this much before the dagger's WellRewardEffect model actually
+// finishes landing -- a beat ahead of the full reveal, not simultaneous
+// with it. Tuned by eye; bump it up for an earlier cue, down for later.
+const INSTAKILL_GLOW_LEAD_MS = 300;
 
 useGLTF.preload('/models/shields/shield_animation-ld.glb');
 
@@ -95,6 +99,13 @@ const WELL_SELECT_GLOW_COLOR   = '#a78bfa';
 const ATTACK_SELECT_GLOW_COLOR = '#ef4444';
 const DEFEND_SELECT_GLOW_COLOR = '#3b82f6';
 const DEFEND_SELECT_GLOW_INTENSITY = 2;
+// Poisoned Dagger (instakill) cue -- a larger, slower-breathing green glow
+// layered under the red attack-target glow when picking who to attack. Same
+// "always on" WIP status as the instakill-flame CSS cue on the ATK card/
+// Attack buttons -- not yet gated on an actual dagger charge.
+const ATTACK_TARGET_POISON_GLOW_COLOR = '#22c55e';
+const ATTACK_TARGET_POISON_GLOW_RADIUS = 2;
+const ATTACK_TARGET_POISON_GLOW_PULSE_SPEED = 0.5; // much slower than SelectionGlow's default breathing
 // Same blue as the defend-selection glow above, but for the moment of an
 // actual block landing (either side of it) rather than the pre-round choice.
 // Half the strength so it reads as a smaller "impact" beat, not a repeat of
@@ -157,9 +168,6 @@ type LobbySceneProps = {
    *  gain_attack), lifted from SceneOverlay the same way currentAction is --
    *  drives ResourceGainEffect at round-resolution. */
   chosenResource?: string;
-  /** Welcome-tour highlights, lifted to the page so the overlay can glow the
-   *  resource cards too. The 3D scene uses it for attack/defend/well. */
-  guideHighlight?: GuideHighlights;
   /** Player-toggleable (button lives in the pre-game overlay) -- off pauses
    *  CameraFlyIn's ambient pre-round orbit so kick/relic clicks are easier
    *  to land. Defaults on. */
@@ -168,9 +176,15 @@ type LobbySceneProps = {
   resetCameraSignal?: number;
   /** Fired on genuine player camera drag/scroll -- see CameraFlyIn. */
   onCameraUserAdjust?: () => void;
+  /** Fired whenever instakillVisualActive changes -- lets SceneOverlay (a
+   *  sibling render tree; see its own onGameOverRevealed) sync the ATK
+   *  card's Poisoned Dagger cue to the same "model has landed" timing as
+   *  this component's own ground glow/Attack button cues, instead of
+   *  re-deriving it independently. */
+  onInstakillActiveChange?: (active: boolean) => void;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, chosenResource, guideHighlight = {}, spinEnabled = true, resetCameraSignal, onCameraUserAdjust }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, chosenResource, spinEnabled = true, resetCameraSignal, onCameraUserAdjust, onInstakillActiveChange }: LobbySceneProps) {
   // Countdown warning level for the action buttons. We deliberately do NOT
   // store the remaining seconds here — that re-rendered the whole scene every
   // second. The level only changes twice per round ('' → gold → red), and
@@ -212,6 +226,25 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // per-name by the 'markDead' action (timed with the kill fire), or in bulk
   // on the next round transition / by the fallback timeout below.
   const [deathPending, setDeathPending] = useState<Set<string>>(new Set());
+  // Whether the Poisoned Dagger's (instakill Well reward) visual cues
+  // (green ground glow, instakill-flame on Attack buttons/ATK card) should
+  // be showing. Deliberately NOT sourced from state_update -- who holds the
+  // charge is private (see routes/lobby.py's get_player_messages), not
+  // broadcast to the whole lobby room, so this is driven entirely by the
+  // per-player useGameEvents fetch below (gameEvents.instakill) rather than
+  // any `state` field. It also flips true the instant that fetch resolves,
+  // well before the dagger's WellRewardEffect model has even started its
+  // arc, so the round-resolution effect below holds it false and delays the
+  // reveal until a beat before the model actually lands, whenever this
+  // round's fetch shows the charge as newly won (see addWellRewardEvents'
+  // 'instakill' case and INSTAKILL_GLOW_LEAD_MS) -- already holding it
+  // entering the round (nothing new landing to wait for) sets it true
+  // immediately instead.
+  const [instakillVisualActive, setInstakillVisualActive] = useState(false);
+  useEffect(() => {
+    onInstakillActiveChange?.(instakillVisualActive);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instakillVisualActive]);
   // Timeout IDs for staggered incoming defended strikes (cleared each new round)
   const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   // Last round this component has already scheduled combat/well-reward
@@ -227,6 +260,33 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // clears chosenResource on the new round too.
   const chosenResourceRef = useRef(chosenResource);
   chosenResourceRef.current = chosenResource;
+
+  // "Ready" sword/shield previews (shown while choosing a target / choosing
+  // defend) used to vanish the instant the parent's per-round reset cleared
+  // currentAction/attackTarget -- well before the round's own combat
+  // animations even start fetching -- then reappear later when the actual
+  // strike/block animation mounted a wholly separate instance. These sticky
+  // copies persist across that reset (only ever SET by the effects below,
+  // never cleared by a currentAction/attackTarget prop change) so the same
+  // visual instance carries through to the moment it hands off to the real
+  // animation. Cleared by the round-resolution effect below, at the exact
+  // moment that handoff happens (or immediately/at round-end when there's
+  // nothing to hand off to -- see combatAnimationPlan's clearDefendShield
+  // and the addStrike case in applyAction).
+  const [stickyAttackTarget, setStickyAttackTarget] = useState<string | null>(null);
+  const [defendShieldActive, setDefendShieldActive] = useState(false);
+  // Read inside the async round-resolution effect below -- same "capture on
+  // every render" reasoning as currentActionRef/chosenResourceRef above,
+  // since that effect can't safely depend on defendShieldActive directly
+  // (it would either read a stale closure value or re-run on every toggle).
+  const defendShieldActiveRef = useRef(defendShieldActive);
+  defendShieldActiveRef.current = defendShieldActive;
+  useEffect(() => {
+    if (currentAction === 'attack' && attackTarget) setStickyAttackTarget(attackTarget);
+  }, [currentAction, attackTarget]);
+  useEffect(() => {
+    if (currentAction === 'defend') setDefendShieldActive(true);
+  }, [currentAction]);
 
 
   useEffect(() => {
@@ -245,6 +305,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const lostSouls = useMemo(() => allPlayers.filter((p) => p.lost_soul), [allPlayers]);
 
   const { winner: gameWinner, wellWinner, canAct: showAttackButtons, phase, isAdmin } = useLobbyGame(state, playerName);
+  // showAttackButtons flips false the instant canAct's isAlive check does --
+  // well before the kill animation (deathPending, see above) has revealed my
+  // own death, instantly giving it away. While my own dead pose is still
+  // being held back, keep my action buttons (Well/Defend/Attack-target
+  // selection) showing as if I could still act -- same reasoning as the
+  // resource cards' canActLook (SceneOverlay.tsx). Any OTHER reason canAct
+  // is false (denied/game-over/round 0/spectator) never puts my own name in
+  // deathPending, so this only ever relaxes the "just died" case. The real,
+  // immediate showAttackButtons still gates the actual socket emits (see
+  // handleWell/handleDefend/handleAttack below), so a click landing in this
+  // window can't actually submit anything.
+  const showActionButtonsLook = showAttackButtons || deathPending.has(playerName);
   const showLobbyControls = state?.round === 0;
   const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
@@ -404,7 +476,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     return PLAYER_POSITIONS[idx]?.position ?? null;
   }, [wellCrownHolder, players, PLAYER_POSITIONS]);
 
-  const actionCue  = !currentAction && showAttackButtons
+  const actionCue  = !currentAction && showActionButtonsLook
     ? (warnLevel === 'red' ? 'warn-blink-red' : warnLevel === 'gold' ? 'warn-blink-gold' : '')
     : '';
 
@@ -428,6 +500,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     setKillBanners([]);
     setDenyRingFx([]);
     setDeathPending(new Set());
+
+    // Safety net for the sticky ready-sword/defend-shield above: the
+    // round-resolution effect below (gated on the async useGameEvents fetch)
+    // is what normally clears these, right when the real animation takes
+    // over. If that fetch ever hiccups and the effect never runs for this
+    // round, this guarantees they don't stay stuck forever.
+    staggerTimeoutsRef.current.push(
+      setTimeout(() => {
+        setStickyAttackTarget(null);
+        setDefendShieldActive(false);
+      }, DEATH_POSE_FALLBACK_MS),
+    );
 
     // Hold off newly-eliminated players' dead pose until buildCombatAnimationPlan's
     // kill-fire timing (below) reveals it via 'markDead' — otherwise they flop
@@ -536,7 +620,23 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       posMap: posMapRef.current,
       myNowHp,
       wonWell,
+      iChoseDefend: defendShieldActiveRef.current,
     });
+
+    // Poisoned Dagger charge (see instakillVisualActive's own comment):
+    // immediately false whenever the private per-round fetch says it's not
+    // held, immediately true when it's held but nothing new landed this
+    // round (already had it entering the round). Newly won this round is
+    // deliberately left alone here -- the addWellRewardEvents case below
+    // flips it once the dagger model actually lands.
+    const wonInstakillThisRound = plan.some((b) =>
+      b.actions.some((a) => a.type === 'addWellRewardEvents' && a.events.some((e) => e.type === 'instakill')),
+    );
+    if (!gameEvents.instakill) {
+      setInstakillVisualActive(false);
+    } else if (!wonInstakillThisRound) {
+      setInstakillVisualActive(true);
+    }
 
     // Resource-gain flask/coin/sword rise-and-absorb -- fires first, at t=0,
     // with combat/well (below) held back to start after it finishes instead
@@ -563,19 +663,26 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     // gained resource) shouldn't gain a dead pause for nothing to precede.
     const combatStartOffsetMs = playingResourceGain ? RESOURCE_GAIN_START_DELAY_MS : 0;
 
-    // "info" Well reward: snapshot every other player's current stats so
-    // PlayerAvatars can badge them for this round (then one more, greyed).
-    if (wonWell && wellRewardFromEvents(gameEvents.events).some((c) => c.type === 'info')) {
-      const stats = new Map<string, { hp: number; coins: number; attackDamage: number }>();
-      state.players.forEach((p) => {
-        if (p.name !== playerName) stats.set(p.name, { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage });
-      });
-      setInfoReveal({ round: state.round, stats });
+    // Ready-sword fallback: if this round's plan has no outgoing strike for
+    // me at all (denied, target's position vanished, etc.), there's nothing
+    // for the sticky preview to hand off to -- clear it now rather than
+    // leaving it stuck. The normal case (an outgoing strike does play) is
+    // handled by applyAction's addStrike case below, right as that strike
+    // takes over.
+    const hasOutgoingStrike = plan.some((b) => b.actions.some((a) => a.type === 'addStrike' && !a.strike.isIncoming));
+    if (!hasOutgoingStrike) {
+      if (combatStartOffsetMs <= 0) setStickyAttackTarget(null);
+      else staggerTimeoutsRef.current.push(setTimeout(() => setStickyAttackTarget(null), combatStartOffsetMs));
     }
 
     const applyAction = (action: CombatAnimationAction) => {
       switch (action.type) {
-        case 'addStrike': setStrikeEvents((s) => [...s, action.strike]); break;
+        case 'addStrike':
+          setStrikeEvents((s) => [...s, action.strike]);
+          // My own outgoing strike is taking over from the sticky ready-sword
+          // preview right now -- hand off in the same tick, no gap.
+          if (!action.strike.isIncoming) setStickyAttackTarget(null);
+          break;
         case 'addImpactShield': setImpactShields((s) => [...s, action.shield]); break;
         case 'removeImpactShield': setImpactShields((s) => s.filter((x) => x.id !== action.id)); break;
         case 'addKillFire': setKillFireEvents((e) => [...e, action.event]); break;
@@ -587,7 +694,43 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         }); break;
         case 'addKillBanner': setKillBanners((b) => [...b, action.banner]); break;
         case 'removeKillBanner': setKillBanners((b) => b.filter((x) => x.id !== action.id)); break;
-        case 'addWellRewardEvents': setWellRewardEvents((ev) => [...ev, ...action.events]); break;
+        case 'addWellRewardEvents': {
+          setWellRewardEvents((ev) => [...ev, ...action.events]);
+          // "info" Well reward: snapshot every other player's current stats
+          // so PlayerAvatars can badge them for this round (then one more,
+          // greyed) -- held back until the magnifying-glass model this same
+          // action just scheduled has actually landed (its own delay, e.g.
+          // staggered behind other rewards won the same round, plus the
+          // full travel+hold flight before it disappears into the player),
+          // rather than revealing the stats the instant the round resolves.
+          const infoEvent = action.events.find((e) => e.type === 'info');
+          if (infoEvent) {
+            const stats = new Map<string, { hp: number; coins: number; attackDamage: number }>();
+            state.players.forEach((p) => {
+              if (p.name !== playerName) stats.set(p.name, { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage });
+            });
+            const revealDelayMs = (infoEvent.delay + WELL_REWARD_FLIGHT_DUR) * 1000;
+            staggerTimeoutsRef.current.push(
+              setTimeout(() => setInfoReveal({ round: state.round, stats }), revealDelayMs),
+            );
+          }
+          // Poisoned Dagger: same "wait for the model to land" reveal --
+          // only fires when this round's well reward actually included one
+          // (i.e. exactly the round it's newly won; see instakillVisualActive's
+          // own comment for why the round-transition effect above leaves that
+          // case alone for this handler to pick up).
+          const instakillEvent = action.events.find((e) => e.type === 'instakill');
+          if (instakillEvent) {
+            const revealDelayMs = Math.max(
+              0,
+              (instakillEvent.delay + WELL_REWARD_FLIGHT_DUR) * 1000 - INSTAKILL_GLOW_LEAD_MS,
+            );
+            staggerTimeoutsRef.current.push(
+              setTimeout(() => setInstakillVisualActive(true), revealDelayMs),
+            );
+          }
+          break;
+        }
         case 'emitHpFx': emitHpFx(action.event); break;
         case 'addWellWinFx': setWellWinFx((fx) => [...fx, action.fx]); break;
         case 'removeWellWinFx': setWellWinFx((fx) => fx.filter((x) => x.id !== action.id)); break;
@@ -595,6 +738,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         case 'removeHitFlash': setHitFlashEvents((ev) => ev.filter((x) => x.id !== action.id)); break;
         case 'addBlockGlow': setBlockGlowEvents((ev) => [...ev, action.event]); break;
         case 'removeBlockGlow': setBlockGlowEvents((ev) => ev.filter((x) => x.id !== action.id)); break;
+        case 'clearDefendShield': setDefendShieldActive(false); break;
       }
     };
 
@@ -784,29 +928,38 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   // Stable identities — these are passed to memo()ed players/souls, so a fresh
   // closure per render would defeat the memoization.
+  // The buttons that call these stay showing (showActionButtonsLook) a beat
+  // past the real death reveal so the kill animation gets to play before the
+  // UI gives it away -- guard the actual submission on the real, immediate
+  // showAttackButtons so a click landing in that window can't submit
+  // anything for an already-dead player.
   const handleAttack = useCallback((targetName: string) => {
+    if (!showAttackButtons) return;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'attack', target: targetName, resource: '' });
     setSelectedSoulIdx(null);
     onAttackSelect?.(targetName);
-  }, [lobbyId, onAttackSelect]);
+  }, [lobbyId, onAttackSelect, showAttackButtons]);
 
   // Lost souls all share one server name, so the emitted target is the shared
   // name while the clicked index is remembered locally for selection UI.
   const handleSoulAttack = useCallback((targetName: string, index: number) => {
+    if (!showAttackButtons) return;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'attack', target: targetName, resource: '' });
     setSelectedSoulIdx(index);
     onAttackSelect?.(targetName);
-  }, [lobbyId, onAttackSelect]);
+  }, [lobbyId, onAttackSelect, showAttackButtons]);
 
   const handleDefend = useCallback(() => {
+    if (!showAttackButtons) return;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'defend', resource: '' });
     onActionChange?.('defend');
-  }, [lobbyId, onActionChange]);
+  }, [lobbyId, onActionChange, showAttackButtons]);
 
   const handleWell = useCallback(() => {
+    if (!showAttackButtons) return;
     getSocket().emit('submit_choice', { lobby_id: lobbyId, action: 'well', resource: '' });
     onActionChange?.('well');
-  }, [lobbyId, onActionChange]);
+  }, [lobbyId, onActionChange, showAttackButtons]);
 
   // Lobby-wait controls (pre-game only) — kicking and relic selection used to
   // live in the 2D "Players in Lobby" overlay list; that list is gone, so
@@ -880,16 +1033,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             bossHp={isBoss ? player.hp : undefined}
             bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
             frogSkinUrl={skinMap.get(player.name)}
-            showAttackButton={showAttackButtons && isOpponent && !isDead && (!isBossFight || isBoss)}
+            showAttackButton={showActionButtonsLook && isOpponent && !isDead && (!isBossFight || isBoss)}
             onAttack={handleAttack}
             isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
             actionCue={actionCue}
+            instakillActive={instakillVisualActive}
             chatBubble={chatBubbles.get(player.name)}
-            showOwnActions={isOwnPlayer && showAttackButtons && !isDead}
+            showOwnActions={isOwnPlayer && showActionButtonsLook && !showDeadPose}
             currentAction={currentAction}
             onDefend={handleDefend}
-            showShield={isOwnPlayer && currentAction === 'defend'}
-            highlight={guideHighlight}
+            showShield={isOwnPlayer && defendShieldActive}
             infoReveal={infoBadge}
             showLobbyControls={showLobbyControls}
             isOwnPlayer={isOwnPlayer}
@@ -926,11 +1079,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             name={soul.name}
             index={i}
             position={pos}
-            showAttackButton={showAttackButtons && !isDead}
+            showAttackButton={showActionButtonsLook && !isDead}
             onAttack={handleSoulAttack}
             isAttackSelected={currentAction === 'attack' && attackTarget === soul.name && selectedSoulIdx === i}
             actionCue={actionCue}
             infoReveal={infoBadge}
+            instakillActive={instakillVisualActive}
           />
         );
       })}
@@ -940,7 +1094,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           it this can render stuck at the wrong (often much larger) size
           after a camera dolly settles near screen-center, until the
           camera is dragged. */}
-      {showAttackButtons && (
+      {showActionButtonsLook && (
         <Html position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
           <ActionImageButton
             src="/images/buttons/well-ld.png"
@@ -949,7 +1103,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             selected={currentAction === 'well'}
             glowColor="rgba(167,139,250,0.7)"
             width={180}
-            className={`${actionCue} ${guideGlowClass(guideHighlight?.well)}`}
+            className={actionCue}
             style={{ pointerEvents: 'auto' }}
           />
         </Html>
@@ -957,7 +1111,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       {/* Stage 2: Well/Table model -- also clickable, same as its 2D button */}
       <Suspense fallback={null}>
-        <Table position={TABLE_POSITION} scale={1.2} onClick={showAttackButtons ? handleWell : undefined} />
+        <Table position={TABLE_POSITION} scale={1.2} onClick={showActionButtonsLook ? handleWell : undefined} />
       </Suspense>
 
       {/* Stage 4: Well/lobby crown (floats above current well winner) */}
@@ -967,19 +1121,19 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
       {/* Stage 5: Sword and shield combat effects */}
       <Suspense fallback={null}>
-        {currentAction === 'attack' && attackTarget && (() => {
+        {stickyAttackTarget && (() => {
           const myPos  = posMapRef.current.get(playerName);
           // Souls share one name (the posMap entry is whichever came last), so
           // aim at the specific soul the player clicked instead.
-          const tgtPos = selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === attackTarget
+          const tgtPos = selectedSoulIdx !== null && lostSouls[selectedSoulIdx]?.name === stickyAttackTarget
             ? LOST_SOUL_POSITIONS[selectedSoulIdx % LOST_SOUL_POSITIONS.length]
-            : posMapRef.current.get(attackTarget);
+            : posMapRef.current.get(stickyAttackTarget);
           if (!myPos || !tgtPos) return null;
           const fp: [number, number, number] = [myPos[0],  myPos[1]  + 0.3, myPos[2]];
           const tp: [number, number, number] = [tgtPos[0], tgtPos[1] + 0.3, tgtPos[2]];
           return (
             <SwordEffect
-              key={`ready-${attackTarget}`}
+              key={`ready-${stickyAttackTarget}`}
               fromPosition={fp}
               toPosition={tp}
               mode="ready"
@@ -1140,6 +1294,19 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         fadeOutRate={BLOCK_GLOW_FADE_OUT_RATE}
         gradient
       />
+      {/* Poisoned Dagger cue: a larger, much slower-pulsing green glow
+          layered under the red attack-target one below (rendered first so
+          it sits underneath). Twice the red glow's intensity. */}
+      <SelectionGlow
+        position={attackTargetGlowPos ?? GLOW_PARK_POSITION}
+        yOffset={SELECTION_GLOW_Y_OFFSET}
+        color={ATTACK_TARGET_POISON_GLOW_COLOR}
+        active={!!attackTargetGlowPos && instakillVisualActive}
+        radius={ATTACK_TARGET_POISON_GLOW_RADIUS}
+        intensity={(attackTarget === bossName ? 2 * 1.5 : 2) * 2}
+        pulseSpeed={ATTACK_TARGET_POISON_GLOW_PULSE_SPEED}
+        gradient
+      />
       <SelectionGlow
         position={attackTargetGlowPos ?? GLOW_PARK_POSITION}
         yOffset={SELECTION_GLOW_Y_OFFSET}
@@ -1150,6 +1317,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         // visibly weaker under it than under a frog -- boosted 1.5x
         // (tuned by eye) specifically for that target, not globally.
         intensity={attackTarget === bossName ? 2 * 1.5 : 2}
+        // Additive blending (the poison glow above) just sums colour, so the
+        // much larger/stronger green washed the red out to a muddy blend
+        // instead of reading as "red on top". Normal blending + a higher
+        // draw order makes this one visually composite over the green
+        // instead, covering it (by its own gradient falloff) within its
+        // radius while the green aura still shows past that edge.
+        blending="normal"
+        discRenderOrder={19}
         gradient
       />
       {/* Same red glow as the attack-target one above, but under whoever is

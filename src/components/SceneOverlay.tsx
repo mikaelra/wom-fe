@@ -11,7 +11,6 @@ import { useCountdown } from '@/lib/useCountdown';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { buildCombatAnimationPlan } from '@/lib/combatAnimationPlan';
 import type { LobbyState, Player } from '@/types/game';
-import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import ResourceCard from '@/components/ResourceCard';
 import { useStagedResources } from '@/lib/useStagedResources';
 import { useToast } from '@/components/Toast';
@@ -107,8 +106,6 @@ type SceneOverlayProps = {
    *  gain_attack), so LobbyScene can play the matching flask/coin/sword
    *  rise-and-absorb effect once the round resolves -- see ResourceGainEffect. */
   onResourceChange?: (resource: string) => void;
-  /** Welcome-tour highlights — glows the matching resource cards. */
-  guideHighlight?: GuideHighlights;
   /** Passed straight through to renderPreGame's opts -- see PreGameRenderOpts. */
   spinEnabled?: boolean;
   onToggleSpin?: () => void;
@@ -121,9 +118,22 @@ type SceneOverlayProps = {
    *  gameStarted, in this component's own in-game JSX, not renderPreGame. */
   cameraMoved?: boolean;
   onResetCamera?: () => void;
+  /** Fired whenever this round's "is the Game Over reveal showing" gate
+   *  (gameOver && revealedRound === state.round) changes -- see the comment
+   *  above `revealedRound`. Lets callers hold their own post-game UI (wheel
+   *  claim nudge, etc.) back until the same moment the Game Over text
+   *  itself appears, instead of reacting to the raw state.gameover flag,
+   *  which flips true the instant the server broadcast arrives -- well
+   *  before the eliminating kill's animation has played. */
+  onGameOverRevealed?: (revealed: boolean) => void;
+  /** Poisoned Dagger (instakill Well reward) active cue for the ATK
+   *  resource card -- computed by LobbyScene (a sibling render tree; see
+   *  its own onInstakillActiveChange), passed down instead of re-derived
+   *  here so the card and the 3D scene's cues stay in lockstep. */
+  instakillActive?: boolean;
 };
 
-export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, guideHighlight, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera }: SceneOverlayProps) {
+export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera, onGameOverRevealed, instakillActive }: SceneOverlayProps) {
   const {
     theme,
     backLabel,
@@ -203,6 +213,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     enemy,
     isPendingDenyChooser,
     eligibleDenyTargets,
+    isDenied,
     canAct,
     phase,
   } = useLobbyGame(state, playerName);
@@ -291,6 +302,12 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     return () => clearTimeout(fallback);
   }, [gameOver, state?.round, revealedRound]);
 
+  const gameOverRevealed = gameOver && revealedRound === (state?.round ?? null);
+  useEffect(() => {
+    onGameOverRevealed?.(gameOverRevealed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameOverRevealed]);
+
   // Staged display values for the resource cards: holds back a Well reward at
   // round start and ticks it up when the reward lands (Phase 2). Falls back to
   // the player's real values for every other case.
@@ -368,6 +385,12 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   };
 
   const handleResource = (resId: string) => {
+    // The resource cards stay looking (and natively) clickable a beat past
+    // the real death reveal (see renderResourceCards' canActLook) so the 3D
+    // death animation gets to play before the UI gives it away -- guard the
+    // actual submission on the real, immediate canAct so a click landing in
+    // that window can't submit for an already-dead player.
+    if (!canAct) return;
     setResource(resId);
     onResourceChange?.(resId);
     getSocket().emit('submit_choice', { lobby_id: lobbyId, resource: resId, action: '' });
@@ -430,6 +453,22 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     // Displayed values may be staged (Well tick-up); affordability still uses
     // the player's real values.
     const shown = stagedResources ?? player;
+    // canAct flips false the instant the server reports hp<=0 -- immediately
+    // greying out/disabling these cards, well before the 3D death animation
+    // (sword strike, kill-fire, dead-pose reveal) has even started, which
+    // gives the death away early. shown.hp is the *staged* display value
+    // (see useStagedResources) -- while it's still peeling down in sync
+    // with the strike animation and hasn't visibly reached 0 yet, keep the
+    // cards looking (and staying) interactive. Deliberately does NOT check
+    // isAlive or gameOver here -- both flip in the very same tick as the
+    // death itself (a fatal blow that also ends the match flips gameOver
+    // at once too), so gating on them reintroduces the exact instant-reveal
+    // bug this exists to fix. denied/spectator/pre-round dimming (unrelated
+    // to death) is untouched. disabled= below follows this too, not the raw
+    // canAct -- some browsers dim disabled form controls regardless of
+    // custom classes, and handleResource itself guards on the real canAct
+    // so a click during this window can't actually submit anything.
+    const canActLook = canAct || (!isDenied && !player.spectator && round > 0 && shown.hp > 0);
     return (
       <>
         <ResourceCard
@@ -440,10 +479,10 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabelClass="text-red-400/70"
           anim={stagedResources?.hpAnim ?? 'bounce'}
           blockPulse={stagedResources?.hpBlockPulse ?? 0}
-          disabled={!canAct}
+          disabled={!canActLook}
           onClick={() => handleResource('gain_hp')}
-          className={`${!canAct ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-            ${resourceCue} ${guideGlowClass(guideHighlight?.hp)}
+          className={`${!canActLook ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+            ${resourceCue}
             ${resource === 'gain_hp'
               ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
               : 'bg-black/70 border-red-500/50 hover:bg-red-950/80 hover:border-red-400/80 hover:shadow-[0_0_6px_rgba(239,68,68,0.3)]'
@@ -455,10 +494,10 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabel="💰 Get"
           valueClass="text-yellow-400"
           sublabelClass="text-yellow-400/70"
-          disabled={!canAct}
+          disabled={!canActLook}
           onClick={() => handleResource('gain_coin')}
-          className={`${!canAct ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-            ${resourceCue} ${guideGlowClass(guideHighlight?.coins)}
+          className={`${!canActLook ? 'opacity-60 cursor-default' : 'cursor-pointer'}
+            ${resourceCue}
             ${resource === 'gain_coin'
               ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
               : 'bg-black/70 border-yellow-500/50 hover:bg-yellow-950/80 hover:border-yellow-400/80 hover:shadow-[0_0_6px_rgba(234,179,8,0.3)]'
@@ -470,11 +509,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabel="⚔ Buy"
           valueClass="text-blue-400"
           sublabelClass="text-blue-400/70"
-          disabled={!canAct || cannotAffordAtk}
+          disabled={!canActLook || cannotAffordAtk}
           onClick={() => handleResource('gain_attack')}
-          className={`relative overflow-hidden
-            ${!canAct || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
-            ${cannotAffordAtk ? '' : resourceCue} ${guideGlowClass(guideHighlight?.atk)}
+          className={`relative overflow-hidden ${instakillActive ? 'instakill-flame' : ''}
+            ${!canActLook || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+            ${cannotAffordAtk ? '' : resourceCue}
             ${resource === 'gain_attack'
               ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
               : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80 hover:shadow-[0_0_6px_rgba(59,130,246,0.3)]'
@@ -686,7 +725,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             </div>
           )}
 
-          {gameOver && revealedRound === state?.round && renderGameOver({ state, playerName, enemy, btn })}
+          {gameOverRevealed && renderGameOver({ state, playerName, enemy, btn })}
         </div>
       </div>
 

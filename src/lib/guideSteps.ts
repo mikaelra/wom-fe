@@ -4,22 +4,19 @@ import type { GuideHighlights } from '@/lib/guideHighlights';
 export type GuideStep = {
   text: ReactNode;
   highlights: GuideHighlights;
-  // When set, the slide alternates between `highlights` and `altHighlights`
-  // every blink so the two button groups flash in turn (every other). Only
-  // meaningful where a live game scene exists to blink -- see InGameGuide.
+  // A second group of buttons this step also calls out -- GuideStepPreview
+  // merges `highlights` and `altHighlights` into one static illustration
+  // showing every referenced button/card at once (see its own comment).
   altHighlights?: GuideHighlights;
   // Opts this step's static preview (RulesModal / rules pages -- see
   // GuideStepPreview) into a dedicated example instead of the default
-  // highlighted-buttons stage. Ignored by InGameGuide, which always blinks
-  // the real live buttons/cards and never renders GuideStepPreview.
+  // highlighted-buttons stage.
   example?: 'atkAffordability';
 };
 
-// Single source of truth for "how do I play" copy, shared by the live
-// in-round welcome tour (InGameGuide, which also blinks the real buttons
-// each step references) and the static Rules popup (RulesModal, opened
-// on-demand from the pre-game lobby, which has no live round to blink --
-// same text, no highlighting).
+// Single source of truth for "how do I play" copy: the static Rules popup
+// (RulesModal, opened on-demand from the pre-game lobby) and the standalone
+// /rules pages (both via GuideStepPreview's illustrated buttons/cards).
 export const GUIDE_STEPS: GuideStep[] = [
   { text: 'Welcome to World of Mythos! Be the last one standing!', highlights: {} },
   { text: 'This is your health. When it reaches 0 or lower, you are out.', highlights: { hp: 'blue' } },

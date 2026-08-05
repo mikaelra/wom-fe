@@ -63,10 +63,13 @@ export function preloadWellRewardModels() {
 }
 
 // ── Animation timing (seconds) -- scaled to 0.8x for a modest speedup ────────
-const TRAVEL_DUR = 1.03; // arch from source → target
-const HOLD_DUR   = 0.54; // rest on the winner, then disappear instantly
+// Exported so useStagedResources can reveal a Well reward's card tick-up/
+// bounce at the exact moment the model actually lands, instead of a
+// separately-tuned duplicate constant that can (and did) drift out of sync.
+export const WELL_REWARD_TRAVEL_DUR = 1.03; // arch from source → target
+const HOLD_DUR = 0.54; // rest on the winner, then disappear instantly
 // Total lifetime of one reward instance (no fade-out — it pops away after HOLD).
-export const WELL_REWARD_FLIGHT_DUR = TRAVEL_DUR + HOLD_DUR;
+export const WELL_REWARD_FLIGHT_DUR = WELL_REWARD_TRAVEL_DUR + HOLD_DUR;
 // Peak height of the arch above the straight line between source and target.
 const ARCH_HEIGHT = 1.4;
 // End-over-end tumbles while travelling.
@@ -125,16 +128,16 @@ export default function WellRewardEffect({
     if (t < 0) { group.visible = false; return; }
     group.visible = true;
 
-    if (t < TRAVEL_DUR) {
+    if (t < WELL_REWARD_TRAVEL_DUR) {
       // Arch from source to target with a tumbling spin.
-      const localT = t / TRAVEL_DUR;
+      const localT = t / WELL_REWARD_TRAVEL_DUR;
       group.position.lerpVectors(fromVec, toVec, easeOut(localT));
       group.position.y += ARCH_HEIGHT * Math.sin(localT * Math.PI);
       group.rotation.y = localT * Math.PI * 2 * TRAVEL_SPINS;
-    } else if (t < TRAVEL_DUR + HOLD_DUR) {
+    } else if (t < WELL_REWARD_TRAVEL_DUR + HOLD_DUR) {
       // Rest on the winner, gently bobbing — then it's removed instantly (no fade).
       group.position.copy(toVec);
-      group.position.y += Math.sin((t - TRAVEL_DUR) * 6) * 0.04;
+      group.position.y += Math.sin((t - WELL_REWARD_TRAVEL_DUR) * 6) * 0.04;
     } else if (!doneCalledRef.current) {
       doneCalledRef.current = true;
       onDone?.();

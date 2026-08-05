@@ -8,7 +8,6 @@ import PlayerV1 from '@/components/Playerv1';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
-import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { skinUrl } from '@/lib/frogSkins';
 import { COIN_RELIC_ID } from '@/types/game';
 
@@ -272,6 +271,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   onAttack,
   isAttackSelected,
   actionCue,
+  instakillActive,
   chatBubble,
   isBoss,
   bossHp,
@@ -282,7 +282,6 @@ export const PlayerWithName = memo(function PlayerWithName({
   currentAction,
   onDefend,
   showShield,
-  highlight,
   infoReveal,
   // Lobby-wait row (pre-game only)
   showLobbyControls,
@@ -306,6 +305,9 @@ export const PlayerWithName = memo(function PlayerWithName({
   onAttack?: (name: string) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
+  /** Poisoned Dagger (instakill Well reward) active cue on this player's own
+   *  Attack button(s) -- see globals.css' instakill-flame. */
+  instakillActive?: boolean;
   chatBubble?: string;
   isBoss?: boolean;
   bossHp?: number;
@@ -315,7 +317,6 @@ export const PlayerWithName = memo(function PlayerWithName({
   currentAction?: string;
   onDefend?: () => void;
   showShield?: boolean;
-  highlight?: GuideHighlights;
   /** Stats revealed by the local player's "info" Well reward, or null when none is active. */
   infoReveal?: InfoRevealBadge | null;
   /** True pre-game (round 0) — renders the kick/relic/status row below the name. */
@@ -336,10 +337,6 @@ export const PlayerWithName = memo(function PlayerWithName({
   // badge below to recompute its scale a beat after it appears, so a
   // transient FOV value at mount time can't leave it stuck oversized.
   const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
-  // Welcome-tour highlights — glow the real button(s) the current slide points at.
-  const hl = highlight ?? {};
-  const hlAttack = guideGlowClass(hl.attack);
-  const hlDefend = guideGlowClass(hl.defend);
   // Clicking the model itself selects the same action as its button --
   // attack this player if they're a legal target, or defend if this is your
   // own model. The two flags are never both true for the same player (an
@@ -485,7 +482,7 @@ export const PlayerWithName = memo(function PlayerWithName({
               selected={isAttackSelected}
               glowColor="rgba(239,68,68,0.7)"
               width={180}
-              className={`${actionCue} ${hlAttack}`}
+              className={`${actionCue} ${instakillActive ? 'instakill-flame' : ''}`}
               style={stackItem(STACK_ATTACK_Y, true)}
             />
           )}
@@ -499,7 +496,7 @@ export const PlayerWithName = memo(function PlayerWithName({
               selected={currentAction === 'defend'}
               glowColor="rgba(59,130,246,0.7)"
               width={180}
-              className={`${actionCue} ${hlDefend}`}
+              className={actionCue}
               style={stackItem(STACK_DEFEND_Y, true)}
             />
           )}
@@ -550,7 +547,7 @@ export const PlayerWithName = memo(function PlayerWithName({
                 selected={isAttackSelected}
                 glowColor="rgba(239,68,68,0.7)"
                 width={170}
-                className={actionCue}
+                className={`${actionCue} ${instakillActive ? 'instakill-flame' : ''}`}
                 style={{ marginTop: '10px', pointerEvents: 'auto' }}
               />
             )}
@@ -585,6 +582,7 @@ export const LostSoulModel = memo(function LostSoulModel({
   onAttack,
   isAttackSelected,
   actionCue,
+  instakillActive,
   infoReveal,
 }: {
   name: string;
@@ -596,6 +594,9 @@ export const LostSoulModel = memo(function LostSoulModel({
   onAttack?: (name: string, index: number) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
+  /** Poisoned Dagger (instakill Well reward) active cue -- see globals.css'
+   *  instakill-flame. */
+  instakillActive?: boolean;
   /** Stats revealed by the local player's "info" Well reward, or null when none is active. */
   infoReveal?: InfoRevealBadge | null;
 }) {
@@ -653,7 +654,7 @@ export const LostSoulModel = memo(function LostSoulModel({
               selected={isAttackSelected}
               glowColor="rgba(239,68,68,0.7)"
               width={180}
-              className={actionCue}
+              className={`${actionCue} ${instakillActive ? 'instakill-flame' : ''}`}
               style={stackItem(-35, true)}
             />
           )}

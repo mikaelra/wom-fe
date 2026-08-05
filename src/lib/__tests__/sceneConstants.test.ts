@@ -11,7 +11,6 @@ import {
   BOSS_Y_LIFT,
   SCENE_CENTER,
 } from '@/lib/sceneConstants';
-import { guideGlowClass } from '@/lib/guideHighlights';
 
 const distanceFromCenter = ([x, , z]: [number, number, number]) => Math.hypot(x, z);
 
@@ -95,13 +94,5 @@ describe('radiusGrowthFactor', () => {
     expect(radiusGrowthFactor(7)).toBeCloseTo(1.15, 5);
     expect(radiusGrowthFactor(12)).toBeCloseTo(1.15, 5);
     expect(radiusGrowthFactor(13)).toBeCloseTo(1.3, 5);
-  });
-});
-
-describe('guideGlowClass', () => {
-  it('maps glow colours to css classes', () => {
-    expect(guideGlowClass('blue')).toBe('guide-glow-blue');
-    expect(guideGlowClass('gold')).toBe('guide-glow-gold');
-    expect(guideGlowClass(undefined)).toBe('');
   });
 });

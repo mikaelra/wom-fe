@@ -1,16 +1,13 @@
-// Shared types + helper for the welcome-tour button glows. Kept in a tiny lib
-// (rather than in the R3F InGameGuide component) so the DOM overlay can import
-// it without pulling in three.js.
+// Shared types for the Rules reference's per-step button highlights (see
+// GuideStepPreview, guideSteps.ts) -- which buttons a step calls out, and
+// which colour. Only static preview illustration reads these now; the old
+// live in-round tour that blinked the real buttons has been removed.
 
-// Buttons the guide can highlight on a given slide. Each maps to a real in-game
-// button (attack/defend/well live in the 3D scene; hp/coins/atk in the overlay).
+// Buttons a step can highlight. Each maps to a real in-game button
+// (attack/defend/well live in the 3D scene; hp/coins/atk in the overlay).
 export type GuideTarget = 'attack' | 'defend' | 'well' | 'hp' | 'coins' | 'atk';
 
 // Glow colour for a highlighted button.
 export type GuideGlow = 'blue' | 'gold';
 
 export type GuideHighlights = Partial<Record<GuideTarget, GuideGlow>>;
-
-// Map a glow colour to its CSS class (see globals.css).
-export const guideGlowClass = (g?: GuideGlow) =>
-  g === 'blue' ? 'guide-glow-blue' : g === 'gold' ? 'guide-glow-gold' : '';

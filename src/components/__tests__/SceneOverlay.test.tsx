@@ -204,7 +204,7 @@ describe('game over', () => {
     // "revealed" (see the reveal-hold effect in SceneOverlay) -- baseState's
     // own gameover flag is false, so this round reveals synchronously the
     // instant gameEvents for it arrive, same as any ordinary round.
-    mockedUseGameEvents.mockReturnValue({ round: baseState.round, messages: [], events: [] });
+    mockedUseGameEvents.mockReturnValue({ round: baseState.round, messages: [], events: [], instakill: false });
     const renderGameOver = vi.fn(() => <div data-testid="game-over" />);
 
     render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, renderGameOver }} />);
@@ -229,6 +229,7 @@ describe('game over', () => {
       round: gameoverState.round,
       messages: [['Alice eliminated Bob!']],
       events: [{ kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 0 }],
+      instakill: false,
     });
     const renderGameOver = vi.fn(() => <div data-testid="game-over" />);
 
@@ -245,6 +246,36 @@ describe('game over', () => {
 
     expect(screen.getByTestId('game-over')).toBeInTheDocument();
     expect(screen.getByText('Alice eliminated Bob!')).toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+  it('calls onGameOverRevealed in sync with the held-off reveal, not the raw gameover flag', () => {
+    // Regression coverage for LobbyOverlay's wheel/relic nudges, which
+    // consume this callback specifically so they don't pop up over a
+    // still-playing death animation -- see LobbyOverlay.test.tsx.
+    vi.useFakeTimers();
+    localStorage.setItem('playerName', 'Alice');
+    const bob: Player = { ...basePlayer, name: 'Bob', hp: 0 };
+    const gameoverState: LobbyState = { ...baseState, gameover: true, winner: 'Alice', players: [basePlayer, bob] };
+    mockConnection(gameoverState);
+    mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult, phase: 'gameover' });
+    mockedUseGameEvents.mockReturnValue({
+      round: gameoverState.round,
+      messages: [['Alice eliminated Bob!']],
+      events: [{ kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 0 }],
+      instakill: false,
+    });
+    const onGameOverRevealed = vi.fn();
+
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} onGameOverRevealed={onGameOverRevealed} />);
+
+    expect(onGameOverRevealed).toHaveBeenCalledWith(false);
+    expect(onGameOverRevealed).not.toHaveBeenCalledWith(true);
+
+    act(() => { vi.advanceTimersByTime(1630); });
+
+    expect(onGameOverRevealed).toHaveBeenLastCalledWith(true);
 
     vi.useRealTimers();
   });
@@ -298,6 +329,75 @@ describe('action-availability gating', () => {
     });
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
     expect(screen.queryByText('HP')).not.toBeInTheDocument();
+  });
+
+  it('keeps the resource cards looking alive and clickable while dead but the staged HP hasn\'t visibly reached 0 yet', () => {
+    mockedUseLobbyGame.mockReturnValue({
+      ...baseLobbyGameResult,
+      myPlayer: { ...basePlayer, hp: 0 },
+      isAlive: false,
+      canAct: false,
+    });
+    // Staged HP still mid-peel (see useStagedResources) -- the death strike's
+    // animation hasn't landed yet.
+    mockedUseStagedResources.mockReturnValue({ hp: 3, coins: 2, attackDamage: 1, hpAnim: 'shake', hpBlockPulse: 0 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    const hpButton = screen.getByText('HP').closest('button');
+    // Not natively disabled (some browsers dim disabled controls regardless
+    // of custom classes) and no dimmed "dead" look yet...
+    expect(hpButton).not.toBeDisabled();
+    expect(hpButton?.className).not.toContain('opacity-60');
+    // ...but a click during this window still can't actually submit
+    // anything -- handleResource itself guards on the real canAct.
+    fireEvent.click(hpButton!);
+    expect(emit).not.toHaveBeenCalled();
+  });
+
+  it('keeps looking alive through the hold even when this death also ends the match', () => {
+    // Regression: canActLook used to also require !gameOver, but a fatal
+    // blow that ends the match flips gameOver the same instant it flips
+    // isAlive -- reintroducing the exact instant-reveal bug this exists to
+    // fix for any death that also happens to be the game's last.
+    mockedUseLobbyGame.mockReturnValue({
+      ...baseLobbyGameResult,
+      phase: 'gameover',
+      myPlayer: { ...basePlayer, hp: 0 },
+      isAlive: false,
+      canAct: false,
+    });
+    mockedUseStagedResources.mockReturnValue({ hp: 3, coins: 2, attackDamage: 1, hpAnim: 'shake', hpBlockPulse: 0 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    const hpButton = screen.getByText('HP').closest('button');
+    expect(hpButton).not.toBeDisabled();
+    expect(hpButton?.className).not.toContain('opacity-60');
+  });
+
+  it('shows the dimmed look once the staged HP has visibly reached 0', () => {
+    mockedUseLobbyGame.mockReturnValue({
+      ...baseLobbyGameResult,
+      myPlayer: { ...basePlayer, hp: 0 },
+      isAlive: false,
+      canAct: false,
+    });
+    mockedUseStagedResources.mockReturnValue({ hp: 0, coins: 2, attackDamage: 1, hpAnim: 'shake', hpBlockPulse: 0 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    const hpButton = screen.getByText('HP').closest('button');
+    expect(hpButton).toBeDisabled();
+    expect(hpButton?.className).toContain('opacity-60');
+  });
+
+  it('still dims the cards immediately when canAct is false for a reason other than death', () => {
+    mockedUseLobbyGame.mockReturnValue({
+      ...baseLobbyGameResult,
+      isAlive: true,
+      isDenied: true,
+      canAct: false,
+    });
+    mockedUseStagedResources.mockReturnValue({ hp: 5, coins: 2, attackDamage: 1, hpAnim: 'bounce', hpBlockPulse: 0 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    const hpButton = screen.getByText('HP').closest('button');
+    expect(hpButton).toBeDisabled();
+    expect(hpButton?.className).toContain('opacity-60');
   });
 });
 
@@ -417,6 +517,7 @@ describe('messages panel overflow', () => {
       round: 1,
       messages: [['A long message that would overflow the collapsed panel.']],
       events: [],
+      instakill: false,
     });
   });
 
