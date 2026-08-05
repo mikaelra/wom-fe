@@ -11,7 +11,6 @@ import { useCountdown } from '@/lib/useCountdown';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { buildCombatAnimationPlan } from '@/lib/combatAnimationPlan';
 import type { LobbyState, Player } from '@/types/game';
-import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import ResourceCard from '@/components/ResourceCard';
 import { useStagedResources } from '@/lib/useStagedResources';
 import { useToast } from '@/components/Toast';
@@ -107,8 +106,6 @@ type SceneOverlayProps = {
    *  gain_attack), so LobbyScene can play the matching flask/coin/sword
    *  rise-and-absorb effect once the round resolves -- see ResourceGainEffect. */
   onResourceChange?: (resource: string) => void;
-  /** Welcome-tour highlights — glows the matching resource cards. */
-  guideHighlight?: GuideHighlights;
   /** Passed straight through to renderPreGame's opts -- see PreGameRenderOpts. */
   spinEnabled?: boolean;
   onToggleSpin?: () => void;
@@ -121,9 +118,17 @@ type SceneOverlayProps = {
    *  gameStarted, in this component's own in-game JSX, not renderPreGame. */
   cameraMoved?: boolean;
   onResetCamera?: () => void;
+  /** Fired whenever this round's "is the Game Over reveal showing" gate
+   *  (gameOver && revealedRound === state.round) changes -- see the comment
+   *  above `revealedRound`. Lets callers hold their own post-game UI (wheel
+   *  claim nudge, etc.) back until the same moment the Game Over text
+   *  itself appears, instead of reacting to the raw state.gameover flag,
+   *  which flips true the instant the server broadcast arrives -- well
+   *  before the eliminating kill's animation has played. */
+  onGameOverRevealed?: (revealed: boolean) => void;
 };
 
-export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, guideHighlight, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera }: SceneOverlayProps) {
+export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera, onGameOverRevealed }: SceneOverlayProps) {
   const {
     theme,
     backLabel,
@@ -292,6 +297,12 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     return () => clearTimeout(fallback);
   }, [gameOver, state?.round, revealedRound]);
 
+  const gameOverRevealed = gameOver && revealedRound === (state?.round ?? null);
+  useEffect(() => {
+    onGameOverRevealed?.(gameOverRevealed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameOverRevealed]);
+
   // Staged display values for the resource cards: holds back a Well reward at
   // round start and ticks it up when the reward lands (Phase 2). Falls back to
   // the player's real values for every other case.
@@ -456,7 +467,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           disabled={!canAct}
           onClick={() => handleResource('gain_hp')}
           className={`${!canActLook ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-            ${resourceCue} ${guideGlowClass(guideHighlight?.hp)}
+            ${resourceCue}
             ${resource === 'gain_hp'
               ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
               : 'bg-black/70 border-red-500/50 hover:bg-red-950/80 hover:border-red-400/80 hover:shadow-[0_0_6px_rgba(239,68,68,0.3)]'
@@ -471,7 +482,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           disabled={!canAct}
           onClick={() => handleResource('gain_coin')}
           className={`${!canActLook ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-            ${resourceCue} ${guideGlowClass(guideHighlight?.coins)}
+            ${resourceCue}
             ${resource === 'gain_coin'
               ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
               : 'bg-black/70 border-yellow-500/50 hover:bg-yellow-950/80 hover:border-yellow-400/80 hover:shadow-[0_0_6px_rgba(234,179,8,0.3)]'
@@ -487,7 +498,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           onClick={() => handleResource('gain_attack')}
           className={`relative overflow-hidden
             ${!canActLook || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
-            ${cannotAffordAtk ? '' : resourceCue} ${guideGlowClass(guideHighlight?.atk)}
+            ${cannotAffordAtk ? '' : resourceCue}
             ${resource === 'gain_attack'
               ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
               : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80 hover:shadow-[0_0_6px_rgba(59,130,246,0.3)]'
@@ -699,7 +710,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             </div>
           )}
 
-          {gameOver && revealedRound === state?.round && renderGameOver({ state, playerName, enemy, btn })}
+          {gameOverRevealed && renderGameOver({ state, playerName, enemy, btn })}
         </div>
       </div>
 

@@ -9,11 +9,10 @@ type RulesModalProps = {
 };
 
 /**
- * On-demand rules reference for the pre-game lobby -- same step copy as the
- * live in-round welcome tour (InGameGuide/GUIDE_STEPS), so this never drifts
- * out of date the way the old static /rules SVG pages did. Unlike the live
- * tour, there's no round in progress here for a step's highlighted buttons
- * to actually blink on, so GuideStepPreview renders the real button
+ * On-demand rules reference for the pre-game lobby -- same step copy
+ * (GUIDE_STEPS) as the standalone /rules pages, so the two never drift out
+ * of sync. There's no round in progress here for a step's highlighted
+ * buttons to actually blink on, so GuideStepPreview renders the real button
  * art/resource cards statically instead (see its own comment).
  */
 export default function RulesModal({ onClose }: RulesModalProps) {

@@ -249,6 +249,35 @@ describe('game over', () => {
     vi.useRealTimers();
   });
 
+  it('calls onGameOverRevealed in sync with the held-off reveal, not the raw gameover flag', () => {
+    // Regression coverage for LobbyOverlay's wheel/relic nudges, which
+    // consume this callback specifically so they don't pop up over a
+    // still-playing death animation -- see LobbyOverlay.test.tsx.
+    vi.useFakeTimers();
+    localStorage.setItem('playerName', 'Alice');
+    const bob: Player = { ...basePlayer, name: 'Bob', hp: 0 };
+    const gameoverState: LobbyState = { ...baseState, gameover: true, winner: 'Alice', players: [basePlayer, bob] };
+    mockConnection(gameoverState);
+    mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult, phase: 'gameover' });
+    mockedUseGameEvents.mockReturnValue({
+      round: gameoverState.round,
+      messages: [['Alice eliminated Bob!']],
+      events: [{ kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 0 }],
+    });
+    const onGameOverRevealed = vi.fn();
+
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} onGameOverRevealed={onGameOverRevealed} />);
+
+    expect(onGameOverRevealed).toHaveBeenCalledWith(false);
+    expect(onGameOverRevealed).not.toHaveBeenCalledWith(true);
+
+    act(() => { vi.advanceTimersByTime(1630); });
+
+    expect(onGameOverRevealed).toHaveBeenLastCalledWith(true);
+
+    vi.useRealTimers();
+  });
+
   it('falls back to revealing Game Over after a grace window if this round\'s events never arrive', () => {
     vi.useFakeTimers();
     localStorage.setItem('playerName', 'Alice');

@@ -20,7 +20,6 @@ import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
 import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, HTML_EPS, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
-import { guideGlowClass, type GuideHighlights } from '@/lib/guideHighlights';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { emitHpFx } from '@/lib/resourceFx';
@@ -157,9 +156,6 @@ type LobbySceneProps = {
    *  gain_attack), lifted from SceneOverlay the same way currentAction is --
    *  drives ResourceGainEffect at round-resolution. */
   chosenResource?: string;
-  /** Welcome-tour highlights, lifted to the page so the overlay can glow the
-   *  resource cards too. The 3D scene uses it for attack/defend/well. */
-  guideHighlight?: GuideHighlights;
   /** Player-toggleable (button lives in the pre-game overlay) -- off pauses
    *  CameraFlyIn's ambient pre-round orbit so kick/relic clicks are easier
    *  to land. Defaults on. */
@@ -170,7 +166,7 @@ type LobbySceneProps = {
   onCameraUserAdjust?: () => void;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, chosenResource, guideHighlight = {}, spinEnabled = true, resetCameraSignal, onCameraUserAdjust }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, chosenResource, spinEnabled = true, resetCameraSignal, onCameraUserAdjust }: LobbySceneProps) {
   // Countdown warning level for the action buttons. We deliberately do NOT
   // store the remaining seconds here — that re-rendered the whole scene every
   // second. The level only changes twice per round ('' → gold → red), and
@@ -947,7 +943,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             currentAction={currentAction}
             onDefend={handleDefend}
             showShield={isOwnPlayer && defendShieldActive}
-            highlight={guideHighlight}
             infoReveal={infoBadge}
             showLobbyControls={showLobbyControls}
             isOwnPlayer={isOwnPlayer}
@@ -1007,7 +1002,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             selected={currentAction === 'well'}
             glowColor="rgba(167,139,250,0.7)"
             width={180}
-            className={`${actionCue} ${guideGlowClass(guideHighlight?.well)}`}
+            className={actionCue}
             style={{ pointerEvents: 'auto' }}
           />
         </Html>

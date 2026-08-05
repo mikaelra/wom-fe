@@ -5,10 +5,12 @@ import type { GameOverRenderOpts, PreGameRenderOpts } from '@/components/SceneOv
 import type { LobbyState, Player } from '@/types/game';
 
 let capturedOnStateChange: ((s: LobbyState | null) => void) | null = null;
+let capturedOnGameOverRevealed: ((revealed: boolean) => void) | null = null;
 
 vi.mock('@/components/SceneOverlay', () => ({
-  default: (props: { onStateChange?: (s: LobbyState | null) => void }) => {
+  default: (props: { onStateChange?: (s: LobbyState | null) => void; onGameOverRevealed?: (revealed: boolean) => void }) => {
     capturedOnStateChange = props.onStateChange ?? null;
+    capturedOnGameOverRevealed = props.onGameOverRevealed ?? null;
     return null;
   },
 }));
@@ -334,6 +336,7 @@ describe('renderPreGame', () => {
 describe('LobbyOverlay (BossSignupNudge gate)', () => {
   beforeEach(() => {
     capturedOnStateChange = null;
+    capturedOnGameOverRevealed = null;
     localStorage.setItem('playerName', 'Alice');
   });
 
@@ -352,11 +355,32 @@ describe('LobbyOverlay (BossSignupNudge gate)', () => {
 
     act(() => {
       capturedOnStateChange?.({ ...baseState, players: [me], gameover: false, boss_fight: true });
+      capturedOnGameOverRevealed?.(false);
     });
     expect(screen.queryByText(/You won a relic/)).not.toBeInTheDocument();
 
     act(() => {
       capturedOnStateChange?.({ ...baseState, players: [me], gameover: true, boss_fight: true });
+      capturedOnGameOverRevealed?.(true);
+    });
+    expect(screen.getByText(/You won a relic/)).toBeInTheDocument();
+  });
+
+  it('does not show the nudge just because gameover is true -- waits for the Game Over reveal itself', () => {
+    // Regression: this used to react to the raw state.gameover flag, which
+    // flips true the instant the server broadcast arrives -- popping up
+    // over the still-playing death/kill animation instead of after "Game
+    // Over" actually appears (SceneOverlay's own revealedRound hold).
+    render(<LobbyOverlay lobbyId="AAAA" />);
+    const me: Player = { ...basePlayer, name: 'Alice', pending_relic_nudge: true };
+
+    act(() => {
+      capturedOnStateChange?.({ ...baseState, players: [me], gameover: true, boss_fight: true });
+    });
+    expect(screen.queryByText(/You won a relic/)).not.toBeInTheDocument();
+
+    act(() => {
+      capturedOnGameOverRevealed?.(true);
     });
     expect(screen.getByText(/You won a relic/)).toBeInTheDocument();
   });
@@ -367,6 +391,7 @@ describe('LobbyOverlay (BossSignupNudge gate)', () => {
 
     act(() => {
       capturedOnStateChange?.({ ...baseState, players: [me], gameover: true, boss_fight: true });
+      capturedOnGameOverRevealed?.(true);
     });
     expect(screen.getByText(/You won a relic/)).toBeInTheDocument();
 
@@ -378,6 +403,7 @@ describe('LobbyOverlay (BossSignupNudge gate)', () => {
 describe('LobbyOverlay (WheelClaimNudge gate)', () => {
   beforeEach(() => {
     capturedOnStateChange = null;
+    capturedOnGameOverRevealed = null;
     localStorage.setItem('playerName', 'Alice');
   });
 
@@ -391,11 +417,31 @@ describe('LobbyOverlay (WheelClaimNudge gate)', () => {
 
     act(() => {
       capturedOnStateChange?.({ ...baseState, players: [me], gameover: false, boss_fight: false });
+      capturedOnGameOverRevealed?.(false);
     });
     expect(screen.queryByText(/You won a Wheel/)).not.toBeInTheDocument();
 
     act(() => {
       capturedOnStateChange?.({ ...baseState, players: [me], gameover: true, boss_fight: false });
+      capturedOnGameOverRevealed?.(true);
+    });
+    expect(screen.getByText(/You won a Wheel/)).toBeInTheDocument();
+  });
+
+  it('does not show the wheel nudge just because gameover is true -- waits for the Game Over reveal itself', () => {
+    // Regression: this is the exact bug the user hit -- winning a Wheel on
+    // the round they died popped the claim modal up instantly instead of
+    // waiting for "Game Over" to actually appear.
+    render(<LobbyOverlay lobbyId="AAAA" />);
+    const me: Player = { ...basePlayer, name: 'Alice', pending_wheel_nudge: true };
+
+    act(() => {
+      capturedOnStateChange?.({ ...baseState, players: [me], gameover: true });
+    });
+    expect(screen.queryByText(/You won a Wheel/)).not.toBeInTheDocument();
+
+    act(() => {
+      capturedOnGameOverRevealed?.(true);
     });
     expect(screen.getByText(/You won a Wheel/)).toBeInTheDocument();
   });
@@ -406,6 +452,7 @@ describe('LobbyOverlay (WheelClaimNudge gate)', () => {
 
     act(() => {
       capturedOnStateChange?.({ ...baseState, players: [me], gameover: true });
+      capturedOnGameOverRevealed?.(true);
     });
     expect(screen.getByText(/You won a Wheel/)).toBeInTheDocument();
 

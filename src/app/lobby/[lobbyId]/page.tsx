@@ -5,14 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import LobbyOverlay from '@/components/lobby/LobbyOverlay';
-import InGameGuide from '@/components/lobby/InGameGuide';
 import { BASE_FOV } from '@/lib/sceneConstants';
 import { joinLobby } from '@/lib/api';
 import { getSocket, subscribe } from '@/lib/socket';
 import { getStoredToken } from '@/lib/http';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { LobbyState } from '@/types/game';
-import type { GuideHighlights } from '@/lib/guideHighlights';
 
 const LobbyScene = dynamic(() => import('@/components/lobby/LobbyScene'), { ssr: false });
 
@@ -26,7 +24,6 @@ export default function LobbyPage() {
   const [sharedAction, setSharedAction] = useState('');
   const [sharedAttackTarget, setSharedAttackTarget] = useState('');
   const [sharedResource, setSharedResource] = useState('');
-  const [guideHighlight, setGuideHighlight] = useState<GuideHighlights>({});
   // Lifted here since LobbyScene (the camera) and LobbyOverlay (the toggle
   // button) are separate render trees -- see CameraFlyIn's ambient orbit.
   const [spinEnabled, setSpinEnabled] = useState(true);
@@ -154,7 +151,6 @@ export default function LobbyPage() {
           onAttackSelect={handleAttackSelect}
           onActionChange={setSharedAction}
           chosenResource={sharedResource}
-          guideHighlight={guideHighlight}
           spinEnabled={spinEnabled}
           resetCameraSignal={resetCameraSignal}
           onCameraUserAdjust={handleCameraUserAdjust}
@@ -162,26 +158,17 @@ export default function LobbyPage() {
       </Canvas>
 
       {playerName && hasJoined && (
-        <>
-          <LobbyOverlay
-            lobbyId={lobbyId}
-            onStateChange={setLobbyState}
-            externalAction={sharedAction}
-            onActionChange={setSharedAction}
-            onResourceChange={setSharedResource}
-            guideHighlight={guideHighlight}
-            spinEnabled={spinEnabled}
-            onToggleSpin={() => setSpinEnabled((v) => !v)}
-            cameraMoved={cameraMoved}
-            onResetCamera={handleResetCamera}
-          />
-          {/* In-game welcome tour — floats in the UI overlay layer just above
-              the resource cards (lives outside the 3D canvas now). */}
-          <InGameGuide
-            gameStarted={(lobbyState?.round ?? 0) > 0 && lobbyState?.players?.some((p) => p.name === playerName) === true}
-            onHighlightChange={setGuideHighlight}
-          />
-        </>
+        <LobbyOverlay
+          lobbyId={lobbyId}
+          onStateChange={setLobbyState}
+          externalAction={sharedAction}
+          onActionChange={setSharedAction}
+          onResourceChange={setSharedResource}
+          spinEnabled={spinEnabled}
+          onToggleSpin={() => setSpinEnabled((v) => !v)}
+          cameraMoved={cameraMoved}
+          onResetCamera={handleResetCamera}
+        />
       )}
 
       {showJoinOverlay && (

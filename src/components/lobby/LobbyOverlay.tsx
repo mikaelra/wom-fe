@@ -8,7 +8,6 @@ import SceneOverlay, {
   type GameOverRenderOpts,
   type PreGameRenderOpts,
 } from '@/components/SceneOverlay';
-import type { GuideHighlights } from '@/lib/guideHighlights';
 import BossSignupNudge from '@/components/BossSignupNudge';
 import WheelClaimNudge from '@/components/WheelClaimNudge';
 import StartGameButton from '@/components/StartGameButton';
@@ -24,7 +23,6 @@ type LobbyOverlayProps = {
   onActionChange?: (action: string) => void;
   /** Called whenever the player picks a resource -- see SceneOverlayProps. */
   onResourceChange?: (resource: string) => void;
-  guideHighlight?: GuideHighlights;
   /** Ambient pre-round camera orbit (see CameraFlyIn/LobbyScene) -- lifted up
    *  to the page since the camera and this overlay are separate render trees. */
   spinEnabled?: boolean;
@@ -292,12 +290,19 @@ const lobbyConfig: SceneOverlayConfig = {
   renderGameOver,
 };
 
-export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, onResourceChange, guideHighlight, spinEnabled, onToggleSpin, cameraMoved, onResetCamera }: LobbyOverlayProps) {
+export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, onResourceChange, spinEnabled, onToggleSpin, cameraMoved, onResetCamera }: LobbyOverlayProps) {
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [wheelNudgeDismissed, setWheelNudgeDismissed] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [playerName, setPlayerName] = useState('');
+  // Mirrors SceneOverlay's own gate for when the Game Over text actually
+  // appears (held back until the eliminating kill's animation has played --
+  // see its onGameOverRevealed comment). The nudges below used to react to
+  // the raw state.gameover flag instead, which flips true the instant the
+  // server broadcast arrives, so a wheel/relic win popped up over the still-
+  // playing death animation instead of after "Game Over" showed.
+  const [gameOverRevealed, setGameOverRevealed] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -313,14 +318,14 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
   const { myPlayer } = useLobbyGame(localState, playerName);
   const showNudge =
     !nudgeDismissed &&
-    (localState?.gameover ?? false) &&
+    gameOverRevealed &&
     (localState?.boss_fight ?? false) &&
     (myPlayer?.pending_relic_nudge ?? false);
   // Not gated on boss_fight -- the Wheel drops on any match end (PvP or
   // boss fight), unlike relics which are Hades-bossfight-only.
   const showWheelNudge =
     !wheelNudgeDismissed &&
-    (localState?.gameover ?? false) &&
+    gameOverRevealed &&
     (myPlayer?.pending_wheel_nudge ?? false);
 
   return (
@@ -333,10 +338,10 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
         externalAction={externalAction}
         onActionChange={onActionChange}
         onResourceChange={onResourceChange}
-        guideHighlight={guideHighlight}
         spinEnabled={spinEnabled}
         onToggleSpin={onToggleSpin}
         onOpenRules={() => setShowRules(true)}
+        onGameOverRevealed={setGameOverRevealed}
         cameraMoved={cameraMoved}
         onResetCamera={onResetCamera}
       />

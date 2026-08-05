@@ -37,12 +37,10 @@ vi.mock('@react-three/fiber', () => ({
 }));
 
 // LobbyScene is real 3D scene content (out of scope, no dedicated suite
-// planned). LobbyOverlay already has its own full RTL suite; InGameGuide is
-// a presentational welcome-tour overlay unrelated to auth-forms wiring.
-// None of the three are this test's focus.
+// planned). LobbyOverlay already has its own full RTL suite. Neither is
+// this test's focus (auth-forms wiring).
 vi.mock('@/components/lobby/LobbyScene', () => ({ default: () => null }));
 vi.mock('@/components/lobby/LobbyOverlay', () => ({ default: () => null }));
-vi.mock('@/components/lobby/InGameGuide', () => ({ default: () => null }));
 
 const mockedCheckName = vi.mocked(checkName);
 const mockedLogInUser = vi.mocked(logInUser);
