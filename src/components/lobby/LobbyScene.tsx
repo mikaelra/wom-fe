@@ -94,6 +94,13 @@ const WELL_SELECT_GLOW_COLOR   = '#a78bfa';
 const ATTACK_SELECT_GLOW_COLOR = '#ef4444';
 const DEFEND_SELECT_GLOW_COLOR = '#3b82f6';
 const DEFEND_SELECT_GLOW_INTENSITY = 2;
+// Poisoned Dagger (instakill) cue -- a larger, slower-breathing green glow
+// layered under the red attack-target glow when picking who to attack. Same
+// "always on" WIP status as the instakill-flame CSS cue on the ATK card/
+// Attack buttons -- not yet gated on an actual dagger charge.
+const ATTACK_TARGET_POISON_GLOW_COLOR = '#22c55e';
+const ATTACK_TARGET_POISON_GLOW_RADIUS = 2;
+const ATTACK_TARGET_POISON_GLOW_PULSE_SPEED = 0.5; // much slower than SelectionGlow's default breathing
 // Same blue as the defend-selection glow above, but for the moment of an
 // actual block landing (either side of it) rather than the pre-round choice.
 // Half the strength so it reads as a smaller "impact" beat, not a repeat of
@@ -1223,6 +1230,19 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         radius={1.1}
         intensity={BLOCK_GLOW_INTENSITY}
         fadeOutRate={BLOCK_GLOW_FADE_OUT_RATE}
+        gradient
+      />
+      {/* Poisoned Dagger cue: a larger, much slower-pulsing green glow
+          layered under the red attack-target one below (rendered first so
+          it sits underneath). Twice the red glow's intensity. */}
+      <SelectionGlow
+        position={attackTargetGlowPos ?? GLOW_PARK_POSITION}
+        yOffset={SELECTION_GLOW_Y_OFFSET}
+        color={ATTACK_TARGET_POISON_GLOW_COLOR}
+        active={!!attackTargetGlowPos}
+        radius={ATTACK_TARGET_POISON_GLOW_RADIUS}
+        intensity={(attackTarget === bossName ? 2 * 1.5 : 2) * 2}
+        pulseSpeed={ATTACK_TARGET_POISON_GLOW_PULSE_SPEED}
         gradient
       />
       <SelectionGlow

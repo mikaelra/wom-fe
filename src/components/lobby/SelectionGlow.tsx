@@ -64,6 +64,10 @@ type SelectionGlowProps = {
    *  slowly than it rises (e.g. an impact flash: quick to peak, slow to
    *  fade), without touching every other SelectionGlow's timing. */
   fadeOutRate?: number;
+  /** Gentle breathing speed while active. Defaults to PULSE_SPEED --
+   *  lower it for an instance that should pulse noticeably slower than the
+   *  rest, without touching every other SelectionGlow's timing. */
+  pulseSpeed?: number;
 };
 
 export default function SelectionGlow({
@@ -76,6 +80,7 @@ export default function SelectionGlow({
   gradient = false,
   fadeInRate = FADE_RATE,
   fadeOutRate = FADE_RATE,
+  pulseSpeed = PULSE_SPEED,
 }: SelectionGlowProps) {
   const discRef  = useRef<THREE.Mesh>(null);
   const lightRef = useRef<THREE.PointLight>(null);
@@ -86,7 +91,7 @@ export default function SelectionGlow({
     const target = active ? 1 : 0;
     const rate = active ? fadeInRate : fadeOutRate;
     envRef.current += (target - envRef.current) * Math.min(1, rate * delta);
-    const pulse = 1 - PULSE_DEPTH + PULSE_DEPTH * Math.sin(state.clock.elapsedTime * PULSE_SPEED);
+    const pulse = 1 - PULSE_DEPTH + PULSE_DEPTH * Math.sin(state.clock.elapsedTime * pulseSpeed);
     const env = envRef.current * pulse;
 
     if (discRef.current) {
