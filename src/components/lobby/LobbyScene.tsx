@@ -228,29 +228,23 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [deathPending, setDeathPending] = useState<Set<string>>(new Set());
   // Whether the Poisoned Dagger's (instakill Well reward) visual cues
   // (green ground glow, instakill-flame on Attack buttons/ATK card) should
-  // be showing. Deliberately NOT just `state.instakill === playerName` --
-  // that flips true the instant the round resolves, well before the
-  // dagger's WellRewardEffect model has even started its arc. Set
-  // immediately false whenever the local player doesn't hold the charge, and
-  // immediately true when they already held it entering this round (nothing
-  // new landing to wait for); the round the charge is newly won, this stays
-  // false until the async well-reward handler below flips it a beat before
-  // the model actually lands (see addWellRewardEvents' 'instakill' case and
-  // INSTAKILL_GLOW_LEAD_MS).
+  // be showing. Deliberately NOT sourced from state_update -- who holds the
+  // charge is private (see routes/lobby.py's get_player_messages), not
+  // broadcast to the whole lobby room, so this is driven entirely by the
+  // per-player useGameEvents fetch below (gameEvents.instakill) rather than
+  // any `state` field. It also flips true the instant that fetch resolves,
+  // well before the dagger's WellRewardEffect model has even started its
+  // arc, so the round-resolution effect below holds it false and delays the
+  // reveal until a beat before the model actually lands, whenever this
+  // round's fetch shows the charge as newly won (see addWellRewardEvents'
+  // 'instakill' case and INSTAKILL_GLOW_LEAD_MS) -- already holding it
+  // entering the round (nothing new landing to wait for) sets it true
+  // immediately instead.
   const [instakillVisualActive, setInstakillVisualActive] = useState(false);
   useEffect(() => {
     onInstakillActiveChange?.(instakillVisualActive);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instakillVisualActive]);
-  // Safety net for page-load/refresh while already holding a dagger charge
-  // -- no round transition occurs in that case to trigger the logic below,
-  // so sync directly, once, the first time state arrives.
-  const instakillInitRef = useRef(false);
-  useEffect(() => {
-    if (instakillInitRef.current || !state) return;
-    instakillInitRef.current = true;
-    if (state.instakill === playerName) setInstakillVisualActive(true);
-  }, [state, playerName]);
   // Timeout IDs for staggered incoming defended strikes (cleared each new round)
   const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   // Last round this component has already scheduled combat/well-reward
@@ -539,17 +533,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       );
     }
 
-    // Poisoned Dagger charge (see instakillVisualActive's own comment):
-    // immediately false whenever not held, immediately true when already
-    // held entering this round (nothing new landing to wait for this
-    // round). Newly won this round is deliberately left alone here -- the
-    // async well-reward handler below flips it once the dagger model lands.
-    if (state.instakill !== playerName) {
-      setInstakillVisualActive(false);
-    } else if (prev.instakill === playerName) {
-      setInstakillVisualActive(true);
-    }
-
     // Boss fight just won → Hades' coin: a giant golden coin arcs out of the
     // boss and lands on every surviving human (mirrors the relic-award loop
     // in engine/boss_ai.py's boss_defeated, which credits the same set).
@@ -639,6 +622,21 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       wonWell,
       iChoseDefend: defendShieldActiveRef.current,
     });
+
+    // Poisoned Dagger charge (see instakillVisualActive's own comment):
+    // immediately false whenever the private per-round fetch says it's not
+    // held, immediately true when it's held but nothing new landed this
+    // round (already had it entering the round). Newly won this round is
+    // deliberately left alone here -- the addWellRewardEvents case below
+    // flips it once the dagger model actually lands.
+    const wonInstakillThisRound = plan.some((b) =>
+      b.actions.some((a) => a.type === 'addWellRewardEvents' && a.events.some((e) => e.type === 'instakill')),
+    );
+    if (!gameEvents.instakill) {
+      setInstakillVisualActive(false);
+    } else if (!wonInstakillThisRound) {
+      setInstakillVisualActive(true);
+    }
 
     // Resource-gain flask/coin/sword rise-and-absorb -- fires first, at t=0,
     // with combat/well (below) held back to start after it finishes instead

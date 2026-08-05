@@ -78,11 +78,6 @@ export const LobbyStateSchema = z.object({
   players: z.array(PlayerSchema),
   winner: z.string().nullable(),
   wellwinner: z.string().nullable(),
-  // Name of whoever currently holds an active Poisoned Dagger charge
-  // (instakill Well reward), or null -- spent the round it's used, blocked
-  // or not. Optional per the deploy-independence reasoning above (ranked/
-  // deny_denier): a wom-be deployed before this shipped simply omits it.
-  instakill: z.string().nullable().optional(),
   pending_deny: z.string().nullable(),
   deny_target: z.string().nullable(),
   // Who performed the deny that set deny_target -- lets a client tell

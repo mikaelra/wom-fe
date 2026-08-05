@@ -150,7 +150,7 @@ export async function getPlayerRelics(playerName: string): Promise<{ relics: Rel
 export async function getPlayerMessages(
   lobbyId: string,
   playerName: string
-): Promise<{ messages: (string | string[])[]; events: GameEvent[] }> {
+): Promise<{ messages: (string | string[])[]; events: GameEvent[]; instakill: boolean }> {
   // Backend Phase 1b: messages/events are private data, gated behind the
   // session token issued on join (see getStoredToken). A stale tab that
   // never (re)joined has no token -- fetch will 403 and fall through to
@@ -161,9 +161,9 @@ export async function getPlayerMessages(
     : `/get_player_messages/${lobbyId}/${playerName}`;
   try {
     const data = await request(path, GetPlayerMessagesResponseSchema);
-    return { messages: data.messages, events: data.events };
+    return { messages: data.messages, events: data.events, instakill: data.instakill ?? false };
   } catch {
-    return { messages: [], events: [] };
+    return { messages: [], events: [], instakill: false };
   }
 }
 

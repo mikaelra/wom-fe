@@ -32,17 +32,17 @@ describe('useGameEvents', () => {
   });
 
   it('fetches once round is set and tags the result with that round', async () => {
-    mockedGetPlayerMessages.mockResolvedValue({ messages: [['hi']], events: [] });
+    mockedGetPlayerMessages.mockResolvedValue({ messages: [['hi']], events: [], instakill: false });
 
     const { result } = renderHook(() => useGameEvents('AAAA', 'Alice', 1, undefined));
     await flushMicrotasks();
 
     expect(mockedGetPlayerMessages).toHaveBeenCalledWith('AAAA', 'Alice');
-    expect(result.current).toEqual({ round: 1, messages: [['hi']], events: [] });
+    expect(result.current).toEqual({ round: 1, messages: [['hi']], events: [], instakill: false });
   });
 
   it('refetches when round changes', async () => {
-    mockedGetPlayerMessages.mockResolvedValue({ messages: [], events: [] });
+    mockedGetPlayerMessages.mockResolvedValue({ messages: [], events: [], instakill: false });
 
     const { rerender } = renderHook(
       ({ round }) => useGameEvents('AAAA', 'Alice', round, undefined),
@@ -57,7 +57,7 @@ describe('useGameEvents', () => {
   });
 
   it('refetches when denyTarget changes within the same round', async () => {
-    mockedGetPlayerMessages.mockResolvedValue({ messages: [], events: [] });
+    mockedGetPlayerMessages.mockResolvedValue({ messages: [], events: [], instakill: false });
 
     const { rerender } = renderHook(
       ({ denyTarget }: { denyTarget: string | undefined }) =>
@@ -73,14 +73,14 @@ describe('useGameEvents', () => {
   });
 
   it('ignores a resolution that arrives after the round changed again (cancellation guard)', async () => {
-    let resolveFirst: (value: { messages: never[]; events: never[] }) => void;
+    let resolveFirst: (value: { messages: never[]; events: never[]; instakill: boolean }) => void;
     mockedGetPlayerMessages.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveFirst = resolve;
         })
     );
-    mockedGetPlayerMessages.mockResolvedValueOnce({ messages: [['round2']], events: [] });
+    mockedGetPlayerMessages.mockResolvedValueOnce({ messages: [['round2']], events: [], instakill: false });
 
     const { result, rerender } = renderHook(
       ({ round }) => useGameEvents('AAAA', 'Alice', round, undefined),
@@ -89,19 +89,19 @@ describe('useGameEvents', () => {
 
     rerender({ round: 2 });
     await flushMicrotasks();
-    expect(result.current).toEqual({ round: 2, messages: [['round2']], events: [] });
+    expect(result.current).toEqual({ round: 2, messages: [['round2']], events: [], instakill: false });
 
     await act(async () => {
-      resolveFirst!({ messages: [], events: [] });
+      resolveFirst!({ messages: [], events: [], instakill: false });
       await Promise.resolve();
     });
 
     // The stale round-1 fetch resolving afterwards must not clobber round 2's data.
-    expect(result.current).toEqual({ round: 2, messages: [['round2']], events: [] });
+    expect(result.current).toEqual({ round: 2, messages: [['round2']], events: [], instakill: false });
   });
 
   it('does not update state after unmounting before the fetch resolves', async () => {
-    let resolveFetch: (value: { messages: never[]; events: never[] }) => void;
+    let resolveFetch: (value: { messages: never[]; events: never[]; instakill: boolean }) => void;
     mockedGetPlayerMessages.mockReturnValue(
       new Promise((resolve) => {
         resolveFetch = resolve;
@@ -113,7 +113,7 @@ describe('useGameEvents', () => {
 
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     await act(async () => {
-      resolveFetch!({ messages: [], events: [] });
+      resolveFetch!({ messages: [], events: [], instakill: false });
       await Promise.resolve();
     });
     expect(consoleError).not.toHaveBeenCalled();

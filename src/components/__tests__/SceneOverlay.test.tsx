@@ -204,7 +204,7 @@ describe('game over', () => {
     // "revealed" (see the reveal-hold effect in SceneOverlay) -- baseState's
     // own gameover flag is false, so this round reveals synchronously the
     // instant gameEvents for it arrive, same as any ordinary round.
-    mockedUseGameEvents.mockReturnValue({ round: baseState.round, messages: [], events: [] });
+    mockedUseGameEvents.mockReturnValue({ round: baseState.round, messages: [], events: [], instakill: false });
     const renderGameOver = vi.fn(() => <div data-testid="game-over" />);
 
     render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, renderGameOver }} />);
@@ -229,6 +229,7 @@ describe('game over', () => {
       round: gameoverState.round,
       messages: [['Alice eliminated Bob!']],
       events: [{ kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 0 }],
+      instakill: false,
     });
     const renderGameOver = vi.fn(() => <div data-testid="game-over" />);
 
@@ -263,6 +264,7 @@ describe('game over', () => {
       round: gameoverState.round,
       messages: [['Alice eliminated Bob!']],
       events: [{ kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 0 }],
+      instakill: false,
     });
     const onGameOverRevealed = vi.fn();
 
@@ -515,6 +517,7 @@ describe('messages panel overflow', () => {
       round: 1,
       messages: [['A long message that would overflow the collapsed panel.']],
       events: [],
+      instakill: false,
     });
   });
 

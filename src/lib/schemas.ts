@@ -45,6 +45,10 @@ export const GetPlayerMessagesResponseSchema = z.object({
   player: z.string(),
   messages: z.array(z.union([z.string(), z.array(z.string())])),
   events: z.array(GameEventSchema),
+  // Whether this player currently holds an active Poisoned Dagger charge --
+  // private per-player (this route is token-gated), unlike state_update
+  // which is broadcast to the whole lobby room. See routes/lobby.py.
+  instakill: z.boolean().optional(),
 });
 
 export const CheckNameResponseSchema = z.object({

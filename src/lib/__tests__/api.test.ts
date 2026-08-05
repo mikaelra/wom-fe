@@ -431,6 +431,7 @@ describe('error-swallowing endpoints', () => {
     await expect(getPlayerMessages('abc', 'Alice')).resolves.toEqual({
       messages: [],
       events: [],
+      instakill: false,
     });
   });
 
@@ -441,6 +442,7 @@ describe('error-swallowing endpoints', () => {
     await expect(getPlayerMessages('abc', 'Alice')).resolves.toEqual({
       messages: [],
       events: [],
+      instakill: false,
     });
   });
 });
