@@ -380,6 +380,12 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   };
 
   const handleResource = (resId: string) => {
+    // The resource cards stay looking (and natively) clickable a beat past
+    // the real death reveal (see renderResourceCards' canActLook) so the 3D
+    // death animation gets to play before the UI gives it away -- guard the
+    // actual submission on the real, immediate canAct so a click landing in
+    // that window can't submit for an already-dead player.
+    if (!canAct) return;
     setResource(resId);
     onResourceChange?.(resId);
     getSocket().emit('submit_choice', { lobby_id: lobbyId, resource: resId, action: '' });
@@ -448,12 +454,16 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     // gives the death away early. shown.hp is the *staged* display value
     // (see useStagedResources) -- while it's still peeling down in sync
     // with the strike animation and hasn't visibly reached 0 yet, keep the
-    // cards looking alive. Narrowly scoped to exactly the "just died" case
-    // (every other canAct condition still holds) so denied/game-over/
-    // spectator/pre-round dimming is untouched -- disabled= below still
-    // uses the real, immediate canAct, so nothing becomes functionally
-    // clickable that wasn't already.
-    const canActLook = canAct || (!isAlive && !gameOver && !isDenied && !player.spectator && round > 0 && shown.hp > 0);
+    // cards looking (and staying) interactive. Deliberately does NOT check
+    // isAlive or gameOver here -- both flip in the very same tick as the
+    // death itself (a fatal blow that also ends the match flips gameOver
+    // at once too), so gating on them reintroduces the exact instant-reveal
+    // bug this exists to fix. denied/spectator/pre-round dimming (unrelated
+    // to death) is untouched. disabled= below follows this too, not the raw
+    // canAct -- some browsers dim disabled form controls regardless of
+    // custom classes, and handleResource itself guards on the real canAct
+    // so a click during this window can't actually submit anything.
+    const canActLook = canAct || (!isDenied && !player.spectator && round > 0 && shown.hp > 0);
     return (
       <>
         <ResourceCard
@@ -464,7 +474,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabelClass="text-red-400/70"
           anim={stagedResources?.hpAnim ?? 'bounce'}
           blockPulse={stagedResources?.hpBlockPulse ?? 0}
-          disabled={!canAct}
+          disabled={!canActLook}
           onClick={() => handleResource('gain_hp')}
           className={`${!canActLook ? 'opacity-60 cursor-default' : 'cursor-pointer'}
             ${resourceCue}
@@ -479,7 +489,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabel="💰 Get"
           valueClass="text-yellow-400"
           sublabelClass="text-yellow-400/70"
-          disabled={!canAct}
+          disabled={!canActLook}
           onClick={() => handleResource('gain_coin')}
           className={`${!canActLook ? 'opacity-60 cursor-default' : 'cursor-pointer'}
             ${resourceCue}
@@ -494,7 +504,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabel="⚔ Buy"
           valueClass="text-blue-400"
           sublabelClass="text-blue-400/70"
-          disabled={!canAct || cannotAffordAtk}
+          disabled={!canActLook || cannotAffordAtk}
           onClick={() => handleResource('gain_attack')}
           className={`relative overflow-hidden
             ${!canActLook || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}

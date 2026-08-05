@@ -329,7 +329,7 @@ describe('action-availability gating', () => {
     expect(screen.queryByText('HP')).not.toBeInTheDocument();
   });
 
-  it('keeps the resource cards looking alive while dead but the staged HP hasn\'t visibly reached 0 yet', () => {
+  it('keeps the resource cards looking alive and clickable while dead but the staged HP hasn\'t visibly reached 0 yet', () => {
     mockedUseLobbyGame.mockReturnValue({
       ...baseLobbyGameResult,
       myPlayer: { ...basePlayer, hp: 0 },
@@ -341,9 +341,32 @@ describe('action-availability gating', () => {
     mockedUseStagedResources.mockReturnValue({ hp: 3, coins: 2, attackDamage: 1, hpAnim: 'shake', hpBlockPulse: 0 });
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
     const hpButton = screen.getByText('HP').closest('button');
-    // Genuinely non-interactive (they can't actually act once dead)...
-    expect(hpButton).toBeDisabled();
-    // ...but doesn't yet show the dimmed "dead" look.
+    // Not natively disabled (some browsers dim disabled controls regardless
+    // of custom classes) and no dimmed "dead" look yet...
+    expect(hpButton).not.toBeDisabled();
+    expect(hpButton?.className).not.toContain('opacity-60');
+    // ...but a click during this window still can't actually submit
+    // anything -- handleResource itself guards on the real canAct.
+    fireEvent.click(hpButton!);
+    expect(emit).not.toHaveBeenCalled();
+  });
+
+  it('keeps looking alive through the hold even when this death also ends the match', () => {
+    // Regression: canActLook used to also require !gameOver, but a fatal
+    // blow that ends the match flips gameOver the same instant it flips
+    // isAlive -- reintroducing the exact instant-reveal bug this exists to
+    // fix for any death that also happens to be the game's last.
+    mockedUseLobbyGame.mockReturnValue({
+      ...baseLobbyGameResult,
+      phase: 'gameover',
+      myPlayer: { ...basePlayer, hp: 0 },
+      isAlive: false,
+      canAct: false,
+    });
+    mockedUseStagedResources.mockReturnValue({ hp: 3, coins: 2, attackDamage: 1, hpAnim: 'shake', hpBlockPulse: 0 });
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    const hpButton = screen.getByText('HP').closest('button');
+    expect(hpButton).not.toBeDisabled();
     expect(hpButton?.className).not.toContain('opacity-60');
   });
 

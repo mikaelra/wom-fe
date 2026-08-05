@@ -3,6 +3,7 @@ import type { LobbyState } from '@/types/game';
 import { combatFromEvents, wellRewardFromEvents, type WellRewardComponent } from '@/lib/gameEvents';
 import { onHpFx } from '@/lib/resourceFx';
 import type { GameEventsResult } from '@/lib/useGameEvents';
+import { WELL_REWARD_TRAVEL_DUR } from '@/components/lobby/WellRewardEffect';
 
 export interface Resources {
   hp: number;
@@ -18,9 +19,12 @@ export interface StagedResources extends Resources {
 }
 
 // When the local player wins the Well, the reward is held back at round start
-// and revealed ~this long later — lined up with the moment the 3D reward model
-// lands on the player (WellRewardEffect.tsx TRAVEL_DUR = 0.85s).
-const WELL_REVEAL_DELAY_MS = 850;
+// and revealed once the 3D reward model actually lands on the player --
+// WellRewardEffect's own travel duration, not a separately-tuned duplicate
+// (which drifted out of sync with it once already: this used to hardcode
+// 850ms while WellRewardEffect's real travel time was 1030ms, so the card
+// ticked up/bounced ~180ms before the model had actually arrived).
+const WELL_REVEAL_DELAY_MS = WELL_REWARD_TRAVEL_DUR * 1000;
 
 // Upper bound on one incoming strike's lifetime + gap, mirroring LobbyScene
 // (ONE_DEF_MS 1050 + GAP_MS 200). Used only to size the safety-reconcile timer.
