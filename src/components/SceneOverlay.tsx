@@ -506,7 +506,10 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabelClass="text-blue-400/70"
           disabled={!canActLook || cannotAffordAtk}
           onClick={() => handleResource('gain_attack')}
-          className={`relative overflow-hidden
+          // TODO(poisoned-dagger-fx): always on for now while the visual
+          // itself is being iterated on -- wire to the real "do I have an
+          // active instakill charge" state once the look is settled.
+          className={`relative overflow-hidden instakill-flame
             ${!canActLook || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
             ${cannotAffordAtk ? '' : resourceCue}
             ${resource === 'gain_attack'

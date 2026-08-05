@@ -478,7 +478,8 @@ export const PlayerWithName = memo(function PlayerWithName({
               selected={isAttackSelected}
               glowColor="rgba(239,68,68,0.7)"
               width={180}
-              className={actionCue}
+              // TODO(poisoned-dagger-fx): always on for now, see SceneOverlay's ATK card.
+              className={`${actionCue} instakill-flame`}
               style={stackItem(STACK_ATTACK_Y, true)}
             />
           )}
@@ -543,7 +544,8 @@ export const PlayerWithName = memo(function PlayerWithName({
                 selected={isAttackSelected}
                 glowColor="rgba(239,68,68,0.7)"
                 width={170}
-                className={actionCue}
+                // TODO(poisoned-dagger-fx): always on for now, see SceneOverlay's ATK card.
+                className={`${actionCue} instakill-flame`}
                 style={{ marginTop: '10px', pointerEvents: 'auto' }}
               />
             )}
@@ -646,7 +648,8 @@ export const LostSoulModel = memo(function LostSoulModel({
               selected={isAttackSelected}
               glowColor="rgba(239,68,68,0.7)"
               width={180}
-              className={actionCue}
+              // TODO(poisoned-dagger-fx): always on for now, see SceneOverlay's ATK card.
+              className={`${actionCue} instakill-flame`}
               style={stackItem(-35, true)}
             />
           )}
