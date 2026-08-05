@@ -74,6 +74,11 @@ const RESOURCE_GAIN_START_DELAY_MS = RESOURCE_GAIN_DUR * 1000 + 50;
 // force their dead pose to show after this long rather than leaving them
 // looking alive indefinitely.
 const DEATH_POSE_FALLBACK_MS = 4000;
+// Poisoned Dagger visual cues (green ground glow, Attack-button/ATK-card
+// flame) fire this much before the dagger's WellRewardEffect model actually
+// finishes landing -- a beat ahead of the full reveal, not simultaneous
+// with it. Tuned by eye; bump it up for an earlier cue, down for later.
+const INSTAKILL_GLOW_LEAD_MS = 300;
 
 useGLTF.preload('/models/shields/shield_animation-ld.glb');
 
@@ -229,8 +234,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // immediately false whenever the local player doesn't hold the charge, and
   // immediately true when they already held it entering this round (nothing
   // new landing to wait for); the round the charge is newly won, this stays
-  // false until the async well-reward handler below flips it once the model
-  // actually lands (see addWellRewardEvents' 'instakill' case).
+  // false until the async well-reward handler below flips it a beat before
+  // the model actually lands (see addWellRewardEvents' 'instakill' case and
+  // INSTAKILL_GLOW_LEAD_MS).
   const [instakillVisualActive, setInstakillVisualActive] = useState(false);
   useEffect(() => {
     onInstakillActiveChange?.(instakillVisualActive);
@@ -717,7 +723,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           // case alone for this handler to pick up).
           const instakillEvent = action.events.find((e) => e.type === 'instakill');
           if (instakillEvent) {
-            const revealDelayMs = (instakillEvent.delay + WELL_REWARD_FLIGHT_DUR) * 1000;
+            const revealDelayMs = Math.max(
+              0,
+              (instakillEvent.delay + WELL_REWARD_FLIGHT_DUR) * 1000 - INSTAKILL_GLOW_LEAD_MS,
+            );
             staggerTimeoutsRef.current.push(
               setTimeout(() => setInstakillVisualActive(true), revealDelayMs),
             );
