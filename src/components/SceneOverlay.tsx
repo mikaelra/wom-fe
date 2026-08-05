@@ -126,9 +126,14 @@ type SceneOverlayProps = {
    *  which flips true the instant the server broadcast arrives -- well
    *  before the eliminating kill's animation has played. */
   onGameOverRevealed?: (revealed: boolean) => void;
+  /** Poisoned Dagger (instakill Well reward) active cue for the ATK
+   *  resource card -- computed by LobbyScene (a sibling render tree; see
+   *  its own onInstakillActiveChange), passed down instead of re-derived
+   *  here so the card and the 3D scene's cues stay in lockstep. */
+  instakillActive?: boolean;
 };
 
-export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera, onGameOverRevealed }: SceneOverlayProps) {
+export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera, onGameOverRevealed, instakillActive }: SceneOverlayProps) {
   const {
     theme,
     backLabel,
@@ -506,10 +511,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           sublabelClass="text-blue-400/70"
           disabled={!canActLook || cannotAffordAtk}
           onClick={() => handleResource('gain_attack')}
-          // TODO(poisoned-dagger-fx): always on for now while the visual
-          // itself is being iterated on -- wire to the real "do I have an
-          // active instakill charge" state once the look is settled.
-          className={`relative overflow-hidden instakill-flame
+          className={`relative overflow-hidden ${instakillActive ? 'instakill-flame' : ''}
             ${!canActLook || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
             ${cannotAffordAtk ? '' : resourceCue}
             ${resource === 'gain_attack'

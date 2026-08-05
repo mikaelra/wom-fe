@@ -271,6 +271,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   onAttack,
   isAttackSelected,
   actionCue,
+  instakillActive,
   chatBubble,
   isBoss,
   bossHp,
@@ -304,6 +305,9 @@ export const PlayerWithName = memo(function PlayerWithName({
   onAttack?: (name: string) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
+  /** Poisoned Dagger (instakill Well reward) active cue on this player's own
+   *  Attack button(s) -- see globals.css' instakill-flame. */
+  instakillActive?: boolean;
   chatBubble?: string;
   isBoss?: boolean;
   bossHp?: number;
@@ -478,8 +482,7 @@ export const PlayerWithName = memo(function PlayerWithName({
               selected={isAttackSelected}
               glowColor="rgba(239,68,68,0.7)"
               width={180}
-              // TODO(poisoned-dagger-fx): always on for now, see SceneOverlay's ATK card.
-              className={`${actionCue} instakill-flame`}
+              className={`${actionCue} ${instakillActive ? 'instakill-flame' : ''}`}
               style={stackItem(STACK_ATTACK_Y, true)}
             />
           )}
@@ -544,8 +547,7 @@ export const PlayerWithName = memo(function PlayerWithName({
                 selected={isAttackSelected}
                 glowColor="rgba(239,68,68,0.7)"
                 width={170}
-                // TODO(poisoned-dagger-fx): always on for now, see SceneOverlay's ATK card.
-                className={`${actionCue} instakill-flame`}
+                className={`${actionCue} ${instakillActive ? 'instakill-flame' : ''}`}
                 style={{ marginTop: '10px', pointerEvents: 'auto' }}
               />
             )}
@@ -580,6 +582,7 @@ export const LostSoulModel = memo(function LostSoulModel({
   onAttack,
   isAttackSelected,
   actionCue,
+  instakillActive,
   infoReveal,
 }: {
   name: string;
@@ -591,6 +594,9 @@ export const LostSoulModel = memo(function LostSoulModel({
   onAttack?: (name: string, index: number) => void;
   isAttackSelected?: boolean;
   actionCue?: string;
+  /** Poisoned Dagger (instakill Well reward) active cue -- see globals.css'
+   *  instakill-flame. */
+  instakillActive?: boolean;
   /** Stats revealed by the local player's "info" Well reward, or null when none is active. */
   infoReveal?: InfoRevealBadge | null;
 }) {
@@ -648,8 +654,7 @@ export const LostSoulModel = memo(function LostSoulModel({
               selected={isAttackSelected}
               glowColor="rgba(239,68,68,0.7)"
               width={180}
-              // TODO(poisoned-dagger-fx): always on for now, see SceneOverlay's ATK card.
-              className={`${actionCue} instakill-flame`}
+              className={`${actionCue} ${instakillActive ? 'instakill-flame' : ''}`}
               style={stackItem(-35, true)}
             />
           )}

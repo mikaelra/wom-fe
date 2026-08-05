@@ -31,6 +31,10 @@ type LobbyOverlayProps = {
    *  spinEnabled above. Drives the Reset Camera button. */
   cameraMoved?: boolean;
   onResetCamera?: () => void;
+  /** Poisoned Dagger (instakill) cue for the ATK resource card -- computed
+   *  by LobbyScene (see its own onInstakillActiveChange), passed straight
+   *  through to SceneOverlay. */
+  instakillActive?: boolean;
 };
 
 export function InviteSection({ lobbyId }: { lobbyId: string }) {
@@ -290,7 +294,7 @@ const lobbyConfig: SceneOverlayConfig = {
   renderGameOver,
 };
 
-export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, onResourceChange, spinEnabled, onToggleSpin, cameraMoved, onResetCamera }: LobbyOverlayProps) {
+export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, onResourceChange, spinEnabled, onToggleSpin, cameraMoved, onResetCamera, instakillActive }: LobbyOverlayProps) {
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [wheelNudgeDismissed, setWheelNudgeDismissed] = useState(false);
@@ -344,6 +348,7 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
         onGameOverRevealed={setGameOverRevealed}
         cameraMoved={cameraMoved}
         onResetCamera={onResetCamera}
+        instakillActive={instakillActive}
       />
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
       {showNudge && (

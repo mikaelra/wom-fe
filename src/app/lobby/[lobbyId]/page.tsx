@@ -34,6 +34,10 @@ export default function LobbyPage() {
   // again after dragging some more still fires the tween.
   const [cameraMoved, setCameraMoved] = useState(false);
   const [resetCameraSignal, setResetCameraSignal] = useState(0);
+  // Poisoned Dagger (instakill) visual cue, lifted the same way -- LobbyScene
+  // computes the "model has landed" reveal timing (it owns the well-reward
+  // batch scheduling), LobbyOverlay/SceneOverlay's ATK card just follows it.
+  const [instakillActive, setInstakillActive] = useState(false);
 
   const hasAutoJoined = useRef(false);
   const [hasJoined, setHasJoined] = useState(false);
@@ -154,6 +158,7 @@ export default function LobbyPage() {
           spinEnabled={spinEnabled}
           resetCameraSignal={resetCameraSignal}
           onCameraUserAdjust={handleCameraUserAdjust}
+          onInstakillActiveChange={setInstakillActive}
         />
       </Canvas>
 
@@ -168,6 +173,7 @@ export default function LobbyPage() {
           onToggleSpin={() => setSpinEnabled((v) => !v)}
           cameraMoved={cameraMoved}
           onResetCamera={handleResetCamera}
+          instakillActive={instakillActive}
         />
       )}
 

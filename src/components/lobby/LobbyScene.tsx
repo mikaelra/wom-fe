@@ -171,9 +171,15 @@ type LobbySceneProps = {
   resetCameraSignal?: number;
   /** Fired on genuine player camera drag/scroll -- see CameraFlyIn. */
   onCameraUserAdjust?: () => void;
+  /** Fired whenever instakillVisualActive changes -- lets SceneOverlay (a
+   *  sibling render tree; see its own onGameOverRevealed) sync the ATK
+   *  card's Poisoned Dagger cue to the same "model has landed" timing as
+   *  this component's own ground glow/Attack button cues, instead of
+   *  re-deriving it independently. */
+  onInstakillActiveChange?: (active: boolean) => void;
 };
 
-export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, chosenResource, spinEnabled = true, resetCameraSignal, onCameraUserAdjust }: LobbySceneProps) {
+export default function LobbyScene({ state, playerName, lobbyId, currentAction, attackTarget, onAttackSelect, onActionChange, chosenResource, spinEnabled = true, resetCameraSignal, onCameraUserAdjust, onInstakillActiveChange }: LobbySceneProps) {
   // Countdown warning level for the action buttons. We deliberately do NOT
   // store the remaining seconds here — that re-rendered the whole scene every
   // second. The level only changes twice per round ('' → gold → red), and
@@ -215,6 +221,30 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // per-name by the 'markDead' action (timed with the kill fire), or in bulk
   // on the next round transition / by the fallback timeout below.
   const [deathPending, setDeathPending] = useState<Set<string>>(new Set());
+  // Whether the Poisoned Dagger's (instakill Well reward) visual cues
+  // (green ground glow, instakill-flame on Attack buttons/ATK card) should
+  // be showing. Deliberately NOT just `state.instakill === playerName` --
+  // that flips true the instant the round resolves, well before the
+  // dagger's WellRewardEffect model has even started its arc. Set
+  // immediately false whenever the local player doesn't hold the charge, and
+  // immediately true when they already held it entering this round (nothing
+  // new landing to wait for); the round the charge is newly won, this stays
+  // false until the async well-reward handler below flips it once the model
+  // actually lands (see addWellRewardEvents' 'instakill' case).
+  const [instakillVisualActive, setInstakillVisualActive] = useState(false);
+  useEffect(() => {
+    onInstakillActiveChange?.(instakillVisualActive);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instakillVisualActive]);
+  // Safety net for page-load/refresh while already holding a dagger charge
+  // -- no round transition occurs in that case to trigger the logic below,
+  // so sync directly, once, the first time state arrives.
+  const instakillInitRef = useRef(false);
+  useEffect(() => {
+    if (instakillInitRef.current || !state) return;
+    instakillInitRef.current = true;
+    if (state.instakill === playerName) setInstakillVisualActive(true);
+  }, [state, playerName]);
   // Timeout IDs for staggered incoming defended strikes (cleared each new round)
   const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   // Last round this component has already scheduled combat/well-reward
@@ -503,6 +533,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       );
     }
 
+    // Poisoned Dagger charge (see instakillVisualActive's own comment):
+    // immediately false whenever not held, immediately true when already
+    // held entering this round (nothing new landing to wait for this
+    // round). Newly won this round is deliberately left alone here -- the
+    // async well-reward handler below flips it once the dagger model lands.
+    if (state.instakill !== playerName) {
+      setInstakillVisualActive(false);
+    } else if (prev.instakill === playerName) {
+      setInstakillVisualActive(true);
+    }
+
     // Boss fight just won → Hades' coin: a giant golden coin arcs out of the
     // boss and lands on every surviving human (mirrors the relic-award loop
     // in engine/boss_ai.py's boss_defeated, which credits the same set).
@@ -667,6 +708,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             const revealDelayMs = (infoEvent.delay + WELL_REWARD_FLIGHT_DUR) * 1000;
             staggerTimeoutsRef.current.push(
               setTimeout(() => setInfoReveal({ round: state.round, stats }), revealDelayMs),
+            );
+          }
+          // Poisoned Dagger: same "wait for the model to land" reveal --
+          // only fires when this round's well reward actually included one
+          // (i.e. exactly the round it's newly won; see instakillVisualActive's
+          // own comment for why the round-transition effect above leaves that
+          // case alone for this handler to pick up).
+          const instakillEvent = action.events.find((e) => e.type === 'instakill');
+          if (instakillEvent) {
+            const revealDelayMs = (instakillEvent.delay + WELL_REWARD_FLIGHT_DUR) * 1000;
+            staggerTimeoutsRef.current.push(
+              setTimeout(() => setInstakillVisualActive(true), revealDelayMs),
             );
           }
           break;
@@ -977,6 +1030,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             onAttack={handleAttack}
             isAttackSelected={currentAction === 'attack' && attackTarget === player.name}
             actionCue={actionCue}
+            instakillActive={instakillVisualActive}
             chatBubble={chatBubbles.get(player.name)}
             showOwnActions={isOwnPlayer && showActionButtonsLook && !showDeadPose}
             currentAction={currentAction}
@@ -1023,6 +1077,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             isAttackSelected={currentAction === 'attack' && attackTarget === soul.name && selectedSoulIdx === i}
             actionCue={actionCue}
             infoReveal={infoBadge}
+            instakillActive={instakillVisualActive}
           />
         );
       })}
@@ -1239,7 +1294,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         position={attackTargetGlowPos ?? GLOW_PARK_POSITION}
         yOffset={SELECTION_GLOW_Y_OFFSET}
         color={ATTACK_TARGET_POISON_GLOW_COLOR}
-        active={!!attackTargetGlowPos}
+        active={!!attackTargetGlowPos && instakillVisualActive}
         radius={ATTACK_TARGET_POISON_GLOW_RADIUS}
         intensity={(attackTarget === bossName ? 2 * 1.5 : 2) * 2}
         pulseSpeed={ATTACK_TARGET_POISON_GLOW_PULSE_SPEED}
