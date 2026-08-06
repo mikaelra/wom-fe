@@ -11,7 +11,7 @@ import RelicCoin from '@/components/RelicCoin';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
-import type { Relic } from '@/types/game';
+import { COIN_RELIC_ID, type Relic } from '@/types/game';
 
 type SkinEntry = { skin: string; count: number };
 type WheelEntry = { id: number; kind: string };
@@ -179,6 +179,11 @@ export default function InventoryPage() {
                       )}
                       {relic.flavour_text && (
                         <p className="text-xs text-white/50 text-center">{relic.flavour_text}</p>
+                      )}
+                      {Number(relic.id) === COIN_RELIC_ID && (
+                        <p className="text-xs text-white/40 text-center">
+                          (press the + to equip it in battle) — using it consumes one from your inventory.
+                        </p>
                       )}
                       {relic.count > 1 && <p className="text-xs text-white/50">×{relic.count}</p>}
                     </div>

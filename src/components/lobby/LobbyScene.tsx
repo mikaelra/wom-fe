@@ -219,6 +219,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
   const [killFireEvents, setKillFireEvents] = useState<KillFireEvent[]>([]);
   const [denyRingFx, setDenyRingFx] = useState<{ id: string; pos: [number, number, number] }[]>([]);
+  // Golden glow under whoever just won the Well, pulsing twice -- separate
+  // from wellWinFx above (that one's a single glow fixed at the well itself,
+  // keyed to reward rarity; this one follows the *winner's own seat* and is
+  // purely about who won, not what they got).
+  const [wellWinnerGlowFx, setWellWinnerGlowFx] = useState<{ id: string; pos: [number, number, number] }[]>([]);
   // Denier glow: only shown to the denied player themself, under whoever
   // denied them -- see the same trigger effect as denyRingFx below. A
   // single persistent SelectionGlow (position parked, active toggled) like
@@ -229,6 +234,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [denierGlowActive, setDenierGlowActive] = useState(false);
   const denierGlowTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const prevDenyTargetRef = useRef<string | null>(null);
+  const prevWellWinnerRef = useRef<string | null>(null);
   // Opponent stats captured when the local player wins the Well's "info"
   // reward. Rendered on each opponent for the round it's captured (fresh),
   // greyed with a "last round" label for the round after (stale), then
@@ -641,6 +647,21 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       if (denierPos) triggerDenierGlow(denierPos);
     }
   }, [state?.deny_target, state?.deny_denier, playerName, triggerDenierGlow]);
+
+  // Well-winner glow: fires the moment `wellwinner` newly names someone --
+  // visible to everyone in the lobby (unlike the deny-ring above, this isn't
+  // private), same value-changed-since-last-broadcast check. WellCrown
+  // (PlayerAvatars.tsx) separately handles the crown itself flying over.
+  useEffect(() => {
+    const winner = state?.wellwinner ?? null;
+    const prevWinner = prevWellWinnerRef.current;
+    prevWellWinnerRef.current = winner;
+    if (!winner || winner === prevWinner) return;
+    const pos = posMapRef.current.get(winner);
+    if (!pos) return;
+    const id = `wellwinner-glow-${winner}-${Date.now()}`;
+    setWellWinnerGlowFx((fx) => [...fx, { id, pos }]);
+  }, [state?.wellwinner]);
 
   // Dev preview: append ?debugDenyRing=1 to a lobby URL to replay the deny-ring
   // drop on the first seated player every few seconds, without needing to
@@ -1355,6 +1376,20 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           .filter((f) => f.glow && f.glowStartMs != null)
           .map((f) => ({ glow: f.glow!, startMs: f.glowStartMs!, intensity: f.glowIntensity, blinks: f.glow === 'red' ? 2 : 3 }))}
       />
+
+      {/* Golden glow under whoever just won the Well, at their own seat --
+          pulses twice then fades (no accompanying point light, unlike the
+          well's own glow above: adding/removing a light at runtime recompiles
+          every material's shader, not worth it for a glow this brief). */}
+      {wellWinnerGlowFx.map((fx) => (
+        <WellGlowEffect
+          key={fx.id}
+          position={fx.pos}
+          color="gold"
+          blinks={2}
+          onDone={() => setWellWinnerGlowFx((cur) => cur.filter((x) => x.id !== fx.id))}
+        />
+      ))}
 
       {/* Persistent selection glows -- one steady light per action, always
           mounted and just faded via `active` (see SelectionGlow) so picking

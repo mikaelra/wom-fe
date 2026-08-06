@@ -56,11 +56,18 @@ export default function RelicSelectionPopover({
   const selectedRelicId = selectedRelicIds[0] ?? null;
   const onCooldown = cooldownUntil !== null && cooldownUntil > Date.now();
   const showCooldownOverlay = onCooldown && revealCooldown;
+  // Owns at least one relic but hasn't equipped one for this match yet --
+  // points them at the + so a coin sitting unused in their inventory isn't
+  // silently missed.
+  const showEquipHint = !open && selectedRelicId === null && relics.length > 0;
 
+  // Fetched on mount now too, not just when opened (that part's unchanged,
+  // keeping the list fresh if a relic's won mid-session) -- showEquipHint
+  // above needs to know whether the player owns any relics before they've
+  // ever opened the popover.
   useEffect(() => {
-    if (!open) return;
     getPlayerRelics(playerName).then((data) => setRelics(data.relics));
-  }, [open, playerName]);
+  }, [playerName, open]);
 
   useEffect(() => {
     if (!open && !armed) return;
@@ -147,6 +154,18 @@ export default function RelicSelectionPopover({
         )}
         {showCooldownOverlay && <RelicCooldownOverlay untilMs={cooldownUntil!} totalMs={COOLDOWN_MS} />}
       </span>
+
+      {/* Points new relic-owners at the + the first time they'd have a
+          reason to use it -- gone the instant they open the popover or
+          equip something. */}
+      {showEquipHint && (
+        <div className="absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[160px] pointer-events-none animate-bounce">
+          <div className="bg-amber-500 text-black text-xs font-semibold rounded-lg px-3 py-2 text-center shadow-lg whitespace-nowrap">
+            Click the + to equip a relic
+          </div>
+          <div className="w-3 h-3 bg-amber-500 rotate-45 mx-auto -mt-1.5" />
+        </div>
+      )}
 
       {open && (
         <div className="absolute z-30 top-full left-0 mt-1 w-max max-w-56 bg-white/20 backdrop-blur-md border border-white/40 rounded-lg shadow-lg p-4">

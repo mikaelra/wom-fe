@@ -38,10 +38,10 @@ afterEach(() => {
 });
 
 describe('RelicSelectionPopover: unselected state', () => {
-  it('shows "+" and does not fetch inventory until opened', () => {
+  it('shows "+" and fetches inventory on mount (needed to know whether to show the equip hint)', () => {
     render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[]} onToggle={vi.fn()} />);
     expect(screen.getByText('+')).toBeInTheDocument();
-    expect(mockedGetPlayerRelics).not.toHaveBeenCalled();
+    expect(mockedGetPlayerRelics).toHaveBeenCalledWith('Alice');
   });
 
   it('fetches and renders the inventory on open, with the consumption-explicit tooltip', async () => {
@@ -61,6 +61,40 @@ describe('RelicSelectionPopover: unselected state', () => {
     await openPopover();
 
     expect(screen.getByText('You have no relics yet.')).toBeInTheDocument();
+  });
+
+  it('shows a hint pointing at the + once relics are known and none is selected', async () => {
+    render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[]} onToggle={vi.fn()} />);
+    await act(async () => Promise.resolve()); // flush the mount-effect fetch
+
+    expect(screen.getByText('Click the + to equip a relic')).toBeInTheDocument();
+  });
+
+  it('does not show the hint when the player owns no relics', async () => {
+    mockedGetPlayerRelics.mockResolvedValue({ relics: [] });
+    render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[]} onToggle={vi.fn()} />);
+    await act(async () => Promise.resolve());
+
+    expect(screen.queryByText('Click the + to equip a relic')).not.toBeInTheDocument();
+  });
+
+  it('does not show the hint once a relic is selected', async () => {
+    render(
+      <RelicSelectionPopover playerName="Alice" selectedRelicIds={[COIN_RELIC_ID]} onToggle={vi.fn()} />
+    );
+    await act(async () => Promise.resolve());
+
+    expect(screen.queryByText('Click the + to equip a relic')).not.toBeInTheDocument();
+  });
+
+  it('hides the hint while the popover itself is open', async () => {
+    render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[]} onToggle={vi.fn()} />);
+    await act(async () => Promise.resolve());
+    expect(screen.getByText('Click the + to equip a relic')).toBeInTheDocument();
+
+    await openPopover();
+
+    expect(screen.queryByText('Click the + to equip a relic')).not.toBeInTheDocument();
   });
 
   it('selecting a relic calls onToggle, closes the popover, and does NOT show a cooldown overlay', async () => {

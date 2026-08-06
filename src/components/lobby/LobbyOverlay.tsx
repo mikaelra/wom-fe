@@ -94,24 +94,33 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
       </div>
 
       {showQR && (
+        // overflow-y-auto on THIS outer layer (not just the card below) is
+        // what actually guarantees reachability on a short viewport: a
+        // max-height + internal scroll on the card alone still left the top
+        // of the card pushed off-screen by the outer flex's vertical
+        // centering, with nothing to scroll to bring it back -- confirmed
+        // live at a 375x420 viewport. The inner min-h-full+flex wrapper
+        // keeps the card centered whenever it *does* fit, same as before.
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm"
           onClick={() => setShowQR(false)}
         >
-          <div
-            className="bg-white rounded-2xl p-8 shadow-2xl relative flex flex-col items-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setShowQR(false)}
-              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold cursor-pointer transition-colors"
+          <div className="min-h-full flex items-center justify-center p-4">
+            <div
+              className="bg-white rounded-2xl p-8 shadow-2xl relative flex flex-col items-center"
+              onClick={(e) => e.stopPropagation()}
             >
-              ✕
-            </button>
-            <h3 className="text-xl font-bold mb-5 text-gray-800">Scan to Join</h3>
-            <QRCodeSVG value={lobbyUrl} size={200} />
-            <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[200px]">{lobbyUrl}</p>
+              <button
+                type="button"
+                onClick={() => setShowQR(false)}
+                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+              <h3 className="text-xl font-bold mb-5 text-gray-800">Scan to Join</h3>
+              <QRCodeSVG value={lobbyUrl} size={200} />
+              <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[200px]">{lobbyUrl}</p>
+            </div>
           </div>
         </div>
       )}

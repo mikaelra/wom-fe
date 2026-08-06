@@ -11,7 +11,6 @@ import {
   logOut,
 } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
-import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
 import type { City } from '@/lib/cities';
@@ -86,8 +85,6 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     // Only ever runs once on mount -- authFlow.setName is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const { secondsUntil: secondsUntilNextRaid } = useBossfightCountdown(mounted);
 
   const performCreate = async (trimmedName: string, email: string) => {
     const data = await createLobby(trimmedName, email);
@@ -398,12 +395,6 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
               </h2>
               <p className="text-sm text-white/60 mt-1">{city.tag} &mdash; {city.country}</p>
             </div>
-          )}
-
-          {secondsUntilNextRaid !== null && secondsUntilNextRaid > 0 && (
-            <p className="font-bold text-lg drop-shadow-md">
-              Next boss-fight in: {Math.floor(secondsUntilNextRaid / 60)}m {secondsUntilNextRaid % 60}s
-            </p>
           )}
 
           {!isLoggedIn && (

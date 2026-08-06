@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, fireEvent } from '@testing-library/react';
 import HomeOverlay from '@/components/home/HomeOverlay';
 import { checkName, logInUser, verifyLoginCode, createLobby, joinLobby } from '@/lib/api';
-import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -20,14 +19,11 @@ vi.mock('@/lib/api', () => ({
   logOut: vi.fn(),
 }));
 
-vi.mock('@/lib/useBossfightCountdown', () => ({ useBossfightCountdown: vi.fn() }));
-
 const mockedCheckName = vi.mocked(checkName);
 const mockedLogInUser = vi.mocked(logInUser);
 const mockedVerifyLoginCode = vi.mocked(verifyLoginCode);
 const mockedCreateLobby = vi.mocked(createLobby);
 const mockedJoinLobby = vi.mocked(joinLobby);
-const mockedUseBossfightCountdown = vi.mocked(useBossfightCountdown);
 
 const flush = () => act(async () => Promise.resolve());
 
@@ -38,7 +34,6 @@ beforeEach(() => {
   mockedVerifyLoginCode.mockReset();
   mockedCreateLobby.mockReset();
   mockedJoinLobby.mockReset();
-  mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: null, raidMins: null, raidSecs: null });
 });
 
 afterEach(() => {
