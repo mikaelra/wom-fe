@@ -268,6 +268,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   isAnimating,
   isDead,
   isWinner,
+  isBot,
   showAttackButton,
   onAttack,
   showDenyButton,
@@ -303,6 +304,8 @@ export const PlayerWithName = memo(function PlayerWithName({
   isAnimating: boolean;
   isDead?: boolean;
   isWinner?: boolean;
+  /** All bot types render with the turtle model for now (see config.BOT_DISPLAY_NAMES on the backend) -- distinct per-type models are future work. */
+  isBot?: boolean;
   showAttackButton?: boolean;
   /** Called with this player's name — stable across renders so memo() holds. */
   onAttack?: (name: string) => void;
@@ -339,7 +342,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   onKick?: (name: string) => void;
   onToggleRelicSelection?: (relicId: number) => void;
 }) {
-  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
+  const modelUrl = isBot ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   const isCherub = modelUrl === skinUrl('cherub_v1');
   // See useRemountKeyOnceSettled's own comment -- forces the info-reveal
   // badge below to recompute its scale a beat after it appears, so a

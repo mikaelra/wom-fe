@@ -494,7 +494,7 @@ describe('buildCombatAnimationPlan', () => {
   });
 
   describe('witnessed eliminations', () => {
-    it('schedules a hit-flash, kill-fire, and kill-banner at wellDelayMs + SWORD_IMPACT_MS + i*546', () => {
+    it('schedules a hit-flash and kill-fire at wellDelayMs + SWORD_IMPACT_MS + i*546', () => {
       const events: GameEvent[] = [
         { kind: 'witness', attacker: 'Bob', victim: 'Carol' },
       ];
@@ -510,10 +510,6 @@ describe('buildCombatAnimationPlan', () => {
 
       const fireAdd = plan.find((b) => b.actions.some((a) => a.type === 'addKillFire'));
       expect(fireAdd?.delayMs).toBeCloseTo(expectedDelay, 5);
-      const bannerAdd = plan.find((b) => b.actions.some((a) => a.type === 'addKillBanner'));
-      expect(bannerAdd?.delayMs).toBeCloseTo(expectedDelay, 5);
-      const bannerRemove = plan.find((b) => b.actions.some((a) => a.type === 'removeKillBanner'));
-      expect(bannerRemove?.delayMs).toBeCloseTo(expectedDelay + 3151, 5);
     });
 
     it('staggers multiple witnessed eliminations by 546ms each', () => {

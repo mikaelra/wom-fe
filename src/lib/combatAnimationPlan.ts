@@ -61,13 +61,6 @@ export type BlockGlowEvent = {
   pos: [number, number, number];
 };
 
-// Text shown to the lone witness of a kill, naming the killer in a fiery style.
-export type KillBanner = {
-  id:     string;
-  killer: string;
-  pos:    [number, number, number];
-};
-
 // Splash + glow that play on the well. A win shows a splash plus the rarity
 // glow (or none for common rewards); choosing the well but losing shows just a
 // small red glow.
@@ -196,8 +189,6 @@ export type CombatAnimationAction =
   | { type: 'removeImpactShield'; id: string }
   | { type: 'addKillFire'; event: KillFireEvent }
   | { type: 'markDead'; name: string }
-  | { type: 'addKillBanner'; banner: KillBanner }
-  | { type: 'removeKillBanner'; id: string }
   | { type: 'addWellRewardEvents'; events: WellRewardEvent[] }
   | { type: 'emitHpFx'; event: HpFxEvent }
   | { type: 'addWellWinFx'; fx: WellWinFx }
@@ -306,13 +297,6 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     const offMs = Math.max(0, impactMs);
     batches.push({ delayMs: onMs,  actions: [{ type: 'addBlockGlow', event: { id, pos } }] });
     batches.push({ delayMs: offMs, actions: [{ type: 'removeBlockGlow', id }] });
-  };
-
-  const scheduleKillBanner = (killer: string, pos: [number, number, number], atMs: number) => {
-    const id = `killbanner-${killStamp}-${killSeq++}`;
-    const delayMs = Math.max(0, atMs);
-    batches.push({ delayMs, actions: [{ type: 'addKillBanner', banner: { id, killer, pos } }] });
-    batches.push({ delayMs: delayMs + 3151, actions: [{ type: 'removeKillBanner', id }] }); // scaled to 0.8x
   };
 
   // Killer only: fling the victim's coins over and tick up the ATK/coin cards.
@@ -572,9 +556,8 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   }
 
   // ── Witnessed eliminations ────────────────────────────────────────────────
-  // The lone witness sees a fiery glow erupt under the killer plus a banner
-  // naming them, and a red flash on the victim — but no coins (those are the
-  // killer's alone).
+  // The lone witness sees a fiery glow erupt under the killer and a red flash
+  // on the victim — but no coins (those are the killer's alone).
   combat.witnessedEliminations.forEach((we, i) => {
     const victimPos = posMap.get(we.victim);
     const killerPos = posMap.get(we.attacker);
@@ -587,7 +570,6 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     // markDead must fire even if the killer's own position is unknown — only
     // the glow itself needs killerPos, gated inside scheduleKillFire.
     scheduleKillFire(killerPos, delay, we.victim);
-    if (killerPos) scheduleKillBanner(we.attacker, killerPos, delay);
   });
 
   return batches;

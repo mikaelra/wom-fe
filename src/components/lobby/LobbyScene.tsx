@@ -39,7 +39,6 @@ import {
   type BlockGlowEvent,
   type WellRewardEvent,
   type KillFireEvent,
-  type KillBanner,
   type WellWinFx,
   type ImpactShield,
   type CombatAnimationAction,
@@ -219,7 +218,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   >([]);
   const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
   const [killFireEvents, setKillFireEvents] = useState<KillFireEvent[]>([]);
-  const [killBanners, setKillBanners] = useState<KillBanner[]>([]);
   const [denyRingFx, setDenyRingFx] = useState<{ id: string; pos: [number, number, number] }[]>([]);
   // Denier glow: only shown to the denied player themself, under whoever
   // denied them -- see the same trigger effect as denyRingFx below. A
@@ -363,7 +361,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // docs/MONETIZATION_PLAN.md §3.1. Guests/unclaimed names have no
   // equipped skin server-side (skin: null) and fall back to green here.
   const skinMap = useMemo(() => {
-    const frogPlayers = allPlayers.filter((p) => !p.boss && !p.lost_soul && p.name !== 'TURTLE');
+    const frogPlayers = allPlayers.filter((p) => !p.boss && !p.lost_soul && !p.bot);
     const map = new Map<string, string>();
     for (const p of frogPlayers) {
       map.set(p.name, skinUrl(p.skin ?? 'frog_green_v1'));
@@ -532,7 +530,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     // timeouts were just cancelled above). Any death-pose delay from last round
     // is long since resolved by now, so drop it too rather than leave stale names.
     setKillFireEvents([]);
-    setKillBanners([]);
     setDenyRingFx([]);
     denierGlowTimeoutsRef.current.forEach(clearTimeout);
     denierGlowTimeoutsRef.current = [];
@@ -756,8 +753,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           next.delete(action.name);
           return next;
         }); break;
-        case 'addKillBanner': setKillBanners((b) => [...b, action.banner]); break;
-        case 'removeKillBanner': setKillBanners((b) => b.filter((x) => x.id !== action.id)); break;
         case 'addWellRewardEvents': {
           setWellRewardEvents((ev) => [...ev, ...action.events]);
           // "info" Well reward: snapshot every other player's current stats
@@ -884,7 +879,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // Append `?killtest=<roles>` to the lobby URL to loop the kill fx onto the
   // scene every 4s. Roles are comma-separated (default `killer`):
   //   killer  — fiery glow under you + a victim's coins fly to you (?killtest=killer:4 for 4 coins)
-  //   witness — fiery glow under the killer + a banner naming them
+  //   witness — fiery glow under the killer
   //   victim  — fiery glow under your killer (no coins)
   // e.g. ?killtest=killer   ?killtest=witness   ?killtest=killer:5,witness
   useEffect(() => {
@@ -902,7 +897,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       // Borrow another seat as the "other" character; fall back to an offset spot.
       const otherEntry = Array.from(posMapRef.current.entries()).find(([n]) => n !== playerName);
       const otherPos: [number, number, number] = otherEntry?.[1] ?? [myPos[0] + 2.2, myPos[1], myPos[2]];
-      const otherName = otherEntry?.[0] ?? 'Rival';
       const stamp = Date.now();
       let seq = 0;
 
@@ -928,19 +922,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           setWellRewardEvents((ev) => [...ev, ...evs]);
         }, atMs);
       };
-      const spawnBanner = (killer: string, pos: [number, number, number], atMs: number) => {
-        const id = `killbanner-dbg-${stamp}-${seq++}`;
-        setTimeout(() => {
-          setKillBanners((b) => [...b, { id, killer, pos }]);
-          setTimeout(() => setKillBanners((b) => b.filter((x) => x.id !== id)), 3151); // scaled to 0.8x
-        }, atMs);
-      };
-
       for (const role of roles) {
         const [kind, countStr] = role.split(':');
         if (kind === 'witness') {
           spawnFire(otherPos, SWORD_IMPACT_MS);
-          spawnBanner(otherName, otherPos, SWORD_IMPACT_MS);
         } else if (kind === 'victim') {
           spawnFire(otherPos, SWORD_IMPACT_MS);
         } else { // killer (default)
@@ -1114,6 +1099,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               isAnimating={true}
               isDead={showDeadPose}
               isWinner={!!isWinner}
+              isBot={!!player.bot}
               isBoss={isBoss}
               bossHp={isBoss ? player.hp : undefined}
               bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
@@ -1497,21 +1483,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         />
       ))}
 
-
-      {/* Witness banner — names the killer in a fiery style above their head */}
-      {killBanners.map((b) => (
-        <Html
-          key={b.id}
-          position={[b.pos[0], b.pos[1] + 0.95, b.pos[2]]}
-          center
-          distanceFactor={3}
-          zIndexRange={[0, 0]}
-          eps={HTML_EPS}
-          style={{ pointerEvents: 'none', userSelect: 'none' }}
-        >
-          <div className="kill-witness-banner">💀 {b.killer} got a kill! 🔥</div>
-        </Html>
-      ))}
 
       {/* Stage 6: Game-winning crown */}
       <Suspense fallback={null}>
