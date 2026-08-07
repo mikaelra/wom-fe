@@ -374,7 +374,10 @@ export const PlayerWithName = memo(function PlayerWithName({
   onKick?: (name: string) => void;
   onToggleRelicSelection?: (relicId: number) => void;
 }) {
-  const modelUrl = isBot ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
+  // isBoss checked first: create_boss (game_state.py) sets bot=True on every
+  // boss too (Hades included), so checking isBot first accidentally matched
+  // it before isBoss ever got a look, rendering Hades with the turtle model.
+  const modelUrl = isBoss ? '/models/hades/hades_v3-ld.glb' : isBot ? '/models/turtlev01.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   const isCherub = modelUrl === skinUrl('cherub_v1');
   // See useRemountKeyOnceSettled's own comment -- forces the info-reveal
   // badge below to recompute its scale a beat after it appears, so a
