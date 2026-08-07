@@ -1387,6 +1387,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             toPosition={ev.toPos}
             delay={ev.delay}
             scale={ev.scale}
+            orbit={ev.orbit}
             onDone={() => setWellRewardEvents((s) => s.filter((x) => x.id !== ev.id))}
           />
         ))}

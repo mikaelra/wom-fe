@@ -43,6 +43,16 @@ export type WellRewardEvent = {
   delay:   number;
   /** Optional scale override (e.g. Hades' coin renders 3x the normal gold coin). */
   scale?: number;
+  /** True for player-to-player flights (steal victim -> well winner, or kill
+   *  loot victim -> killer). Both players sit on the seating circle around
+   *  The Well at the table's center, so a straight line between two seats on
+   *  opposite sides passes right by the well -- reading as "coins spouting
+   *  out of the well" instead of coming from the actual player. Orbiting
+   *  around the table (interpolating seat angle, not raw XZ) keeps the path
+   *  out by the rim instead. Not used for the well's own rewards (gold,
+   *  health, etc., or steal's well-fallback). those genuinely start at the
+   *  well, so a straight line is correct for them. */
+  orbit?: boolean;
 };
 
 // A fiery red glow that erupts under a character when a kill is made. Seen by the
@@ -113,8 +123,12 @@ export function buildWellRewardEvents(
 
   for (const reward of components) {
     if (reward.type === 'steal') {
-      // Fall back to the well only if we somehow have no player sources.
-      const sources: StealSource[] = stealSources.length
+      // Fall back to the well only if we somehow have no player sources --
+      // that fallback genuinely starts at the well, so it's the one 'steal'
+      // case that should NOT orbit (a straight line from the well is correct
+      // there, same as every other well reward).
+      const fromRealSources = stealSources.length > 0;
+      const sources: StealSource[] = fromRealSources
         ? stealSources
         : [{ pos: WELL_SPOUT_POSITION, count: Math.max(1, reward.count) }];
       sources.forEach((src, si) => {
@@ -132,6 +146,7 @@ export function buildWellRewardEvents(
             fromPos: [from[0] + jitter, from[1], from[2]],
             toPos:   land,
             delay:   seq++ * WELL_REWARD_STAGGER,
+            orbit:   fromRealSources,
           });
         }
       });
@@ -324,6 +339,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           type: 'steal',
           fromPos: [from[0] + jitter, from[1], from[2]],
           toPos,
+          orbit: true,
           delay:   c * WELL_REWARD_STAGGER,
         });
       }

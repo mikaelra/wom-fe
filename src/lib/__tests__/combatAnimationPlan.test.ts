@@ -124,6 +124,16 @@ describe('buildCombatAnimationPlan', () => {
       expect(plan[3].actions).toEqual([{ type: 'emitHpFx', event: { kind: 'killgain', coins: 3, atk: 1 } }]);
     });
 
+    it('marks kill-loot coins to orbit the table instead of cutting through the well', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 2 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+      const rewardBatch = plan.find((b) => b.actions.some((a) => a.type === 'addWellRewardEvents'));
+      if (rewardBatch?.actions[0].type !== 'addWellRewardEvents') throw new Error('expected addWellRewardEvents batch');
+      expect(rewardBatch.actions[0].events.every((e) => e.orbit === true)).toBe(true);
+    });
+
     it('still emits the ATK-gain hpFx on a coinless kill, but no coin-fling batch', () => {
       const events: GameEvent[] = [
         { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 0 },
@@ -423,6 +433,8 @@ describe('buildCombatAnimationPlan', () => {
       const rewardBatch = plan.find((b) => b.actions.some((a) => a.type === 'addWellRewardEvents'));
       if (rewardBatch?.actions[0].type === 'addWellRewardEvents') {
         expect(rewardBatch.actions[0].events).toHaveLength(3); // 2 from Bob + 1 from Carol
+        // Real player sources -- should orbit the table, not cut through the well.
+        expect(rewardBatch.actions[0].events.every((e) => e.orbit === true)).toBe(true);
       } else {
         throw new Error('expected addWellRewardEvents batch');
       }

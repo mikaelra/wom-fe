@@ -88,6 +88,15 @@ export type WellRewardEffectProps = {
   delay?: number;
   /** Optional scale override; defaults to the per-type tuning above. */
   scale?: number;
+  /** True for player-to-player flights (steal victim -> winner, kill loot
+   *  victim -> killer). Both endpoints sit on the seating circle around The
+   *  Well at the table's center, so a straight line between two far-apart
+   *  seats cuts right past the well -- reading as the coins spouting out of
+   *  it instead of coming from the actual player. Orbiting around the table
+   *  center (interpolating seat angle + radius, not raw XZ) keeps the path
+   *  out by the rim instead. Well-sourced rewards leave this off -- a
+   *  straight line from the well's own position is correct for those. */
+  orbit?: boolean;
   /** Called once the sequence (travel + hold) has finished. */
   onDone?: () => void;
 };
@@ -98,6 +107,7 @@ export default function WellRewardEffect({
   toPosition,
   delay = 0,
   scale,
+  orbit = false,
   onDone,
 }: WellRewardEffectProps) {
   const url = WELL_REWARD_MODELS[type];
@@ -115,6 +125,21 @@ export default function WellRewardEffect({
     toVec:   new THREE.Vector3(tx, ty, tz),
   }), [fx, fy, fz, tx, ty, tz]);
 
+  // Seat angle/radius around the table center (XZ origin), used only when
+  // `orbit` is set -- see the prop doc above for why. Matches the angle
+  // convention seats are laid out with in sceneConstants.ts (x = r*sin, z =
+  // r*cos), so orbiting reproduces the same circle they sit on.
+  const orbitParams = useMemo(() => {
+    const fromR = Math.hypot(fx, fz);
+    const toR   = Math.hypot(tx, tz);
+    const fromAngle = Math.atan2(fx, fz);
+    const toAngle   = Math.atan2(tx, tz);
+    // Shortest way around the circle, not necessarily the raw angle diff.
+    const twoPi = Math.PI * 2;
+    const angleDelta = ((toAngle - fromAngle + Math.PI) % twoPi + twoPi) % twoPi - Math.PI;
+    return { fromR, toR, fromAngle, angleDelta };
+  }, [fx, fz, tx, tz]);
+
   useEffect(() => {
     if (groupRef.current) groupRef.current.position.copy(fromVec);
   }, [fromVec]);
@@ -131,7 +156,15 @@ export default function WellRewardEffect({
     if (t < WELL_REWARD_TRAVEL_DUR) {
       // Arch from source to target with a tumbling spin.
       const localT = t / WELL_REWARD_TRAVEL_DUR;
-      group.position.lerpVectors(fromVec, toVec, easeOut(localT));
+      const eased = easeOut(localT);
+      if (orbit) {
+        const { fromR, toR, fromAngle, angleDelta } = orbitParams;
+        const angle  = fromAngle + angleDelta * eased;
+        const radius = fromR + (toR - fromR) * eased;
+        group.position.set(radius * Math.sin(angle), fromVec.y + (toVec.y - fromVec.y) * eased, radius * Math.cos(angle));
+      } else {
+        group.position.lerpVectors(fromVec, toVec, eased);
+      }
       group.position.y += ARCH_HEIGHT * Math.sin(localT * Math.PI);
       group.rotation.y = localT * Math.PI * 2 * TRAVEL_SPINS;
     } else if (t < WELL_REWARD_TRAVEL_DUR + HOLD_DUR) {
