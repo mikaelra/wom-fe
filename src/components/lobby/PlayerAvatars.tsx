@@ -73,10 +73,11 @@ const STACK_BUBBLE_Y = -70;
 // shows on your own) -- moved down from above the name so it stops
 // overlapping/hiding the chat bubble when a player is chatting.
 const STACK_ATTACK_Y = 138;
-// Above the name AND the chat bubble (not down at STACK_ATTACK_Y/
-// STACK_DEFEND_Y's old spot, where it used to sit right on top of the
-// attack/defend button and block clicks on it).
-const STACK_INFO_Y = -140;
+// Below the attack/defend button (STACK_ATTACK_Y/STACK_DEFEND_Y, ~64px tall
+// at its own width=180 crop), with enough clearance not to overlap it --
+// was briefly up at -140 (above the name/chat bubble instead), moved back
+// down per feedback that up there read as detached from the player.
+const STACK_INFO_Y = 230;
 const STACK_DEFEND_Y = 138;
 
 // A player's stats as revealed by an opponent's "info" Well reward. `stale`
