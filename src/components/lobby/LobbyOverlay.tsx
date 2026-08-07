@@ -186,12 +186,14 @@ const BOT_TYPES: { type: string; label: string }[] = [
   { type: 'OWL', label: 'Owl' },
 ];
 
-// "Add Bot" expands in place into one button per bot type -- picking one
-// adds that bot and immediately collapses back to "Add Bot" so the admin
-// can add another right away; clicking anywhere outside cancels the same
-// way, without adding anything. Same click-outside-to-cancel idiom as
-// RelicSelectionPopover.tsx, but inline (replacing the button itself)
-// rather than a dropdown popover layered on top of it.
+// "Add Bot" expands into one button per bot type, stacked vertically above
+// where it was -- picking one adds that bot and immediately collapses back
+// to "Add Bot" so the admin can add another right away; clicking anywhere
+// outside cancels the same way, without adding anything. Same
+// click-outside-to-cancel idiom as RelicSelectionPopover.tsx. Absolutely
+// positioned (not a plain flex sibling of Start Game) so the stack growing
+// to 4 buttons tall can never stretch/resize Start Game's own button --
+// the relative wrapper it's anchored to has no intrinsic height of its own.
 function AddBotButton({ btn, onAddDummy }: { btn: string; onAddDummy: (botType: string) => void }) {
   const [picking, setPicking] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -216,33 +218,33 @@ function AddBotButton({ btn, onAddDummy }: { btn: string; onAddDummy: (botType: 
     setPicking(false);
   };
 
-  if (!picking) {
-    return (
-      <button
-        type="button"
-        onClick={() => setPicking(true)}
-        className={`${btn} bg-gray-600 text-white`}
-      >
-        Add Bot
-      </button>
-    );
-  }
-
   return (
-    // flex-wrap (independent of the parent row's own deliberate no-wrap --
-    // see its comment) so 4 type buttons wrap onto a second line on a
-    // narrow phone instead of running off-screen.
-    <div ref={containerRef} className="flex flex-wrap justify-center gap-2 max-w-[16rem]">
-      {BOT_TYPES.map(({ type, label }) => (
+    <div className="relative">
+      {!picking ? (
         <button
-          key={type}
           type="button"
-          onClick={() => handlePick(type)}
+          onClick={() => setPicking(true)}
           className={`${btn} bg-gray-600 text-white`}
         >
-          {label}
+          Add Bot
         </button>
-      ))}
+      ) : (
+        <div
+          ref={containerRef}
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 flex flex-col gap-2"
+        >
+          {BOT_TYPES.map(({ type, label }) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => handlePick(type)}
+              className={`${btn} bg-gray-600 text-white`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
