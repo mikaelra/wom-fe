@@ -108,6 +108,33 @@ describe('renderGameOver', () => {
     expect(screen.getByText('Game Over! Bob wins!')).toBeInTheDocument();
   });
 
+  it('shows "Bots win!" on a no-contest ending -- every human dead, a bot survived, no winner declared', () => {
+    const owl: Player = { ...basePlayer, name: 'Owl 1', bot: true, alive: true };
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: { ...opts.state, winner: null, players: [{ ...basePlayer, alive: false }, owl] },
+        })}
+      </>,
+    );
+    expect(screen.getByText('🤖 Bots win!')).toBeInTheDocument();
+  });
+
+  it('does not say "Bots win!" when no winner is declared and no bot is alive either', () => {
+    // e.g. sockets/utils.py's crashed-pre-game-watcher end_game(None) --
+    // unrelated to the no-contest bots-win ending, must not be mislabeled.
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: { ...opts.state, winner: null, players: [{ ...basePlayer, alive: false }] },
+        })}
+      </>,
+    );
+    expect(screen.queryByText('🤖 Bots win!')).not.toBeInTheDocument();
+  });
+
   it('shows a link to the inventory when the local player was awarded a Wheel', () => {
     const me: Player = { ...basePlayer, name: 'Alice', wheel_awarded: true };
     render(<>{renderGameOver({ ...opts, state: { ...opts.state, players: [me] } })}</>);

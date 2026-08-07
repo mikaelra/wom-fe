@@ -410,7 +410,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       return a.name.localeCompare(b.name);
     })
     .slice(0, MAX_PLAYERS), [allPlayers, playerName, isBossFight]);
-  const winner = gameWinner ?? wellWinner;
+  // Once the game is over, trust ONLY the declared winner -- never fall
+  // back to wellWinner (who most recently won The Well, a live in-game
+  // indicator with no bearing on who actually won the match). Without
+  // this, a "no contest" ending (all humans dead, a bot survives --
+  // engine.boss_ai.players_defeated deliberately leaves gameWinner null
+  // there, see its own docstring) could still crown whoever's stale
+  // wellWinner value happened to be sitting around, on a screen that's
+  // supposed to show no winner at all. Mid-game, the fallback still
+  // applies -- that's wellCrownHolder's whole purpose below.
+  const winner = gameOver ? gameWinner : (gameWinner ?? wellWinner);
 
   // Compute seat positions. In boss fights the boss is pinned to the far side and players
   // spread across the near half, so adding a player never moves Hades.

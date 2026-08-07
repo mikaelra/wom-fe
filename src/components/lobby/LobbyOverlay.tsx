@@ -131,12 +131,22 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
 export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   const myPlayer = state.players.find((p) => p.name === playerName);
   const rankedResult = state.ranked_results?.[playerName];
+  // "No contest" ending (engine.boss_ai.players_defeated): every human is
+  // dead but a bot survived, so no winner is ever declared -- distinct
+  // from a boss-fight loss, which sets state.winner to the boss's own
+  // name (e.g. "Hades wins!") and must keep reading as that, not this.
+  // The bot-alive check rules out the one other way gameover can end up
+  // true with no winner (a crashed pre-game ranked-countdown watcher,
+  // sockets/utils.py's end_game(None) -- round 0, no bots in play yet).
+  const botsWon = !state.winner && state.players.some((p) => p.bot && p.alive);
 
   return (
     <div className="mt-3 text-center">
       <p className="text-xl font-bold mb-2">
         {state.winner === playerName ? (
           <span className="text-green-400">You won! 👑</span>
+        ) : botsWon ? (
+          <span className="text-yellow-400">🤖 Bots win!</span>
         ) : (
           <span className="text-yellow-400">Game Over! {state.winner} wins!</span>
         )}
