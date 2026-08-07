@@ -271,6 +271,46 @@ describe('renderPreGame', () => {
     expect(screen.getByText('Add Bot')).toBeInTheDocument();
   });
 
+  describe('Add Bot picker', () => {
+    it('clicking Add Bot replaces it with one button per bot type', () => {
+      render(<>{renderPreGame({ ...baseOpts, isAdmin: true })}</>);
+
+      fireEvent.click(screen.getByText('Add Bot'));
+
+      expect(screen.queryByText('Add Bot')).not.toBeInTheDocument();
+      expect(screen.getByText('Turtle')).toBeInTheDocument();
+      expect(screen.getByText('Sheep')).toBeInTheDocument();
+      expect(screen.getByText('Wolf')).toBeInTheDocument();
+      expect(screen.getByText('Owl')).toBeInTheDocument();
+    });
+
+    it('picking a type calls onAddDummy with it and collapses back to Add Bot', () => {
+      const onAddDummy = vi.fn();
+      render(<>{renderPreGame({ ...baseOpts, isAdmin: true, onAddDummy })}</>);
+
+      fireEvent.click(screen.getByText('Add Bot'));
+      fireEvent.click(screen.getByText('Owl'));
+
+      expect(onAddDummy).toHaveBeenCalledWith('OWL');
+      expect(screen.getByText('Add Bot')).toBeInTheDocument();
+      expect(screen.queryByText('Owl')).not.toBeInTheDocument();
+    });
+
+    it('clicking outside cancels the picker without adding a bot', () => {
+      const onAddDummy = vi.fn();
+      render(<>{renderPreGame({ ...baseOpts, isAdmin: true, onAddDummy })}</>);
+
+      fireEvent.click(screen.getByText('Add Bot'));
+      expect(screen.getByText('Owl')).toBeInTheDocument();
+
+      fireEvent.mouseDown(document.body);
+
+      expect(onAddDummy).not.toHaveBeenCalled();
+      expect(screen.getByText('Add Bot')).toBeInTheDocument();
+      expect(screen.queryByText('Owl')).not.toBeInTheDocument();
+    });
+  });
+
   it('always shows the Invite section, regardless of admin status', () => {
     render(<>{renderPreGame({ ...baseOpts, isAdmin: false })}</>);
     expect(screen.getByText('Invite')).toBeInTheDocument();

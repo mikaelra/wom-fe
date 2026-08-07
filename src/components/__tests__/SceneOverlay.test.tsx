@@ -190,8 +190,8 @@ describe('pre-game delegation', () => {
     opts.onStartGame();
     expect(emit).toHaveBeenCalledWith('start_game', { lobby_id: 'AAAA' });
 
-    opts.onAddDummy();
-    expect(emit).toHaveBeenCalledWith('add_dummy', { lobby_id: 'AAAA' });
+    opts.onAddDummy('OWL');
+    expect(emit).toHaveBeenCalledWith('add_dummy', { lobby_id: 'AAAA', bot_type: 'OWL' });
   });
 });
 

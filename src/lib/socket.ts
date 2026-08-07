@@ -40,7 +40,7 @@ export interface ClientToServerEvents {
   start_game: (payload: { lobby_id: string }) => void;
   kick_player: (payload: { lobby_id: string; target: string }) => void;
   toggle_relic_selection: (payload: { lobby_id: string; relic_id: number }) => void;
-  add_dummy: (payload: { lobby_id: string }) => void;
+  add_dummy: (payload: { lobby_id: string; bot_type: string }) => void;
   submit_choice: (payload: {
     lobby_id: string;
     action?: string | null;

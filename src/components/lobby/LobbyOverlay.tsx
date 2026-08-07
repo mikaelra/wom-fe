@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import SceneOverlay, {
   type SceneOverlayConfig,
@@ -175,6 +175,78 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   );
 }
 
+// Kept in sync by hand with wom-be's config.BOT_TYPES/BOT_DISPLAY_NAMES --
+// bot_type is never part of the public wire format (domain/player.py's
+// PUBLIC_PLAYER_FIELDS omits it, it's server-internal AI dispatch), so
+// there's nothing to derive this list from at runtime.
+const BOT_TYPES: { type: string; label: string }[] = [
+  { type: 'TURTLE', label: 'Turtle' },
+  { type: 'SHEEP', label: 'Sheep' },
+  { type: 'WOLF', label: 'Wolf' },
+  { type: 'OWL', label: 'Owl' },
+];
+
+// "Add Bot" expands in place into one button per bot type -- picking one
+// adds that bot and immediately collapses back to "Add Bot" so the admin
+// can add another right away; clicking anywhere outside cancels the same
+// way, without adding anything. Same click-outside-to-cancel idiom as
+// RelicSelectionPopover.tsx, but inline (replacing the button itself)
+// rather than a dropdown popover layered on top of it.
+function AddBotButton({ btn, onAddDummy }: { btn: string; onAddDummy: (botType: string) => void }) {
+  const [picking, setPicking] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!picking) return;
+    const handler = (e: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setPicking(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [picking]);
+
+  const handlePick = (botType: string) => {
+    onAddDummy(botType);
+    setPicking(false);
+  };
+
+  if (!picking) {
+    return (
+      <button
+        type="button"
+        onClick={() => setPicking(true)}
+        className={`${btn} bg-gray-600 text-white`}
+      >
+        Add Bot
+      </button>
+    );
+  }
+
+  return (
+    // flex-wrap (independent of the parent row's own deliberate no-wrap --
+    // see its comment) so 4 type buttons wrap onto a second line on a
+    // narrow phone instead of running off-screen.
+    <div ref={containerRef} className="flex flex-wrap justify-center gap-2 max-w-[16rem]">
+      {BOT_TYPES.map(({ type, label }) => (
+        <button
+          key={type}
+          type="button"
+          onClick={() => handlePick(type)}
+          className={`${btn} bg-gray-600 text-white`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function renderPreGame({
   state,
   lobbyId,
@@ -252,13 +324,7 @@ export function renderPreGame({
           // cap, so flex-wrap never needs to trigger.
           <div className="flex w-max gap-3">
             <StartGameButton state={state} btn={btn} onStartGame={onStartGame} />
-            <button
-              type="button"
-              onClick={onAddDummy}
-              className={`${btn} bg-gray-600 text-white`}
-            >
-              Add Bot
-            </button>
+            <AddBotButton btn={btn} onAddDummy={onAddDummy} />
           </div>
         )}
         <button
