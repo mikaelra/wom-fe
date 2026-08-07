@@ -579,20 +579,46 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   }
 
   // ── Witnessed eliminations ────────────────────────────────────────────────
-  // The lone witness sees a fiery glow erupt under the killer and a red flash
-  // on the victim — but no coins (those are the killer's alone).
+  // The lone witness sees the actual killing blow -- the attacker's sword
+  // swinging into the victim -- not just its aftermath (the fiery glow
+  // erupting under the killer once it lands, and a red flash on the
+  // victim), same as watching any other strike land on someone else this
+  // round. No coins fly, though -- those are the killer's alone.
   combat.witnessedEliminations.forEach((we, i) => {
     const victimPos = posMap.get(we.victim);
     const killerPos = posMap.get(we.attacker);
-    const delay = wellDelayMs + SWORD_IMPACT_MS + i * 546; // stagger scaled to 0.8x
-    if (victimPos) {
+    const strikeStartMs = wellDelayMs + i * 546; // stagger scaled to 0.8x
+    const impactMs = strikeStartMs + SWORD_IMPACT_MS;
+
+    if (killerPos && victimPos) {
+      const fromPos: [number, number, number] = [killerPos[0], killerPos[1] + 0.3, killerPos[2]];
+      const toPos:   [number, number, number] = [victimPos[0], victimPos[1] + 0.3, victimPos[2]];
+      const strike: StrikeEvent = {
+        id: `witness-${killStamp}-${killSeq++}`,
+        fromPos, toPos,
+        targetDefended: false,
+        targetHit: true,
+        isIncoming: false,
+        postImpact: 'retreat',
+        // Fires the same red flash the standalone addHitFlash below used
+        // to schedule on a timing estimate -- SwordEffect's own onStrike
+        // callback lands this exactly on the blade's real impact frame
+        // instead.
+        flashPosition: victimPos,
+      };
+      batches.push({ delayMs: strikeStartMs, actions: [{ type: 'addStrike', strike }] });
+    } else if (victimPos) {
+      // Fallback when the attacker's own seat is unknown (shouldn't
+      // normally happen -- witness events always name a real attacker,
+      // never anonymized) -- no fromPos to swing a sword from, so just
+      // the flash, at the same beat a real strike would have landed.
       const fid = `fl-${we.victim}-${Date.now()}`;
-      batches.push({ delayMs: delay, actions: [{ type: 'addHitFlash', event: { id: fid, position: victimPos } }] });
-      batches.push({ delayMs: delay + 788, actions: [{ type: 'removeHitFlash', id: fid }] }); // scaled to 0.8x
+      batches.push({ delayMs: impactMs, actions: [{ type: 'addHitFlash', event: { id: fid, position: victimPos } }] });
+      batches.push({ delayMs: impactMs + 788, actions: [{ type: 'removeHitFlash', id: fid }] }); // scaled to 0.8x
     }
     // markDead must fire even if the killer's own position is unknown — only
     // the glow itself needs killerPos, gated inside scheduleKillFire.
-    scheduleKillFire(killerPos, delay, we.victim);
+    scheduleKillFire(killerPos, impactMs, we.victim);
   });
 
   return batches;
