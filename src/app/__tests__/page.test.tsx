@@ -12,7 +12,6 @@ import {
   joinRankedQueue,
   leaveRankedQueue,
 } from '@/lib/api';
-import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import type { City } from '@/lib/cities';
 import type { RankedLabelInfo } from '@/components/worldmap/CityMarker';
 import { ToastProvider } from '@/components/Toast';
@@ -32,8 +31,6 @@ vi.mock('@/lib/api', () => ({
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
 }));
-
-vi.mock('@/lib/useBossfightCountdown', () => ({ useBossfightCountdown: vi.fn() }));
 
 // Same fake-subscribe pattern as WorldMapOverlay.test.tsx -- useRankedQueue
 // (now driven from page.tsx via the New York marker) talks to the socket
@@ -107,7 +104,6 @@ const mockedGetBossfightLobby = vi.mocked(getBossfightLobby);
 const mockedGetActiveRankedLobby = vi.mocked(getActiveRankedLobby);
 const mockedJoinRankedQueue = vi.mocked(joinRankedQueue);
 const mockedLeaveRankedQueue = vi.mocked(leaveRankedQueue);
-const mockedUseBossfightCountdown = vi.mocked(useBossfightCountdown);
 
 const flush = () => act(async () => Promise.resolve());
 
@@ -139,7 +135,6 @@ beforeEach(() => {
   mockedGetActiveRankedLobby.mockResolvedValue({
     lobby_id: null, token: null, ranked_countdown_deadline: null, started: false,
   });
-  mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: null, raidMins: null, raidSecs: null });
   socket.__reset();
 });
 

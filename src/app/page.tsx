@@ -15,7 +15,6 @@ import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
 import type { RankedLabelInfo } from '@/components/worldmap/CityMarker';
 import { getBossfightLobby, getActiveRankedLobby } from '@/lib/api';
-import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import { useRankedQueue } from '@/lib/useRankedQueue';
 import { useCountdown } from '@/lib/useCountdown';
@@ -192,9 +191,6 @@ export default function Page() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Raid countdown shown over Athens on the globe; polls while on the world map
-  const { secondsUntil: athensRaidSecondsUntil } = useBossfightCountdown(!selectedCity);
-
   const enterAthensRaid = useCallback((playerName: string) => {
     setAthensSceneLoading(true);
     getBossfightLobby(playerName)
@@ -363,7 +359,6 @@ export default function Page() {
           <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
             <WorldMap
               onCityClick={handleCityClick}
-              athensRaidInfo={{ secondsUntil: athensRaidSecondsUntil }}
               rankedInfo={rankedInfo}
             />
           </Canvas>

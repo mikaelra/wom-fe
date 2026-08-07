@@ -121,13 +121,16 @@ export function buildWellRewardEvents(
         const from: [number, number, number] = [src.pos[0], src.pos[1] + 0.3, src.pos[2]];
         const coins = Math.max(0, src.count); // broke players yield no coin
         for (let i = 0; i < coins; i++) {
-          // Spread coins from the same player so they don't perfectly overlap.
+          // Spread coins at their launch point so they don't perfectly
+          // overlap leaving the source -- but converge on the same landing
+          // spot, or a big steal reads as a scattered line beside the
+          // winner instead of a pile landing on them.
           const jitter = coins > 1 ? (i - (coins - 1) / 2) * 0.15 : 0;
           events.push({
             id:   `well-steal-${stamp}-${si}-${i}`,
             type: 'steal',
             fromPos: [from[0] + jitter, from[1], from[2]],
-            toPos:   [land[0] + jitter, land[1], land[2]],
+            toPos:   land,
             delay:   seq++ * WELL_REWARD_STAGGER,
           });
         }
@@ -311,12 +314,16 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       const from: [number, number, number] = [fromPos[0], fromPos[1] + 0.3, fromPos[2]];
       const evs: WellRewardEvent[] = [];
       for (let c = 0; c < coins; c++) {
+        // Spread coins at the victim's seat so they don't perfectly overlap
+        // leaving, but converge on the killer's actual position -- else a
+        // big kill (e.g. looting a coin-heavy Owl) reads as a scattered
+        // line beside the killer instead of a pile landing on them.
         const jitter = coins > 1 ? (c - (coins - 1) / 2) * 0.15 : 0;
         evs.push({
           id:   `kill-coin-${killStamp}-${killSeq++}`,
           type: 'steal',
           fromPos: [from[0] + jitter, from[1], from[2]],
-          toPos:   [toPos[0] + jitter, toPos[1], toPos[2]],
+          toPos,
           delay:   c * WELL_REWARD_STAGGER,
         });
       }
