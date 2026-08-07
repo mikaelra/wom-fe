@@ -131,14 +131,20 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
 export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   const myPlayer = state.players.find((p) => p.name === playerName);
   const rankedResult = state.ranked_results?.[playerName];
+  const humans = state.players.filter((p) => !p.bot && !p.spectator);
   // "No contest" ending (engine.boss_ai.players_defeated): every human is
   // dead but a bot survived, so no winner is ever declared -- distinct
   // from a boss-fight loss, which sets state.winner to the boss's own
   // name (e.g. "Hades wins!") and must keep reading as that, not this.
-  // The bot-alive check rules out the one other way gameover can end up
-  // true with no winner (a crashed pre-game ranked-countdown watcher,
-  // sockets/utils.py's end_game(None) -- round 0, no bots in play yet).
-  const botsWon = !state.winner && state.players.some((p) => p.bot && p.alive);
+  const allHumansDead = humans.length > 0 && humans.every((p) => !p.alive);
+  const botsWon = !state.winner && allHumansDead && state.players.some((p) => p.bot && p.alive);
+  // Idle-timeout ending (engine.combat.resolve_round's alive_p/idle_p
+  // check): every human still technically alive, just went quiet -- also
+  // gameover + no winner, but distinct from botsWon above (nobody died,
+  // idling isn't damage) and from the one other way that combination
+  // happens (a crashed pre-game ranked-countdown watcher, sockets/
+  // utils.py's end_game(None) -- round 0, no humans seated yet either).
+  const timedOut = !state.winner && !allHumansDead && humans.some((p) => p.alive);
 
   return (
     <div className="mt-3 text-center">
@@ -147,6 +153,8 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
           <span className="text-green-400">You won! 👑</span>
         ) : botsWon ? (
           <span className="text-yellow-400">🤖 Bots win!</span>
+        ) : timedOut ? (
+          <span className="text-yellow-400">⏱️ Timed out!</span>
         ) : (
           <span className="text-yellow-400">Game Over! {state.winner} wins!</span>
         )}

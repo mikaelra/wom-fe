@@ -135,6 +135,21 @@ describe('renderGameOver', () => {
     expect(screen.queryByText('🤖 Bots win!')).not.toBeInTheDocument();
   });
 
+  it('shows "Timed out!" when the game ended because everyone went idle -- nobody died', () => {
+    const alice: Player = { ...basePlayer, name: 'Alice', alive: true };
+    const bob: Player = { ...basePlayer, name: 'Bob', alive: true };
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: { ...opts.state, winner: null, players: [alice, bob] },
+        })}
+      </>,
+    );
+    expect(screen.getByText('⏱️ Timed out!')).toBeInTheDocument();
+    expect(screen.queryByText('🤖 Bots win!')).not.toBeInTheDocument();
+  });
+
   it('shows a link to the inventory when the local player was awarded a Wheel', () => {
     const me: Player = { ...basePlayer, name: 'Alice', wheel_awarded: true };
     render(<>{renderGameOver({ ...opts, state: { ...opts.state, players: [me] } })}</>);
