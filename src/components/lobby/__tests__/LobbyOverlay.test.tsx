@@ -272,16 +272,30 @@ describe('renderPreGame', () => {
   });
 
   describe('Add Bot picker', () => {
-    it('clicking Add Bot replaces it with one button per bot type', () => {
+    it('clicking Add Bot shows one button per bot type', () => {
       render(<>{renderPreGame({ ...baseOpts, isAdmin: true })}</>);
 
       fireEvent.click(screen.getByText('Add Bot'));
 
-      expect(screen.queryByText('Add Bot')).not.toBeInTheDocument();
+      // Add Bot itself stays in the DOM (just hidden, not unmounted) --
+      // see the component's own comment on why unmounting it shifted
+      // Start Game sideways.
+      expect(screen.getByText('Add Bot')).toHaveClass('invisible');
       expect(screen.getByText('Turtle')).toBeInTheDocument();
       expect(screen.getByText('Sheep')).toBeInTheDocument();
       expect(screen.getByText('Wolf')).toBeInTheDocument();
       expect(screen.getByText('Owl')).toBeInTheDocument();
+      expect(screen.getByText('Random')).toBeInTheDocument();
+    });
+
+    it('picking Random calls onAddDummy with no specific type, letting the server pick', () => {
+      const onAddDummy = vi.fn();
+      render(<>{renderPreGame({ ...baseOpts, isAdmin: true, onAddDummy })}</>);
+
+      fireEvent.click(screen.getByText('Add Bot'));
+      fireEvent.click(screen.getByText('Random'));
+
+      expect(onAddDummy).toHaveBeenCalledWith('');
     });
 
     it('picking a type calls onAddDummy with it and collapses back to Add Bot', () => {
@@ -292,7 +306,7 @@ describe('renderPreGame', () => {
       fireEvent.click(screen.getByText('Owl'));
 
       expect(onAddDummy).toHaveBeenCalledWith('OWL');
-      expect(screen.getByText('Add Bot')).toBeInTheDocument();
+      expect(screen.getByText('Add Bot')).not.toHaveClass('invisible');
       expect(screen.queryByText('Owl')).not.toBeInTheDocument();
     });
 
@@ -306,7 +320,7 @@ describe('renderPreGame', () => {
       fireEvent.mouseDown(document.body);
 
       expect(onAddDummy).not.toHaveBeenCalled();
-      expect(screen.getByText('Add Bot')).toBeInTheDocument();
+      expect(screen.getByText('Add Bot')).not.toHaveClass('invisible');
       expect(screen.queryByText('Owl')).not.toBeInTheDocument();
     });
   });

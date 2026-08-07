@@ -179,11 +179,18 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
 // bot_type is never part of the public wire format (domain/player.py's
 // PUBLIC_PLAYER_FIELDS omits it, it's server-internal AI dispatch), so
 // there's nothing to derive this list from at runtime.
+//
+// The empty-string entry isn't a real bot_type -- sockets/lobby.py's
+// handle_add_dummy falls back to its own random pick for anything that
+// doesn't name one of BOT_TYPES, which this deliberately relies on rather
+// than duplicating the random choice here.
+const RANDOM_BOT_TYPE = '';
 const BOT_TYPES: { type: string; label: string }[] = [
   { type: 'TURTLE', label: 'Turtle' },
   { type: 'SHEEP', label: 'Sheep' },
   { type: 'WOLF', label: 'Wolf' },
   { type: 'OWL', label: 'Owl' },
+  { type: RANDOM_BOT_TYPE, label: 'Random' },
 ];
 
 // "Add Bot" expands into one button per bot type, stacked vertically above
@@ -220,15 +227,20 @@ function AddBotButton({ btn, onAddDummy }: { btn: string; onAddDummy: (botType: 
 
   return (
     <div className="relative">
-      {!picking ? (
-        <button
-          type="button"
-          onClick={() => setPicking(true)}
-          className={`${btn} bg-gray-600 text-white`}
-        >
-          Add Bot
-        </button>
-      ) : (
+      {/* Stays in normal flow (just hidden, not unmounted) while picking --
+          an unmounted button would collapse this wrapper to zero width,
+          shrinking the row and re-centering it (see the parent's
+          items-center), which visibly shifted Start Game sideways every
+          time this opened. `invisible` keeps the exact same box reserved
+          (and stops clicks on it, unlike opacity-0) without that shift. */}
+      <button
+        type="button"
+        onClick={() => setPicking(true)}
+        className={`${btn} bg-gray-600 text-white ${picking ? 'invisible' : ''}`}
+      >
+        Add Bot
+      </button>
+      {picking && (
         <div
           ref={containerRef}
           className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 flex flex-col gap-2"
