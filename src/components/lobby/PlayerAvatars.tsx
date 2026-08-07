@@ -8,6 +8,7 @@ import PlayerV1 from '@/components/Playerv1';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import DenyModelButton from '@/components/lobby/DenyModelButton';
+import EquippedCoinModel from '@/components/lobby/EquippedCoinModel';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { skinUrl } from '@/lib/frogSkins';
 import { COIN_RELIC_ID } from '@/types/game';
@@ -72,7 +73,11 @@ const STACK_BUBBLE_Y = -70;
 // shows on your own) -- moved down from above the name so it stops
 // overlapping/hiding the chat bubble when a player is chatting.
 const STACK_ATTACK_Y = 138;
-const STACK_INFO_Y = 130;
+// Below the attack/defend button (STACK_ATTACK_Y/STACK_DEFEND_Y, ~64px tall
+// at its own width=180 crop), with enough clearance not to overlap it --
+// was briefly up at -140 (above the name/chat bubble instead), moved back
+// down per feedback that up there read as detached from the player.
+const STACK_INFO_Y = 230;
 const STACK_DEFEND_Y = 138;
 
 // A player's stats as revealed by an opponent's "info" Well reward. `stale`
@@ -144,7 +149,7 @@ function InfoRevealContent({ badge }: { badge: InfoRevealBadge }) {
 
 // Inner components mount only while a crown is visible, so the bobbing
 // useFrame (and the GLB clone) costs nothing the rest of the game.
-function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale, speed = 2.2, phase = 0 }: {
+function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale, speed = 2.2, phase = 0, flyLambda }: {
   url: string;
   worldPosition: [number, number, number];
   yOffset: number;
@@ -159,17 +164,41 @@ function BobbingCrown({ url, worldPosition, yOffset, bobAmp, scale, speed = 2.2,
       that player's hoverPhase, so a synced crown+Cherub move in lockstep
       rather than merely sharing a frequency. */
   phase?: number;
+  /** If set, a `worldPosition` change smoothly lerps the crown's base
+   *  position toward it (frame-rate independent exponential ease, same
+   *  idiom as CameraFlyIn's camera lerp) instead of snapping instantly --
+   *  WellCrown's "fly to the new winner" cue. Undefined keeps the original
+   *  instant-snap behavior (WinnerCrown, which never needs to fly -- it
+   *  only ever appears once, at game end). */
+  flyLambda?: number;
 }) {
   const { scene } = useGLTF(url);
   const crownScene = useMemo(() => scene.clone(), [scene]);
   const ref = useRef<THREE.Group>(null);
+  // Starts exactly at worldPosition -- only diverges (and then lerps back)
+  // once the prop changes to a genuinely new value after mount, so there's
+  // never a spurious "fly-in from nowhere" on first appearance.
+  const currentBase = useRef<[number, number, number]>(worldPosition);
 
-  useFrame((clockState) => {
-    if (ref.current) {
-      ref.current.position.y =
-        worldPosition[1] + yOffset + Math.sin(clockState.clock.elapsedTime * speed + phase) * bobAmp;
-      ref.current.rotation.y = clockState.clock.elapsedTime * 0.45;
+  useFrame((clockState, delta) => {
+    if (!ref.current) return;
+    if (flyLambda) {
+      const a = 1 - Math.exp(-flyLambda * delta);
+      currentBase.current = [
+        currentBase.current[0] + (worldPosition[0] - currentBase.current[0]) * a,
+        currentBase.current[1] + (worldPosition[1] - currentBase.current[1]) * a,
+        currentBase.current[2] + (worldPosition[2] - currentBase.current[2]) * a,
+      ];
+    } else {
+      currentBase.current = worldPosition;
     }
+    const [bx, by, bz] = currentBase.current;
+    ref.current.position.set(
+      bx,
+      by + yOffset + Math.sin(clockState.clock.elapsedTime * speed + phase) * bobAmp,
+      bz,
+    );
+    ref.current.rotation.y = clockState.clock.elapsedTime * 0.45;
   });
 
   return (
@@ -199,6 +228,9 @@ export function WellCrown({ worldPosition }: { worldPosition: [number, number, n
       scale={0.2}
       speed={CHERUB_HOVER_SPEED}
       phase={worldPosition[0]}
+      // Flies from the previous well winner's seat to the new one instead
+      // of instantly teleporting -- see BobbingCrown's flyLambda comment.
+      flyLambda={4}
     />
   );
 }
@@ -268,6 +300,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   isAnimating,
   isDead,
   isWinner,
+  isBot,
   showAttackButton,
   onAttack,
   showDenyButton,
@@ -303,6 +336,8 @@ export const PlayerWithName = memo(function PlayerWithName({
   isAnimating: boolean;
   isDead?: boolean;
   isWinner?: boolean;
+  /** All bot types render with the turtle model for now (see config.BOT_DISPLAY_NAMES on the backend) -- distinct per-type models are future work. */
+  isBot?: boolean;
   showAttackButton?: boolean;
   /** Called with this player's name — stable across renders so memo() holds. */
   onAttack?: (name: string) => void;
@@ -339,7 +374,10 @@ export const PlayerWithName = memo(function PlayerWithName({
   onKick?: (name: string) => void;
   onToggleRelicSelection?: (relicId: number) => void;
 }) {
-  const modelUrl = name === 'TURTLE' ? '/models/turtlev01.glb' : isBoss ? '/models/hades/hades_v3-ld.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
+  // isBoss checked first: create_boss (game_state.py) sets bot=True on every
+  // boss too (Hades included), so checking isBot first accidentally matched
+  // it before isBoss ever got a look, rendering Hades with the turtle model.
+  const modelUrl = isBoss ? '/models/hades/hades_v3-ld.glb' : isBot ? '/models/turtlev01.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   const isCherub = modelUrl === skinUrl('cherub_v1');
   // See useRemountKeyOnceSettled's own comment -- forces the info-reveal
   // badge below to recompute its scale a beat after it appears, so a
@@ -398,6 +436,16 @@ export const PlayerWithName = memo(function PlayerWithName({
       {showDenyButton && (
         <Suspense fallback={null}>
           <DenyModelButton variant={isBoss ? 'boss' : 'player'} />
+        </Suspense>
+      )}
+
+      {/* Equipped-coin cue: a resting copy of the Well's gold coin model,
+          floating in front of anyone (self or others) who's selected Hades'
+          Coin for the upcoming match -- pre-game only, gone the instant the
+          round starts. Same slot/positioning as the deny prompt above. */}
+      {showLobbyControls && selectedRelicIds?.includes(COIN_RELIC_ID) && (
+        <Suspense fallback={null}>
+          <EquippedCoinModel />
         </Suspense>
       )}
 

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import SceneOverlay, {
   type SceneOverlayConfig,
@@ -94,24 +94,33 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
       </div>
 
       {showQR && (
+        // overflow-y-auto on THIS outer layer (not just the card below) is
+        // what actually guarantees reachability on a short viewport: a
+        // max-height + internal scroll on the card alone still left the top
+        // of the card pushed off-screen by the outer flex's vertical
+        // centering, with nothing to scroll to bring it back -- confirmed
+        // live at a 375x420 viewport. The inner min-h-full+flex wrapper
+        // keeps the card centered whenever it *does* fit, same as before.
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm"
           onClick={() => setShowQR(false)}
         >
-          <div
-            className="bg-white rounded-2xl p-8 shadow-2xl relative flex flex-col items-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setShowQR(false)}
-              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold cursor-pointer transition-colors"
+          <div className="min-h-full flex items-center justify-center p-4">
+            <div
+              className="bg-white rounded-2xl p-8 shadow-2xl relative flex flex-col items-center"
+              onClick={(e) => e.stopPropagation()}
             >
-              ✕
-            </button>
-            <h3 className="text-xl font-bold mb-5 text-gray-800">Scan to Join</h3>
-            <QRCodeSVG value={lobbyUrl} size={200} />
-            <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[200px]">{lobbyUrl}</p>
+              <button
+                type="button"
+                onClick={() => setShowQR(false)}
+                className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+              <h3 className="text-xl font-bold mb-5 text-gray-800">Scan to Join</h3>
+              <QRCodeSVG value={lobbyUrl} size={200} />
+              <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[200px]">{lobbyUrl}</p>
+            </div>
           </div>
         </div>
       )}
@@ -122,12 +131,30 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
 export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   const myPlayer = state.players.find((p) => p.name === playerName);
   const rankedResult = state.ranked_results?.[playerName];
+  const humans = state.players.filter((p) => !p.bot && !p.spectator);
+  // "No contest" ending (engine.boss_ai.players_defeated): every human is
+  // dead but a bot survived, so no winner is ever declared -- distinct
+  // from a boss-fight loss, which sets state.winner to the boss's own
+  // name (e.g. "Hades wins!") and must keep reading as that, not this.
+  const allHumansDead = humans.length > 0 && humans.every((p) => !p.alive);
+  const botsWon = !state.winner && allHumansDead && state.players.some((p) => p.bot && p.alive);
+  // Idle-timeout ending (engine.combat.resolve_round's alive_p/idle_p
+  // check): every human still technically alive, just went quiet -- also
+  // gameover + no winner, but distinct from botsWon above (nobody died,
+  // idling isn't damage) and from the one other way that combination
+  // happens (a crashed pre-game ranked-countdown watcher, sockets/
+  // utils.py's end_game(None) -- round 0, no humans seated yet either).
+  const timedOut = !state.winner && !allHumansDead && humans.some((p) => p.alive);
 
   return (
     <div className="mt-3 text-center">
       <p className="text-xl font-bold mb-2">
         {state.winner === playerName ? (
           <span className="text-green-400">You won! 👑</span>
+        ) : botsWon ? (
+          <span className="text-yellow-400">🤖 Bots win!</span>
+        ) : timedOut ? (
+          <span className="text-yellow-400">⏱️ Timed out!</span>
         ) : (
           <span className="text-yellow-400">Game Over! {state.winner} wins!</span>
         )}
@@ -162,6 +189,92 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
           🏠
         </Link>
       </div>
+    </div>
+  );
+}
+
+// Kept in sync by hand with wom-be's config.BOT_TYPES/BOT_DISPLAY_NAMES --
+// bot_type is never part of the public wire format (domain/player.py's
+// PUBLIC_PLAYER_FIELDS omits it, it's server-internal AI dispatch), so
+// there's nothing to derive this list from at runtime.
+//
+// The empty-string entry isn't a real bot_type -- sockets/lobby.py's
+// handle_add_dummy falls back to its own random pick for anything that
+// doesn't name one of BOT_TYPES, which this deliberately relies on rather
+// than duplicating the random choice here.
+const RANDOM_BOT_TYPE = '';
+const BOT_TYPES: { type: string; label: string }[] = [
+  { type: 'TURTLE', label: 'Turtle' },
+  { type: 'SHEEP', label: 'Sheep' },
+  { type: 'WOLF', label: 'Wolf' },
+  { type: 'OWL', label: 'Owl' },
+  { type: RANDOM_BOT_TYPE, label: 'Random' },
+];
+
+// "Add Bot" expands into one button per bot type, stacked vertically above
+// where it was -- picking one adds that bot and immediately collapses back
+// to "Add Bot" so the admin can add another right away; clicking anywhere
+// outside cancels the same way, without adding anything. Same
+// click-outside-to-cancel idiom as RelicSelectionPopover.tsx. Absolutely
+// positioned (not a plain flex sibling of Start Game) so the stack growing
+// to 4 buttons tall can never stretch/resize Start Game's own button --
+// the relative wrapper it's anchored to has no intrinsic height of its own.
+function AddBotButton({ btn, onAddDummy }: { btn: string; onAddDummy: (botType: string) => void }) {
+  const [picking, setPicking] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!picking) return;
+    const handler = (e: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setPicking(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [picking]);
+
+  const handlePick = (botType: string) => {
+    onAddDummy(botType);
+    setPicking(false);
+  };
+
+  return (
+    <div className="relative">
+      {/* Stays in normal flow (just hidden, not unmounted) while picking --
+          an unmounted button would collapse this wrapper to zero width,
+          shrinking the row and re-centering it (see the parent's
+          items-center), which visibly shifted Start Game sideways every
+          time this opened. `invisible` keeps the exact same box reserved
+          (and stops clicks on it, unlike opacity-0) without that shift. */}
+      <button
+        type="button"
+        onClick={() => setPicking(true)}
+        className={`${btn} bg-gray-600 text-white ${picking ? 'invisible' : ''}`}
+      >
+        Add Bot
+      </button>
+      {picking && (
+        <div
+          ref={containerRef}
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 flex flex-col gap-2"
+        >
+          {BOT_TYPES.map(({ type, label }) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => handlePick(type)}
+              className={`${btn} bg-gray-600 text-white`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -243,13 +356,7 @@ export function renderPreGame({
           // cap, so flex-wrap never needs to trigger.
           <div className="flex w-max gap-3">
             <StartGameButton state={state} btn={btn} onStartGame={onStartGame} />
-            <button
-              type="button"
-              onClick={onAddDummy}
-              className={`${btn} bg-gray-600 text-white`}
-            >
-              Add Bot
-            </button>
+            <AddBotButton btn={btn} onAddDummy={onAddDummy} />
           </div>
         )}
         <button

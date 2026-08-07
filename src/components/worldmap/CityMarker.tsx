@@ -149,13 +149,15 @@ interface CityMarkerProps {
   city: City;
   globeRadius: number;
   onClick: (city: City) => void;
-  /** Raid info to display over Athens */
-  raidInfo?: { secondsUntil: number | null };
   /** Ranked-queue info to display over New York */
   rankedInfo?: RankedLabelInfo;
 }
 
-export default function CityMarker({ city, globeRadius, onClick, raidInfo, rankedInfo }: CityMarkerProps) {
+export default function CityMarker({ city, globeRadius, onClick, rankedInfo }: CityMarkerProps) {
+  // Athens is always the bossfight city -- the "Bossfight" pill below used
+  // to be gated on a raidInfo prop, but that only ever carried a countdown
+  // (removed) and was otherwise unconditionally truthy for Athens anyway.
+  const isBossfightCity = city.name === 'Athens';
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -222,7 +224,7 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo, ranke
               the city name, bigger, wrapped in a pill so it reads as a
               button rather than plain text, with a white outline so it
               stands out as the primary call to action. */}
-          {raidInfo && (
+          {isBossfightCity && (
             <span
               style={{
                 color: '#4da6ff',
@@ -261,11 +263,6 @@ export default function CityMarker({ city, globeRadius, onClick, raidInfo, ranke
             </span>
           )}
 
-          {raidInfo && raidInfo.secondsUntil !== null && raidInfo.secondsUntil > 0 && (
-            <span style={{ color: '#ff9966', fontSize: hovered ? 11 : 8 }}>
-              {Math.floor(raidInfo.secondsUntil / 60)}m {raidInfo.secondsUntil % 60}s
-            </span>
-          )}
           {rankedInfo?.status === 'searching' && (
             <span style={{ color: '#9fd8ff', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
               Searching{'.'.repeat(rankedInfo.searchingDots)}

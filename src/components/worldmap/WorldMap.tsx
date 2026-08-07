@@ -808,12 +808,11 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
 
 interface GlobeProps {
   onCityClick: (city: City) => void;
-  athensRaidInfo?: { secondsUntil: number | null };
   rankedInfo?: RankedLabelInfo;
   onReady?: () => void;
 }
 
-function Globe({ onCityClick, athensRaidInfo, rankedInfo, onReady }: GlobeProps) {
+function Globe({ onCityClick, rankedInfo, onReady }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
   // Epicenter for the crackle effect — Athens on the globe surface
@@ -893,7 +892,6 @@ function Globe({ onCityClick, athensRaidInfo, rankedInfo, onReady }: GlobeProps)
           city={city}
           globeRadius={GLOBE_RADIUS}
           onClick={onCityClick}
-          raidInfo={city.name === 'Athens' ? athensRaidInfo : undefined}
           rankedInfo={city.name === 'New York' ? rankedInfo : undefined}
         />
       ))}
@@ -1220,11 +1218,10 @@ function RankedZoomRig({ active }: { active: boolean }) {
 
 interface WorldMapProps {
   onCityClick: (city: City) => void;
-  athensRaidInfo?: { secondsUntil: number | null };
   rankedInfo?: RankedLabelInfo;
 }
 
-export default function WorldMap({ onCityClick, athensRaidInfo, rankedInfo }: WorldMapProps) {
+export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
   const [phase, setPhase] = useState(0);
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
@@ -1280,7 +1277,7 @@ export default function WorldMap({ onCityClick, athensRaidInfo, rankedInfo }: Wo
           textures are ready without waiting for moon/star textures. */}
       {phase >= 1 && (
         <Suspense fallback={null}>
-          <Globe onCityClick={onCityClick} athensRaidInfo={athensRaidInfo} rankedInfo={rankedInfo} onReady={() => setGlobeReady(true)} />
+          <Globe onCityClick={onCityClick} rankedInfo={rankedInfo} onReady={() => setGlobeReady(true)} />
         </Suspense>
       )}
 

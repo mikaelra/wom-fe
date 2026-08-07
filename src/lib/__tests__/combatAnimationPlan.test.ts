@@ -124,6 +124,16 @@ describe('buildCombatAnimationPlan', () => {
       expect(plan[3].actions).toEqual([{ type: 'emitHpFx', event: { kind: 'killgain', coins: 3, atk: 1 } }]);
     });
 
+    it('marks kill-loot coins to orbit the table instead of cutting through the well', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 2 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+      const rewardBatch = plan.find((b) => b.actions.some((a) => a.type === 'addWellRewardEvents'));
+      if (rewardBatch?.actions[0].type !== 'addWellRewardEvents') throw new Error('expected addWellRewardEvents batch');
+      expect(rewardBatch.actions[0].events.every((e) => e.orbit === true)).toBe(true);
+    });
+
     it('still emits the ATK-gain hpFx on a coinless kill, but no coin-fling batch', () => {
       const events: GameEvent[] = [
         { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 0 },
@@ -423,6 +433,8 @@ describe('buildCombatAnimationPlan', () => {
       const rewardBatch = plan.find((b) => b.actions.some((a) => a.type === 'addWellRewardEvents'));
       if (rewardBatch?.actions[0].type === 'addWellRewardEvents') {
         expect(rewardBatch.actions[0].events).toHaveLength(3); // 2 from Bob + 1 from Carol
+        // Real player sources -- should orbit the table, not cut through the well.
+        expect(rewardBatch.actions[0].events.every((e) => e.orbit === true)).toBe(true);
       } else {
         throw new Error('expected addWellRewardEvents batch');
       }
@@ -494,26 +506,48 @@ describe('buildCombatAnimationPlan', () => {
   });
 
   describe('witnessed eliminations', () => {
-    it('schedules a hit-flash, kill-fire, and kill-banner at wellDelayMs + SWORD_IMPACT_MS + i*546', () => {
+    it('plays the actual killing blow: a strike from attacker to victim, landing in sync with the kill-fire glow', () => {
       const events: GameEvent[] = [
         { kind: 'witness', attacker: 'Bob', victim: 'Carol' },
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
 
       const SWORD_IMPACT_MS = 600;
-      const expectedDelay = 0 + SWORD_IMPACT_MS + 0 * 546;
 
-      const flashAdd = plan.find((b) => b.actions.some((a) => a.type === 'addHitFlash'));
-      expect(flashAdd?.delayMs).toBeCloseTo(expectedDelay, 5);
-      const flashRemove = plan.find((b) => b.actions.some((a) => a.type === 'removeHitFlash'));
-      expect(flashRemove?.delayMs).toBeCloseTo(expectedDelay + 788, 5);
+      const strikeBatch = plan.find((b) => b.actions.some((a) => a.type === 'addStrike'));
+      expect(strikeBatch?.delayMs).toBeCloseTo(0, 5); // strike starts immediately (i=0)
+      const strike = (strikeBatch!.actions[0] as { strike: { fromPos: number[]; toPos: number[]; flashPosition?: number[]; isIncoming: boolean; targetDefended: boolean; targetHit: boolean } }).strike;
+      expect(strike.fromPos).toEqual([1, 0.3, 0]); // Bob's seat
+      expect(strike.toPos).toEqual([2, 0.3, 0]);   // Carol's seat
+      expect(strike.flashPosition).toEqual([2, 0, 0]); // fires on the blade's own impact frame
+      expect(strike.isIncoming).toBe(false);
+      expect(strike.targetDefended).toBe(false);
+      expect(strike.targetHit).toBe(true);
 
+      // Kill-fire (and the victim's dead-pose reveal) land exactly on the
+      // strike's own impact, one SWORD_IMPACT_MS after it starts swinging.
       const fireAdd = plan.find((b) => b.actions.some((a) => a.type === 'addKillFire'));
-      expect(fireAdd?.delayMs).toBeCloseTo(expectedDelay, 5);
-      const bannerAdd = plan.find((b) => b.actions.some((a) => a.type === 'addKillBanner'));
-      expect(bannerAdd?.delayMs).toBeCloseTo(expectedDelay, 5);
-      const bannerRemove = plan.find((b) => b.actions.some((a) => a.type === 'removeKillBanner'));
-      expect(bannerRemove?.delayMs).toBeCloseTo(expectedDelay + 3151, 5);
+      expect(fireAdd?.delayMs).toBeCloseTo(SWORD_IMPACT_MS, 5);
+    });
+
+    it('falls back to a flash-only reveal when the attacker\'s own seat is unknown', () => {
+      const events: GameEvent[] = [
+        { kind: 'witness', attacker: 'Ghost', victim: 'Carol' },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const SWORD_IMPACT_MS = 600;
+
+      expect(plan.some((b) => b.actions.some((a) => a.type === 'addStrike'))).toBe(false);
+      const flashAdd = plan.find((b) => b.actions.some((a) => a.type === 'addHitFlash'));
+      expect(flashAdd?.delayMs).toBeCloseTo(SWORD_IMPACT_MS, 5);
+      const flashRemove = plan.find((b) => b.actions.some((a) => a.type === 'removeHitFlash'));
+      expect(flashRemove?.delayMs).toBeCloseTo(SWORD_IMPACT_MS + 788, 5);
+      // No glow without a killer position to anchor it to (scheduleKillFire's
+      // own gate) -- but the victim's dead pose still reveals.
+      expect(plan.some((b) => b.actions.some((a) => a.type === 'addKillFire'))).toBe(false);
+      const deadReveal = plan.find((b) => b.actions.some((a) => a.type === 'markDead'));
+      expect(deadReveal?.delayMs).toBeCloseTo(SWORD_IMPACT_MS, 5);
     });
 
     it('staggers multiple witnessed eliminations by 546ms each', () => {
@@ -525,6 +559,10 @@ describe('buildCombatAnimationPlan', () => {
       const fireBatches = plan.filter((b) => b.actions.some((a) => a.type === 'addKillFire'));
       expect(fireBatches).toHaveLength(2);
       expect(fireBatches[1].delayMs - fireBatches[0].delayMs).toBeCloseTo(546, 5);
+
+      const strikeBatches = plan.filter((b) => b.actions.some((a) => a.type === 'addStrike'));
+      expect(strikeBatches).toHaveLength(2);
+      expect(strikeBatches[1].delayMs - strikeBatches[0].delayMs).toBeCloseTo(546, 5);
     });
   });
 

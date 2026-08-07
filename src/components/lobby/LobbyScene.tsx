@@ -39,7 +39,6 @@ import {
   type BlockGlowEvent,
   type WellRewardEvent,
   type KillFireEvent,
-  type KillBanner,
   type WellWinFx,
   type ImpactShield,
   type CombatAnimationAction,
@@ -103,6 +102,13 @@ const WELL_SELECT_GLOW_COLOR   = '#a78bfa';
 const ATTACK_SELECT_GLOW_COLOR = '#ef4444';
 const DEFEND_SELECT_GLOW_COLOR = '#3b82f6';
 const DEFEND_SELECT_GLOW_INTENSITY = 2;
+// Gold, matching WellGlowEffect's WELL_GLOW_HEX.gold -- pulses once at the
+// well winner's own seat, every time someone wins (including a repeat
+// winner), distinct from the well's own fixed-position glow above (that
+// one's keyed to reward rarity; this one's purely "who won").
+const WELL_WINNER_GLOW_COLOR = '#fcd34d';
+const WELL_WINNER_GLOW_RADIUS = 1.1;
+const WELL_WINNER_GLOW_INTENSITY = 3;
 // Deny prompt: an orange ground glow under every eligible target at once
 // (unlike the other SelectionGlow uses below, which each track a single
 // current choice) -- see the players.map/lostSouls.map loops, which each
@@ -219,7 +225,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   >([]);
   const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
   const [killFireEvents, setKillFireEvents] = useState<KillFireEvent[]>([]);
-  const [killBanners, setKillBanners] = useState<KillBanner[]>([]);
   const [denyRingFx, setDenyRingFx] = useState<{ id: string; pos: [number, number, number] }[]>([]);
   // Denier glow: only shown to the denied player themself, under whoever
   // denied them -- see the same trigger effect as denyRingFx below. A
@@ -231,6 +236,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [denierGlowActive, setDenierGlowActive] = useState(false);
   const denierGlowTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const prevDenyTargetRef = useRef<string | null>(null);
+  // Golden glow under whoever just won the Well -- same persistent-
+  // SelectionGlow-with-toggled-active pattern as denierGlow above (gradient,
+  // ground-anchored, single gentle pulse), not the fixed-at-the-well
+  // WellGlowEffect below it (that one's keyed to reward rarity; this one's
+  // purely "who won", and needs to re-fire even when the same player wins
+  // again -- see the round-marker scan in the trigger effect).
+  const [wellWinnerGlowPos, setWellWinnerGlowPos] = useState<[number, number, number]>(GLOW_PARK_POSITION);
+  const [wellWinnerGlowActive, setWellWinnerGlowActive] = useState(false);
+  const wellWinnerGlowTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const lastWellGlowRoundRef = useRef<number | null>(null);
   // Opponent stats captured when the local player wins the Well's "info"
   // reward. Rendered on each opponent for the round it's captured (fresh),
   // greyed with a "last round" label for the round after (stale), then
@@ -363,7 +378,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // docs/MONETIZATION_PLAN.md §3.1. Guests/unclaimed names have no
   // equipped skin server-side (skin: null) and fall back to green here.
   const skinMap = useMemo(() => {
-    const frogPlayers = allPlayers.filter((p) => !p.boss && !p.lost_soul && p.name !== 'TURTLE');
+    const frogPlayers = allPlayers.filter((p) => !p.boss && !p.lost_soul && !p.bot);
     const map = new Map<string, string>();
     for (const p of frogPlayers) {
       map.set(p.name, skinUrl(p.skin ?? 'frog_green_v1'));
@@ -395,7 +410,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       return a.name.localeCompare(b.name);
     })
     .slice(0, MAX_PLAYERS), [allPlayers, playerName, isBossFight]);
-  const winner = gameWinner ?? wellWinner;
+  // Once the game is over, trust ONLY the declared winner -- never fall
+  // back to wellWinner (who most recently won The Well, a live in-game
+  // indicator with no bearing on who actually won the match). Without
+  // this, a "no contest" ending (all humans dead, a bot survives --
+  // engine.boss_ai.players_defeated deliberately leaves gameWinner null
+  // there, see its own docstring) could still crown whoever's stale
+  // wellWinner value happened to be sitting around, on a screen that's
+  // supposed to show no winner at all. Mid-game, the fallback still
+  // applies -- that's wellCrownHolder's whole purpose below.
+  const winner = gameOver ? gameWinner : (gameWinner ?? wellWinner);
 
   // Compute seat positions. In boss fights the boss is pinned to the far side and players
   // spread across the near half, so adding a player never moves Hades.
@@ -532,7 +556,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     // timeouts were just cancelled above). Any death-pose delay from last round
     // is long since resolved by now, so drop it too rather than leave stale names.
     setKillFireEvents([]);
-    setKillBanners([]);
     setDenyRingFx([]);
     denierGlowTimeoutsRef.current.forEach(clearTimeout);
     denierGlowTimeoutsRef.current = [];
@@ -618,6 +641,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     );
   }, []);
 
+  // Same pattern as triggerDenierGlow above, but a single on/off pulse
+  // instead of two.
+  const triggerWellWinnerGlow = useCallback((pos: [number, number, number]) => {
+    wellWinnerGlowTimeoutsRef.current.forEach(clearTimeout);
+    wellWinnerGlowTimeoutsRef.current = [];
+    setWellWinnerGlowPos(pos);
+    setWellWinnerGlowActive(true);
+    wellWinnerGlowTimeoutsRef.current.push(setTimeout(() => setWellWinnerGlowActive(false), 350));
+  }, []);
+
   // Deny-ring drop: fires the moment `deny_target` newly names someone (set
   // synchronously server-side on submit_deny_target, see lobby.py). Still
   // rides the shared state_update broadcast every client receives, but the
@@ -644,6 +677,42 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       if (denierPos) triggerDenierGlow(denierPos);
     }
   }, [state?.deny_target, state?.deny_denier, playerName, triggerDenierGlow]);
+
+  // Well-winner glow: fires every time someone wins the Well, including the
+  // same player winning again -- so this can't just watch "did wellwinner
+  // change" (a repeat winner leaves the value identical, and the field
+  // itself never resets between rounds nobody visits the well in, so it can
+  // sit stale for a long stretch either way). Instead scans back to the most
+  // recent "🛎 Round N 🛎" marker in the public history log and looks for
+  // that round's own "X won The Well." line -- robust to state.history
+  // being capped/sliced server-side (HISTORY_CAP), where array length alone
+  // would silently stop signalling "new content" once the cap kicks in.
+  // Visible to everyone in the lobby (unlike the deny-ring above, this isn't
+  // private). WellCrown (PlayerAvatars.tsx) separately handles the crown
+  // itself flying over.
+  useEffect(() => {
+    const history = state?.history ?? [];
+    let markerIdx = -1;
+    let markerRound: number | null = null;
+    for (let i = history.length - 1; i >= 0; i--) {
+      const m = /🛎 Round (\d+) 🛎/.exec(history[i]);
+      if (m) {
+        markerIdx = i;
+        markerRound = Number(m[1]);
+        break;
+      }
+    }
+    if (markerIdx === -1 || markerRound === null || markerRound === lastWellGlowRoundRef.current) return;
+
+    for (let i = markerIdx; i < history.length; i++) {
+      const wm = /^👑 (.+) won The Well\.$/.exec(history[i]);
+      if (!wm) continue;
+      lastWellGlowRoundRef.current = markerRound;
+      const pos = posMapRef.current.get(wm[1]);
+      if (pos) triggerWellWinnerGlow(pos);
+      break;
+    }
+  }, [state?.history, triggerWellWinnerGlow]);
 
   // Dev preview: append ?debugDenyRing=1 to a lobby URL to replay the deny-ring
   // drop on the first seated player every few seconds, without needing to
@@ -756,8 +825,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           next.delete(action.name);
           return next;
         }); break;
-        case 'addKillBanner': setKillBanners((b) => [...b, action.banner]); break;
-        case 'removeKillBanner': setKillBanners((b) => b.filter((x) => x.id !== action.id)); break;
         case 'addWellRewardEvents': {
           setWellRewardEvents((ev) => [...ev, ...action.events]);
           // "info" Well reward: snapshot every other player's current stats
@@ -884,7 +951,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // Append `?killtest=<roles>` to the lobby URL to loop the kill fx onto the
   // scene every 4s. Roles are comma-separated (default `killer`):
   //   killer  — fiery glow under you + a victim's coins fly to you (?killtest=killer:4 for 4 coins)
-  //   witness — fiery glow under the killer + a banner naming them
+  //   witness — fiery glow under the killer
   //   victim  — fiery glow under your killer (no coins)
   // e.g. ?killtest=killer   ?killtest=witness   ?killtest=killer:5,witness
   useEffect(() => {
@@ -902,7 +969,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       // Borrow another seat as the "other" character; fall back to an offset spot.
       const otherEntry = Array.from(posMapRef.current.entries()).find(([n]) => n !== playerName);
       const otherPos: [number, number, number] = otherEntry?.[1] ?? [myPos[0] + 2.2, myPos[1], myPos[2]];
-      const otherName = otherEntry?.[0] ?? 'Rival';
       const stamp = Date.now();
       let seq = 0;
 
@@ -928,19 +994,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           setWellRewardEvents((ev) => [...ev, ...evs]);
         }, atMs);
       };
-      const spawnBanner = (killer: string, pos: [number, number, number], atMs: number) => {
-        const id = `killbanner-dbg-${stamp}-${seq++}`;
-        setTimeout(() => {
-          setKillBanners((b) => [...b, { id, killer, pos }]);
-          setTimeout(() => setKillBanners((b) => b.filter((x) => x.id !== id)), 3151); // scaled to 0.8x
-        }, atMs);
-      };
-
       for (const role of roles) {
         const [kind, countStr] = role.split(':');
         if (kind === 'witness') {
           spawnFire(otherPos, SWORD_IMPACT_MS);
-          spawnBanner(otherName, otherPos, SWORD_IMPACT_MS);
         } else if (kind === 'victim') {
           spawnFire(otherPos, SWORD_IMPACT_MS);
         } else { // killer (default)
@@ -1114,6 +1171,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               isAnimating={true}
               isDead={showDeadPose}
               isWinner={!!isWinner}
+              isBot={!!player.bot}
               isBoss={isBoss}
               bossHp={isBoss ? player.hp : undefined}
               bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
@@ -1338,6 +1396,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             toPosition={ev.toPos}
             delay={ev.delay}
             scale={ev.scale}
+            orbit={ev.orbit}
             onDone={() => setWellRewardEvents((s) => s.filter((x) => x.id !== ev.id))}
           />
         ))}
@@ -1401,6 +1460,18 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         active={denierGlowActive}
         radius={DENY_TARGET_GLOW_RADIUS * 1.5}
         intensity={DENY_TARGET_GLOW_INTENSITY}
+        gradient
+      />
+      {/* Well-winner glow -- visible to everyone, under whoever just won the
+          Well. Single blink via triggerWellWinnerGlow toggling `active`, same
+          envelope as the denier glow above. */}
+      <SelectionGlow
+        position={wellWinnerGlowPos}
+        yOffset={SELECTION_GLOW_Y_OFFSET}
+        color={WELL_WINNER_GLOW_COLOR}
+        active={wellWinnerGlowActive}
+        radius={WELL_WINNER_GLOW_RADIUS}
+        intensity={WELL_WINNER_GLOW_INTENSITY}
         gradient
       />
       {/* Block glow -- same blue, half the defend-selection glow's strength.
@@ -1497,21 +1568,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         />
       ))}
 
-
-      {/* Witness banner — names the killer in a fiery style above their head */}
-      {killBanners.map((b) => (
-        <Html
-          key={b.id}
-          position={[b.pos[0], b.pos[1] + 0.95, b.pos[2]]}
-          center
-          distanceFactor={3}
-          zIndexRange={[0, 0]}
-          eps={HTML_EPS}
-          style={{ pointerEvents: 'none', userSelect: 'none' }}
-        >
-          <div className="kill-witness-banner">💀 {b.killer} got a kill! 🔥</div>
-        </Html>
-      ))}
 
       {/* Stage 6: Game-winning crown */}
       <Suspense fallback={null}>

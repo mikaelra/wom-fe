@@ -43,6 +43,16 @@ export type WellRewardEvent = {
   delay:   number;
   /** Optional scale override (e.g. Hades' coin renders 3x the normal gold coin). */
   scale?: number;
+  /** True for player-to-player flights (steal victim -> well winner, or kill
+   *  loot victim -> killer). Both players sit on the seating circle around
+   *  The Well at the table's center, so a straight line between two seats on
+   *  opposite sides passes right by the well -- reading as "coins spouting
+   *  out of the well" instead of coming from the actual player. Orbiting
+   *  around the table (interpolating seat angle, not raw XZ) keeps the path
+   *  out by the rim instead. Not used for the well's own rewards (gold,
+   *  health, etc., or steal's well-fallback). those genuinely start at the
+   *  well, so a straight line is correct for them. */
+  orbit?: boolean;
 };
 
 // A fiery red glow that erupts under a character when a kill is made. Seen by the
@@ -59,13 +69,6 @@ export type KillFireEvent = {
 export type BlockGlowEvent = {
   id: string;
   pos: [number, number, number];
-};
-
-// Text shown to the lone witness of a kill, naming the killer in a fiery style.
-export type KillBanner = {
-  id:     string;
-  killer: string;
-  pos:    [number, number, number];
 };
 
 // Splash + glow that play on the well. A win shows a splash plus the rarity
@@ -120,22 +123,30 @@ export function buildWellRewardEvents(
 
   for (const reward of components) {
     if (reward.type === 'steal') {
-      // Fall back to the well only if we somehow have no player sources.
-      const sources: StealSource[] = stealSources.length
+      // Fall back to the well only if we somehow have no player sources --
+      // that fallback genuinely starts at the well, so it's the one 'steal'
+      // case that should NOT orbit (a straight line from the well is correct
+      // there, same as every other well reward).
+      const fromRealSources = stealSources.length > 0;
+      const sources: StealSource[] = fromRealSources
         ? stealSources
         : [{ pos: WELL_SPOUT_POSITION, count: Math.max(1, reward.count) }];
       sources.forEach((src, si) => {
         const from: [number, number, number] = [src.pos[0], src.pos[1] + 0.3, src.pos[2]];
         const coins = Math.max(0, src.count); // broke players yield no coin
         for (let i = 0; i < coins; i++) {
-          // Spread coins from the same player so they don't perfectly overlap.
+          // Spread coins at their launch point so they don't perfectly
+          // overlap leaving the source -- but converge on the same landing
+          // spot, or a big steal reads as a scattered line beside the
+          // winner instead of a pile landing on them.
           const jitter = coins > 1 ? (i - (coins - 1) / 2) * 0.15 : 0;
           events.push({
             id:   `well-steal-${stamp}-${si}-${i}`,
             type: 'steal',
             fromPos: [from[0] + jitter, from[1], from[2]],
-            toPos:   [land[0] + jitter, land[1], land[2]],
+            toPos:   land,
             delay:   seq++ * WELL_REWARD_STAGGER,
+            orbit:   fromRealSources,
           });
         }
       });
@@ -196,8 +207,6 @@ export type CombatAnimationAction =
   | { type: 'removeImpactShield'; id: string }
   | { type: 'addKillFire'; event: KillFireEvent }
   | { type: 'markDead'; name: string }
-  | { type: 'addKillBanner'; banner: KillBanner }
-  | { type: 'removeKillBanner'; id: string }
   | { type: 'addWellRewardEvents'; events: WellRewardEvent[] }
   | { type: 'emitHpFx'; event: HpFxEvent }
   | { type: 'addWellWinFx'; fx: WellWinFx }
@@ -308,13 +317,6 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     batches.push({ delayMs: offMs, actions: [{ type: 'removeBlockGlow', id }] });
   };
 
-  const scheduleKillBanner = (killer: string, pos: [number, number, number], atMs: number) => {
-    const id = `killbanner-${killStamp}-${killSeq++}`;
-    const delayMs = Math.max(0, atMs);
-    batches.push({ delayMs, actions: [{ type: 'addKillBanner', banner: { id, killer, pos } }] });
-    batches.push({ delayMs: delayMs + 3151, actions: [{ type: 'removeKillBanner', id }] }); // scaled to 0.8x
-  };
-
   // Killer only: fling the victim's coins over and tick up the ATK/coin cards.
   const scheduleKillLoot = (
     fromPos: [number, number, number],
@@ -327,12 +329,17 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       const from: [number, number, number] = [fromPos[0], fromPos[1] + 0.3, fromPos[2]];
       const evs: WellRewardEvent[] = [];
       for (let c = 0; c < coins; c++) {
+        // Spread coins at the victim's seat so they don't perfectly overlap
+        // leaving, but converge on the killer's actual position -- else a
+        // big kill (e.g. looting a coin-heavy Owl) reads as a scattered
+        // line beside the killer instead of a pile landing on them.
         const jitter = coins > 1 ? (c - (coins - 1) / 2) * 0.15 : 0;
         evs.push({
           id:   `kill-coin-${killStamp}-${killSeq++}`,
           type: 'steal',
           fromPos: [from[0] + jitter, from[1], from[2]],
-          toPos:   [toPos[0] + jitter, toPos[1], toPos[2]],
+          toPos,
+          orbit: true,
           delay:   c * WELL_REWARD_STAGGER,
         });
       }
@@ -572,22 +579,46 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   }
 
   // ── Witnessed eliminations ────────────────────────────────────────────────
-  // The lone witness sees a fiery glow erupt under the killer plus a banner
-  // naming them, and a red flash on the victim — but no coins (those are the
-  // killer's alone).
+  // The lone witness sees the actual killing blow -- the attacker's sword
+  // swinging into the victim -- not just its aftermath (the fiery glow
+  // erupting under the killer once it lands, and a red flash on the
+  // victim), same as watching any other strike land on someone else this
+  // round. No coins fly, though -- those are the killer's alone.
   combat.witnessedEliminations.forEach((we, i) => {
     const victimPos = posMap.get(we.victim);
     const killerPos = posMap.get(we.attacker);
-    const delay = wellDelayMs + SWORD_IMPACT_MS + i * 546; // stagger scaled to 0.8x
-    if (victimPos) {
+    const strikeStartMs = wellDelayMs + i * 546; // stagger scaled to 0.8x
+    const impactMs = strikeStartMs + SWORD_IMPACT_MS;
+
+    if (killerPos && victimPos) {
+      const fromPos: [number, number, number] = [killerPos[0], killerPos[1] + 0.3, killerPos[2]];
+      const toPos:   [number, number, number] = [victimPos[0], victimPos[1] + 0.3, victimPos[2]];
+      const strike: StrikeEvent = {
+        id: `witness-${killStamp}-${killSeq++}`,
+        fromPos, toPos,
+        targetDefended: false,
+        targetHit: true,
+        isIncoming: false,
+        postImpact: 'retreat',
+        // Fires the same red flash the standalone addHitFlash below used
+        // to schedule on a timing estimate -- SwordEffect's own onStrike
+        // callback lands this exactly on the blade's real impact frame
+        // instead.
+        flashPosition: victimPos,
+      };
+      batches.push({ delayMs: strikeStartMs, actions: [{ type: 'addStrike', strike }] });
+    } else if (victimPos) {
+      // Fallback when the attacker's own seat is unknown (shouldn't
+      // normally happen -- witness events always name a real attacker,
+      // never anonymized) -- no fromPos to swing a sword from, so just
+      // the flash, at the same beat a real strike would have landed.
       const fid = `fl-${we.victim}-${Date.now()}`;
-      batches.push({ delayMs: delay, actions: [{ type: 'addHitFlash', event: { id: fid, position: victimPos } }] });
-      batches.push({ delayMs: delay + 788, actions: [{ type: 'removeHitFlash', id: fid }] }); // scaled to 0.8x
+      batches.push({ delayMs: impactMs, actions: [{ type: 'addHitFlash', event: { id: fid, position: victimPos } }] });
+      batches.push({ delayMs: impactMs + 788, actions: [{ type: 'removeHitFlash', id: fid }] }); // scaled to 0.8x
     }
     // markDead must fire even if the killer's own position is unknown — only
     // the glow itself needs killerPos, gated inside scheduleKillFire.
-    scheduleKillFire(killerPos, delay, we.victim);
-    if (killerPos) scheduleKillBanner(we.attacker, killerPos, delay);
+    scheduleKillFire(killerPos, impactMs, we.victim);
   });
 
   return batches;

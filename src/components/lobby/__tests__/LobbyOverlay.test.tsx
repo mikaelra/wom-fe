@@ -108,6 +108,48 @@ describe('renderGameOver', () => {
     expect(screen.getByText('Game Over! Bob wins!')).toBeInTheDocument();
   });
 
+  it('shows "Bots win!" on a no-contest ending -- every human dead, a bot survived, no winner declared', () => {
+    const owl: Player = { ...basePlayer, name: 'Owl 1', bot: true, alive: true };
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: { ...opts.state, winner: null, players: [{ ...basePlayer, alive: false }, owl] },
+        })}
+      </>,
+    );
+    expect(screen.getByText('🤖 Bots win!')).toBeInTheDocument();
+  });
+
+  it('does not say "Bots win!" when no winner is declared and no bot is alive either', () => {
+    // e.g. sockets/utils.py's crashed-pre-game-watcher end_game(None) --
+    // unrelated to the no-contest bots-win ending, must not be mislabeled.
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: { ...opts.state, winner: null, players: [{ ...basePlayer, alive: false }] },
+        })}
+      </>,
+    );
+    expect(screen.queryByText('🤖 Bots win!')).not.toBeInTheDocument();
+  });
+
+  it('shows "Timed out!" when the game ended because everyone went idle -- nobody died', () => {
+    const alice: Player = { ...basePlayer, name: 'Alice', alive: true };
+    const bob: Player = { ...basePlayer, name: 'Bob', alive: true };
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: { ...opts.state, winner: null, players: [alice, bob] },
+        })}
+      </>,
+    );
+    expect(screen.getByText('⏱️ Timed out!')).toBeInTheDocument();
+    expect(screen.queryByText('🤖 Bots win!')).not.toBeInTheDocument();
+  });
+
   it('shows a link to the inventory when the local player was awarded a Wheel', () => {
     const me: Player = { ...basePlayer, name: 'Alice', wheel_awarded: true };
     render(<>{renderGameOver({ ...opts, state: { ...opts.state, players: [me] } })}</>);
@@ -269,6 +311,60 @@ describe('renderPreGame', () => {
     rerender(<>{renderPreGame({ ...baseOpts, isAdmin: true })}</>);
     expect(screen.getByText('Start Game')).toBeInTheDocument();
     expect(screen.getByText('Add Bot')).toBeInTheDocument();
+  });
+
+  describe('Add Bot picker', () => {
+    it('clicking Add Bot shows one button per bot type', () => {
+      render(<>{renderPreGame({ ...baseOpts, isAdmin: true })}</>);
+
+      fireEvent.click(screen.getByText('Add Bot'));
+
+      // Add Bot itself stays in the DOM (just hidden, not unmounted) --
+      // see the component's own comment on why unmounting it shifted
+      // Start Game sideways.
+      expect(screen.getByText('Add Bot')).toHaveClass('invisible');
+      expect(screen.getByText('Turtle')).toBeInTheDocument();
+      expect(screen.getByText('Sheep')).toBeInTheDocument();
+      expect(screen.getByText('Wolf')).toBeInTheDocument();
+      expect(screen.getByText('Owl')).toBeInTheDocument();
+      expect(screen.getByText('Random')).toBeInTheDocument();
+    });
+
+    it('picking Random calls onAddDummy with no specific type, letting the server pick', () => {
+      const onAddDummy = vi.fn();
+      render(<>{renderPreGame({ ...baseOpts, isAdmin: true, onAddDummy })}</>);
+
+      fireEvent.click(screen.getByText('Add Bot'));
+      fireEvent.click(screen.getByText('Random'));
+
+      expect(onAddDummy).toHaveBeenCalledWith('');
+    });
+
+    it('picking a type calls onAddDummy with it and collapses back to Add Bot', () => {
+      const onAddDummy = vi.fn();
+      render(<>{renderPreGame({ ...baseOpts, isAdmin: true, onAddDummy })}</>);
+
+      fireEvent.click(screen.getByText('Add Bot'));
+      fireEvent.click(screen.getByText('Owl'));
+
+      expect(onAddDummy).toHaveBeenCalledWith('OWL');
+      expect(screen.getByText('Add Bot')).not.toHaveClass('invisible');
+      expect(screen.queryByText('Owl')).not.toBeInTheDocument();
+    });
+
+    it('clicking outside cancels the picker without adding a bot', () => {
+      const onAddDummy = vi.fn();
+      render(<>{renderPreGame({ ...baseOpts, isAdmin: true, onAddDummy })}</>);
+
+      fireEvent.click(screen.getByText('Add Bot'));
+      expect(screen.getByText('Owl')).toBeInTheDocument();
+
+      fireEvent.mouseDown(document.body);
+
+      expect(onAddDummy).not.toHaveBeenCalled();
+      expect(screen.getByText('Add Bot')).not.toHaveClass('invisible');
+      expect(screen.queryByText('Owl')).not.toBeInTheDocument();
+    });
   });
 
   it('always shows the Invite section, regardless of admin status', () => {

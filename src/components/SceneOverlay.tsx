@@ -55,7 +55,7 @@ export type PreGameRenderOpts = {
   rankedSecondsLeft: number | null;
   btn: string;
   onStartGame: () => void;
-  onAddDummy: () => void;
+  onAddDummy: (botType: string) => void;
   /** Whether the 3D scene's ambient pre-round camera orbit is on, and a way
    *  to flip it -- surfaced here so renderPreGame can put a toggle button
    *  in the overlay even though the camera itself lives outside this tree. */
@@ -373,8 +373,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     getSocket().emit('start_game', { lobby_id: lobbyId });
   };
 
-  const handleAddDummy = () => {
-    getSocket().emit('add_dummy', { lobby_id: lobbyId });
+  const handleAddDummy = (botType: string) => {
+    getSocket().emit('add_dummy', { lobby_id: lobbyId, bot_type: botType });
   };
 
   const handleResource = (resId: string) => {
