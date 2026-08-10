@@ -159,8 +159,29 @@ export default function WorldMapOverlay() {
           within a shared row; once wrapping split them onto separate rows,
           the lone item left on its own row collapsed to that row's start
           instead of staying pinned right. */}
+      {/* Rules button: below `sm` it's just a small corner-pinned floating
+          chip (left-3, a plain 12px inset) -- there's no spare width on a
+          phone to do anything fancier before it'd collide with the
+          right-side button mid-screen. From `sm` up it switches to a fixed
+          pixel offset from horizontal center instead of hugging the edge,
+          chosen so roughly half the button overlaps the outer half of
+          "Enter lobby code..." in the bottom lobby-controls row below.
+
+          That row is centered with fixed widths -- RopedInput(184) +
+          RopedButton(168), no gap = 352px total -- so "Enter lobby
+          code..."'s left edge always sits at `center - 176px`, regardless
+          of viewport width. This button is 163px wide; pinning its
+          *outer* (left) edge to `center - 257px` puts its span at
+          [center-257px, center-94px], whose rightmost ~82px (half its own
+          163px width), [center-176px, center-94px], lands almost exactly
+          on that 176px mark. 257px still keeps the button fully on-screen
+          with margin all the way down to the 640px breakpoint boundary
+          (outer edge sits 63px in from the viewport's left edge on a
+          640px-wide screen), and the overlap ratio stays constant at any
+          wider viewport since it's a fixed pixel offset from center, not
+          a percentage. */}
       <div
-        className="absolute top-0 left-0 z-20 px-3 pointer-events-none"
+        className="absolute top-0 left-3 sm:left-[calc(50%-257px)] z-20 pointer-events-none"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
       >
         <div className="pointer-events-auto">
@@ -180,17 +201,22 @@ export default function WorldMapOverlay() {
         </div>
       </div>
       <div
-        // The bottom lobby-controls row (below) is centered, not edge-anchored
-        // -- "Join Lobby"'s right edge sits at a fixed offset from center:
-        // RopedInput(184) + RopedButton(168), no gap between them = 352px
-        // total, so its right edge is 176px right of center, i.e. inset
-        // (50% - 176px) from the viewport's right edge. On a narrow phone,
-        // lining this chip's right edge up with that reads as one aligned
-        // column; on a wide desktop viewport that offset would be huge
-        // (Join Lobby stays near center while the screen keeps growing), so
-        // from `sm` up this instead just hugs the real edge like the rest of
-        // the top bar always did.
-        className="absolute top-0 right-[calc(50%-176px)] sm:right-3 z-20 pointer-events-none"
+        // User-menu / "Log in" button: mirrors the Rules button's logic on
+        // the other side (see its comment above for the full derivation),
+        // overlapping "Join Lobby" instead of "Enter lobby code...". Below
+        // `sm` it's a small corner-pinned floating chip (right-3, a plain
+        // 12px inset). From `sm` up its *outer* (right) edge is pinned to
+        // `center + 257px` -- "Join Lobby"'s right edge always sits at
+        // `center + 176px` (352px-wide centered row: RopedInput(184) +
+        // RopedButton(168), no gap), and this button is 163px wide (153px
+        // for the "Log in" variant, which isn't special-cased -- close
+        // enough to read the same), so its span [center+94px,
+        // center+257px] has its inner (leftmost) ~82px (half its own
+        // 163px width) landing almost exactly on that 176px mark. Same
+        // 257px offset as the left side, so it keeps the same on-screen
+        // margin down to the 640px breakpoint and the same constant
+        // overlap ratio at any wider viewport.
+        className="absolute top-0 right-3 sm:right-[calc(50%-257px)] z-20 pointer-events-none"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
       >
         {/* Right: player info */}
