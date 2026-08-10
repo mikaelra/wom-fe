@@ -133,7 +133,9 @@ export async function getWellProfile(
   });
 }
 
-export async function getPlayerProfile(playerName: string): Promise<{ created_at: string | null; played_games: number }> {
+export async function getPlayerProfile(
+  playerName: string,
+): Promise<{ created_at: string | null; played_games: number; wins: number; kills: number }> {
   return request(`/player/profile/${encodeURIComponent(playerName)}`, PlayerProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch player profile.',
   });

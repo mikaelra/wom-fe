@@ -208,12 +208,14 @@ describe('getWellProfile', () => {
 });
 
 describe('getPlayerProfile', () => {
-  it('GETs the player\'s account-created date and games played', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ created_at: '2026-03-05T12:30:00Z', played_games: 23 }));
+  it('GETs the player\'s account-created date, games played, wins, and kills', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ created_at: '2026-03-05T12:30:00Z', played_games: 23, wins: 7, kills: 41 })
+    );
 
     const result = await getPlayerProfile('Alice');
 
-    expect(result).toEqual({ created_at: '2026-03-05T12:30:00Z', played_games: 23 });
+    expect(result).toEqual({ created_at: '2026-03-05T12:30:00Z', played_games: 23, wins: 7, kills: 41 });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/player/profile/Alice`, {
       method: 'GET',
       headers: undefined,
@@ -222,7 +224,7 @@ describe('getPlayerProfile', () => {
   });
 
   it('URL-encodes the player name', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ created_at: null, played_games: 0 }));
+    fetchMock.mockResolvedValue(jsonResponse({ created_at: null, played_games: 0, wins: 0, kills: 0 }));
 
     await getPlayerProfile('A B');
 

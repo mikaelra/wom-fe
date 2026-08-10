@@ -35,6 +35,8 @@ export default function StatsPage() {
   const [wellRewards, setWellRewards] = useState<{ reward: string; count: number }[]>([]);
   const [accountCreatedAt, setAccountCreatedAt] = useState<string | null>(null);
   const [gamesPlayed, setGamesPlayed] = useState(0);
+  const [wins, setWins] = useState(0);
+  const [kills, setKills] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -60,6 +62,8 @@ export default function StatsPage() {
       getPlayerProfile(name).then((data) => {
         setAccountCreatedAt(data.created_at);
         setGamesPlayed(data.played_games);
+        setWins(data.wins);
+        setKills(data.kills);
       }),
     ])
       .catch((err: unknown) => {
@@ -87,6 +91,16 @@ export default function StatsPage() {
         day: 'numeric',
       })
     : 'Unknown';
+
+  const winRatePercent = gamesPlayed > 0 ? Math.round((wins / gamesPlayed) * 100) : null;
+  const avgKillsPerGame = gamesPlayed > 0 ? (kills / gamesPlayed).toFixed(1) : null;
+
+  // Rarest reward is the discovered one won fewest times -- ties keep
+  // whichever the well_profile response listed first.
+  const rarestReward =
+    wellRewards.length > 0
+      ? wellRewards.reduce((rarest, entry) => (entry.count < rarest.count ? entry : rarest))
+      : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
@@ -136,6 +150,19 @@ export default function StatsPage() {
               <p className="text-sm text-white/50 mt-1">
                 Games played: <span className="text-white font-semibold">{gamesPlayed}</span>
               </p>
+              <p className="text-sm text-white/50 mt-1">
+                Win rate:{' '}
+                <span className="text-white font-semibold">
+                  {winRatePercent === null ? '—' : `${winRatePercent}%`}
+                </span>
+                {gamesPlayed > 0 && <span className="text-white/40"> ({wins}W)</span>}
+              </p>
+              <p className="text-sm text-white/50 mt-1">
+                Kills: <span className="text-white font-semibold">{kills}</span>
+                {avgKillsPerGame !== null && (
+                  <span className="text-white/40"> ({avgKillsPerGame}/game)</span>
+                )}
+              </p>
             </div>
 
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6">
@@ -143,6 +170,16 @@ export default function StatsPage() {
               <p className="text-sm text-white/50 mb-3">
                 {wellWins} well win{wellWins === 1 ? '' : 's'}
               </p>
+              {rarestReward && (
+                <p className="text-sm text-white/50 mb-3">
+                  Rarest find:{' '}
+                  <span className="text-white font-semibold">
+                    {WELL_REWARD_LABELS[rarestReward.reward]?.emoji ?? '❔'}{' '}
+                    {WELL_REWARD_LABELS[rarestReward.reward]?.label ?? rarestReward.reward}
+                  </span>
+                  <span className="text-white/40"> (×{rarestReward.count})</span>
+                </p>
+              )}
               {wellRewards.length > 0 ? (
                 <div className="flex flex-col gap-1">
                   {(() => {

@@ -188,6 +188,8 @@ export const WellProfileResponseSchema = z.object({
 export const PlayerProfileResponseSchema = z.object({
   created_at: z.string().nullable(),
   played_games: z.number().int(),
+  wins: z.number().int(),
+  kills: z.number().int(),
 });
 
 // docs/MONETIZATION_PLAN.md §5.2/§5.3/§8 -- shop, checkout, wheel odds.
