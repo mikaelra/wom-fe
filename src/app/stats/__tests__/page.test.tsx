@@ -109,8 +109,8 @@ describe('StatsPage', () => {
     mockedGetWellProfile.mockResolvedValue({
       well_wins: 5,
       rewards: [
-        { reward: '2_gold', count: 3, first_awarded_at: '2026-01-01T00:00:00Z' },
-        { reward: 'instakill', count: 1, first_awarded_at: '2026-01-03T00:00:00Z' },
+        { reward: '2_gold', count: 3, first_awarded_at: '2026-01-01T00:00:00Z', expected_share: 5 / 32 },
+        { reward: 'instakill', count: 1, first_awarded_at: '2026-01-03T00:00:00Z', expected_share: 1 / 32 },
       ],
     });
     render(<StatsPage />);
@@ -204,32 +204,43 @@ describe('StatsPage', () => {
     expect(screen.queryByText(/\/game/)).not.toBeInTheDocument();
   });
 
-  it('shows the rarest well reward found, by lowest count', async () => {
+  it('draws a true-odds bar under each discovered reward, sized by expected_share', async () => {
     localStorage.setItem('playerName', 'Oni');
     mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 10 });
     mockedGetWellProfile.mockResolvedValue({
-      well_wins: 5,
+      well_wins: 4,
       rewards: [
-        { reward: '2_gold', count: 3, first_awarded_at: '2026-01-01T00:00:00Z' },
-        { reward: 'instakill', count: 1, first_awarded_at: '2026-01-03T00:00:00Z' },
+        { reward: '2_gold', count: 3, first_awarded_at: '2026-01-01T00:00:00Z', expected_share: 5 / 32 },
+        { reward: 'instakill', count: 1, first_awarded_at: '2026-01-03T00:00:00Z', expected_share: 1 / 32 },
       ],
     });
     render(<StatsPage />);
     await flush();
 
-    const rarestFindLine = screen.getByText('Rarest find:').closest('p');
-    expect(rarestFindLine).not.toBeNull();
-    expect(rarestFindLine).toHaveTextContent('Poisoned Dagger');
-    expect(rarestFindLine).toHaveTextContent('(×1)');
+    expect(screen.getByText(/true well odds/i)).toBeInTheDocument();
+
+    // instakill's expected_share (1/32) is a fifth of 2_gold's (5/32), so
+    // its odds bar should be a fifth as wide.
+    const goldRow = screen.getByText('2 Coins').closest('.flex.flex-col.gap-1');
+    const daggerRow = screen.getByText('Poisoned Dagger').closest('.flex.flex-col.gap-1');
+    const goldOddsBar = goldRow?.querySelector('.bg-white\\/30') as HTMLElement | null;
+    const daggerOddsBar = daggerRow?.querySelector('.bg-white\\/30') as HTMLElement | null;
+    expect(goldOddsBar).not.toBeNull();
+    expect(daggerOddsBar).not.toBeNull();
+
+    const goldWidth = parseFloat(goldOddsBar!.style.width);
+    const daggerWidth = parseFloat(daggerOddsBar!.style.width);
+    expect(goldWidth).toBeCloseTo(80, 5);
+    expect(daggerWidth).toBeCloseTo(16, 5);
   });
 
-  it('shows no rarest-find line when no Well rewards have been discovered', async () => {
+  it('shows no odds bars or legend when no Well rewards have been discovered', async () => {
     localStorage.setItem('playerName', 'Newbie');
     mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 0 });
     mockedGetWellProfile.mockResolvedValue({ well_wins: 0, rewards: [] });
     render(<StatsPage />);
     await flush();
 
-    expect(screen.queryByText('Rarest find:')).not.toBeInTheDocument();
+    expect(screen.queryByText(/true well odds/i)).not.toBeInTheDocument();
   });
 });

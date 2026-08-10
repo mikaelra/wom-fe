@@ -176,6 +176,10 @@ export const WellRewardEntrySchema = z.object({
   reward: z.string(),
   count: z.number().int(),
   first_awarded_at: z.string(),
+  // The reward's true draw odds (0-1), computed backend-side from
+  // wom-be's WELL_REWARDS weights -- never shipped as a raw weight table
+  // in the frontend bundle, so it isn't a one-line datamine.
+  expected_share: z.number(),
 });
 
 export const WellProfileResponseSchema = z.object({

@@ -32,7 +32,9 @@ export default function StatsPage() {
   const [tier, setTier] = useState<string | null>(null);
   const [rankedGamesPlayed, setRankedGamesPlayed] = useState(0);
   const [wellWins, setWellWins] = useState(0);
-  const [wellRewards, setWellRewards] = useState<{ reward: string; count: number }[]>([]);
+  const [wellRewards, setWellRewards] = useState<
+    { reward: string; count: number; expected_share: number }[]
+  >([]);
   const [accountCreatedAt, setAccountCreatedAt] = useState<string | null>(null);
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [wins, setWins] = useState(0);
@@ -94,13 +96,6 @@ export default function StatsPage() {
 
   const winRatePercent = gamesPlayed > 0 ? Math.round((wins / gamesPlayed) * 100) : null;
   const avgKillsPerGame = gamesPlayed > 0 ? (kills / gamesPlayed).toFixed(1) : null;
-
-  // Rarest reward is the discovered one won fewest times -- ties keep
-  // whichever the well_profile response listed first.
-  const rarestReward =
-    wellRewards.length > 0
-      ? wellRewards.reduce((rarest, entry) => (entry.count < rarest.count ? entry : rarest))
-      : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
@@ -170,38 +165,42 @@ export default function StatsPage() {
               <p className="text-sm text-white/50 mb-3">
                 {wellWins} well win{wellWins === 1 ? '' : 's'}
               </p>
-              {rarestReward && (
-                <p className="text-sm text-white/50 mb-3">
-                  Rarest find:{' '}
-                  <span className="text-white font-semibold">
-                    {WELL_REWARD_LABELS[rarestReward.reward]?.emoji ?? '❔'}{' '}
-                    {WELL_REWARD_LABELS[rarestReward.reward]?.label ?? rarestReward.reward}
-                  </span>
-                  <span className="text-white/40"> (×{rarestReward.count})</span>
-                </p>
-              )}
               {wellRewards.length > 0 ? (
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs text-white/40">Thin bar below each reward: its true well odds.</p>
                   {(() => {
                     const maxCount = Math.max(...wellRewards.map(({ count }) => count));
+                    const maxExpectedShare = Math.max(...wellRewards.map(({ expected_share }) => expected_share));
                     const sortedRewards = [...wellRewards].sort((a, b) => b.count - a.count);
-                    return sortedRewards.map(({ reward, count }) => {
+                    return sortedRewards.map(({ reward, count, expected_share }) => {
                       const info = WELL_REWARD_LABELS[reward];
                       const barWidthPercent = (count / maxCount) * 80;
+                      // Scaled against the max share among discovered rewards
+                      // (not well_wins) -- this stays a shape comparison,
+                      // "what the true distribution looks like," rather than
+                      // an unreliable "expected count" claim off a small
+                      // sample.
+                      const expectedWidthPercent =
+                        maxExpectedShare > 0 ? (expected_share / maxExpectedShare) * 80 : 0;
                       return (
-                        <div
-                          key={reward}
-                          className="relative flex items-center justify-between rounded-lg px-3 py-2 overflow-hidden"
-                        >
-                          <div
-                            className="absolute inset-y-0 left-0 bg-white/10 rounded-lg"
-                            style={{ width: `${barWidthPercent}%` }}
-                          />
-                          <span className="relative text-sm">
-                            <span className="mr-2">{info?.emoji ?? '❔'}</span>
-                            {info?.label ?? reward}
-                          </span>
-                          <span className="relative text-xs text-white/50">×{count}</span>
+                        <div key={reward} className="flex flex-col gap-1">
+                          <div className="relative flex items-center justify-between rounded-lg px-3 py-2 overflow-hidden">
+                            <div
+                              className="absolute inset-y-0 left-0 bg-white/10 rounded-lg"
+                              style={{ width: `${barWidthPercent}%` }}
+                            />
+                            <span className="relative text-sm">
+                              <span className="mr-2">{info?.emoji ?? '❔'}</span>
+                              {info?.label ?? reward}
+                            </span>
+                            <span className="relative text-xs text-white/50">×{count}</span>
+                          </div>
+                          <div className="relative h-1 mx-3 rounded-full bg-white/5 overflow-hidden">
+                            <div
+                              className="absolute inset-y-0 left-0 bg-white/30 rounded-full"
+                              style={{ width: `${expectedWidthPercent}%` }}
+                            />
+                          </div>
                         </div>
                       );
                     });
