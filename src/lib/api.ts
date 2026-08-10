@@ -125,15 +125,18 @@ export async function getActiveRankedLobby(
   });
 }
 
-export async function getWellProfile(
-  playerName: string
-): Promise<{ well_wins: number; rewards: { reward: string; count: number; first_awarded_at: string }[] }> {
+export async function getWellProfile(playerName: string): Promise<{
+  well_wins: number;
+  rewards: { reward: string; count: number; first_awarded_at: string; expected_share: number }[];
+}> {
   return request(`/well/profile/${encodeURIComponent(playerName)}`, WellProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch well profile.',
   });
 }
 
-export async function getPlayerProfile(playerName: string): Promise<{ created_at: string | null; played_games: number }> {
+export async function getPlayerProfile(
+  playerName: string,
+): Promise<{ created_at: string | null; played_games: number; wins: number; kills: number }> {
   return request(`/player/profile/${encodeURIComponent(playerName)}`, PlayerProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch player profile.',
   });
