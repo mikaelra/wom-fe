@@ -224,9 +224,9 @@ describe('StatsPage', () => {
     const daggerRow = screen.getByText('Poisoned Dagger').closest('.relative.flex.items-center') as HTMLElement;
 
     const goldActualBar = goldRow.querySelector('.bg-white\\/10') as HTMLElement;
-    const goldOddsBar = goldRow.querySelector('.bg-red-900\\/75') as HTMLElement;
+    const goldOddsBar = goldRow.querySelector('.bg-red-900\\/25') as HTMLElement;
     const daggerActualBar = daggerRow.querySelector('.bg-white\\/10') as HTMLElement;
-    const daggerOddsBar = daggerRow.querySelector('.bg-red-900\\/75') as HTMLElement;
+    const daggerOddsBar = daggerRow.querySelector('.bg-red-900\\/25') as HTMLElement;
     expect(goldOddsBar).toHaveAttribute('title', 'True well odds');
 
     expect(parseFloat(goldActualBar.style.width)).toBeCloseTo(80, 5);
@@ -242,6 +242,6 @@ describe('StatsPage', () => {
     render(<StatsPage />);
     await flush();
 
-    expect(document.querySelector('.bg-red-900\\/75')).not.toBeInTheDocument();
+    expect(document.querySelector('.bg-red-900\\/25')).not.toBeInTheDocument();
   });
 });
