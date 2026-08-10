@@ -15,6 +15,58 @@ const STAR_R = 50;
 const PLANET_R = 46;
 const RAD = Math.PI / 180;
 
+// ── Per-body render depth ("front-to-back" layering) ───────────────────────
+// All bodies share the same sky-sphere angular position (RA/Dec), but the
+// camera sits well inside PLANET_R (CAMERA_RADIUS = 13), so nudging a body's
+// radial distance from the origin moves it closer to or farther from the
+// camera without changing where it appears in the sky. Smaller radius =
+// nearer the camera = renders in front. Used to force a fixed front-to-back
+// draw order (Moon frontmost, then Mercury/Venus/Mars/Jupiter/Saturn) via the
+// real depth buffer instead of leaving overlapping bodies to z-fight at a
+// shared radius. Sun is deferred -- putting the Moon in front of it visually
+// without dimming the Sun's own contribution needs more thought.
+const MOON_BODY_R    = PLANET_R - 10;
+const MERCURY_BODY_R = PLANET_R - 8;
+const VENUS_BODY_R   = PLANET_R - 6;
+const MARS_BODY_R    = PLANET_R - 4;
+const JUPITER_BODY_R = PLANET_R - 2;
+const SATURN_BODY_R  = PLANET_R;
+
+// ── TEMP DEBUG: pin one or more planets at a fixed separation from the Moon ─
+// Real planets are rarely near the Moon, so the conjunction color/strength
+// effect is invisible without this. Each entry overrides that planet's
+// rendered position (so it sits exactly sepDeg degrees from the Moon, not
+// just anywhere near it) and the separation used by computeMoonAstrology (so
+// the two agree). 0 = exact conjunction / max effect; the orb is
+// MOON_CONJUNCTION_ORB_DEG (10°), so anything >= that is zero effect. `sign`
+// only affects rendering (which side of the Moon it's placed on, via
+// debugConjunctionPos below) -- it has no bearing on the separation/weight
+// math, which only cares about magnitude. Bodies not listed here render at
+// their real position. Set to null (or []) to use everyone's real position.
+// Flip off / delete once the look is confirmed for every planet.
+const DEBUG_FORCED_CONJUNCTIONS: { body: Astronomy.Body; sepDeg: number; sign?: 1 | -1 }[] | null = null;
+function forcedConjunctionFor(body: Astronomy.Body) {
+  return DEBUG_FORCED_CONJUNCTIONS?.find((f) => f.body === body) ?? null;
+}
+
+// TEMP DEBUG: freeze "now" to a specific moment instead of the live clock.
+// Pinning just the phase_fraction *number* used by computeMoonAstrology
+// isn't enough -- the Moon's rendered terminator (the actual light/dark
+// crescent on MoonBody) comes from real Phong shading under SunLight, which
+// is driven by the real current Sun/Moon RA/Dec. Without also moving those,
+// the sphere keeps showing tonight's real (near-new) phase no matter what
+// the astrology strength number says. This date is a real moment (found via
+// Astronomy.SearchMoonPhase(180, ...)) where the Moon is at exact full --
+// moving every Sun/Moon/Venus (and, for consistency, the other planets')
+// position/light to this date makes the rendered disc and the astrology
+// strength agree. Set to null to go back to the live clock, or swap in any
+// other SearchMoonPhase/bisected date to check a different phase. Flip off
+// / delete once the look is confirmed.
+const DEBUG_NOW: Date | null = null;
+function debugNow(): Date {
+  return DEBUG_NOW ?? new Date();
+}
+
 // Axial tilt of the ecliptic relative to the celestial equator (J2000)
 const OBLIQUITY = 23.436 * RAD;
 // Ecliptic north pole in scene coordinates (RA=18h, Dec=66.564°)
@@ -61,6 +113,112 @@ function raDecToVec3(raHours: number, decDeg: number, radius: number): THREE.Vec
   );
 }
 
+// ── Moon astrology: conjunction-driven color + strength ───────────────────
+// The Moon's light isn't a fixed color — it takes on the hue of whichever
+// classical planet(s) it's currently closest to in the sky (geocentric
+// angular separation), and gets brighter the tighter that conjunction is.
+// Far from every planet it falls back to a neutral, pale moonlight color.
+
+// Orb: exact conjunction (0°) is max influence; beyond this many degrees a
+// planet has zero effect on the Moon's color/strength. A true 0° conjunction
+// is astronomically rare (Moon and planet orbits aren't coplanar -- it takes
+// the Moon's precessing nodes to line the geometry up, same mechanism behind
+// real lunar occultations), so it can afford to be dramatic without ever
+// dominating "normal" nights. The falloff is a power curve, not linear:
+// `weight = 1 - (sep/orb)^FALLOFF_EXP` with an exponent < 1 stays close to
+// full strength for longer near 0° before dropping off toward the orb edge
+// (a straight line drops immediately and evenly instead). That's what makes
+// moderate separations -- a few degrees, which realistically happen far more
+// often than an exact conjunction -- read as meaningfully close instead of
+// mostly washed out.
+const MOON_CONJUNCTION_ORB_DEG = 10;
+const MOON_CONJUNCTION_FALLOFF_EXP = 0.62;
+const MOON_CONJUNCTION_BOOST = 0.30;
+const MOON_BASE_COLOR = new THREE.Color(0xcfe3ff);
+
+function angularSeparationDeg(a: Astronomy.Body, b: Astronomy.Body, time: Astronomy.AstroTime): number {
+  const eqA = Astronomy.Equator(a, time, OBSERVER, false, true);
+  const eqB = Astronomy.Equator(b, time, OBSERVER, false, true);
+  const vA  = raDecToVec3(eqA.ra, eqA.dec, 1);
+  const vB  = raDecToVec3(eqB.ra, eqB.dec, 1);
+  return vA.angleTo(vB) / RAD;
+}
+
+// DEBUG_FORCED_CONJUNCTIONS helper: places a body exactly sepDeg degrees from
+// the Moon's direction (matching the separation computeMoonAstrology is told
+// to use), not just anywhere near it. Rotating the Moon's unit direction by
+// that angle around an axis *perpendicular* to it is exact -- the angle
+// between the original and rotated vectors equals the rotation angle by
+// construction, unlike a fixed-magnitude tangential offset (whose angular
+// size depends on distance from the origin). Falls back to a different
+// reference axis if the Moon sits almost exactly at the pole, where up x
+// moonDir would be ~zero-length.
+function debugConjunctionPos(moonDir: THREE.Vector3, bodyR: number, sepDeg: number): THREE.Vector3 {
+  const up = Math.abs(moonDir.y) > 0.999 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+  const axis = moonDir.clone().cross(up).normalize();
+  return moonDir.clone().applyAxisAngle(axis, sepDeg * RAD).multiplyScalar(bodyR);
+}
+
+interface MoonAstrology {
+  color: THREE.Color;
+  /** ~0–0.2, scaled by illuminated fraction; feeds both the Moon light's intensity and the reflection shell's opacity. */
+  strength: number;
+  /** Raw 0–1 illuminated fraction (Astronomy.Illumination) -- drives the aura's *size*, independent of strength's conjunction boost. */
+  phaseFraction: number;
+}
+
+// All five classical planets. Colors match each planet's existing
+// *Light/*Body tint elsewhere in this file; Mercury's flips the same way
+// its own Light/Body do when retrograde.
+function computeMoonAstrology(date: Date): MoonAstrology {
+  const time = new Astronomy.AstroTime(date);
+  const mercuryRetrograde = isRetrograde(Astronomy.Body.Mercury, date);
+
+  const planets: { body: Astronomy.Body; color: THREE.Color }[] = [
+    { body: Astronomy.Body.Mercury, color: new THREE.Color(mercuryRetrograde ? 0xCE70FF : 0xFFBC03) },
+    { body: Astronomy.Body.Venus,   color: new THREE.Color(0xAB9D00) },
+    { body: Astronomy.Body.Mars,    color: new THREE.Color(0xFF0000) },
+    { body: Astronomy.Body.Jupiter, color: new THREE.Color(0x008296) },
+    { body: Astronomy.Body.Saturn,  color: new THREE.Color(0xA16300) },
+  ];
+
+  // Each planet within the orb contributes a weight (1 at exact conjunction,
+  // 0 at the orb's edge); color is the weighted average of the planets in
+  // range, strength scales with the combined weight (capped at 1 so several
+  // simultaneous conjunctions don't blow past a sane maximum).
+  let weightSum = 0;
+  const blended = new THREE.Color(0, 0, 0);
+  for (const { body, color } of planets) {
+    const forced = forcedConjunctionFor(body);
+    const sep = forced ? forced.sepDeg : angularSeparationDeg(Astronomy.Body.Moon, body, time);
+    const weight = Math.max(0, 1 - Math.pow(sep / MOON_CONJUNCTION_ORB_DEG, MOON_CONJUNCTION_FALLOFF_EXP));
+    if (weight <= 0) continue;
+    blended.r += color.r * weight;
+    blended.g += color.g * weight;
+    blended.b += color.b * weight;
+    weightSum += weight;
+  }
+
+  const influence = Math.min(1, weightSum);
+  const color = MOON_BASE_COLOR.clone();
+  if (weightSum > 0) {
+    blended.r /= weightSum;
+    blended.g /= weightSum;
+    blended.b /= weightSum;
+    color.lerp(blended, influence);
+  }
+
+  // Strength before phasing: a flat baseline plus the conjunction boost.
+  // The Moon's actual illuminated fraction then scales the *whole* thing
+  // down multiplicatively -- near a new moon there's barely any moonlight
+  // to color at all, even sitting right on top of Venus.
+  const illum = Astronomy.Illumination(Astronomy.Body.Moon, date);
+  const rawStrength = 0.05 + MOON_CONJUNCTION_BOOST * influence;
+  const strength = rawStrength * illum.phase_fraction;
+
+  return { color, strength, phaseFraction: illum.phase_fraction };
+}
+
 // ── Canvas sprite textures ─────────────────────────────────────────────────
 
 function glowTex(color: string, size = 128): THREE.CanvasTexture {
@@ -72,6 +230,25 @@ function glowTex(color: string, size = 128): THREE.CanvasTexture {
   g.addColorStop(0.00, '#ffffff');
   g.addColorStop(0.15, color);
   g.addColorStop(0.50, color);
+  g.addColorStop(1.00, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(c);
+}
+
+// Soft, gradual radial haze -- unlike glowTex (bright white core, used for
+// the tiny fixed-size planet sprites), this has no hot core: flat color out
+// to 35%, then a long fade to fully transparent by the edge. That gradual
+// falloff is what reads as "fog" drifting off the Moon rather than a hard
+// glow disc or (worse, on a sphere with a rim shader) a lit ring.
+function moonAuraTex(color: string, size = 256): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d')!;
+  const h = size / 2;
+  const g = ctx.createRadialGradient(h, h, 0, h, h, h);
+  g.addColorStop(0.00, color);
+  g.addColorStop(0.35, color);
   g.addColorStop(1.00, 'rgba(0,0,0,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
@@ -129,6 +306,19 @@ function makeFresnelMat() {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
+}
+
+// Same rim-light shader as the sun's fresnel atmosphere, but tinted by
+// computeMoonAstrology — the world's "moonlight reflection". Sits just
+// outside the sun's blue shell; fresnelScale tracks astro.strength so it's
+// barely there when the Moon is far from Venus and glows visibly at
+// conjunction.
+function makeMoonFresnelMat(astro: MoonAstrology) {
+  const mat = makeFresnelMat();
+  mat.uniforms.color1.value = astro.color;
+  mat.uniforms.fresnelScale.value = astro.strength * 6;
+  mat.uniforms.fresnelPower.value = 5.5;
+  return mat;
 }
 
 const jupiterTexturePath = (): string => '/textures/jupiter/jupiter2_1k.jpg';
@@ -291,15 +481,81 @@ const Starfield = memo(function Starfield() {
   );
 });
 
-// ── Moon mesh (separate component so it suspends independently) ────────────
+// ── Moon mesh (separate component so it suspends independently) ───────────
+// Two separate layers carry the effect, split by the depth problem each one
+// has to avoid:
+//
+// - glowShell: a sphere only marginally bigger than the Moon's own body
+//   (MOON_GLOW_SHELL_R), flat additive color -- the same pattern every other
+//   planet body already uses (VenusBody, MarsBody, etc). Because it's real
+//   3D geometry almost coincident with the body's own surface, it never
+//   fights the body on depth (unlike a flat sprite, whose single billboard
+//   depth sits at the group's center -- noticeably behind the body's near,
+//   camera-facing surface -- which is what hid this layer's color before).
+//   This is what makes color visibly emanate off the Moon itself.
+//
+// - aura: the big camera-facing haze sprite (moonAuraTex) for the soft glow
+//   bleeding into the surrounding space. A Fresnel/rim shader here reads as
+//   a lit *ring* (bright only at the silhouette, dark facing the camera); a
+//   radial-gradient sprite has no such edge bias, so it looks like fog
+//   drifting off the Moon in every direction instead. It stays centered on
+//   the Moon with ordinary depth testing -- no manual offset -- so the
+//   globe still occludes it correctly when the Moon sits behind it. Its
+//   exact center can get slightly clipped by the Moon's own body/glowShell,
+//   which is fine: that area is already covered by glowShell's brighter,
+//   more saturated color. (An earlier version nudged the sprite toward the
+//   camera to avoid that clipping, but a fixed offset applied to a flat
+//   billboard is only exactly correct when the camera sits precisely along
+//   the offset direction -- off that axis it reads as parallax, the halo
+//   visibly detached from the body with the plain, unlit texture peeking
+//   out to one side. Not worth it when glowShell already covers the same
+//   need without the tradeoff.)
+//
+// Both layers' opacity comes from astro.strength (conjunction + phase); the
+// aura's *scale* additionally tracks astro.phaseFraction alone, so it swells
+// toward full moon and shrinks toward new moon regardless of conjunction.
+// The directional MoonLight alone is too weak to read against the much
+// brighter Sun light, so these two are what actually make the effect
+// visible on the Moon itself.
 
-function MoonBody({ position }: { position: THREE.Vector3 }) {
+const MOON_R              = 1.5;
+const MOON_GLOW_SHELL_R    = MOON_R * 1.06;
+const MOON_AURA_BASE_SCALE = 3.2;
+const MOON_AURA_GROWTH     = 3.4;
+
+function MoonBody({ position, astro }: { position: THREE.Vector3; astro: MoonAstrology }) {
   const moonMap = useTexture('/textures/moon/moonmap1k.jpg');
+  const auraTex = useMemo(() => moonAuraTex('#' + astro.color.getHexString()), [astro.color]);
+  const auraScale = MOON_AURA_BASE_SCALE + MOON_AURA_GROWTH * astro.phaseFraction;
+  const auraOpacity = Math.min(1, astro.strength * 4);
+  const glowShellOpacity = Math.min(0.8, astro.strength * 3);
+
   return (
-    <mesh position={position}>
-      <sphereGeometry args={[1.5, 32, 32]} />
-      <meshPhongMaterial map={moonMap} />
-    </mesh>
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[MOON_R, 32, 32]} />
+        <meshPhongMaterial map={moonMap} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[MOON_GLOW_SHELL_R, 32, 32]} />
+        <meshBasicMaterial
+          color={astro.color}
+          transparent
+          opacity={glowShellOpacity}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+      <sprite scale={[auraScale, auraScale, 1]}>
+        <spriteMaterial
+          map={auraTex}
+          transparent
+          opacity={auraOpacity}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </sprite>
+    </group>
   );
 }
 
@@ -370,7 +626,7 @@ function MercuryBody({ position }: { position: THREE.Vector3 }) {
     '/textures/mercury/mercurymap.jpg',
     '/textures/mercury/mercurybump.jpg',
   ]);
-  const retrograde = useMemo(() => isRetrograde(Astronomy.Body.Mercury, new Date()), []);
+  const retrograde = useMemo(() => isRetrograde(Astronomy.Body.Mercury, debugNow()), []);
   return (
     <group position={position}>
       <mesh>
@@ -510,7 +766,7 @@ const SKY_DRIFT   = -0.0002;
 
 function SunLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => new Date(), []);
+  const now      = useMemo(() => debugNow(), []);
   const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Sun, now, OBSERVER, false, true), [now]);
   const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
 
@@ -537,7 +793,7 @@ function SunLight() {
 
 function VenusLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => new Date(), []);
+  const now      = useMemo(() => debugNow(), []);
   const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Venus, now, OBSERVER, false, true), [now]);
   const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
 
@@ -562,7 +818,7 @@ function VenusLight() {
 
 function JupiterLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => new Date(), []);
+  const now      = useMemo(() => debugNow(), []);
   const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Jupiter, now, OBSERVER, false, true), [now]);
   const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
 
@@ -587,7 +843,7 @@ function JupiterLight() {
 
 function MercuryLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => new Date(), []);
+  const now      = useMemo(() => debugNow(), []);
   const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Mercury, now, OBSERVER, false, true), [now]);
   const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
   const retrograde = useMemo(() => isRetrograde(Astronomy.Body.Mercury, now), [now]);
@@ -613,7 +869,7 @@ function MercuryLight() {
 
 function MarsLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => new Date(), []);
+  const now      = useMemo(() => debugNow(), []);
   const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Mars, now, OBSERVER, false, true), [now]);
   const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
 
@@ -638,7 +894,7 @@ function MarsLight() {
 
 function SaturnLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => new Date(), []);
+  const now      = useMemo(() => debugNow(), []);
   const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Saturn, now, OBSERVER, false, true), [now]);
   const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
 
@@ -659,19 +915,18 @@ function SaturnLight() {
   );
 }
 
-// ── Moon directional light (subtle purple, scales with lunar phase) ───────
-// Intensity is 0.10 at new moon, 0.25 at full moon, linear in illuminated
-// fraction. Computed once at mount — fine for a session-length scene.
+// ── Moon directional light (colored + strengthened by nearby planets) ─────
+// Color and intensity both come from computeMoonAstrology: pale moonlight
+// far from every planet, tinting toward whichever planet(s) the Moon is
+// currently closest to in the sky, brighter the tighter the conjunction.
+// Computed once at mount — fine for a session-length scene.
 
 function MoonLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => new Date(), []);
+  const now      = useMemo(() => debugNow(), []);
   const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Moon, now, OBSERVER, false, true), [now]);
   const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
-  const intensity = useMemo(() => {
-    const illum = Astronomy.Illumination(Astronomy.Body.Moon, now);
-    return 0.05 + 0.05 * illum.phase_fraction;
-  }, [now]);
+  const astro    = useMemo(() => computeMoonAstrology(now), [now]);
 
   useFrame(() => {
     if (lightRef.current) {
@@ -683,8 +938,15 @@ function MoonLight() {
   return (
     <directionalLight
       ref={lightRef}
-      intensity={intensity}
-      color={0xA300B5}
+      intensity={astro.strength}
+      // Deliberately not astro.color: this is a real scene light (default
+      // target = origin), so a conjunction tint here Phong-shades straight
+      // onto the Moon's own textured sphere -- the actual model reads as
+      // "painted" that color rather than glowing. The aura sprite
+      // (MoonBody) and the globe's rim shell (makeMoonFresnelMat) already
+      // carry the conjunction color on their own, driven directly from
+      // astro; this light only needs to brighten, not tint.
+      color={MOON_BASE_COLOR}
       position={[initPos.x, initPos.y, initPos.z]}
     />
   );
@@ -697,7 +959,7 @@ function MoonLight() {
 //   6 → Mars   7 → Jupiter   8 → Saturn
 
 const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) {
-  const now      = useMemo(() => new Date(), []);
+  const now      = useMemo(() => debugNow(), []);
   const groupRef = useRef<THREE.Group>(null);
 
   const texSun   = useMemo(() => sunTex(),             []);
@@ -717,13 +979,56 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
     sat:  Astronomy.Equator(Astronomy.Body.Saturn,  now, OBSERVER, false, true),
   }), [now]);
 
-  const posMoon = useMemo(() => raDecToVec3(eq.moon.ra, eq.moon.dec, PLANET_R), [eq]);
-  const posMerc = useMemo(() => raDecToVec3(eq.merc.ra, eq.merc.dec, PLANET_R), [eq]);
-  const posVen  = useMemo(() => raDecToVec3(eq.ven.ra,  eq.ven.dec,  PLANET_R), [eq]);
-  const posSun  = useMemo(() => raDecToVec3(eq.sun.ra,  eq.sun.dec,  PLANET_R), [eq]);
-  const posMars = useMemo(() => raDecToVec3(eq.mars.ra, eq.mars.dec, PLANET_R), [eq]);
-  const posJup  = useMemo(() => raDecToVec3(eq.jup.ra,  eq.jup.dec,  PLANET_R), [eq]);
-  const posSat  = useMemo(() => raDecToVec3(eq.sat.ra,  eq.sat.dec,  PLANET_R), [eq]);
+  const posMoon = useMemo(() => raDecToVec3(eq.moon.ra, eq.moon.dec, MOON_BODY_R), [eq]);
+  const astro   = useMemo(() => computeMoonAstrology(now), [now]);
+
+  // DEBUG_FORCED_CONJUNCTIONS: any body it names gets rendered at its forced
+  // separation (and side, via sign) instead of its real position, so its
+  // conjunction effect -- alone or alongside another forced body -- can be
+  // checked directly (matching the separation computeMoonAstrology is told
+  // to use for that same body). Every other body renders at its real
+  // position as usual.
+  const posMercReal  = useMemo(() => raDecToVec3(eq.merc.ra, eq.merc.dec, MERCURY_BODY_R), [eq]);
+  const forcedMerc    = forcedConjunctionFor(Astronomy.Body.Mercury);
+  const posMercDebug = useMemo(
+    () => debugConjunctionPos(posMoon.clone().normalize(), MERCURY_BODY_R, (forcedMerc?.sepDeg ?? 0) * (forcedMerc?.sign ?? 1)),
+    [posMoon, forcedMerc],
+  );
+  const posMerc = forcedMerc ? posMercDebug : posMercReal;
+
+  const posVenReal  = useMemo(() => raDecToVec3(eq.ven.ra, eq.ven.dec, VENUS_BODY_R), [eq]);
+  const forcedVen    = forcedConjunctionFor(Astronomy.Body.Venus);
+  const posVenDebug = useMemo(
+    () => debugConjunctionPos(posMoon.clone().normalize(), VENUS_BODY_R, (forcedVen?.sepDeg ?? 0) * (forcedVen?.sign ?? 1)),
+    [posMoon, forcedVen],
+  );
+  const posVen = forcedVen ? posVenDebug : posVenReal;
+
+  const posMarsReal  = useMemo(() => raDecToVec3(eq.mars.ra, eq.mars.dec, MARS_BODY_R), [eq]);
+  const forcedMars    = forcedConjunctionFor(Astronomy.Body.Mars);
+  const posMarsDebug = useMemo(
+    () => debugConjunctionPos(posMoon.clone().normalize(), MARS_BODY_R, (forcedMars?.sepDeg ?? 0) * (forcedMars?.sign ?? 1)),
+    [posMoon, forcedMars],
+  );
+  const posMars = forcedMars ? posMarsDebug : posMarsReal;
+
+  const posJupReal  = useMemo(() => raDecToVec3(eq.jup.ra, eq.jup.dec, JUPITER_BODY_R), [eq]);
+  const forcedJup    = forcedConjunctionFor(Astronomy.Body.Jupiter);
+  const posJupDebug = useMemo(
+    () => debugConjunctionPos(posMoon.clone().normalize(), JUPITER_BODY_R, (forcedJup?.sepDeg ?? 0) * (forcedJup?.sign ?? 1)),
+    [posMoon, forcedJup],
+  );
+  const posJup = forcedJup ? posJupDebug : posJupReal;
+
+  const posSatReal  = useMemo(() => raDecToVec3(eq.sat.ra, eq.sat.dec, SATURN_BODY_R), [eq]);
+  const forcedSat    = forcedConjunctionFor(Astronomy.Body.Saturn);
+  const posSatDebug = useMemo(
+    () => debugConjunctionPos(posMoon.clone().normalize(), SATURN_BODY_R, (forcedSat?.sepDeg ?? 0) * (forcedSat?.sign ?? 1)),
+    [posMoon, forcedSat],
+  );
+  const posSat = forcedSat ? posSatDebug : posSatReal;
+
+  const posSun = useMemo(() => raDecToVec3(eq.sun.ra, eq.sun.dec, PLANET_R), [eq]);
 
   useFrame(() => { if (groupRef.current) groupRef.current.rotation.y -= 0.0002; });
 
@@ -731,7 +1036,7 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
     <group ref={groupRef}>
       {phase >= 2 && (
         <Suspense fallback={null}>
-          <MoonBody position={posMoon} />
+          <MoonBody position={posMoon} astro={astro} />
         </Suspense>
       )}
 
@@ -838,6 +1143,8 @@ function Globe({ onCityClick, rankedInfo, onReady }: GlobeProps) {
   useEffect(() => { onReady?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fresnelMat = useMemo(makeFresnelMat, []);
+  const moonAstro = useMemo(() => computeMoonAstrology(debugNow()), []);
+  const moonFresnelMat = useMemo(() => makeMoonFresnelMat(moonAstro), [moonAstro]);
 
   const lightsMat = useMemo(
     () => new THREE.MeshBasicMaterial({
@@ -885,6 +1192,8 @@ function Globe({ onCityClick, rankedInfo, onReady }: GlobeProps) {
       <mesh ref={cloudsRef} geometry={geo} material={cloudsMat} scale={1.003} />
 
       <mesh geometry={geo} material={fresnelMat} scale={1.01} />
+
+      <mesh geometry={geo} material={moonFresnelMat} scale={1.018} />
 
       {CITIES.map((city) => (
         <CityMarker
@@ -1054,7 +1363,7 @@ function CameraRig({
 
   useFrame((_, delta) => {
     if (!initialized.current) {
-      const sunEq = Astronomy.Equator(Astronomy.Body.Sun, new Date(), OBSERVER, false, true);
+      const sunEq = Astronomy.Equator(Astronomy.Body.Sun, debugNow(), OBSERVER, false, true);
       const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1).normalize();
       camera.position.copy(sunDir).multiplyScalar(-CAMERA_RADIUS);
       camera.up.copy(ECLIPTIC_POLE);
