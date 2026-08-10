@@ -204,7 +204,7 @@ describe('StatsPage', () => {
     expect(screen.queryByText(/\/game/)).not.toBeInTheDocument();
   });
 
-  it('draws a true-odds bar under each discovered reward, sized by expected_share', async () => {
+  it('overlays a dim-red true-odds fill inside each reward bar, sized by expected_share', async () => {
     localStorage.setItem('playerName', 'Oni');
     mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 10 });
     mockedGetWellProfile.mockResolvedValue({
@@ -217,30 +217,31 @@ describe('StatsPage', () => {
     render(<StatsPage />);
     await flush();
 
-    expect(screen.getByText(/true well odds/i)).toBeInTheDocument();
+    // Both bars are scaled against the largest of any actual-share or
+    // expected-share value shown -- here that's 2_gold's actual share
+    // (3/4 = 0.75), which is why its white fill hits the 80% cap.
+    const goldRow = screen.getByText('2 Coins').closest('.relative.flex.items-center') as HTMLElement;
+    const daggerRow = screen.getByText('Poisoned Dagger').closest('.relative.flex.items-center') as HTMLElement;
 
-    // instakill's expected_share (1/32) is a fifth of 2_gold's (5/32), so
-    // its odds bar should be a fifth as wide.
-    const goldRow = screen.getByText('2 Coins').closest('.flex.flex-col.gap-1');
-    const daggerRow = screen.getByText('Poisoned Dagger').closest('.flex.flex-col.gap-1');
-    const goldOddsBar = goldRow?.querySelector('.bg-white\\/30') as HTMLElement | null;
-    const daggerOddsBar = daggerRow?.querySelector('.bg-white\\/30') as HTMLElement | null;
-    expect(goldOddsBar).not.toBeNull();
-    expect(daggerOddsBar).not.toBeNull();
+    const goldActualBar = goldRow.querySelector('.bg-white\\/10') as HTMLElement;
+    const goldOddsBar = goldRow.querySelector('.bg-red-900\\/40') as HTMLElement;
+    const daggerActualBar = daggerRow.querySelector('.bg-white\\/10') as HTMLElement;
+    const daggerOddsBar = daggerRow.querySelector('.bg-red-900\\/40') as HTMLElement;
+    expect(goldOddsBar).toHaveAttribute('title', 'True well odds');
 
-    const goldWidth = parseFloat(goldOddsBar!.style.width);
-    const daggerWidth = parseFloat(daggerOddsBar!.style.width);
-    expect(goldWidth).toBeCloseTo(80, 5);
-    expect(daggerWidth).toBeCloseTo(16, 5);
+    expect(parseFloat(goldActualBar.style.width)).toBeCloseTo(80, 5);
+    expect(parseFloat(goldOddsBar.style.width)).toBeCloseTo((5 / 32 / 0.75) * 80, 5);
+    expect(parseFloat(daggerActualBar.style.width)).toBeCloseTo((0.25 / 0.75) * 80, 5);
+    expect(parseFloat(daggerOddsBar.style.width)).toBeCloseTo((1 / 32 / 0.75) * 80, 5);
   });
 
-  it('shows no odds bars or legend when no Well rewards have been discovered', async () => {
+  it('shows no odds bar when no Well rewards have been discovered', async () => {
     localStorage.setItem('playerName', 'Newbie');
     mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 0 });
     mockedGetWellProfile.mockResolvedValue({ well_wins: 0, rewards: [] });
     render(<StatsPage />);
     await flush();
 
-    expect(screen.queryByText(/true well odds/i)).not.toBeInTheDocument();
+    expect(document.querySelector('.bg-red-900\\/40')).not.toBeInTheDocument();
   });
 });

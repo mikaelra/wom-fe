@@ -166,41 +166,43 @@ export default function StatsPage() {
                 {wellWins} well win{wellWins === 1 ? '' : 's'}
               </p>
               {wellRewards.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                  <p className="text-xs text-white/40">Thin bar below each reward: its true well odds.</p>
+                <div className="flex flex-col gap-1">
                   {(() => {
-                    const maxCount = Math.max(...wellRewards.map(({ count }) => count));
-                    const maxExpectedShare = Math.max(...wellRewards.map(({ expected_share }) => expected_share));
+                    // Both bars share one scale -- each reward's share of
+                    // this player's own well_wins (not raw count) against
+                    // its true expected_share -- so the white and red
+                    // fills, overlaid from the same left edge, are a fair
+                    // "what you got" vs. "true odds" comparison regardless
+                    // of sample size.
+                    const shares = wellRewards.map(({ count, expected_share }) => ({
+                      actualShare: count / wellWins,
+                      expectedShare: expected_share,
+                    }));
+                    const maxShare = Math.max(...shares.flatMap((s) => [s.actualShare, s.expectedShare]));
                     const sortedRewards = [...wellRewards].sort((a, b) => b.count - a.count);
                     return sortedRewards.map(({ reward, count, expected_share }) => {
                       const info = WELL_REWARD_LABELS[reward];
-                      const barWidthPercent = (count / maxCount) * 80;
-                      // Scaled against the max share among discovered rewards
-                      // (not well_wins) -- this stays a shape comparison,
-                      // "what the true distribution looks like," rather than
-                      // an unreliable "expected count" claim off a small
-                      // sample.
-                      const expectedWidthPercent =
-                        maxExpectedShare > 0 ? (expected_share / maxExpectedShare) * 80 : 0;
+                      const actualWidthPercent = maxShare > 0 ? (count / wellWins / maxShare) * 80 : 0;
+                      const expectedWidthPercent = maxShare > 0 ? (expected_share / maxShare) * 80 : 0;
                       return (
-                        <div key={reward} className="flex flex-col gap-1">
-                          <div className="relative flex items-center justify-between rounded-lg px-3 py-2 overflow-hidden">
-                            <div
-                              className="absolute inset-y-0 left-0 bg-white/10 rounded-lg"
-                              style={{ width: `${barWidthPercent}%` }}
-                            />
-                            <span className="relative text-sm">
-                              <span className="mr-2">{info?.emoji ?? '❔'}</span>
-                              {info?.label ?? reward}
-                            </span>
-                            <span className="relative text-xs text-white/50">×{count}</span>
-                          </div>
-                          <div className="relative h-1 mx-3 rounded-full bg-white/5 overflow-hidden">
-                            <div
-                              className="absolute inset-y-0 left-0 bg-white/30 rounded-full"
-                              style={{ width: `${expectedWidthPercent}%` }}
-                            />
-                          </div>
+                        <div
+                          key={reward}
+                          className="relative flex items-center justify-between rounded-lg px-3 py-2 overflow-hidden"
+                        >
+                          <div
+                            className="absolute inset-y-0 left-0 bg-white/10 rounded-lg"
+                            style={{ width: `${actualWidthPercent}%` }}
+                          />
+                          <div
+                            className="absolute inset-y-0 left-0 bg-red-900/40 rounded-lg"
+                            style={{ width: `${expectedWidthPercent}%` }}
+                            title="True well odds"
+                          />
+                          <span className="relative text-sm">
+                            <span className="mr-2">{info?.emoji ?? '❔'}</span>
+                            {info?.label ?? reward}
+                          </span>
+                          <span className="relative text-xs text-white/50">×{count}</span>
                         </div>
                       );
                     });
