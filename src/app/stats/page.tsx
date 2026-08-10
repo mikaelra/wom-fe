@@ -32,9 +32,13 @@ export default function StatsPage() {
   const [tier, setTier] = useState<string | null>(null);
   const [rankedGamesPlayed, setRankedGamesPlayed] = useState(0);
   const [wellWins, setWellWins] = useState(0);
-  const [wellRewards, setWellRewards] = useState<{ reward: string; count: number }[]>([]);
+  const [wellRewards, setWellRewards] = useState<
+    { reward: string; count: number; expected_share: number }[]
+  >([]);
   const [accountCreatedAt, setAccountCreatedAt] = useState<string | null>(null);
   const [gamesPlayed, setGamesPlayed] = useState(0);
+  const [wins, setWins] = useState(0);
+  const [kills, setKills] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -60,6 +64,8 @@ export default function StatsPage() {
       getPlayerProfile(name).then((data) => {
         setAccountCreatedAt(data.created_at);
         setGamesPlayed(data.played_games);
+        setWins(data.wins);
+        setKills(data.kills);
       }),
     ])
       .catch((err: unknown) => {
@@ -87,6 +93,9 @@ export default function StatsPage() {
         day: 'numeric',
       })
     : 'Unknown';
+
+  const winRatePercent = gamesPlayed > 0 ? Math.round((wins / gamesPlayed) * 100) : null;
+  const avgKillsPerGame = gamesPlayed > 0 ? (kills / gamesPlayed).toFixed(1) : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
@@ -136,6 +145,19 @@ export default function StatsPage() {
               <p className="text-sm text-white/50 mt-1">
                 Games played: <span className="text-white font-semibold">{gamesPlayed}</span>
               </p>
+              <p className="text-sm text-white/50 mt-1">
+                Win rate:{' '}
+                <span className="text-white font-semibold">
+                  {winRatePercent === null ? '—' : `${winRatePercent}%`}
+                </span>
+                {gamesPlayed > 0 && <span className="text-white/40"> ({wins}W)</span>}
+              </p>
+              <p className="text-sm text-white/50 mt-1">
+                Kills: <span className="text-white font-semibold">{kills}</span>
+                {avgKillsPerGame !== null && (
+                  <span className="text-white/40"> ({avgKillsPerGame}/game)</span>
+                )}
+              </p>
             </div>
 
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6">
@@ -146,11 +168,22 @@ export default function StatsPage() {
               {wellRewards.length > 0 ? (
                 <div className="flex flex-col gap-1">
                   {(() => {
-                    const maxCount = Math.max(...wellRewards.map(({ count }) => count));
+                    // Both bars share one scale -- each reward's share of
+                    // this player's own well_wins (not raw count) against
+                    // its true expected_share -- so the white and red
+                    // fills, overlaid from the same left edge, are a fair
+                    // "what you got" vs. "true odds" comparison regardless
+                    // of sample size.
+                    const shares = wellRewards.map(({ count, expected_share }) => ({
+                      actualShare: count / wellWins,
+                      expectedShare: expected_share,
+                    }));
+                    const maxShare = Math.max(...shares.flatMap((s) => [s.actualShare, s.expectedShare]));
                     const sortedRewards = [...wellRewards].sort((a, b) => b.count - a.count);
-                    return sortedRewards.map(({ reward, count }) => {
+                    return sortedRewards.map(({ reward, count, expected_share }) => {
                       const info = WELL_REWARD_LABELS[reward];
-                      const barWidthPercent = (count / maxCount) * 80;
+                      const actualWidthPercent = maxShare > 0 ? (count / wellWins / maxShare) * 80 : 0;
+                      const expectedWidthPercent = maxShare > 0 ? (expected_share / maxShare) * 80 : 0;
                       return (
                         <div
                           key={reward}
@@ -158,7 +191,12 @@ export default function StatsPage() {
                         >
                           <div
                             className="absolute inset-y-0 left-0 bg-white/10 rounded-lg"
-                            style={{ width: `${barWidthPercent}%` }}
+                            style={{ width: `${actualWidthPercent}%` }}
+                          />
+                          <div
+                            className="absolute top-[7px] bottom-[7px] left-[7px] bg-red-900/25 rounded-lg"
+                            style={{ width: `${expectedWidthPercent}%` }}
+                            title="True well odds"
                           />
                           <span className="relative text-sm">
                             <span className="mr-2">{info?.emoji ?? '❔'}</span>

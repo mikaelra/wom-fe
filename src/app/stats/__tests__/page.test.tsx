@@ -28,7 +28,12 @@ beforeEach(() => {
   // Every test that doesn't care about the Well/Overview sections gets a
   // harmless default so it doesn't have to stub this itself.
   mockedGetWellProfile.mockResolvedValue({ well_wins: 0, rewards: [] });
-  mockedGetPlayerProfile.mockResolvedValue({ created_at: '2026-03-05T12:30:00Z', played_games: 0 });
+  mockedGetPlayerProfile.mockResolvedValue({
+    created_at: '2026-03-05T12:30:00Z',
+    played_games: 0,
+    wins: 0,
+    kills: 0,
+  });
 });
 
 afterEach(() => {
@@ -104,8 +109,8 @@ describe('StatsPage', () => {
     mockedGetWellProfile.mockResolvedValue({
       well_wins: 5,
       rewards: [
-        { reward: '2_gold', count: 3, first_awarded_at: '2026-01-01T00:00:00Z' },
-        { reward: 'instakill', count: 1, first_awarded_at: '2026-01-03T00:00:00Z' },
+        { reward: '2_gold', count: 3, first_awarded_at: '2026-01-01T00:00:00Z', expected_share: 5 / 32 },
+        { reward: 'instakill', count: 1, first_awarded_at: '2026-01-03T00:00:00Z', expected_share: 1 / 32 },
       ],
     });
     render(<StatsPage />);
@@ -143,26 +148,100 @@ describe('StatsPage', () => {
     expect(screen.getByText('1 well win')).toBeInTheDocument();
   });
 
-  it('shows the account-created date and games played, but not games won', async () => {
+  it('shows the account-created date and games played', async () => {
     localStorage.setItem('playerName', 'Oni');
     mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 10 });
-    mockedGetPlayerProfile.mockResolvedValue({ created_at: '2026-03-05T12:30:00Z', played_games: 23 });
+    mockedGetPlayerProfile.mockResolvedValue({
+      created_at: '2026-03-05T12:30:00Z',
+      played_games: 23,
+      wins: 9,
+      kills: 46,
+    });
     render(<StatsPage />);
     await flush();
 
     expect(mockedGetPlayerProfile).toHaveBeenCalledWith('Oni');
     expect(screen.getByText('Account created: March 5, 2026')).toBeInTheDocument();
     expect(screen.getByText('23')).toBeInTheDocument();
-    expect(screen.queryByText(/games won/i)).not.toBeInTheDocument();
   });
 
   it('falls back to "Unknown" when the account has no created_at', async () => {
     localStorage.setItem('playerName', 'Ghost');
     mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 0 });
-    mockedGetPlayerProfile.mockResolvedValue({ created_at: null, played_games: 0 });
+    mockedGetPlayerProfile.mockResolvedValue({ created_at: null, played_games: 0, wins: 0, kills: 0 });
     render(<StatsPage />);
     await flush();
 
     expect(screen.getByText('Account created: Unknown')).toBeInTheDocument();
+  });
+
+  it('shows win rate and kills derived from games played, wins, and kills', async () => {
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 10 });
+    mockedGetPlayerProfile.mockResolvedValue({
+      created_at: '2026-03-05T12:30:00Z',
+      played_games: 20,
+      wins: 9,
+      kills: 47,
+    });
+    render(<StatsPage />);
+    await flush();
+
+    expect(screen.getByText('45%')).toBeInTheDocument();
+    expect(screen.getByText('(9W)')).toBeInTheDocument();
+    expect(screen.getByText('47')).toBeInTheDocument();
+    expect(screen.getByText('(2.4/game)')).toBeInTheDocument();
+  });
+
+  it('shows a dash for win rate with zero games played, and no per-game kill average', async () => {
+    localStorage.setItem('playerName', 'Newbie');
+    mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 0 });
+    mockedGetPlayerProfile.mockResolvedValue({ created_at: null, played_games: 0, wins: 0, kills: 0 });
+    render(<StatsPage />);
+    await flush();
+
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.queryByText(/\/game/)).not.toBeInTheDocument();
+  });
+
+  it('overlays a dim-red true-odds fill inside each reward bar, sized by expected_share', async () => {
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 10 });
+    mockedGetWellProfile.mockResolvedValue({
+      well_wins: 4,
+      rewards: [
+        { reward: '2_gold', count: 3, first_awarded_at: '2026-01-01T00:00:00Z', expected_share: 5 / 32 },
+        { reward: 'instakill', count: 1, first_awarded_at: '2026-01-03T00:00:00Z', expected_share: 1 / 32 },
+      ],
+    });
+    render(<StatsPage />);
+    await flush();
+
+    // Both bars are scaled against the largest of any actual-share or
+    // expected-share value shown -- here that's 2_gold's actual share
+    // (3/4 = 0.75), which is why its white fill hits the 80% cap.
+    const goldRow = screen.getByText('2 Coins').closest('.relative.flex.items-center') as HTMLElement;
+    const daggerRow = screen.getByText('Poisoned Dagger').closest('.relative.flex.items-center') as HTMLElement;
+
+    const goldActualBar = goldRow.querySelector('.bg-white\\/10') as HTMLElement;
+    const goldOddsBar = goldRow.querySelector('.bg-red-900\\/25') as HTMLElement;
+    const daggerActualBar = daggerRow.querySelector('.bg-white\\/10') as HTMLElement;
+    const daggerOddsBar = daggerRow.querySelector('.bg-red-900\\/25') as HTMLElement;
+    expect(goldOddsBar).toHaveAttribute('title', 'True well odds');
+
+    expect(parseFloat(goldActualBar.style.width)).toBeCloseTo(80, 5);
+    expect(parseFloat(goldOddsBar.style.width)).toBeCloseTo((5 / 32 / 0.75) * 80, 5);
+    expect(parseFloat(daggerActualBar.style.width)).toBeCloseTo((0.25 / 0.75) * 80, 5);
+    expect(parseFloat(daggerOddsBar.style.width)).toBeCloseTo((1 / 32 / 0.75) * 80, 5);
+  });
+
+  it('shows no odds bar when no Well rewards have been discovered', async () => {
+    localStorage.setItem('playerName', 'Newbie');
+    mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 0 });
+    mockedGetWellProfile.mockResolvedValue({ well_wins: 0, rewards: [] });
+    render(<StatsPage />);
+    await flush();
+
+    expect(document.querySelector('.bg-red-900\\/25')).not.toBeInTheDocument();
   });
 });
