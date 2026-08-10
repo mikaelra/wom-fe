@@ -190,13 +190,13 @@ export default function StatsPage() {
                           className="relative flex items-center justify-between rounded-lg px-3 py-2 overflow-hidden"
                         >
                           <div
-                            className="absolute inset-y-0 left-0 bg-white/10 rounded-lg"
-                            style={{ width: `${actualWidthPercent}%` }}
-                          />
-                          <div
                             className="absolute inset-y-0 left-0 bg-red-900/25 rounded-lg"
                             style={{ width: `${expectedWidthPercent}%` }}
                             title="True well odds"
+                          />
+                          <div
+                            className="absolute top-0.5 bottom-0.5 left-0 bg-white/10 rounded-lg"
+                            style={{ width: `${actualWidthPercent}%` }}
                           />
                           <span className="relative text-sm">
                             <span className="mr-2">{info?.emoji ?? '❔'}</span>
