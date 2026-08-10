@@ -194,7 +194,7 @@ export default function StatsPage() {
                             style={{ width: `${actualWidthPercent}%` }}
                           />
                           <div
-                            className="absolute inset-y-0 left-0 bg-red-900/50 rounded-lg"
+                            className="absolute inset-y-0 left-0 bg-red-900/75 rounded-lg"
                             style={{ width: `${expectedWidthPercent}%` }}
                             title="True well odds"
                           />
