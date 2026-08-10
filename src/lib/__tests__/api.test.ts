@@ -181,7 +181,9 @@ describe('getWellProfile', () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
         well_wins: 3,
-        rewards: [{ reward: '2_gold', count: 2, first_awarded_at: '2026-01-01T00:00:00Z' }],
+        rewards: [
+          { reward: '2_gold', count: 2, first_awarded_at: '2026-01-01T00:00:00Z', expected_share: 5 / 32 },
+        ],
       }),
     );
 
@@ -189,7 +191,9 @@ describe('getWellProfile', () => {
 
     expect(result).toEqual({
       well_wins: 3,
-      rewards: [{ reward: '2_gold', count: 2, first_awarded_at: '2026-01-01T00:00:00Z' }],
+      rewards: [
+        { reward: '2_gold', count: 2, first_awarded_at: '2026-01-01T00:00:00Z', expected_share: 5 / 32 },
+      ],
     });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/well/profile/Alice`, {
       method: 'GET',
