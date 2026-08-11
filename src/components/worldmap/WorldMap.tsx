@@ -83,8 +83,8 @@ export function gmstHours(date: Date): number {
 
 // Computed once at module load — GMST drifts slowly enough (~0.004°/s) that
 // a load-time snapshot stays in sync with the sky for the entire session.
-// Shared by the Globe's texture rotation and CameraRig's Athens-facing
-// direction so both agree on where Athens actually sits in world space.
+// Shared by the Globe's texture rotation and NEW_YORK_DIR (below) so both
+// agree on where a city actually sits in world space.
 const EARTH_ROTATION_Y = Math.PI + gmstHours(new Date()) * (Math.PI / 12);
 
 // Retrograde = geocentric ecliptic longitude moving westward (decreasing) over
@@ -1226,27 +1226,6 @@ const _driftQ   = new THREE.Quaternion();
 const _yAxis    = new THREE.Vector3(0, 1, 0);
 
 const CAMERA_RADIUS = 13;
-// If the ambient auto-rotate hasn't carried the Athens/New York midpoint
-// (PAN_TARGET_DIR, below) into view within this window, a corrective pan
-// kicks in.
-const SHOW_CHECK_SECONDS = 10;
-const CATCHUP_SECONDS = 5;
-// "Roughly centred" cone half-angle used to decide whether the ambient
-// auto-rotate has already brought that midpoint into view.
-const SHOWN_ANGLE_THRESHOLD = 35 * RAD;
-// The catch-up pan lands with the target a smidge left of dead-centre
-// rather than exactly on it — see the sign derivation in CameraRig below.
-const CATCHUP_LEFT_BIAS = 12 * RAD;
-
-// Athens' and New York's world-space directions from the globe centre, on
-// the same Y rotation the Globe applies to its texture -- so a camera
-// positioned along one of these rays, looking at the origin, has that city
-// dead-centre in frame.
-const ATHENS_DIR = (() => {
-  const athens = CITIES.find((c) => c.name === 'Athens')!;
-  const [x, y, z] = latLngToVec3(athens.lat, athens.lng, 1);
-  return new THREE.Vector3(x, y, z).applyAxisAngle(_yAxis, EARTH_ROTATION_Y).normalize();
-})();
 
 // Used to zoom the camera in on New York while the ranked queue is
 // searching (see RankedZoomRig below).
@@ -1260,108 +1239,21 @@ const NEW_YORK_DIR = (() => {
 const RANKED_ZOOM_RADIUS = 6;
 const RANKED_ZOOM_SECONDS = 1.6;
 
-// The ambient corrective pan (CameraRig, below) used to target Athens alone;
-// it now aims at the midpoint between Athens and New York instead, so the
-// initial wide shot brings both cities toward view rather than favouring
-// just the one. The angular bisector of two unit vectors is their normalized
-// sum (valid as long as they aren't antipodal, which these two aren't).
-const PAN_TARGET_DIR = ATHENS_DIR.clone().add(NEW_YORK_DIR).normalize();
-
-// Cubic Hermite interpolation between p0 (t=0) and p1 (t=1), with tangents
-// m0/m1 giving dp/dt at each end (total change over the unit parameter).
-// Used instead of a plain ease so the catch-up pan can be handed off from,
-// and back to, the ambient orbit at whatever speed it's actually moving —
-// no dead stop at either end.
-function hermite(t: number, p0: number, p1: number, m0: number, m1: number): number {
-  const t2 = t * t, t3 = t2 * t;
-  const h00 = 2 * t3 - 3 * t2 + 1;
-  const h10 = t3 - 2 * t2 + t;
-  const h01 = -2 * t3 + 3 * t2;
-  const h11 = t3 - t2;
-  return h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1;
-}
-
-// Low-pass factor for smoothing the measured ambient angular speed (rad/s
-// per second of blending); just enough to reject a single noisy frame,
-// with plenty of the 5s idle window left to settle before a catch-up fires.
-const AMBIENT_VEL_SMOOTHING = 8;
-
-// Shortest signed angular delta from a to b, in (-π, π].
-function angleDelta(a: number, b: number): number {
-  let d = (b - a) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return d;
-}
-
-// Right-handed basis spanning the plane ⊥ up (e1×e2 = up), used to read and
-// set azimuth around an arbitrary orbit pole.
-function orbitBasis(up: THREE.Vector3) {
-  const ref = Math.abs(up.y) < 0.99 ? _yAxis : new THREE.Vector3(1, 0, 0);
-  const e1 = new THREE.Vector3().crossVectors(ref, up).normalize();
-  const e2 = new THREE.Vector3().crossVectors(up, e1).normalize();
-  return { e1, e2 };
-}
-
-function azimuthOf(v: THREE.Vector3, up: THREE.Vector3, e1: THREE.Vector3, e2: THREE.Vector3): number {
-  const perp = v.clone().addScaledVector(up, -v.dot(up));
-  return Math.atan2(perp.dot(e2), perp.dot(e1));
-}
-
-// Camera behaviour: the ambient auto-rotate (owned by OrbitControls) runs
-// from the very first frame. We just watch whether the Athens/New York
-// midpoint (PAN_TARGET_DIR) comes into view on its own within
-// SHOW_CHECK_SECONDS. If it doesn't, we take over for a corrective pan that
-// stays on the *same orbit ring* — same radius, same elevation off the
-// orbit pole, only the azimuth changes — turning until that midpoint lands
-// a smidge left of dead-centre. That's different from a straight-line slerp
-// between two arbitrary directions, which would also drag the camera's
-// elevation around and cut across the sky at an angle unrelated to the ring
-// the ambient orbit runs on.
-// The turn itself is a Hermite ease whose start/end tangents match the
-// ambient orbit's own measured angular speed, so the hand-off into and out
-// of the pan doesn't dip to zero speed and then jump back to full speed.
+// Camera behaviour: OrbitControls owns azimuth/autoRotate (and user drag)
+// from the very first frame. This rig only adds the slow sky-drift shared
+// with the planet/ecliptic groups so the camera stays locked to the
+// ecliptic plane as the sky drifts.
 function CameraRig({
-  onCatchupStart,
-  onCatchupEnd,
   paused,
 }: {
-  onCatchupStart?: () => void;
-  onCatchupEnd?: () => void;
   /** Skips this rig's own camera control entirely -- used while
    *  RankedZoomRig owns the camera, so the two don't fight over it. */
   paused?: boolean;
 }) {
   const { camera } = useThree();
   const initialized = useRef(false);
-  const shown = useRef(false);
-  const elapsed = useRef(0);
 
-  const catchingUp = useRef(false);
-  const catchupElapsed = useRef(0);
-  const catchupUp = useRef(new THREE.Vector3());
-  const catchupE1 = useRef(new THREE.Vector3());
-  const catchupE2 = useRef(new THREE.Vector3());
-  const catchupUComp = useRef(0);
-  const catchupPerpLen = useRef(0);
-  const catchupStartAz = useRef(0);
-  const catchupTargetAz = useRef(0);
-  // Signed angle actually travelled, start → target. Resolved once at
-  // trigger time (see below) rather than re-derived from start/target each
-  // frame, since it may deliberately go the "long way" around the ring.
-  const catchupTurn = useRef(0);
-  // Hermite tangent (rad per unit parameter) matched to the ambient orbit's
-  // own angular speed at the moment the catch-up pan starts, used at both
-  // ends of the pan so it neither launches nor lands with a speed jump.
-  const catchupTangent = useRef(0);
-
-  // Tracks the ambient orbit's actual angular speed (OrbitControls'
-  // autoRotate + the shared sky drift, combined) so the catch-up pan can be
-  // handed off at the same rate it's already moving.
-  const prevAmbientAz = useRef<number | null>(null);
-  const ambientAngVel = useRef(0);
-
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (!initialized.current) {
       const sunEq = Astronomy.Equator(Astronomy.Body.Sun, debugNow(), OBSERVER, false, true);
       const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1).normalize();
@@ -1374,81 +1266,9 @@ function CameraRig({
 
     if (paused) return;
 
-    if (catchingUp.current) {
-      catchupElapsed.current += delta;
-      const t = Math.min(catchupElapsed.current / CATCHUP_SECONDS, 1);
-      const az = catchupStartAz.current
-        + hermite(t, 0, catchupTurn.current, catchupTangent.current, catchupTangent.current);
-      const up = catchupUp.current, e1 = catchupE1.current, e2 = catchupE2.current;
-      camera.position
-        .copy(e1).multiplyScalar(Math.cos(az) * catchupPerpLen.current)
-        .addScaledVector(e2, Math.sin(az) * catchupPerpLen.current)
-        .addScaledVector(up, catchupUComp.current);
-      camera.up.copy(up);
-      camera.lookAt(0, 0, 0);
-      if (t >= 1) {
-        catchingUp.current = false;
-        shown.current = true; // don't retrigger — we just brought it into view
-        onCatchupEnd?.();
-      }
-      return;
-    }
-
-    // Ambient phase: OrbitControls owns azimuth/autoRotate (and user drag).
-    // We only add the slow sky-drift shared with the planet/ecliptic groups,
-    // and watch for whether Athens has drifted into view on its own.
     _driftQ.setFromAxisAngle(_yAxis, SKY_DRIFT);
     camera.position.applyQuaternion(_driftQ);
     camera.up.applyQuaternion(_driftQ).normalize();
-
-    if (!shown.current) {
-      const up = camera.up.clone();
-      const { e1, e2 } = orbitBasis(up);
-      const az = azimuthOf(camera.position, up, e1, e2);
-      if (prevAmbientAz.current !== null && delta > 0) {
-        const instVel = angleDelta(prevAmbientAz.current, az) / delta;
-        ambientAngVel.current += (instVel - ambientAngVel.current) * Math.min(1, delta * AMBIENT_VEL_SMOOTHING);
-      }
-      prevAmbientAz.current = az;
-
-      elapsed.current += delta;
-      if (camera.position.angleTo(PAN_TARGET_DIR) < SHOWN_ANGLE_THRESHOLD) {
-        shown.current = true;
-      } else if (elapsed.current >= SHOW_CHECK_SECONDS) {
-        const uComp = camera.position.dot(up);
-        const perp = camera.position.clone().addScaledVector(up, -uComp);
-
-        catchupUp.current.copy(up);
-        catchupE1.current.copy(e1);
-        catchupE2.current.copy(e2);
-        catchupUComp.current = uComp;
-        catchupPerpLen.current = perp.length();
-        catchupStartAz.current = az;
-        catchupTargetAz.current = azimuthOf(PAN_TARGET_DIR, up, e1, e2) + CATCHUP_LEFT_BIAS;
-
-        // Always turn the same way the ambient orbit is already spinning,
-        // even if that's the "long way round" — reversing direction for a
-        // moment (just because it's the shorter arc) reads as wrong even
-        // when it's geometrically closer.
-        const shortest = angleDelta(catchupStartAz.current, catchupTargetAz.current);
-        const ambientDir = Math.sign(ambientAngVel.current);
-        const shortestDir = Math.sign(shortest) || 1;
-        const totalTurn = (ambientDir !== 0 && shortestDir !== ambientDir)
-          ? shortest - shortestDir * 2 * Math.PI
-          : shortest;
-        catchupTurn.current = totalTurn;
-
-        // Match the pan's launch/landing tangent to the ambient orbit's own
-        // speed, capped so it can't overshoot a short turn.
-        const sign = totalTurn >= 0 ? 1 : -1;
-        const matched = Math.abs(ambientAngVel.current) * CATCHUP_SECONDS;
-        catchupTangent.current = sign * Math.min(matched, Math.abs(totalTurn) * 0.9);
-
-        catchupElapsed.current = 0;
-        catchingUp.current = true;
-        onCatchupStart?.();
-      }
-    }
   });
   return null;
 }
@@ -1535,9 +1355,6 @@ export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
   const [globeReady, setGlobeReady] = useState(false);
-  // True only while the corrective pan to Athens is running; gates
-  // OrbitControls so user input/autoRotate can't fight it mid-turn.
-  const [catchingUp, setCatchingUp] = useState(false);
   // True while the ranked queue is searching -- camera zooms in and locks
   // onto New York for the duration (see RankedZoomRig).
   const rankedSearching = rankedInfo?.status === 'searching';
@@ -1563,11 +1380,7 @@ export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
 
   return (
     <>
-      <CameraRig
-        onCatchupStart={() => setCatchingUp(true)}
-        onCatchupEnd={() => setCatchingUp(false)}
-        paused={rankedSearching}
-      />
+      <CameraRig paused={rankedSearching} />
       <RankedZoomRig active={rankedSearching} />
       <color attach="background" args={['#070b15']} />
       {/* Raised from 0.05 so the dark side of the globe stays readable */}
@@ -1603,12 +1416,12 @@ export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
 
       <OrbitControls
         makeDefault
-        enabled={!catchingUp && !rankedSearching}
+        enabled={!rankedSearching}
         enablePan={false}
         enableZoom
         minDistance={4}
         maxDistance={18}
-        autoRotate={!catchingUp && !rankedSearching}
+        autoRotate={!rankedSearching}
         autoRotateSpeed={0.4}
         maxPolarAngle={Math.PI * 0.80}
         minPolarAngle={Math.PI * 0.10}
