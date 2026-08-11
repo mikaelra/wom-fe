@@ -1172,6 +1172,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               isDead={showDeadPose}
               isWinner={!!isWinner}
               isBot={!!player.bot}
+              botType={player.bot_type}
               isBoss={isBoss}
               bossHp={isBoss ? player.hp : undefined}
               bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
