@@ -194,9 +194,9 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
 }
 
 // Kept in sync by hand with wom-be's config.BOT_TYPES/BOT_DISPLAY_NAMES --
-// bot_type is never part of the public wire format (domain/player.py's
-// PUBLIC_PLAYER_FIELDS omits it, it's server-internal AI dispatch), so
-// there's nothing to derive this list from at runtime.
+// this is the menu of choices offered *before* a bot exists, so unlike an
+// existing player's bot_type (now on the wire, see PlayerAvatars.tsx's
+// BOT_MODEL_URLS), there's no live state to derive it from at runtime.
 //
 // The empty-string entry isn't a real bot_type -- sockets/lobby.py's
 // handle_add_dummy falls back to its own random pick for anything that

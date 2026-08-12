@@ -293,6 +293,18 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, h
   );
 }
 
+// One model per wom-be config.BOT_TYPES entry -- keys must match those
+// exactly (Player.bot_type on the wire, see types/game.ts). Falls back to
+// turtle for a bot_type this frontend doesn't recognize yet (e.g. an older
+// wom-fe deploy talking to a newer wom-be that's added a type), same
+// deploy-independence reasoning as the wire schema's optional fields.
+const BOT_MODEL_URLS: Record<string, string> = {
+  TURTLE: '/models/turtlev01.glb',
+  SHEEP: '/models/sheepv01.glb',
+  WOLF: '/models/wolfv01.glb',
+  OWL: '/models/owlv01.glb',
+};
+
 export const PlayerWithName = memo(function PlayerWithName({
   name,
   position,
@@ -301,6 +313,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   isDead,
   isWinner,
   isBot,
+  botType,
   showAttackButton,
   onAttack,
   showDenyButton,
@@ -336,8 +349,9 @@ export const PlayerWithName = memo(function PlayerWithName({
   isAnimating: boolean;
   isDead?: boolean;
   isWinner?: boolean;
-  /** All bot types render with the turtle model for now (see config.BOT_DISPLAY_NAMES on the backend) -- distinct per-type models are future work. */
   isBot?: boolean;
+  /** One of wom-be's config.BOT_TYPES (e.g. "SHEEP") -- picks this bot's model via BOT_MODEL_URLS. Ignored when !isBot. */
+  botType?: string | null;
   showAttackButton?: boolean;
   /** Called with this player's name — stable across renders so memo() holds. */
   onAttack?: (name: string) => void;
@@ -377,7 +391,11 @@ export const PlayerWithName = memo(function PlayerWithName({
   // isBoss checked first: create_boss (game_state.py) sets bot=True on every
   // boss too (Hades included), so checking isBot first accidentally matched
   // it before isBoss ever got a look, rendering Hades with the turtle model.
-  const modelUrl = isBoss ? '/models/hades/hades_v3-ld.glb' : isBot ? '/models/turtlev01.glb' : (frogSkinUrl ?? skinUrl('frog_green_v1'));
+  const modelUrl = isBoss
+    ? '/models/hades/hades_v3-ld.glb'
+    : isBot
+      ? (botType && BOT_MODEL_URLS[botType]) || BOT_MODEL_URLS.TURTLE
+      : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   const isCherub = modelUrl === skinUrl('cherub_v1');
   // See useRemountKeyOnceSettled's own comment -- forces the info-reveal
   // badge below to recompute its scale a beat after it appears, so a
@@ -761,5 +779,8 @@ export const BOSS_MAX_HP = 8;
 useGLTF.preload('/models/lost_soul_v2.glb');
 useGLTF.preload('/models/hades/hades_v3-ld.glb');
 useGLTF.preload('/models/turtlev01.glb');
+useGLTF.preload('/models/sheepv01.glb');
+useGLTF.preload('/models/wolfv01.glb');
+useGLTF.preload('/models/owlv01.glb');
 useGLTF.preload('/models/crowns/crown_ld_v1.glb');
 useGLTF.preload('/models/crowns/well_crown_v1.glb');

@@ -44,6 +44,10 @@ export const PlayerSchema = z.object({
   pending_wheel_nudge: z.boolean().nullable().optional(),
   // Same deploy-independence reasoning as skin/wheel_awarded above.
   selected_relic_ids: z.array(z.number().int()).optional(),
+  // Same deploy-independence reasoning as skin/wheel_awarded above. One of
+  // wom-be's config.BOT_TYPES for a bot, null/absent otherwise -- picks
+  // this bot's model in PlayerAvatars.tsx.
+  bot_type: z.string().nullable().optional(),
 });
 export type Player = z.infer<typeof PlayerSchema>;
 
