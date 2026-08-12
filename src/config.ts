@@ -22,3 +22,20 @@ export const BACKEND_URL = resolveBackendUrl();
 // address rather than throwing like BACKEND_URL above -- a missing value
 // here doesn't break the app, just the contact info a player sees.
 export const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@worldofmythos.net";
+
+// --- Build/wire-protocol identity (docs/MOBILE_AND_STEAM_PLAN.md §4.2, §2.3) ---
+
+// Set in CI from `git describe --tags` / `git rev-list --count HEAD`
+// (.github/workflows/deploy.yml), the way NEXT_PUBLIC_BACKEND_URL is above.
+// Unset locally -- "dev" isn't a real semver, which is the point: it should
+// never be mistaken for a shipped build in a support ticket.
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
+export const BUILD_NUMBER = process.env.NEXT_PUBLIC_BUILD_NUMBER || "0";
+
+// Bumped in the same PR as any change to the wire shapes documented in
+// wom-be/docs/PROTOCOL.md, alongside that repo's own config.PROTOCOL_VERSION
+// -- the two are independent constants that must be changed together by
+// convention, not by any shared source. Sent on every request/connection so
+// the backend can recognize and reject a client it no longer supports (see
+// lib/http.ts and lib/socket.ts) instead of failing in some less legible way.
+export const PROTOCOL_VERSION = 1;

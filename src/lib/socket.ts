@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { io, Socket } from 'socket.io-client';
-import { BACKEND_URL } from '@/config';
+import { BACKEND_URL, PROTOCOL_VERSION } from '@/config';
 import { LobbyStateSchema, ChatMessageSchema, type LobbyState, type ChatMessage } from '@/types/game';
 import {
   JoinedLobbyPayloadSchema,
@@ -58,7 +58,11 @@ let socket: AppSocket | null = null;
 
 export function getSocket(): AppSocket {
   if (!socket) {
-    socket = io(BACKEND_URL);
+    // auth.protocol_version is checked server-side (wom-be's
+    // sockets/presence.py connect handler) before any join_room binding --
+    // see docs/MOBILE_AND_STEAM_PLAN.md §2.3 and wom-be/docs/PROTOCOL.md's
+    // "Versioning and compatibility".
+    socket = io(BACKEND_URL, { auth: { protocol_version: PROTOCOL_VERSION } });
   }
   return socket;
 }

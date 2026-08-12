@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { BACKEND_URL } from '@/config';
+import { BACKEND_URL, PROTOCOL_VERSION } from '@/config';
 import {
   checkClaimVerified,
   checkName,
@@ -64,7 +64,7 @@ describe('createLobby', () => {
     expect(result).toEqual({ lobby_id: 'abc', token: 'tok-1' });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/create_lobby`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Alice', email: 'alice@example.com' }),
     });
   });
@@ -95,7 +95,7 @@ describe('joinRankedQueue', () => {
     expect(result).toEqual({ status: 'queued' });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/join`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Alice' }),
     });
   });
@@ -110,7 +110,7 @@ describe('leaveRankedQueue', () => {
     expect(result).toEqual({ status: 'left', was_queued: true });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/leave`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Alice' }),
     });
   });
@@ -125,7 +125,7 @@ describe('getRankedProfile', () => {
     expect(result).toEqual({ tier: 'Djinn I', ranked_games_played: 12 });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/profile/Alice`, {
       method: 'GET',
-      headers: undefined,
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) },
       body: undefined,
     });
   });
@@ -160,7 +160,7 @@ describe('getActiveRankedLobby', () => {
     });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active/Alice`, {
       method: 'GET',
-      headers: undefined,
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) },
       body: undefined,
     });
   });
@@ -197,7 +197,7 @@ describe('getWellProfile', () => {
     });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/well/profile/Alice`, {
       method: 'GET',
-      headers: undefined,
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) },
       body: undefined,
     });
   });
@@ -222,7 +222,7 @@ describe('getPlayerProfile', () => {
     expect(result).toEqual({ created_at: '2026-03-05T12:30:00Z', played_games: 23, wins: 7, kills: 41 });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/player/profile/Alice`, {
       method: 'GET',
-      headers: undefined,
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) },
       body: undefined,
     });
   });
@@ -381,7 +381,7 @@ describe('resolveAccountSession', () => {
     });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/resolve_account_session`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: 'sess-1' }),
     });
   });
@@ -462,7 +462,7 @@ describe('getPlayerMessages token attachment', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${BACKEND_URL}/get_player_messages/abc/Alice?token=tok-42`,
-      { method: 'GET', headers: undefined, body: undefined },
+      { method: 'GET', headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) }, body: undefined },
     );
   });
 
@@ -474,7 +474,7 @@ describe('getPlayerMessages token attachment', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${BACKEND_URL}/get_player_messages/abc/Alice?token=${encodeURIComponent('tok/with+special?chars')}`,
-      { method: 'GET', headers: undefined, body: undefined },
+      { method: 'GET', headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) }, body: undefined },
     );
   });
 
@@ -486,7 +486,7 @@ describe('getPlayerMessages token attachment', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${BACKEND_URL}/get_player_messages/abc/Alice`,
-      { method: 'GET', headers: undefined, body: undefined },
+      { method: 'GET', headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) }, body: undefined },
     );
   });
 });
@@ -500,7 +500,7 @@ describe('claimPendingWheel', () => {
     expect(result).toEqual({ success: true, pending_verification: true });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/claim_pending_wheel`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
       body: JSON.stringify({ lobby_id: 'abc', name: 'Alice', email: 'alice@example.com' }),
     });
   });
