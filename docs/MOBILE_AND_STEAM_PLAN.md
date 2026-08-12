@@ -1,6 +1,7 @@
 # Mobile (iOS / Android) & Steam Distribution Plan
 
-Status: **draft, nothing implemented** · Scope: `wom-fe` + `wom-be` · Last updated: 2026-08-12
+Status: **draft · Apple enrolled, Play registration blocked (§14.3), no code written** ·
+Scope: `wom-fe` + `wom-be` · Last updated: 2026-08-12
 
 Goal: ship World of Mythos as an installable app on the Apple App Store and Google Play,
 and as a purchasable PC game on Steam, reusing the existing web build rather than
@@ -502,9 +503,9 @@ one to find out whether the app builds.
 
 ### 7.2 Prerequisites, in order
 
-1. **Apple Developer Program**, $99/year. Individual enrolment needs no D-U-N-S; an
-   organisation does, and that adds weeks. Enrolment itself can take days. **Start this in
-   week one** regardless of code readiness.
+1. ~~**Apple Developer Program**, $99/year.~~ ✅ **Enrolled 2026-08-12**, D-U-N-S
+   obtained, payment cleared. This is no longer a blocker and iOS is now the furthest-ahead
+   store track.
 2. **Certificates and provisioning via `fastlane match`**, with the encrypted cert repo
    private. Manual signing from a machine you do not own is not workable.
 3. **TestFlight** requires the paid membership. There is no Mac-free way to get a build
@@ -738,8 +739,8 @@ These run in parallel with all development and are the actual critical path:
 | Clock | Duration | Start when |
 |---|---|---|
 | ~~Apple Developer enrolment~~ | — | ✅ **Done 2026-08-12** (D-U-N-S obtained, payment cleared) |
-| ~~Play Console account~~ | — | ✅ **Done 2026-08-12** — confirm whether it registered as Organization (§9.1) |
-| Google closed testing (14 continuous days, tester minimum) | ≥ 2 weeks | As soon as an installable AAB exists |
+| Play Console account | **Blocked** | 🔴 Payment loop, 2 failed attempts, no charge taken (§14.3) |
+| Google closed testing (14 continuous days, tester minimum) | ≥ 2 weeks | Blocked until registration clears (§14.3) — recruit testers now regardless |
 | Steam Direct 30-day hold | 30 days | Whenever Steam is committed to |
 | Store review, per submission | 1–3 days typical | Per submission, forever |
 | Legal opinion on loot boxes (`LEGAL_COMPLIANCE_PLAN.md` §4) | Weeks | Before any paid randomised item ships to a store |
@@ -753,8 +754,9 @@ These run in parallel with all development and are the actual critical path:
 1. **Day 1** — §5.1 disposable APK. Learn whether the game is playable on a phone. This
    answers more than the next two weeks of code will.
 2. ~~**Day 1** — Start the Apple enrolment and check the Play Console account type.~~
-   ✅ Done 2026-08-12. Next console step is reserving the identifiers (§14.2), which is
-   irreversible and should happen before `cap init` picks an appId.
+   ✅ Apple done 2026-08-12; Play Console blocked on payment (§14.3). Next console step
+   is reserving the identifiers (§14.2), irreversible, and it should happen before
+   `cap init` picks an appId.
 3. **Days 2–4** — Phase 0 (§4): tags, build identity, protocol version, forced-update
    screen, changelog. Backend and frontend together.
 4. **Days 5–6** — §5.3 static export: the lobby route change, conditional
@@ -766,8 +768,10 @@ These run in parallel with all development and are the actual critical path:
 6. **Days 10–12** — §9 blockers: account-deletion endpoint + settings UI, privacy policy
    page, age gate at signup. Small, and they gate every store submission including test
    tracks.
-7. **Days 13–14** — iOS via cloud CI, assuming enrolment cleared. First TestFlight build
-   to the dev's iPhone.
+7. **Days 13–14** — iOS via cloud CI. Apple enrolment has cleared, so this is unblocked
+   and is now the **nearer store milestone** — first TestFlight build to the dev's iPhone.
+   With Play registration stuck (§14.3), iOS is the only track that can currently reach a
+   real distribution channel; Android continues via sideload, which needs no account.
 
 ### Then
 
@@ -775,7 +779,8 @@ These run in parallel with all development and are the actual critical path:
    set, then decide mobile bundling on the post-compression numbers. ~4 days. Note the
    first two weeks above ship the **low** tier only; that is deliberate, so the device
    test in step 5 is not blocked on any of this.
-9. Play Console internal → closed testing track. **Start the 14-day clock.**
+9. Play Console internal → closed testing track, **as soon as §14.3's payment problem
+   clears**. Start the 14-day clock the same day; it cannot be compressed later.
 10. Decide the shop question (§14.1) and, if shipping it, Phase 4 IAP (§8).
 11. Store listings, ratings, screenshots (§9).
 12. Steam: Electron shell, Steam Direct, store page (§10).
@@ -828,15 +833,51 @@ Then, in each console, before any build exists:
 - **Both**: complete the **EU trader declaration**. It gates EU/EEA distribution, and the
   contact details it requires are published on the listing.
 
-### 14.3 Confirm the Google account type
+### 14.3 🔴 Google Play registration is blocked on payment
 
-If the Play Console account registered as **Personal** rather than Organization, the
+**Status 2026-08-12: Apple enrolment cleared. Play Console has not.** Two attempts at the
+$25 registration fee returned to the signup start page with no money withdrawn — so the
+charge is not being declined by the bank, it is failing before authorisation completes.
+
+**This blocks distribution, not development.** Android testing does not need a Play
+account at all: `adb install` puts a debug APK on the Samsung directly, which is exactly
+what §5.1 and §5.5 describe. Every engineering milestone through "a full bossfight played
+on the Samsung" is reachable while this is unresolved. What is blocked is the Internal
+testing track, the closed test, and anything resembling a release.
+
+Most likely causes, roughly in order of how often they are the answer:
+
+1. **Multiple Google accounts signed in at once.** The classic cause of a silent redirect
+   loop back to the start page. Retry in a private window signed into exactly one account.
+2. **An existing Google Payments profile with the wrong country or type.** Check
+   `payments.google.com`. The profile country must match the enrolment country, and it
+   cannot be changed after creation — a profile created under the wrong country has to be
+   replaced, which is a support ticket, not a setting.
+3. **SCA / 3-D Secure failing silently.** Norwegian cards under PSD2 need a step-up
+   challenge; if it is blocked (popup blocker, app-based approval not completing) the flow
+   returns to start with no charge — which matches the symptom exactly.
+4. **Browser extensions**, particularly ad/tracker blockers, breaking the payment iframe.
+5. **The card itself.** BankAxept-only debit cards are frequently rejected by Google
+   Payments. A Visa/Mastercard *credit* card is the reliable option.
+
+Escalate to Google Play developer support if 1–5 do not clear it; a payments profile in a
+bad state cannot be fixed from the console.
+
+**Consequence for the plan**: the Android and iOS tracks swap order. iOS/TestFlight is now
+the nearer store milestone since Apple enrolment is live, and Android continues via
+sideload. See §14.4.
+
+### 14.4 Confirm the Google account type once registration clears
+
+If the Play Console account registers as **Personal** rather than Organization, the
 12-testers-for-14-continuous-days closed-testing requirement (§9.1) applies before
 production access, and it becomes the critical path — it needs 12 real people with Google
-accounts and cannot be compressed. Check which type the account is now, while there is
-still time to recruit testers in parallel with the build work rather than after it.
+accounts and cannot be compressed. Combined with §14.3's delay, that is the schedule risk
+worth tracking: every day registration stays blocked is a day the 14-day clock cannot
+start. Recruit the 12 testers *now*, in parallel, so the clock starts the moment the
+account exists rather than a week later.
 
-If it registered as Organization, that requirement does not apply and roughly two weeks
+If it registers as Organization, the requirement does not apply and roughly two weeks
 comes off the schedule.
 
 ---
