@@ -870,9 +870,14 @@ These run in parallel with all development and are the actual critical path:
    on this loop working.
 4. **Days 2–4** — Phase 0 (§4): tags, build identity, protocol version, forced-update
    screen, changelog. Backend and frontend together.
+   ✅ Tags/build identity/protocol version/changelog merged (wom-fe#296, wom-be#170)
+   2026-08-12. The forced-update *screen* is still deferred — nothing to link to on
+   any store yet.
 5. **Days 5–6** — §5.3 static export: the lobby route change, conditional
    `next.config.ts`, Sentry split. Verify with `serve out`, loaded from the iPhone over
    the LAN — that needs no build either.
+   🟡 Code done, PR open 2026-08-12: `BUILD_TARGET=native npx next build` verified
+   clean. The `serve out` + iPhone-over-LAN pass is still the developer's to run.
 6. **Days 7–9** — §5.4 Capacitor shell with a fully bundled `out/` (the referenced set is
    ~41 MB, so everything ships in the app — no remote-asset scheme needed). Backend CORS
    for `https://localhost` *and* `capacitor://localhost`. Touch controls, orientation,
@@ -1003,8 +1008,8 @@ comes off the schedule.
 | 0 | Compatibility policy documented | ✅ Done — merged wom-be#170 2026-08-12 (`wom-be/docs/PROTOCOL.md`) |
 | 1 | Disposable remote-URL APK | Not started |
 | 1 | Android SDK in the Docker denv | Not started |
-| 1 | `/lobby/[lobbyId]` → `/lobby?id=` | Not started |
-| 1 | Conditional `output: export` | Not started |
+| 1 | `/lobby/[lobbyId]` → `/lobby?id=` | 🟡 PR open — old-shape links now redirect rather than break |
+| 1 | Conditional `output: export` | 🟡 PR open — `BUILD_TARGET=native npx next build` verified clean (38/38 static routes, 0 errors/warnings), incl. the client-only Sentry path |
 | 1 | Capacitor Android shell + CORS origins | Not started |
 | 1 | **Bossfight played on the iPhone 14 from TestFlight** (§5.5 milestone) | Not started |
 | 1 | Safari smoke test on the iPhone 14 (§5.1) | ✅ Done 2026-08-12 — played flawlessly |

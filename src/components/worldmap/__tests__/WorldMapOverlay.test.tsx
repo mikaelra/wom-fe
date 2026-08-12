@@ -113,7 +113,7 @@ describe('WorldMapOverlay', () => {
     expect(mockedCheckName).toHaveBeenCalledWith('Alice');
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', '');
     expect(localStorage.getItem('playerName')).toBe('Alice');
-    expect(push).toHaveBeenCalledWith('/lobby/AAAA');
+    expect(push).toHaveBeenCalledWith('/lobby?id=AAAA');
     expect(screen.queryByText('Choose a name')).not.toBeInTheDocument();
   });
 
@@ -136,7 +136,7 @@ describe('WorldMapOverlay', () => {
 
     expect(mockedJoinLobby).toHaveBeenCalledWith('ZZZZ', 'Alice', '');
     expect(mockedCreateLobby).not.toHaveBeenCalled();
-    expect(push).toHaveBeenCalledWith('/lobby/ZZZZ');
+    expect(push).toHaveBeenCalledWith('/lobby?id=ZZZZ');
   });
 
   it('shows the email step for a claimed name, and completes the pending create (not join)', async () => {
@@ -168,7 +168,7 @@ describe('WorldMapOverlay', () => {
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', 'alice@example.com');
     expect(mockedJoinLobby).not.toHaveBeenCalled();
     expect(localStorage.getItem('playerEmail')).toBe('alice@example.com');
-    expect(push).toHaveBeenCalledWith('/lobby/BBBB');
+    expect(push).toHaveBeenCalledWith('/lobby?id=BBBB');
   });
 
   it('completes the pending join (not create) via the email step, proving the pending action threads through', async () => {
@@ -195,7 +195,7 @@ describe('WorldMapOverlay', () => {
 
     expect(mockedJoinLobby).toHaveBeenCalledWith('ZZZZ', 'Alice', 'alice@example.com');
     expect(mockedCreateLobby).not.toHaveBeenCalled();
-    expect(push).toHaveBeenCalledWith('/lobby/ZZZZ');
+    expect(push).toHaveBeenCalledWith('/lobby?id=ZZZZ');
   });
 
   it('shows the code step when requires_code is true, and completes on a correct code', async () => {
@@ -238,7 +238,7 @@ describe('WorldMapOverlay', () => {
 
     expect(mockedVerifyLoginCode).toHaveBeenCalledWith('Alice', '123456');
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', 'alice@example.com');
-    expect(push).toHaveBeenCalledWith('/lobby/CCCC');
+    expect(push).toHaveBeenCalledWith('/lobby?id=CCCC');
   });
 
   it('skips checkName entirely and never opens the popup when already logged in', async () => {
@@ -254,7 +254,7 @@ describe('WorldMapOverlay', () => {
     expect(mockedCheckName).not.toHaveBeenCalled();
     expect(screen.queryByText('Choose a name')).not.toBeInTheDocument();
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', '');
-    expect(push).toHaveBeenCalledWith('/lobby/DDDD');
+    expect(push).toHaveBeenCalledWith('/lobby?id=DDDD');
   });
 
   it('Cancel closes the blank name popup without submitting', () => {

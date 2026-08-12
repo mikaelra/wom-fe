@@ -93,7 +93,7 @@ describe('useRankedQueue', () => {
 
     expect(mockedSetStoredToken).toHaveBeenCalledWith('ABCD', 'tok-123');
     expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'ABCD', token: 'tok-123' });
-    expect(push).toHaveBeenCalledWith('/lobby/ABCD');
+    expect(push).toHaveBeenCalledWith('/lobby?id=ABCD');
   });
 
   it('goes back to idle and surfaces the error if the REST join fails', async () => {

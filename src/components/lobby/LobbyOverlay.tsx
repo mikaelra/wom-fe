@@ -42,8 +42,8 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
   const [copied, setCopied] = useState(false);
 
   const lobbyUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/lobby/${lobbyId}`
-    : `/lobby/${lobbyId}`;
+    ? `${window.location.origin}/lobby?id=${lobbyId}`
+    : `/lobby?id=${lobbyId}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(lobbyUrl).then(() => {

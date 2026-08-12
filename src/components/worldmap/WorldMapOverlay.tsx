@@ -78,7 +78,7 @@ export default function WorldMapOverlay() {
     try {
       await joinLobby(code, name, email);
       if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
-      router.push(`/lobby/${code}`);
+      router.push(`/lobby?id=${code}`);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Join failed');
       setLobbyLoading(false);
@@ -93,7 +93,7 @@ export default function WorldMapOverlay() {
     try {
       const data = await createLobby(name, email);
       if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
-      router.push(`/lobby/${data.lobby_id}`);
+      router.push(`/lobby?id=${data.lobby_id}`);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Create lobby failed');
       setLobbyLoading(false);

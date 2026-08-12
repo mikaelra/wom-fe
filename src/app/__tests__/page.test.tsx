@@ -175,7 +175,7 @@ describe('Page (world map view, Athens raid popup)', () => {
     expect(mockedCheckName).not.toHaveBeenCalled();
     expect(screen.queryByText('Enter the Hades Raid')).not.toBeInTheDocument();
     expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
-    expect(push).toHaveBeenCalledWith('/lobby/AAAA');
+    expect(push).toHaveBeenCalledWith('/lobby?id=AAAA');
   });
 
   it('enters the raid for an unclaimed name, writing localStorage with no email', async () => {
@@ -194,7 +194,7 @@ describe('Page (world map view, Athens raid popup)', () => {
     expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
     expect(localStorage.getItem('playerName')).toBe('Alice');
     expect(localStorage.getItem('playerEmail')).toBeNull();
-    expect(push).toHaveBeenCalledWith('/lobby/BBBB');
+    expect(push).toHaveBeenCalledWith('/lobby?id=BBBB');
   });
 
   it('shows the email step for a claimed name, and enters the raid on successful login', async () => {
@@ -222,7 +222,7 @@ describe('Page (world map view, Athens raid popup)', () => {
     expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
     expect(localStorage.getItem('playerName')).toBe('Alice');
     expect(localStorage.getItem('playerEmail')).toBe('alice@example.com');
-    expect(push).toHaveBeenCalledWith('/lobby/CCCC');
+    expect(push).toHaveBeenCalledWith('/lobby?id=CCCC');
   });
 
   it('shows the code step when requires_code is true, and completes on a correct code', async () => {
@@ -263,7 +263,7 @@ describe('Page (world map view, Athens raid popup)', () => {
 
     expect(mockedVerifyLoginCode).toHaveBeenCalledWith('Alice', '123456');
     expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
-    expect(push).toHaveBeenCalledWith('/lobby/DDDD');
+    expect(push).toHaveBeenCalledWith('/lobby?id=DDDD');
   });
 
   it('shows a toast and hides the loading overlay when entering the raid fails', async () => {
@@ -349,7 +349,7 @@ describe('Page (world map view, New York ranked queue)', () => {
     });
 
     expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'RNKD', token: 'tok-1' });
-    expect(push).toHaveBeenCalledWith('/lobby/RNKD');
+    expect(push).toHaveBeenCalledWith('/lobby?id=RNKD');
   });
 
   it('reports an active match on mount, and navigates to it on click instead of re-queueing', async () => {
@@ -368,7 +368,7 @@ describe('Page (world map view, New York ranked queue)', () => {
 
     await clickNewYork();
     expect(mockedJoinRankedQueue).not.toHaveBeenCalled();
-    expect(push).toHaveBeenCalledWith('/lobby/RNKD');
+    expect(push).toHaveBeenCalledWith('/lobby?id=RNKD');
   });
 
   it('reports the match as started once the countdown deadline has passed', async () => {

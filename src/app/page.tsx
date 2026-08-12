@@ -194,7 +194,7 @@ export default function Page() {
   const enterAthensRaid = useCallback((playerName: string) => {
     setAthensSceneLoading(true);
     getBossfightLobby(playerName)
-      .then((data) => router.push(`/lobby/${data.lobby_id}`))
+      .then((data) => router.push(`/lobby?id=${data.lobby_id}`))
       .catch((err) => {
         setAthensSceneLoading(false);
         showError(err instanceof Error ? err.message : 'Failed to enter raid.');
@@ -298,7 +298,7 @@ export default function Page() {
       return;
     }
     if (activeMatch) {
-      router.push(`/lobby/${activeMatch.lobbyId}`);
+      router.push(`/lobby?id=${activeMatch.lobbyId}`);
       return;
     }
     if (rankedLoading) return;
