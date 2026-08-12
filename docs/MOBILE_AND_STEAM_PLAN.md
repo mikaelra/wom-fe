@@ -24,9 +24,12 @@ Both store apps and the Steam build are therefore the **same artifact**: a stati
 of `wom-fe` loaded in a native webview (Capacitor on phones, Electron on Steam), pointed
 at the existing production backend. One codebase, one protocol, three shells.
 
-The work that stands between here and there is not the wrapping — that part is small.
-It is five specific blockers, listed in §2, of which only one is a genuine engineering
-problem and three are policy/paperwork that must start early because of lead times.
+The work that stands between here and there is not the wrapping — that part is small. It
+is five specific blockers, listed in §2. Two are engineering and both turned out to be
+roughly a day each: one route to de-parameterise (§4), and 470 MB of unreferenced files to
+stop shipping (§6). The other three are policy and paperwork whose clocks run in weeks
+regardless of how fast the code moves, which makes **starting them the highest-value thing
+on day one** — ahead of writing anything.
 
 **Recommended first two weeks** are in §14. The single most useful thing that can happen
 on day one — an APK on the Samsung that proves the 3D game is playable on a phone at all
@@ -34,19 +37,22 @@ on day one — an APK on the Samsung that proves the 3D game is playable on a ph
 
 ---
 
-## 2. The five blockers
+## 2. The blockers
 
 | # | Blocker | Nature | Where |
 |---|---|---|---|
 | 1 | `/lobby/[lobbyId]` prevents static export | Engineering, ~½ day | §4 |
-| 2 | 490 MB of assets in `public/` vs a 200 MB store limit | Engineering, 1–2 weeks | §6 |
+| 2 | ~~490 MB of assets~~ — **resolved on inspection**, see §6 | Packaging, ~1 day | §6 |
 | 3 | Stripe Checkout is not permitted for in-app digital goods | Policy + engineering, 1–2 weeks | §8 |
 | 4 | No in-app account deletion, no privacy policy, no age gate | Policy + engineering, ~3 days | §9 |
 | 5 | iOS builds require macOS; the dev machine is Fedora | Logistics, cost | §7 |
 
-Blockers 3, 4 and 5 have **lead times measured in weeks that are not developer time** —
-Apple enrollment, Google's 14-day closed-testing requirement, Steam's 30-day hold. Start
-those clocks in week one (§13), independent of whether any code is ready.
+Blocker 2 was the one scoped as weeks of work; auditing it dissolved it (§6.1). **The
+remaining engineering total is small — under a week.** What is left is dominated by
+blockers 3, 4 and 5, which have **lead times measured in weeks that are not developer
+time**: Apple enrolment, Google's 14-day closed-testing requirement, Steam's 30-day hold.
+Start those clocks in week one (§13), independent of whether any code is ready. That
+asymmetry is the single most important scheduling fact in this document.
 
 ---
 
@@ -63,10 +69,10 @@ These were checked against the codebase, not assumed:
   `generateStaticParams` and is fine.
 - **The compiled app is 2.9 MB.** `out/_next` after a full export. The size problem is
   entirely assets, not code.
-- **`public/` is 489 MB**: 318 MB models, 132 MB textures, 31 MB audio. Individual
-  offenders: `models/well/well-hd.glb` 62 MB, `textures/stars/MilkyWay-extreme.png`
-  60 MB, `textures/stars/MilkyWay-Stars.png` 56 MB, `models/crowns/crown_hd_v1.glb`
-  51 MB, four `models/buttons/*-hd.glb` at 12–24 MB each.
+- **`public/` is 489 MB on disk, but only ~41 MB of it is referenced by any code path.**
+  50 files totalling 470 MB are unreachable — superseded `-hd` masters, an unwired music
+  library, and higher-res texture sets the code no longer selects. Full breakdown in §6.
+  This is the finding that removes the largest engineering task from the plan.
 - **Auth is already token-in-header, not cookie** (`src/lib/http.ts`) — survives a
   webview origin change untouched. Backend already reads `CORS_ALLOWED_ORIGINS` from env
   for both REST and Socket.IO (`wom-be/app.py:68-83`), so admitting a native origin is a
@@ -207,8 +213,9 @@ determine whether the rest of this plan is worth executing:
 
 - Does a React Three Fiber scene of this weight actually render at a playable frame rate
   on the Samsung?
-- Does a 490 MB asset set over mobile data produce a tolerable first load, or does the
-  webview get OOM-killed?
+- Does the live site's asset load over mobile data produce a tolerable first load, or does
+  the webview get OOM-killed? (The referenced set is ~41 MB — §6 — so this should be
+  survivable, but GPU memory, not download size, is the thing that kills a webview.)
 - Do touch controls work at all on the world map and the lobby table, or does the camera
   interaction (`usePanOffset`, `CameraFlyIn`) need a real input redesign?
 - Does audio play, given mobile autoplay restrictions?
@@ -295,53 +302,73 @@ locally built debug APK, against the staging backend. Not before.
 
 ## 6. Phase 2 — The asset budget
 
-**Effort: 1–2 weeks. This is the largest genuine engineering task in the plan.**
+**Effort: ~1 day. This was scoped as the largest task in the plan; an audit of what is
+actually referenced showed it is mostly a packaging problem.**
 
-490 MB does not fit. The relevant ceilings:
+### 6.1 What the audit found
 
-- **Google Play**: the base app bundle's compressed download is capped at ~200 MB.
-  Anything beyond that requires Play Asset Delivery packs.
-- **Apple**: apps above roughly 200 MB prompt before downloading over cellular, and a
-  large install is a measurable conversion loss. Hard cap is far higher but irrelevant.
-- **Steam**: no meaningful cap, but download size is visible on the store page and
-  affects wishlishlist conversion.
+Cross-referencing every asset in `public/` against every path constructed anywhere in
+`src/` (`node scripts/audit-assets.mjs`, committed so this is re-runnable rather than a
+one-off claim in a document):
 
-Target: **≤ 150 MB installed, ideally under 100 MB**, with HD assets fetched on demand.
+| | Files | Size |
+|---|---|---|
+| Referenced by some code path | 63 | **40.7 MB** |
+| Unreachable | 50 | **470.1 MB** |
 
-### 6.1 Measure first
+**40.7 MB fits comfortably under every store ceiling** (Play caps the base bundle's
+compressed download at ~200 MB; Apple prompts before a cellular download above roughly
+the same). There is no size problem — there is a directory containing 470 MB of files
+that nothing loads.
 
-Instrument what the game actually loads in a full session at `low` tier versus `high`.
-There are almost certainly assets in `public/` that no code path references any more, and
-several that are only reachable from one screen. Do not optimise anything until the
-loaded set is known.
+The dead weight falls into three groups:
 
-### 6.2 Compress
+1. **Superseded `-hd` masters** (~250 MB). The code selects `-ld` variants or plain
+   names: `models/well/well-hd.glb` (62 MB) is dead, `wellv02.glb` (1.2 MB) is live;
+   `crowns/crown_hd_v1.glb` (51 MB) is dead, `crown_ld_v1.glb` (1.1 MB) is live;
+   `hades/hades_v3-hd.glb` (27 MB) is dead, `hades_v3-ld.glb` (1.0 MB) is live. All four
+   `models/buttons/*-hd.glb` (71 MB combined) and `energy_potion-hd.glb` (18 MB) are
+   unreferenced. The only live HD asset in the tree is `swords/sword_hd_v1.glb`, selected
+   by `isLowQuality()` in `CityMarker.tsx`.
+2. **The skybox PNGs** (116 MB). `MilkyWay-extreme.png` and `MilkyWay-Stars.png` are both
+   dead. `WorldMap.tsx:328` loads `MilkyWay-HD.jpg` — 622 KB — with a comment recording
+   that the re-encode was already done deliberately (12 MB → 0.6 MB). Same story for the
+   earth textures: `earthDir` is hardcoded to `'low-res'` (1.1 MB), leaving `high-res`
+   and `extreme-res` (9.7 MB) dead apart from two cloud maps.
+3. **An unwired music library** (31 MB). Nothing in `src/` references `public/audio/` at
+   all. `sounds.ts` only loads `/sounds/resources/*.wav` (136 KB total), though its first
+   line — a comment about not interrupting background music on mobile — suggests music
+   was intended. **Worth confirming this is dormant-by-design and not a regression**; it
+   is the one entry here that might be a bug rather than debris.
 
-`gltf-transform optimize` on every `.glb`, with:
+### 6.2 What to actually do
 
-- **Draco or meshopt** geometry compression — the decoder is already shipped in
-  `public/draco/`.
-- **KTX2 / Basis Universal** textures instead of embedded PNG. This is where the wins
-  are; texture data dominates these files and KTX2 typically takes 5–10× off while also
-  reducing *GPU* memory, which matters more than download size on a phone.
-- Dedupe, prune unused nodes, quantize attributes.
+Exclude the unreferenced set from the native bundle. `next build` copies *all* of
+`public/` into `out/` regardless of what any code imports, so this has to be an explicit
+step:
 
-`MilkyWay-extreme.png` (60 MB) and `MilkyWay-Stars.png` (56 MB) are 116 MB of skybox in
-two files and should become a compressed cubemap or an equirectangular KTX2 — likely a
-single-digit-megabyte result on its own.
+- Simplest: a pre-build script for `BUILD_TARGET=native` that copies only the referenced
+  manifest into a staging `public/`, so the web deploy keeps serving everything unchanged.
+- Or delete them from the repo. Git retains the history, and 470 MB of dead files also
+  slows every clone, every Docker build context, and every CI checkout — the web build is
+  paying for this too, just less visibly. **Decide deliberately whether the `-hd` files
+  are intended as source masters for a future high-tier**; if so, they belong in asset
+  storage rather than in `public/`, since `public/` is by definition "shipped to every
+  client".
 
-### 6.3 Split bundled from downloaded
+Either way, verify by diffing what a full playthrough requests against the manifest. The
+audit is static analysis of path construction, and `frogSkins.ts` builds model URLs from
+skin names at runtime (`/models/frogs/${skinName}.glb`) — that pattern resolves entirely
+within the referenced set today, but a new dynamic path could evade the same check later.
 
-Introduce a tiering split that the `-hd` suffix convention already half-implies:
+### 6.3 Optional compression, no longer on the critical path
 
-- **Bundled**: SD tier only — enough to play a complete match offline-of-CDN.
-- **Downloaded on first run**: HD tier, fetched from the existing origin (which already
-  serves these paths with `max-age=31536000, immutable`) into the app's cache directory,
-  gated on `deviceQuality` and on a Wi-Fi check.
-
-A plain CDN fetch is preferable to Play Asset Delivery or iOS On-Demand Resources for the
-first release: one mechanism that works identically on Android, iOS *and* Steam, versus
-two platform-specific ones. Revisit only if bundle size still fails after §6.2.
+At 40.7 MB there is no *need* to compress further for store limits. It is still worth
+doing eventually for load time and GPU memory, in which case: `gltf-transform optimize`
+with Draco or meshopt geometry (the decoder is already shipped in `public/draco/`) and
+KTX2/Basis textures, which cut GPU memory as well as bytes — the constraint that actually
+matters on a phone (§6.5). Treat this as a performance task driven by real device
+measurements, not a prerequisite for shipping.
 
 ### 6.4 Improve the quality tiering
 
@@ -567,8 +594,9 @@ This is where the plan pays for itself. Of the work above:
 **Shared across all three platforms** (do once):
 - Phase 0 versioning, protocol version, forced update (§4)
 - Static export refactor (§5.3)
-- Asset budget and quality tiering (§6) — Steam benefits less from size but identically
-  from the tiering and the manual quality setting
+- Asset hygiene and quality tiering (§6) — Steam does not care about bundle size, but
+  benefits identically from the tiering and the manual quality setting, and from not
+  shipping 470 MB of dead files in an installer
 - Payment provider abstraction on the backend (§8.3) — the same seam serves Stripe,
   StoreKit, Play Billing and Steam MTX
 - Account deletion, privacy policy, age gate (§9)
@@ -632,9 +660,10 @@ These run in parallel with all development and are the actual critical path:
    screen, changelog. Backend and frontend together.
 4. **Days 5–6** — §5.3 static export: the lobby route change, conditional
    `next.config.ts`, Sentry split. Verify with `serve out` from the phone.
-5. **Days 7–9** — §5.4 real Capacitor Android build with bundled `out/`, remote assets.
-   Backend CORS for `https://localhost`. Touch controls, orientation, back button.
-   **Milestone: a full bossfight played on the Samsung from a local build.**
+5. **Days 7–9** — §5.4 real Capacitor Android build with a fully bundled `out/` (the
+   referenced set is ~41 MB, so everything ships in the APK — no remote-asset scheme
+   needed). Backend CORS for `https://localhost`. Touch controls, orientation, back
+   button. **Milestone: a full bossfight played on the Samsung from a local build.**
 6. **Days 10–12** — §9 blockers: account-deletion endpoint + settings UI, privacy policy
    page, age gate at signup. Small, and they gate every store submission including test
    tracks.
@@ -643,7 +672,8 @@ These run in parallel with all development and are the actual critical path:
 
 ### Then
 
-8. Phase 2 asset budget (§6) — the long pole, 1–2 weeks.
+8. Phase 2 (§6) — exclude the unreferenced 470 MB from the native bundle. ~1 day, and it
+   can happen inside step 5 rather than after it.
 9. Play Console internal → closed testing track. **Start the 14-day clock.**
 10. Decide the shop question (§14.1) and, if shipping it, Phase 4 IAP (§8).
 11. Store listings, ratings, screenshots (§9).
@@ -686,10 +716,11 @@ guideline in the store.
 | 1 | Conditional `output: export` | Not started |
 | 1 | Capacitor Android shell + CORS origins | Not started |
 | 1 | **Bossfight played on the Samsung** | Not started |
-| 2 | Asset audit | Not started |
-| 2 | GLB → Draco/meshopt + KTX2 | Not started |
-| 2 | Skybox PNGs → compressed | Not started |
-| 2 | Bundled/downloaded tier split | Not started |
+| 2 | Asset audit | ✅ Done 2026-08-12 — 40.7 MB live, 470.1 MB dead |
+| 2 | Exclude unreferenced assets from the native bundle | Not started |
+| 2 | Decide: delete the dead 470 MB, or move `-hd` masters out of `public/` | Not started |
+| 2 | Confirm the unwired 31 MB music library is intentional | Not started |
+| 2 | Optional: Draco/meshopt + KTX2 for load time & GPU memory | Deferred, not blocking |
 | 2 | Quality tiering + manual override | Not started |
 | 3 | Apple Developer enrolment | Not started |
 | 3 | fastlane match + macOS CI | Not started |
