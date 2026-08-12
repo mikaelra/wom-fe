@@ -1,6 +1,7 @@
 # Mobile (iOS / Android) & Steam Distribution Plan
 
-Status: **draft · Apple enrolled, Play registration blocked (§14.3), no code written** ·
+Status: **draft · Apple enrolled, Play registration blocked (§14.3), Safari
+smoke test passed (§5.1), Phase 0 versioning in review (wom-fe#296, wom-be#170)** ·
 Scope: `wom-fe` + `wom-be` · Last updated: 2026-08-12
 
 Goal: ship World of Mythos as an installable app on the Apple App Store and Google Play,
@@ -214,6 +215,15 @@ This is the first milestone. It splits into a throwaway smoke test that answers 
 riskiest product question immediately, and the real build.
 
 ### 5.1 Day one: Safari on the iPhone 14 (ten minutes, no build at all)
+
+✅ **Done 2026-08-12 — played flawlessly.** The developer ran this exact test
+on the iPhone 14 in Safari; the game worked without issue. That directly
+answers the riskiest open product question in §1/§2 (frame rate, asset
+load/GPU memory, touch controls, audio autoplay) in the affirmative — this
+is *not* a game-design blocker, so nothing above it in the build order (§14)
+is at risk from it. Still worth the "Add to Home Screen" pass too (fullscreen
+shell, no Safari chrome) if that wasn't part of this session, but the core
+verdict — "is this playable" — is answered.
 
 Because the dev phone is an iPhone, the day-one smoke test needs **no build, no
 enrolment, no Mac and no code**: open `worldofmythos.net` in Safari on the iPhone 14 and
@@ -844,9 +854,11 @@ These run in parallel with all development and are the actual critical path:
 
 ### First two weeks
 
-1. **Day 1, first ten minutes** — §5.1: open the live site in Safari on the iPhone 14 and
+1. ~~**Day 1, first ten minutes** — §5.1: open the live site in Safari on the iPhone 14 and
    play a round. No build, no Mac, no enrolment. Answers more than the next two weeks of
-   code will, because Safari *is* the engine the shipped iOS app runs on.
+   code will, because Safari *is* the engine the shipped iOS app runs on.~~
+   ✅ **Done 2026-08-12 — played flawlessly.** No game-design blocker; step 5 (static
+   export, verified from the LAN) is next.
 2. ~~**Day 1** — Start the Apple enrolment and check the Play Console account type.~~
    ✅ Apple done 2026-08-12; Play Console blocked on payment (§14.3). The remaining console
    step is reserving the identifiers (§14.2) — irreversible, and it must happen before
@@ -995,7 +1007,7 @@ comes off the schedule.
 | 1 | Conditional `output: export` | Not started |
 | 1 | Capacitor Android shell + CORS origins | Not started |
 | 1 | **Bossfight played on the iPhone 14 from TestFlight** (§5.5 milestone) | Not started |
-| 1 | Safari smoke test on the iPhone 14 (§5.1) | Not started |
+| 1 | Safari smoke test on the iPhone 14 (§5.1) | ✅ Done 2026-08-12 — played flawlessly |
 | 1 | Acquire an Android test device, or accept no Android floor coverage (§5.1a) | Not started |
 | 2 | Asset audit | ✅ Done 2026-08-12 — 40.7 MB live, 470.1 MB is an unwired HD tier |
 | 2 | Normalise asset naming to one tier convention | Not started |
