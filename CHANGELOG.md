@@ -10,6 +10,15 @@ count.
 
 ## [Unreleased]
 
+### Changed
+- Lobby URLs moved from `/lobby/<id>` to `/lobby?id=<id>` (the dynamic path
+  segment couldn't be statically exported — `docs/MOBILE_AND_STEAM_PLAN.md`
+  §5.3). Old-shape links (already shared via copy-link/QR) keep working —
+  `/lobby/<id>` now redirects to the new shape rather than 404ing.
+- `next.config.ts`'s build output is conditional on `BUILD_TARGET=native`:
+  `output: "export"` (a native shell's static bundle) vs. today's
+  `"standalone"` (the web deploy, unaffected either way).
+
 ### Added
 - `NEXT_PUBLIC_APP_VERSION` / `NEXT_PUBLIC_BUILD_NUMBER`, derived from `git
   describe`/`git rev-list --count` in CI and shown on the settings page —

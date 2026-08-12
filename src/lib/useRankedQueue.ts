@@ -42,7 +42,7 @@ export function useRankedQueue() {
         stopListening();
         setStoredToken(lobby_id, token);
         getSocket().emit('join_room', { lobby_id, token });
-        router.push(`/lobby/${lobby_id}`);
+        router.push(`/lobby?id=${lobby_id}`);
       });
 
       try {

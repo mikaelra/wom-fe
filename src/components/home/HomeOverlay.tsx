@@ -89,13 +89,13 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
   const performCreate = async (trimmedName: string, email: string) => {
     const data = await createLobby(trimmedName, email);
     if (typeof window !== 'undefined') localStorage.setItem('playerName', trimmedName);
-    router.push(`/lobby/${data.lobby_id}`);
+    router.push(`/lobby?id=${data.lobby_id}`);
   };
 
   const performJoin = async (trimmedName: string, code: string, email: string) => {
     await joinLobby(code, trimmedName, email);
     if (typeof window !== 'undefined') localStorage.setItem('playerName', trimmedName);
-    router.push(`/lobby/${code}`);
+    router.push(`/lobby?id=${code}`);
   };
 
   const handleCreate = async () => {
@@ -144,7 +144,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     }
     try {
       const data = await getBossfightLobby(playerName);
-      router.push(`/lobby/${data.lobby_id}`);
+      router.push(`/lobby?id=${data.lobby_id}`);
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to enter raid.');
     }

@@ -64,7 +64,7 @@ describe('InviteSection', () => {
       fireEvent.click(copyButton);
       await Promise.resolve();
     });
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('/lobby/AAAA'));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('/lobby?id=AAAA'));
     expect(screen.getByTitle('Copied!')).toBeInTheDocument();
 
     act(() => {
