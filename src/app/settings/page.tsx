@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
+import { APP_VERSION, BUILD_NUMBER } from '@/config';
 
 const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
@@ -171,6 +172,12 @@ export default function SettingsPage() {
             )}
           </div>
         )}
+
+        {/* First question in any store support ticket is "which build are
+            you on" (docs/MOBILE_AND_STEAM_PLAN.md §4.2). */}
+        <p className="text-center text-xs text-white/40 mt-6">
+          Version {APP_VERSION} (build {BUILD_NUMBER})
+        </p>
       </div>
     </div>
   );

@@ -13,6 +13,13 @@ ARG NEXT_PUBLIC_BACKEND_URL
 ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
 ARG NEXT_PUBLIC_SENTRY_DSN
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+# Derived from git in CI (deploy.yml) -- "which build are you on" is the
+# first question in any store support ticket (docs/MOBILE_AND_STEAM_PLAN.md
+# §4.2). Unset here (local dev) falls back to config.ts's "dev"/"0".
+ARG NEXT_PUBLIC_APP_VERSION
+ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
+ARG NEXT_PUBLIC_BUILD_NUMBER
+ENV NEXT_PUBLIC_BUILD_NUMBER=$NEXT_PUBLIC_BUILD_NUMBER
 RUN npm run build
 
 FROM node:26-alpine AS runner

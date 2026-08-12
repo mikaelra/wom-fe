@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BACKEND_URL } from '@/config';
+import { BACKEND_URL, PROTOCOL_VERSION } from '@/config';
 
 /** A non-2xx HTTP response. Carries the server's {error} message when the
  *  body had one, or a per-call fallback string otherwise. `code` is the
@@ -158,7 +158,10 @@ export async function request<S extends z.ZodTypeAny>(
 ): Promise<z.infer<S>> {
   const res = await fetch(`${BACKEND_URL}${path}`, {
     method: opts.body !== undefined ? 'POST' : 'GET',
-    headers: opts.body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    headers: {
+      'X-Protocol-Version': String(PROTOCOL_VERSION),
+      ...(opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
 
