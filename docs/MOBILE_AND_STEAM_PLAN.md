@@ -737,8 +737,8 @@ These run in parallel with all development and are the actual critical path:
 
 | Clock | Duration | Start when |
 |---|---|---|
-| Apple Developer enrolment | Days to weeks | **Week 1** |
-| Play Console account + account-type check | Days | **Week 1** |
+| ~~Apple Developer enrolment~~ | — | ✅ **Done 2026-08-12** (D-U-N-S obtained, payment cleared) |
+| ~~Play Console account~~ | — | ✅ **Done 2026-08-12** — confirm whether it registered as Organization (§9.1) |
 | Google closed testing (14 continuous days, tester minimum) | ≥ 2 weeks | As soon as an installable AAB exists |
 | Steam Direct 30-day hold | 30 days | Whenever Steam is committed to |
 | Store review, per submission | 1–3 days typical | Per submission, forever |
@@ -752,8 +752,9 @@ These run in parallel with all development and are the actual critical path:
 
 1. **Day 1** — §5.1 disposable APK. Learn whether the game is playable on a phone. This
    answers more than the next two weeks of code will.
-2. **Day 1** — Start the Apple enrolment and check the Play Console account type. Pure
-   waiting; start it now.
+2. ~~**Day 1** — Start the Apple enrolment and check the Play Console account type.~~
+   ✅ Done 2026-08-12. Next console step is reserving the identifiers (§14.2), which is
+   irreversible and should happen before `cap init` picks an appId.
 3. **Days 2–4** — Phase 0 (§4): tags, build identity, protocol version, forced-update
    screen, changelog. Backend and frontend together.
 4. **Days 5–6** — §5.3 static export: the lobby route change, conditional
@@ -800,6 +801,44 @@ asymmetry favours shipping: the cost of deferring is delayed revenue on a platfo
 users yet, and the cost of not deferring is a rejection loop on the most-rejected
 guideline in the store.
 
+### 14.2 Console setup — the irreversible choices
+
+Enrolment cleared 2026-08-12. The next console step is reserving identifiers, and it comes
+**before** `npx cap init`, because Capacitor's `appId` has to match what is registered and
+neither store lets it change afterwards.
+
+Permanent, chosen once, no take-backs:
+
+| Choice | Value | Why it's permanent |
+|---|---|---|
+| Bundle ID / package name | `net.worldofmythos.game` | Cannot be changed after first publish on either store. The same string is Capacitor's `appId`. |
+| Free vs Paid (Google) | **Free** | A free app can never be converted to paid. Free is correct regardless: IAP works on free apps, and §14.1 ships with the shop off anyway. |
+| App name | "World of Mythos" | Reserved per-store, first-come-first-served. |
+| Seller / developer name | Per enrolment entity | Shown publicly on every listing. |
+
+Then, in each console, before any build exists:
+
+- **Apple**: register the Bundle ID in the Developer portal → create the App Store Connect
+  app record → accept the Free Apps agreement under Agreements, Tax and Banking. Without
+  that agreement active, app records cannot be created at all. Paid agreement and banking
+  can wait until the shop turns on.
+- **Google**: create the app → complete the identity/verification tasks → set up the
+  Internal testing track (up to 100 testers, no review wait, installs over the web —
+  this is the fastest route to a build on someone else's phone once one exists).
+- **Both**: complete the **EU trader declaration**. It gates EU/EEA distribution, and the
+  contact details it requires are published on the listing.
+
+### 14.3 Confirm the Google account type
+
+If the Play Console account registered as **Personal** rather than Organization, the
+12-testers-for-14-continuous-days closed-testing requirement (§9.1) applies before
+production access, and it becomes the critical path — it needs 12 real people with Google
+accounts and cannot be compressed. Check which type the account is now, while there is
+still time to recruit testers in parallel with the build work rather than after it.
+
+If it registered as Organization, that requirement does not apply and roughly two weeks
+comes off the schedule.
+
 ---
 
 ## 15. Status tracker
@@ -828,7 +867,7 @@ guideline in the store.
 | 2 | Delete the pointless sword tier (40 KB delta) | Not started |
 | 2 | Confirm the unwired 31 MB music library is intentional | Not started |
 | 2 | Quality tiering + manual override | Not started |
-| 3 | Apple Developer enrolment | Not started |
+| 3 | Apple Developer enrolment | ✅ Done 2026-08-12 |
 | 3 | fastlane match + macOS CI | Not started |
 | 3 | First TestFlight build | Not started |
 | 4 | IAP products in both consoles | Not started |
