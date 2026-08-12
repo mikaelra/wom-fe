@@ -11,6 +11,12 @@ running on the developer's own phone.**
 Backend-owned work items are specified in `wom-be/docs/MOBILE_AND_STEAM_PLAN.md`; this
 document is the whole picture and the build order.
 
+**Development environment**, which constrains a lot of what follows: a Surface Go running
+Fedora, with the app stack in a Docker denv. **The developer's own phone is an iPhone 14.**
+That combination is the awkward one — the primary test device is the platform that cannot
+be built for locally (§7), so the fast iterate-on-device loop and the primary target are on
+different platforms. §5.1 and §5.5 are arranged around that.
+
 ---
 
 ## 1. Summary
@@ -34,8 +40,9 @@ paperwork whose clocks run in weeks regardless of how fast the code moves, which
 **starting them the highest-value thing on day one** — ahead of writing anything.
 
 **Recommended first two weeks** are in §14. The single most useful thing that can happen
-on day one — an APK on the Samsung that proves the 3D game is playable on a phone at all
-— is §5.1 and needs no refactor whatsoever.
+on day one costs ten minutes and no code: open the live site in Safari on the iPhone 14
+(§5.1). Safari is the same engine the shipped iOS app will run on, so it answers "is this
+game playable on a phone" today, before anything is built.
 
 ---
 
@@ -87,6 +94,13 @@ These were checked against the codebase, not assumed:
   tiers `low`/`high` — but only one asset in the entire tree actually branches on it
   (`sword_ld_v1` vs `sword_hd_v1`, which differ by 40 KB). The scaffolding for §6 exists
   in name; the selection mechanism does not.
+- 🔴 **`deviceQuality.ts` classifies every iOS device as `low`, including the iPhone 14.**
+  `navigator.deviceMemory` is Chromium-only and Safari never reports it, so `mem` always
+  falls back to `4`; every iPhone has `devicePixelRatio >= 2`; so `mem <= 4 && dpr >= 2`
+  is unconditionally true on iOS. The code's own comment says the intent was to catch "old
+  iPhones (DPR 2-3, ~2GB)" — it catches all of them, and every iPad, forever. Nothing on
+  iOS can ever reach the high tier as written, which makes this a hard prerequisite for
+  §6, not a refinement of it (§6.6).
 - **No numeric protocol version exists.** `wom-be/docs/PROTOCOL.md` is a prose contract
   with golden tests, which is good, but nothing on the wire says which version a client
   speaks. On the web that is survivable because a refresh updates everyone at once. On a
@@ -199,11 +213,37 @@ submission and writing them retroactively is miserable.
 This is the first milestone. It splits into a throwaway smoke test that answers the
 riskiest product question immediately, and the real build.
 
-### 5.1 Day one: the disposable APK (2–4 hours, zero refactor)
+### 5.1 Day one: Safari on the iPhone 14 (ten minutes, no build at all)
 
-Capacitor can point a native webview at a **live URL** instead of bundled files. That
-produces an installable APK of the existing production site with no changes to the app at
-all:
+Because the dev phone is an iPhone, the day-one smoke test needs **no build, no
+enrolment, no Mac and no code**: open `worldofmythos.net` in Safari on the iPhone 14 and
+play a round. Then "Add to Home Screen" and play another, which runs it in a standalone
+fullscreen shell without Safari's chrome.
+
+That is not an approximation of the native app — **Safari and Capacitor's iOS shell are
+the same engine**. WKWebView is what a Capacitor iOS build wraps, so the rendering
+performance, the memory ceiling, the audio-autoplay rules and the touch behaviour observed
+in Safari are the ones the shipped app will have. Everything a throwaway wrapper build
+would tell you, Safari tells you today, for free:
+
+- Does a React Three Fiber scene of this weight render at a playable frame rate?
+- Does the asset load survive, or does the tab get OOM-killed? (The referenced set is
+  ~41 MB — §6 — so download size should be fine, but GPU memory is what kills a webview.)
+- Do touch controls work on the world map and the lobby table, or does the camera
+  interaction (`usePanOffset`, `CameraFlyIn`) need a real input redesign?
+- Does audio play at all, given iOS's user-gesture requirement?
+
+Answer those before spending a week on anything else. If the game is unplayable on an
+iPhone 14 — a 2022 flagship — that is a game-design finding, and it is much cheaper to
+learn in ten minutes than after the tier system is built.
+
+**One thing Safari will not show you honestly:** `deviceQuality.ts` reports `low` on every
+iOS device (§3), so what renders in that test is the low tier regardless of what the phone
+could handle. Judge "is this playable", not "is this as good as it gets".
+
+**The Android equivalent, if there is an Android test device.** Capacitor can point a
+native webview at a live URL instead of bundled files, producing an installable APK of the
+production site with no changes to the app:
 
 ```bash
 npm i -D @capacitor/cli && npm i @capacitor/core @capacitor/android
@@ -214,23 +254,25 @@ cd android && ./gradlew assembleDebug
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-**This is not shippable** — Apple's guideline 4.2 (Minimum Functionality) treats a bare
-website wrapper as grounds for rejection, and it defeats the entire point of bundling.
-But it is worth doing first because it answers, in an afternoon, the questions that
-determine whether the rest of this plan is worth executing:
+Not shippable — Apple's guideline 4.2 (Minimum Functionality) treats a bare website
+wrapper as grounds for rejection — but useful as a throwaway. On Android, Chrome on the
+device gets you the same information as Safari does on iOS, so even this is optional for
+the smoke test; it matters more as the first exercise of the toolchain in §5.2.
 
-- Does a React Three Fiber scene of this weight actually render at a playable frame rate
-  on the Samsung?
-- Does the live site's asset load over mobile data produce a tolerable first load, or does
-  the webview get OOM-killed? (The referenced set is ~41 MB — §6 — so this should be
-  survivable, but GPU memory, not download size, is the thing that kills a webview.)
-- Do touch controls work at all on the world map and the lobby table, or does the camera
-  interaction (`usePanOffset`, `CameraFlyIn`) need a real input redesign?
-- Does audio play, given mobile autoplay restrictions?
+### 5.1a Test device coverage
 
-Answer those before spending a week on asset pipelines. If the game is unplayable on a
-mid-range phone, that is a game-design finding, and it is much cheaper to learn on day
-one.
+**The iPhone 14 is a ceiling device, not a floor device.** A15 Bionic, 6 GB RAM, 2022
+flagship silicon. A build that runs well on it says nothing about a €150 Android phone,
+and the store audience is mostly not on flagships. Two consequences:
+
+- **An Android test device is needed and may not exist.** The plan has assumed a Samsung
+  throughout because the stores in scope are Apple's and Google's, but if there is no
+  physical Android device, one has to be acquired — a cheap current-gen handset is the
+  *right* thing to buy here, precisely because it represents the floor. An emulator is not
+  an option: a Surface Go cannot run one usefully (§5.2).
+- **Quality-tier bugs will not surface on the dev phone.** The iPhone 14 will render
+  almost anything acceptably, which means the tier heuristic can stay broken (§3, §6.6)
+  without anyone noticing locally.
 
 ### 5.2 Building on the actual hardware
 
@@ -303,8 +345,25 @@ The one code change that unblocks everything (§3, verified):
 
 ### 5.5 Milestone definition
 
-Phase 1 is done when the developer can play a full bossfight round on the Samsung, from a
-locally built debug APK, against the staging backend. Not before.
+Phase 1 is done when the developer can play a full bossfight round **on the iPhone 14,
+from a TestFlight build**, against the staging backend. Not before.
+
+That is the honest milestone, because the iPhone is the dev phone and TestFlight is the
+only way to get a build onto it (§7.2). It is also the slower one: every iteration is a
+cloud macOS build plus a TestFlight upload, so the loop is tens of minutes, not the seconds
+`adb install` gives.
+
+So run **two** loops, deliberately:
+
+| Loop | Device | Cycle time | What it is for |
+|---|---|---|---|
+| Fast | Android, `adb install` | seconds | Iterating on the static export, touch controls, CORS, the tier resolver |
+| Real | iPhone 14, TestFlight | tens of minutes | WKWebView memory, safe areas, audio unlock, the actual milestone |
+
+Almost everything in Phases 0–2 is platform-neutral and belongs in the fast loop. Reserve
+the TestFlight cycle for the things only iOS can answer — which is exactly the list in
+§7.3. Doing it the other way round, iterating on the slow loop because it happens to be
+the target platform, is the main way this phase turns from days into weeks.
 
 ---
 
@@ -461,18 +520,41 @@ point bundling it on mobile becomes reasonable rather than marginal.
 Do this before deciding the mobile bundling question in §6.4 — the numbers there may not
 survive it, in the good direction.
 
-### 6.6 Improve the quality tiering
+### 6.6 🔴 Fix the tier heuristic — it is broken on all of iOS
 
-`deviceQuality.ts` currently guesses from `deviceMemory` and DPR, and notes that Safari
-does not report `deviceMemory` at all (defaults to 4). Two tiers chosen that way was
-already thin; **three tiers makes it untenable** — the difference between `high` and
-`extreme` is a GPU question that `deviceMemory` cannot answer even in principle. Add: the
-WebGL `UNMASKED_RENDERER_WEBGL` string, an actual frame-time probe over the first few
-seconds, and — most importantly — a **manual quality setting** in the settings page.
-Players know their own hardware better than a heuristic does, and a manual override is
-also the cheapest possible fix for a device-specific performance bug reported through a
-store review. On Steam it should be a first-class graphics setting, since that is the
-platform where players expect one and where the extreme tier actually lives.
+Not a refinement; a prerequisite. As written:
+
+```ts
+const mem = navigator.deviceMemory ?? 4;   // Chromium-only; Safari never sets it
+const isLow = mem <= 4 && dpr >= 2;        // every iPhone has dpr >= 2
+```
+
+`navigator.deviceMemory` does not exist in Safari, so `mem` is always `4` on iOS, and every
+iPhone and iPad satisfies `dpr >= 2`. **Every iOS device therefore resolves to `low`,
+permanently** — an iPhone 14 (A15, 6 GB) and an iPhone 17 Pro alike. The code's comment
+says the intent was to catch "old iPhones (DPR 2-3, ~2GB)"; the predicate catches the
+entire platform.
+
+Today this costs almost nothing, because the only asset that branches on the tier is a
+40 KB sword. The moment §6.3's resolver lands it becomes the thing that decides whether
+half the target audience ever sees the HD tier — and the answer would be no. Since the dev
+phone is an iPhone 14 (§5.1a), it also cannot be caught locally by observation: the device
+will render the low tier smoothly and look correct.
+
+The replacement needs to work where `deviceMemory` does not exist:
+
+- The WebGL `UNMASKED_RENDERER_WEBGL` string — coarse, but it distinguishes an A15 from a
+  budget Mali part, which `deviceMemory` cannot.
+- **A frame-time probe over the first few seconds**, which is the only signal that
+  measures the thing actually being predicted. Prefer it over any static heuristic.
+- Platform floor/ceiling: Steam starts at `extreme`, mobile starts at the measured tier.
+- Most importantly, a **manual quality setting** in the settings page. Players know their
+  own hardware better than a heuristic does, and it is the cheapest possible fix for a
+  device-specific bug reported through a store review. On Steam it should be a first-class
+  graphics setting, since that is where players expect one and where `extreme` lives.
+
+Three tiers make the old approach untenable regardless: the difference between `high` and
+`extreme` is a GPU question `deviceMemory` could not answer even if Safari reported it.
 
 ### 6.7 iOS webview memory
 
@@ -485,8 +567,19 @@ mysteriously dies on the iPhone".
 
 ## 7. Phase 3 — iOS
 
-**The constraint: Xcode runs only on macOS, and the dev machine is Fedora. Nothing
-changes that — it is Apple's licensing, not a tooling gap.**
+**This is now the primary track, not the second one.** The dev phone is an iPhone 14, so
+iOS is where the Phase 1 milestone lands (§5.5); Apple enrolment has cleared while Play
+registration has not (§14.3); and iOS is the platform whose quality tiering is currently
+broken (§6.6). Everything below moved up the schedule accordingly.
+
+**The constraint is unchanged and unfixable: Xcode runs only on macOS, and the dev machine
+is Fedora.** That is Apple's licensing, not a tooling gap. It is also why the iOS loop is
+the slow one and why §5.5 recommends keeping a fast Android loop alongside it.
+
+Because this pipeline is slow to *build* and slow to *set up* — certificates, provisioning,
+App Store Connect, TestFlight processing — **stand it up early, before there is anything
+worth shipping through it.** Get a hello-world Capacitor shell onto the iPhone via
+TestFlight while Phase 0 is still in progress. The pipeline is the risk, not the app.
 
 ### 7.1 Options
 
@@ -751,27 +844,33 @@ These run in parallel with all development and are the actual critical path:
 
 ### First two weeks
 
-1. **Day 1** — §5.1 disposable APK. Learn whether the game is playable on a phone. This
-   answers more than the next two weeks of code will.
+1. **Day 1, first ten minutes** — §5.1: open the live site in Safari on the iPhone 14 and
+   play a round. No build, no Mac, no enrolment. Answers more than the next two weeks of
+   code will, because Safari *is* the engine the shipped iOS app runs on.
 2. ~~**Day 1** — Start the Apple enrolment and check the Play Console account type.~~
-   ✅ Apple done 2026-08-12; Play Console blocked on payment (§14.3). Next console step
-   is reserving the identifiers (§14.2), irreversible, and it should happen before
+   ✅ Apple done 2026-08-12; Play Console blocked on payment (§14.3). The remaining console
+   step is reserving the identifiers (§14.2) — irreversible, and it must happen before
    `cap init` picks an appId.
-3. **Days 2–4** — Phase 0 (§4): tags, build identity, protocol version, forced-update
+3. **Days 2–4, in parallel with 4** — stand up the iOS pipeline early (§7): `fastlane
+   match`, macOS CI, the App Store Connect record, and a hello-world Capacitor shell
+   delivered to the iPhone 14 over TestFlight. Do this *before* there is anything worth
+   shipping through it. The pipeline is the risk, not the app, and everything later depends
+   on this loop working.
+4. **Days 2–4** — Phase 0 (§4): tags, build identity, protocol version, forced-update
    screen, changelog. Backend and frontend together.
-4. **Days 5–6** — §5.3 static export: the lobby route change, conditional
-   `next.config.ts`, Sentry split. Verify with `serve out` from the phone.
-5. **Days 7–9** — §5.4 real Capacitor Android build with a fully bundled `out/` (the
-   referenced set is ~41 MB, so everything ships in the APK — no remote-asset scheme
-   needed). Backend CORS for `https://localhost`. Touch controls, orientation, back
-   button. **Milestone: a full bossfight played on the Samsung from a local build.**
-6. **Days 10–12** — §9 blockers: account-deletion endpoint + settings UI, privacy policy
-   page, age gate at signup. Small, and they gate every store submission including test
-   tracks.
-7. **Days 13–14** — iOS via cloud CI. Apple enrolment has cleared, so this is unblocked
-   and is now the **nearer store milestone** — first TestFlight build to the dev's iPhone.
-   With Play registration stuck (§14.3), iOS is the only track that can currently reach a
-   real distribution channel; Android continues via sideload, which needs no account.
+5. **Days 5–6** — §5.3 static export: the lobby route change, conditional
+   `next.config.ts`, Sentry split. Verify with `serve out`, loaded from the iPhone over
+   the LAN — that needs no build either.
+6. **Days 7–9** — §5.4 Capacitor shell with a fully bundled `out/` (the referenced set is
+   ~41 MB, so everything ships in the app — no remote-asset scheme needed). Backend CORS
+   for `https://localhost` *and* `capacitor://localhost`. Touch controls, orientation,
+   safe-area insets, audio unlock. Iterate on Android over `adb` if a device exists (§5.5's
+   fast loop); otherwise iterate in Safari and pay the TestFlight cycle less often.
+7. **Days 10–12** — §9 blockers: account-deletion endpoint + settings UI, privacy policy
+   page, age gate at signup. Small, and they gate every store submission including
+   TestFlight review.
+8. **Days 13–14** — the real iOS build through the pipeline from step 3.
+   **Milestone (§5.5): a full bossfight played on the iPhone 14 from TestFlight.**
 
 ### Then
 
@@ -895,10 +994,13 @@ comes off the schedule.
 | 1 | `/lobby/[lobbyId]` → `/lobby?id=` | Not started |
 | 1 | Conditional `output: export` | Not started |
 | 1 | Capacitor Android shell + CORS origins | Not started |
-| 1 | **Bossfight played on the Samsung** | Not started |
+| 1 | **Bossfight played on the iPhone 14 from TestFlight** (§5.5 milestone) | Not started |
+| 1 | Safari smoke test on the iPhone 14 (§5.1) | Not started |
+| 1 | Acquire an Android test device, or accept no Android floor coverage (§5.1a) | Not started |
 | 2 | Asset audit | ✅ Done 2026-08-12 — 40.7 MB live, 470.1 MB is an unwired HD tier |
 | 2 | Normalise asset naming to one tier convention | Not started |
 | 2 | `assetUrl(path, tier)` resolver; route all 20+ load sites through it | Not started |
+| 2 | 🔴 Fix `deviceQuality.ts` — all iOS resolves to `low` (§6.6) | Not started |
 | 2 | Three tiers in `deviceQuality.ts` + manual override in settings | Not started |
 | 2 | Draco/meshopt + KTX2 over the HD set (blocks the mobile bundling call) | Not started |
 | 2 | Steam: bundle extreme | Not started |
@@ -909,8 +1011,8 @@ comes off the schedule.
 | 2 | Confirm the unwired 31 MB music library is intentional | Not started |
 | 2 | Quality tiering + manual override | Not started |
 | 3 | Apple Developer enrolment | ✅ Done 2026-08-12 |
-| 3 | fastlane match + macOS CI | Not started |
-| 3 | First TestFlight build | Not started |
+| 3 | fastlane match + macOS CI — **stand up early** (§7) | Not started |
+| 3 | Hello-world TestFlight build to the iPhone 14 | Not started |
 | 4 | IAP products in both consoles | Not started |
 | 4 | `verify_purchase` + entitlement path | Not started |
 | 4 | Odds visible pre-purchase | Not started |
