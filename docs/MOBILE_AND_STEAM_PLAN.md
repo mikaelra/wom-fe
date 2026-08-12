@@ -985,10 +985,10 @@ comes off the schedule.
 
 | Phase | Item | Status |
 |---|---|---|
-| 0 | SemVer + tags, both repos | Not started |
-| 0 | `APP_VERSION` / `BUILD_NUMBER` in CI | Not started |
-| 0 | `PROTOCOL_VERSION` + min-client + forced update | Not started |
-| 0 | Compatibility policy documented | Not started |
+| 0 | SemVer + tags, both repos | ✅ Both tagged `v0.1.0` 2026-08-12 |
+| 0 | `APP_VERSION` / `BUILD_NUMBER` in CI | 🟡 PR open, wom-fe#296 |
+| 0 | `PROTOCOL_VERSION` + min-client + forced update | 🟡 Version sent + backend rejection wired (wom-fe#296, wom-be#170); the blocking "Update required" screen with store deep links is deferred to §5.4/§7 — nothing to link to on any store yet |
+| 0 | Compatibility policy documented | 🟡 PR open, wom-be#170 (`wom-be/docs/PROTOCOL.md`) |
 | 1 | Disposable remote-URL APK | Not started |
 | 1 | Android SDK in the Docker denv | Not started |
 | 1 | `/lobby/[lobbyId]` → `/lobby?id=` | Not started |
