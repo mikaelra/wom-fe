@@ -419,6 +419,11 @@ this is the one platform where the assets can simply be used as they are. Do thi
 it is also the cheapest way to prove the resolver works, since no size pressure obscures
 whether the tier selection is correct.
 
+Decided 2026-08-12: **the extreme skybox, planet and earth textures are a requirement for
+Steam**, not a nice-to-have. They are the reason the extreme tier exists. On phones the
+same textures are *preferable but not required*, which is what makes the on-demand fetch
+below the right shape — a capable phone can have them, and no phone has to.
+
 **Mobile: bundle `low`, download `high` on demand.** The 200.6 MB high-tier bundle
 technically fits, but shipping it is the wrong call for two reasons:
 
@@ -818,7 +823,7 @@ guideline in the store.
 | 2 | Draco/meshopt + KTX2 over the HD set (blocks the mobile bundling call) | Not started |
 | 2 | Steam: bundle extreme | Not started |
 | 2 | Mobile: bundle low, fetch high on demand | Not started |
-| 2 | Author the missing 10k earth maps, or drop the extreme earth tier | Not started |
+| 2 | 🔴 Author the missing 10k earth maps — **required for Steam** (§6.2) | Not started |
 | 2 | Decide whether `models/buttons/*-hd.glb` (90.7 MB) becomes a 3D HUD | Not started |
 | 2 | Delete the pointless sword tier (40 KB delta) | Not started |
 | 2 | Confirm the unwired 31 MB music library is intentional | Not started |
