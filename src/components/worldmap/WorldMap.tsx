@@ -145,11 +145,14 @@ function makeFresnelMat() {
 // Moon's current aspect (docs/ASPECTS_PLAN.md) — the world's "moonlight
 // reflection". Sits just outside the sun's blue shell; fresnelScale tracks
 // aspect.strength so it's barely there when the Moon is far from every
-// other body and glows visibly at conjunction. The globe rim stays
-// Moon-only for now -- the Earth is moonlit, not Saturn-lit.
-function makeMoonFresnelMat(aspect: Pick<BodyAspect, 'color' | 'strength'>) {
+// other body and glows visibly at conjunction. Uses auraColor (not color)
+// -- this rim is ambient/atmospheric, the same category as the aura sprite
+// rather than the Moon's own body, so it's what should show a conjunct
+// body's colour bleeding onto the world. The globe rim stays Moon-only for
+// now -- the Earth is moonlit, not Saturn-lit.
+function makeMoonFresnelMat(aspect: Pick<BodyAspect, 'auraColor' | 'strength'>) {
   const mat = makeFresnelMat();
-  mat.uniforms.color1.value = aspect.color;
+  mat.uniforms.color1.value = aspect.auraColor;
   mat.uniforms.fresnelScale.value = aspect.strength * 6;
   mat.uniforms.fresnelPower.value = 5.5;
   return mat;
@@ -375,7 +378,7 @@ function AuraLayers({
   shellMaxOpacity: number;
   auraScale: number;
 }) {
-  const auraTex = useMemo(() => moonAuraTex('#' + aspect.color.getHexString()), [aspect.color]);
+  const auraTex = useMemo(() => moonAuraTex('#' + aspect.auraColor.getHexString()), [aspect.auraColor]);
   const shellOpacity = shellBaseOpacity + Math.min(shellMaxOpacity - shellBaseOpacity, aspect.strength * SHELL_GAIN);
   const auraOpacity = Math.min(1, aspect.strength * AURA_GAIN);
 

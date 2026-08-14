@@ -60,8 +60,16 @@ export interface Sky {
 }
 
 export interface BodyAspect {
-  /** Final resolved colour: base -> blended toward donors -> solar saturation -> solar tint. */
+  /** The body's own presentation colour: base -> solar saturation -> solar
+   *  tint. Deliberately never blended toward a conjunct donor -- a body
+   *  keeps its own identity; only its aura (below) picks up a nearby
+   *  body's colour. Drives the glow shell. */
   color: THREE.Color;
+  /** Base -> blended toward donors -> solar saturation -> solar tint. What
+   *  a nearby body's presence actually looks like: the soft aura reads as
+   *  the conjunct body's colour bleeding in, while the body itself
+   *  (`color`, above) stays recognisably its own. */
+  auraColor: THREE.Color;
   /** Combined conjunction weight, 0-1, capped. Drives colour mix and light gain. */
   influence: number;
   /** Drives glow-shell and aura opacity. Includes the solar terms. */
@@ -185,8 +193,12 @@ const SUN_SATURATION_GAIN = 0.6;
 const SUN_STRENGTH_GAIN = 1.2;
 // Additive, NOT phase-scaled -- see the long comment on computeAspects
 // below for why a multiplicative-only term would render every sun-moon-*
-// preset as an identical black frame.
-const SUN_CORONA_FLOOR = 0.075;
+// preset as an identical black frame. Raised from an initial 0.075 after
+// visual review: at that value a close Sun-Moon conjunction's purple tint
+// was real in the data but unreadable next to the Sun's own much brighter
+// sprite/glow -- both the tight glow shell and (more visibly) the aura
+// needed more opacity to actually read against that competing brightness.
+const SUN_CORONA_FLOOR = 0.2;
 
 /** Multiply a colour's HSL saturation by `factor`, clamped to [0,1]. A
  *  no-op on a fully desaturated colour. */
@@ -318,12 +330,19 @@ export function computeAspects(sky: Sky): Record<AspectBody, BodyAspect> {
     }
 
     const influence = Math.min(1, weightSum);
+
+    // `color` is the body's own identity -- deliberately never blended
+    // toward a donor. `auraColor` starts identical and picks up the donor
+    // blend; the aura sprite is what actually shows a conjunct body's
+    // colour bleeding in, while the body/shell (`color`) stays recognisably
+    // itself. Both then get the same Sun amplification below.
     const color = new THREE.Color(baseColorHex(receiver, sky.mercuryRetrograde));
+    const auraColor = color.clone();
     if (weightSum > 0) {
       blended.r /= weightSum;
       blended.g /= weightSum;
       blended.b /= weightSum;
-      color.lerp(blended, influence);
+      auraColor.lerp(blended, influence);
     }
 
     const raw = STRENGTH_BASE[receiver] + STRENGTH_BOOST[receiver] * influence;
@@ -331,11 +350,16 @@ export function computeAspects(sky: Sky): Record<AspectBody, BodyAspect> {
 
     const sunWeight = conjunctionWeight(separationDeg(sky, receiver, 'Sun'), ORB.Sun);
     saturateBy(color, 1 + SUN_SATURATION_GAIN * sunWeight);
+    saturateBy(auraColor, 1 + SUN_SATURATION_GAIN * sunWeight);
     const tint = SOLAR_TINT[receiver];
-    if (tint !== undefined) color.lerp(new THREE.Color(tint), SOLAR_TINT_MAX * sunWeight);
+    if (tint !== undefined) {
+      const tintColor = new THREE.Color(tint);
+      color.lerp(tintColor, SOLAR_TINT_MAX * sunWeight);
+      auraColor.lerp(tintColor, SOLAR_TINT_MAX * sunWeight);
+    }
     strength = strength * (1 + SUN_STRENGTH_GAIN * sunWeight) + SUN_CORONA_FLOOR * sunWeight;
 
-    result[receiver] = { color, influence, strength, sunWeight };
+    result[receiver] = { color, auraColor, influence, strength, sunWeight };
   }
 
   // The Sun as receiver: inert. Nothing about SunBody/SunLight changes in
@@ -343,6 +367,7 @@ export function computeAspects(sky: Sky): Record<AspectBody, BodyAspect> {
   // (0xfff7c2) purely so it's a sensible value, but nothing reads it.
   result.Sun = {
     color: new THREE.Color(0xfff7c2),
+    auraColor: new THREE.Color(0xfff7c2),
     influence: 0,
     strength: 0,
     sunWeight: 0,

@@ -36,14 +36,31 @@ const NEW_MOON_DATE: Date = Astronomy.SearchMoonPhase(
   40,
 )!.date;
 
+// Mercury/Venus are always near the Sun as seen from Earth (inner
+// planets), so on NEW_MOON_DATE they -- and whichever of Mars/Jupiter/
+// Saturn happen to be nearby that date -- would otherwise clutter the
+// Sun-Moon pair these presets exist to isolate. Pushed to near-antipodal
+// positions (relative to the Sun's real, unoverridden direction) purely
+// for visual clarity; none of these five are within any relevant orb of
+// the Sun or Moon at 150°+, so this has zero effect on the sunWeight
+// values these presets are meant to demonstrate.
+const DECLUTTER_OVERRIDES: SkyOverride[] = [
+  { body: 'Mercury', relativeTo: 'Sun', sepDeg: 160 },
+  { body: 'Venus', relativeTo: 'Sun', sepDeg: 165 },
+  { body: 'Mars', relativeTo: 'Sun', sepDeg: 170 },
+  { body: 'Jupiter', relativeTo: 'Sun', sepDeg: 175 },
+  { body: 'Saturn', relativeTo: 'Sun', sepDeg: 179 },
+];
+
 function sunMoon(id: string, sepDeg: number, sunWeight: string): AspectPreset {
   return {
     id,
     label: `Sun-Moon ${sepDeg}°`,
     note: `sunWeight ≈ ${sunWeight}. Purple tint and aura scale should ramp down monotonically ` +
-      `as sepDeg goes 0→6; sun-moon-6 must be visually indistinguishable from no effect at all.`,
+      `as sepDeg goes 0→6; sun-moon-6 must be visually indistinguishable from no effect at all. ` +
+      `The other five bodies are pushed out of view so the Sun-Moon pair isn't lost among them.`,
     date: NEW_MOON_DATE,
-    overrides: [{ body: 'Moon', relativeTo: 'Sun', sepDeg }],
+    overrides: [{ body: 'Moon', relativeTo: 'Sun', sepDeg }, ...DECLUTTER_OVERRIDES],
   };
 }
 

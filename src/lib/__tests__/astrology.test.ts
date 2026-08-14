@@ -152,16 +152,30 @@ describe('mutual, per-body-orb conjunctions', () => {
     expect(aspects.Jupiter.influence).toBeGreaterThan(0);
   });
 
-  it('at 0°, a receiver\'s colour equals its single donor\'s DONOR_COLOR exactly', () => {
+  it('at 0°, a receiver\'s aura equals its single donor\'s DONOR_COLOR exactly, but its own colour is untouched', () => {
     const marsDir = baselineDir(BODIES.indexOf('Mars'));
     const sky = buildSky({ Mars: marsDir, Venus: marsDir.clone() });
 
     const aspects = computeAspects(sky);
 
     expect(aspects.Mars.influence).toBeCloseTo(1, 6);
-    expect(aspects.Mars.color.getHex()).toBe(DONOR_HEX.Venus);
+    expect(aspects.Mars.auraColor.getHex()).toBe(DONOR_HEX.Venus);
+    expect(aspects.Mars.color.getHex()).toBe(BASE_HEX.Mars);
     expect(aspects.Venus.influence).toBeCloseTo(1, 6);
-    expect(aspects.Venus.color.getHex()).toBe(DONOR_HEX.Mars);
+    expect(aspects.Venus.auraColor.getHex()).toBe(DONOR_HEX.Mars);
+    expect(aspects.Venus.color.getHex()).toBe(BASE_HEX.Venus);
+  });
+
+  it('a receiver\'s own colour stays its base hue at partial influence too, not just at 0°', () => {
+    const jupiterDir = baselineDir(BODIES.indexOf('Jupiter'));
+    const sky = buildSky({ Jupiter: jupiterDir, Saturn: rotateByDeg(jupiterDir, 1) });
+
+    const aspects = computeAspects(sky);
+
+    expect(aspects.Jupiter.influence).toBeGreaterThan(0);
+    expect(aspects.Jupiter.influence).toBeLessThan(1);
+    expect(aspects.Jupiter.color.getHex()).toBe(BASE_HEX.Jupiter);
+    expect(aspects.Jupiter.auraColor.getHex()).not.toBe(BASE_HEX.Jupiter);
   });
 });
 
