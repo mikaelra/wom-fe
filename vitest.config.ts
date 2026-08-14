@@ -113,11 +113,19 @@ export default defineConfig({
       // plus SettingsPage's own RTL test (real hook, mocked
       // @/lib/api calls) pushed the suite to ~67.2/60.84/64.23/68.49
       // (stable across repeated runs).
+      // Raised for docs/ASPECTS_PLAN.md's planetary-aspects system:
+      // src/lib/astrology.ts (93.81% stmts on its own) and
+      // src/lib/astrologyPresets.ts, both new and both in the src/lib
+      // glob, pushed the suite to ~79.27/72.23/76.78/79.81 (stable across
+      // repeated runs) -- astrologyPresets.ts's uncovered lines are its
+      // window.location-reading functions, which a node-environment test
+      // can't exercise (same category as every other window-gated
+      // function already excluded from this ratchet's 100% elsewhere).
       thresholds: {
-        statements: 66,
-        branches: 60,
-        functions: 63,
-        lines: 67,
+        statements: 77,
+        branches: 70,
+        functions: 74,
+        lines: 78,
       },
     },
   },

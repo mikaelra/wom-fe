@@ -5,8 +5,12 @@ into a **mutual, all-bodies aspect system**, starting with conjunctions.
 Oppositions, trines and squares come later and this design leaves room for them
 (§10) — but **do not implement them in this pass**.
 
-> **Status:** not started. Written to be executed in one PR on branch
-> `claude/wom-planetary-aspects-m2og56`.
+> **Status:** ✅ implemented 2026-08-14, PR open on branch
+> `claude/wom-planetary-aspects-m2og56`. All 17 required presets ship at
+> `/dev/aspects`; `src/lib/astrology.test.ts` covers §7 in full (25 tests).
+> Awaiting product-owner visual review of the tuning constants in §2.4 —
+> per §9's suggested commit sequence, that's the expected next round, not
+> a sign anything here is unfinished.
 
 ---
 
