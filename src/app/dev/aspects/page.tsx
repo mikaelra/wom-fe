@@ -11,6 +11,15 @@ export const metadata = { title: 'Aspect presets — World of Mythos' };
 // DEBUG_FORCED_CONJUNCTIONS in place -- left enabled in production builds
 // rather than gated behind an env flag. An unknown preset id just falls
 // back to the live sky (astrologyPresets.ts's resolvePreset), never crashes.
+//
+// Preset links are plain <a> tags, not next/link -- getSky()'s Sky
+// singleton is deliberately session-length (astrology.ts §3.2), computed
+// once and cached for the rest of the browser session. A next/link
+// transition between two `/?astro=` URLs is a client-side SPA navigation
+// that keeps the JS module alive, so the second click would silently
+// return the FIRST preset's already-cached sky. A plain <a> forces a full
+// page load, which resets the module (and the cache) every time -- the
+// only way to actually compare two presets in the same tab.
 export default function AspectPresetsPage() {
   const presets = allPresets();
 
@@ -39,12 +48,12 @@ export default function AspectPresetsPage() {
               key={preset.id}
               className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-4"
             >
-              <Link
+              <a
                 href={`/?astro=${preset.id}`}
                 className="text-lg font-semibold text-blue-300 hover:underline no-underline"
               >
                 {preset.label}
-              </Link>
+              </a>
               <p className="text-xs text-white/40 mt-1">/?astro={preset.id}</p>
               {preset.note && (
                 <p className="text-sm text-white/70 mt-2 leading-relaxed">{preset.note}</p>
