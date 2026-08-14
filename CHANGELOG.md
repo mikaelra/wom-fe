@@ -10,6 +10,18 @@ count.
 
 ## [Unreleased]
 
+### Added
+- Planetary aspects, generalized to all seven bodies (`docs/ASPECTS_PLAN.md`):
+  conjunctions are now mutual — every body can donate colour to, and receive
+  it from, every other body, each using its own orb, so e.g. a Jupiter/Saturn
+  conjunction lights both asymmetrically. Previously only the Moon received
+  a colour/strength effect from nearby planets. The Sun donates no colour but
+  amplifies whatever's near it (saturation, aura growth, and a "corona floor"
+  for close Sun-Moon conjunctions that would otherwise be swallowed by new-moon
+  phase scaling). A conjunct body's colour shows in the aura around a planet,
+  never on the planet's own body/shell, which always keeps its own colour.
+  New `src/lib/astrology.ts` (pure, unit-tested maths).
+
 ### Changed
 - Lobby URLs moved from `/lobby/<id>` to `/lobby?id=<id>` (the dynamic path
   segment couldn't be statically exported — `docs/MOBILE_AND_STEAM_PLAN.md`

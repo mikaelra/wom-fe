@@ -5,8 +5,20 @@ into a **mutual, all-bodies aspect system**, starting with conjunctions.
 Oppositions, trines and squares come later and this design leaves room for them
 (§10) — but **do not implement them in this pass**.
 
-> **Status:** not started. Written to be executed in one PR on branch
-> `claude/wom-planetary-aspects-m2og56`.
+> **Status:** ✅ shipped 2026-08-14, branch `claude/wom-planetary-aspects-m2og56`.
+> Went through a real visual-review round via §6's `/dev/aspects` harness
+> (asymmetric orbs, an aura that shows the dominant conjunct body's true
+> colour rather than an averaged blend, a darker Moon solar tint, and
+> stronger aura opacity overall — see §2.4's constants and the commit
+> history for specifics) before being approved to ship. **The §6
+> visual-inspection harness (`astrologyPresets.ts`, `/dev/aspects`) was
+> deliberately removed once review was done** — a product decision made
+> after using it, overriding this doc's original "leave it enabled in
+> production" plan (§6.3). `computeSky`'s underlying `SkyOverride`
+> mechanism stays (real, tested infrastructure, exercised directly by
+> `astrology.test.ts`); only the specific 17-preset registry and the page
+> exposing it are gone. Re-add a harness the same way if a future aspect
+> kind (§10) needs the same kind of review.
 
 ---
 

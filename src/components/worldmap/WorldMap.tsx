@@ -9,6 +9,7 @@ import CityMarker, { type RankedLabelInfo } from './CityMarker';
 import GlobeCrackleEffect from './GlobeCrackleEffect';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
+import { getSky, computeAspects, raDecToVec3, type BodyAspect } from '@/lib/astrology';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
@@ -32,49 +33,11 @@ const MARS_BODY_R    = PLANET_R - 4;
 const JUPITER_BODY_R = PLANET_R - 2;
 const SATURN_BODY_R  = PLANET_R;
 
-// ── TEMP DEBUG: pin one or more planets at a fixed separation from the Moon ─
-// Real planets are rarely near the Moon, so the conjunction color/strength
-// effect is invisible without this. Each entry overrides that planet's
-// rendered position (so it sits exactly sepDeg degrees from the Moon, not
-// just anywhere near it) and the separation used by computeMoonAstrology (so
-// the two agree). 0 = exact conjunction / max effect; the orb is
-// MOON_CONJUNCTION_ORB_DEG (10°), so anything >= that is zero effect. `sign`
-// only affects rendering (which side of the Moon it's placed on, via
-// debugConjunctionPos below) -- it has no bearing on the separation/weight
-// math, which only cares about magnitude. Bodies not listed here render at
-// their real position. Set to null (or []) to use everyone's real position.
-// Flip off / delete once the look is confirmed for every planet.
-const DEBUG_FORCED_CONJUNCTIONS: { body: Astronomy.Body; sepDeg: number; sign?: 1 | -1 }[] | null = null;
-function forcedConjunctionFor(body: Astronomy.Body) {
-  return DEBUG_FORCED_CONJUNCTIONS?.find((f) => f.body === body) ?? null;
-}
-
-// TEMP DEBUG: freeze "now" to a specific moment instead of the live clock.
-// Pinning just the phase_fraction *number* used by computeMoonAstrology
-// isn't enough -- the Moon's rendered terminator (the actual light/dark
-// crescent on MoonBody) comes from real Phong shading under SunLight, which
-// is driven by the real current Sun/Moon RA/Dec. Without also moving those,
-// the sphere keeps showing tonight's real (near-new) phase no matter what
-// the astrology strength number says. This date is a real moment (found via
-// Astronomy.SearchMoonPhase(180, ...)) where the Moon is at exact full --
-// moving every Sun/Moon/Venus (and, for consistency, the other planets')
-// position/light to this date makes the rendered disc and the astrology
-// strength agree. Set to null to go back to the live clock, or swap in any
-// other SearchMoonPhase/bisected date to check a different phase. Flip off
-// / delete once the look is confirmed.
-const DEBUG_NOW: Date | null = null;
-function debugNow(): Date {
-  return DEBUG_NOW ?? new Date();
-}
-
 // Axial tilt of the ecliptic relative to the celestial equator (J2000)
 const OBLIQUITY = 23.436 * RAD;
 // Ecliptic north pole in scene coordinates (RA=18h, Dec=66.564°)
 // x = cos(Dec)·cos(RA=270°) = 0, y = sin(Dec) = cos(ε), z = −cos(Dec)·sin(270°) = sin(ε)
 const ECLIPTIC_POLE = new THREE.Vector3(0, Math.cos(OBLIQUITY), Math.sin(OBLIQUITY));
-
-// Observer at Earth centre (geocentric) — same as threejs-earth
-const OBSERVER = new Astronomy.Observer(0, 0, 0);
 
 // GMST in hours, used to align the earth texture with the real sky
 export function gmstHours(date: Date): number {
@@ -86,138 +49,6 @@ export function gmstHours(date: Date): number {
 // Shared by the Globe's texture rotation and NEW_YORK_DIR (below) so both
 // agree on where a city actually sits in world space.
 const EARTH_ROTATION_Y = Math.PI + gmstHours(new Date()) * (Math.PI / 12);
-
-// Retrograde = geocentric ecliptic longitude moving westward (decreasing) over
-// time. Sample two points one hour apart and check the sign of Δlongitude,
-// unwrapping the 0/360° seam.
-function isRetrograde(body: Astronomy.Body, date: Date): boolean {
-  const t1 = new Astronomy.AstroTime(date);
-  const t2 = t1.AddDays(1 / 24);
-  const lon1 = Astronomy.Ecliptic(Astronomy.GeoVector(body, t1, true)).elon;
-  const lon2 = Astronomy.Ecliptic(Astronomy.GeoVector(body, t2, true)).elon;
-  let d = lon2 - lon1;
-  if (d > 180) d -= 360;
-  if (d < -180) d += 360;
-  return d < 0;
-}
-
-// ── RA/Dec → THREE.Vector3 ─────────────────────────────────────────────────
-
-function raDecToVec3(raHours: number, decDeg: number, radius: number): THREE.Vector3 {
-  const ra  = raHours * (Math.PI / 12);
-  const dec = decDeg * RAD;
-  return new THREE.Vector3(
-    radius * Math.cos(dec) * Math.cos(ra),
-    radius * Math.sin(dec),
-    -radius * Math.cos(dec) * Math.sin(ra),
-  );
-}
-
-// ── Moon astrology: conjunction-driven color + strength ───────────────────
-// The Moon's light isn't a fixed color — it takes on the hue of whichever
-// classical planet(s) it's currently closest to in the sky (geocentric
-// angular separation), and gets brighter the tighter that conjunction is.
-// Far from every planet it falls back to a neutral, pale moonlight color.
-
-// Orb: exact conjunction (0°) is max influence; beyond this many degrees a
-// planet has zero effect on the Moon's color/strength. A true 0° conjunction
-// is astronomically rare (Moon and planet orbits aren't coplanar -- it takes
-// the Moon's precessing nodes to line the geometry up, same mechanism behind
-// real lunar occultations), so it can afford to be dramatic without ever
-// dominating "normal" nights. The falloff is a power curve, not linear:
-// `weight = 1 - (sep/orb)^FALLOFF_EXP` with an exponent < 1 stays close to
-// full strength for longer near 0° before dropping off toward the orb edge
-// (a straight line drops immediately and evenly instead). That's what makes
-// moderate separations -- a few degrees, which realistically happen far more
-// often than an exact conjunction -- read as meaningfully close instead of
-// mostly washed out.
-const MOON_CONJUNCTION_ORB_DEG = 10;
-const MOON_CONJUNCTION_FALLOFF_EXP = 0.62;
-const MOON_CONJUNCTION_BOOST = 0.30;
-const MOON_BASE_COLOR = new THREE.Color(0xcfe3ff);
-
-function angularSeparationDeg(a: Astronomy.Body, b: Astronomy.Body, time: Astronomy.AstroTime): number {
-  const eqA = Astronomy.Equator(a, time, OBSERVER, false, true);
-  const eqB = Astronomy.Equator(b, time, OBSERVER, false, true);
-  const vA  = raDecToVec3(eqA.ra, eqA.dec, 1);
-  const vB  = raDecToVec3(eqB.ra, eqB.dec, 1);
-  return vA.angleTo(vB) / RAD;
-}
-
-// DEBUG_FORCED_CONJUNCTIONS helper: places a body exactly sepDeg degrees from
-// the Moon's direction (matching the separation computeMoonAstrology is told
-// to use), not just anywhere near it. Rotating the Moon's unit direction by
-// that angle around an axis *perpendicular* to it is exact -- the angle
-// between the original and rotated vectors equals the rotation angle by
-// construction, unlike a fixed-magnitude tangential offset (whose angular
-// size depends on distance from the origin). Falls back to a different
-// reference axis if the Moon sits almost exactly at the pole, where up x
-// moonDir would be ~zero-length.
-function debugConjunctionPos(moonDir: THREE.Vector3, bodyR: number, sepDeg: number): THREE.Vector3 {
-  const up = Math.abs(moonDir.y) > 0.999 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
-  const axis = moonDir.clone().cross(up).normalize();
-  return moonDir.clone().applyAxisAngle(axis, sepDeg * RAD).multiplyScalar(bodyR);
-}
-
-interface MoonAstrology {
-  color: THREE.Color;
-  /** ~0–0.2, scaled by illuminated fraction; feeds both the Moon light's intensity and the reflection shell's opacity. */
-  strength: number;
-  /** Raw 0–1 illuminated fraction (Astronomy.Illumination) -- drives the aura's *size*, independent of strength's conjunction boost. */
-  phaseFraction: number;
-}
-
-// All five classical planets. Colors match each planet's existing
-// *Light/*Body tint elsewhere in this file; Mercury's flips the same way
-// its own Light/Body do when retrograde.
-function computeMoonAstrology(date: Date): MoonAstrology {
-  const time = new Astronomy.AstroTime(date);
-  const mercuryRetrograde = isRetrograde(Astronomy.Body.Mercury, date);
-
-  const planets: { body: Astronomy.Body; color: THREE.Color }[] = [
-    { body: Astronomy.Body.Mercury, color: new THREE.Color(mercuryRetrograde ? 0xCE70FF : 0xFFBC03) },
-    { body: Astronomy.Body.Venus,   color: new THREE.Color(0xAB9D00) },
-    { body: Astronomy.Body.Mars,    color: new THREE.Color(0xFF0000) },
-    { body: Astronomy.Body.Jupiter, color: new THREE.Color(0x008296) },
-    { body: Astronomy.Body.Saturn,  color: new THREE.Color(0xA16300) },
-  ];
-
-  // Each planet within the orb contributes a weight (1 at exact conjunction,
-  // 0 at the orb's edge); color is the weighted average of the planets in
-  // range, strength scales with the combined weight (capped at 1 so several
-  // simultaneous conjunctions don't blow past a sane maximum).
-  let weightSum = 0;
-  const blended = new THREE.Color(0, 0, 0);
-  for (const { body, color } of planets) {
-    const forced = forcedConjunctionFor(body);
-    const sep = forced ? forced.sepDeg : angularSeparationDeg(Astronomy.Body.Moon, body, time);
-    const weight = Math.max(0, 1 - Math.pow(sep / MOON_CONJUNCTION_ORB_DEG, MOON_CONJUNCTION_FALLOFF_EXP));
-    if (weight <= 0) continue;
-    blended.r += color.r * weight;
-    blended.g += color.g * weight;
-    blended.b += color.b * weight;
-    weightSum += weight;
-  }
-
-  const influence = Math.min(1, weightSum);
-  const color = MOON_BASE_COLOR.clone();
-  if (weightSum > 0) {
-    blended.r /= weightSum;
-    blended.g /= weightSum;
-    blended.b /= weightSum;
-    color.lerp(blended, influence);
-  }
-
-  // Strength before phasing: a flat baseline plus the conjunction boost.
-  // The Moon's actual illuminated fraction then scales the *whole* thing
-  // down multiplicatively -- near a new moon there's barely any moonlight
-  // to color at all, even sitting right on top of Venus.
-  const illum = Astronomy.Illumination(Astronomy.Body.Moon, date);
-  const rawStrength = 0.05 + MOON_CONJUNCTION_BOOST * influence;
-  const strength = rawStrength * illum.phase_fraction;
-
-  return { color, strength, phaseFraction: illum.phase_fraction };
-}
 
 // ── Canvas sprite textures ─────────────────────────────────────────────────
 
@@ -239,8 +70,10 @@ function glowTex(color: string, size = 128): THREE.CanvasTexture {
 // Soft, gradual radial haze -- unlike glowTex (bright white core, used for
 // the tiny fixed-size planet sprites), this has no hot core: flat color out
 // to 35%, then a long fade to fully transparent by the edge. That gradual
-// falloff is what reads as "fog" drifting off the Moon rather than a hard
-// glow disc or (worse, on a sphere with a rim shader) a lit ring.
+// falloff is what reads as "fog" drifting off a body rather than a hard
+// glow disc or (worse, on a sphere with a rim shader) a lit ring. Shared by
+// every body's aura layer (AuraLayers, below) -- originally the Moon's
+// alone, generalized in docs/ASPECTS_PLAN.md.
 function moonAuraTex(color: string, size = 256): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = c.height = size;
@@ -308,15 +141,19 @@ function makeFresnelMat() {
   });
 }
 
-// Same rim-light shader as the sun's fresnel atmosphere, but tinted by
-// computeMoonAstrology — the world's "moonlight reflection". Sits just
-// outside the sun's blue shell; fresnelScale tracks astro.strength so it's
-// barely there when the Moon is far from Venus and glows visibly at
-// conjunction.
-function makeMoonFresnelMat(astro: MoonAstrology) {
+// Same rim-light shader as the sun's fresnel atmosphere, but tinted by the
+// Moon's current aspect (docs/ASPECTS_PLAN.md) — the world's "moonlight
+// reflection". Sits just outside the sun's blue shell; fresnelScale tracks
+// aspect.strength so it's barely there when the Moon is far from every
+// other body and glows visibly at conjunction. Uses auraColor (not color)
+// -- this rim is ambient/atmospheric, the same category as the aura sprite
+// rather than the Moon's own body, so it's what should show a conjunct
+// body's colour bleeding onto the world. The globe rim stays Moon-only for
+// now -- the Earth is moonlit, not Saturn-lit.
+function makeMoonFresnelMat(aspect: Pick<BodyAspect, 'auraColor' | 'strength'>) {
   const mat = makeFresnelMat();
-  mat.uniforms.color1.value = astro.color;
-  mat.uniforms.fresnelScale.value = astro.strength * 6;
+  mat.uniforms.color1.value = aspect.auraColor;
+  mat.uniforms.fresnelScale.value = aspect.strength * 6;
   mat.uniforms.fresnelPower.value = 5.5;
   return mat;
 }
@@ -481,67 +318,81 @@ const Starfield = memo(function Starfield() {
   );
 });
 
-// ── Moon mesh (separate component so it suspends independently) ───────────
-// Two separate layers carry the effect, split by the depth problem each one
-// has to avoid:
+// ── Shared aura layers (docs/ASPECTS_PLAN.md §5.1) ─────────────────────────
+// Two separate layers carry every body's aspect effect, split by the depth
+// problem each one has to avoid:
 //
-// - glowShell: a sphere only marginally bigger than the Moon's own body
-//   (MOON_GLOW_SHELL_R), flat additive color -- the same pattern every other
-//   planet body already uses (VenusBody, MarsBody, etc). Because it's real
-//   3D geometry almost coincident with the body's own surface, it never
-//   fights the body on depth (unlike a flat sprite, whose single billboard
-//   depth sits at the group's center -- noticeably behind the body's near,
-//   camera-facing surface -- which is what hid this layer's color before).
-//   This is what makes color visibly emanate off the Moon itself.
+// - glow shell: a sphere only marginally bigger than the body's own
+//   geometry, flat additive color. Because it's real 3D geometry almost
+//   coincident with the body's own surface, it never fights the body on
+//   depth (unlike a flat sprite, whose single billboard depth sits at the
+//   group's center -- noticeably behind the body's near, camera-facing
+//   surface -- which is what hid this layer's color before real geometry
+//   was used). This is what makes color visibly emanate off the body
+//   itself. At `strength = 0` in a planet's own base opacity, this
+//   evaluates to exactly today's fixed 0.4-opacity shell -- with no aspect
+//   active nothing changes visually.
 //
 // - aura: the big camera-facing haze sprite (moonAuraTex) for the soft glow
 //   bleeding into the surrounding space. A Fresnel/rim shader here reads as
 //   a lit *ring* (bright only at the silhouette, dark facing the camera); a
 //   radial-gradient sprite has no such edge bias, so it looks like fog
-//   drifting off the Moon in every direction instead. It stays centered on
-//   the Moon with ordinary depth testing -- no manual offset -- so the
-//   globe still occludes it correctly when the Moon sits behind it. Its
-//   exact center can get slightly clipped by the Moon's own body/glowShell,
-//   which is fine: that area is already covered by glowShell's brighter,
+//   drifting off the body in every direction instead. It stays centered on
+//   the body with ordinary depth testing -- no manual offset -- so the
+//   globe still occludes it correctly when a body sits behind it. Its exact
+//   center can get slightly clipped by the body's own mesh/glow shell,
+//   which is fine: that area is already covered by the shell's brighter,
 //   more saturated color. (An earlier version nudged the sprite toward the
 //   camera to avoid that clipping, but a fixed offset applied to a flat
 //   billboard is only exactly correct when the camera sits precisely along
 //   the offset direction -- off that axis it reads as parallax, the halo
 //   visibly detached from the body with the plain, unlit texture peeking
-//   out to one side. Not worth it when glowShell already covers the same
-//   need without the tradeoff.)
+//   out to one side. Not worth it when the shell already covers the same
+//   need without the tradeoff.) Planets have no aura sprite at strength 0
+//   (opacity 0), so it's invisible until an aspect actually fires.
 //
-// Both layers' opacity comes from astro.strength (conjunction + phase); the
-// aura's *scale* additionally tracks astro.phaseFraction alone, so it swells
-// toward full moon and shrinks toward new moon regardless of conjunction.
-// The directional MoonLight alone is too weak to read against the much
-// brighter Sun light, so these two are what actually make the effect
-// visible on the Moon itself.
+// Originally the Moon's alone; every body gets both layers now, driven by
+// its own BodyAspect.
 
-const MOON_R              = 1.5;
-const MOON_GLOW_SHELL_R    = MOON_R * 1.06;
-const MOON_AURA_BASE_SCALE = 3.2;
-const MOON_AURA_GROWTH     = 3.4;
+// Render-only tunables (docs/ASPECTS_PLAN.md §2.4) -- how aspect.strength/
+// influence/sunWeight turn into opacity/scale here. Deliberately separate
+// from astrology.ts's constants, which only concern the maths that produces
+// those three numbers in the first place.
+const SHELL_GAIN = 3;
+// Raised from an initial 4 after visual review -- see astrology.ts's
+// STRENGTH_BOOST comment for the live example (Mercury/Jupiter at ~1.3°)
+// that was too faint to read at the old value.
+const AURA_GAIN = 6;
+const PLANET_AURA_BASE_MULT = 3.0;
+const PLANET_AURA_GROWTH_MULT = 4.0;
+const SUN_AURA_GROWTH = 2.0;
+const LIGHT_GAIN = 2.0;
 
-function MoonBody({ position, astro }: { position: THREE.Vector3; astro: MoonAstrology }) {
-  const moonMap = useTexture('/textures/moon/moonmap1k.jpg');
-  const auraTex = useMemo(() => moonAuraTex('#' + astro.color.getHexString()), [astro.color]);
-  const auraScale = MOON_AURA_BASE_SCALE + MOON_AURA_GROWTH * astro.phaseFraction;
-  const auraOpacity = Math.min(1, astro.strength * 4);
-  const glowShellOpacity = Math.min(0.8, astro.strength * 3);
+function AuraLayers({
+  aspect,
+  shellRadius,
+  shellBaseOpacity,
+  shellMaxOpacity,
+  auraScale,
+}: {
+  aspect: BodyAspect;
+  shellRadius: number;
+  shellBaseOpacity: number;
+  shellMaxOpacity: number;
+  auraScale: number;
+}) {
+  const auraTex = useMemo(() => moonAuraTex('#' + aspect.auraColor.getHexString()), [aspect.auraColor]);
+  const shellOpacity = shellBaseOpacity + Math.min(shellMaxOpacity - shellBaseOpacity, aspect.strength * SHELL_GAIN);
+  const auraOpacity = Math.min(1, aspect.strength * AURA_GAIN);
 
   return (
-    <group position={position}>
+    <>
       <mesh>
-        <sphereGeometry args={[MOON_R, 32, 32]} />
-        <meshPhongMaterial map={moonMap} />
-      </mesh>
-      <mesh>
-        <sphereGeometry args={[MOON_GLOW_SHELL_R, 32, 32]} />
+        <sphereGeometry args={[shellRadius, 32, 32]} />
         <meshBasicMaterial
-          color={astro.color}
+          color={aspect.color}
           transparent
-          opacity={glowShellOpacity}
+          opacity={shellOpacity}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
@@ -555,6 +406,52 @@ function MoonBody({ position, astro }: { position: THREE.Vector3; astro: MoonAst
           depthWrite={false}
         />
       </sprite>
+    </>
+  );
+}
+
+// ── Moon mesh (separate component so it suspends independently) ───────────
+
+const MOON_R              = 1.5;
+const MOON_GLOW_SHELL_R    = MOON_R * 1.06;
+const MOON_AURA_BASE_SCALE = 3.2;
+const MOON_AURA_GROWTH     = 3.4;
+// The Moon has no glow shell without an aspect (base 0) and a slightly
+// lower cap than planets -- both existing behaviour, unchanged by
+// generalizing to AuraLayers.
+const MOON_SHELL_BASE_OPACITY = 0;
+const MOON_SHELL_MAX_OPACITY = 0.8;
+
+function MoonBody({
+  position,
+  aspect,
+  phaseFraction,
+}: {
+  position: THREE.Vector3;
+  aspect: BodyAspect;
+  phaseFraction: number;
+}) {
+  const moonMap = useTexture('/textures/moon/moonmap1k.jpg');
+  // The phase term is existing behaviour (aura swells toward full moon,
+  // shrinks toward new moon, independent of any conjunction); the solar
+  // term is new -- the aura grows visibly near the Sun even though the
+  // corona floor (astrology.ts) is what keeps strength itself non-zero
+  // there despite phaseFraction being ~0.
+  const auraScale = MOON_AURA_BASE_SCALE + MOON_AURA_GROWTH * phaseFraction + SUN_AURA_GROWTH * aspect.sunWeight;
+
+  return (
+    <group position={position}>
+      <mesh>
+        <sphereGeometry args={[MOON_R, 32, 32]} />
+        <meshPhongMaterial map={moonMap} />
+      </mesh>
+      <AuraLayers
+        aspect={aspect}
+        shellRadius={MOON_GLOW_SHELL_R}
+        shellBaseOpacity={MOON_SHELL_BASE_OPACITY}
+        shellMaxOpacity={MOON_SHELL_MAX_OPACITY}
+        auraScale={auraScale}
+      />
     </group>
   );
 }
@@ -562,6 +459,8 @@ function MoonBody({ position, astro }: { position: THREE.Vector3; astro: MoonAst
 // ── Sun mesh — bright sphere with an additive-blended texture overlay ─────
 // Inner sphere holds the brightness; the outer textured shell only ADDS
 // light, so the core stays bright and texture detail blooms on top.
+// No change in this pass -- the Sun's own appearance never changes
+// (docs/ASPECTS_PLAN.md §1.4); it only amplifies other bodies' auras.
 
 function SunBody({ position }: { position: THREE.Vector3 }) {
   const sunMap = useTexture('/textures/sun/sunmap.jpg');
@@ -595,78 +494,89 @@ function SunBody({ position }: { position: THREE.Vector3 }) {
   );
 }
 
+// Planet body/shell radii -- shell is NOT a uniform 1.06x its body (unlike
+// the Moon): Jupiter 0.64/0.5 = 1.28, Mercury 0.26/0.20 = 1.30,
+// Venus 0.32/0.25 = 1.28, Saturn 0.26/0.20 = 1.30, Mars 0.32/0.25 = 1.28.
+// Each body's existing ratio is preserved exactly (named here so both the
+// body mesh and AuraLayers share the same literal) -- deriving a uniform
+// ratio instead would break the zero-aspect invariant.
+const JUPITER_R = 0.5, JUPITER_SHELL_R = 0.64;
+const MERCURY_R = 0.20, MERCURY_SHELL_R = 0.26;
+const VENUS_R = 0.25, VENUS_SHELL_R = 0.32;
+const MARS_R = 0.25, MARS_SHELL_R = 0.32;
+const SATURN_R = 0.20, SATURN_SHELL_R = 0.26;
+
+// Every planet shares the same base/max shell opacity (the existing fixed
+// 0.4 opacity, and a slightly higher cap than the Moon's).
+const PLANET_SHELL_BASE_OPACITY = 0.4;
+const PLANET_SHELL_MAX_OPACITY = 0.85;
+
+function planetAuraScale(bodyRadius: number, aspect: BodyAspect): number {
+  return bodyRadius * (PLANET_AURA_BASE_MULT + PLANET_AURA_GROWTH_MULT * aspect.influence) + SUN_AURA_GROWTH * aspect.sunWeight;
+}
+
 // ── Jupiter mesh — textured planet body ───────────────────────────────────
 
-function JupiterBody({ position }: { position: THREE.Vector3 }) {
+function JupiterBody({ position, aspect }: { position: THREE.Vector3; aspect: BodyAspect }) {
   const jupiterMap = useTexture(jupiterTexturePath());
   return (
     <group position={position}>
       <mesh>
-        <sphereGeometry args={[0.5, 32, 32]} />
+        <sphereGeometry args={[JUPITER_R, 32, 32]} />
         <meshPhongMaterial map={jupiterMap} />
       </mesh>
-      <mesh>
-        <sphereGeometry args={[0.64, 32, 32]} />
-        <meshBasicMaterial
-          color={0x008296}
-          transparent
-          opacity={0.4}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </mesh>
+      <AuraLayers
+        aspect={aspect}
+        shellRadius={JUPITER_SHELL_R}
+        shellBaseOpacity={PLANET_SHELL_BASE_OPACITY}
+        shellMaxOpacity={PLANET_SHELL_MAX_OPACITY}
+        auraScale={planetAuraScale(JUPITER_R, aspect)}
+      />
     </group>
   );
 }
 
 // ── Mercury mesh — textured planet body with bump map + amber glow shell ──
 
-function MercuryBody({ position }: { position: THREE.Vector3 }) {
+function MercuryBody({ position, aspect }: { position: THREE.Vector3; aspect: BodyAspect }) {
   const [mercuryMap, mercuryBump] = useTexture([
     '/textures/mercury/mercurymap.jpg',
     '/textures/mercury/mercurybump.jpg',
   ]);
-  const retrograde = useMemo(() => isRetrograde(Astronomy.Body.Mercury, debugNow()), []);
   return (
     <group position={position}>
       <mesh>
-        <sphereGeometry args={[0.20, 32, 32]} />
+        <sphereGeometry args={[MERCURY_R, 32, 32]} />
         <meshPhongMaterial map={mercuryMap} bumpMap={mercuryBump} bumpScale={0.01} />
       </mesh>
-      <mesh>
-        <sphereGeometry args={[0.26, 32, 32]} />
-        <meshBasicMaterial
-          color={retrograde ? 0xCE70FF : 0xDB9504}
-          transparent
-          opacity={0.4}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </mesh>
+      <AuraLayers
+        aspect={aspect}
+        shellRadius={MERCURY_SHELL_R}
+        shellBaseOpacity={PLANET_SHELL_BASE_OPACITY}
+        shellMaxOpacity={PLANET_SHELL_MAX_OPACITY}
+        auraScale={planetAuraScale(MERCURY_R, aspect)}
+      />
     </group>
   );
 }
 
 // ── Mars mesh — textured planet body with a red additive glow shell ──────
 
-function MarsBody({ position }: { position: THREE.Vector3 }) {
+function MarsBody({ position, aspect }: { position: THREE.Vector3; aspect: BodyAspect }) {
   const marsMap = useTexture('/textures/mars/marsmap1k.jpg');
   return (
     <group position={position}>
       <mesh>
-        <sphereGeometry args={[0.25, 32, 32]} />
+        <sphereGeometry args={[MARS_R, 32, 32]} />
         <meshPhongMaterial map={marsMap} />
       </mesh>
-      <mesh>
-        <sphereGeometry args={[0.32, 32, 32]} />
-        <meshBasicMaterial
-          color={0xFF0000}
-          transparent
-          opacity={0.4}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </mesh>
+      <AuraLayers
+        aspect={aspect}
+        shellRadius={MARS_SHELL_R}
+        shellBaseOpacity={PLANET_SHELL_BASE_OPACITY}
+        shellMaxOpacity={PLANET_SHELL_MAX_OPACITY}
+        auraScale={planetAuraScale(MARS_R, aspect)}
+      />
     </group>
   );
 }
@@ -679,8 +589,10 @@ function MarsBody({ position }: { position: THREE.Vector3 }) {
 // radially the way the asset expects. The pattern GIF is bound as alphaMap so
 // real ring divisions (gaps, density variations) come through for free; low
 // opacity multiplies the whole thing down to a faint, atmospheric look.
+// The rings are untouched by the aspects system -- only the glow shell/aura
+// (AuraLayers) respond to Saturn's current aspect.
 
-function SaturnBody({ position }: { position: THREE.Vector3 }) {
+function SaturnBody({ position, aspect }: { position: THREE.Vector3; aspect: BodyAspect }) {
   const [saturnMap, ringColor, ringAlpha] = useTexture([
     '/textures/saturn/saturnmap.jpg',
     '/textures/saturn/saturnringcolor.jpg',
@@ -706,19 +618,16 @@ function SaturnBody({ position }: { position: THREE.Vector3 }) {
   return (
     <group position={position}>
       <mesh>
-        <sphereGeometry args={[0.20, 32, 32]} />
+        <sphereGeometry args={[SATURN_R, 32, 32]} />
         <meshPhongMaterial map={saturnMap} />
       </mesh>
-      <mesh>
-        <sphereGeometry args={[0.26, 32, 32]} />
-        <meshBasicMaterial
-          color={0xA16300}
-          transparent
-          opacity={0.4}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </mesh>
+      <AuraLayers
+        aspect={aspect}
+        shellRadius={SATURN_SHELL_R}
+        shellBaseOpacity={PLANET_SHELL_BASE_OPACITY}
+        shellMaxOpacity={PLANET_SHELL_MAX_OPACITY}
+        auraScale={planetAuraScale(SATURN_R, aspect)}
+      />
       <mesh geometry={ringGeo} rotation={[-Math.PI / 2 + 10 * RAD, 0, 30 * RAD]}>
         <meshBasicMaterial
           map={ringColor}
@@ -735,30 +644,30 @@ function SaturnBody({ position }: { position: THREE.Vector3 }) {
 
 // ── Venus mesh — textured planet body with a green additive glow shell ───
 
-function VenusBody({ position }: { position: THREE.Vector3 }) {
+function VenusBody({ position, aspect }: { position: THREE.Vector3; aspect: BodyAspect }) {
   const venusMap = useTexture('/textures/venus/venusmap.jpg');
   return (
     <group position={position}>
       <mesh>
-        <sphereGeometry args={[0.25, 32, 32]} />
+        <sphereGeometry args={[VENUS_R, 32, 32]} />
         <meshBasicMaterial map={venusMap} />
       </mesh>
-      <mesh>
-        <sphereGeometry args={[0.32, 32, 32]} />
-        <meshBasicMaterial
-          color={0xAB9D00}
-          transparent
-          opacity={0.4}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </mesh>
+      <AuraLayers
+        aspect={aspect}
+        shellRadius={VENUS_SHELL_R}
+        shellBaseOpacity={PLANET_SHELL_BASE_OPACITY}
+        shellMaxOpacity={PLANET_SHELL_MAX_OPACITY}
+        auraScale={planetAuraScale(VENUS_R, aspect)}
+      />
     </group>
   );
 }
 
 // ── Sun directional light (always on, drifts with the sky) ────────────────
 // Extracted from PlanetSprites so the Globe is lit before planets appear.
+// No change in this pass -- the Sun's own aspect entry is always inert
+// (docs/ASPECTS_PLAN.md §4.4), so wiring influence in here would be a
+// permanent no-op.
 
 const _sunDriftQ  = new THREE.Quaternion();
 const _sunDriftAx = new THREE.Vector3(0, 1, 0);
@@ -766,9 +675,7 @@ const SKY_DRIFT   = -0.0002;
 
 function SunLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => debugNow(), []);
-  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Sun, now, OBSERVER, false, true), [now]);
-  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+  const initPos  = useMemo(() => getSky().dir.Sun.clone().multiplyScalar(PLANET_R), []);
 
   // Mirror the same Y-rotation the planet group applies each frame so the
   // light stays aligned with the sun sprite's world position.
@@ -791,11 +698,13 @@ function SunLight() {
 
 // ── Venus directional light (very weak, drifts with the sky) ──────────────
 
+const VENUS_LIGHT_BASE_INTENSITY = 0.075;
+
 function VenusLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => debugNow(), []);
-  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Venus, now, OBSERVER, false, true), [now]);
-  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+  const sky      = getSky();
+  const initPos  = useMemo(() => sky.dir.Venus.clone().multiplyScalar(PLANET_R), [sky]);
+  const influence = useMemo(() => computeAspects(sky).Venus.influence, [sky]);
 
   useFrame(() => {
     if (lightRef.current) {
@@ -807,7 +716,7 @@ function VenusLight() {
   return (
     <directionalLight
       ref={lightRef}
-      intensity={0.075}
+      intensity={VENUS_LIGHT_BASE_INTENSITY * (1 + LIGHT_GAIN * influence)}
       color={0xAB9D00}
       position={[initPos.x, initPos.y, initPos.z]}
     />
@@ -816,11 +725,13 @@ function VenusLight() {
 
 // ── Jupiter directional light (weak teal, drifts with the sky) ────────────
 
+const JUPITER_LIGHT_BASE_INTENSITY = 0.1;
+
 function JupiterLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => debugNow(), []);
-  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Jupiter, now, OBSERVER, false, true), [now]);
-  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+  const sky      = getSky();
+  const initPos  = useMemo(() => sky.dir.Jupiter.clone().multiplyScalar(PLANET_R), [sky]);
+  const influence = useMemo(() => computeAspects(sky).Jupiter.influence, [sky]);
 
   useFrame(() => {
     if (lightRef.current) {
@@ -832,7 +743,7 @@ function JupiterLight() {
   return (
     <directionalLight
       ref={lightRef}
-      intensity={0.1}
+      intensity={JUPITER_LIGHT_BASE_INTENSITY * (1 + LIGHT_GAIN * influence)}
       color={0x008296}
       position={[initPos.x, initPos.y, initPos.z]}
     />
@@ -841,12 +752,13 @@ function JupiterLight() {
 
 // ── Mercury directional light (weak amber, drifts with the sky) ──────────
 
+const MERCURY_LIGHT_BASE_INTENSITY = 0.06;
+
 function MercuryLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => debugNow(), []);
-  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Mercury, now, OBSERVER, false, true), [now]);
-  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
-  const retrograde = useMemo(() => isRetrograde(Astronomy.Body.Mercury, now), [now]);
+  const sky      = getSky();
+  const initPos  = useMemo(() => sky.dir.Mercury.clone().multiplyScalar(PLANET_R), [sky]);
+  const influence = useMemo(() => computeAspects(sky).Mercury.influence, [sky]);
 
   useFrame(() => {
     if (lightRef.current) {
@@ -858,8 +770,8 @@ function MercuryLight() {
   return (
     <directionalLight
       ref={lightRef}
-      intensity={0.06}
-      color={retrograde ? 0xCE70FF : 0xFFBC03}
+      intensity={MERCURY_LIGHT_BASE_INTENSITY * (1 + LIGHT_GAIN * influence)}
+      color={sky.mercuryRetrograde ? 0xCE70FF : 0xFFBC03}
       position={[initPos.x, initPos.y, initPos.z]}
     />
   );
@@ -867,11 +779,13 @@ function MercuryLight() {
 
 // ── Mars directional light (weak red, drifts with the sky) ───────────────
 
+const MARS_LIGHT_BASE_INTENSITY = 0.07;
+
 function MarsLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => debugNow(), []);
-  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Mars, now, OBSERVER, false, true), [now]);
-  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+  const sky      = getSky();
+  const initPos  = useMemo(() => sky.dir.Mars.clone().multiplyScalar(PLANET_R), [sky]);
+  const influence = useMemo(() => computeAspects(sky).Mars.influence, [sky]);
 
   useFrame(() => {
     if (lightRef.current) {
@@ -883,7 +797,7 @@ function MarsLight() {
   return (
     <directionalLight
       ref={lightRef}
-      intensity={0.07}
+      intensity={MARS_LIGHT_BASE_INTENSITY * (1 + LIGHT_GAIN * influence)}
       color={0xFF0000}
       position={[initPos.x, initPos.y, initPos.z]}
     />
@@ -892,11 +806,13 @@ function MarsLight() {
 
 // ── Saturn directional light (very weak amber, drifts with the sky) ──────
 
+const SATURN_LIGHT_BASE_INTENSITY = 0.03;
+
 function SaturnLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => debugNow(), []);
-  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Saturn, now, OBSERVER, false, true), [now]);
-  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
+  const sky      = getSky();
+  const initPos  = useMemo(() => sky.dir.Saturn.clone().multiplyScalar(PLANET_R), [sky]);
+  const influence = useMemo(() => computeAspects(sky).Saturn.influence, [sky]);
 
   useFrame(() => {
     if (lightRef.current) {
@@ -908,25 +824,26 @@ function SaturnLight() {
   return (
     <directionalLight
       ref={lightRef}
-      intensity={0.03}
+      intensity={SATURN_LIGHT_BASE_INTENSITY * (1 + LIGHT_GAIN * influence)}
       color={0xA16300}
       position={[initPos.x, initPos.y, initPos.z]}
     />
   );
 }
 
-// ── Moon directional light (colored + strengthened by nearby planets) ─────
-// Color and intensity both come from computeMoonAstrology: pale moonlight
-// far from every planet, tinting toward whichever planet(s) the Moon is
-// currently closest to in the sky, brighter the tighter the conjunction.
-// Computed once at mount — fine for a session-length scene.
+// ── Moon directional light (colored + strengthened by nearby bodies) ─────
+// Intensity comes from the Moon's aspect.strength: pale far from every
+// other body, brighter the tighter the conjunction (or the closer to the
+// Sun -- the corona floor). Computed once at mount — fine for a
+// session-length scene.
+
+const MOON_BASE_COLOR = new THREE.Color(0xcfe3ff);
 
 function MoonLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const now      = useMemo(() => debugNow(), []);
-  const eq       = useMemo(() => Astronomy.Equator(Astronomy.Body.Moon, now, OBSERVER, false, true), [now]);
-  const initPos  = useMemo(() => raDecToVec3(eq.ra, eq.dec, PLANET_R), [eq]);
-  const astro    = useMemo(() => computeMoonAstrology(now), [now]);
+  const sky      = getSky();
+  const initPos  = useMemo(() => sky.dir.Moon.clone().multiplyScalar(PLANET_R), [sky]);
+  const aspect   = useMemo(() => computeAspects(sky).Moon, [sky]);
 
   useFrame(() => {
     if (lightRef.current) {
@@ -938,14 +855,16 @@ function MoonLight() {
   return (
     <directionalLight
       ref={lightRef}
-      intensity={astro.strength}
-      // Deliberately not astro.color: this is a real scene light (default
+      intensity={aspect.strength}
+      // Deliberately not aspect.color: this is a real scene light (default
       // target = origin), so a conjunction tint here Phong-shades straight
       // onto the Moon's own textured sphere -- the actual model reads as
       // "painted" that color rather than glowing. The aura sprite
       // (MoonBody) and the globe's rim shell (makeMoonFresnelMat) already
       // carry the conjunction color on their own, driven directly from
-      // astro; this light only needs to brighten, not tint.
+      // aspect; this light only needs to brighten, not tint. The same
+      // reasoning now applies to every other body's light too (see each
+      // one above) -- none of them tint either.
       color={MOON_BASE_COLOR}
       position={[initPos.x, initPos.y, initPos.z]}
     />
@@ -957,10 +876,17 @@ function MoonLight() {
 // phase mapping (matches WorldMap's outer phase counter):
 //   2 → Moon   3 → Mercury   4 → Venus   5 → Sun sprite
 //   6 → Mars   7 → Jupiter   8 → Saturn
+//
+// Positions all come from one Sky snapshot (getSky().dir) -- a preset
+// override and the aspect maths therefore can never disagree, unlike the
+// old DEBUG_FORCED_CONJUNCTIONS scheme this replaces (docs/ASPECTS_PLAN.md
+// §0), which kept the forced position and the forced separation as two
+// independent hand-synced copies.
 
 const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) {
-  const now      = useMemo(() => debugNow(), []);
   const groupRef = useRef<THREE.Group>(null);
+  const sky = getSky();
+  const aspects = useMemo(() => computeAspects(sky), [sky]);
 
   const texSun   = useMemo(() => sunTex(),             []);
   const texMerc  = useMemo(() => glowTex('#ff9955'),   []);
@@ -969,66 +895,13 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
   const texJup   = useMemo(() => glowTex('#aaccff'),   []);
   const texSat   = useMemo(() => glowTex('#ddbb77'),   []);
 
-  const eq = useMemo(() => ({
-    moon: Astronomy.Equator(Astronomy.Body.Moon,    now, OBSERVER, false, true),
-    merc: Astronomy.Equator(Astronomy.Body.Mercury, now, OBSERVER, false, true),
-    ven:  Astronomy.Equator(Astronomy.Body.Venus,   now, OBSERVER, false, true),
-    sun:  Astronomy.Equator(Astronomy.Body.Sun,     now, OBSERVER, false, true),
-    mars: Astronomy.Equator(Astronomy.Body.Mars,    now, OBSERVER, false, true),
-    jup:  Astronomy.Equator(Astronomy.Body.Jupiter, now, OBSERVER, false, true),
-    sat:  Astronomy.Equator(Astronomy.Body.Saturn,  now, OBSERVER, false, true),
-  }), [now]);
-
-  const posMoon = useMemo(() => raDecToVec3(eq.moon.ra, eq.moon.dec, MOON_BODY_R), [eq]);
-  const astro   = useMemo(() => computeMoonAstrology(now), [now]);
-
-  // DEBUG_FORCED_CONJUNCTIONS: any body it names gets rendered at its forced
-  // separation (and side, via sign) instead of its real position, so its
-  // conjunction effect -- alone or alongside another forced body -- can be
-  // checked directly (matching the separation computeMoonAstrology is told
-  // to use for that same body). Every other body renders at its real
-  // position as usual.
-  const posMercReal  = useMemo(() => raDecToVec3(eq.merc.ra, eq.merc.dec, MERCURY_BODY_R), [eq]);
-  const forcedMerc    = forcedConjunctionFor(Astronomy.Body.Mercury);
-  const posMercDebug = useMemo(
-    () => debugConjunctionPos(posMoon.clone().normalize(), MERCURY_BODY_R, (forcedMerc?.sepDeg ?? 0) * (forcedMerc?.sign ?? 1)),
-    [posMoon, forcedMerc],
-  );
-  const posMerc = forcedMerc ? posMercDebug : posMercReal;
-
-  const posVenReal  = useMemo(() => raDecToVec3(eq.ven.ra, eq.ven.dec, VENUS_BODY_R), [eq]);
-  const forcedVen    = forcedConjunctionFor(Astronomy.Body.Venus);
-  const posVenDebug = useMemo(
-    () => debugConjunctionPos(posMoon.clone().normalize(), VENUS_BODY_R, (forcedVen?.sepDeg ?? 0) * (forcedVen?.sign ?? 1)),
-    [posMoon, forcedVen],
-  );
-  const posVen = forcedVen ? posVenDebug : posVenReal;
-
-  const posMarsReal  = useMemo(() => raDecToVec3(eq.mars.ra, eq.mars.dec, MARS_BODY_R), [eq]);
-  const forcedMars    = forcedConjunctionFor(Astronomy.Body.Mars);
-  const posMarsDebug = useMemo(
-    () => debugConjunctionPos(posMoon.clone().normalize(), MARS_BODY_R, (forcedMars?.sepDeg ?? 0) * (forcedMars?.sign ?? 1)),
-    [posMoon, forcedMars],
-  );
-  const posMars = forcedMars ? posMarsDebug : posMarsReal;
-
-  const posJupReal  = useMemo(() => raDecToVec3(eq.jup.ra, eq.jup.dec, JUPITER_BODY_R), [eq]);
-  const forcedJup    = forcedConjunctionFor(Astronomy.Body.Jupiter);
-  const posJupDebug = useMemo(
-    () => debugConjunctionPos(posMoon.clone().normalize(), JUPITER_BODY_R, (forcedJup?.sepDeg ?? 0) * (forcedJup?.sign ?? 1)),
-    [posMoon, forcedJup],
-  );
-  const posJup = forcedJup ? posJupDebug : posJupReal;
-
-  const posSatReal  = useMemo(() => raDecToVec3(eq.sat.ra, eq.sat.dec, SATURN_BODY_R), [eq]);
-  const forcedSat    = forcedConjunctionFor(Astronomy.Body.Saturn);
-  const posSatDebug = useMemo(
-    () => debugConjunctionPos(posMoon.clone().normalize(), SATURN_BODY_R, (forcedSat?.sepDeg ?? 0) * (forcedSat?.sign ?? 1)),
-    [posMoon, forcedSat],
-  );
-  const posSat = forcedSat ? posSatDebug : posSatReal;
-
-  const posSun = useMemo(() => raDecToVec3(eq.sun.ra, eq.sun.dec, PLANET_R), [eq]);
+  const posMoon = useMemo(() => sky.dir.Moon.clone().multiplyScalar(MOON_BODY_R), [sky]);
+  const posMerc = useMemo(() => sky.dir.Mercury.clone().multiplyScalar(MERCURY_BODY_R), [sky]);
+  const posVen  = useMemo(() => sky.dir.Venus.clone().multiplyScalar(VENUS_BODY_R), [sky]);
+  const posSun  = useMemo(() => sky.dir.Sun.clone().multiplyScalar(PLANET_R), [sky]);
+  const posMars = useMemo(() => sky.dir.Mars.clone().multiplyScalar(MARS_BODY_R), [sky]);
+  const posJup  = useMemo(() => sky.dir.Jupiter.clone().multiplyScalar(JUPITER_BODY_R), [sky]);
+  const posSat  = useMemo(() => sky.dir.Saturn.clone().multiplyScalar(SATURN_BODY_R), [sky]);
 
   useFrame(() => { if (groupRef.current) groupRef.current.rotation.y -= 0.0002; });
 
@@ -1036,14 +909,14 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
     <group ref={groupRef}>
       {phase >= 2 && (
         <Suspense fallback={null}>
-          <MoonBody position={posMoon} astro={astro} />
+          <MoonBody position={posMoon} aspect={aspects.Moon} phaseFraction={sky.moonPhaseFraction} />
         </Suspense>
       )}
 
       {phase >= 3 && (
         <>
           <Suspense fallback={null}>
-            <MercuryBody position={posMerc} />
+            <MercuryBody position={posMerc} aspect={aspects.Mercury} />
           </Suspense>
           <sprite position={posMerc} scale={[0.66, 0.66, 1]}>
             <spriteMaterial map={texMerc} transparent depthWrite={false} />
@@ -1054,7 +927,7 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
       {phase >= 4 && (
         <>
           <Suspense fallback={null}>
-            <VenusBody position={posVen} />
+            <VenusBody position={posVen} aspect={aspects.Venus} />
           </Suspense>
           <sprite position={posVen} scale={[0.825, 0.825, 1]}>
             <spriteMaterial map={texVenus} transparent depthWrite={false} />
@@ -1076,7 +949,7 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
       {phase >= 6 && (
         <>
           <Suspense fallback={null}>
-            <MarsBody position={posMars} />
+            <MarsBody position={posMars} aspect={aspects.Mars} />
           </Suspense>
           <sprite position={posMars} scale={[0.825, 0.825, 1]}>
             <spriteMaterial map={texMars} transparent depthWrite={false} />
@@ -1087,7 +960,7 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
       {phase >= 7 && (
         <>
           <Suspense fallback={null}>
-            <JupiterBody position={posJup} />
+            <JupiterBody position={posJup} aspect={aspects.Jupiter} />
           </Suspense>
           <sprite position={posJup} scale={[1.65, 1.65, 1]}>
             <spriteMaterial map={texJup} transparent depthWrite={false} />
@@ -1098,7 +971,7 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
       {phase >= 8 && (
         <>
           <Suspense fallback={null}>
-            <SaturnBody position={posSat} />
+            <SaturnBody position={posSat} aspect={aspects.Saturn} />
           </Suspense>
           <sprite position={posSat} scale={[0.66, 0.66, 1]}>
             <spriteMaterial map={texSat} transparent depthWrite={false} />
@@ -1143,8 +1016,8 @@ function Globe({ onCityClick, rankedInfo, onReady }: GlobeProps) {
   useEffect(() => { onReady?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fresnelMat = useMemo(makeFresnelMat, []);
-  const moonAstro = useMemo(() => computeMoonAstrology(debugNow()), []);
-  const moonFresnelMat = useMemo(() => makeMoonFresnelMat(moonAstro), [moonAstro]);
+  const moonAspect = useMemo(() => computeAspects(getSky()).Moon, []);
+  const moonFresnelMat = useMemo(() => makeMoonFresnelMat(moonAspect), [moonAspect]);
 
   const lightsMat = useMemo(
     () => new THREE.MeshBasicMaterial({
@@ -1255,8 +1128,11 @@ function CameraRig({
 
   useFrame(() => {
     if (!initialized.current) {
-      const sunEq = Astronomy.Equator(Astronomy.Body.Sun, debugNow(), OBSERVER, false, true);
-      const sunDir = raDecToVec3(sunEq.ra, sunEq.dec, 1).normalize();
+      // Reads the same sky snapshot every other position in the scene does
+      // (docs/ASPECTS_PLAN.md), so a preset that moves the Sun also moves
+      // the camera's anti-solar start point consistently, instead of this
+      // rig independently re-querying Astronomy for the real Sun position.
+      const sunDir = getSky().dir.Sun;
       camera.position.copy(sunDir).multiplyScalar(-CAMERA_RADIUS);
       camera.up.copy(ECLIPTIC_POLE);
       camera.lookAt(0, 0, 0);
