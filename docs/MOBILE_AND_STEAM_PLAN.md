@@ -337,6 +337,17 @@ The one code change that unblocks everything (§3, verified):
    release.
 4. **Verify before wrapping**: `BUILD_TARGET=native npx next build && npx serve out`, then
    load it from the phone over the LAN. If the game works there, Capacitor will work.
+   ✅ **Done 2026-08-14.** The dev VM and the iPhone 14 aren't LAN-adjacent (§14's
+   Surface-Go/Fedora assumption doesn't hold here — this environment is a cloud VM), so
+   "the LAN" was a NordVPN Meshnet link instead: `nordvpn set meshnet on` (not `nordvpn
+   connect` — that reroutes *all* traffic through a VPN exit server and, on this VM, took
+   down the SSH session it was reached through, requiring an OCI console reboot; Meshnet
+   is a separate peer-to-peer feature and doesn't touch the default route), the phone
+   paired automatically as a same-account "Local Peer," and `firewalld`'s `public` zone
+   needed the serve port opened (`firewall-cmd --zone=public --add-port=<port>/tcp` —
+   runtime-only, not `--permanent`, since it's just for this test) since the `nordlynx`
+   interface isn't in any explicitly-zoned interface list and falls under the default
+   zone's port rules. Loaded successfully in Safari once both were sorted.
 
 ### 5.4 Native shell wiring
 
@@ -876,8 +887,9 @@ These run in parallel with all development and are the actual critical path:
 5. **Days 5–6** — §5.3 static export: the lobby route change, conditional
    `next.config.ts`, Sentry split. Verify with `serve out`, loaded from the iPhone over
    the LAN — that needs no build either.
-   🟡 Code done, PR open 2026-08-12: `BUILD_TARGET=native npx next build` verified
-   clean. The `serve out` + iPhone-over-LAN pass is still the developer's to run.
+   ✅ **Done.** Code merged (#298) 2026-08-12; `serve out` loaded successfully in Safari on
+   the iPhone 14 2026-08-14 — over NordVPN Meshnet rather than a literal LAN, since the dev
+   VM and phone aren't network-adjacent here (see §5.3 item 4 for the setup).
 6. **Days 7–9** — §5.4 Capacitor shell with a fully bundled `out/` (the referenced set is
    ~41 MB, so everything ships in the app — no remote-asset scheme needed). Backend CORS
    for `https://localhost` *and* `capacitor://localhost`. Touch controls, orientation,
@@ -1008,8 +1020,9 @@ comes off the schedule.
 | 0 | Compatibility policy documented | ✅ Done — merged wom-be#170 2026-08-12 (`wom-be/docs/PROTOCOL.md`) |
 | 1 | Disposable remote-URL APK | Not started |
 | 1 | Android SDK in the Docker denv | Not started |
-| 1 | `/lobby/[lobbyId]` → `/lobby?id=` | 🟡 PR open — old-shape links now redirect rather than break |
-| 1 | Conditional `output: export` | 🟡 PR open — `BUILD_TARGET=native npx next build` verified clean (38/38 static routes, 0 errors/warnings), incl. the client-only Sentry path |
+| 1 | `/lobby/[lobbyId]` → `/lobby?id=` | ✅ Done — merged #298 2026-08-12; old-shape links redirect rather than break |
+| 1 | Conditional `output: export` | ✅ Done — merged #298 2026-08-12 |
+| 1 | Static export verified on the iPhone 14 itself (§5.3 item 4) | ✅ Done 2026-08-14 — served over NordVPN Meshnet (dev VM and phone aren't LAN-adjacent; see §5.2 note below) and loaded successfully in Safari |
 | 1 | Capacitor Android shell + CORS origins | Not started |
 | 1 | **Bossfight played on the iPhone 14 from TestFlight** (§5.5 milestone) | Not started |
 | 1 | Safari smoke test on the iPhone 14 (§5.1) | ✅ Done 2026-08-12 — played flawlessly |
