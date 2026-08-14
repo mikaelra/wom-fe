@@ -177,15 +177,22 @@ function baseColorHex(body: Exclude<AspectBody, 'Sun'>, mercuryRetrograde: boole
 const SOLAR_TINT: Partial<Record<AspectBody, number>> = { Moon: MERCURY_RETRO_COLOR };
 const SOLAR_TINT_MAX = 0.85;
 
-// STRENGTH_BASE/BOOST must be 0 for every planet -- that's what preserves
-// the zero-aspect invariant for them (no aspect => strength stays exactly
-// 0, same as today's fixed 0.4-opacity shells having no strength concept at
-// all). The Moon's values are its existing baseline/boost, unchanged.
+// STRENGTH_BASE must be 0 for every planet -- that's what preserves the
+// zero-aspect invariant for them (no aspect => strength stays exactly 0,
+// same as today's fixed 0.4-opacity shells having no strength concept at
+// all). STRENGTH_BOOST doesn't need to be 0 for that invariant (it's
+// multiplied by influence, which is already 0 with nothing in range) --
+// it's what determines how strong a real conjunction reads once one is
+// active. The Moon's values are its existing baseline/boost, unchanged.
+// Planets' boost raised from an initial 0.15 after visual review: even a
+// solid ~0.5-0.7 influence conjunction (e.g. Mercury/Jupiter at ~1.3°,
+// live) was landing at strength ~0.08-0.10, an aura opacity too faint to
+// read as "the other planet's colour" rather than "nothing happening".
 const STRENGTH_BASE: Record<AspectBody, number> = {
   Moon: 0.05, Mercury: 0, Venus: 0, Mars: 0, Jupiter: 0, Saturn: 0, Sun: 0,
 };
 const STRENGTH_BOOST: Record<AspectBody, number> = {
-  Moon: 0.30, Mercury: 0.15, Venus: 0.15, Mars: 0.15, Jupiter: 0.15, Saturn: 0.15, Sun: 0,
+  Moon: 0.30, Mercury: 0.2, Venus: 0.2, Mars: 0.2, Jupiter: 0.2, Saturn: 0.2, Sun: 0,
 };
 
 // Sun amplification (docs/ASPECTS_PLAN.md §4.3).

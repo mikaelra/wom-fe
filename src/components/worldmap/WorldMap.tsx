@@ -359,7 +359,10 @@ const Starfield = memo(function Starfield() {
 // from astrology.ts's constants, which only concern the maths that produces
 // those three numbers in the first place.
 const SHELL_GAIN = 3;
-const AURA_GAIN = 4;
+// Raised from an initial 4 after visual review -- see astrology.ts's
+// STRENGTH_BOOST comment for the live example (Mercury/Jupiter at ~1.3°)
+// that was too faint to read at the old value.
+const AURA_GAIN = 6;
 const PLANET_AURA_BASE_MULT = 3.0;
 const PLANET_AURA_GROWTH_MULT = 4.0;
 const SUN_AURA_GROWTH = 2.0;
