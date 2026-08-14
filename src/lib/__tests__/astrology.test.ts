@@ -8,7 +8,6 @@ import {
   type AspectBody,
   type Sky,
 } from '@/lib/astrology';
-import { allPresets, resolvePreset } from '@/lib/astrologyPresets';
 
 // ── Test helpers ────────────────────────────────────────────────────────
 // Skies here are hand-built (not real ephemeris) so every pair not
@@ -28,7 +27,7 @@ function baselineDir(index: number): THREE.Vector3 {
 
 // Mirrors astrology.ts's internal rotateByDeg -- duplicated here (not
 // exported) purely to construct test fixtures at exact separations. The
-// "preset resolution" tests below cross-check the real production
+// "computeSky overrides" tests below cross-check the real production
 // implementation independently via computeSky's actual override handling.
 function rotateByDeg(dir: THREE.Vector3, sepDeg: number): THREE.Vector3 {
   const up = Math.abs(dir.y) > 0.999 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
@@ -342,16 +341,14 @@ describe('the Sun', () => {
   });
 });
 
-// ── Preset resolution ─────────────────────────────────────────────────────
+// ── computeSky overrides (SkyOverride mechanism) ───────────────────────────
 
-describe('astrologyPresets', () => {
-  it('every preset\'s overrides recover their requested separation through the real computeSky', () => {
-    for (const preset of allPresets()) {
-      const sky = computeSky(preset.date ?? new Date('2026-06-15T00:00:00Z'), preset.overrides);
-      for (const o of preset.overrides) {
-        expect(separationDeg(sky, o.body, o.relativeTo)).toBeCloseTo(o.sepDeg, 6);
-      }
-    }
+describe('computeSky overrides', () => {
+  it('an override recovers exactly its requested separation', () => {
+    const date = new Date('2026-06-15T00:00:00Z');
+    const sky = computeSky(date, [{ body: 'Mars', relativeTo: 'Venus', sepDeg: 4 }]);
+
+    expect(separationDeg(sky, 'Mars', 'Venus')).toBeCloseTo(4, 6);
   });
 
   it('sign -1 produces the same separation as sign 1', () => {
@@ -385,15 +382,5 @@ describe('astrologyPresets', () => {
   it('a self-reference throws', () => {
     const date = new Date('2026-06-15T00:00:00Z');
     expect(() => computeSky(date, [{ body: 'Mars', relativeTo: 'Mars', sepDeg: 1 }])).toThrow();
-  });
-
-  it('an unknown preset id resolves to nothing, so callers fall back to the live sky', () => {
-    expect(resolvePreset('not-a-real-preset-id')).toBeUndefined();
-    expect(resolvePreset(undefined)).toBeUndefined();
-    expect(resolvePreset(null)).toBeUndefined();
-  });
-
-  it('ships exactly the 17 presets §6.2 requires', () => {
-    expect(allPresets()).toHaveLength(17);
   });
 });

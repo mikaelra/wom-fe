@@ -13,7 +13,6 @@
  */
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
-import { presetDate, presetOverrides } from './astrologyPresets';
 
 const RAD = Math.PI / 180;
 
@@ -34,12 +33,13 @@ const ASTRO_BODY: Record<AspectBody, Astronomy.Body> = {
   Saturn: Astronomy.Body.Saturn,
 };
 
-/** A body being placed a fixed separation from another body's direction,
- *  for visual-inspection presets (astrologyPresets.ts) -- replaces the old
- *  DEBUG_FORCED_CONJUNCTIONS, which forced a position in the render layer
- *  only and left the maths layer to separately agree by hand. `sign` is
- *  render-only (which side of `relativeTo` the body sits on); the maths
- *  only ever sees the magnitude of `sepDeg`. */
+/** A body being placed a fixed separation from another body's direction --
+ *  the generalised form of what DEBUG_FORCED_CONJUNCTIONS used to do by
+ *  hand (forcing a position in the render layer only and leaving the maths
+ *  layer to separately agree). `sign` is render-only (which side of
+ *  `relativeTo` the body sits on); the maths only ever sees the magnitude
+ *  of `sepDeg`. Exercised directly by computeSky's own tests; not
+ *  currently wired to any UI-facing entry point. */
 export interface SkyOverride {
   body: AspectBody;
   relativeTo: AspectBody;
@@ -282,18 +282,16 @@ export function separationDeg(sky: Sky, a: AspectBody, b: AspectBody): number {
 
 // Lazily-initialised module singleton, mirroring the old per-component
 // `useMemo(() => debugNow(), [])` pattern but computed once for the
-// session. Guarded for SSR/non-browser contexts (WorldMap is already
-// `dynamic(..., { ssr: false })` so `window` exists wherever this actually
-// renders, but this module may be imported from a server context too, e.g.
-// /dev/aspects).
+// session -- deliberately session-length, not per-frame or per-component,
+// so the sky doesn't visibly drift mid-session as real time passes.
 let cached: Sky | null = null;
 export function getSky(): Sky {
-  if (!cached) cached = computeSky(presetDate() ?? new Date(), presetOverrides());
+  if (!cached) cached = computeSky(new Date());
   return cached;
 }
 
 /** Test-only: clears the getSky() singleton so a fresh call recomputes
- *  from the current URL/clock. Production code never needs this -- the
+ *  from the current clock. Production code never needs this -- the
  *  singleton is deliberately session-length. */
 export function _resetSkyCache(): void {
   cached = null;
