@@ -158,9 +158,7 @@ const BASE_COLOR: Record<Exclude<AspectBody, 'Sun'>, number> = {
   Saturn: 0xA16300,
 };
 
-// Mercury's retrograde flip applies to both its donor and base colours
-// (0xCE70FF -- the same purple SOLAR_TINT reuses below, rather than
-// inventing a second purple).
+// Mercury's retrograde flip applies to both its donor and base colours.
 const MERCURY_RETRO_COLOR = 0xCE70FF;
 
 function donorColorHex(body: Exclude<AspectBody, 'Sun'>, mercuryRetrograde: boolean): number {
@@ -174,7 +172,16 @@ function baseColorHex(body: Exclude<AspectBody, 'Sun'>, mercuryRetrograde: boole
 // Per-body, optional: only the Moon has one today. Kept separate from the
 // generic Sun amplification below so it can be extended to other bodies, or
 // dropped, without touching that maths.
-const SOLAR_TINT: Partial<Record<AspectBody, number>> = { Moon: MERCURY_RETRO_COLOR };
+//
+// Originally reused MERCURY_RETRO_COLOR (0xCE70FF) rather than inventing a
+// second purple, but that pale lavender read as "way too light" at a real
+// 0° Sun-Moon conjunction during visual review -- deliberately its own,
+// noticeably darker purple now (same hue family, ~30 points lower
+// lightness), since the two serve different jobs: Mercury retrograde is a
+// small, crisp hue signal on a bright textured sphere, this is a wash
+// meant to visibly darken the Moon's presentation near the Sun.
+const MOON_SOLAR_TINT = 0x8A2BE2;
+const SOLAR_TINT: Partial<Record<AspectBody, number>> = { Moon: MOON_SOLAR_TINT };
 const SOLAR_TINT_MAX = 0.85;
 
 // STRENGTH_BASE must be 0 for every planet -- that's what preserves the
@@ -322,35 +329,39 @@ export function computeAspects(sky: Sky): Record<AspectBody, BodyAspect> {
   const result = {} as Record<AspectBody, BodyAspect>;
 
   for (const receiver of RECEIVABLE_BODIES) {
+    // influence still sums every donor in range (several simultaneous
+    // conjunctions really should read as stronger overall), but the aura's
+    // *colour* takes only the single strongest donor's true colour --
+    // averaging multiple donors together (teal + amber, say) produced a
+    // muddy, desaturated grey-brown that read as "nothing happening"
+    // rather than "conjunct with that planet" (found during visual
+    // review). A real simultaneous multi-donor conjunction is rare enough
+    // that showing the dominant one is the right simplification.
     let weightSum = 0;
-    const blended = new THREE.Color(0, 0, 0);
+    let maxWeight = 0;
+    let dominantDonorHex: number | null = null;
     for (const donor of RECEIVABLE_BODIES) {
       if (donor === receiver) continue;
       const sep = separationDeg(sky, receiver, donor);
       const weight = conjunctionWeight(sep, ORB[receiver]);
       if (weight <= 0) continue;
-      const donorColor = new THREE.Color(donorColorHex(donor, sky.mercuryRetrograde));
-      blended.r += donorColor.r * weight;
-      blended.g += donorColor.g * weight;
-      blended.b += donorColor.b * weight;
       weightSum += weight;
+      if (weight > maxWeight) {
+        maxWeight = weight;
+        dominantDonorHex = donorColorHex(donor, sky.mercuryRetrograde);
+      }
     }
 
     const influence = Math.min(1, weightSum);
 
-    // `color` is the body's own identity -- deliberately never blended
-    // toward a donor. `auraColor` starts identical and picks up the donor
-    // blend; the aura sprite is what actually shows a conjunct body's
-    // colour bleeding in, while the body/shell (`color`) stays recognisably
-    // itself. Both then get the same Sun amplification below.
+    // `color` is the body's own identity -- deliberately never takes a
+    // donor's colour at all. `auraColor` is the dominant donor's true
+    // colour outright (not blended toward it) once one is in range; the
+    // aura sprite is what actually shows a conjunct body's colour, while
+    // the body/shell (`color`) stays recognisably itself. Both then get
+    // the same Sun amplification below.
     const color = new THREE.Color(baseColorHex(receiver, sky.mercuryRetrograde));
-    const auraColor = color.clone();
-    if (weightSum > 0) {
-      blended.r /= weightSum;
-      blended.g /= weightSum;
-      blended.b /= weightSum;
-      auraColor.lerp(blended, influence);
-    }
+    const auraColor = dominantDonorHex !== null ? new THREE.Color(dominantDonorHex) : color.clone();
 
     const raw = STRENGTH_BASE[receiver] + STRENGTH_BOOST[receiver] * influence;
     let strength = raw * (receiver === 'Moon' ? sky.moonPhaseFraction : 1);

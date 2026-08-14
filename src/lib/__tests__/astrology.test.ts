@@ -243,6 +243,23 @@ describe('Moon regression', () => {
 
     expect(computeAspects(sky).Moon.influence).toBe(1);
   });
+
+  it('with two donors in range, the aura is the STRONGER one\'s pure colour, not an average of both', () => {
+    const marsDir = baselineDir(BODIES.indexOf('Mars'));
+    const sky = buildSky({
+      Mars: marsDir,
+      Venus: rotateByDeg(marsDir, 1),   // closer -- should win
+      Jupiter: rotateByDeg(marsDir, 3), // farther -- weaker donor
+    });
+
+    const aspects = computeAspects(sky);
+
+    expect(aspects.Mars.auraColor.getHex()).toBe(DONOR_HEX.Venus);
+    expect(aspects.Mars.auraColor.getHex()).not.toBe(DONOR_HEX.Jupiter);
+    // Not some blended-average third colour either.
+    const isAverageOfBoth = Math.abs(aspects.Mars.auraColor.r - (new THREE.Color(DONOR_HEX.Venus).r + new THREE.Color(DONOR_HEX.Jupiter).r) / 2) < 0.01;
+    expect(isAverageOfBoth).toBe(false);
+  });
 });
 
 // ── Sun ──────────────────────────────────────────────────────────────────
@@ -305,7 +322,7 @@ describe('the Sun', () => {
 
   it('purple ramp: the Moon blends toward the solar tint monotonically as Sun separation shrinks, and is untinted at the orb edge', () => {
     const sunDir = baselineDir(BODIES.indexOf('Sun'));
-    const purple = new THREE.Color(0xCE70FF);
+    const purple = new THREE.Color(0x8A2BE2); // astrology.ts's MOON_SOLAR_TINT
 
     const distanceToPurple = (sepDeg: number) => {
       const sky = buildSky({ Sun: sunDir, Moon: rotateByDeg(sunDir, sepDeg) });
