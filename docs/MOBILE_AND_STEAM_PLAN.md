@@ -347,7 +347,12 @@ The one code change that unblocks everything (§3, verified):
    needed the serve port opened (`firewall-cmd --zone=public --add-port=<port>/tcp` —
    runtime-only, not `--permanent`, since it's just for this test) since the `nordlynx`
    interface isn't in any explicitly-zoned interface list and falls under the default
-   zone's port rules. Loaded successfully in Safari once both were sorted.
+   zone's port rules. Went well beyond "loaded" once both were sorted: logged in and
+   played a full bossfight match against the static export in Safari on the iPhone 14 —
+   not just the page rendering, but the whole login flow and a live Socket.IO match
+   (join, rounds, combat) working identically to the dev build. That's the real signal
+   §5.5's TestFlight milestone depends on; a Capacitor wrapper adds native chrome around
+   this, not new functionality.
 
 ### 5.4 Native shell wiring
 
@@ -887,9 +892,10 @@ These run in parallel with all development and are the actual critical path:
 5. **Days 5–6** — §5.3 static export: the lobby route change, conditional
    `next.config.ts`, Sentry split. Verify with `serve out`, loaded from the iPhone over
    the LAN — that needs no build either.
-   ✅ **Done.** Code merged (#298) 2026-08-12; `serve out` loaded successfully in Safari on
-   the iPhone 14 2026-08-14 — over NordVPN Meshnet rather than a literal LAN, since the dev
-   VM and phone aren't network-adjacent here (see §5.3 item 4 for the setup).
+   ✅ **Done.** Code merged (#298) 2026-08-12; `serve out` verified on the iPhone 14
+   2026-08-14 — over NordVPN Meshnet rather than a literal LAN, since the dev VM and phone
+   aren't network-adjacent here (see §5.3 item 4 for the setup). Went past a page load: a
+   full login + bossfight match played correctly in Safari against the static export.
 6. **Days 7–9** — §5.4 Capacitor shell with a fully bundled `out/` (the referenced set is
    ~41 MB, so everything ships in the app — no remote-asset scheme needed). Backend CORS
    for `https://localhost` *and* `capacitor://localhost`. Touch controls, orientation,
@@ -1022,7 +1028,7 @@ comes off the schedule.
 | 1 | Android SDK in the Docker denv | Not started |
 | 1 | `/lobby/[lobbyId]` → `/lobby?id=` | ✅ Done — merged #298 2026-08-12; old-shape links redirect rather than break |
 | 1 | Conditional `output: export` | ✅ Done — merged #298 2026-08-12 |
-| 1 | Static export verified on the iPhone 14 itself (§5.3 item 4) | ✅ Done 2026-08-14 — served over NordVPN Meshnet (dev VM and phone aren't LAN-adjacent; see §5.2 note below) and loaded successfully in Safari |
+| 1 | Static export verified on the iPhone 14 itself (§5.3 item 4) | ✅ Done 2026-08-14 — served over NordVPN Meshnet (dev VM and phone aren't LAN-adjacent); logged in and played a full bossfight match in Safari, not just a page load |
 | 1 | Capacitor Android shell + CORS origins | Not started |
 | 1 | **Bossfight played on the iPhone 14 from TestFlight** (§5.5 milestone) | Not started |
 | 1 | Safari smoke test on the iPhone 14 (§5.1) | ✅ Done 2026-08-12 — played flawlessly |
