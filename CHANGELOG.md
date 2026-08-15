@@ -11,6 +11,10 @@ count.
 ## [Unreleased]
 
 ### Added
+- Floating combat numbers: a red "-X" over whoever a hit actually landed on
+  (both the attacker's and the target's view), a blue "0" over whoever just
+  blocked. Requires wom-be#172 (`OutgoingEvent` now carries `damage`, so the
+  attacker's own view shows the same number the target sees).
 - Planetary aspects, generalized to all seven bodies (`docs/ASPECTS_PLAN.md`):
   conjunctions are now mutual — every body can donate colour to, and receive
   it from, every other body, each using its own orb, so e.g. a Jupiter/Saturn

@@ -16,6 +16,7 @@ import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight } from '@/components/lobby/WellGlowEffect';
 import SelectionGlow from '@/components/lobby/SelectionGlow';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
+import DamageNumberEffect from '@/components/lobby/DamageNumberEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
 import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, HTML_EPS, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
@@ -39,6 +40,7 @@ import {
   type BlockGlowEvent,
   type WellRewardEvent,
   type KillFireEvent,
+  type DamageNumberEvent,
   type WellWinFx,
   type ImpactShield,
   type CombatAnimationAction,
@@ -225,6 +227,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   >([]);
   const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
   const [killFireEvents, setKillFireEvents] = useState<KillFireEvent[]>([]);
+  const [damageNumberEvents, setDamageNumberEvents] = useState<DamageNumberEvent[]>([]);
   const [denyRingFx, setDenyRingFx] = useState<{ id: string; pos: [number, number, number] }[]>([]);
   // Denier glow: only shown to the denied player themself, under whoever
   // denied them -- see the same trigger effect as denyRingFx below. A
@@ -1347,6 +1350,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               if (ev.isIncoming && ev.incomingFx) {
                 emitHpFx(ev.incomingFx);
               }
+              // Floating "-X"/"0" over the struck player -- both directions
+              // (my attack landing on someone else; someone else's attack
+              // landing on me), unlike incomingFx above.
+              if (ev.damageNumber) {
+                const did = `dmg-${ev.id}`;
+                setDamageNumberEvents((s) => [
+                  ...s,
+                  { id: did, position: [ev.toPos[0], ev.toPos[1] + 1.1, ev.toPos[2]], ...ev.damageNumber! },
+                ]);
+              }
             }}
             onDone={() => {
               if (ev.postImpact === 'bounce') {
@@ -1364,6 +1377,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                   const fid = `fl-bounce-${ev.id}`;
                   setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
                   setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 788); // scaled to 0.8x
+                  // The reflection's own real hit -- the "-X" for HP the
+                  // original attacker actually lost when it bounced back,
+                  // separate from the "0" already shown at the initial
+                  // block (LobbyScene's onStrike, above).
+                  if (ev.bounceDamageNumber) {
+                    const did = `dmg-bounce-${ev.id}`;
+                    setDamageNumberEvents((s) => [
+                      ...s,
+                      { id: did, position: [ev.bounceFlashPos![0], ev.bounceFlashPos![1] + 1.1, ev.bounceFlashPos![2]], ...ev.bounceDamageNumber! },
+                    ]);
+                  }
                 }
               }
               setStrikeEvents((s) => s.filter((x) => x.id !== ev.id));
@@ -1557,6 +1581,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           key={k.id}
           position={k.pos}
           onDone={() => setKillFireEvents((e) => e.filter((x) => x.id !== k.id))}
+        />
+      ))}
+
+      {/* Floating "-X" (hit) / "0" (blocked) over whoever just got struck */}
+      {damageNumberEvents.map((d) => (
+        <DamageNumberEffect
+          key={d.id}
+          position={d.position}
+          text={d.text}
+          color={d.color}
+          onDone={() => setDamageNumberEvents((e) => e.filter((x) => x.id !== d.id))}
         />
       ))}
 

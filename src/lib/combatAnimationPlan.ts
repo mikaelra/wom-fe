@@ -1,9 +1,16 @@
 import type { GameEvent, WellRewardComponent } from '@/lib/gameEvents';
 import { combatFromEvents, wellRewardFromEvents, glowForReward } from '@/lib/gameEvents';
 import type { HpFxEvent } from '@/lib/resourceFx';
+import type { DamageNumberColor } from '@/components/lobby/DamageNumberEffect';
 import { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import { WELL_REWARD_FLIGHT_DUR, WELL_REWARD_SCALE, type WellRewardType } from '@/components/lobby/WellRewardEffect';
 import { INSTAKILL_BURST_DURATION } from '@/components/lobby/InstakillBurstEffect';
+
+// Floating combat number spawned at a strike's impact -- shown on BOTH ends
+// of an exchange (the attacker sees it over their target; the target sees
+// it over themselves), unlike incomingFx below (local-player-HP-card only).
+// Not populated for instakills, which already have their own distinct burst.
+export type DamageNumberFx = { text: string; color: DamageNumberColor };
 
 export type StrikeEvent = {
   id: string;
@@ -23,6 +30,13 @@ export type StrikeEvent = {
   bounceFlashPos?: [number, number, number];
   // For incoming strikes: HP-card feedback to emit at the impact moment.
   incomingFx?: HpFxEvent;
+  // Floating "-X"/"0" text to spawn over the target at impact -- see
+  // DamageNumberFx above.
+  damageNumber?: DamageNumberFx;
+  // For bounce-back strikes only: the second "-X" that shows where
+  // bounceFlashPos does, when the reflected blow actually lands on the
+  // original attacker (a real, separate hit from the initial block).
+  bounceDamageNumber?: DamageNumberFx;
   // True when this strike's outcome was 'instakill'/'instakill_blocked' — adds
   // the instakill reward's green (kill) or blue (blocked) burst on top of the
   // normal hit/shield effects.
@@ -33,6 +47,13 @@ export type HitFlashEvent = {
   id: string;
   position: [number, number, number];
   instakill?: boolean;
+};
+
+// A spawned instance of DamageNumberFx (LobbyScene assigns the id and
+// spawn position -- above the target's head -- at the strike's impact).
+export type DamageNumberEvent = DamageNumberFx & {
+  id: string;
+  position: [number, number, number];
 };
 
 export type WellRewardEvent = {
@@ -433,12 +454,22 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           }
         }
 
+        const damageNumber: DamageNumberFx | undefined = isInstakill
+          ? undefined
+          : tgtHit
+            ? { text: `-${e.damage ?? 0}`, color: 'red' }
+            : tgtDefended
+              ? { text: '0', color: 'blue' }
+              : undefined;
+
         const strike: StrikeEvent = {
           id: `out-${Date.now()}`, fromPos, toPos,
           targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false,
           postImpact:     tgtDefended ? (reflected ? 'bounce' : 'stop') : 'retreat',
           flashPosition:  tgtHit    ? tgtPos : undefined,
           bounceFlashPos: reflected ? myPos  : undefined,
+          damageNumber,
+          bounceDamageNumber: reflected ? { text: `-${e.reflectDamage ?? 0}`, color: 'red' } : undefined,
           instakill:      isInstakill,
         };
         const delay = staggerMs;
@@ -475,6 +506,11 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           : inc.outcome === 'instakill'
             ? { kind: 'kill' }
             : { kind: 'hit', damage: inc.damage ?? 1 };
+        const damageNumber: DamageNumberFx | undefined = isInstakill
+          ? undefined
+          : isDefended
+            ? { text: '0', color: 'blue' }
+            : { text: `-${inc.damage ?? 0}`, color: 'red' };
 
         let toPos = baseToPos;
         if (isDefended) {
@@ -497,6 +533,8 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           flashPosition:  !isDefended         ? myPos  : undefined,
           bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
           incomingFx,
+          damageNumber,
+          bounceDamageNumber: atkReflected && atkPos ? { text: `-${inc.reflectDamage ?? 0}`, color: 'red' } : undefined,
           instakill:      isInstakill,
         };
 

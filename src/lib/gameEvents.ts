@@ -26,6 +26,16 @@ export const OutgoingEventSchema = z.object({
   eliminated: z.boolean().optional(),
   /** Coins received from the kill (the eliminated player's purse). */
   coinsReceived: z.number().optional(),
+  /** HP taken from the target (only set for 'hit' -- mirrors IncomingEvent's
+   *  own damage field, which is what the target itself sees). Drives the
+   *  floating "-X" damage number over the target, so the attacker sees the
+   *  same number their target does. */
+  damage: z.number().optional(),
+  /** HP the ATTACKER (me, here) lost when my own attack got reflected back
+   *  (only set for outcome 'reflected') -- distinct from `damage` above,
+   *  which is about the target, not me. Drives the second "-X" that shows
+   *  when the bounce lands back on me. */
+  reflectDamage: z.number().optional(),
 });
 export type OutgoingEvent = z.infer<typeof OutgoingEventSchema>;
 
@@ -35,6 +45,11 @@ export const IncomingEventSchema = z.object({
   outcome: IncomingOutcomeSchema,
   attackerDied: z.boolean(),
   damage: z.number().optional(), // HP lost (only set for 'hit')
+  /** HP the ATTACKER lost when I reflected their attack back (only set for
+   *  outcome 'reflected_back') -- same value OutgoingEvent's own
+   *  reflectDamage carries on the attacker's side of this exchange. Drives
+   *  the second "-X" over the attacker when I watch the bounce land. */
+  reflectDamage: z.number().optional(),
   /** Coins received when a reflected attack eliminated the attacker (kill by me). */
   coinsReceived: z.number().optional(),
 });
@@ -105,6 +120,8 @@ export function combatFromEvents(events: GameEvent[] | null | undefined): Parsed
         attackerDied: e.attackerDied,
         eliminated: e.eliminated,
         coinsReceived: e.coinsReceived,
+        damage: e.damage,
+        reflectDamage: e.reflectDamage,
       };
     } else if (e.kind === 'incoming') {
       result.incoming.push({
@@ -112,6 +129,7 @@ export function combatFromEvents(events: GameEvent[] | null | undefined): Parsed
         outcome: e.outcome,
         attackerDied: e.attackerDied,
         damage: e.damage,
+        reflectDamage: e.reflectDamage,
         coinsReceived: e.coinsReceived,
       });
     } else if (e.kind === 'witness') {
