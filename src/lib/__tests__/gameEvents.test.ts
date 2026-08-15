@@ -68,6 +68,16 @@ describe('combatFromEvents', () => {
     expect(inc.coinsReceived).toBe(5);
   });
 
+  it('carries reflectDamage through on both the outgoing and incoming views of a reflection', () => {
+    const events: GameEvent[] = [
+      { kind: 'outgoing', target: 'Bob', outcome: 'reflected', attackerDied: false, reflectDamage: 3 },
+      { kind: 'incoming', attacker: 'Carol', outcome: 'reflected_back', attackerDied: false, reflectDamage: 2 },
+    ];
+    const combat = combatFromEvents(events);
+    expect(combat.outgoing?.reflectDamage).toBe(3);
+    expect(combat.incoming[0].reflectDamage).toBe(2);
+  });
+
   it('maps witnessed eliminations', () => {
     const events: GameEvent[] = [{ kind: 'witness', attacker: 'Alice', victim: 'Bob' }];
     expect(combatFromEvents(events).witnessedEliminations).toEqual([

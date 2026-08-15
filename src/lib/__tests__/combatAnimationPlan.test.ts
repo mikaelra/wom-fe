@@ -126,6 +126,18 @@ describe('buildCombatAnimationPlan', () => {
       expect(strike.bounceFlashPos).toEqual([0, 0, 0]);
     });
 
+    it('shows a second red "-X" for the reflection\'s own real hit, landing back on me', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'reflected', attackerDied: false, reflectDamage: 3 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = (plan[0].actions[0] as { strike: { damageNumber?: unknown; bounceDamageNumber?: { text: string; color: string } } }).strike;
+      // The initial block still reads "0" -- the bounce's own damage is separate.
+      expect(strike.damageNumber).toEqual({ text: '0', color: 'blue' });
+      expect(strike.bounceDamageNumber).toEqual({ text: '-3', color: 'red' });
+    });
+
     it('schedules kill-fire and kill-loot at SWORD_IMPACT_MS when the outgoing attack eliminates the target', () => {
       const events: GameEvent[] = [
         { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 3 },
@@ -403,6 +415,20 @@ describe('buildCombatAnimationPlan', () => {
 
       const lootBatch = plan.find((b) => b.actions.some((a) => a.type === 'addWellRewardEvents'));
       expect(lootBatch?.delayMs).toBeCloseTo(0 + ONE_DEF_MS, 5);
+    });
+
+    it('shows a second red "-X" over the attacker for the reflection\'s own real hit', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'reflected_back', attackerDied: false, reflectDamage: 4 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as {
+        strike: { damageNumber?: { text: string; color: string }; bounceDamageNumber?: { text: string; color: string } };
+      };
+      // The initial block still reads "0" over me -- the bounce's own damage is separate.
+      expect(strike.strike.damageNumber).toEqual({ text: '0', color: 'blue' });
+      expect(strike.strike.bounceDamageNumber).toEqual({ text: '-4', color: 'red' });
     });
 
     it('schedules kill-fire under the attacker when the local player is killed', () => {

@@ -33,6 +33,10 @@ export type StrikeEvent = {
   // Floating "-X"/"0" text to spawn over the target at impact -- see
   // DamageNumberFx above.
   damageNumber?: DamageNumberFx;
+  // For bounce-back strikes only: the second "-X" that shows where
+  // bounceFlashPos does, when the reflected blow actually lands on the
+  // original attacker (a real, separate hit from the initial block).
+  bounceDamageNumber?: DamageNumberFx;
   // True when this strike's outcome was 'instakill'/'instakill_blocked' — adds
   // the instakill reward's green (kill) or blue (blocked) burst on top of the
   // normal hit/shield effects.
@@ -465,6 +469,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           flashPosition:  tgtHit    ? tgtPos : undefined,
           bounceFlashPos: reflected ? myPos  : undefined,
           damageNumber,
+          bounceDamageNumber: reflected ? { text: `-${e.reflectDamage ?? 0}`, color: 'red' } : undefined,
           instakill:      isInstakill,
         };
         const delay = staggerMs;
@@ -529,6 +534,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
           incomingFx,
           damageNumber,
+          bounceDamageNumber: atkReflected && atkPos ? { text: `-${inc.reflectDamage ?? 0}`, color: 'red' } : undefined,
           instakill:      isInstakill,
         };
 

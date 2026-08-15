@@ -1377,6 +1377,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                   const fid = `fl-bounce-${ev.id}`;
                   setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
                   setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 788); // scaled to 0.8x
+                  // The reflection's own real hit -- the "-X" for HP the
+                  // original attacker actually lost when it bounced back,
+                  // separate from the "0" already shown at the initial
+                  // block (LobbyScene's onStrike, above).
+                  if (ev.bounceDamageNumber) {
+                    const did = `dmg-bounce-${ev.id}`;
+                    setDamageNumberEvents((s) => [
+                      ...s,
+                      { id: did, position: [ev.bounceFlashPos![0], ev.bounceFlashPos![1] + 1.1, ev.bounceFlashPos![2]], ...ev.bounceDamageNumber! },
+                    ]);
+                  }
                 }
               }
               setStrikeEvents((s) => s.filter((x) => x.id !== ev.id));

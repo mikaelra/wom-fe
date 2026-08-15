@@ -33,7 +33,7 @@ export type DamageNumberColor = 'red' | 'blue';
 
 const COLOR_HEX: Record<DamageNumberColor, string> = {
   red: '#b91c1c',
-  blue: '#4fa8ff',
+  blue: '#1d4ed8',
 };
 
 export type DamageNumberEffectProps = {
