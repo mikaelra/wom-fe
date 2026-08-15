@@ -32,7 +32,7 @@ const FADE_START = 0.6; // fraction of DAMAGE_NUMBER_DURATION where fade begins
 export type DamageNumberColor = 'red' | 'blue';
 
 const COLOR_HEX: Record<DamageNumberColor, string> = {
-  red: '#ff4444',
+  red: '#b91c1c',
   blue: '#4fa8ff',
 };
 
@@ -71,7 +71,7 @@ export default function DamageNumberEffect({ position, text, color, onDone }: Da
     <Billboard position={position}>
       <Text
         ref={textRef}
-        fontSize={0.42}
+        fontSize={0.32}
         fontWeight="bold"
         color={COLOR_HEX[color]}
         anchorX="center"
