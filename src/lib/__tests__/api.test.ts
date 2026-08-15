@@ -16,6 +16,7 @@ import {
   getShopProducts,
   getWellProfile,
   getWheelTables,
+  getTradeUpRules,
   joinRankedQueue,
   leaveRankedQueue,
   logInUser,
@@ -23,6 +24,7 @@ import {
   postCheckout,
   resolveAccountSession,
   spinWheel,
+  tradeUp,
   verifyLoginCode,
 } from '@/lib/api';
 import { ApiError, getStoredAccountToken, getStoredToken, setStoredAccountToken, setStoredToken } from '@/lib/http';
@@ -625,5 +627,46 @@ describe('getWheelTables', () => {
     };
     fetchMock.mockResolvedValue(jsonResponse(body));
     await expect(getWheelTables()).resolves.toEqual(body);
+  });
+});
+
+describe('getTradeUpRules', () => {
+  it('returns the ladder as served', async () => {
+    const body = { rules: { frog_blue_v1: { cost: 5, output_kind: 'wheel', output: 'special' } } };
+    fetchMock.mockResolvedValue(jsonResponse(body));
+    await expect(getTradeUpRules()).resolves.toEqual(body);
+  });
+});
+
+describe('tradeUp', () => {
+  it('returns the trade-up result', async () => {
+    const body = {
+      success: true, trade_up_id: 900, output_kind: 'wheel', output: 'special', wheel_id: 501, remaining: 0,
+    };
+    fetchMock.mockResolvedValue(jsonResponse(body));
+    await expect(tradeUp('sess-1', 'frog_blue_v1')).resolves.toEqual(body);
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/inventory/trade_up`, expect.objectContaining({
+      body: JSON.stringify({ token: 'sess-1', skin: 'frog_blue_v1' }),
+    }));
+  });
+
+  it('maps insufficient_copies to a friendlier message', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'You need 5 copies.', code: 'insufficient_copies' }, 409));
+    await expect(tradeUp('sess-1', 'frog_blue_v1')).rejects.toThrow('You no longer have enough copies.');
+  });
+
+  it('maps email_unverified to a friendlier message', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Email not verified.', code: 'email_unverified' }, 403));
+    await expect(tradeUp('sess-1', 'frog_blue_v1')).rejects.toThrow('Verify your email to trade up.');
+  });
+
+  it('maps not_tradeable to a friendlier message', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: "This skin can't be traded up.", code: 'not_tradeable' }, 400));
+    await expect(tradeUp('sess-1', 'frog_green_v1')).rejects.toThrow("This skin can't be traded up.");
+  });
+
+  it('passes through an unmapped error code unchanged', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Invalid or expired session.', code: 'invalid_session' }, 401));
+    await expect(tradeUp('bad', 'frog_blue_v1')).rejects.toThrow('Invalid or expired session.');
   });
 });

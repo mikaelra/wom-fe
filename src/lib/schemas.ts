@@ -237,6 +237,33 @@ export const CheckoutResponseSchema = z.object({
   order_id: z.number().int(),
 });
 
+// docs/TRADE_UP_PLAN.md §5/§6 -- the ladder table and the trade-up result.
+
+export const TradeUpRuleSchema = z.object({
+  cost: z.number().int(),
+  output_kind: z.enum(['wheel', 'skin']),
+  output: z.string(),
+});
+
+// GET /tradeup/rules -- public, unauthenticated, keyed by input skin.
+export const TradeUpRulesResponseSchema = z.object({
+  rules: z.record(z.string(), TradeUpRuleSchema),
+});
+
+// POST /inventory/trade_up -- the 200 shape; error shapes go through
+// ApiError.code instead (see http.ts). `wheel_id` only present when
+// output_kind === 'wheel'; `equipped_skin` only present when the trade
+// consumed the player's last copy of an equipped skin.
+export const TradeUpResponseSchema = z.object({
+  success: z.boolean(),
+  trade_up_id: z.number().int(),
+  output_kind: z.enum(['wheel', 'skin']),
+  output: z.string(),
+  wheel_id: z.number().int().optional(),
+  remaining: z.number().int(),
+  equipped_skin: z.string().optional(),
+});
+
 // ── Socket.IO payload schemas (not already in @/types/game) ────────────────
 
 export const JoinedLobbyPayloadSchema = z.object({
