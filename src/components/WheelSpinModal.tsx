@@ -14,6 +14,7 @@ import {
   type ViewportGeometry,
 } from '@/lib/wheelGeometry';
 import { getQualityTier } from '@/lib/deviceQuality';
+import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 import WheelCanvas from '@/components/wheel/WheelCanvas';
 import WheelFlapper from '@/components/wheel/WheelFlapper';
 import { useWheelAnimation } from '@/components/wheel/useWheelAnimation';
@@ -42,18 +43,6 @@ function useFrozenViewportSize() {
     vh: typeof window !== 'undefined' ? window.innerHeight : 844,
   }));
   return size;
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setReduced(mq.matches);
-    const onChange = () => setReduced(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-  return reduced;
 }
 
 export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquipped }: Props) {

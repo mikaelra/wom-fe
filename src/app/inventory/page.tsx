@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getInventory, equipSkin, getPlayerRelics } from '@/lib/api';
+import { getInventory, equipSkin, getPlayerRelics, getTradeUpRules } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel, skinUrl } from '@/lib/frogSkins';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
+import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import WheelSpinModal from '@/components/WheelSpinModal';
+import TradeUpModal from '@/components/TradeUpModal';
 import RelicCoin from '@/components/RelicCoin';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
@@ -41,6 +43,8 @@ export default function InventoryPage() {
   const [relics, setRelics] = useState<Relic[]>([]);
   const [equipping, setEquipping] = useState<string | null>(null);
   const [spinningWheel, setSpinningWheel] = useState<{ id: number; kind: string } | null>(null);
+  const [tradeUpRules, setTradeUpRules] = useState<Record<string, TradeUpRule>>({});
+  const [tradingUp, setTradingUp] = useState<{ skin: string; owned: number; rule: TradeUpRule } | null>(null);
   // Set when we're logged out but localStorage remembers a name+email pair
   // (i.e. a claim was submitted from this browser) -- covers verifying that
   // claim's email link on a different device (a phone) than this one, which
@@ -80,6 +84,14 @@ export default function InventoryPage() {
         setLoadError(e instanceof Error ? e.message : 'Failed to load inventory.');
       })
       .finally(() => setLoading(false));
+
+    // Fetched separately from the Promise.all above: a failure here means
+    // no Trade up buttons render (docs/TRADE_UP_PLAN.md §8.2), not a
+    // blocked page -- the inventory itself has nothing to do with the
+    // ladder table.
+    getTradeUpRules()
+      .then((data) => setTradeUpRules(data.rules))
+      .catch(() => setTradeUpRules({}));
   };
 
   useEffect(() => {
@@ -110,6 +122,15 @@ export default function InventoryPage() {
   // would spoil it, so this only refreshes the background inventory data.
   const handleSpun = () => {
     load();
+  };
+
+  // TradeUpModal shows its own result state -- this just refreshes the
+  // background inventory counts (docs/TRADE_UP_PLAN.md §8.4) and, if the
+  // trade consumed the player's last copy of an equipped skin, applies the
+  // reset without waiting on the reload.
+  const handleTraded = (result: TradeUpResult) => {
+    load();
+    if (result.equipped_skin) setEquippedSkin(result.equipped_skin);
   };
 
   // Green is always owned implicitly -- no skin_items row needed for it
@@ -244,18 +265,29 @@ export default function InventoryPage() {
                       />
                       <p className="text-sm font-semibold capitalize text-center">{skinLabel(skin)}</p>
                       {count > 1 && <p className="text-xs text-white/50">×{count}</p>}
-                      {isEquipped ? (
-                        <span className="text-xs font-bold text-green-400">EQUIPPED</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleEquip(skin)}
-                          disabled={equipping === skin}
-                          className="text-xs px-3 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
-                        >
-                          {equipping === skin ? 'Equipping…' : 'Equip'}
-                        </button>
-                      )}
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
+                        {isEquipped ? (
+                          <span className="text-xs font-bold text-green-400">EQUIPPED</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleEquip(skin)}
+                            disabled={equipping === skin}
+                            className="text-xs px-3 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            {equipping === skin ? 'Equipping…' : 'Equip'}
+                          </button>
+                        )}
+                        {tradeUpRules[skin] && (
+                          <button
+                            type="button"
+                            onClick={() => setTradingUp({ skin, owned: count, rule: tradeUpRules[skin] })}
+                            className="text-xs px-3 py-1 rounded-md bg-amber-700/80 text-amber-200 border border-amber-600 hover:bg-amber-600/80 transition-colors cursor-pointer"
+                          >
+                            Trade up
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -272,6 +304,18 @@ export default function InventoryPage() {
           onClose={() => setSpinningWheel(null)}
           onSpun={handleSpun}
           onEquipped={setEquippedSkin}
+        />
+      )}
+
+      {tradingUp !== null && (
+        <TradeUpModal
+          skin={tradingUp.skin}
+          owned={tradingUp.owned}
+          rule={tradingUp.rule}
+          onClose={() => setTradingUp(null)}
+          onTraded={handleTraded}
+          onEquipped={setEquippedSkin}
+          onSpinNow={(wheelId) => setSpinningWheel({ id: wheelId, kind: 'special' })}
         />
       )}
     </div>

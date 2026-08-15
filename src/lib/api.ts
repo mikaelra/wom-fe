@@ -35,7 +35,10 @@ import {
   ShopProductsResponseSchema,
   CheckoutResponseSchema,
   WheelTablesResponseSchema,
+  TradeUpRulesResponseSchema,
+  TradeUpResponseSchema,
 } from '@/lib/schemas';
+import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 
 export type ShopProduct = {
   id: string;
@@ -406,6 +409,30 @@ export async function getWheelTables(): Promise<{
   return request('/wheel/tables', WheelTablesResponseSchema, {
     defaultErrorMessage: 'Failed to load wheel odds.',
   });
+}
+
+// docs/TRADE_UP_PLAN.md §6/§8.1 -- trade-up rules and the trade itself.
+
+export async function getTradeUpRules(): Promise<{ rules: Record<string, TradeUpRule> }> {
+  return request('/tradeup/rules', TradeUpRulesResponseSchema, {
+    defaultErrorMessage: 'Failed to load trade-up rules.',
+  });
+}
+
+export async function tradeUp(token: string, skin: string): Promise<TradeUpResult> {
+  try {
+    return await request('/inventory/trade_up', TradeUpResponseSchema, {
+      body: { token, skin },
+      defaultErrorMessage: 'Failed to trade up.',
+    });
+  } catch (e) {
+    if (e instanceof ApiError) {
+      if (e.code === 'insufficient_copies') throw new Error('You no longer have enough copies.');
+      if (e.code === 'email_unverified') throw new Error('Verify your email to trade up.');
+      if (e.code === 'not_tradeable') throw new Error("This skin can't be traded up.");
+    }
+    throw e;
+  }
 }
 
 export async function logOut(token: string | null): Promise<{ success: boolean }> {
