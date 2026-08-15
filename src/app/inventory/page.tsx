@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getInventory, equipSkin, getPlayerRelics, getTradeUpRules } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
-import { skinColor, skinLabel, skinUrl } from '@/lib/frogSkins';
+import { skinColor, skinLabel, skinThumbnailUrl, skinUrl } from '@/lib/frogSkins';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import WheelSpinModal from '@/components/WheelSpinModal';
@@ -260,9 +260,17 @@ export default function InventoryPage() {
                       className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
                     >
                       <div
-                        className="w-16 h-16 rounded-full border-2 border-white/20"
+                        className="w-16 h-16 rounded-full border-2 border-white/20 overflow-hidden"
                         style={{ background: skinColor(skin) }}
-                      />
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- a small
+                            fixed set of local static assets, not remote/user content */}
+                        <img
+                          src={skinThumbnailUrl(skin)}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
                       <p className="text-sm font-semibold capitalize text-center">{skinLabel(skin)}</p>
                       {count > 1 && <p className="text-xs text-white/50">×{count}</p>}
                       <div className="flex items-center justify-center gap-2 flex-wrap">

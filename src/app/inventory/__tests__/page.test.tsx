@@ -78,6 +78,21 @@ describe('InventoryPage', () => {
     expect(screen.getByTestId('skin-preview')).toHaveAttribute('data-url', '/models/frogs/frog_green_v1.glb');
   });
 
+  it('shows a static head thumbnail on each skin card, not the old flat color swatch', async () => {
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({
+      equipped_skin: 'frog_green_v1',
+      skins: [{ skin: 'frog_gold_v1', count: 1 }],
+      wheels: [],
+    });
+    const { container } = render(<InventoryPage />);
+    await flush();
+
+    const srcs = Array.from(container.querySelectorAll('img')).map((img) => img.src);
+    expect(srcs.some((src) => src.endsWith('/skins/thumbnails/frog_green_v1.png'))).toBe(true);
+    expect(srcs.some((src) => src.endsWith('/skins/thumbnails/frog_gold_v1.png'))).toBe(true);
+  });
+
   it('lists owned skins with their counts and an Equip button for unequipped ones', async () => {
     setStoredAccountToken('sess-1');
     mockedGetInventory.mockResolvedValue({
