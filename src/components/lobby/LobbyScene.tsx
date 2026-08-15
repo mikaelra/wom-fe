@@ -560,6 +560,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     // is long since resolved by now, so drop it too rather than leave stale names.
     setKillFireEvents([]);
     setDenyRingFx([]);
+    // A blocked shield's own removeImpactShield is scheduled for whenever that
+    // round's combat finishes playing out (buildCombatAnimationPlan's "stays
+    // up through the rest of the round" logic) -- if that's later than this
+    // round's real-world duration (a short round timer, or several staggered
+    // attackers), its timeout above gets cancelled before it ever fires,
+    // orphaning the shield in this array forever. A new block next round then
+    // adds a second one on top of it. No shield legitimately belongs to a
+    // round that has already ended, so drop them all here unconditionally.
+    setImpactShields([]);
     denierGlowTimeoutsRef.current.forEach(clearTimeout);
     denierGlowTimeoutsRef.current = [];
     setDenierGlowActive(false);
