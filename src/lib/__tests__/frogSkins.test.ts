@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { COMMON_SKINS, NORMAL_WHEEL_SKINS, skinColor, skinLabel, skinUrl } from '@/lib/frogSkins';
+import {
+  COMMON_SKINS, NORMAL_WHEEL_SKINS, skinColor, skinLabel, skinThumbnailUrl, skinUrl,
+} from '@/lib/frogSkins';
 
 describe('skinUrl', () => {
   it('builds the model path', () => {
@@ -8,6 +10,16 @@ describe('skinUrl', () => {
 
   it('routes Cherub to its own asset instead of the frogs/ pattern (§3.4/§8.3)', () => {
     expect(skinUrl('cherub_v1')).toBe('/models/cherub-v01.glb');
+  });
+});
+
+describe('skinThumbnailUrl', () => {
+  it('builds the pre-rendered thumbnail path', () => {
+    expect(skinThumbnailUrl('frog_green_v1')).toBe('/skins/thumbnails/frog_green_v1.png');
+  });
+
+  it('works for non-frog skins too, same directory as everything else', () => {
+    expect(skinThumbnailUrl('cherub_v1')).toBe('/skins/thumbnails/cherub_v1.png');
   });
 });
 
