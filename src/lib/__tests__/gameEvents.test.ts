@@ -15,12 +15,13 @@ import {
 describe('combatFromEvents', () => {
   it('maps an outgoing hit', () => {
     const events: GameEvent[] = [
-      { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false },
+      { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, damage: 3 },
     ];
     expect(combatFromEvents(events).outgoing).toEqual({
       target: 'Bob',
       outcome: 'hit',
       attackerDied: false,
+      damage: 3,
     });
   });
 

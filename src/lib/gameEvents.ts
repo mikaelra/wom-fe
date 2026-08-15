@@ -26,6 +26,11 @@ export const OutgoingEventSchema = z.object({
   eliminated: z.boolean().optional(),
   /** Coins received from the kill (the eliminated player's purse). */
   coinsReceived: z.number().optional(),
+  /** HP taken from the target (only set for 'hit' -- mirrors IncomingEvent's
+   *  own damage field, which is what the target itself sees). Drives the
+   *  floating "-X" damage number over the target, so the attacker sees the
+   *  same number their target does. */
+  damage: z.number().optional(),
 });
 export type OutgoingEvent = z.infer<typeof OutgoingEventSchema>;
 
@@ -105,6 +110,7 @@ export function combatFromEvents(events: GameEvent[] | null | undefined): Parsed
         attackerDied: e.attackerDied,
         eliminated: e.eliminated,
         coinsReceived: e.coinsReceived,
+        damage: e.damage,
       };
     } else if (e.kind === 'incoming') {
       result.incoming.push({

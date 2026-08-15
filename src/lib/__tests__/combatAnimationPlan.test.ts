@@ -50,6 +50,36 @@ describe('buildCombatAnimationPlan', () => {
       ]);
     });
 
+    it('shows a red "-X" damage number, using the damage the backend reports for MY hit', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, damage: 4 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: { text: string; color: string } } };
+      expect(strike.strike.damageNumber).toEqual({ text: '-4', color: 'red' });
+    });
+
+    it('shows a blue "0" damage number when my attack is blocked', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'blocked', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: { text: string; color: string } } };
+      expect(strike.strike.damageNumber).toEqual({ text: '0', color: 'blue' });
+    });
+
+    it('omits the damage number for an instakill (has its own burst effect)', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'instakill', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: unknown } };
+      expect(strike.strike.damageNumber).toBeUndefined();
+    });
+
     it('offsets toPos away from the attacker when the target defended', () => {
       const events: GameEvent[] = [
         { kind: 'outgoing', target: 'Bob', outcome: 'blocked', attackerDied: false },
@@ -174,6 +204,36 @@ describe('buildCombatAnimationPlan', () => {
           }],
         },
       ]);
+    });
+
+    it('shows a red "-X" damage number over me, matching the reported damage', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'hit', attackerDied: false, damage: 5 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: { text: string; color: string } } };
+      expect(strike.strike.damageNumber).toEqual({ text: '-5', color: 'red' });
+    });
+
+    it('shows a blue "0" damage number over me when I block', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'blocked', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: { text: string; color: string } } };
+      expect(strike.strike.damageNumber).toEqual({ text: '0', color: 'blue' });
+    });
+
+    it('omits the damage number when I\'m instakilled (has its own burst effect)', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'instakill', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: unknown } };
+      expect(strike.strike.damageNumber).toBeUndefined();
     });
 
     it('carries the attacker name on the strike when their position is known, for the attacker glow', () => {
