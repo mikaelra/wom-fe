@@ -57,7 +57,14 @@ export const HTML_EPS = 0;
 // the badge once, a beat after it appears, gets it a second attempt after
 // FOV/camera have had time to settle -- same effect as dragging the camera,
 // on a timer instead of waiting for the player to notice and do it.
-function useRemountKeyOnceSettled(dep: unknown, delayMs = 400): number {
+// Each call site gets its own independent counter starting at 0 -- always
+// namespace the returned value (e.g. `key={`info-${key}`}`) before using it
+// as a React `key`, never the bare number. Two Html siblings under the same
+// parent (e.g. the info-reveal badge and the boss HP card, both live on
+// Hades at once) can otherwise land on the exact same numeric key at the
+// same time, which silently confuses React's reconciliation between them
+// (logged as "two children with the same key") instead of throwing.
+export function useRemountKeyOnceSettled(dep: unknown, delayMs = 400): number {
   const [key, setKey] = useState(0);
   useEffect(() => {
     if (dep == null) return;
@@ -250,12 +257,16 @@ export function WellCrown({ worldPosition }: { worldPosition: [number, number, n
 const CHERUB_HOVER_AMPLITUDE = 0.08;
 const CHERUB_HOVER_SPEED = 1.6;
 
-function HoveringModel({ children, phase = 0 }: { children: ReactNode; phase?: number }) {
+function HoveringModel({ children, phase = 0, active = true }: { children: ReactNode; phase?: number; active?: boolean }) {
   const ref = useRef<THREE.Group>(null);
   useFrame((state) => {
     if (ref.current) {
-      ref.current.position.y =
-        Math.sin(state.clock.elapsedTime * CHERUB_HOVER_SPEED + phase) * CHERUB_HOVER_AMPLITUDE;
+      // active=false (dead) freezes the offset at 0 instead of unmounting
+      // this wrapper -- see PlayerModelLayer's own comment on why the
+      // wrapper itself must stay mounted regardless of isDead.
+      ref.current.position.y = active
+        ? Math.sin(state.clock.elapsedTime * CHERUB_HOVER_SPEED + phase) * CHERUB_HOVER_AMPLITUDE
+        : 0;
     }
   });
   return <group ref={ref}>{children}</group>;
@@ -285,9 +296,17 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, h
   );
   return (
     <>
-      {/* No hover once dead -- a defeated Cherub tips onto its side (PlayerV1's
-          own isDead pose) rather than floating, same as every other skin. */}
-      {hover && !isDead ? <HoveringModel phase={hoverPhase}>{model}</HoveringModel> : model}
+      {/* hover ? ... : model keeps the SAME element shape (HoveringModel
+          always mounted, or never) regardless of isDead -- switching between
+          wrapped/unwrapped based on isDead here used to force a full
+          unmount+remount of the GLB the instant a Cherub player died (e.g.
+          everyone still standing when a bossfight ends), visible as the
+          model disappearing and popping back in. The wrapper's own `active`
+          prop (not this ternary) is what turns hovering off on death: a
+          defeated Cherub tips onto its side (PlayerV1's own isDead pose)
+          rather than floating, same as every other skin, but without ever
+          tearing the model down to get there. */}
+      {hover ? <HoveringModel phase={hoverPhase} active={!isDead}>{model}</HoveringModel> : model}
       {showShield && <ShieldEffect />}
     </>
   );
@@ -401,6 +420,20 @@ export const PlayerWithName = memo(function PlayerWithName({
   // badge below to recompute its scale a beat after it appears, so a
   // transient FOV value at mount time can't leave it stuck oversized.
   const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
+  // Same fix, for the boss HP/attack Html below -- it mounts fresh exactly
+  // when a bossfight round starts, the same "freshly-mounted Html" risk
+  // window as the info-reveal badge, and was missing this protection (the
+  // damage-number work's DamageNumberEffect made this bug reproduce far
+  // more often, since a hit is usually the very first thing that happens
+  // once the boss Html has mounted).
+  const bossRemountKey = useRemountKeyOnceSettled(isBoss ? true : undefined);
+  // Same fix again, for the shared name/chat/attack/defend Html root below.
+  // Unlike the other two, it's never conditionally re-mounted -- but it IS
+  // freshly mounted exactly once, the moment this player first appears in a
+  // match, which lands in the exact same camera-fly-in/FOV-settling window
+  // as everything else here. `true` (not a real dep) since this only ever
+  // needs to fire the one time, right after mount.
+  const stackRemountKey = useRemountKeyOnceSettled(true);
   // Clicking the model itself selects the same action as its button --
   // attack this player if they're a legal target, deny them if a deny is
   // pending, or defend if this is your own model. The three flags are
@@ -470,7 +503,7 @@ export const PlayerWithName = memo(function PlayerWithName({
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
           (see stackItem above). The boss HP card below stays separate — it uses
           a different scale (4.2) and z-order. */}
-      <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
+      <Html key={`stack-${stackRemountKey}`} position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           {chatBubble && (
             <div style={{
@@ -594,7 +627,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           above) so its zIndexRange can sit above the boss HP card ([5,5])
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
-        <Html key={infoRevealRemountKey} position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
+        <Html key={`info-${infoRevealRemountKey}`} position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>
@@ -608,7 +641,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           panels (waiting lobby + round messages, which use Tailwind
           z-10/z-20) so it renders beneath them rather than covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]} eps={HTML_EPS}>
+        <Html key={`boss-${bossRemountKey}`} position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]} eps={HTML_EPS}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
@@ -697,6 +730,9 @@ export const LostSoulModel = memo(function LostSoulModel({
   const ref = useRef<THREE.Group>(null);
   // See useRemountKeyOnceSettled's own comment, and PlayerWithName's use of it.
   const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
+  // Same fix for the name/attack Html root below -- see PlayerWithName's
+  // stackRemountKey comment.
+  const stackRemountKey = useRemountKeyOnceSettled(true);
   const clickSelectable = !!showAttackButton || !!showDenyButton;
 
   useFrame((state) => {
@@ -735,7 +771,7 @@ export const LostSoulModel = memo(function LostSoulModel({
       )}
       {/* Name + attack button share one Html root (was two per soul). The
           button sits ~0.15 world units (≈35px pre-scale) above the name. */}
-      <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
+      <Html key={`stack-${stackRemountKey}`} position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           <div style={{
             ...stackItem(0),
@@ -764,7 +800,7 @@ export const LostSoulModel = memo(function LostSoulModel({
         </div>
       </Html>
       {infoReveal && (
-        <Html key={infoRevealRemountKey} position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
+        <Html key={`info-${infoRevealRemountKey}`} position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>

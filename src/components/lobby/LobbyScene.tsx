@@ -19,7 +19,7 @@ import KillFireEffect from '@/components/lobby/KillFireEffect';
 import DamageNumberEffect from '@/components/lobby/DamageNumberEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
-import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, HTML_EPS, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
+import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, HTML_EPS, useRemountKeyOnceSettled, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
@@ -370,6 +370,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // handleWell/handleDefend/handleAttack below), so a click landing in this
   // window can't actually submit anything.
   const showActionButtonsLook = showAttackButtons || deathPending.has(playerName);
+  // See PlayerAvatars.tsx's useRemountKeyOnceSettled/bossRemountKey comment --
+  // the Well button's Html below mounts fresh every round-start (same as the
+  // boss Html) and had the same gap: no protection against a transient FOV
+  // value at that exact mount moment leaving it stuck oversized.
+  const wellRemountKey = useRemountKeyOnceSettled(showActionButtonsLook ? true : undefined);
   const showLobbyControls = state?.round === 0;
   const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
@@ -853,8 +858,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               if (p.name !== playerName) stats.set(p.name, { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage });
             });
             const revealDelayMs = (infoEvent.delay + WELL_REWARD_FLIGHT_DUR) * 1000;
+            const revealRound = state.round;
             staggerTimeoutsRef.current.push(
-              setTimeout(() => setInfoReveal({ round: state.round, stats }), revealDelayMs),
+              setTimeout(() => setInfoReveal((prev) => {
+                // Never let this go backward/sideways -- a badge should only
+                // ever move forward through fresh -> stale -> gone. If
+                // something (a stray reprocess, a stale gameEvents refetch)
+                // ever handed this the same round again, blindly overwriting
+                // would reset an already-stale badge back to freshly-won.
+                if (prev && revealRound <= prev.round) return prev;
+                return { round: revealRound, stats };
+              }), revealDelayMs),
             );
           }
           // Poisoned Dagger: same "wait for the model to land" reveal --
@@ -1167,8 +1181,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         const isOwnPlayer = player.name === playerName;
         // "info" Well reward badge: fresh the round it's captured, greyed
         // ("last round") the round after, then gone — see infoReveal above.
+        // !gameOver: this decay is derived purely from state.round advancing,
+        // which stops happening once the game ends -- without this guard a
+        // badge captured on the final round (or the one before it) would sit
+        // stuck on the Game Over screen forever instead of ever reaching
+        // "gone".
         let infoBadge: InfoRevealBadge | null = null;
-        if (infoReveal && isOpponent && !isDead) {
+        if (infoReveal && isOpponent && !isDead && !gameOver) {
           const s = infoReveal.stats.get(player.name);
           if (s && infoReveal.round === state?.round) infoBadge = { ...s, stale: false };
           else if (s && infoReveal.round === (state?.round ?? 0) - 1) infoBadge = { ...s, stale: true };
@@ -1233,11 +1252,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       {lostSouls.map((soul, i) => {
         const pos = LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length];
         const isDead = (soul.hp ?? 0) <= 0;
-        // Same fresh/stale/gone derivation as the main player loop above.
-        // Souls share one server name, so — like their shared posMap entry —
+        // Same fresh/stale/gone derivation as the main player loop above
+        // (including the !gameOver guard -- see its comment there). Souls
+        // share one server name, so — like their shared posMap entry —
         // every soul with that name shows the same captured snapshot.
         let infoBadge: InfoRevealBadge | null = null;
-        if (infoReveal && !isDead) {
+        if (infoReveal && !isDead && !gameOver) {
           const s = infoReveal.stats.get(soul.name);
           if (s && infoReveal.round === state?.round) infoBadge = { ...s, stale: false };
           else if (s && infoReveal.round === (state?.round ?? 0) - 1) infoBadge = { ...s, stale: true };
@@ -1278,9 +1298,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           eps={HTML_EPS}: see PlayerAvatars.tsx's HTML_EPS comment -- without
           it this can render stuck at the wrong (often much larger) size
           after a camera dolly settles near screen-center, until the
-          camera is dragged. */}
+          camera is dragged. key={wellRemountKey}: see bossRemountKey's
+          comment -- this Html also mounts fresh every round-start, the same
+          transient-FOV-at-mount risk the info-reveal badge was already
+          protected against. */}
       {showActionButtonsLook && (
-        <Html position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
+        <Html key={wellRemountKey} position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
           <ActionImageButton
             src="/images/buttons/well-ld.png"
             alt="The Well"
@@ -1335,7 +1358,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             postImpact={ev.postImpact}
             onStrike={() => {
               if (ev.isIncoming) {
-                playCombatSound('attacked');
+                // Defender's own perspective: reuse the same two outcome
+                // sounds the attacker hears (attack_blocked/attacked), not
+                // one blanket "something hit me" cue regardless of whether
+                // it actually landed or got blocked -- targetDefended/
+                // targetHit are already populated correctly for incoming
+                // events (combatAnimationPlan.ts), this just wasn't
+                // checking them.
+                playCombatSound(ev.targetDefended ? 'attack_blocked' : 'attacked');
               } else if (ev.targetHit) {
                 playCombatSound('attack_hit');
               } else if (ev.targetDefended) {
