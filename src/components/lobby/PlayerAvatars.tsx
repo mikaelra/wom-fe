@@ -57,7 +57,7 @@ export const HTML_EPS = 0;
 // the badge once, a beat after it appears, gets it a second attempt after
 // FOV/camera have had time to settle -- same effect as dragging the camera,
 // on a timer instead of waiting for the player to notice and do it.
-function useRemountKeyOnceSettled(dep: unknown, delayMs = 400): number {
+export function useRemountKeyOnceSettled(dep: unknown, delayMs = 400): number {
   const [key, setKey] = useState(0);
   useEffect(() => {
     if (dep == null) return;
@@ -401,6 +401,13 @@ export const PlayerWithName = memo(function PlayerWithName({
   // badge below to recompute its scale a beat after it appears, so a
   // transient FOV value at mount time can't leave it stuck oversized.
   const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
+  // Same fix, for the boss HP/attack Html below -- it mounts fresh exactly
+  // when a bossfight round starts, the same "freshly-mounted Html" risk
+  // window as the info-reveal badge, and was missing this protection (the
+  // damage-number work's DamageNumberEffect made this bug reproduce far
+  // more often, since a hit is usually the very first thing that happens
+  // once the boss Html has mounted).
+  const bossRemountKey = useRemountKeyOnceSettled(isBoss ? true : undefined);
   // Clicking the model itself selects the same action as its button --
   // attack this player if they're a legal target, deny them if a deny is
   // pending, or defend if this is your own model. The three flags are
@@ -608,7 +615,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           panels (waiting lobby + round messages, which use Tailwind
           z-10/z-20) so it renders beneath them rather than covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]} eps={HTML_EPS}>
+        <Html key={bossRemountKey} position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]} eps={HTML_EPS}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
