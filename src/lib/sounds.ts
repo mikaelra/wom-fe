@@ -8,11 +8,14 @@ const COMBAT_SOUNDS: Record<string, string> = {
   // reflected sword's second impact landing at the end of its bounce arc
   // (onDone) -- either side of a block+reflect hears this.
   attack_hit: '/sounds/resources/AttackHit.wav',
-  // My own outgoing attack gets blocked (onStrike) -- heard by the attacker,
-  // not the defender (see `attacked` below for what the defender hears).
+  // A block happens (onStrike) -- heard by the attacker when their own
+  // outgoing attack gets blocked, AND by the defender when their own Defend
+  // successfully blocks an incoming attack (see `attacked` below for what
+  // the defender hears instead when it isn't blocked).
   attack_blocked: '/sounds/resources/AttackBlocked.wav',
-  // An incoming attack makes contact with the local player (onStrike),
-  // regardless of whether it's about to hit or get blocked.
+  // An incoming attack actually lands on the local player, i.e. their
+  // Defend failed to block it (onStrike) -- see `attack_blocked` for what
+  // they hear instead when it's successfully blocked.
   attacked: '/sounds/resources/AttackIncoming.wav',
 };
 

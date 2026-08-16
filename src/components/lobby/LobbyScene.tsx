@@ -1358,7 +1358,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             postImpact={ev.postImpact}
             onStrike={() => {
               if (ev.isIncoming) {
-                playCombatSound('attacked');
+                // Defender's own perspective: reuse the same two outcome
+                // sounds the attacker hears (attack_blocked/attacked), not
+                // one blanket "something hit me" cue regardless of whether
+                // it actually landed or got blocked -- targetDefended/
+                // targetHit are already populated correctly for incoming
+                // events (combatAnimationPlan.ts), this just wasn't
+                // checking them.
+                playCombatSound(ev.targetDefended ? 'attack_blocked' : 'attacked');
               } else if (ev.targetHit) {
                 playCombatSound('attack_hit');
               } else if (ev.targetDefended) {
