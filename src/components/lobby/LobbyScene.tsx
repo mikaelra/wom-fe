@@ -858,8 +858,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               if (p.name !== playerName) stats.set(p.name, { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage });
             });
             const revealDelayMs = (infoEvent.delay + WELL_REWARD_FLIGHT_DUR) * 1000;
+            const revealRound = state.round;
             staggerTimeoutsRef.current.push(
-              setTimeout(() => setInfoReveal({ round: state.round, stats }), revealDelayMs),
+              setTimeout(() => setInfoReveal((prev) => {
+                // Never let this go backward/sideways -- a badge should only
+                // ever move forward through fresh -> stale -> gone. If
+                // something (a stray reprocess, a stale gameEvents refetch)
+                // ever handed this the same round again, blindly overwriting
+                // would reset an already-stale badge back to freshly-won.
+                if (prev && revealRound <= prev.round) return prev;
+                return { round: revealRound, stats };
+              }), revealDelayMs),
             );
           }
           // Poisoned Dagger: same "wait for the model to land" reveal --

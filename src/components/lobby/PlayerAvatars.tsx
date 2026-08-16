@@ -57,6 +57,13 @@ export const HTML_EPS = 0;
 // the badge once, a beat after it appears, gets it a second attempt after
 // FOV/camera have had time to settle -- same effect as dragging the camera,
 // on a timer instead of waiting for the player to notice and do it.
+// Each call site gets its own independent counter starting at 0 -- always
+// namespace the returned value (e.g. `key={`info-${key}`}`) before using it
+// as a React `key`, never the bare number. Two Html siblings under the same
+// parent (e.g. the info-reveal badge and the boss HP card, both live on
+// Hades at once) can otherwise land on the exact same numeric key at the
+// same time, which silently confuses React's reconciliation between them
+// (logged as "two children with the same key") instead of throwing.
 export function useRemountKeyOnceSettled(dep: unknown, delayMs = 400): number {
   const [key, setKey] = useState(0);
   useEffect(() => {
@@ -408,6 +415,13 @@ export const PlayerWithName = memo(function PlayerWithName({
   // more often, since a hit is usually the very first thing that happens
   // once the boss Html has mounted).
   const bossRemountKey = useRemountKeyOnceSettled(isBoss ? true : undefined);
+  // Same fix again, for the shared name/chat/attack/defend Html root below.
+  // Unlike the other two, it's never conditionally re-mounted -- but it IS
+  // freshly mounted exactly once, the moment this player first appears in a
+  // match, which lands in the exact same camera-fly-in/FOV-settling window
+  // as everything else here. `true` (not a real dep) since this only ever
+  // needs to fire the one time, right after mount.
+  const stackRemountKey = useRemountKeyOnceSettled(true);
   // Clicking the model itself selects the same action as its button --
   // attack this player if they're a legal target, deny them if a deny is
   // pending, or defend if this is your own model. The three flags are
@@ -477,7 +491,7 @@ export const PlayerWithName = memo(function PlayerWithName({
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
           (see stackItem above). The boss HP card below stays separate — it uses
           a different scale (4.2) and z-order. */}
-      <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
+      <Html key={`stack-${stackRemountKey}`} position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           {chatBubble && (
             <div style={{
@@ -601,7 +615,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           above) so its zIndexRange can sit above the boss HP card ([5,5])
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
-        <Html key={infoRevealRemountKey} position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
+        <Html key={`info-${infoRevealRemountKey}`} position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>
@@ -615,7 +629,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           panels (waiting lobby + round messages, which use Tailwind
           z-10/z-20) so it renders beneath them rather than covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html key={bossRemountKey} position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]} eps={HTML_EPS}>
+        <Html key={`boss-${bossRemountKey}`} position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]} eps={HTML_EPS}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
@@ -704,6 +718,9 @@ export const LostSoulModel = memo(function LostSoulModel({
   const ref = useRef<THREE.Group>(null);
   // See useRemountKeyOnceSettled's own comment, and PlayerWithName's use of it.
   const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
+  // Same fix for the name/attack Html root below -- see PlayerWithName's
+  // stackRemountKey comment.
+  const stackRemountKey = useRemountKeyOnceSettled(true);
   const clickSelectable = !!showAttackButton || !!showDenyButton;
 
   useFrame((state) => {
@@ -742,7 +759,7 @@ export const LostSoulModel = memo(function LostSoulModel({
       )}
       {/* Name + attack button share one Html root (was two per soul). The
           button sits ~0.15 world units (≈35px pre-scale) above the name. */}
-      <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
+      <Html key={`stack-${stackRemountKey}`} position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           <div style={{
             ...stackItem(0),
@@ -771,7 +788,7 @@ export const LostSoulModel = memo(function LostSoulModel({
         </div>
       </Html>
       {infoReveal && (
-        <Html key={infoRevealRemountKey} position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
+        <Html key={`info-${infoRevealRemountKey}`} position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>
