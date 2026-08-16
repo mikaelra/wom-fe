@@ -1,6 +1,6 @@
 'use client';
 
-import { useFrame, type ThreeEvent } from '@react-three/fiber';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, useState, useEffect, memo, Suspense, type CSSProperties, type ReactNode } from 'react';
 import * as THREE from 'three';
@@ -46,17 +46,27 @@ export const HTML_EPS = 0;
 // (node_modules/@react-three/drei/web/Html.js), its per-frame recompute is
 // gated on the object's projected 2D screen position and camera.zoom only --
 // it never checks camera.fov. This scene's FOV is responsive
-// (getResponsiveFov, re-applied every frame in CameraFlyIn) and can still be
-// settling right when a conditionally-mounted Html first appears (e.g. the
-// info-reveal badge below, which mounts fresh exactly at round-transition
-// time); if that first frame's scale is computed against a transient FOV
-// value and the object's 2D position doesn't keep moving afterwards, eps=0
-// never gets a reason to recompute again, and the stale (often oversized)
-// scale sticks until the player drags the camera -- which perturbs the 2D
-// position enough to force drei's own recompute. Confirmed live. Remounting
-// the badge once, a beat after it appears, gets it a second attempt after
-// FOV/camera have had time to settle -- same effect as dragging the camera,
-// on a timer instead of waiting for the player to notice and do it.
+// (getResponsiveFov(size.width, size.height), re-applied every frame in
+// CameraFlyIn) and can still be settling right when a conditionally-mounted
+// Html first appears (e.g. the info-reveal badge below, which mounts fresh
+// exactly at round-transition time); if that first frame's scale is
+// computed against a transient FOV value and the object's 2D position
+// doesn't keep moving afterwards, eps=0 never gets a reason to recompute
+// again, and the stale (often oversized) scale sticks until the player
+// drags the camera -- which perturbs the 2D position enough to force
+// drei's own recompute. Confirmed live.
+//
+// getResponsiveFov is a step function of the canvas's aspect ratio, so the
+// actual trigger is `size` (from useThree()) settling, not raw elapsed
+// time -- a fixed delay alone is a guess at how long that takes, and on a
+// real phone (address bar collapsing, safe-area insets still settling)
+// `size` can keep changing well past any fixed delay a desktop dev session
+// would ever see, reported live: the bug still showing up on a real
+// device's first hit despite this hook's original delay-only version.
+// Watching `size.width`/`size.height` directly and bumping the key on every
+// change -- not just once, on a timer -- fixes it at the actual source
+// instead of widening the guess.
+//
 // Each call site gets its own independent counter starting at 0 -- always
 // namespace the returned value (e.g. `key={`info-${key}`}`) before using it
 // as a React `key`, never the bare number. Two Html siblings under the same
@@ -66,11 +76,23 @@ export const HTML_EPS = 0;
 // (logged as "two children with the same key") instead of throwing.
 export function useRemountKeyOnceSettled(dep: unknown, delayMs = 400): number {
   const [key, setKey] = useState(0);
+  const { size } = useThree();
+
   useEffect(() => {
     if (dep == null) return;
     const t = setTimeout(() => setKey((k) => k + 1), delayMs);
     return () => clearTimeout(t);
   }, [dep, delayMs]);
+
+  // Re-fires for the whole lifetime this Html stays mounted, not just once
+  // after mount -- a later viewport resize (mobile browser chrome show/
+  // hide mid-game) can shift getResponsiveFov's aspect-ratio bucket again,
+  // long after the initial settle window above.
+  useEffect(() => {
+    if (dep == null) return;
+    setKey((k) => k + 1);
+  }, [dep, size.width, size.height]);
+
   return key;
 }
 
