@@ -257,12 +257,16 @@ export function WellCrown({ worldPosition }: { worldPosition: [number, number, n
 const CHERUB_HOVER_AMPLITUDE = 0.08;
 const CHERUB_HOVER_SPEED = 1.6;
 
-function HoveringModel({ children, phase = 0 }: { children: ReactNode; phase?: number }) {
+function HoveringModel({ children, phase = 0, active = true }: { children: ReactNode; phase?: number; active?: boolean }) {
   const ref = useRef<THREE.Group>(null);
   useFrame((state) => {
     if (ref.current) {
-      ref.current.position.y =
-        Math.sin(state.clock.elapsedTime * CHERUB_HOVER_SPEED + phase) * CHERUB_HOVER_AMPLITUDE;
+      // active=false (dead) freezes the offset at 0 instead of unmounting
+      // this wrapper -- see PlayerModelLayer's own comment on why the
+      // wrapper itself must stay mounted regardless of isDead.
+      ref.current.position.y = active
+        ? Math.sin(state.clock.elapsedTime * CHERUB_HOVER_SPEED + phase) * CHERUB_HOVER_AMPLITUDE
+        : 0;
     }
   });
   return <group ref={ref}>{children}</group>;
@@ -292,9 +296,17 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, h
   );
   return (
     <>
-      {/* No hover once dead -- a defeated Cherub tips onto its side (PlayerV1's
-          own isDead pose) rather than floating, same as every other skin. */}
-      {hover && !isDead ? <HoveringModel phase={hoverPhase}>{model}</HoveringModel> : model}
+      {/* hover ? ... : model keeps the SAME element shape (HoveringModel
+          always mounted, or never) regardless of isDead -- switching between
+          wrapped/unwrapped based on isDead here used to force a full
+          unmount+remount of the GLB the instant a Cherub player died (e.g.
+          everyone still standing when a bossfight ends), visible as the
+          model disappearing and popping back in. The wrapper's own `active`
+          prop (not this ternary) is what turns hovering off on death: a
+          defeated Cherub tips onto its side (PlayerV1's own isDead pose)
+          rather than floating, same as every other skin, but without ever
+          tearing the model down to get there. */}
+      {hover ? <HoveringModel phase={hoverPhase} active={!isDead}>{model}</HoveringModel> : model}
       {showShield && <ShieldEffect />}
     </>
   );
