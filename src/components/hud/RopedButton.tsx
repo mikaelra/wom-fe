@@ -1,22 +1,7 @@
 'use client';
 
 import { useState, ReactNode } from 'react';
-
-const DEFAULT_IMAGE = '/models/buttons/rope_button-ld-v2.png';
-// Same art as DEFAULT_IMAGE with its flat gray fill (162,162,162 exactly)
-// chroma-keyed to transparent -- see fillColor below. Only the fill was
-// removed; the rope border/outline pixels are untouched.
-const FRAME_IMAGE = '/models/buttons/rope_frame-ld-v2.png';
-// The gray-fill region alone, as opaque white on transparent (the exact
-// inverse of FRAME_IMAGE's cutout) -- used as fillColor's CSS mask-image
-// below. A first attempt positioned a plain inset div at hand-measured
-// percentages instead; that only lined up when the button's box matched
-// the art's exact aspect ratio, and was visibly off otherwise (confirmed
-// live: a gap between the color and the rope border). mask-size: contain
-// fits this the same way object-fit: contain fits FRAME_IMAGE, so the two
-// always stay pixel-aligned regardless of the button's own dimensions --
-// no aspect-ratio caveat needed.
-const FILL_MASK_IMAGE = '/models/buttons/rope_fillmask-ld-v2.png';
+import RopedFrame from '@/components/hud/RopedFrame';
 
 type RopedButtonProps = {
   onClick?: () => void;
@@ -39,9 +24,7 @@ type RopedButtonProps = {
    *  frame art instead -- pass this explicitly only to override either. */
   imageUrl?: string;
   /** Tints the button's interior this color instead of the art's own flat
-   *  gray fill -- switches imageUrl to FRAME_IMAGE (transparent center) and
-   *  paints this color in behind it, clipped to the fill shape via
-   *  FILL_MASK_IMAGE (see its own comment). */
+   *  gray fill -- see RopedFrame's own comment for how. */
   fillColor?: string;
   /** Extra layer painted on top of the art/fill/text -- e.g. a cooldown
    *  timer overlay. Rendered last, so it covers everything else. */
@@ -70,7 +53,6 @@ export default function RopedButton({
   // hover-driven visual change makes touch browsers absorb the first tap as
   // a synthetic hover (no click) and leaves the button stuck looking pressed.
   const pressed = !disabled && (active || loading || selected);
-  const resolvedImageUrl = imageUrl ?? (fillColor ? FRAME_IMAGE : DEFAULT_IMAGE);
   const pressedStyle = {
     filter: pressed ? 'brightness(0.65)' : 'brightness(1)',
     transform: pressed ? 'translateY(2px)' : 'translateY(0)',
@@ -90,36 +72,16 @@ export default function RopedButton({
       className={`relative inline-block bg-transparent border-0 p-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 select-none ${className}`}
       style={{ width, height }}
     >
-      {fillColor && (
-        <div
-          className="absolute inset-0 pointer-events-none transition-[filter,transform] duration-150"
-          style={{
-            background: fillColor,
-            WebkitMaskImage: `url(${FILL_MASK_IMAGE})`,
-            maskImage: `url(${FILL_MASK_IMAGE})`,
-            WebkitMaskSize: 'contain',
-            maskSize: 'contain',
-            WebkitMaskRepeat: 'no-repeat',
-            maskRepeat: 'no-repeat',
-            WebkitMaskPosition: 'center',
-            maskPosition: 'center',
-            ...pressedStyle,
-          }}
-        />
-      )}
-      <img
-        src={resolvedImageUrl}
-        alt=""
-        aria-hidden="true"
-        draggable={false}
-        className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-[filter,transform] duration-150"
-        style={pressedStyle}
-      />
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <span className={textClassName}>
-          {loading ? 'Loading...' : children}
-        </span>
-      </div>
+      <RopedFrame
+        width={width}
+        height={height}
+        textClassName={textClassName}
+        imageUrl={imageUrl}
+        fillColor={fillColor}
+        artStyle={pressedStyle}
+      >
+        {loading ? 'Loading...' : children}
+      </RopedFrame>
       {overlay}
     </button>
   );
