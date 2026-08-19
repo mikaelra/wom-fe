@@ -13,6 +13,8 @@ import WheelClaimNudge from '@/components/WheelClaimNudge';
 import StartGameButton from '@/components/StartGameButton';
 import RulesModal from '@/components/lobby/RulesModal';
 import RankBadge from '@/components/hud/RankBadge';
+import RopedButton from '@/components/hud/RopedButton';
+import RopedFrame from '@/components/hud/RopedFrame';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
 
@@ -251,13 +253,15 @@ function AddBotButton({ btn, onAddDummy }: { btn: string; onAddDummy: (botType: 
           items-center), which visibly shifted Start Game sideways every
           time this opened. `invisible` keeps the exact same box reserved
           (and stops clicks on it, unlike opacity-0) without that shift. */}
-      <button
-        type="button"
+      <RopedButton
         onClick={() => setPicking(true)}
-        className={`${btn} bg-gray-600 text-white ${picking ? 'invisible' : ''}`}
+        width={180}
+        height={54}
+        fillColor="#4b5563"
+        className={picking ? 'invisible' : ''}
       >
         Add Bot
-      </button>
+      </RopedButton>
       {picking && (
         <div
           ref={containerRef}
@@ -308,28 +312,28 @@ export function renderPreGame({
       </div>
 
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-2">
-        <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
-          {state.boss_fight && boss ? (
-            <>
-              <p className="font-bold">{boss.name}</p>
-              <p className="text-white/60 text-xs">{boss.title}</p>
-              <p className="text-sm">HP: {boss.hp}</p>
-              {raidMins != null && raidSecs != null && (
-                <p className="text-white/60 text-xs">Boss-fight starts in {raidMins}m {raidSecs}s</p>
-              )}
-            </>
-          ) : state.ranked ? (
-            <>
-              <p className="font-bold text-amber-300">Ranked Match</p>
-              <p className="text-white/70 text-sm">{state.players.length}/6 players joined</p>
-              {rankedSecondsLeft != null && (
-                <p className="text-white/70 text-xs">Match starts in {rankedSecondsLeft}s</p>
-              )}
-            </>
-          ) : (
-            <p className="font-bold tracking-tight">Lobby ID: {lobbyId}</p>
-          )}
-        </div>
+        {state.boss_fight && boss ? (
+          <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
+            <p className="font-bold">{boss.name}</p>
+            <p className="text-white/60 text-xs">{boss.title}</p>
+            <p className="text-sm">HP: {boss.hp}</p>
+            {raidMins != null && raidSecs != null && (
+              <p className="text-white/60 text-xs">Boss-fight starts in {raidMins}m {raidSecs}s</p>
+            )}
+          </div>
+        ) : state.ranked ? (
+          <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
+            <p className="font-bold text-amber-300">Ranked Match</p>
+            <p className="text-white/70 text-sm">{state.players.length}/6 players joined</p>
+            {rankedSecondsLeft != null && (
+              <p className="text-white/70 text-xs">Match starts in {rankedSecondsLeft}s</p>
+            )}
+          </div>
+        ) : (
+          <RopedFrame width={220} height={54} textClassName="font-bold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+            Lobby ID: {lobbyId}
+          </RopedFrame>
+        )}
         {/* Pauses CameraFlyIn's ambient pre-round orbit -- it's hard to land a
             kick/relic click in the 3D scene while the table is drifting. Its own
             box, separate from the status pill above. */}
@@ -355,7 +359,7 @@ export function renderPreGame({
           // this row to its own content instead of that phantom half-width
           // cap, so flex-wrap never needs to trigger.
           <div className="flex w-max gap-3">
-            <StartGameButton state={state} btn={btn} onStartGame={onStartGame} />
+            <StartGameButton state={state} onStartGame={onStartGame} />
             <AddBotButton btn={btn} onAddDummy={onAddDummy} />
           </div>
         )}
