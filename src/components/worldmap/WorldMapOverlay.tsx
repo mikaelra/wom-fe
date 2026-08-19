@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { createLobby, joinLobby, logOut, getInventory } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
-import { subscribe } from '@/lib/socket';
 import { skinColor, skinThumbnailUrl } from '@/lib/frogSkins';
 import RopedButton from '@/components/hud/RopedButton';
 import RopedInput from '@/components/hud/RopedInput';
@@ -32,11 +31,6 @@ export default function WorldMapOverlay() {
   const [showRules, setShowRules] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Undefined (not 0) until the first broadcast arrives -- distinguishes
-  // "nobody's told us yet" from "genuinely zero players online" so the
-  // count doesn't flash a misleading 0 on first paint.
-  const [onlineCount, setOnlineCount] = useState<number | undefined>(undefined);
-
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
@@ -54,10 +48,6 @@ export default function WorldMapOverlay() {
       .then((data) => setEquippedSkin(data.equipped_skin))
       .catch(() => {});
   }, [loggedInName]);
-
-  useEffect(() => {
-    return subscribe('online_count', ({ count }) => setOnlineCount(count));
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -324,21 +314,6 @@ export default function WorldMapOverlay() {
           )}
         </div>
 
-      </div>
-
-      {/* Center title */}
-      <div className="absolute top-16 left-0 right-0 z-10 flex flex-col items-center gap-1 pointer-events-none">
-        <h1 className="text-white/80 text-lg font-light tracking-[0.3em] uppercase drop-shadow-lg">
-          World of Mythos
-        </h1>
-
-        {/* Ranked queueing itself now lives on the New York sword marker
-            (see CityMarker's rankedInfo) -- this is just the player count. */}
-        {onlineCount != null && onlineCount > 0 && (
-          <span className="text-white/70 text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-            {onlineCount} playing right now
-          </span>
-        )}
       </div>
 
       {/* Bottom: lobby controls */}

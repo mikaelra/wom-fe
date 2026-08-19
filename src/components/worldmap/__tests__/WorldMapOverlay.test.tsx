@@ -298,15 +298,4 @@ describe('WorldMapOverlay', () => {
     expect(screen.getByText('Stats')).toHaveAttribute('href', '/stats');
     expect(screen.getByText('Shop')).toHaveAttribute('href', '/shop');
   });
-
-  it('shows the live online count once a broadcast arrives, not before', () => {
-    render(<WorldMapOverlay />);
-    expect(screen.queryByText(/playing right now/)).not.toBeInTheDocument();
-
-    act(() => {
-      socket.__fireSubscribeEvent('online_count', { count: 7 });
-    });
-
-    expect(screen.getByText('7 playing right now')).toBeInTheDocument();
-  });
 });
