@@ -3,19 +3,23 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createLobby, joinLobby, logOut } from '@/lib/api';
+import { createLobby, joinLobby, logOut, getInventory } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import { subscribe } from '@/lib/socket';
+import { skinColor, skinThumbnailUrl } from '@/lib/frogSkins';
 import RopedButton from '@/components/hud/RopedButton';
 import RopedInput from '@/components/hud/RopedInput';
 import RulesModal from '@/components/lobby/RulesModal';
 import { useToast } from '@/components/Toast';
 
+const DEFAULT_SKIN = 'frog_green_v1';
+
 export default function WorldMapOverlay() {
   const router = useRouter();
   const { showError } = useToast();
   const [loggedInName, setLoggedInName] = useState('');
+  const [equippedSkin, setEquippedSkin] = useState(DEFAULT_SKIN);
   const [mounted, setMounted] = useState(false);
 
   const [joinCode, setJoinCode] = useState('');
@@ -39,6 +43,17 @@ export default function WorldMapOverlay() {
       setLoggedInName(localStorage.getItem('playerName') || '');
     }
   }, []);
+
+  // Same skin the user-menu button's avatar shows -- see the Inventory
+  // page's own equippedSkin fetch, which this mirrors. A failure here just
+  // leaves the button on DEFAULT_SKIN rather than blocking anything.
+  useEffect(() => {
+    const token = getStoredAccountToken();
+    if (!token) return;
+    getInventory(token)
+      .then((data) => setEquippedSkin(data.equipped_skin))
+      .catch(() => {});
+  }, [loggedInName]);
 
   useEffect(() => {
     return subscribe('online_count', ({ count }) => setOnlineCount(count));
@@ -66,6 +81,7 @@ export default function WorldMapOverlay() {
     // State update only — a location.reload() here would tear down and
     // re-initialise the entire WebGL scene just to swap the top-bar button.
     setLoggedInName('');
+    setEquippedSkin(DEFAULT_SKIN);
     setShowUserMenu(false);
   };
 
@@ -250,8 +266,17 @@ export default function WorldMapOverlay() {
                 ariaLabel="Open user menu"
                 textClassName="flex items-center gap-2 text-white font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
               >
-                <span className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xs font-bold text-black">
-                  {loggedInName[0]?.toUpperCase()}
+                <span
+                  className="w-7 h-7 rounded-full border border-white/20 overflow-hidden shrink-0"
+                  style={{ background: skinColor(equippedSkin) }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a small
+                      fixed set of local static assets, not remote/user content */}
+                  <img
+                    src={skinThumbnailUrl(equippedSkin)}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
                 </span>
                 <span>{loggedInName}</span>
                 <span className="text-white/70 text-xs">{showUserMenu ? '▲' : '▼'}</span>

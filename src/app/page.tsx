@@ -256,12 +256,15 @@ export default function Page() {
       });
   }, []);
 
-  // Animated "." -> ".." -> "..." while queued, so the New York label's
-  // "Searching" text reads as active rather than stalled.
-  const [searchingDots, setSearchingDots] = useState(1);
+  // Animated "" -> "." -> ".." -> "..." while queued, so the New York
+  // label's "Searching" text reads as active rather than stalled. Starts
+  // at 0 dots (bare "Searching") -- it used to start at 1 and cycle
+  // 1/2/3/1/2/3..., which meant the label always had at least one dot and
+  // never actually showed the plain "Searching" state.
+  const [searchingDots, setSearchingDots] = useState(0);
   useEffect(() => {
     if (rankedQueue.status !== 'searching') return;
-    const id = setInterval(() => setSearchingDots((d) => (d % 3) + 1), 500);
+    const id = setInterval(() => setSearchingDots((d) => (d + 1) % 4), 500);
     return () => clearInterval(id);
   }, [rankedQueue.status]);
 
