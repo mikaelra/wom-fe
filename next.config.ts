@@ -8,6 +8,15 @@ import { withSentryConfig } from "@sentry/nextjs";
 const isNative = process.env.BUILD_TARGET === "native";
 
 const nextConfig: NextConfig = {
+  // Mirrors BUILD_TARGET into the client bundle as NEXT_PUBLIC_BUILD_TARGET
+  // -- see src/lib/buildTarget.ts. BUILD_TARGET itself is a plain server/
+  // build-time var, so client components can't read it directly; Next only
+  // inlines NEXT_PUBLIC_-prefixed vars (or ones explicitly listed here)
+  // into client code.
+  env: {
+    NEXT_PUBLIC_BUILD_TARGET: process.env.BUILD_TARGET,
+  },
+
   // "standalone" lets the production Docker image ship just the server +
   // traced deps (.next/standalone) instead of the full node_modules tree.
   // "export" produces a bundled `out/` dir with no server at all, which is

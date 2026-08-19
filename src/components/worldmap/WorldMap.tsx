@@ -10,6 +10,7 @@ import GlobeCrackleEffect from './GlobeCrackleEffect';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
 import { getSky, computeAspects, raDecToVec3, type BodyAspect } from '@/lib/astrology';
+import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
@@ -160,9 +161,16 @@ function makeMoonFresnelMat(aspect: Pick<BodyAspect, 'auraColor' | 'strength'>) 
 
 const jupiterTexturePath = (): string => '/textures/jupiter/jupiter2_1k.jpg';
 
-// JPEG re-encode of MilkyWay-HD.png (12 MB → ~0.6 MB); the material ignores
-// alpha, so nothing is lost.
-const milkyWayTexturePath = (): string => '/textures/stars/MilkyWay-HD.jpg';
+// Web: a JPEG re-encode of the source PNG (12 MB → ~0.6 MB, the material
+// ignores alpha so nothing is lost) at 4000x2000 -- kept small since every
+// web visitor downloads it over the network. Native (Capacitor) / Steam
+// (Electron) builds bundle their assets locally instead of fetching them,
+// and are a paid product, so they use the full-resolution source PNG
+// (8000x4000, MilkyWay-extreme.png -- MilkyWay-Stars.png is the same shot
+// but with a survey reference grid/star-name overlay baked in, not a game
+// asset) for the extra visual value. See docs/MOBILE_AND_STEAM_PLAN.md.
+const milkyWayTexturePath = (): string =>
+  IS_NATIVE_BUILD ? '/textures/stars/MilkyWay-extreme.png' : '/textures/stars/MilkyWay-HD.jpg';
 
 // Preload async textures early so they are likely cached by the time their
 // phase is reached.
@@ -999,10 +1007,15 @@ function Globe({ onCityClick, rankedInfo, onReady }: GlobeProps) {
     return new THREE.Vector3(x, y, z);
   }, []);
 
-  // Always use 1k earth textures. Cloud textures are the same file in both
-  // folders, so always pulled from high-res.
-  const earthDir = 'low-res';
-  const earthSuffix = '1k';
+  // Web always uses 1k earth textures (downloaded over the network by every
+  // visitor). Native (Capacitor) / Steam (Electron) builds bundle assets
+  // locally and are a paid product, so they use the full 4k tier instead --
+  // extreme-res exists on disk too but is missing the earthmap/bump/lights
+  // files (only spec + cloud-alpha), so high-res/4k is the highest complete
+  // tier available. Cloud textures are the same file in both folders, so
+  // always pulled from high-res regardless of tier.
+  const earthDir = IS_NATIVE_BUILD ? 'high-res' : 'low-res';
+  const earthSuffix = IS_NATIVE_BUILD ? '4k' : '1k';
   const [earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans] = useTexture([
     `/textures/earth/${earthDir}/00_earthmap${earthSuffix}.jpg`,
     `/textures/earth/${earthDir}/02_earthspec${earthSuffix}.jpg`,
