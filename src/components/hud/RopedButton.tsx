@@ -7,16 +7,16 @@ const DEFAULT_IMAGE = '/models/buttons/rope_button-ld-v2.png';
 // chroma-keyed to transparent -- see fillColor below. Only the fill was
 // removed; the rope border/outline pixels are untouched.
 const FRAME_IMAGE = '/models/buttons/rope_frame-ld-v2.png';
-
-// The frame art's transparent hole as a percentage of the full 595x197
-// image -- measured directly off rope_frame-ld-v2.png's pixels (opaque ->
-// transparent transitions along the center row/column). Only lines up with
-// fillColor's inset div when the button's own width:height ratio is at or
-// above the art's ~3.02:1 (see WorldMapOverlay.tsx's own comment on this
-// same letterboxing) -- narrower than that and object-contain letterboxes
-// the image inside its box, and these percentages (of the *box*, not the
-// letterboxed art) stop lining up with the actual drawn hole.
-const FRAME_HOLE_INSET = { top: '21%', bottom: '21%', left: '6%', right: '6%' };
+// The gray-fill region alone, as opaque white on transparent (the exact
+// inverse of FRAME_IMAGE's cutout) -- used as fillColor's CSS mask-image
+// below. A first attempt positioned a plain inset div at hand-measured
+// percentages instead; that only lined up when the button's box matched
+// the art's exact aspect ratio, and was visibly off otherwise (confirmed
+// live: a gap between the color and the rope border). mask-size: contain
+// fits this the same way object-fit: contain fits FRAME_IMAGE, so the two
+// always stay pixel-aligned regardless of the button's own dimensions --
+// no aspect-ratio caveat needed.
+const FILL_MASK_IMAGE = '/models/buttons/rope_fillmask-ld-v2.png';
 
 type RopedButtonProps = {
   onClick?: () => void;
@@ -40,9 +40,8 @@ type RopedButtonProps = {
   imageUrl?: string;
   /** Tints the button's interior this color instead of the art's own flat
    *  gray fill -- switches imageUrl to FRAME_IMAGE (transparent center) and
-   *  paints this color in behind it, inset to the frame's hole (see
-   *  FRAME_HOLE_INSET). Keep width:height at or above ~3:1 or the color
-   *  won't line up with the rope border -- see FRAME_HOLE_INSET's comment. */
+   *  paints this color in behind it, clipped to the fill shape via
+   *  FILL_MASK_IMAGE (see its own comment). */
   fillColor?: string;
   /** Extra layer painted on top of the art/fill/text -- e.g. a cooldown
    *  timer overlay. Rendered last, so it covers everything else. */
@@ -93,8 +92,19 @@ export default function RopedButton({
     >
       {fillColor && (
         <div
-          className="absolute pointer-events-none transition-[filter,transform] duration-150"
-          style={{ ...FRAME_HOLE_INSET, borderRadius: 9999, background: fillColor, ...pressedStyle }}
+          className="absolute inset-0 pointer-events-none transition-[filter,transform] duration-150"
+          style={{
+            background: fillColor,
+            WebkitMaskImage: `url(${FILL_MASK_IMAGE})`,
+            maskImage: `url(${FILL_MASK_IMAGE})`,
+            WebkitMaskSize: 'contain',
+            maskSize: 'contain',
+            WebkitMaskRepeat: 'no-repeat',
+            maskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center',
+            maskPosition: 'center',
+            ...pressedStyle,
+          }}
         />
       )}
       <img
