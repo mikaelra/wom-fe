@@ -3,6 +3,20 @@
 import { useState, ReactNode } from 'react';
 
 const DEFAULT_IMAGE = '/models/buttons/rope_button-ld-v2.png';
+// Same art as DEFAULT_IMAGE with its flat gray fill (162,162,162 exactly)
+// chroma-keyed to transparent -- see fillColor below. Only the fill was
+// removed; the rope border/outline pixels are untouched.
+const FRAME_IMAGE = '/models/buttons/rope_frame-ld-v2.png';
+
+// The frame art's transparent hole as a percentage of the full 595x197
+// image -- measured directly off rope_frame-ld-v2.png's pixels (opaque ->
+// transparent transitions along the center row/column). Only lines up with
+// fillColor's inset div when the button's own width:height ratio is at or
+// above the art's ~3.02:1 (see WorldMapOverlay.tsx's own comment on this
+// same letterboxing) -- narrower than that and object-contain letterboxes
+// the image inside its box, and these percentages (of the *box*, not the
+// letterboxed art) stop lining up with the actual drawn hole.
+const FRAME_HOLE_INSET = { top: '21%', bottom: '21%', left: '6%', right: '6%' };
 
 type RopedButtonProps = {
   onClick?: () => void;
@@ -15,9 +29,24 @@ type RopedButtonProps = {
   width?: number;
   height?: number;
   textClassName?: string;
+  /** Extra classes merged onto the outer <button> itself (e.g. a visibility
+   *  toggle) -- textClassName is for the label, this is for the button. */
+  className?: string;
   ariaLabel?: string;
-  /** PNG rope-frame art rendered behind the button label. */
+  title?: string;
+  /** PNG rope-frame art rendered behind the button label. Defaults to the
+   *  solid gray-fill art, or (when fillColor is set) the transparent-center
+   *  frame art instead -- pass this explicitly only to override either. */
   imageUrl?: string;
+  /** Tints the button's interior this color instead of the art's own flat
+   *  gray fill -- switches imageUrl to FRAME_IMAGE (transparent center) and
+   *  paints this color in behind it, inset to the frame's hole (see
+   *  FRAME_HOLE_INSET). Keep width:height at or above ~3:1 or the color
+   *  won't line up with the rope border -- see FRAME_HOLE_INSET's comment. */
+  fillColor?: string;
+  /** Extra layer painted on top of the art/fill/text -- e.g. a cooldown
+   *  timer overlay. Rendered last, so it covers everything else. */
+  overlay?: ReactNode;
   children?: ReactNode;
 };
 
@@ -29,8 +58,12 @@ export default function RopedButton({
   width = 170,
   height = 70,
   textClassName = 'text-white font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]',
+  className = '',
   ariaLabel,
-  imageUrl = DEFAULT_IMAGE,
+  title,
+  imageUrl,
+  fillColor,
+  overlay,
   children,
 }: RopedButtonProps) {
   const [active, setActive] = useState(false);
@@ -38,6 +71,11 @@ export default function RopedButton({
   // hover-driven visual change makes touch browsers absorb the first tap as
   // a synthetic hover (no click) and leaves the button stuck looking pressed.
   const pressed = !disabled && (active || loading || selected);
+  const resolvedImageUrl = imageUrl ?? (fillColor ? FRAME_IMAGE : DEFAULT_IMAGE);
+  const pressedStyle = {
+    filter: pressed ? 'brightness(0.65)' : 'brightness(1)',
+    transform: pressed ? 'translateY(2px)' : 'translateY(0)',
+  };
 
   return (
     <button
@@ -49,25 +87,30 @@ export default function RopedButton({
       onPointerCancel={() => setActive(false)}
       disabled={disabled || loading}
       aria-label={ariaLabel}
-      className="relative inline-block bg-transparent border-0 p-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 select-none"
+      title={title}
+      className={`relative inline-block bg-transparent border-0 p-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 select-none ${className}`}
       style={{ width, height }}
     >
+      {fillColor && (
+        <div
+          className="absolute pointer-events-none transition-[filter,transform] duration-150"
+          style={{ ...FRAME_HOLE_INSET, borderRadius: 9999, background: fillColor, ...pressedStyle }}
+        />
+      )}
       <img
-        src={imageUrl}
+        src={resolvedImageUrl}
         alt=""
         aria-hidden="true"
         draggable={false}
         className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-[filter,transform] duration-150"
-        style={{
-          filter: pressed ? 'brightness(0.65)' : 'brightness(1)',
-          transform: pressed ? 'translateY(2px)' : 'translateY(0)',
-        }}
+        style={pressedStyle}
       />
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <span className={textClassName}>
           {loading ? 'Loading...' : children}
         </span>
       </div>
+      {overlay}
     </button>
   );
 }

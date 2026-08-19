@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LobbyState } from '@/types/game';
 import RelicCooldownOverlay from '@/components/RelicCooldownOverlay';
+import RopedButton from '@/components/hud/RopedButton';
 
 const GRACE_MS = 5_000;
 
@@ -19,7 +20,6 @@ const fingerprint = (state: LobbyState) =>
 
 type StartGameButtonProps = {
   state: LobbyState;
-  btn: string;
   onStartGame: () => void;
 };
 
@@ -37,7 +37,7 @@ type StartGameButtonProps = {
 // of players is a different string. Gives everyone a moment to notice who
 // just showed up or left, same spirit as the relic-selection grace
 // window. Bots don't count (see fingerprint's own comment).
-export default function StartGameButton({ state, btn, onStartGame }: StartGameButtonProps) {
+export default function StartGameButton({ state, onStartGame }: StartGameButtonProps) {
   const [blockedUntil, setBlockedUntil] = useState<number | null>(null);
   const prevFingerprint = useRef<string | null>(null);
   const current = fingerprint(state);
@@ -53,17 +53,16 @@ export default function StartGameButton({ state, btn, onStartGame }: StartGameBu
   const blocked = blockedUntil !== null && blockedUntil > Date.now();
 
   return (
-    <button
-      type="button"
+    <RopedButton
       onClick={onStartGame}
       disabled={blocked}
       title={blocked ? 'Wait a moment — the lobby just changed.' : undefined}
-      className={`relative overflow-hidden ${btn} bg-amber-600 text-white border-amber-700 ${
-        blocked ? 'opacity-70 cursor-not-allowed' : ''
-      }`}
+      width={180}
+      height={54}
+      fillColor="#d97706"
+      overlay={blocked && <RelicCooldownOverlay untilMs={blockedUntil!} totalMs={GRACE_MS} />}
     >
       Start Game
-      {blocked && <RelicCooldownOverlay untilMs={blockedUntil!} totalMs={GRACE_MS} rounded="rounded-lg" />}
-    </button>
+    </RopedButton>
   );
 }

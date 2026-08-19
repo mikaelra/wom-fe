@@ -13,6 +13,7 @@ import WheelClaimNudge from '@/components/WheelClaimNudge';
 import StartGameButton from '@/components/StartGameButton';
 import RulesModal from '@/components/lobby/RulesModal';
 import RankBadge from '@/components/hud/RankBadge';
+import RopedButton from '@/components/hud/RopedButton';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
 
@@ -251,13 +252,15 @@ function AddBotButton({ btn, onAddDummy }: { btn: string; onAddDummy: (botType: 
           items-center), which visibly shifted Start Game sideways every
           time this opened. `invisible` keeps the exact same box reserved
           (and stops clicks on it, unlike opacity-0) without that shift. */}
-      <button
-        type="button"
+      <RopedButton
         onClick={() => setPicking(true)}
-        className={`${btn} bg-gray-600 text-white ${picking ? 'invisible' : ''}`}
+        width={180}
+        height={54}
+        fillColor="#4b5563"
+        className={picking ? 'invisible' : ''}
       >
         Add Bot
-      </button>
+      </RopedButton>
       {picking && (
         <div
           ref={containerRef}
@@ -355,7 +358,7 @@ export function renderPreGame({
           // this row to its own content instead of that phantom half-width
           // cap, so flex-wrap never needs to trigger.
           <div className="flex w-max gap-3">
-            <StartGameButton state={state} btn={btn} onStartGame={onStartGame} />
+            <StartGameButton state={state} onStartGame={onStartGame} />
             <AddBotButton btn={btn} onAddDummy={onAddDummy} />
           </div>
         )}
