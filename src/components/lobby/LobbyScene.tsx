@@ -1,7 +1,7 @@
 'use client';
 
 import { useFrame } from '@react-three/fiber';
-import { Html, Environment, useGLTF } from '@react-three/drei';
+import { Environment, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, useState, useEffect, useCallback, Suspense } from 'react';
 import * as THREE from 'three';
 import Temple from '@/components/temple';
@@ -19,7 +19,8 @@ import KillFireEffect from '@/components/lobby/KillFireEffect';
 import DamageNumberEffect from '@/components/lobby/DamageNumberEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
-import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, HTML_EPS, useRemountKeyOnceSettled, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
+import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
+import { FreshHtml } from '@/components/lobby/FreshHtml';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
@@ -370,11 +371,6 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // handleWell/handleDefend/handleAttack below), so a click landing in this
   // window can't actually submit anything.
   const showActionButtonsLook = showAttackButtons || deathPending.has(playerName);
-  // See PlayerAvatars.tsx's useRemountKeyOnceSettled/bossRemountKey comment --
-  // the Well button's Html below mounts fresh every round-start (same as the
-  // boss Html) and had the same gap: no protection against a transient FOV
-  // value at that exact mount moment leaving it stuck oversized.
-  const wellRemountKey = useRemountKeyOnceSettled(showActionButtonsLook ? true : undefined);
   const showLobbyControls = state?.round === 0;
   const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
@@ -1295,15 +1291,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       })}
 
       {/* Well button — immediate; the Table GLB loads separately below.
-          eps={HTML_EPS}: see PlayerAvatars.tsx's HTML_EPS comment -- without
-          it this can render stuck at the wrong (often much larger) size
-          after a camera dolly settles near screen-center, until the
-          camera is dragged. key={wellRemountKey}: see bossRemountKey's
-          comment -- this Html also mounts fresh every round-start, the same
-          transient-FOV-at-mount risk the info-reveal badge was already
-          protected against. */}
+          Uses FreshHtml, not drei's Html -- see PlayerAvatars.tsx's
+          FreshHtml import comment for why. */}
       {showActionButtonsLook && (
-        <Html key={wellRemountKey} position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
+        <FreshHtml position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
           <ActionImageButton
             src="/images/buttons/well-ld.png"
             alt="The Well"
@@ -1314,7 +1305,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             className={actionCue}
             style={{ pointerEvents: 'auto' }}
           />
-        </Html>
+        </FreshHtml>
       )}
 
       {/* Stage 2: Well/Table model -- also clickable, same as its 2D button */}
@@ -1623,16 +1614,28 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         />
       ))}
 
-      {/* Floating "-X" (hit) / "0" (blocked) over whoever just got struck */}
-      {damageNumberEvents.map((d) => (
-        <DamageNumberEffect
-          key={d.id}
-          position={d.position}
-          text={d.text}
-          color={d.color}
-          onDone={() => setDamageNumberEvents((e) => e.filter((x) => x.id !== d.id))}
-        />
-      ))}
+      {/* Floating "-X" (hit) / "0" (blocked) over whoever just got struck.
+          Wrapped in its own Suspense: drei's <Text> (used inside
+          DamageNumberEffect) suspends on its first-ever mount while
+          troika's font atlas loads (see DamageNumberEffect's own preload
+          comment). With no local boundary here, that suspension has
+          nothing to catch it before it reaches the R3F canvas root -- which
+          hides and then remounts this scene's *entire* tree, not just the
+          number. Confirmed live: a black flash and every player model
+          vanishing/reappearing on the very first hit of a session's first
+          match, never again after (the font, once loaded, is cached for
+          the rest of the session). */}
+      <Suspense fallback={null}>
+        {damageNumberEvents.map((d) => (
+          <DamageNumberEffect
+            key={d.id}
+            position={d.position}
+            text={d.text}
+            color={d.color}
+            onDone={() => setDamageNumberEvents((e) => e.filter((x) => x.id !== d.id))}
+          />
+        ))}
+      </Suspense>
 
       {/* Three red hoops dropping over a player denied their action by the Well */}
       {denyRingFx.map((fx) => (
