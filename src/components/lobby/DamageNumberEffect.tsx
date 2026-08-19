@@ -3,6 +3,18 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
+import { preloadFont } from 'troika-three-text';
+
+// drei's <Text> below calls troika's preloadFont itself, but wrapped in
+// suspend-react's suspend() -- the first-ever mount throws a promise while
+// the (default, uncustomized -- we pass no font/characters props, same as
+// this call) font atlas loads, and this component has no local Suspense
+// boundary of its own (see LobbyScene's <Suspense> around its usage for
+// why it needs one regardless). Preloading here at module load -- the same
+// useGLTF.preload() idiom this codebase already uses everywhere else --
+// means that first suspend, whenever it happens, almost always resolves
+// against an already-parsed font instead of a fresh network fetch.
+preloadFont({ font: undefined, characters: undefined }, () => {});
 
 // drei's Text forwards a ref typed `any` (troika-three-text ships no type
 // declarations at all) -- this is the minimal shape this component actually

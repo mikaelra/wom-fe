@@ -1614,16 +1614,28 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         />
       ))}
 
-      {/* Floating "-X" (hit) / "0" (blocked) over whoever just got struck */}
-      {damageNumberEvents.map((d) => (
-        <DamageNumberEffect
-          key={d.id}
-          position={d.position}
-          text={d.text}
-          color={d.color}
-          onDone={() => setDamageNumberEvents((e) => e.filter((x) => x.id !== d.id))}
-        />
-      ))}
+      {/* Floating "-X" (hit) / "0" (blocked) over whoever just got struck.
+          Wrapped in its own Suspense: drei's <Text> (used inside
+          DamageNumberEffect) suspends on its first-ever mount while
+          troika's font atlas loads (see DamageNumberEffect's own preload
+          comment). With no local boundary here, that suspension has
+          nothing to catch it before it reaches the R3F canvas root -- which
+          hides and then remounts this scene's *entire* tree, not just the
+          number. Confirmed live: a black flash and every player model
+          vanishing/reappearing on the very first hit of a session's first
+          match, never again after (the font, once loaded, is cached for
+          the rest of the session). */}
+      <Suspense fallback={null}>
+        {damageNumberEvents.map((d) => (
+          <DamageNumberEffect
+            key={d.id}
+            position={d.position}
+            text={d.text}
+            color={d.color}
+            onDone={() => setDamageNumberEvents((e) => e.filter((x) => x.id !== d.id))}
+          />
+        ))}
+      </Suspense>
 
       {/* Three red hoops dropping over a player denied their action by the Well */}
       {denyRingFx.map((fx) => (
