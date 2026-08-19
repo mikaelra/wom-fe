@@ -1,14 +1,15 @@
 'use client';
 
-import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { Html, useGLTF } from '@react-three/drei';
-import { useRef, useMemo, useState, useEffect, memo, Suspense, type CSSProperties, type ReactNode } from 'react';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
+import { useRef, useMemo, memo, Suspense, type CSSProperties, type ReactNode } from 'react';
 import * as THREE from 'three';
 import PlayerV1 from '@/components/Playerv1';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import DenyModelButton from '@/components/lobby/DenyModelButton';
 import EquippedCoinModel from '@/components/lobby/EquippedCoinModel';
+import { FreshHtml } from '@/components/lobby/FreshHtml';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { skinUrl } from '@/lib/frogSkins';
 import { COIN_RELIC_ID } from '@/types/game';
@@ -16,8 +17,8 @@ import { COIN_RELIC_ID } from '@/types/game';
 // ── Per-player HTML stack ───────────────────────────────────────────────────
 // Chat bubble, ATTACK, name and DEFEND used to be four separate drei <Html>
 // mounts per player — each one is reprojected to screen space and written to
-// the DOM every frame. They now share ONE <Html> root anchored at the name
-// (world y 0.5, distanceFactor 3.45) with the other elements absolutely
+// the DOM every frame. They now share ONE <FreshHtml> root anchored at the
+// name (world y 0.5, distanceFactor 3.45) with the other elements absolutely
 // positioned around it in pre-scale pixels. ~230px ≈ 1 world unit here, so the
 // bubble/defend offsets below mirror the old world-space anchors (bubble
 // 1.3, defend −0.1). ATTACK was originally up at 0.9 (above the name, right
@@ -25,76 +26,29 @@ import { COIN_RELIC_ID } from '@/types/game';
 // player was chatting, so it now shares DEFEND's spot below the name instead
 // -- the two never appear on the same player (attack targets other players,
 // defend only ever shows on your own).
-// drei's Html only recomputes its CSS `scale()` when the object's projected
-// 2D screen position moves by more than `eps` (default 0.001px) since the
-// last update -- it never checks camera *distance* directly. A camera dolly
-// (zoom) aimed roughly at an object near screen-center barely shifts that
-// object's 2D projection even though the true distance -- and so the
-// correct scale -- changes a lot; once CameraFlyIn's per-frame lerp fully
-// converges (steady state, zero further 2D movement), whatever scale got
-// computed on the last frame that *did* cross the threshold is frozen
-// indefinitely. Confirmed live: name tags/action buttons/info badges
-// occasionally render far too large right after a round starts (or a
-// player joins mid-game) and only correct once the camera is dragged --
-// which perturbs the 2D projection enough to force a recompute. Since this
-// scene already renders continuously (frameloop="always"), forcing every
-// frame to recompute (eps=0) costs nothing extra and removes the
-// possibility of a stuck stale scale entirely.
-export const HTML_EPS = 0;
-
-// eps=0 above is not a complete fix, though: reading drei's own Html source
-// (node_modules/@react-three/drei/web/Html.js), its per-frame recompute is
-// gated on the object's projected 2D screen position and camera.zoom only --
-// it never checks camera.fov. This scene's FOV is responsive
-// (getResponsiveFov(size.width, size.height), re-applied every frame in
-// CameraFlyIn) and can still be settling right when a conditionally-mounted
-// Html first appears (e.g. the info-reveal badge below, which mounts fresh
-// exactly at round-transition time); if that first frame's scale is
-// computed against a transient FOV value and the object's 2D position
-// doesn't keep moving afterwards, eps=0 never gets a reason to recompute
-// again, and the stale (often oversized) scale sticks until the player
-// drags the camera -- which perturbs the 2D position enough to force
-// drei's own recompute. Confirmed live.
 //
-// getResponsiveFov is a step function of the canvas's aspect ratio, so the
-// actual trigger is `size` (from useThree()) settling, not raw elapsed
-// time -- a fixed delay alone is a guess at how long that takes, and on a
-// real phone (address bar collapsing, safe-area insets still settling)
-// `size` can keep changing well past any fixed delay a desktop dev session
-// would ever see, reported live: the bug still showing up on a real
-// device's first hit despite this hook's original delay-only version.
-// Watching `size.width`/`size.height` directly and bumping the key on every
-// change -- not just once, on a timer -- fixes it at the actual source
-// instead of widening the guess.
-//
-// Each call site gets its own independent counter starting at 0 -- always
-// namespace the returned value (e.g. `key={`info-${key}`}`) before using it
-// as a React `key`, never the bare number. Two Html siblings under the same
-// parent (e.g. the info-reveal badge and the boss HP card, both live on
-// Hades at once) can otherwise land on the exact same numeric key at the
-// same time, which silently confuses React's reconciliation between them
-// (logged as "two children with the same key") instead of throwing.
-export function useRemountKeyOnceSettled(dep: unknown, delayMs = 400): number {
-  const [key, setKey] = useState(0);
-  const { size } = useThree();
-
-  useEffect(() => {
-    if (dep == null) return;
-    const t = setTimeout(() => setKey((k) => k + 1), delayMs);
-    return () => clearTimeout(t);
-  }, [dep, delayMs]);
-
-  // Re-fires for the whole lifetime this Html stays mounted, not just once
-  // after mount -- a later viewport resize (mobile browser chrome show/
-  // hide mid-game) can shift getResponsiveFov's aspect-ratio bucket again,
-  // long after the initial settle window above.
-  useEffect(() => {
-    if (dep == null) return;
-    setKey((k) => k + 1);
-  }, [dep, size.width, size.height]);
-
-  return key;
-}
+// This uses FreshHtml (a local fork of drei's Html, see FreshHtml.tsx),
+// not drei's own Html, because of a bug that took two attempts to actually
+// root-cause: drei's Html only recomputes its CSS translate+scale when the
+// object's projected 2D screen position or camera.zoom changes by more than
+// `eps` since the last frame -- it never checks camera.fov. This scene's FOV
+// is responsive (getResponsiveFov, see sceneConstants.ts) and can change
+// while an object's 2D screen position barely moves (anything near
+// screen-center), which leaves drei's gate permanently closed and the scale
+// frozen at whatever it was on the last frame that *did* cross the
+// threshold -- confirmed live as buttons/HP cards/name tags freezing
+// oversized after a round starts or a viewport resize settles. A first
+// attempt at fixing this remounted the Html whenever the viewport size
+// changed, which traded that bug for a worse one: a freshly mounted Html
+// has no scale applied until the *next* animation frame, so remounting
+// mid-game paints one full-native-size unscaled frame first -- confirmed
+// live as buttons visibly "ballooning" on the first hit of a match (a
+// hit's DamageNumberEffect popping in is exactly the kind of layout shift
+// that changes the canvas's reported size, which was triggering the
+// remount). FreshHtml removes the recompute gate entirely instead --
+// translate+scale+z-index are recalculated every frame, unconditionally,
+// so there's no stale state to get stuck and nothing ever remounts mid-game
+// to flash. See FreshHtml.tsx's own comment for the full detail.
 
 const STACK_BUBBLE_Y = -70;
 // Attack sits below the name now, at the same spot as DEFEND (the two never
@@ -438,24 +392,6 @@ export const PlayerWithName = memo(function PlayerWithName({
       ? (botType && BOT_MODEL_URLS[botType]) || BOT_MODEL_URLS.TURTLE
       : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   const isCherub = modelUrl === skinUrl('cherub_v1');
-  // See useRemountKeyOnceSettled's own comment -- forces the info-reveal
-  // badge below to recompute its scale a beat after it appears, so a
-  // transient FOV value at mount time can't leave it stuck oversized.
-  const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
-  // Same fix, for the boss HP/attack Html below -- it mounts fresh exactly
-  // when a bossfight round starts, the same "freshly-mounted Html" risk
-  // window as the info-reveal badge, and was missing this protection (the
-  // damage-number work's DamageNumberEffect made this bug reproduce far
-  // more often, since a hit is usually the very first thing that happens
-  // once the boss Html has mounted).
-  const bossRemountKey = useRemountKeyOnceSettled(isBoss ? true : undefined);
-  // Same fix again, for the shared name/chat/attack/defend Html root below.
-  // Unlike the other two, it's never conditionally re-mounted -- but it IS
-  // freshly mounted exactly once, the moment this player first appears in a
-  // match, which lands in the exact same camera-fly-in/FOV-settling window
-  // as everything else here. `true` (not a real dep) since this only ever
-  // needs to fire the one time, right after mount.
-  const stackRemountKey = useRemountKeyOnceSettled(true);
   // Clicking the model itself selects the same action as its button --
   // attack this player if they're a legal target, deny them if a deny is
   // pending, or defend if this is your own model. The three flags are
@@ -525,7 +461,7 @@ export const PlayerWithName = memo(function PlayerWithName({
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
           (see stackItem above). The boss HP card below stays separate — it uses
           a different scale (4.2) and z-order. */}
-      <Html key={`stack-${stackRemountKey}`} position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
+      <FreshHtml position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           {chatBubble && (
             <div style={{
@@ -644,16 +580,16 @@ export const PlayerWithName = memo(function PlayerWithName({
             />
           )}
         </div>
-      </Html>
+      </FreshHtml>
       {/* Info-reward badge — its own Html mount (same anchor/scale as the stack
           above) so its zIndexRange can sit above the boss HP card ([5,5])
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
-        <Html key={`info-${infoRevealRemountKey}`} position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
+        <FreshHtml position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>
-        </Html>
+        </FreshHtml>
       )}
       {/* Boss HP display — floats above the Hades model in world space, tracks with camera.
           No card/title/name (Hades already gets the standard name tag every
@@ -663,7 +599,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           panels (waiting lobby + round messages, which use Tailwind
           z-10/z-20) so it renders beneath them rather than covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html key={`boss-${bossRemountKey}`} position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]} eps={HTML_EPS}>
+        <FreshHtml position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
@@ -695,7 +631,7 @@ export const PlayerWithName = memo(function PlayerWithName({
               />
             )}
           </div>
-        </Html>
+        </FreshHtml>
       )}
     </group>
   );
@@ -750,11 +686,6 @@ export const LostSoulModel = memo(function LostSoulModel({
   infoReveal?: InfoRevealBadge | null;
 }) {
   const ref = useRef<THREE.Group>(null);
-  // See useRemountKeyOnceSettled's own comment, and PlayerWithName's use of it.
-  const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
-  // Same fix for the name/attack Html root below -- see PlayerWithName's
-  // stackRemountKey comment.
-  const stackRemountKey = useRemountKeyOnceSettled(true);
   const clickSelectable = !!showAttackButton || !!showDenyButton;
 
   useFrame((state) => {
@@ -793,7 +724,7 @@ export const LostSoulModel = memo(function LostSoulModel({
       )}
       {/* Name + attack button share one Html root (was two per soul). The
           button sits ~0.15 world units (≈35px pre-scale) above the name. */}
-      <Html key={`stack-${stackRemountKey}`} position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
+      <FreshHtml position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           <div style={{
             ...stackItem(0),
@@ -820,13 +751,13 @@ export const LostSoulModel = memo(function LostSoulModel({
             />
           )}
         </div>
-      </Html>
+      </FreshHtml>
       {infoReveal && (
-        <Html key={`info-${infoRevealRemountKey}`} position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
+        <FreshHtml position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>
-        </Html>
+        </FreshHtml>
       )}
     </group>
   );
