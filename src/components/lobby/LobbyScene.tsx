@@ -468,7 +468,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // getPlayerPositions' comment) so it clears his now much thicker model
   // instead of rendering inside it.
   const bossPosY = getBossPosition().position[1];
-  const BOSS_DAMAGE_NUMBER_Z_OFFSET = 1.0;
+  const BOSS_DAMAGE_NUMBER_Z_OFFSET = 2.5;
   const defendGlowPos: [number, number, number] | undefined =
     currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
   // Block-glow position comes from the event itself (buildCombatAnimationPlan

@@ -471,7 +471,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           are all gated off it above -- so retargeting the whole root is
           safe. */}
       <FreshHtml
-        position={isBoss ? [0, 0.2, 0] : [0, 0.5, 0]}
+        position={isBoss ? [0, 0.1, 0] : [0, 0.5, 0]}
         center
         distanceFactor={isBoss ? 4.2 : 3.45}
         zIndexRange={[0, 0]}
@@ -600,7 +600,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
         <FreshHtml
-          position={isBoss ? [0, 0.2, 0] : [0, 0.5, 0]}
+          position={isBoss ? [0, 0.1, 0] : [0, 0.5, 0]}
           center
           distanceFactor={isBoss ? 4.2 : 3.45}
           zIndexRange={[10, 10]}
