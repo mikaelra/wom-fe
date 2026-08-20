@@ -459,17 +459,19 @@ export const PlayerWithName = memo(function PlayerWithName({
       )}
 
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
-          (see stackItem above). isBoss anchors this near the boss HP card's own
-          position/scale ([0,-0.3,0], distanceFactor 4.2 -- a touch above the
-          card's own [0,-0.5,0] top-left anchor so the two don't overlap)
-          instead of the usual
-          head-height spot, so the name tag sits right above the HP bar rather
-          than up near Hades' now much-taller (2x scale) head. Only the name
-          div actually renders here for isBoss -- chat bubble/attack/defend/
-          lobby-controls are all gated off it above -- so retargeting the
-          whole root is safe. */}
+          (see stackItem above). isBoss anchors this at the boss HP card's own
+          scale (distanceFactor 4.2) but well above the card's own [0,-0.5,0]
+          anchor -- both are `center`-anchored boxes, so a small gap between
+          them isn't enough; the two boxes themselves overlap and the HP
+          card's higher zIndexRange ([5,5] vs this root's [0,0]) then paints
+          over the name entirely -- instead of the usual head-height spot, so
+          the name tag clears the HP card and sits above it, not up near
+          Hades' now much-taller (2x scale) head. Only the name div actually
+          renders here for isBoss -- chat bubble/attack/defend/lobby-controls
+          are all gated off it above -- so retargeting the whole root is
+          safe. */}
       <FreshHtml
-        position={isBoss ? [0, -0.3, 0] : [0, 0.5, 0]}
+        position={isBoss ? [0, 0.2, 0] : [0, 0.5, 0]}
         center
         distanceFactor={isBoss ? 4.2 : 3.45}
         zIndexRange={[0, 0]}
@@ -598,7 +600,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
         <FreshHtml
-          position={isBoss ? [0, -0.3, 0] : [0, 0.5, 0]}
+          position={isBoss ? [0, 0.2, 0] : [0, 0.5, 0]}
           center
           distanceFactor={isBoss ? 4.2 : 3.45}
           zIndexRange={[10, 10]}

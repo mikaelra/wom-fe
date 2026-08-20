@@ -458,11 +458,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // out rather than unmounting (see SelectionGlow's comment on why).
   const bossName = allPlayers.find((p) => p.boss)?.name;
   // Hades' seat sits far higher than a regular player's (getBossPosition's
-  // BOSS_Y_LIFT) and, since the hades_v4 model swap, renders ~2x taller too --
-  // the flat +1.1 head-clearance below left the damage number clipped inside
-  // his (much bigger) head/torso. Detected by y-position rather than name
-  // since StrikeEvent carries no target identity, only toPos.
+  // BOSS_Y_LIFT) and, since the hades_v4 model swap, renders ~2x wider/taller
+  // too -- the flat +1.1 head-clearance below left the damage number clipped
+  // inside his (much bigger) head/torso, and even after raising it the
+  // number was still swallowed by his own geometry depth-wise. Detected by
+  // y-position rather than name since StrikeEvent carries no target
+  // identity, only toPos. BOSS_DAMAGE_NUMBER_Z_OFFSET additionally pulls it
+  // toward the camera (players sit at z+, Hades at the far z- side -- see
+  // getPlayerPositions' comment) so it clears his now much thicker model
+  // instead of rendering inside it.
   const bossPosY = getBossPosition().position[1];
+  const BOSS_DAMAGE_NUMBER_Z_OFFSET = 1.0;
   const defendGlowPos: [number, number, number] | undefined =
     currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
   // Block-glow position comes from the event itself (buildCombatAnimationPlan
@@ -1398,7 +1404,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                     position: [
                       ev.toPos[0],
                       ev.toPos[1] + (Math.abs(ev.toPos[1] - bossPosY) < 0.05 ? 2.2 : 1.1),
-                      ev.toPos[2],
+                      ev.toPos[2] + (Math.abs(ev.toPos[1] - bossPosY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
                     ],
                     ...ev.damageNumber!,
                   },
@@ -1434,7 +1440,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                         position: [
                           ev.bounceFlashPos![0],
                           ev.bounceFlashPos![1] + (Math.abs(ev.bounceFlashPos![1] - bossPosY) < 0.05 ? 2.2 : 1.1),
-                          ev.bounceFlashPos![2],
+                          ev.bounceFlashPos![2] + (Math.abs(ev.bounceFlashPos![1] - bossPosY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
                         ],
                         ...ev.bounceDamageNumber!,
                       },
