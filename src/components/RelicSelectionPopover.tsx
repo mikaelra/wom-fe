@@ -178,6 +178,14 @@ export default function RelicSelectionPopover({
                       <RelicCoin />
                     </div>
                     <span className="text-lg text-gray-700">×{relic.count}</span>
+                    {/* Only the Coin relic has an effect wired up server-side
+                        today (see RELIC_SELECT_HELP's own comment) -- this
+                        spells that effect out under the icon/count instead
+                        of leaving it to the hover-only title tooltip, which
+                        a touch device never sees at all. */}
+                    {relicId === COIN_RELIC_ID && (
+                      <span className="text-xs text-gray-600 text-center">Start the game with 1 coin</span>
+                    )}
                     {onCooldown && (
                       <RelicCooldownOverlay untilMs={cooldownUntil!} totalMs={COOLDOWN_MS} rounded="rounded-lg" />
                     )}
