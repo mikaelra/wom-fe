@@ -467,8 +467,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // toward the camera (players sit at z+, Hades at the far z- side -- see
   // getPlayerPositions' comment) so it clears his now much thicker model
   // instead of rendering inside it.
-  const bossPosY = getBossPosition().position[1];
-  const BOSS_DAMAGE_NUMBER_Z_OFFSET = 2.5;
+  //
+  // bossStrikeY (not just getBossPosition()'s raw seat y) -- every strike's
+  // fromPos/toPos in combatAnimationPlan.ts bakes in a further +0.3 lift
+  // (see its baseToPos/fromPos), so comparing against the raw seat y never
+  // matched and this whole boss-specific offset silently never applied.
+  const bossStrikeY = getBossPosition().position[1] + 0.3;
+  const BOSS_DAMAGE_NUMBER_Z_OFFSET = 3.0;
   const defendGlowPos: [number, number, number] | undefined =
     currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
   // Block-glow position comes from the event itself (buildCombatAnimationPlan
@@ -1403,8 +1408,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                     id: did,
                     position: [
                       ev.toPos[0],
-                      ev.toPos[1] + (Math.abs(ev.toPos[1] - bossPosY) < 0.05 ? 2.2 : 1.1),
-                      ev.toPos[2] + (Math.abs(ev.toPos[1] - bossPosY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
+                      ev.toPos[1] + (Math.abs(ev.toPos[1] - bossStrikeY) < 0.05 ? 2.2 : 1.1),
+                      ev.toPos[2] + (Math.abs(ev.toPos[1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
                     ],
                     ...ev.damageNumber!,
                   },
@@ -1439,8 +1444,8 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                         id: did,
                         position: [
                           ev.bounceFlashPos![0],
-                          ev.bounceFlashPos![1] + (Math.abs(ev.bounceFlashPos![1] - bossPosY) < 0.05 ? 2.2 : 1.1),
-                          ev.bounceFlashPos![2] + (Math.abs(ev.bounceFlashPos![1] - bossPosY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
+                          ev.bounceFlashPos![1] + (Math.abs(ev.bounceFlashPos![1] - bossStrikeY) < 0.05 ? 2.2 : 1.1),
+                          ev.bounceFlashPos![2] + (Math.abs(ev.bounceFlashPos![1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
                         ],
                         ...ev.bounceDamageNumber!,
                       },
