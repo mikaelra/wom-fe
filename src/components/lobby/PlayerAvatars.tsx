@@ -387,7 +387,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   // boss too (Hades included), so checking isBot first accidentally matched
   // it before isBoss ever got a look, rendering Hades with the turtle model.
   const modelUrl = isBoss
-    ? '/models/hades/hades_v3-ld.glb'
+    ? '/models/hades/hades_v4.glb'
     : isBot
       ? (botType && BOT_MODEL_URLS[botType]) || BOT_MODEL_URLS.TURTLE
       : (frogSkinUrl ?? skinUrl('frog_green_v1'));
@@ -766,7 +766,7 @@ export const LostSoulModel = memo(function LostSoulModel({
 export const BOSS_MAX_HP = 8;
 
 useGLTF.preload('/models/lost_soul_v2.glb');
-useGLTF.preload('/models/hades/hades_v3-ld.glb');
+useGLTF.preload('/models/hades/hades_v4.glb');
 useGLTF.preload('/models/turtlev01.glb');
 useGLTF.preload('/models/sheepv01.glb');
 useGLTF.preload('/models/wolfv01.glb');

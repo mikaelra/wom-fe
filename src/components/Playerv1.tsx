@@ -5,8 +5,10 @@ import { useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-// If you are using Draco, you might need to set the decoder path
-// useGLTF.setDecoderPath('/draco/');
+// hades_v4.glb (the bossfight model) is Draco-compressed; other models loaded
+// through this component are not, but GLTFLoader only invokes DRACOLoader when
+// a file actually carries the KHR_draco_mesh_compression extension.
+useGLTF.setDecoderPath('/draco/');
 
 type Props = {
   url?: string;
