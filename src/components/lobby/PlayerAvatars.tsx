@@ -263,7 +263,7 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, h
   const model = (
     <PlayerV1
       url={modelUrl}
-      scale={isBoss ? 1.44 : 0.6}
+      scale={isBoss ? 2.88 : 0.6}
       position={[0, 0, 0]}
       rotation={[0, 0, 0]}
       isAnimating={isAnimating}
@@ -387,7 +387,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   // boss too (Hades included), so checking isBot first accidentally matched
   // it before isBoss ever got a look, rendering Hades with the turtle model.
   const modelUrl = isBoss
-    ? '/models/hades/hades_v3-ld.glb'
+    ? '/models/hades/hades_v4.glb'
     : isBot
       ? (botType && BOT_MODEL_URLS[botType]) || BOT_MODEL_URLS.TURTLE
       : (frogSkinUrl ?? skinUrl('frog_green_v1'));
@@ -459,9 +459,23 @@ export const PlayerWithName = memo(function PlayerWithName({
       )}
 
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
-          (see stackItem above). The boss HP card below stays separate — it uses
-          a different scale (4.2) and z-order. */}
-      <FreshHtml position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
+          (see stackItem above). isBoss anchors this at the boss HP card's own
+          scale (distanceFactor 4.2) but well above the card's own [0,-0.5,0]
+          anchor -- both are `center`-anchored boxes, so a small gap between
+          them isn't enough; the two boxes themselves overlap and the HP
+          card's higher zIndexRange ([5,5] vs this root's [0,0]) then paints
+          over the name entirely -- instead of the usual head-height spot, so
+          the name tag clears the HP card and sits above it, not up near
+          Hades' now much-taller (2x scale) head. Only the name div actually
+          renders here for isBoss -- chat bubble/attack/defend/lobby-controls
+          are all gated off it above -- so retargeting the whole root is
+          safe. */}
+      <FreshHtml
+        position={isBoss ? [0, 0.0, 0] : [0, 0.5, 0]}
+        center
+        distanceFactor={isBoss ? 4.2 : 3.45}
+        zIndexRange={[0, 0]}
+      >
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           {chatBubble && (
             <div style={{
@@ -585,7 +599,12 @@ export const PlayerWithName = memo(function PlayerWithName({
           above) so its zIndexRange can sit above the boss HP card ([5,5])
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
-        <FreshHtml position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
+        <FreshHtml
+          position={isBoss ? [0, 0.0, 0] : [0, 0.5, 0]}
+          center
+          distanceFactor={isBoss ? 4.2 : 3.45}
+          zIndexRange={[10, 10]}
+        >
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>
@@ -640,10 +659,10 @@ export const PlayerWithName = memo(function PlayerWithName({
 
 // Behind Hades who is fixed at [0, PLAYER_Y, -1.4] (far z- side)
 export const LOST_SOUL_POSITIONS: [number, number, number][] = [
-  [-0.5, 4.2, -1.9],
-  [0.5, 4.2, -1.9],
-  [-0.3, 4.4, -2.3],
-  [0.3, 4.4, -2.3],
+  [-1.0, 4.55, -1.7],
+  [1.0, 4.55, -1.7],
+  [-0.6, 4.95, -2.5],
+  [0.6, 4.95, -2.5],
 ];
 
 // GLB-only sub-component so Suspense can wrap the model without blocking the HTML labels.
@@ -766,7 +785,7 @@ export const LostSoulModel = memo(function LostSoulModel({
 export const BOSS_MAX_HP = 8;
 
 useGLTF.preload('/models/lost_soul_v2.glb');
-useGLTF.preload('/models/hades/hades_v3-ld.glb');
+useGLTF.preload('/models/hades/hades_v4.glb');
 useGLTF.preload('/models/turtlev01.glb');
 useGLTF.preload('/models/sheepv01.glb');
 useGLTF.preload('/models/wolfv01.glb');

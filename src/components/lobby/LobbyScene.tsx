@@ -457,6 +457,27 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // that action isn't the current choice, in which case the glow just fades
   // out rather than unmounting (see SelectionGlow's comment on why).
   const bossName = allPlayers.find((p) => p.boss)?.name;
+  // Hades' seat sits far higher than a regular player's (getBossPosition's
+  // BOSS_Y_LIFT) and, since the hades_v4 model swap, renders ~2x wider/taller
+  // too -- the flat +1.1 head-clearance below left the damage number clipped
+  // inside his (much bigger) head/torso, and even after raising it the
+  // number was still swallowed by his own geometry depth-wise. Detected by
+  // y-position rather than name since StrikeEvent carries no target
+  // identity, only toPos. BOSS_DAMAGE_NUMBER_Z_OFFSET additionally pulls it
+  // toward the camera (players sit at z+, Hades at the far z- side -- see
+  // getPlayerPositions' comment) so it clears his now much thicker model
+  // instead of rendering inside it.
+  //
+  // bossStrikeY (not just getBossPosition()'s raw seat y) -- every strike's
+  // fromPos/toPos in combatAnimationPlan.ts bakes in a further +0.3 lift
+  // (see its baseToPos/fromPos), so comparing against the raw seat y never
+  // matched and this whole boss-specific offset silently never applied.
+  const bossStrikeY = getBossPosition().position[1] + 0.3;
+  // 2.2/3.0 (double-ish the regular +1.1) read as "in the sky, nowhere near
+  // Hades" once the bossStrikeY fix above actually made these apply for the
+  // first time -- dialed back to a modest bump over the regular offsets.
+  const BOSS_DAMAGE_NUMBER_Y_OFFSET = 1.3;
+  const BOSS_DAMAGE_NUMBER_Z_OFFSET = 0.8;
   const defendGlowPos: [number, number, number] | undefined =
     currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
   // Block-glow position comes from the event itself (buildCombatAnimationPlan
@@ -1387,7 +1408,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                 const did = `dmg-${ev.id}`;
                 setDamageNumberEvents((s) => [
                   ...s,
-                  { id: did, position: [ev.toPos[0], ev.toPos[1] + 1.1, ev.toPos[2]], ...ev.damageNumber! },
+                  {
+                    id: did,
+                    position: [
+                      ev.toPos[0],
+                      ev.toPos[1] + (Math.abs(ev.toPos[1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Y_OFFSET : 1.1),
+                      ev.toPos[2] + (Math.abs(ev.toPos[1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
+                    ],
+                    ...ev.damageNumber!,
+                  },
                 ]);
               }
             }}
@@ -1415,7 +1444,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                     const did = `dmg-bounce-${ev.id}`;
                     setDamageNumberEvents((s) => [
                       ...s,
-                      { id: did, position: [ev.bounceFlashPos![0], ev.bounceFlashPos![1] + 1.1, ev.bounceFlashPos![2]], ...ev.bounceDamageNumber! },
+                      {
+                        id: did,
+                        position: [
+                          ev.bounceFlashPos![0],
+                          ev.bounceFlashPos![1] + (Math.abs(ev.bounceFlashPos![1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Y_OFFSET : 1.1),
+                          ev.bounceFlashPos![2] + (Math.abs(ev.bounceFlashPos![1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
+                        ],
+                        ...ev.bounceDamageNumber!,
+                      },
                     ]);
                   }
                 }
