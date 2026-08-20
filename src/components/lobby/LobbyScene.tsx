@@ -457,6 +457,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // that action isn't the current choice, in which case the glow just fades
   // out rather than unmounting (see SelectionGlow's comment on why).
   const bossName = allPlayers.find((p) => p.boss)?.name;
+  // Hades' seat sits far higher than a regular player's (getBossPosition's
+  // BOSS_Y_LIFT) and, since the hades_v4 model swap, renders ~2x taller too --
+  // the flat +1.1 head-clearance below left the damage number clipped inside
+  // his (much bigger) head/torso. Detected by y-position rather than name
+  // since StrikeEvent carries no target identity, only toPos.
+  const bossPosY = getBossPosition().position[1];
   const defendGlowPos: [number, number, number] | undefined =
     currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
   // Block-glow position comes from the event itself (buildCombatAnimationPlan
@@ -1387,7 +1393,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                 const did = `dmg-${ev.id}`;
                 setDamageNumberEvents((s) => [
                   ...s,
-                  { id: did, position: [ev.toPos[0], ev.toPos[1] + 1.1, ev.toPos[2]], ...ev.damageNumber! },
+                  {
+                    id: did,
+                    position: [
+                      ev.toPos[0],
+                      ev.toPos[1] + (Math.abs(ev.toPos[1] - bossPosY) < 0.05 ? 2.2 : 1.1),
+                      ev.toPos[2],
+                    ],
+                    ...ev.damageNumber!,
+                  },
                 ]);
               }
             }}
@@ -1415,7 +1429,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                     const did = `dmg-bounce-${ev.id}`;
                     setDamageNumberEvents((s) => [
                       ...s,
-                      { id: did, position: [ev.bounceFlashPos![0], ev.bounceFlashPos![1] + 1.1, ev.bounceFlashPos![2]], ...ev.bounceDamageNumber! },
+                      {
+                        id: did,
+                        position: [
+                          ev.bounceFlashPos![0],
+                          ev.bounceFlashPos![1] + (Math.abs(ev.bounceFlashPos![1] - bossPosY) < 0.05 ? 2.2 : 1.1),
+                          ev.bounceFlashPos![2],
+                        ],
+                        ...ev.bounceDamageNumber!,
+                      },
                     ]);
                   }
                 }

@@ -459,9 +459,21 @@ export const PlayerWithName = memo(function PlayerWithName({
       )}
 
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
-          (see stackItem above). The boss HP card below stays separate — it uses
-          a different scale (4.2) and z-order. */}
-      <FreshHtml position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
+          (see stackItem above). isBoss anchors this near the boss HP card's own
+          position/scale ([0,-0.3,0], distanceFactor 4.2 -- a touch above the
+          card's own [0,-0.5,0] top-left anchor so the two don't overlap)
+          instead of the usual
+          head-height spot, so the name tag sits right above the HP bar rather
+          than up near Hades' now much-taller (2x scale) head. Only the name
+          div actually renders here for isBoss -- chat bubble/attack/defend/
+          lobby-controls are all gated off it above -- so retargeting the
+          whole root is safe. */}
+      <FreshHtml
+        position={isBoss ? [0, -0.3, 0] : [0, 0.5, 0]}
+        center
+        distanceFactor={isBoss ? 4.2 : 3.45}
+        zIndexRange={[0, 0]}
+      >
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           {chatBubble && (
             <div style={{
@@ -585,7 +597,12 @@ export const PlayerWithName = memo(function PlayerWithName({
           above) so its zIndexRange can sit above the boss HP card ([5,5])
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
-        <FreshHtml position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
+        <FreshHtml
+          position={isBoss ? [0, -0.3, 0] : [0, 0.5, 0]}
+          center
+          distanceFactor={isBoss ? 4.2 : 3.45}
+          zIndexRange={[10, 10]}
+        >
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>
@@ -640,10 +657,10 @@ export const PlayerWithName = memo(function PlayerWithName({
 
 // Behind Hades who is fixed at [0, PLAYER_Y, -1.4] (far z- side)
 export const LOST_SOUL_POSITIONS: [number, number, number][] = [
-  [-0.5, 4.2, -1.9],
-  [0.5, 4.2, -1.9],
-  [-0.3, 4.4, -2.3],
-  [0.3, 4.4, -2.3],
+  [-1.0, 4.55, -1.7],
+  [1.0, 4.55, -1.7],
+  [-0.6, 4.95, -2.5],
+  [0.6, 4.95, -2.5],
 ];
 
 // GLB-only sub-component so Suspense can wrap the model without blocking the HTML labels.
