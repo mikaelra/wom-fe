@@ -473,7 +473,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // (see its baseToPos/fromPos), so comparing against the raw seat y never
   // matched and this whole boss-specific offset silently never applied.
   const bossStrikeY = getBossPosition().position[1] + 0.3;
-  const BOSS_DAMAGE_NUMBER_Z_OFFSET = 3.0;
+  // 2.2/3.0 (double-ish the regular +1.1) read as "in the sky, nowhere near
+  // Hades" once the bossStrikeY fix above actually made these apply for the
+  // first time -- dialed back to a modest bump over the regular offsets.
+  const BOSS_DAMAGE_NUMBER_Y_OFFSET = 1.3;
+  const BOSS_DAMAGE_NUMBER_Z_OFFSET = 0.8;
   const defendGlowPos: [number, number, number] | undefined =
     currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
   // Block-glow position comes from the event itself (buildCombatAnimationPlan
@@ -1408,7 +1412,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                     id: did,
                     position: [
                       ev.toPos[0],
-                      ev.toPos[1] + (Math.abs(ev.toPos[1] - bossStrikeY) < 0.05 ? 2.2 : 1.1),
+                      ev.toPos[1] + (Math.abs(ev.toPos[1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Y_OFFSET : 1.1),
                       ev.toPos[2] + (Math.abs(ev.toPos[1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
                     ],
                     ...ev.damageNumber!,
@@ -1444,7 +1448,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                         id: did,
                         position: [
                           ev.bounceFlashPos![0],
-                          ev.bounceFlashPos![1] + (Math.abs(ev.bounceFlashPos![1] - bossStrikeY) < 0.05 ? 2.2 : 1.1),
+                          ev.bounceFlashPos![1] + (Math.abs(ev.bounceFlashPos![1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Y_OFFSET : 1.1),
                           ev.bounceFlashPos![2] + (Math.abs(ev.bounceFlashPos![1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
                         ],
                         ...ev.bounceDamageNumber!,
