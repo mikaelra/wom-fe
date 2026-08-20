@@ -263,7 +263,7 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, h
   const model = (
     <PlayerV1
       url={modelUrl}
-      scale={isBoss ? 1.44 : 0.6}
+      scale={isBoss ? 2.88 : 0.6}
       position={[0, 0, 0]}
       rotation={[0, 0, 0]}
       isAnimating={isAnimating}
