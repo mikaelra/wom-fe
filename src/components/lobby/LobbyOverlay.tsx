@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import SceneOverlay, {
   type SceneOverlayConfig,
@@ -95,7 +96,18 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
         </div>
       </div>
 
-      {showQR && (
+      {showQR && typeof document !== 'undefined' && createPortal(
+        // Portalled straight to <body>: InviteSection is nested inside the
+        // lobby's bottom action stack, which carries `-translate-x-1/2` to
+        // center itself horizontally -- and a `transform` on any ancestor
+        // makes IT (not the viewport) the containing block for this modal's
+        // `fixed inset-0`. Left in place, that shrinks "inset-0" down to
+        // that small bottom stack's own box instead of the full screen,
+        // which is why this rendered squashed near the bottom of the
+        // screen with the card half cut off, confirmed live on mobile --
+        // portalling out from under that ancestor restores the true
+        // viewport as the containing block.
+        //
         // overflow-y-auto on THIS outer layer (not just the card below) is
         // what actually guarantees reachability on a short viewport: a
         // max-height + internal scroll on the card alone still left the top
@@ -124,7 +136,8 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
               <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[200px]">{lobbyUrl}</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
@@ -346,7 +359,18 @@ export function renderPreGame({
         </button>
       </div>
 
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-4">
+      {/* bottom offset via style, not bottom-6: on notched/home-indicator
+          phones (viewport-fit=cover is set in layout.tsx, so env() is live)
+          a flat 1.5rem sits inside the unsafe zone -- the OS's own gesture
+          bar/home indicator visually overlaps the bottom of this stack
+          (the Invite/QR row, being last), reading as "half cut off" even
+          though the element is technically fully laid out on-screen.
+          calc() falls back to plain 1.5rem wherever safe-area-inset-bottom
+          is 0 (no notch, desktop, most Android), so this is a no-op there. */}
+      <div
+        className="absolute left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-4"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
+      >
         {isAdmin && (
           // w-max, not the default auto: this div's ancestor is centered via
           // `left-1/2 -translate-x-1/2`, and for an absolutely-positioned
