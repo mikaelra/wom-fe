@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import SceneOverlay, {
   type SceneOverlayConfig,
@@ -95,7 +96,18 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
         </div>
       </div>
 
-      {showQR && (
+      {showQR && typeof document !== 'undefined' && createPortal(
+        // Portalled straight to <body>: InviteSection is nested inside the
+        // lobby's bottom action stack, which carries `-translate-x-1/2` to
+        // center itself horizontally -- and a `transform` on any ancestor
+        // makes IT (not the viewport) the containing block for this modal's
+        // `fixed inset-0`. Left in place, that shrinks "inset-0" down to
+        // that small bottom stack's own box instead of the full screen,
+        // which is why this rendered squashed near the bottom of the
+        // screen with the card half cut off, confirmed live on mobile --
+        // portalling out from under that ancestor restores the true
+        // viewport as the containing block.
+        //
         // overflow-y-auto on THIS outer layer (not just the card below) is
         // what actually guarantees reachability on a short viewport: a
         // max-height + internal scroll on the card alone still left the top
@@ -124,7 +136,8 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
               <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[200px]">{lobbyUrl}</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
