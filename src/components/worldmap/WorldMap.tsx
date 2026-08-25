@@ -1101,10 +1101,12 @@ function Globe({ onCityClick, rankedInfo, onReady }: GlobeProps) {
 // camera.up = ecliptic north pole so OrbitControls autoRotates around that
 // axis. We set it every frame because OrbitControls may re-enter its own
 // spherical system and needs a consistent "up" to orbit in the ecliptic plane.
-// The camera starts at the anti-solar point — the Sun is always on the
-// ecliptic, so its opposite direction is too. At r=13 with the Sun at r=46
-// in the same direction, the Sun is hidden behind the Earth and peeks out as
-// the ambient auto-rotate carries the camera around.
+// The camera starts at the anti-Moon point (not anti-Sun, despite the
+// ecliptic-orbit framing above) -- the actual current placements of the
+// planets should be visible from the very first frame instead of staged
+// behind the Sun; the Moon is the one body low-stakes enough to hide and
+// slowly peek out from behind the Earth as the ambient auto-rotate carries
+// the camera around, same reveal effect the Sun used to get.
 // Sky drift: planets, stars, and ecliptic all rotate their groups by this
 // delta every frame. The camera must apply the same rotation so it stays
 // locked to the ecliptic plane as the sky drifts.
@@ -1142,11 +1144,11 @@ function CameraRig({
   useFrame(() => {
     if (!initialized.current) {
       // Reads the same sky snapshot every other position in the scene does
-      // (docs/ASPECTS_PLAN.md), so a preset that moves the Sun also moves
-      // the camera's anti-solar start point consistently, instead of this
-      // rig independently re-querying Astronomy for the real Sun position.
-      const sunDir = getSky().dir.Sun;
-      camera.position.copy(sunDir).multiplyScalar(-CAMERA_RADIUS);
+      // (docs/ASPECTS_PLAN.md), so a preset that moves the Moon also moves
+      // the camera's anti-Moon start point consistently, instead of this
+      // rig independently re-querying Astronomy for the real Moon position.
+      const moonDir = getSky().dir.Moon;
+      camera.position.copy(moonDir).multiplyScalar(-CAMERA_RADIUS);
       camera.up.copy(ECLIPTIC_POLE);
       camera.lookAt(0, 0, 0);
       initialized.current = true;
