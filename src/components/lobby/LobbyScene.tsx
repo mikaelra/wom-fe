@@ -305,13 +305,22 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // currentAction/attackTarget -- well before the round's own combat
   // animations even start fetching -- then reappear later when the actual
   // strike/block animation mounted a wholly separate instance. These sticky
-  // copies persist across that reset (only ever SET by the effects below,
-  // never cleared by a currentAction/attackTarget prop change) so the same
-  // visual instance carries through to the moment it hands off to the real
-  // animation. Cleared by the round-resolution effect below, at the exact
-  // moment that handoff happens (or immediately/at round-end when there's
-  // nothing to hand off to -- see combatAnimationPlan's clearDefendShield
-  // and the addStrike case in applyAction).
+  // copies persist across that reset (never cleared by currentAction
+  // resetting to '') so the same visual instance carries through to the
+  // moment it hands off to the real animation. Cleared by the
+  // round-resolution effect below, at the exact moment that handoff happens
+  // (or immediately/at round-end when there's nothing to hand off to -- see
+  // combatAnimationPlan's clearDefendShield and the addStrike case in
+  // applyAction).
+  //
+  // They ARE cleared by the effects right below, though, the moment the
+  // player picks the *other* action before the round even resolves --
+  // switching choices used to leave whichever preview was up (sword or
+  // shield) stuck floating there forever, since neither prop change nor any
+  // of the round-resolution paths above ever ran for a plain in-round
+  // switch. Gated on `currentAction` being truthy so the round-transition
+  // reset to '' still doesn't touch these -- only an explicit switch to a
+  // *different* real action does.
   const [stickyAttackTarget, setStickyAttackTarget] = useState<string | null>(null);
   const [defendShieldActive, setDefendShieldActive] = useState(false);
   // Read inside the async round-resolution effect below -- same "capture on
@@ -322,9 +331,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   defendShieldActiveRef.current = defendShieldActive;
   useEffect(() => {
     if (currentAction === 'attack' && attackTarget) setStickyAttackTarget(attackTarget);
+    else if (currentAction && currentAction !== 'attack') setStickyAttackTarget(null);
   }, [currentAction, attackTarget]);
   useEffect(() => {
     if (currentAction === 'defend') setDefendShieldActive(true);
+    else if (currentAction && currentAction !== 'defend') setDefendShieldActive(false);
   }, [currentAction]);
 
 
