@@ -21,6 +21,20 @@ function safePlay(el: HTMLAudioElement): void {
   el.play()?.catch(() => {});
 }
 
+// Browsers block audio-with-sound from actually starting until the page has
+// seen a real user gesture -- the very first playMusic() call happens from a
+// mount effect, before any click, so it's silently rejected by that policy
+// and playback just sits paused. It used to look like clicking the mute
+// toggle "fixed" it, but that only worked because the click itself was the
+// first qualifying gesture -- any click anywhere resumes it just as well, so
+// retry once on the first one instead of requiring that specific button.
+const GESTURE_EVENTS = ['pointerdown', 'keydown', 'touchstart'] as const;
+
+function resumeOnFirstGesture(): void {
+  GESTURE_EVENTS.forEach((evt) => document.removeEventListener(evt, resumeOnFirstGesture));
+  if (audio && currentTrack && isMusicEnabled()) safePlay(audio);
+}
+
 function ensureAudio(): HTMLAudioElement | null {
   if (typeof window === 'undefined') return null;
   if (!audio) {
@@ -32,6 +46,7 @@ function ensureAudio(): HTMLAudioElement | null {
       if (isMusicEnabled()) safePlay(audio);
       else audio.pause();
     });
+    GESTURE_EVENTS.forEach((evt) => document.addEventListener(evt, resumeOnFirstGesture));
   }
   return audio;
 }
