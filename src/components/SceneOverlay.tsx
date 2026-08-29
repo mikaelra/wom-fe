@@ -652,12 +652,13 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         </Link>
       </div>
 
-      {/* Missing-action reminder — top left, below the back button. Only
-          shows up once the same 10s/5s warning window as the blinking
+      {/* Missing-action reminder — top left, below the back button and the
+          music/SFX toggle row (LobbyOverlay renders that at top-16 left-4).
+          Only shows up once the same 10s/5s warning window as the blinking
           buttons kicks in, and blinks along with it. Vanishes the moment
           the player picks attack/well/defend. */}
       {actionCue && (
-        <div className="absolute top-16 left-4 w-1/2 max-w-xs px-4 z-20">
+        <div className="absolute top-28 left-4 w-1/2 max-w-xs px-4 z-20">
           <div className={`bg-black/80 backdrop-blur-sm rounded-xl border ${theme.panelBorderClass} p-3 text-white text-sm ${actionCue}`}>
             You must choose an action: Attack someone, Well or Defend.
           </div>

@@ -16,7 +16,10 @@ import RulesModal from '@/components/lobby/RulesModal';
 import RankBadge from '@/components/hud/RankBadge';
 import RopedButton from '@/components/hud/RopedButton';
 import RopedFrame from '@/components/hud/RopedFrame';
+import MusicToggleButton from '@/components/audio/MusicToggleButton';
+import SfxToggleButton from '@/components/audio/SfxToggleButton';
 import { useLobbyGame } from '@/lib/useLobbyGame';
+import { playMusic, PRE_LOBBY_MUSIC, BATTLE_MUSIC } from '@/lib/music';
 import type { LobbyState } from '@/types/game';
 
 type LobbyOverlayProps = {
@@ -453,7 +456,16 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
     onStateChange?.(s);
   };
 
-  const { myPlayer } = useLobbyGame(localState, playerName);
+  const { myPlayer, phase } = useLobbyGame(localState, playerName);
+
+  // Quiet Ascent plays while everyone's still waiting in the lobby;
+  // Chamber takes over the moment the battle actually starts, and keeps
+  // playing through the Game Over screen rather than cutting back.
+  const battleStarted = phase === 'playing' || phase === 'gameover';
+  useEffect(() => {
+    playMusic(battleStarted ? BATTLE_MUSIC : PRE_LOBBY_MUSIC);
+  }, [battleStarted]);
+
   const showNudge =
     !nudgeDismissed &&
     gameOverRevealed &&
@@ -468,6 +480,14 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
 
   return (
     <>
+      {/* Music/SFX toggles -- pinned just below the house button, which sits
+          at top-4 left-4 in both the pre-game overlay (renderPreGame below)
+          and SceneOverlay's own in-round back button, so this one row here
+          covers both without duplicating it in each render path. */}
+      <div className="absolute top-16 left-4 z-20 pointer-events-auto flex items-center gap-2">
+        <MusicToggleButton />
+        <SfxToggleButton />
+      </div>
       <SceneOverlay
         lobbyId={lobbyId}
         onStateChange={handleStateChange}
