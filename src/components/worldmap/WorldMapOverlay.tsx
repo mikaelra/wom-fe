@@ -10,7 +10,9 @@ import { skinColor, skinThumbnailUrl } from '@/lib/frogSkins';
 import RopedButton from '@/components/hud/RopedButton';
 import RopedInput from '@/components/hud/RopedInput';
 import RulesModal from '@/components/lobby/RulesModal';
+import MusicToggleButton from '@/components/audio/MusicToggleButton';
 import { useToast } from '@/components/Toast';
+import { playMusic, HOME_MUSIC } from '@/lib/music';
 
 const DEFAULT_SKIN = 'frog_green_v1';
 
@@ -36,6 +38,10 @@ export default function WorldMapOverlay() {
     if (typeof window !== 'undefined') {
       setLoggedInName(localStorage.getItem('playerName') || '');
     }
+  }, []);
+
+  useEffect(() => {
+    playMusic(HOME_MUSIC);
   }, []);
 
   // Same skin the user-menu button's avatar shows -- see the Inventory
@@ -190,7 +196,7 @@ export default function WorldMapOverlay() {
         className="absolute top-0 left-3 sm:left-[calc(50%-257px)] z-20 pointer-events-none"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
       >
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto flex flex-col items-start gap-2">
           <RopedButton
             // 163 -- same exact-fit width as the user-menu chip (see its own
             // comment): rope_button-ld-v2.png's natural size is 595x197
@@ -204,6 +210,7 @@ export default function WorldMapOverlay() {
           >
             Rules
           </RopedButton>
+          <MusicToggleButton />
         </div>
       </div>
       <div

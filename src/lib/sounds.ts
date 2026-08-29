@@ -1,3 +1,5 @@
+import { isSfxEnabled } from './soundSettings';
+
 // Prevent combat sounds from interrupting background music on mobile (iOS/Android)
 if (typeof navigator !== 'undefined' && 'audioSession' in navigator) {
   (navigator as Navigator & { audioSession: { type: string } }).audioSession.type = 'ambient';
@@ -20,6 +22,7 @@ const COMBAT_SOUNDS: Record<string, string> = {
 };
 
 export function playCombatSound(event: string): void {
+  if (!isSfxEnabled()) return;
   const src = COMBAT_SOUNDS[event];
   if (!src) return;
   try {
