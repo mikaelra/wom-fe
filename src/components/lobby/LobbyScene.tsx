@@ -25,7 +25,7 @@ import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { emitHpFx } from '@/lib/resourceFx';
-import { playCombatSound } from '@/lib/sounds';
+import { playCombatSound, playResourceSound, type ResourceSound } from '@/lib/sounds';
 import { glowForReward, type WellRewardComponent } from '@/lib/gameEvents';
 import { skinUrl } from '@/lib/frogSkins';
 import {
@@ -96,6 +96,17 @@ preloadWellRewardModels();
 // Where the splash erupts (well mouth) and where the rarity glow lies (under it).
 const WELL_SPLASH_POSITION: [number, number, number] = [0, 2.4, 0];
 const WELL_GLOW_POSITION:   [number, number, number] = [0, 2.3, 0];
+
+// Which WellRewardEffect model types are a resource gain worth a landing
+// sound -- 'steal' reuses the gold coin model (kill loot, well steal-all),
+// so it plays the same sound as 'gold'. instakill/deny/info aren't resource
+// gains (and instakill's own sounds are intentionally not wired up yet).
+const WELL_REWARD_SOUND: Partial<Record<WellRewardType, ResourceSound>> = {
+  gold:   'gain_coin',
+  steal:  'gain_coin',
+  health: 'gain_hp',
+  sword:  'gain_attack',
+};
 
 // Persistent selection-glow colours -- each matches the same action's button
 // glow (ActionImageButton's glowColor) so the 3D cue and the 2D button read
@@ -929,6 +940,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           break;
         }
         case 'emitHpFx': emitHpFx(action.event); break;
+        // Kill loot's coin sound plays per-model via WellRewardEffect's
+        // onLand above (type 'steal') -- this is only ever scheduled for
+        // the +1 ATK from a kill, which has no flying model to hang a sound
+        // off (see combatAnimationPlan.ts's ATK_SOUND_LEAD_MS comment).
+        case 'playResourceSound': playResourceSound(action.resource); break;
         case 'addWellWinFx': setWellWinFx((fx) => [...fx, action.fx]); break;
         case 'removeWellWinFx': setWellWinFx((fx) => fx.filter((x) => x.id !== action.id)); break;
         case 'addHitFlash': setHitFlashEvents((ev) => [...ev, action.event]); break;
@@ -1431,18 +1447,23 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
                 ]);
               }
             }}
+            onBounceLand={() => {
+              // The reflected sword's about to land back on the attacker --
+              // an attack connecting, same cue as any other incoming
+              // impact, not a fresh successful hit of my own. Plays on
+              // both ends: this fires identically whether `ev` came from
+              // the outgoing branch (I attacked, got blocked + reflected
+              // -- I hear the attack land back on me) or the incoming
+              // branch (I blocked + reflected -- I hear it land on my
+              // attacker), since both flow through this same
+              // strikeEvents/SwordEffect rendering path. Fired early (see
+              // SwordEffect's STRIKE_LEAD_SEC) -- unlike onDone below, this
+              // only plays the sound, so nudging it earlier doesn't cut the
+              // bounce-back animation itself short.
+              if (ev.postImpact === 'bounce') playCombatSound('attacked');
+            }}
             onDone={() => {
               if (ev.postImpact === 'bounce') {
-                // The reflected sword just landed back on the attacker --
-                // an attack connecting, same cue as any other incoming
-                // impact, not a fresh successful hit of my own. Plays on
-                // both ends: this fires identically whether `ev` came from
-                // the outgoing branch (I attacked, got blocked + reflected
-                // -- I hear the attack land back on me) or the incoming
-                // branch (I blocked + reflected -- I hear it land on my
-                // attacker), since both flow through this same
-                // strikeEvents/SwordEffect rendering path.
-                playCombatSound('attacked');
                 if (ev.bounceFlashPos) {
                   const fid = `fl-bounce-${ev.id}`;
                   setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
@@ -1500,6 +1521,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             delay={ev.delay}
             scale={ev.scale}
             orbit={ev.orbit}
+            onLand={() => {
+              const sound = WELL_REWARD_SOUND[ev.type];
+              if (sound) playResourceSound(sound);
+            }}
             onDone={() => setWellRewardEvents((s) => s.filter((x) => x.id !== ev.id))}
           />
         ))}
@@ -1511,6 +1536,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             key={ev.id}
             resource={ev.resource}
             position={ev.pos}
+            onLand={() => playResourceSound(ev.resource)}
             onDone={() => setResourceGainEvents((s) => s.filter((x) => x.id !== ev.id))}
           />
         ))}

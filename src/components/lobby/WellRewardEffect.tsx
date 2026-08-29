@@ -74,6 +74,14 @@ export const WELL_REWARD_FLIGHT_DUR = WELL_REWARD_TRAVEL_DUR + HOLD_DUR;
 const ARCH_HEIGHT = 1.4;
 // End-over-end tumbles while travelling.
 const TRAVEL_SPINS = 1.0;
+// onLand fires this much before travel actually completes -- a landing
+// *sound* read as late when tied to the exact frame the model stops moving;
+// firing it a beat early (while the model's still mid-arch, about to land)
+// reads as in-sync instead. Doesn't move the model itself, only the callback.
+// Bumped 0.08 -> 0.15 (still read as late at 0.08) -- part of some of
+// `new Audio().play()`'s own startup latency being an inherent floor no
+// amount of earlier in-game triggering fully cancels out.
+const LAND_LEAD_SEC = 0.15;
 
 function easeOut(t: number) { return 1 - Math.pow(1 - t, 3); }
 
@@ -97,6 +105,11 @@ export type WellRewardEffectProps = {
    *  out by the rim instead. Well-sourced rewards leave this off -- a
    *  straight line from the well's own position is correct for those. */
   orbit?: boolean;
+  /** Called the instant travel completes -- i.e. the model actually landing
+   *  on the target, before the hold-and-bob. Distinct from onDone (which
+   *  fires after the hold too) specifically so a landing sound can be timed
+   *  to the impact instead of the eventual disappearance. */
+  onLand?: () => void;
   /** Called once the sequence (travel + hold) has finished. */
   onDone?: () => void;
 };
@@ -108,6 +121,7 @@ export default function WellRewardEffect({
   delay = 0,
   scale,
   orbit = false,
+  onLand,
   onDone,
 }: WellRewardEffectProps) {
   const url = WELL_REWARD_MODELS[type];
@@ -116,6 +130,7 @@ export default function WellRewardEffect({
 
   const groupRef       = useRef<THREE.Group>(null);
   const tRef           = useRef(0);
+  const landCalledRef  = useRef(false);
   const doneCalledRef  = useRef(false);
 
   const [fx, fy, fz] = fromPosition;
@@ -154,6 +169,10 @@ export default function WellRewardEffect({
     group.visible = true;
 
     if (t < WELL_REWARD_TRAVEL_DUR) {
+      if (!landCalledRef.current && t >= WELL_REWARD_TRAVEL_DUR - LAND_LEAD_SEC) {
+        landCalledRef.current = true;
+        onLand?.();
+      }
       // Arch from source to target with a tumbling spin.
       const localT = t / WELL_REWARD_TRAVEL_DUR;
       const eased = easeOut(localT);
@@ -168,6 +187,10 @@ export default function WellRewardEffect({
       group.position.y += ARCH_HEIGHT * Math.sin(localT * Math.PI);
       group.rotation.y = localT * Math.PI * 2 * TRAVEL_SPINS;
     } else if (t < WELL_REWARD_TRAVEL_DUR + HOLD_DUR) {
+      if (!landCalledRef.current) {
+        landCalledRef.current = true;
+        onLand?.();
+      }
       // Rest on the winner, gently bobbing — then it's removed instantly (no fade).
       group.position.copy(toVec);
       group.position.y += Math.sin((t - WELL_REWARD_TRAVEL_DUR) * 6) * 0.04;

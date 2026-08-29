@@ -5,6 +5,7 @@ import type { DamageNumberColor } from '@/components/lobby/DamageNumberEffect';
 import { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import { WELL_REWARD_FLIGHT_DUR, WELL_REWARD_SCALE, type WellRewardType } from '@/components/lobby/WellRewardEffect';
 import { INSTAKILL_BURST_DURATION } from '@/components/lobby/InstakillBurstEffect';
+import type { ResourceSound } from '@/lib/sounds';
 
 // Floating combat number spawned at a strike's impact -- shown on BOTH ends
 // of an exchange (the attacker sees it over their target; the target sees
@@ -230,6 +231,7 @@ export type CombatAnimationAction =
   | { type: 'markDead'; name: string }
   | { type: 'addWellRewardEvents'; events: WellRewardEvent[] }
   | { type: 'emitHpFx'; event: HpFxEvent }
+  | { type: 'playResourceSound'; resource: ResourceSound }
   | { type: 'addWellWinFx'; fx: WellWinFx }
   | { type: 'removeWellWinFx'; id: string }
   | { type: 'addHitFlash'; event: HitFlashEvent }
@@ -306,6 +308,14 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   // Coins land ~one travel-arc after launch (WellRewardEffect TRAVEL_DUR).
   // Scaled to 0.8x for a modest speedup.
   const KILL_LOOT_LAND_MS = 1030;
+  // The +1 ATK from a kill has no flying model to hang a landing sound off
+  // of (coins do, via WellRewardEffect's own onLand) -- its sound is
+  // scheduled directly, this much before the ATK card's own tick-up
+  // (KILL_LOOT_LAND_MS) so it doesn't read as trailing behind it. Same
+  // reasoning/magnitude as WellRewardEffect/ResourceGainEffect's
+  // LAND_LEAD_SEC, just in ms since everything here is scheduled in ms.
+  // Bumped 80 -> 150, same as those (still read as late at 80).
+  const ATK_SOUND_LEAD_MS = 150;
   const killStamp = Date.now();
   let killSeq = 0;
 
@@ -371,6 +381,10 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     batches.push({
       delayMs: delayMs + KILL_LOOT_LAND_MS,
       actions: [{ type: 'emitHpFx', event: { kind: 'killgain', coins, atk: 1 } }],
+    });
+    batches.push({
+      delayMs: Math.max(0, delayMs + KILL_LOOT_LAND_MS - ATK_SOUND_LEAD_MS),
+      actions: [{ type: 'playResourceSound', resource: 'gain_attack' }],
     });
   };
 
