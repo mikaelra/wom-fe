@@ -21,13 +21,38 @@ const COMBAT_SOUNDS: Record<string, string> = {
   attacked: '/sounds/resources/AttackIncoming.wav',
 };
 
-export function playCombatSound(event: string): void {
+function play(src: string): void {
   if (!isSfxEnabled()) return;
-  const src = COMBAT_SOUNDS[event];
-  if (!src) return;
   try {
     new Audio(src).play().catch(() => {});
   } catch {
     // ignore – audio blocked by browser policy
   }
+}
+
+export function playCombatSound(event: string): void {
+  const src = COMBAT_SOUNDS[event];
+  if (src) play(src);
+}
+
+// gain_hp/gain_coin/gain_attack: the player's own resource choice landing
+// (ResourceGainEffect's onDone), a well-won reward model landing (health/
+// gold/sword -- WellRewardEffect's onLand), or a kill's victim-coins landing
+// (also WellRewardEffect's onLand, type 'steal' -- reuses the coin sound,
+// same model). Deliberately one call per model, not per round: a multi-unit
+// grant (e.g. a "2_hp" Well reward, or looting several coins off a kill)
+// mounts one effect instance per unit already (see combatAnimationPlan.ts's
+// buildWellRewardEvents/scheduleKillLoot), so calling this from each
+// instance's own onLand naturally plays the sound once per model, in step
+// with each one actually landing -- not one sound for the whole batch.
+export type ResourceSound = 'gain_hp' | 'gain_coin' | 'gain_attack';
+
+const RESOURCE_SOUNDS: Record<ResourceSound, string> = {
+  gain_hp:     '/sounds/resources/GetHp.wav',
+  gain_coin:   '/sounds/resources/GetCoin.wav',
+  gain_attack: '/sounds/resources/GetAtk.wav',
+};
+
+export function playResourceSound(resource: ResourceSound): void {
+  play(RESOURCE_SOUNDS[resource]);
 }

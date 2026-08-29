@@ -182,7 +182,11 @@ describe('buildCombatAnimationPlan', () => {
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
       const actionTypes = plan.flatMap((b) => b.actions.map((a) => a.type));
-      expect(actionTypes).toEqual(['addStrike', 'addKillFire', 'markDead', 'emitHpFx']);
+      // playResourceSound (the kill's +1 ATK sound, no flying model to hang
+      // it off -- see combatAnimationPlan.ts's ATK_SOUND_LEAD_MS) still
+      // fires even with zero coins looted; emitHpFx (the ATK/coin card
+      // tick-up) does too, unconditionally.
+      expect(actionTypes).toEqual(['addStrike', 'addKillFire', 'markDead', 'emitHpFx', 'playResourceSound']);
     });
 
     it('produces no batches when the attacker has no known position', () => {
