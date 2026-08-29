@@ -35,6 +35,20 @@ function resumeOnFirstGesture(): void {
   if (audio && currentTrack && isMusicEnabled()) safePlay(audio);
 }
 
+// Mobile browsers exempt already-playing media from background-tab
+// throttling (so podcasts/videos can keep going) -- which means our loop=true
+// background music, once started, kept right on playing after the phone's
+// screen locked or the player switched apps, unlike everything else on the
+// page. The Page Visibility API is the standard fix (same pattern as
+// useWheelAnimation.ts's own visibilitychange handling): pause on hide,
+// resume on show -- gated on isMusicEnabled() so returning to the tab
+// doesn't override a mute the player set while away.
+function onVisibilityChange(): void {
+  if (!audio || !currentTrack) return;
+  if (document.hidden) audio.pause();
+  else if (isMusicEnabled()) safePlay(audio);
+}
+
 function ensureAudio(): HTMLAudioElement | null {
   if (typeof window === 'undefined') return null;
   if (!audio) {
@@ -47,6 +61,7 @@ function ensureAudio(): HTMLAudioElement | null {
       else audio.pause();
     });
     GESTURE_EVENTS.forEach((evt) => document.addEventListener(evt, resumeOnFirstGesture));
+    document.addEventListener('visibilitychange', onVisibilityChange);
   }
   return audio;
 }
