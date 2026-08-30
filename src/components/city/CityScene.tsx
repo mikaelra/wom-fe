@@ -23,7 +23,7 @@ import {
 import Terrain from '@/components/city/Terrain';
 import TempleTableau from '@/components/city/TempleTableau';
 import { TEMPLE_TABLEAU_LIFT } from '@/lib/templeTableau';
-import { useBossfightRoster } from '@/lib/useBossfightRoster';
+import type { BossfightRoster } from '@/lib/api';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
 /**
@@ -136,6 +136,11 @@ export interface CitySceneProps {
    *  rather than a separate code path. */
   onBossfight: () => void;
   bossfightSublabel?: string | null;
+  /** Who is standing in the bossfight, for the tableau inside the temple.
+   *  Passed in rather than polled here: the page needs the same roster for
+   *  the signpost's caption, and two polls could show a caption that does
+   *  not match the figures in the building. */
+  roster: BossfightRoster;
   /** Join, cancel, or return to a ranked match -- the Senate and the right
    *  arm, same arrangement. */
   onRanked: () => void;
@@ -207,6 +212,7 @@ export default function CityScene({
   realLng,
   onBossfight,
   bossfightSublabel,
+  roster,
   onRanked,
   rankedLabel,
   rankedSublabel,
@@ -217,10 +223,6 @@ export default function CityScene({
   // reading one computation rather than two that could disagree.
   const { placements, sky, nightness } = useCitySky(date, realLat, realLng, EYE);
 
-  // Who is in the bossfight right now, polled from the read-only roster
-  // route. Joining the lobby to find out is exactly what a passer-by must
-  // not do, which is why that route exists.
-  const roster = useBossfightRoster();
 
   // The key light follows the real Sun's compass direction rather than the
   // fixed [100, 20, 100] inherited from the lobby -- with the water's

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import CityPage from '@/app/city/page';
 import {
   checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime,
-  getActiveRankedLobby, joinRankedQueue, leaveRankedQueue,
+  getActiveRankedLobby, joinRankedQueue, leaveRankedQueue, getBossfightRoster,
 } from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
 import * as socketModule from '@/lib/socket';
@@ -26,6 +26,7 @@ vi.mock('@/lib/api', () => ({
   getActiveRankedLobby: vi.fn(),
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
+  getBossfightRoster: vi.fn(),
 }));
 
 // Same fake-subscribe pattern the world-map tests used before ranked moved
@@ -108,6 +109,14 @@ const mockedGetNextBossfightTime = vi.mocked(getNextBossfightTime);
 const mockedGetActiveRankedLobby = vi.mocked(getActiveRankedLobby);
 const mockedJoinRankedQueue = vi.mocked(joinRankedQueue);
 const mockedLeaveRankedQueue = vi.mocked(leaveRankedQueue);
+const mockedGetBossfightRoster = vi.mocked(getBossfightRoster);
+
+/** An empty temple: the roster route answers even when no fight exists. */
+const emptyRoster = { lobby_id: null, round: 0, start_time: null, players: [] };
+type RosterPlayer = { name: string; skin: string | null; alive: boolean; spectator: boolean; bot: boolean };
+const occupant = (name: string, over: Partial<RosterPlayer> = {}): RosterPlayer => ({
+  name, skin: null, alive: true, spectator: false, bot: false, ...over,
+});
 
 const flush = () => act(async () => Promise.resolve());
 
@@ -148,6 +157,10 @@ beforeEach(() => {
   mockedGetBossfightLobby.mockReset();
   mockedGetNextBossfightTime.mockReset();
   mockedGetNextBossfightTime.mockResolvedValue({ start_time: '2099-01-01T00:00:00Z' });
+  mockedGetBossfightRoster.mockReset();
+  // The page polls the roster for both the temple's figures and the
+  // signpost's caption, so every test hits this. Default to an empty temple.
+  mockedGetBossfightRoster.mockResolvedValue(emptyRoster);
   mockedGetActiveRankedLobby.mockReset();
   // useEnterRanked checks for an existing match on mount whenever a name is
   // stored, so every test with a logged-in player hits this. Default to
@@ -365,13 +378,72 @@ describe('CityPage (bossfight countdown)', () => {
     await waitFor(() => expect(lastSublabel).toMatch(/^BOSSFIGHT IN \d+:\d{2}$/), { timeout: 3000 });
   });
 
-  it('reads IN PROGRESS once the countdown reaches zero', async () => {
+  it('says nothing at all once the countdown runs out with nobody in there', async () => {
+    // It used to read IN PROGRESS at this point, which advertised a fight
+    // that was not happening -- the clock hitting zero says only that a
+    // fight COULD start, not that anyone turned up for it.
     mockedGetNextBossfightTime.mockResolvedValue({
       start_time: new Date(Date.now() - 5_000).toISOString(),
     });
     renderCity();
     await waitForScene();
-    await waitFor(() => expect(lastSublabel).toBe('IN PROGRESS'), { timeout: 3000 });
+    await waitFor(() => expect(lastSublabel).toBeNull(), { timeout: 3000 });
+  });
+
+  it('counts one waiting player in the singular', async () => {
+    mockedGetBossfightRoster.mockResolvedValue({
+      ...emptyRoster, lobby_id: 'bf1', players: [occupant('Ada')],
+    });
+    renderCity();
+    await waitForScene();
+    await waitFor(() => expect(lastSublabel).toBe('1 PLAYER WAITING'), { timeout: 3000 });
+  });
+
+  it('counts several waiting players in the plural', async () => {
+    mockedGetBossfightRoster.mockResolvedValue({
+      ...emptyRoster,
+      lobby_id: 'bf1',
+      players: [occupant('Ada'), occupant('Bo'), occupant('Cy')],
+    });
+    renderCity();
+    await waitForScene();
+    await waitFor(() => expect(lastSublabel).toBe('3 PLAYERS WAITING'), { timeout: 3000 });
+  });
+
+  it('switches from waiting to playing once the first round is dealt', async () => {
+    mockedGetBossfightRoster.mockResolvedValue({
+      ...emptyRoster,
+      lobby_id: 'bf1',
+      round: 2,
+      players: [occupant('Ada'), occupant('Bo')],
+    });
+    renderCity();
+    await waitForScene();
+    await waitFor(() => expect(lastSublabel).toBe('2 PLAYERS PLAYING'), { timeout: 3000 });
+  });
+
+  it('does not count Hades, who arrives in the roster as a bot', async () => {
+    // Without the bot filter an empty temple would advertise one player.
+    mockedGetBossfightRoster.mockResolvedValue({
+      ...emptyRoster,
+      lobby_id: 'bf1',
+      players: [occupant('Hades', { bot: true }), occupant('Ada')],
+    });
+    renderCity();
+    await waitForScene();
+    await waitFor(() => expect(lastSublabel).toBe('1 PLAYER WAITING'), { timeout: 3000 });
+  });
+
+  it('prefers a live headcount over the countdown', async () => {
+    mockedGetNextBossfightTime.mockResolvedValue({
+      start_time: new Date(Date.now() + 125_000).toISOString(),
+    });
+    mockedGetBossfightRoster.mockResolvedValue({
+      ...emptyRoster, lobby_id: 'bf1', players: [occupant('Ada'), occupant('Bo')],
+    });
+    renderCity();
+    await waitForScene();
+    await waitFor(() => expect(lastSublabel).toBe('2 PLAYERS WAITING'), { timeout: 3000 });
   });
 });
 

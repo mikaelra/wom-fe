@@ -13,6 +13,8 @@ import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
+import { useBossfightRoster } from '@/lib/useBossfightRoster';
+import { bossfightSignSublabel } from '@/lib/bossfightSign';
 
 const CityScene = dynamic(() => import('@/components/city/CityScene'), { ssr: false });
 
@@ -54,12 +56,12 @@ function CityPageContent() {
   // Same countdown the world map used to show under the Athens sword; it now
   // reads under the signpost's Bossfight arm.
   const { bossfightMins, bossfightSecs } = useBossfightCountdown(true);
-  const bossfightSublabel =
-    bossfightMins == null || bossfightSecs == null
-      ? null
-      : bossfightMins <= 0 && bossfightSecs <= 0
-        ? 'IN PROGRESS'
-        : `BOSSFIGHT IN ${bossfightMins}:${String(bossfightSecs).padStart(2, '0')}`;
+  // Who is actually in the temple. Polled here rather than down in
+  // CityScene (where it used to live) because the signpost's caption needs
+  // it too, and one poll feeding both the sign and the figures inside the
+  // building is the only way the two can never disagree.
+  const roster = useBossfightRoster();
+  const bossfightSublabel = bossfightSignSublabel(roster, bossfightMins, bossfightSecs);
 
   if (!city) {
     return (
@@ -92,6 +94,7 @@ function CityPageContent() {
           realLng={city.realLng}
           onBossfight={enterBossfight}
           bossfightSublabel={bossfightSublabel}
+          roster={roster}
           onRanked={ranked.enterRanked}
           rankedLabel={ranked.label}
           rankedSublabel={ranked.sublabel}
