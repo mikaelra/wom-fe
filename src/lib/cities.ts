@@ -69,7 +69,7 @@ export interface City {
  * accident (docs/CITY_SCENE_PLAN.md §6.2).
  */
 export const CITIES: City[] = [
-  { id: 3, name: "Athens", country: "Greece", lat: 37.9838, lng: -25, realLat: 37.9838, realLng: 23.7275, color: "#fa0202", tag: "Marble Columns", actionLabel: "Bossfight" },
+  { id: 3, name: "Athens", country: "Greece", lat: 37.9838, lng: -25, realLat: 37.9838, realLng: 23.7275, color: "#fa0202", tag: "Marble Columns", actionLabel: "GREECE" },
   // actionLabel deliberately unset: this marker's pill is driven by live
   // ranked-queue state (idle / searching / active match), not static data.
   { id: 4, name: "New York", country: "USA", lat: 40.7128, lng: 72.7, realLat: 40.7128, realLng: -74.0060, color: "#ff3333", tag: "Ranked Arena", swordColor: "red" },

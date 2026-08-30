@@ -15,7 +15,7 @@ const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: 
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
 import type { RankedLabelInfo } from '@/components/worldmap/CityMarker';
-import { getBossfightLobby, getActiveRankedLobby } from '@/lib/api';
+import { getActiveRankedLobby } from '@/lib/api';
 import { useAuthFlow } from '@/lib/useAuthFlow';
 import { useRankedQueue } from '@/lib/useRankedQueue';
 import { useCountdown } from '@/lib/useCountdown';
@@ -180,9 +180,6 @@ export default function Page() {
   // interactive before the WebGL context initialises.
   const [sceneReady, setSceneReady] = useState(false);
 
-  // Athens raid login popup state
-  const [showAthensPopup, setShowAthensPopup] = useState(false);
-  const [athensSceneLoading, setAthensSceneLoading] = useState(false);
 
   const router = useRouter();
   const { showError } = useToast();
@@ -191,35 +188,6 @@ export default function Page() {
     const raf = requestAnimationFrame(() => setSceneReady(true));
     return () => cancelAnimationFrame(raf);
   }, []);
-
-  const enterAthensRaid = useCallback((playerName: string) => {
-    setAthensSceneLoading(true);
-    getBossfightLobby(playerName)
-      .then((data) => router.push(`/lobby?id=${data.lobby_id}`))
-      .catch((err) => {
-        setAthensSceneLoading(false);
-        showError(err instanceof Error ? err.message : 'Failed to enter raid.');
-      });
-  }, [router, showError]);
-
-  // ---- Athens raid handlers --------------------------------------------------
-  const proceedAthens = useCallback((name: string, email: string) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('playerName', name);
-      if (email) localStorage.setItem('playerEmail', email);
-    }
-    setShowAthensPopup(false);
-    enterAthensRaid(name);
-  }, [enterAthensRaid]);
-
-  const authFlow = useAuthFlow({
-    submitErrorFallback: 'Failed to enter raid.',
-    onAuthenticated: proceedAthens,
-  });
-  // Pulled out so handleCityClick's own useCallback deps stay stable --
-  // authFlow itself is a fresh object every render, but .reset is a stable
-  // useCallback(..., []) internally.
-  const resetAuthFlow = authFlow.reset;
 
   // ---- Ranked queue handlers (New York sword) --------------------------------
   // Moved here from WorldMapOverlay's "Play Ranked" button -- the queue
@@ -331,15 +299,11 @@ export default function Page() {
       router.push('/rules');
       return;
     }
-    // Athens → go straight to the Hades raid
+    // Athens → the city scene, which is where the raid now starts from
+    // (docs/CITY_SCENE_PLAN.md §4.4). The sword reads GREECE; the scene
+    // behind it is the city.
     if (city.name === 'Athens') {
-      const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
-      if (!playerName) {
-        resetAuthFlow();
-        setShowAthensPopup(true);
-        return;
-      }
-      enterAthensRaid(playerName);
+      router.push(`/city?id=${city.id}`);
       return;
     }
     // New York → ranked queue instead of the City Hub
@@ -348,7 +312,7 @@ export default function Page() {
       return;
     }
     setSelectedCity(city);
-  }, [router, enterAthensRaid, resetAuthFlow, handleRankedClick]);
+  }, [router, handleRankedClick]);
 
   const handleBackToMap = useCallback(() => {
     setSelectedCity(null);
@@ -366,26 +330,6 @@ export default function Page() {
               rankedInfo={rankedInfo}
             />
           </Canvas>
-        )}
-
-        {/* Athens scene loading overlay */}
-        {athensSceneLoading && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 pointer-events-none">
-            <p className="text-white text-2xl font-bold tracking-widest animate-pulse">Loading...</p>
-          </div>
-        )}
-
-        {/* Athens raid login popup */}
-        {showAthensPopup && (
-          <AuthGatePopup
-            authFlow={authFlow}
-            accent="red"
-            title="Enter the Hades Raid"
-            blurb="Choose a battle name to face Hades."
-            submitLabel="Enter Raid"
-            submitLoadingLabel="Entering..."
-            onClose={() => setShowAthensPopup(false)}
-          />
         )}
 
         {/* Ranked queue login popup — shown when clicking the New York sword with no stored name */}

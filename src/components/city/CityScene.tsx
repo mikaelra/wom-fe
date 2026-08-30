@@ -1,10 +1,12 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { OrbitControls } from '@react-three/drei';
 import Mountain from '@/components/mountain';
 import Temple from '@/components/temple';
 import SeaAndSky from '@/components/lobby/SeaAndSky';
+import Signpost, { type SignpostArm } from '@/components/city/Signpost';
+import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
 /**
  * The Athens city scene (docs/CITY_SCENE_PLAN.md §5) -- skeleton.
@@ -60,8 +62,64 @@ const MAX_POLAR = Math.PI * 0.86;     // well below the horizon, short of invert
  *  has no model yet, so only its neighbour stands today. */
 export const TEMPLE_POSITION: [number, number, number] = [-13, 0, -20];
 export const SENATE_POSITION: [number, number, number] = [13, 0, -20];
+/** Between the buildings and nearer the viewer, so it reads as the thing you
+ *  are standing at rather than part of the skyline. */
+export const SIGNPOST_POSITION: [number, number, number] = [0, 0, -11];
 
-export default function CityScene() {
+/** The Bossfight accent, matching the pill the world map used to show. */
+const BOSSFIGHT_COLOR = '#4da6ff';
+
+export interface CitySceneProps {
+  /** Enter the Hades raid -- the Temple and the signpost's left arm both
+   *  call this, so the building is a second, larger target for the same
+   *  action rather than a separate code path. */
+  onBossfight: () => void;
+  /** Live countdown shown under the arm's label, e.g. "RAID IN 4:12". */
+  bossfightSublabel?: string | null;
+}
+
+/** The Temple, as a click target. Lights up with its signpost arm. */
+function TempleTarget({ onActivate, highlighted, onHoverChange }: {
+  onActivate: () => void;
+  highlighted: boolean;
+  onHoverChange: (hovered: boolean) => void;
+}) {
+  const click = useClickNotDrag(onActivate);
+  return (
+    <group
+      position={TEMPLE_POSITION}
+      onPointerOver={(e) => { e.stopPropagation(); onHoverChange(true); document.body.style.cursor = 'pointer'; }}
+      onPointerOut={() => { onHoverChange(false); document.body.style.cursor = 'auto'; }}
+      onPointerDown={(e) => { e.stopPropagation(); click.onPointerDown(e); }}
+      onPointerUp={(e) => { e.stopPropagation(); click.onPointerUp(e); }}
+      onPointerLeave={click.onPointerLeave}
+    >
+      {/* Tinting the whole model is the cheapest honest highlight until the
+          art pass gives the buildings their own materials (§9). */}
+      <Temple scale={1} position={[0, 0, 0]} color={highlighted ? '#eaf4ff' : '#D6D6D6'} />
+    </group>
+  );
+}
+
+export default function CityScene({ onBossfight, bossfightSublabel }: CitySceneProps) {
+  // Hovering either the arm or its building lights both -- that pairing is
+  // what teaches which building is which without a tutorial.
+  const [templeHot, setTempleHot] = useState(false);
+
+  const arms: SignpostArm[] = [
+    {
+      side: 'left',
+      label: 'BOSSFIGHT',
+      sublabel: bossfightSublabel,
+      color: BOSSFIGHT_COLOR,
+      onActivate: onBossfight,
+      onHoverChange: setTempleHot,
+    },
+    // The right arm (RANKED -> Senate) lands in step 7, together with the
+    // Senate model and the New York marker's removal. Deliberately absent
+    // rather than present-but-dead.
+  ];
+
   return (
     <>
       {/* Placeholder ground/sky. Step 7 replaces this with a sky driven by
@@ -73,9 +131,12 @@ export default function CityScene() {
       <directionalLight position={SUN_POSITION} intensity={1.1} />
 
       <Suspense fallback={null}>
-        {/* Scenery for now. Step 6 makes this the Bossfight target, paired
-            with the signpost's left arm. */}
-        <Temple scale={1} position={TEMPLE_POSITION} />
+        <TempleTarget
+          onActivate={onBossfight}
+          highlighted={templeHot}
+          onHoverChange={setTempleHot}
+        />
+        <Signpost position={SIGNPOST_POSITION} arms={arms} />
         {/* A landmark to turn toward, so a full rotation is not three
             quarters of empty horizon while the buildings are still missing. */}
         <Mountain scale={150} position={[40, -282, 62]} />

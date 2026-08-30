@@ -14,7 +14,6 @@ import {
 } from '@/lib/api';
 import type { City } from '@/lib/cities';
 import type { RankedLabelInfo } from '@/components/worldmap/CityMarker';
-import { ToastProvider } from '@/components/Toast';
 import * as socketModule from '@/lib/socket';
 
 const push = vi.fn();
@@ -143,12 +142,29 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('Page (world map view, Athens raid popup)', () => {
-  it('opens the Athens popup when logged out', async () => {
+describe('Page (world map view, city routing)', () => {
+  it('routes to the Athens city scene instead of entering the raid', async () => {
     render(<Page />);
     await clickAthens();
-    expect(screen.getByText('Enter the Hades Raid')).toBeInTheDocument();
+
+    expect(push).toHaveBeenCalledWith(`/city?id=${ATHENS.id}`);
+    // The raid gate moved into the city scene (docs/CITY_SCENE_PLAN.md
+    // §4.4). The world map must not open it, and must not reach for the
+    // raid endpoints at all -- not even the name check.
+    expect(screen.queryByText('Enter the Hades Raid')).not.toBeInTheDocument();
+    expect(mockedGetBossfightLobby).not.toHaveBeenCalled();
     expect(mockedCheckName).not.toHaveBeenCalled();
+  });
+
+  it('routes to the city the same way when already logged in', async () => {
+    // Previously this was the "skip the popup, go straight in" path. There
+    // is no longer a fast path on the world map: everyone goes to the city.
+    localStorage.setItem('playerName', 'Alice');
+    render(<Page />);
+    await clickAthens();
+
+    expect(push).toHaveBeenCalledWith(`/city?id=${ATHENS.id}`);
+    expect(mockedGetBossfightLobby).not.toHaveBeenCalled();
   });
 
   it('navigates directly to the vault for a vault city, without opening the popup', async () => {
@@ -164,129 +180,8 @@ describe('Page (world map view, Athens raid popup)', () => {
     expect(push).toHaveBeenCalledWith('/rules');
     expect(screen.queryByText('Enter the Hades Raid')).not.toBeInTheDocument();
   });
-
-  it('enters the raid directly, skipping checkName, when already logged in', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedGetBossfightLobby.mockResolvedValue({ lobby_id: 'AAAA', start_time: '2026-01-01T00:00:00Z' });
-    render(<Page />);
-
-    await clickAthens();
-
-    expect(mockedCheckName).not.toHaveBeenCalled();
-    expect(screen.queryByText('Enter the Hades Raid')).not.toBeInTheDocument();
-    expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
-    expect(push).toHaveBeenCalledWith('/lobby?id=AAAA');
-  });
-
-  it('enters the raid for an unclaimed name, writing localStorage with no email', async () => {
-    mockedCheckName.mockResolvedValue({ claimed: false });
-    mockedGetBossfightLobby.mockResolvedValue({ lobby_id: 'BBBB', start_time: '2026-01-01T00:00:00Z' });
-    render(<Page />);
-
-    await clickAthens();
-    fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Enter Raid'));
-      await flush();
-    });
-
-    expect(mockedCheckName).toHaveBeenCalledWith('Alice');
-    expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
-    expect(localStorage.getItem('playerName')).toBe('Alice');
-    expect(localStorage.getItem('playerEmail')).toBeNull();
-    expect(push).toHaveBeenCalledWith('/lobby?id=BBBB');
-  });
-
-  it('shows the email step for a claimed name, and enters the raid on successful login', async () => {
-    mockedCheckName.mockResolvedValue({ claimed: true });
-    mockedLogInUser.mockResolvedValue({ success: true });
-    mockedGetBossfightLobby.mockResolvedValue({ lobby_id: 'CCCC', start_time: '2026-01-01T00:00:00Z' });
-    render(<Page />);
-
-    await clickAthens();
-    fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Enter Raid'));
-      await flush();
-    });
-    expect(
-      screen.getByText('This name is claimed. Type your email if you have claimed this username.'),
-    ).toBeInTheDocument();
-
-    fireEvent.change(screen.getByPlaceholderText('email'), { target: { value: 'alice@example.com' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Log in'));
-      await flush();
-    });
-
-    expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
-    expect(localStorage.getItem('playerName')).toBe('Alice');
-    expect(localStorage.getItem('playerEmail')).toBe('alice@example.com');
-    expect(push).toHaveBeenCalledWith('/lobby?id=CCCC');
-  });
-
-  it('shows the code step when requires_code is true, and completes on a correct code', async () => {
-    mockedCheckName.mockResolvedValue({ claimed: true });
-    mockedLogInUser.mockResolvedValue({ success: true, requires_code: true });
-    mockedVerifyLoginCode.mockRejectedValueOnce(new Error('Wrong code'));
-    mockedGetBossfightLobby.mockResolvedValue({ lobby_id: 'DDDD', start_time: '2026-01-01T00:00:00Z' });
-    render(<Page />);
-
-    await clickAthens();
-    fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Enter Raid'));
-      await flush();
-    });
-    fireEvent.change(screen.getByPlaceholderText('email'), { target: { value: 'alice@example.com' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Log in'));
-      await flush();
-    });
-
-    expect(screen.getByPlaceholderText('6-digit code')).toBeInTheDocument();
-
-    fireEvent.change(screen.getByPlaceholderText('6-digit code'), { target: { value: '000000' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Verify'));
-      await flush();
-    });
-    expect(screen.getByText('Wrong code')).toBeInTheDocument();
-    expect(mockedGetBossfightLobby).not.toHaveBeenCalled();
-
-    mockedVerifyLoginCode.mockResolvedValueOnce({ success: true });
-    fireEvent.change(screen.getByPlaceholderText('6-digit code'), { target: { value: '123456' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Verify'));
-      await flush();
-    });
-
-    expect(mockedVerifyLoginCode).toHaveBeenCalledWith('Alice', '123456');
-    expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
-    expect(push).toHaveBeenCalledWith('/lobby?id=DDDD');
-  });
-
-  it('shows a toast and hides the loading overlay when entering the raid fails', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedGetBossfightLobby.mockRejectedValue(new Error('Raid full'));
-    render(
-      <ToastProvider>
-        <Page />
-      </ToastProvider>,
-    );
-
-    await clickAthens();
-
-    expect(await screen.findByText('Raid full')).toBeInTheDocument();
-    expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    expect(push).not.toHaveBeenCalled();
-  });
 });
 
-// The "Play Ranked" button used to live in WorldMapOverlay -- it's now driven
-// by clicking the New York sword marker instead, with status text reported
-// via the `rankedInfo` prop WorldMap passes down to CityMarker (mocked out
-// above, so we assert on the captured prop rather than rendered 3D text).
 describe('Page (world map view, New York ranked queue)', () => {
   it('opens the ranked popup when logged out, and starts the queue for an unclaimed name', async () => {
     mockedCheckName.mockResolvedValue({ claimed: false });
