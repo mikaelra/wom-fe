@@ -391,6 +391,36 @@ a stalled asset can never leave a working scene behind a permanent curtain.
 
 The art is explicitly temporary, like §6.5's red band.
 
+### 5.5 The compass, and the campfire — **[added]**
+
+Two later additions, both answering "I cannot tell what I am looking at".
+
+**The compass.** Eight marks — N, NE, E, SE, S, SW, W, NW — standing on the
+horizon at their own azimuths, world-anchored rather than a fixed HUD strip.
+That is what makes them a compass at all: turn on the spot and the letters slide
+past exactly as the horizon does, so the scene tells you which way you face
+instead of an overlay asserting it. Deliberately the 8-point set and never the
+16-point one — NNE and ESE are three letters of clutter on a skyline. (The
+16-point `compassPoint()` stays for the gaze labels' `24° ESE` readout, where the
+precision earns its place.)
+
+They show only while in frame. Being world-anchored almost does that by itself,
+but a mark would pop in at the edge as you pan, so the frame edge is computed per
+frame from the camera's own FOV and aspect and the mark fades across the last few
+degrees. That matters more than it sounds: 70° of *vertical* FOV is ~51° of
+horizontal half-angle on a 16:9 desktop and only ~18° on a phone held upright, so
+a fixed angle would be wrong on one of them. Same reasoning as §7.1 — work in
+angles, not pixels.
+
+**The campfire** solves a lighting problem, not a decorating one. After sunset
+the key light goes out with the Sun — correctly, the sky being the real sky — and
+the signpost, the one thing a player *must* be able to read, went dark with it. A
+warm local source at ground level in front of the post picks its arms out without
+lighting the whole bay. Procedural like the Senate and the signpost themselves
+(§9), and it has to stand at `SEA_LEVEL` rather than `y = 0`: buildings are
+pitched at 0 and rise *through* the water plane, and a fire a unit and a half tall
+placed the same way would simply drown.
+
 ---
 
 ## 6. The real sky — the engineering core
@@ -937,12 +967,16 @@ Each step is independently reviewable and leaves the app working.
 10. **Real sky rendering in the city** — bodies placed from `skyLocal`, day/night
     gradient, star opacity driven by `nightness`. (§6.4)
 11. **Gaze labels in the city**, reusing step 8–9's component unchanged. Horizon
-    occlusion via `altitude > 0`. (§7.2, §7.4) **[corrected]** The occlusion test
-    is `visibility > 0` off `useCitySky`'s placements, which is `altitude > 0`
-    *and* "not a planet lost in daylight". Both conditions already decide whether
-    the sprite is drawn, so reading the same scalar is what guarantees a label can
-    never name something that is not on screen — a separate `altitude > 0` here
-    would have named planets that daylight had removed. `useCitySky` now also
+    occlusion via `altitude > 0`. (§7.2, §7.4) **[corrected, then corrected back]**
+    This first shipped testing `visibility > 0` off `useCitySky`'s placements —
+    `altitude > 0` *and* "not a planet lost in daylight" — on the reasoning that a
+    label should never name something that is not drawn. That reasoning was
+    wrong, and the plan's original `altitude > 0` was right. Below the horizon is
+    behind the Earth, so there is nothing there to name; but a planet washed out
+    by a bright sky **is** still up there, at a real place, and naming it is
+    precisely the point of the mechanic — knowing where Jupiter is at four in the
+    afternoon is a thing you cannot get any other way, and the Sun has always
+    behaved like this. The test is `horizon.altitude > 0`. `useCitySky` also
     returns the `Sky` snapshot and the `LocalFrame` it had already computed, so
     the labels, the sprites and the starfield are provably one instant.
 12. **Delete dead code:** `TempleScene`, `CameraAnimator`, `HomeOverlay`'s city

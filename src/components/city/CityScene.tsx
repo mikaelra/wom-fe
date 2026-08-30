@@ -10,11 +10,15 @@ import Senate from '@/components/city/Senate';
 import CitySky, { useCitySky } from '@/components/city/CitySky';
 import Signpost, { type SignpostArm } from '@/components/city/Signpost';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
+import CompassMarks from '@/components/city/CompassMarks';
+import Campfire from '@/components/city/Campfire';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
 // Temple left, Senate right, signpost between (§1.1). In lib/ so the
 // left/right pairing with the signpost's arms can be tested.
-import { TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION } from '@/lib/cityLayout';
+import {
+  TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION, SEA_LEVEL,
+} from '@/lib/cityLayout';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
 /**
@@ -44,9 +48,6 @@ import { useClickNotDrag } from '@/lib/useClickNotDrag';
  * Senate's 8.4 x 5.0. See lib/cityLayout.ts, which owns the placements and
  * the measurements behind them.
  */
-
-// Shared with LobbyScene so the two scenes agree on world scale.
-const SEA_LEVEL = 2;
 
 /** Where the player stands. Eye height above SEA_LEVEL, at the origin. */
 export const EYE: [number, number, number] = [0, SEA_LEVEL + 3.2, 0];
@@ -203,16 +204,19 @@ export default function CityScene({
    *
    * Positions come straight off `useCitySky`'s placements rather than being
    * recomputed here -- recomputing is exactly how a label and the sprite it
-   * names would drift apart. `visibility` carries the occlusion rule with
-   * them: in the city there is no ray/sphere test to do, because a body
-   * below the horizon is behind the Earth by definition, and a planet lost
-   * in daylight is not on screen to be named either. Filtering on the same
-   * scalar the sprite's opacity uses means a label can never name something
-   * that is not drawn.
+   * names would drift apart.
+   *
+   * The test is `altitude > 0` and NOT the sprite's own `visibility`.
+   * Below the horizon is behind the Earth, so there is genuinely nothing
+   * there to name. But a planet washed out by daylight is still up there, at
+   * a real place in the sky, and knowing where Jupiter is at four in the
+   * afternoon is exactly the kind of thing this mechanic is for -- so
+   * centring it names it even though the eye cannot pick it out. The Sun has
+   * always behaved this way; the planets now match.
    */
   const labelBodies = useMemo<SkyLabelBody[]>(
     () => placements
-      .filter((p) => p.visibility > 0)
+      .filter((p) => p.horizon.altitude > 0)
       .map((p) => ({
         key: p.body,
         position: new THREE.Vector3(...p.position),
@@ -262,6 +266,11 @@ export default function CityScene({
           must not wait on a texture to start naming what you look at. */}
       <SkyLabels bodies={labelBodies} distanceFactor={LABEL_DISTANCE_FACTOR} />
 
+      {/* Which way you are facing, written on the horizon itself. Same
+          radius and scale as the gaze labels, so the two families of text
+          sit at one size. */}
+      <CompassMarks eye={EYE} radius={SKY_R} distanceFactor={LABEL_DISTANCE_FACTOR} />
+
       {/* Scene lighting follows the same nightness the sky does, so the
           marble goes down with the sun instead of staying lit under stars.
           Never to zero: a pitch-black building reads as a rendering failure
@@ -297,6 +306,12 @@ export default function CityScene({
         </BuildingTarget>
 
         <Signpost position={SIGNPOST_POSITION} arms={arms} />
+
+        {/* Between the viewer and the signpost, so it lights the face of the
+            arms rather than their backs. Once the Sun sets the scene's key
+            light goes with it and the signpost -- the one thing that must
+            stay readable -- went dark with it; this is what keeps it lit. */}
+        <Campfire position={CAMPFIRE_POSITION} nightness={nightness} />
 
         {/* A landmark to turn toward, so a full rotation is not three
             quarters of empty horizon. */}

@@ -33,6 +33,17 @@
  * building from filling the sky.
  */
 
+/**
+ * Height of the water plane everything stands on.
+ *
+ * Shared with LobbyScene so the two scenes agree on world scale. Note the
+ * consequence: buildings and the signpost are pitched at y = 0 and rise
+ * THROUGH this plane, so their lowest two units are under water. Anything
+ * short enough to drown at y = 0 -- the campfire -- has to be placed on the
+ * surface instead.
+ */
+export const SEA_LEVEL = 2;
+
 /** Half-extents of temple.glb at scale 1, measured from the GLB. Kept here
  *  because every future placement decision needs them and reading them off
  *  the model again is a half-hour nobody should spend twice. */
@@ -66,6 +77,19 @@ export const SENATE_POSITION: [number, number, number] = [15, 0, -22];
 
 /** Between them and nearer the viewer, so it is read first. */
 export const SIGNPOST_POSITION: [number, number, number] = [0, 0, -11];
+
+/**
+ * The campfire, between the viewer and the signpost.
+ *
+ * Its y is the SEA LEVEL rather than 0: the buildings are pitched at y = 0
+ * and rise through a water plane at y = 2, but a fire has to sit on the
+ * visible surface or it drowns -- the whole thing is barely a unit and a
+ * half tall.
+ *
+ * Close enough to the post to light its arms (3 units), far enough forward
+ * that its light falls on the faces you read rather than their backs.
+ */
+export const CAMPFIRE_POSITION: [number, number, number] = [0, SEA_LEVEL, -8];
 
 /** Distance from the viewer, who stands at the origin in x/z. */
 export function groundDistance(position: readonly [number, number, number]): number {

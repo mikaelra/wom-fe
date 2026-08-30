@@ -80,9 +80,11 @@ export interface CityBodyPlacement {
   position: [number, number, number];
   horizon: HorizonPos;
   color: string;
-  /** 0 when it should not be drawn at all (below the horizon, or a planet in
-   *  daylight). Step 11's labels read the same value, so a label can never
-   *  name something that is not on screen. */
+  /** 0 when the SPRITE should not be drawn -- below the horizon, or a planet
+   *  washed out by daylight. Deliberately not what the gaze labels read:
+   *  they go by `horizon.altitude` alone, so a planet you cannot see in a
+   *  bright sky is still named when you centre on it. Where it is remains
+   *  true even when it is invisible. */
   visibility: number;
 }
 

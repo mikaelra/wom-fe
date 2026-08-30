@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, TEMPLE_EXTENT, groundDistance,
+  CAMPFIRE_POSITION, SEA_LEVEL,
 } from '@/lib/cityLayout';
 
 // Scene compass (lib/citySkyGeometry.ts): -Z is north, +X is east, and the
@@ -53,5 +54,29 @@ describe('the temple has the room its size needs', () => {
 
   it('does not reach across into the Senate', () => {
     expect(TEMPLE_POSITION[0] + TEMPLE_EXTENT.x).toBeLessThan(SENATE_POSITION[0]);
+  });
+});
+
+describe('the campfire', () => {
+  it('sits between the viewer and the signpost, lighting the arms\' faces', () => {
+    // In front of the post, not behind it: light on the back of a signpost
+    // reads it out as a silhouette.
+    expect(CAMPFIRE_POSITION[2]).toBeGreaterThan(SIGNPOST_POSITION[2]);
+    expect(CAMPFIRE_POSITION[2]).toBeLessThan(0);
+  });
+
+  it('is close enough to the signpost to actually light it', () => {
+    const gap = Math.hypot(
+      CAMPFIRE_POSITION[0] - SIGNPOST_POSITION[0],
+      CAMPFIRE_POSITION[2] - SIGNPOST_POSITION[2],
+    );
+    expect(gap).toBeLessThan(6);
+  });
+
+  it('stands on the water surface rather than drowning at y = 0', () => {
+    // Everything else is pitched at y = 0 and rises through the plane at
+    // SEA_LEVEL. A fire barely a unit and a half tall would vanish.
+    expect(CAMPFIRE_POSITION[1]).toBe(SEA_LEVEL);
+    expect(SIGNPOST_POSITION[1]).toBe(0);
   });
 });
