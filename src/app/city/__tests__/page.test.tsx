@@ -368,7 +368,10 @@ describe('CityPage (ranked)', () => {
     await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
 
     expect(mockedGetActiveRankedLobby).toHaveBeenCalledWith('Alice');
-    expect(lastRankedSublabel).toMatch(/^STARTS IN \d+s$/);
+    // useCountdown publishes null until its first tick, so the sublabel
+    // legitimately reads STARTING SOON for a moment before the seconds
+    // appear. Asserting immediately raced that and made this flaky.
+    await waitFor(() => expect(lastRankedSublabel).toMatch(/^STARTS IN \d+s$/), { timeout: 3000 });
 
     await clickRanked();
     expect(mockedJoinRankedQueue).not.toHaveBeenCalled();
