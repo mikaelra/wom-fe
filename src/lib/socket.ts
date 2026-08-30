@@ -10,6 +10,7 @@ import {
   JoinedRankedQueuePayloadSchema,
   RankedMatchFoundPayloadSchema,
   OnlineCountPayloadSchema,
+  BossfightRosterResponseSchema,
 } from '@/lib/schemas';
 
 // Typed event maps, built directly against wom-be's docs/PROTOCOL.md.
@@ -27,6 +28,11 @@ export interface ServerToClientEvents {
   joined_ranked_queue: (payload: { name: string }) => void;
   ranked_match_found: (payload: { lobby_id: string; token: string }) => void;
   online_count: (payload: { count: number }) => void;
+  // The city watching a boss fight it is not in (wom-be sockets/city.py).
+  // Same payload as GET /get_bossfight_roster, pushed instead of polled so
+  // the signpost's "WAITING" flips to "PLAYING" on the round, not on a
+  // timer.
+  bossfight_roster: (payload: z.infer<typeof BossfightRosterResponseSchema>) => void;
 }
 
 export interface ClientToServerEvents {
@@ -50,6 +56,10 @@ export interface ClientToServerEvents {
   submit_deny_target: (payload: { lobby_id: string; target: string }) => void;
   send_message: (payload: { lobby_id: string; message: string }) => void;
   join_ranked_queue: (payload: { name: string }) => void;
+  // No payload and no token: a watcher is deliberately NOT in the lobby,
+  // and asking must never put them in it.
+  watch_bossfight: () => void;
+  stop_watching_bossfight: () => void;
 }
 
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -77,6 +87,7 @@ const EVENT_SCHEMAS = {
   joined_ranked_queue: JoinedRankedQueuePayloadSchema,
   ranked_match_found: RankedMatchFoundPayloadSchema,
   online_count: OnlineCountPayloadSchema,
+  bossfight_roster: BossfightRosterResponseSchema,
 } satisfies { [K in keyof ServerToClientEvents]: z.ZodTypeAny };
 
 /**

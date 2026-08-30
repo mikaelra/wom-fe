@@ -36,7 +36,10 @@ vi.mock('@/lib/socket', () => {
   const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
   const emit = vi.fn();
   return {
-    getSocket: () => ({ emit }),
+    // on/off are here because useBossfightRoster re-sends
+    // watch_bossfight on every reconnect -- Socket.IO room membership does
+    // not survive one.
+    getSocket: () => ({ emit, on: () => {}, off: () => {} }),
     subscribe: (event: string, handler: (...args: unknown[]) => void) => {
       if (!listeners.has(event)) listeners.set(event, new Set());
       listeners.get(event)!.add(handler);
