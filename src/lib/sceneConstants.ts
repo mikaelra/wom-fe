@@ -205,3 +205,44 @@ export function getCameraTargetPosition(width: number, height: number, radiusFac
   const elevation = (aspect > 1 ? 2.53 : 3.3) * radiusFactor;
   return [0, SCENE_CENTER[1] + elevation, dist];
 }
+
+/** How far the standard lobby camera sits from the point it looks at. */
+export function standardCameraDistance(width: number, height: number, radiusFactor: number = 1): number {
+  const [x, y, z] = getCameraTargetPosition(width, height, radiusFactor);
+  return Math.hypot(x - SCENE_CENTER[0], y - SCENE_CENTER[1], z - SCENE_CENTER[2]);
+}
+
+/**
+ * Push a fixed camera pose straight out along its own line of sight until it
+ * stands the same distance from the Well as the standard lobby camera does.
+ *
+ * The spectator shoulder-cam (getSpectatorCameraPosition) is built by
+ * offsetting from a seat, which put it noticeably closer in than the view
+ * every other player gets -- close enough to feel like a different scene.
+ * Scaling the arm rather than rebuilding the pose keeps the framing exactly
+ * as it was, over the watcher's own left shoulder, at the same angle above
+ * and behind them; only the distance changes.
+ *
+ * Because it reads the live canvas size, a spectator also gets the same
+ * portrait/landscape backing-off as everyone else.
+ */
+export function atStandardCameraDistance(
+  pose: [number, number, number],
+  width: number,
+  height: number,
+  radiusFactor: number = 1,
+): [number, number, number] {
+  const ax = pose[0] - SCENE_CENTER[0];
+  const ay = pose[1] - SCENE_CENTER[1];
+  const az = pose[2] - SCENE_CENTER[2];
+  const len = Math.hypot(ax, ay, az);
+  // A pose sitting exactly on the look-at point has no line of sight to push
+  // along; fall back to the ordinary view rather than dividing by zero.
+  if (len === 0) return getCameraTargetPosition(width, height, radiusFactor);
+  const scale = standardCameraDistance(width, height, radiusFactor) / len;
+  return [
+    SCENE_CENTER[0] + ax * scale,
+    SCENE_CENTER[1] + ay * scale,
+    SCENE_CENTER[2] + az * scale,
+  ];
+}

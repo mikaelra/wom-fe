@@ -12,6 +12,8 @@ import {
   SCENE_CENTER,
   getSpectatorPositions,
   getSpectatorCameraPosition,
+  atStandardCameraDistance,
+  standardCameraDistance,
   SPECTATOR_ARC_STEP,
 } from '@/lib/sceneConstants';
 
@@ -207,5 +209,58 @@ describe('getSpectatorCameraPosition', () => {
   it('stays put rather than throwing when the index is out of range', () => {
     expect(() => getSpectatorCameraPosition(99, 3, 4)).not.toThrow();
     expect(getSpectatorCameraPosition(99, 3, 4)).toHaveLength(3);
+  });
+});
+
+describe('atStandardCameraDistance', () => {
+  // The spectator shoulder-cam is built by offsetting from a seat, which put
+  // it closer to the table than the view every other player gets. It is now
+  // pushed out along its own line of sight, so the framing is untouched and
+  // only the distance changes.
+  const W = 1920;
+  const H = 1080;
+  const pose = getSpectatorCameraPosition(1, 3, 4);
+  const pushed = atStandardCameraDistance(pose, W, H);
+
+  const armLength = (p: [number, number, number]) =>
+    Math.hypot(p[0] - SCENE_CENTER[0], p[1] - SCENE_CENTER[1], p[2] - SCENE_CENTER[2]);
+
+  it('stands exactly as far from the Well as the ordinary camera does', () => {
+    expect(armLength(pushed)).toBeCloseTo(standardCameraDistance(W, H), 6);
+    expect(armLength(pushed)).toBeCloseTo(armLength(getCameraTargetPosition(W, H)), 6);
+  });
+
+  it('actually moved the shoulder-cam further out, which was the complaint', () => {
+    expect(armLength(pushed)).toBeGreaterThan(armLength(pose));
+  });
+
+  it('keeps the pose pointing from precisely where it did before', () => {
+    // Same direction from the look-at point => same framing, just further
+    // back. Compared as a unit-vector dot product; anything less than 1 here
+    // means the shoulder view has been swung somewhere else.
+    const dir = (p: [number, number, number]) => {
+      const v = [p[0] - SCENE_CENTER[0], p[1] - SCENE_CENTER[1], p[2] - SCENE_CENTER[2]];
+      const len = Math.hypot(v[0], v[1], v[2]);
+      return v.map((c) => c / len);
+    };
+    const a = dir(pose);
+    const b = dir(pushed);
+    expect(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]).toBeCloseTo(1, 9);
+  });
+
+  it('backs a watcher off on a phone just like it does anyone else', () => {
+    const portrait = atStandardCameraDistance(pose, 430, 932);
+    expect(armLength(portrait)).toBeGreaterThan(armLength(pushed));
+    expect(armLength(portrait)).toBeCloseTo(standardCameraDistance(430, 932), 6);
+  });
+
+  it('grows with the seat circle, via the same radiusFactor', () => {
+    expect(armLength(atStandardCameraDistance(pose, W, H, 1.3)))
+      .toBeGreaterThan(armLength(pushed));
+  });
+
+  it('falls back to the ordinary view for a pose sat on the look-at point', () => {
+    const degenerate = atStandardCameraDistance([...SCENE_CENTER], W, H);
+    expect(degenerate).toEqual(getCameraTargetPosition(W, H));
   });
 });

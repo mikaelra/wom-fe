@@ -4,7 +4,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import * as THREE from 'three';
 import { usePanOffset } from '@/lib/usePanOffset';
-import { SCENE_CENTER, getCameraTargetPosition, getResponsiveFov } from '@/lib/sceneConstants';
+import { SCENE_CENTER, atStandardCameraDistance, getCameraTargetPosition, getResponsiveFov } from '@/lib/sceneConstants';
 
 const LOBBY_LOOKAT = new THREE.Vector3(...SCENE_CENTER);
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
@@ -88,7 +88,11 @@ export default function CameraFlyIn({
   const { camera, size } = useThree();
   // Start at the target position (not the Canvas default [33,26,33]) so there is no fly-in
   // delay and Html elements are projected correctly on the very first frame.
-  const [tx, ty, tz] = basePosition ?? getCameraTargetPosition(size.width, size.height, radiusFactor);
+  // A fixed pose keeps its direction but is pushed out to the same distance
+  // from the table as the ordinary camera -- see atStandardCameraDistance.
+  const [tx, ty, tz] = basePosition
+    ? atStandardCameraDistance(basePosition, size.width, size.height, radiusFactor)
+    : getCameraTargetPosition(size.width, size.height, radiusFactor);
   const currentPosition = useRef(new THREE.Vector3(tx, ty, tz));
   const panOffset = usePanOffset(onUserAdjust);
 
@@ -176,7 +180,9 @@ export default function CameraFlyIn({
     }
     // 'playing': yaw/zoom are left alone from here -- back to fully player-controlled drag/zoom.
 
-    const [x, y, z] = basePosition ?? getCameraTargetPosition(size.width, size.height, radiusFactor);
+    const [x, y, z] = basePosition
+      ? atStandardCameraDistance(basePosition, size.width, size.height, radiusFactor)
+      : getCameraTargetPosition(size.width, size.height, radiusFactor);
     camTarget.set(x, y, z);
     // Frame-rate independent ease toward the target (0.025/frame at 60 fps ≈ lambda 1.5)
     currentPosition.current.lerp(camTarget, 1 - Math.exp(-1.5 * delta));

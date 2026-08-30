@@ -99,10 +99,7 @@ function CityPageContent() {
           onReady={handleReady}
         />
       </Canvas>
-      <CityOverlay
-        city={city}
-        skyClock={skyOverridden ? formatAthensClock(skyDate) : null}
-      />
+      <CityOverlay skyClock={skyOverridden ? formatAthensClock(skyDate) : null} />
 
       <CityLoadingScreen
         title={city.actionLabel ?? city.name}
