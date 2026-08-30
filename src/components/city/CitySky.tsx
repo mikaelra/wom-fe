@@ -7,9 +7,10 @@ import { STAR_CATALOG } from '@/components/worldmap/starCatalog';
 // `Sky` is aliased: drei's atmospheric <Sky> component owns that name here.
 import { computeSky, computeAspects, type AspectBody, type Sky as SkySnapshot } from '@/lib/astrology';
 import {
-  localFrame, horizonOf, horizonOfRaDec, nightness, twilightBand,
+  localFrame, horizonOf, horizonOfRaDec, nightness, twilightBand, apparentMagnitude,
   type HorizonPos, type LocalFrame,
 } from '@/lib/skyLocal';
+import { twilightVisibility, magnitudeSizeFactor } from '@/lib/planetBrightness';
 import { horizonToScene, eqjToSceneMatrix, SKY_R, STAR_R } from '@/lib/citySkyGeometry';
 import {
   seaGlitter, SUN_GLITTER_PEAK, MOON_GLITTER_PEAK, type SeaGlitter,
@@ -70,20 +71,38 @@ const BODY_SIZE: Record<AspectBody, number> = {
   Sun: 16, Moon: 28, Venus: 12, Jupiter: 11, Mars: 9, Mercury: 8, Saturn: 8,
 };
 
-/** Sun and Moon are visible in daylight; the planets are not. */
-const DAYLIGHT_VISIBLE: ReadonlySet<AspectBody> = new Set<AspectBody>(['Sun', 'Moon']);
+/**
+ * Overall boost to every body's drawn size.
+ *
+ * The planets were too faint to find from the ground even on a clear night.
+ * A first pass at 1.5 (with a stronger halo) overshot and read as too much
+ * on screen; this and lib/planetBrightness.ts's SIZE_EMPHASIS both sit half
+ * way back toward the original. Kept as one factor over the authored table
+ * rather than baked into it, so the relative sizes stay legible and this is
+ * one number to tune.
+ */
+const BODY_SIZE_BOOST = 1.25;
+
+/** The halo drawn behind each body: how much wider than the core, and how
+ *  strong. This is what makes a bright planet read as GLOWING rather than as
+ *  a slightly larger dot -- a low sun over water does the same thing. */
+const HALO_SIZE = 2.6;
+const HALO_OPACITY = 0.22;
 
 export interface CityBodyPlacement {
   body: AspectBody;
   position: [number, number, number];
   horizon: HorizonPos;
   color: string;
-  /** 0 when the SPRITE should not be drawn -- below the horizon, or a planet
-   *  washed out by daylight. Deliberately not what the gaze labels read:
-   *  they go by `horizon.altitude` alone, so a planet you cannot see in a
-   *  bright sky is still named when you centre on it. Where it is remains
-   *  true even when it is invisible. */
+  /** 0 to 1: how far the body has emerged from the twilight, which is now a
+   *  function of its own apparent magnitude rather than one threshold for
+   *  everything. Deliberately not what the gaze labels read: they go by
+   *  `horizon.altitude` alone, so a planet you cannot see in a bright sky is
+   *  still named when you centre on it. Where it is remains true even when
+   *  it is invisible. */
   visibility: number;
+  /** Apparent magnitude at this instant. Smaller is brighter. */
+  magnitude: number;
 }
 
 export interface CitySkyState {
@@ -125,14 +144,23 @@ export function useCitySky(
 
     const placements = (Object.keys(BODY_SIZE) as AspectBody[]).map((body) => {
       const horizon = horizonOf(sky, body, frame);
-      const belowHorizon = horizon.altitude <= 0;
-      const hiddenByDaylight = !DAYLIGHT_VISIBLE.has(body) && night < 0.35;
+      const magnitude = apparentMagnitude(body, frame);
+      // Below the horizon is behind the Earth and has nothing to do with
+      // brightness; above it, how far the body has climbed out of the
+      // twilight is decided by how bright it actually is.
+      const visibility = horizon.altitude <= 0
+        ? 0
+        : body === 'Sun'
+          // The Sun is not competing with the daylight, it IS the daylight.
+          ? 1
+          : twilightVisibility(sunHorizon.altitude, magnitude);
       return {
         body,
         position: horizonToScene(horizon, SKY_R, eye),
         horizon,
         color: `#${aspects[body].color.getHexString()}`,
-        visibility: belowHorizon || hiddenByDaylight ? 0 : 1,
+        visibility,
+        magnitude,
       };
     });
 
@@ -450,20 +478,38 @@ export default function CitySky({
         </Suspense>
       )}
 
-      {placements.map((p) => (
-        p.visibility > 0 && (
-          <sprite key={p.body} position={p.position} scale={[BODY_SIZE[p.body], BODY_SIZE[p.body], 1]}>
-            <spriteMaterial
-              map={glow}
-              color={p.color}
-              transparent
-              opacity={p.visibility}
-              depthWrite={false}
-              blending={THREE.AdditiveBlending}
-            />
-          </sprite>
-        )
-      ))}
+      {placements.map((p) => {
+        if (p.visibility <= 0) return null;
+        // Brighter planets are drawn bigger as well as sooner, so Venus
+        // reads as Venus rather than as one more dot.
+        const size = BODY_SIZE[p.body] * BODY_SIZE_BOOST * magnitudeSizeFactor(p.magnitude);
+        return (
+          <group key={p.body} position={p.position}>
+            {/* Halo first: wider and much fainter, additively blended, so a
+                bright body sits in its own glow. */}
+            <sprite scale={[size * HALO_SIZE, size * HALO_SIZE, 1]}>
+              <spriteMaterial
+                map={glow}
+                color={p.color}
+                transparent
+                opacity={p.visibility * HALO_OPACITY}
+                depthWrite={false}
+                blending={THREE.AdditiveBlending}
+              />
+            </sprite>
+            <sprite scale={[size, size, 1]}>
+              <spriteMaterial
+                map={glow}
+                color={p.color}
+                transparent
+                opacity={p.visibility}
+                depthWrite={false}
+                blending={THREE.AdditiveBlending}
+              />
+            </sprite>
+          </group>
+        );
+      })}
 
       <Sea
         seaLevel={seaLevel}

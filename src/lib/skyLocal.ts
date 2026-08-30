@@ -201,6 +201,18 @@ export function separationOnSky(a: HorizonPos, b: HorizonPos): number {
   return (Math.acos(dot) * 180) / Math.PI;
 }
 
+/**
+ * A body's apparent magnitude right now.
+ *
+ * Straight from the ephemeris rather than a table, because it genuinely
+ * moves: Venus swings more than a magnitude across its cycle as its phase
+ * and distance change, and it is brightest exactly when it is the striking
+ * evening star the city scene wants to show off.
+ */
+export function apparentMagnitude(body: AspectBody, frame: LocalFrame): number {
+  return Astronomy.Illumination(ASTRO_BODY[body], frame.time).mag;
+}
+
 export function isAboveHorizon(pos: HorizonPos): boolean {
   return pos.altitude > 0;
 }
