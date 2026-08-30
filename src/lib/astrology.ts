@@ -23,7 +23,7 @@ export type AspectBody = 'Sun' | 'Moon' | 'Mercury' | 'Venus' | 'Mars' | 'Jupite
 
 const ALL_BODIES: AspectBody[] = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
 
-const ASTRO_BODY: Record<AspectBody, Astronomy.Body> = {
+export const ASTRO_BODY: Record<AspectBody, Astronomy.Body> = {
   Sun: Astronomy.Body.Sun,
   Moon: Astronomy.Body.Moon,
   Mercury: Astronomy.Body.Mercury,
