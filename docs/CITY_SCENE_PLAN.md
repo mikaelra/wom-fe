@@ -443,6 +443,41 @@ silhouette, unlit on purpose: at that range only the silhouette reads, and a lit
 material would go black the moment the Sun set and take the horizon with it. Their
 colour rides `nightness` the way the sea's does.
 
+### 5.2a The buildings show what is happening in them — **[added]**
+
+Two changes that make the two buildings stop being scenery.
+
+**The temple holds the live bossfight.** Hades, the Well and every player who has
+joined stand inside it, so walking up at a quiet hour shows an empty temple and
+walking up while a fight fills shows who is waiting. The arrangement is not
+re-invented: it reuses `getBossPosition` and `getBossPlayerPositions`, the same
+functions `LobbyScene` seats people with, so it is the same composition rather than
+a drawing of one — and it stays right for free when the lobby's layout changes.
+
+This needed **the plan's first backend change**, and the scope line at the top of
+this document is now inaccurate for it. There was no way to read a lobby without
+joining: `POST /get_bossfight_lobby` *adds* the caller as a player, and the socket's
+`state_update` only reaches connections that have already joined with a session
+token. Peeking cost you a place in the fight. `GET /get_bossfight_roster`
+(wom-be, `docs/PROTOCOL.md`) is the read: unauthenticated because everything in it
+is already broadcast to everyone inside that lobby, deliberately **not** calling
+`ensure_bossfight_lobby` — a passer-by glancing at the temple must not start a boss
+fight — and shaped so the response *is* the access control (name, skin, alive,
+spectator, bot; no tokens, no email, no HP).
+
+The figures' height above the temple's base is derived, not eyeballed: `LobbyScene`
+puts `temple.glb` at y = 4 and its base is 8.07 below its origin, so the lobby's
+`PLAYER_Y` floor sits 7.27 above that base. Reusing that number puts the city's
+tableau on the same floor the lobby's stands on.
+
+One thing only the live route revealed: **Hades arrives in the roster as a player
+with `bot: true`**. He is drawn separately at `getBossPosition`'s seat, so without a
+bot filter he stands in the temple twice.
+
+**The Senate is where ranked is played.** See §5.2's arena note — the building you
+walk into is the building you play in, and its middle was hollowed out to hold the
+match.
+
 ### 5.3a No city nameplate — **[corrected]**
 
 §5.1 gave the city a centred heading: the city name, then `tag — country`. It is

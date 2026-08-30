@@ -1,12 +1,14 @@
 import { request, ApiError } from '@/lib/http';
 import { getSocket, subscribe } from '@/lib/socket';
 import { setStoredToken, getStoredToken, setStoredAccountToken } from '@/lib/http';
+import type { z } from 'zod';
 import type { Relic } from '@/types/game';
 import type { GameEvent } from '@/lib/gameEvents';
 import {
   CreateLobbyResponseSchema,
   GetBossfightLobbyResponseSchema,
   GetNextBossfightTimeResponseSchema,
+  BossfightRosterResponseSchema,
   GetPlayerRelicsResponseSchema,
   GetPlayerMessagesResponseSchema,
   CheckNameResponseSchema,
@@ -95,6 +97,23 @@ export async function getBossfightLobby(playerName: string): Promise<{ lobby_id:
 export async function getNextBossfightTime(): Promise<{ start_time: string }> {
   return request('/get_next_bossfight_time', GetNextBossfightTimeResponseSchema, {
     defaultErrorMessage: 'Failed to fetch the next bossfight time',
+  });
+}
+
+/**
+ * Who is in the bossfight right now, without joining it.
+ *
+ * Note this is NOT getBossfightLobby with a different name: that one is a
+ * POST that ADDS the caller to the fight. This is the read-only counterpart
+ * added for the city scene, which shows the live bossfight inside the temple
+ * you can see from the street.
+ */
+export type BossfightRoster = z.infer<typeof BossfightRosterResponseSchema>;
+export type BossfightRosterPlayer = BossfightRoster['players'][number];
+
+export async function getBossfightRoster(): Promise<BossfightRoster> {
+  return request('/get_bossfight_roster', BossfightRosterResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch the bossfight roster',
   });
 }
 

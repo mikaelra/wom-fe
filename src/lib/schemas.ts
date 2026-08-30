@@ -30,6 +30,28 @@ export const GetNextBossfightTimeResponseSchema = z.object({
   start_time: z.string(),
 });
 
+/**
+ * GET /get_bossfight_roster -- who is standing in the bossfight right now,
+ * readable without joining it (backend docs/PROTOCOL.md).
+ *
+ * Presence only, and the shape is the point: the route is unauthenticated,
+ * so a name and a cosmetic skin is all it is allowed to carry. If the
+ * backend ever starts sending more, this schema strips it rather than
+ * letting it reach the scene.
+ */
+export const BossfightRosterResponseSchema = z.object({
+  lobby_id: z.string().nullable(),
+  round: z.number().int(),
+  start_time: z.string().nullable(),
+  players: z.array(z.object({
+    name: z.string(),
+    skin: z.string().nullable(),
+    alive: z.boolean(),
+    spectator: z.boolean(),
+    bot: z.boolean(),
+  })),
+});
+
 export const GetPlayerRelicsResponseSchema = z.object({
   relics: z.array(RelicSchema),
 });

@@ -21,6 +21,8 @@ import {
   SEA_LEVEL, LAND_LEVEL,
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
+import TempleTableau from '@/components/city/TempleTableau';
+import { useBossfightRoster } from '@/lib/useBossfightRoster';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
 /**
@@ -185,6 +187,11 @@ export default function CityScene({
   // reading one computation rather than two that could disagree.
   const { placements, sky, nightness } = useCitySky(date, realLat, realLng, EYE);
 
+  // Who is in the bossfight right now, polled from the read-only roster
+  // route. Joining the lobby to find out is exactly what a passer-by must
+  // not do, which is why that route exists.
+  const roster = useBossfightRoster();
+
   // The key light follows the real Sun's compass direction rather than the
   // fixed [100, 20, 100] inherited from the lobby -- with the water's
   // glitter path now laid along the true azimuth, a scene lit from some
@@ -312,6 +319,12 @@ export default function CityScene({
               the art pass gives the buildings their own materials (§9). */}
           <Temple scale={1} position={[0, 0, 0]} color={templeHot ? LIT_BOSSFIGHT : PLAIN} />
         </BuildingTarget>
+
+        {/* The bossfight that is actually running, staged inside the temple.
+            Outside the BuildingTarget above: the figures are scenery, and
+            wrapping them in the click handler would make a player model a
+            second, differently-shaped hit target for "enter the bossfight". */}
+        <TempleTableau players={roster.players} active={roster.lobby_id !== null} />
 
         <BuildingTarget
           position={SENATE_POSITION}
