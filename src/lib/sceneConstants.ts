@@ -124,6 +124,49 @@ export function getSpectatorPositions(
   });
 }
 
+/**
+ * Where a spectator's own camera sits: just over their model's LEFT shoulder.
+ *
+ * A watcher arriving in a lobby used to get the same establishing view as
+ * everyone else, which told them nothing about who they were. Putting the
+ * camera on their own ghost's shoulder does two things at once -- it says
+ * "this one is you" without a label, and it frames the table the way that
+ * figure is already facing.
+ *
+ * "Left shoulder" is the model's own left, not the screen's: the figure
+ * faces the Well, so its left is the world-up cross its facing direction.
+ * Get that backwards and the camera lands on the right shoulder, which
+ * looks deliberate and is wrong.
+ */
+export const SPECTATOR_CAM_BACK = 0.75;
+export const SPECTATOR_CAM_SIDE = 0.42;
+export const SPECTATOR_CAM_LIFT = 0.8;
+
+export function getSpectatorCameraPosition(
+  index: number,
+  count: number,
+  playerCount: number,
+): [number, number, number] {
+  const seats = getSpectatorPositions(count, playerCount);
+  const seat = seats[Math.max(0, Math.min(index, seats.length - 1))];
+  if (!seat) return getCameraTargetPosition(1920, 1080);
+
+  const [sx, sy, sz] = seat.position;
+  // Facing: from the seat in toward the Well, flattened to the ground plane.
+  const len = Math.hypot(SCENE_CENTER[0] - sx, SCENE_CENTER[2] - sz) || 1;
+  const fx = (SCENE_CENTER[0] - sx) / len;
+  const fz = (SCENE_CENTER[2] - sz) / len;
+  // left = worldUp x facing
+  const lx = fz;
+  const lz = -fx;
+
+  return [
+    sx - fx * SPECTATOR_CAM_BACK + lx * SPECTATOR_CAM_SIDE,
+    sy + SPECTATOR_CAM_LIFT,
+    sz - fz * SPECTATOR_CAM_BACK + lz * SPECTATOR_CAM_SIDE,
+  ];
+}
+
 // Position "in front of" each seat (further from table) for choice labels.
 export const CHOICE_LABEL_OFFSET = 0.6;
 export function getPlayerFrontPositions(count: number): [number, number, number][] {

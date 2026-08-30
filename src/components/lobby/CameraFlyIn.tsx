@@ -49,6 +49,12 @@ type Phase = 'waiting' | 'settling' | 'playing' | 'resetting';
 type CameraFlyInProps = {
   /** Current round -- 0 means still waiting in the lobby. */
   round: number;
+  /** Pin the camera somewhere specific instead of the orbiting establishing
+   *  shot -- a spectator watches from over their own model's shoulder. Pan
+   *  and zoom still work from there; the ambient orbit and the settle
+   *  animation are skipped, since both exist to arrive at a view this
+   *  already is. */
+  basePosition?: [number, number, number];
   /** How much the seat circle itself has grown (radiusGrowthFactor); the
    *  camera backs off by the same factor so a full table stays framed. */
   radiusFactor: number;
@@ -76,11 +82,13 @@ type CameraFlyInProps = {
 // resetting zoom back to its default, so the local player's seat and DEFEND
 // button end up framed the same way every game regardless of how zoomed in
 // they'd gotten during the wait.
-export default function CameraFlyIn({ round, radiusFactor, spinEnabled, resetSignal, onUserAdjust }: CameraFlyInProps) {
+export default function CameraFlyIn({
+  round, radiusFactor, spinEnabled, resetSignal, onUserAdjust, basePosition,
+}: CameraFlyInProps) {
   const { camera, size } = useThree();
   // Start at the target position (not the Canvas default [33,26,33]) so there is no fly-in
   // delay and Html elements are projected correctly on the very first frame.
-  const [tx, ty, tz] = getCameraTargetPosition(size.width, size.height, radiusFactor);
+  const [tx, ty, tz] = basePosition ?? getCameraTargetPosition(size.width, size.height, radiusFactor);
   const currentPosition = useRef(new THREE.Vector3(tx, ty, tz));
   const panOffset = usePanOffset(onUserAdjust);
 
@@ -94,7 +102,14 @@ export default function CameraFlyIn({ round, radiusFactor, spinEnabled, resetSig
   const didInitLateJoinRef = useRef(false);
   if (!didInitLateJoinRef.current) {
     didInitLateJoinRef.current = true;
-    if (round > 0) {
+    if (basePosition) {
+      // A fixed pose is already pointed where it should be. PLAYING_YAW is
+      // an offset measured from the local PLAYER's seat so their DEFEND
+      // button clears the resource cards; applied to a shoulder camera it
+      // would just swing the watcher off their own shoulder.
+      panOffset.current.yaw = 0;
+      panOffset.current.zoom = 1;
+    } else if (round > 0) {
       panOffset.current.yaw = PLAYING_YAW;
       panOffset.current.zoom = SETTLE_TARGET_ZOOM;
     }
@@ -105,11 +120,15 @@ export default function CameraFlyIn({ round, radiusFactor, spinEnabled, resetSig
   const settleRef = useRef({ startYaw: 0, targetYaw: 0, startPitch: 0, startZoom: 1, elapsed: 0 });
 
   useFrame((_, delta) => {
-    if (round === 0) {
+    // A fixed pose skips the establishing orbit and the settle entirely: it
+    // is somewhere specific for a reason, and swinging it around the room
+    // first would undo the reason.
+    if (basePosition) phaseRef.current = 'playing';
+    else if (round === 0) {
       // Also covers a rematch in the same lobby: round drops back to 0, and
       // the ambient orbit (if still enabled) picks up again for the next wait.
       phaseRef.current = 'waiting';
-    } else if (prevRoundRef.current === 0 && phaseRef.current === 'waiting') {
+    } else if (!basePosition && prevRoundRef.current === 0 && phaseRef.current === 'waiting') {
       // This edge always fires exactly once when the round starts, regardless
       // of spinEnabled -- so toggling spin off mid-wait can never leave the
       // camera stuck orbiting forever once play begins. Always animates into
@@ -157,7 +176,7 @@ export default function CameraFlyIn({ round, radiusFactor, spinEnabled, resetSig
     }
     // 'playing': yaw/zoom are left alone from here -- back to fully player-controlled drag/zoom.
 
-    const [x, y, z] = getCameraTargetPosition(size.width, size.height, radiusFactor);
+    const [x, y, z] = basePosition ?? getCameraTargetPosition(size.width, size.height, radiusFactor);
     camTarget.set(x, y, z);
     // Frame-rate independent ease toward the target (0.025/frame at 60 fps ≈ lambda 1.5)
     currentPosition.current.lerp(camTarget, 1 - Math.exp(-1.5 * delta));

@@ -55,6 +55,7 @@ import {
   getBossPosition,
   getBossPlayerPositions,
   getSpectatorPositions,
+  getSpectatorCameraPosition,
   radiusGrowthFactor,
   BOSS_Y_LIFT,
 } from '@/lib/sceneConstants';
@@ -482,6 +483,27 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       p.boss ? bossSlot : p.spectator ? spectatorSlots[si++] : nonBossSlots[nbi++]
     ));
   }, [players, isBossFight]);
+
+  /**
+   * If I am watching rather than playing, my own camera sits over my ghost's
+   * left shoulder instead of taking the room's establishing shot -- it says
+   * "this one is you" without a label, and frames the table the way that
+   * figure is already facing.
+   *
+   * Keyed off my index among the spectators, in the same order
+   * getSpectatorPositions seats them, so the camera lands on MY model and
+   * not on whoever happens to be first.
+   */
+  const spectatorCameraPosition = useMemo<[number, number, number] | undefined>(() => {
+    const spectators = players.filter((p) => p.spectator);
+    const index = spectators.findIndex((p) => p.name === playerName);
+    if (index < 0) return undefined;
+    return getSpectatorCameraPosition(
+      index,
+      spectators.length,
+      players.length - spectators.length,
+    );
+  }, [players, playerName]);
 
   // Boss-fight seating never grows past its fixed base radius (getBossPlayerPositions
   // doesn't scale with count), so only back the camera off for the regular circle.
@@ -1217,6 +1239,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     <>
       <CameraFlyIn
         round={state?.round ?? 0}
+        basePosition={spectatorCameraPosition}
         radiusFactor={cameraRadiusFactor}
         spinEnabled={spinEnabled}
         resetSignal={resetCameraSignal}

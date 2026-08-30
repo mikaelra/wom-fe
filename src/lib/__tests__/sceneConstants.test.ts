@@ -11,6 +11,7 @@ import {
   BOSS_Y_LIFT,
   SCENE_CENTER,
   getSpectatorPositions,
+  getSpectatorCameraPosition,
   SPECTATOR_ARC_STEP,
 } from '@/lib/sceneConstants';
 
@@ -165,5 +166,46 @@ describe('getSpectatorPositions', () => {
 
   it('returns nothing when nobody is watching', () => {
     expect(getSpectatorPositions(0, 4)).toEqual([]);
+  });
+});
+
+describe('getSpectatorCameraPosition', () => {
+  const seat = getSpectatorPositions(3, 4)[1];
+  const cam = getSpectatorCameraPosition(1, 3, 4);
+
+  it('stands behind the watcher, further from the Well than they are', () => {
+    const seatR = Math.hypot(seat.position[0] - SCENE_CENTER[0], seat.position[2] - SCENE_CENTER[2]);
+    const camR = Math.hypot(cam[0] - SCENE_CENTER[0], cam[2] - SCENE_CENTER[2]);
+    expect(camR).toBeGreaterThan(seatR);
+  });
+
+  it('sits above the model, at about shoulder height', () => {
+    expect(cam[1]).toBeGreaterThan(seat.position[1]);
+    expect(cam[1] - seat.position[1]).toBeLessThan(1.5);
+  });
+
+  it('is over the model\'s LEFT shoulder, not its right', () => {
+    // The figure faces the Well, so its left is worldUp x facing. Getting
+    // this backwards lands on the right shoulder, which looks deliberate
+    // and is wrong. Measured as the sign of the offset along that axis.
+    const len = Math.hypot(SCENE_CENTER[0] - seat.position[0], SCENE_CENTER[2] - seat.position[2]);
+    const fx = (SCENE_CENTER[0] - seat.position[0]) / len;
+    const fz = (SCENE_CENTER[2] - seat.position[2]) / len;
+    const lx = fz;
+    const lz = -fx;
+    const offX = cam[0] - seat.position[0];
+    const offZ = cam[2] - seat.position[2];
+    expect(offX * lx + offZ * lz).toBeGreaterThan(0);
+  });
+
+  it('gives each watcher their own shoulder, not a shared one', () => {
+    const a = getSpectatorCameraPosition(0, 3, 4);
+    const b = getSpectatorCameraPosition(2, 3, 4);
+    expect(Math.hypot(a[0] - b[0], a[2] - b[2])).toBeGreaterThan(0.5);
+  });
+
+  it('stays put rather than throwing when the index is out of range', () => {
+    expect(() => getSpectatorCameraPosition(99, 3, 4)).not.toThrow();
+    expect(getSpectatorCameraPosition(99, 3, 4)).toHaveLength(3);
   });
 });
