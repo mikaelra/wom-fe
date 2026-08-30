@@ -404,6 +404,52 @@ a stalled asset can never leave a working scene behind a permanent curtain.
 
 The art is explicitly temporary, like §6.5's red band.
 
+### 5.4a The top bar is now literally shared — **[done]**
+
+Locked decision 4 says "Rules and the profile/user menu stay in the top bar on the
+city page too — **the same chrome the world map has**, so the top bar is continuous
+across scenes." Until now the city had a *lookalike*: its own Rules button, no
+music toggle and no user menu at all, while §8.3's note said the profile menu
+"still lives inside WorldMapOverlay and is extracted separately".
+
+It is extracted now. `components/hud/SceneTopBar.tsx` owns Rules, the music toggle,
+the logged-out **Log in** chip and the whole logged-in user menu (avatar from the
+equipped skin, Stats / Inventory / Shop / Settings / Sign out, click-outside, and
+the logout that deliberately does not reload the page and tear down a live WebGL
+scene). Both scenes render it. The world map's ten overlay tests pass **unchanged**
+across the move, which is the evidence the DOM really is identical rather than
+merely similar.
+
+The positioning offsets inside it were originally derived against the world map's
+bottom lobby-controls row, which the city does not have. They are kept anyway:
+identical chrome was the requirement, and a top bar that jumps as you walk between
+scenes is the thing locked decision 4 exists to prevent.
+
+One consequence worth recording, because it will happen again: the popup gate's own
+"Log in" button and the top bar's now share an accessible name on the city page, so
+tests touching the gate must scope to it. The world map's suite already carried
+that note; the city's needed it the moment it adopted the same bar.
+
+### 5.4b The way out is a sign, not a button — **[corrected]**
+
+§5.1 gave the city a "← Back to Earth" button in the top-left corner. It is now a
+**third sign on the signpost**, hanging under the Bossfight arm: shorter than the
+two destinations, in parchment rather than a third saturated hue, reading
+🌍 EARTH.
+
+The reason is that the signpost is already the scene's answer to "where can I go",
+and having two of those answers — a post in the world and a chip floating over it —
+made the chip the odd one out. A real signpost puts the way you came from on the
+small plank at the bottom. `SignpostArm` grew a `tier` and a `lengthScale` for it,
+so a side can carry a destination and a quieter aside without them colliding; the
+lower tier's label also rides closer to its own plank, because at the main row's
+offset it ran into the arm above.
+
+Note the constraint that set the tier spacing: only about three of the post's 5.2
+units stand above the water (§5.5's campfire note explains why everything is
+pitched at `y = 0` through a plane at `SEA_LEVEL`). Two tiers of arm have to fit in
+that.
+
 ### 5.5 The compass, and the campfire — **[added]**
 
 Two later additions, both answering "I cannot tell what I am looking at".

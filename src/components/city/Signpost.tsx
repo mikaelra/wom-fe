@@ -25,6 +25,10 @@ const ARM_HEIGHT = 0.62;
 const ARM_THICK = 0.16;
 /** Arms hang just below the top so the post reads as a post, not a cross. */
 const ARM_Y = POST_HEIGHT - 0.9;
+/** How far a second-tier arm hangs below the first. Enough that the lower
+ *  sign's label clears the upper arm's plank, and no more -- only about
+ *  three units of this post stand above the water. */
+const ARM_TIER_DROP = 1.25;
 
 const WOOD = '#6b4f2a';
 const WOOD_HOVER = '#8a6836';
@@ -32,6 +36,12 @@ const WOOD_HOVER = '#8a6836';
 export interface SignpostArm {
   /** Which way it points, and therefore which building it pairs with. */
   side: 'left' | 'right';
+  /** 0 is the main row of arms; 1 hangs beneath it. Lets a second, quieter
+   *  sign share a side with a destination arm without colliding with it. */
+  tier?: number;
+  /** Fraction of the full arm length. A secondary sign is shorter, so the
+   *  post still reads as two big destinations and one small aside. */
+  lengthScale?: number;
   /** The destination, e.g. "BOSSFIGHT". */
   label: string;
   /** Live state under the label -- a countdown, a queue status. */
@@ -45,8 +55,13 @@ export interface SignpostArm {
 function Arm({ arm }: { arm: SignpostArm }) {
   const [hovered, setHovered] = useState(false);
   const dir = arm.side === 'left' ? -1 : 1;
+  const tier = arm.tier ?? 0;
+  const length = ARM_LENGTH * (arm.lengthScale ?? 1);
   // Offset so the arm grows outward from the post rather than through it.
-  const x = dir * (ARM_LENGTH / 2 + POST_RADIUS);
+  const x = dir * (length / 2 + POST_RADIUS);
+  // A lower sign's label rides closer to its own plank: at the main row's
+  // offset it would run into the arm above.
+  const labelY = tier === 0 ? ARM_HEIGHT * 1.4 : ARM_HEIGHT * 0.85;
 
   const click = useClickNotDrag(arm.onActivate);
 
@@ -68,7 +83,7 @@ function Arm({ arm }: { arm: SignpostArm }) {
 
   return (
     <group
-      position={[0, ARM_Y, 0]}
+      position={[0, ARM_Y - tier * ARM_TIER_DROP, 0]}
       onPointerOver={(e) => { e.stopPropagation(); setHover(true); }}
       onPointerOut={() => setHover(false)}
       onPointerDown={(e) => { e.stopPropagation(); click.onPointerDown(e); }}
@@ -76,19 +91,19 @@ function Arm({ arm }: { arm: SignpostArm }) {
       onPointerLeave={click.onPointerLeave}
     >
       <mesh position={[x, 0, 0]}>
-        <boxGeometry args={[ARM_LENGTH, ARM_HEIGHT, ARM_THICK]} />
+        <boxGeometry args={[length, ARM_HEIGHT, ARM_THICK]} />
         <meshStandardMaterial color={hovered ? WOOD_HOVER : WOOD} />
       </mesh>
       <mesh
         geometry={tip}
-        position={[dir * (ARM_LENGTH + POST_RADIUS), 0, -ARM_THICK / 2]}
+        position={[dir * (length + POST_RADIUS), 0, -ARM_THICK / 2]}
         rotation={[0, 0, arm.side === 'left' ? Math.PI : 0]}
       >
         <meshStandardMaterial color={hovered ? WOOD_HOVER : WOOD} />
       </mesh>
 
       <FreshHtml
-        position={[x, ARM_HEIGHT * 1.4, 0]}
+        position={[x, labelY, 0]}
         center
         distanceFactor={14}
         style={{ pointerEvents: 'none', userSelect: 'none' }}
@@ -97,7 +112,7 @@ function Arm({ arm }: { arm: SignpostArm }) {
           <div
             style={{
               color: arm.color,
-              fontSize: hovered ? 30 : 26,
+              fontSize: (tier === 0 ? 26 : 19) + (hovered ? 4 : 0),
               fontWeight: 900,
               letterSpacing: '0.06em',
               WebkitTextStroke: '1px rgba(0,0,0,0.55)',
@@ -132,7 +147,7 @@ export default function Signpost({
         <meshStandardMaterial color={WOOD} />
       </mesh>
       {arms.map((arm) => (
-        <Arm key={arm.side} arm={arm} />
+        <Arm key={`${arm.side}-${arm.tier ?? 0}`} arm={arm} />
       ))}
     </group>
   );

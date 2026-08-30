@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import RulesModal from '@/components/lobby/RulesModal';
+import SceneTopBar from '@/components/hud/SceneTopBar';
 import { formatAthensParam } from '@/lib/cityTime';
 import type { City } from '@/lib/cities';
 
@@ -10,9 +9,11 @@ import type { City } from '@/lib/cities';
  * DOM chrome over the city scene (docs/CITY_SCENE_PLAN.md §5.1).
  *
  * Deliberately NOT create/join lobby -- those stay on the world map
- * (locked decision 3). The full profile/user menu still lives inside
- * WorldMapOverlay and is extracted separately; this carries Rules and the
- * way back for now.
+ * (locked decision 3). Rules, the music toggle and the player's menu come
+ * from the shared <SceneTopBar/>, so the chrome is identical to the world
+ * map's rather than a second implementation that drifts. What is left here
+ * is what only the city has: which city you are in, and which sky you are
+ * looking at.
  */
 export default function CityOverlay({
   city,
@@ -27,7 +28,6 @@ export default function CityOverlay({
   skyDate: Date;
 }) {
   const router = useRouter();
-  const [showRules, setShowRules] = useState(false);
 
   // TEMPORARY tuning control, like CitySky's red ecliptic band.
   //
@@ -49,28 +49,14 @@ export default function CityOverlay({
 
   return (
     <>
-      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 items-start">
-        {/* The globe, not the house every other page used: the way out of
-            the city is literally back to the Earth you came from, and the
-            same icon now means "home" everywhere in the app. Icon-only, so
-            it carries its own label for screen readers. */}
-        <button
-          type="button"
-          onClick={() => router.push('/')}
-          aria-label="Back to Earth"
-          title="Back to Earth"
-          className="flex items-center justify-center bg-black/60 backdrop-blur-sm border border-white/20 text-white w-11 h-11 rounded-lg text-2xl leading-none cursor-pointer hover:bg-black/80 transition-colors"
-        >
-          🌍
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowRules(true)}
-          className="bg-black/60 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold cursor-pointer hover:bg-black/80 transition-colors"
-        >
-          Rules
-        </button>
-      </div>
+      {/* Exactly the world map's chrome -- Rules, music, and the player's own
+          menu -- from one shared component, so the top bar does not shift as
+          you walk between scenes (locked decision 4).
+
+          The way back to Earth is NOT here: it is a sign on the signpost,
+          under the Bossfight arm, so leaving the city is a thing in the
+          world rather than a button floating over it. */}
+      <SceneTopBar />
 
       {/* City identity. The globe marker is labelled by country (GREECE from
           step 6); the scene is the city itself. */}
@@ -99,7 +85,6 @@ export default function CityOverlay({
         </div>
       </div>
 
-      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
     </>
   );
 }

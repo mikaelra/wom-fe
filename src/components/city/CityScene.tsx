@@ -81,6 +81,9 @@ const MAX_POLAR = Math.PI * 0.86;     // well below the horizon, short of invert
 
 const BOSSFIGHT_COLOR = '#4da6ff';
 const RANKED_COLOR = '#ff6666';
+/** Parchment rather than a third saturated hue: the way out is not a third
+ *  destination competing with the two fights. */
+const BACK_COLOR = '#e8d9a0';
 
 /** Tint applied to a building while it or its arm is hovered. */
 const PLAIN = '#D6D6D6';
@@ -103,6 +106,9 @@ export interface CitySceneProps {
   onRanked: () => void;
   rankedLabel: string;
   rankedSublabel?: string | null;
+  /** Back to the world map. A sign on the post rather than a button over the
+   *  scene, so leaving the city is a thing in the world. */
+  onBackToEarth: () => void;
   /** Fired once the scene is genuinely on screen, so the loading curtain
    *  knows when to lift. */
   onReady?: () => void;
@@ -171,6 +177,7 @@ export default function CityScene({
   onRanked,
   rankedLabel,
   rankedSublabel,
+  onBackToEarth,
   onReady,
   showEcliptic,
 }: CitySceneProps) {
@@ -248,6 +255,17 @@ export default function CityScene({
       color: RANKED_COLOR,
       onActivate: onRanked,
       onHoverChange: setSenateHot,
+    },
+    {
+      // Under the Bossfight arm, shorter and quieter than the two
+      // destinations it hangs beneath: the same shape as a real signpost,
+      // where the way you came from is the small plank at the bottom.
+      side: 'left',
+      tier: 1,
+      lengthScale: 0.62,
+      label: '\u{1F30D} EARTH',
+      color: BACK_COLOR,
+      onActivate: onBackToEarth,
     },
   ];
 

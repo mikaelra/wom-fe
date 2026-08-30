@@ -99,6 +99,7 @@ function CityPageContent() {
           onRanked={ranked.enterRanked}
           rankedLabel={ranked.label}
           rankedSublabel={ranked.sublabel}
+          onBackToEarth={() => router.push('/')}
           onReady={handleReady}
           showEcliptic={showEcliptic}
         />

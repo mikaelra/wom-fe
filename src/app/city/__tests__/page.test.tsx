@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import CityPage from '@/app/city/page';
 import {
@@ -70,10 +70,15 @@ let lastSublabel: string | null | undefined;
 let lastRankedLabel: string | undefined;
 let lastRankedSublabel: string | null | undefined;
 let readyHandler: (() => void) | undefined;
+let backHandler: (() => void) | undefined;
 vi.mock('@/components/city/CityScene', () => ({
-  default: ({ onBossfight, bossfightSublabel, onRanked, rankedLabel, rankedSublabel, onReady }: {
+  default: ({
+    onBossfight, bossfightSublabel, onRanked, rankedLabel, rankedSublabel,
+    onBackToEarth, onReady,
+  }: {
     onBossfight: () => void; bossfightSublabel?: string | null;
     onRanked: () => void; rankedLabel: string; rankedSublabel?: string | null;
+    onBackToEarth: () => void;
     onReady?: () => void;
   }) => {
     bossfightHandler = onBossfight;
@@ -84,6 +89,7 @@ vi.mock('@/components/city/CityScene', () => ({
     // The real scene fires this from a useFrame once its models have
     // resolved AND the canvas has drawn; here the test decides when.
     readyHandler = onReady;
+    backHandler = onBackToEarth;
     return <div data-testid="city-scene" />;
   },
   CITY_CAMERA: [0, 5, 0.01],
@@ -100,6 +106,14 @@ const mockedJoinRankedQueue = vi.mocked(joinRankedQueue);
 const mockedLeaveRankedQueue = vi.mocked(leaveRankedQueue);
 
 const flush = () => act(async () => Promise.resolve());
+
+// The gate popup's own "Log in" button (email step) and the shared top bar's
+// "Log in" button (rendered whenever logged out) have the same accessible
+// name, so queries that touch the popup must be scoped to it. The world
+// map's tests carry the identical note -- the collision arrived here when
+// the city adopted the same top bar (locked decision 4).
+const gate = (title: string) =>
+  screen.getByText(title).closest('.bg-gray-900') as HTMLElement;
 const renderCity = () => render(<ToastProvider><CityPage /></ToastProvider>);
 // CityScene arrives through next/dynamic, so it is not mounted synchronously.
 const waitForScene = () => waitFor(() => expect(bossfightHandler).toBeDefined());
@@ -121,6 +135,7 @@ beforeEach(() => {
   lastRankedLabel = undefined;
   lastRankedSublabel = undefined;
   readyHandler = undefined;
+  backHandler = undefined;
   socket.__reset();
   mockedCheckName.mockReset();
   mockedLogInUser.mockReset();
@@ -161,12 +176,20 @@ describe('CityPage (routing)', () => {
     expect(screen.queryByTestId('city-scene')).not.toBeInTheDocument();
   });
 
-  it('goes back to the world map', async () => {
+  it('goes back to the world map from the signpost, not from a button', async () => {
+    // The way out moved out of the DOM entirely: it is a sign hanging under
+    // the Bossfight arm, so leaving the city is a thing in the world rather
+    // than a chip floating over it.
     renderCity();
-    // Icon-only now (a globe), so it is addressed by its label rather
-    // than its text.
-    fireEvent.click(await screen.findByLabelText('Back to Earth'));
+    await waitFor(() => expect(backHandler).toBeDefined());
+    act(() => { backHandler!(); });
     expect(push).toHaveBeenCalledWith('/');
+  });
+
+  it('has no floating back button left over', async () => {
+    renderCity();
+    await waitForScene();
+    expect(screen.queryByLabelText('Back to Earth')).not.toBeInTheDocument();
   });
 });
 
@@ -253,7 +276,10 @@ describe('CityPage (entering the bossfight)', () => {
 
     expect(screen.getByPlaceholderText('email')).toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText('email'), { target: { value: 'a@b.co' } });
-    await act(async () => { fireEvent.click(screen.getByText('Log in')); await flush(); });
+    await act(async () => {
+      fireEvent.click(within(gate('Enter the Hades Bossfight')).getByText('Log in'));
+      await flush();
+    });
 
     expect(mockedLogInUser).toHaveBeenCalledWith('Alice', 'a@b.co');
     expect(localStorage.getItem('playerEmail')).toBe('a@b.co');
@@ -271,7 +297,10 @@ describe('CityPage (entering the bossfight)', () => {
     fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
     await act(async () => { fireEvent.click(screen.getByText('Enter Bossfight')); await flush(); });
     fireEvent.change(screen.getByPlaceholderText('email'), { target: { value: 'a@b.co' } });
-    await act(async () => { fireEvent.click(screen.getByText('Log in')); await flush(); });
+    await act(async () => {
+      fireEvent.click(within(gate('Enter the Hades Bossfight')).getByText('Log in'));
+      await flush();
+    });
 
     expect(screen.getByPlaceholderText('6-digit code')).toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText('6-digit code'), { target: { value: '123456' } });
