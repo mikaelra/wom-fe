@@ -1,7 +1,11 @@
 # City Scene Plan — Greece, the Signpost, and the Real Sky
 
-Status: **spec — nothing implemented yet** · Scope: `wom-fe` only (no backend, no
-protocol change) · Written: 2026-08-30
+Status: **in progress — steps 1–2 of §13 built** · Scope: `wom-fe` only (no backend,
+no protocol change) · Written: 2026-08-30 · Last updated: 2026-08-30
+
+> **Implementation notes.** `refactor/auth-gate-popup` (step 1) and `feat/sky-local`
+> (step 2) are pushed. Building step 2 disproved two claims in §6.3 below; both are
+> corrected in place and flagged with **[corrected]** so the history is legible.
 Depends on: `docs/ASPECTS_PLAN.md` (the `Sky` snapshot and aspect maths this reuses
 wholesale), `docs/MOBILE_AND_STEAM_PLAN.md` §5.3 (why the route shape is a query
 param, not a path segment), `docs/ART_STYLE_PLAN.md` (§0 is amended by this plan —
@@ -303,7 +307,7 @@ feature needs:
 |---|---|
 | Observer at a real place | `new Astronomy.Observer(lat, lng, elevation)` |
 | Equatorial → horizontal (alt/az) | `Astronomy.Horizon(time, observer, ra, dec, refraction)` |
-| Same, as a rotation matrix | `Astronomy.Rotation_EQD_HOR` + `RotateVector` |
+| Same, as a rotation matrix | `Astronomy.Rotation_EQJ_HOR` + `RotateVector` |
 | Sunrise / sunset | `Astronomy.SearchRiseSet` |
 | Twilight bands | `Astronomy.SearchAltitude` (−6° / −12° / −18°) |
 | Sidereal time | `Astronomy.SiderealTime` (already wrapped as `gmstHours`) |
@@ -350,7 +354,7 @@ import type { Sky, AspectBody } from '@/lib/astrology';
 export function localFrame(sky: Sky, realLat: number, realLng: number) {
   const observer = new Astronomy.Observer(realLat, realLng, 0);
   const time = new Astronomy.AstroTime(sky.date);
-  const rot = Astronomy.Rotation_EQD_HOR(time, observer);   // equatorial-of-date → horizontal
+  const rot = Astronomy.Rotation_EQJ_HOR(time, observer);   // J2000 equatorial → horizontal
   return { observer, time, rot };
 }
 
@@ -358,19 +362,29 @@ export function localFrame(sky: Sky, realLat: number, realLng: number) {
 export function horizonOf(sky: Sky, body: AspectBody, frame: ReturnType<typeof localFrame>) { /* … */ }
 ```
 
-`Sky.dir[body]` vectors are produced by `raDecToVec3` from
-`Astronomy.Equator(..., ofdate=true, aberration=true)` — i.e. they are already in
-the equatorial-of-date frame that `Rotation_EQD_HOR` expects. So a **single matrix
-rotates every body at once**, and the city and the globe can never disagree about
-where a planet is, because they are literally the same vectors.
+**[corrected]** `Sky.dir[body]` vectors are produced by `raDecToVec3` from
+`Astronomy.Equator(..., ofdate=false, aberration=true)` — `ofdate` is **false**, so
+they are in the **J2000 (EQJ)** frame, not equator-of-date. The matrix is therefore
+`Rotation_EQJ_HOR`, which folds the precession from J2000 to the date in itself;
+using the `_EQD_` matrix would have left every body ~0.36° out by 2026. A **single
+matrix still rotates every body at once**, and the city and the globe can never
+disagree about where a planet is, because they are literally the same vectors.
 
-> **Parallax note:** the shared snapshot is geocentric (`Observer(0,0,0)`).
-> Topocentric parallax is negligible for planets, but reaches **~1°** for the
-> Moon. That is smaller than the Moon's 10° aspect orb, so it cannot change any
-> conjunction verdict — but it is visible against the horizon at moonrise. If
-> that bothers you, recompute *only the Moon* topocentrically for rendering while
-> keeping the geocentric vector for the aspect maths, and comment loudly that the
-> split is deliberate.
+Note also that `raDecToVec3` lays vectors out Three.js-style (**Y-up**) while
+astronomy-engine's equatorial vectors are **Z-up**, so they need unswizzling
+(`three.x = astro.x`, `three.y = astro.z`, `three.z = -astro.y`) before its matrices
+apply. Measured proof that both of the above are right: rotated-snapshot vs.
+from-scratch topocentric agree to **0.002°** for the Sun and all five planets.
+
+> **Parallax note [corrected — now measured].** The shared snapshot is geocentric
+> (`Observer(0,0,0)`). Topocentric parallax is negligible for the planets (0.002°,
+> i.e. lost in the noise) but measures **0.48°** for the Moon at the test instant —
+> the plan originally estimated "~1°". Real enough to see against the horizon, so
+> `skyLocal.ts`'s `horizonOf()` renders **the Moon topocentrically and everything
+> else from the snapshot**, with `horizonFromSnapshot` / `horizonTopocentric`
+> exposed separately. Safe for the aspect maths either way: 0.48° is far inside the
+> Moon's 10° orb, so it cannot flip a conjunction verdict, and aspects read the
+> snapshot directly rather than going through this module at all.
 
 ### 6.4 Day, night, and the twilight bands
 
@@ -618,7 +632,10 @@ coordination and no deploy ordering.
 ## 11. Risks
 
 1. **The mirrored-longitude trap (§6.2).** Highest-likelihood real bug in the
-   whole plan, and it fails silently. The fixed-date sunset test is the guard.
+   whole plan, and it fails silently — the mirrored value puts Athens' sunset
+   **3.25 hours** out without throwing. **Defended:** `skyLocal.test.ts` pins the
+   real sunset and asserts the divergence, and the guard was verified to actually
+   bite by temporarily wiring `-25` into `ATHENS` (4 tests fail).
 2. **A second WebGL scene's memory.** Mitigated by the route split (§3) letting the
    globe unmount. Verify against the 4GB container cap with a long session that
    bounces between scenes; the previous 3.8GB observation is the precedent.
@@ -656,8 +673,10 @@ coordination and no deploy ordering.
 6. Ranked queue state (searching / match found / countdown) is legible on the
    signpost arm, and joining a match still routes to `/lobby?id=…`.
 7. **The sky matches reality:** at a fixed test date/time, every body's altitude
-   and azimuth agree with an independent ephemeris to within 0.1°, and the
-   day/night state matches the true sunset for Athens to within a minute.
+   and azimuth agree with a from-scratch topocentric computation to within 0.01°
+   (the Moon excepted — it goes through the topocentric path precisely because the
+   snapshot's 0.48° geocentric parallax is visible), and Athens' sunset matches the
+   real one to within a minute. **Met** — `src/lib/__tests__/skyLocal.test.ts`.
 8. **No label is visible when nothing is near the view centre**, in either scene.
    Panning a body toward the centre fades its name in and away fades it out, with
    no strobing at the threshold. A body behind the globe, or below the city's
