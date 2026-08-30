@@ -44,6 +44,22 @@
  */
 export const SEA_LEVEL = 2;
 
+/**
+ * The ground the city stands on.
+ *
+ * Only a little above the water: this is a low limestone island, and every
+ * extra unit buries more of the buildings, whose models each start at their
+ * own y = 0. `lib/cityTerrain.ts` builds the surface from this.
+ */
+export const LAND_LEVEL = SEA_LEVEL + 0.6;
+
+/**
+ * How far below its own origin temple.glb's base sits, measured from the GLB
+ * (its bounding box runs y -8.07 to 10.45). Needed to stand it ON something:
+ * placing its origin at ground level would bury eight units of it.
+ */
+export const TEMPLE_BASE_DROP = 8.07;
+
 /** Half-extents of temple.glb at scale 1, measured from the GLB. Kept here
  *  because every future placement decision needs them and reading them off
  *  the model again is a half-hour nobody should spend twice. */
@@ -77,24 +93,19 @@ export const TEMPLE_EXTENT = { x: 17.8, y: 9.3, z: 31.6 } as const;
  * degrees left brings it in. That is the intended trade: it is scenery
  * across the bay, not a doorway.
  */
-export const TEMPLE_POSITION: [number, number, number] = [-29.3, 0, -34.6];
-export const SENATE_POSITION: [number, number, number] = [15, 0, -22];
+export const TEMPLE_POSITION: [number, number, number] = [-29.3, LAND_LEVEL + TEMPLE_BASE_DROP, -34.6];
+export const SENATE_POSITION: [number, number, number] = [15, LAND_LEVEL, -22];
 
 /** Between them and nearer the viewer, so it is read first. */
-export const SIGNPOST_POSITION: [number, number, number] = [0, 0, -11];
+export const SIGNPOST_POSITION: [number, number, number] = [0, LAND_LEVEL, -11];
 
 /**
  * The campfire, between the viewer and the signpost.
  *
- * Its y is the SEA LEVEL rather than 0: the buildings are pitched at y = 0
- * and rise through a water plane at y = 2, but a fire has to sit on the
- * visible surface or it drowns -- the whole thing is barely a unit and a
- * half tall.
- *
  * Close enough to the post to light its arms (3 units), far enough forward
  * that its light falls on the faces you read rather than their backs.
  */
-export const CAMPFIRE_POSITION: [number, number, number] = [0, SEA_LEVEL, -8];
+export const CAMPFIRE_POSITION: [number, number, number] = [0, LAND_LEVEL, -8];
 
 /** Distance from the viewer, who stands at the origin in x/z. */
 export function groundDistance(position: readonly [number, number, number]): number {

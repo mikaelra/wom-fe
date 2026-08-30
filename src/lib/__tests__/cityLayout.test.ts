@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, TEMPLE_EXTENT, groundDistance,
-  CAMPFIRE_POSITION, SEA_LEVEL,
+  CAMPFIRE_POSITION, SEA_LEVEL, LAND_LEVEL, TEMPLE_BASE_DROP,
 } from '@/lib/cityLayout';
 
 // Scene compass (lib/citySkyGeometry.ts): -Z is north, +X is east, and the
@@ -73,10 +73,23 @@ describe('the campfire', () => {
     expect(gap).toBeLessThan(6);
   });
 
-  it('stands on the water surface rather than drowning at y = 0', () => {
-    // Everything else is pitched at y = 0 and rises through the plane at
-    // SEA_LEVEL. A fire barely a unit and a half tall would vanish.
-    expect(CAMPFIRE_POSITION[1]).toBe(SEA_LEVEL);
-    expect(SIGNPOST_POSITION[1]).toBe(0);
+  it('stands on the ground, like everything else now does', () => {
+    // Before there was ground, everything was pitched at y = 0 and rose
+    // through a water plane -- the Senate's steps and two units of the
+    // signpost were permanently submerged, and the fire had to be floated
+    // at SEA_LEVEL on its own to avoid drowning. They all sit on the land
+    // now, and the special case is gone.
+    expect(CAMPFIRE_POSITION[1]).toBe(LAND_LEVEL);
+    expect(SIGNPOST_POSITION[1]).toBe(LAND_LEVEL);
+    expect(SENATE_POSITION[1]).toBe(LAND_LEVEL);
+    expect(LAND_LEVEL).toBeGreaterThan(SEA_LEVEL);
+  });
+
+  it('lifts the temple by its own base drop, not by its origin', () => {
+    // temple.glb's bounding box runs from y -8.07 to 10.45 around its
+    // origin, so putting the origin on the ground would bury eight units of
+    // it -- which is exactly what used to happen.
+    expect(TEMPLE_POSITION[1]).toBeCloseTo(LAND_LEVEL + TEMPLE_BASE_DROP, 6);
+    expect(TEMPLE_POSITION[1] - TEMPLE_BASE_DROP).toBeCloseTo(LAND_LEVEL, 6);
   });
 });

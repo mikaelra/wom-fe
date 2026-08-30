@@ -17,8 +17,10 @@ import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
 // Temple left, Senate right, signpost between (§1.1). In lib/ so the
 // left/right pairing with the signpost's arms can be tested.
 import {
-  TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION, SEA_LEVEL,
+  TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION,
+  SEA_LEVEL, LAND_LEVEL,
 } from '@/lib/cityLayout';
+import Terrain from '@/components/city/Terrain';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
 /**
@@ -49,8 +51,9 @@ import { useClickNotDrag } from '@/lib/useClickNotDrag';
  * the measurements behind them.
  */
 
-/** Where the player stands. Eye height above SEA_LEVEL, at the origin. */
-export const EYE: [number, number, number] = [0, SEA_LEVEL + 3.2, 0];
+/** Where the player stands: eye height above the GROUND, at the origin. Was
+ *  measured from the sea until there was ground to stand on. */
+export const EYE: [number, number, number] = [0, LAND_LEVEL + 3.2, 0];
 /** How far the camera sits from the pin. Small enough to read as rotating in
  *  place, large enough to keep OrbitControls' maths well-conditioned. */
 const EYE_RADIUS = 0.01;
@@ -291,6 +294,11 @@ export default function CityScene({
       {/* A cool fill that only comes up at night, so the buildings keep an
           edge against the sky once the sun light is gone. */}
       <hemisphereLight args={['#9fb8ff', '#0a1020', 0.35 * nightness]} />
+
+      {/* The island, and the islands beyond it. Outside the Suspense below:
+          it loads no assets, and the ground appearing a beat after the
+          buildings would look worse than either arriving alone. */}
+      <Terrain nightness={nightness} />
 
       <Suspense fallback={null}>
         <SceneReady onReady={onReady} />

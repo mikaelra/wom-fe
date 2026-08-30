@@ -404,6 +404,45 @@ a stalled asset can never leave a working scene behind a permanent curtain.
 
 The art is explicitly temporary, like §6.5's red band.
 
+### 5.3 Ground, and the islands beyond it — **[added]**
+
+There was no ground. The scene had a single sea plane at `SEA_LEVEL`, with every
+building pitched at `y = 0` and rising *through* it — so the Senate's steps and a
+unit of its columns were underwater, two units of the signpost were underwater, and
+the campfire had to be floated at `SEA_LEVEL` on its own to avoid drowning. It read
+as a flooded city rather than a Greek one, and the campfire's special case was the
+tell.
+
+`lib/cityTerrain.ts` is now the surface — a plateau `LAND_LEVEL` (0.6) above the
+water, rolling inland, diving below the sea past a shore at radius 100 so there is
+a coastline rather than a cliff at the edge of the mesh. Three incommensurate sines
+rather than a noise library: they read as hills at this scale, cost nothing, and are
+exactly reproducible, so it is the same island on every visit and in every test.
+
+Two decisions carry the weight:
+
+- **Relief is never negative.** It only ever *adds* to the plateau, so inland ground
+  cannot dip under the waterline and open a puddle in the middle of the city. A
+  test sweeps the interior to hold that.
+- **Buildings stand on level pads.** There is no per-object terrain fitting, so a
+  building on a slope would float at one corner and sink at the other. Each one has
+  a clearing where relief is flattened to zero — and the tests check the temple's
+  whole 35.6 × 63.2 footprint, not just its origin, because a hill pushing up
+  through one end of it would otherwise pass.
+
+**The buildings moved up onto it**, which is the visible change. The temple is the
+big one: `temple.glb` runs from y −8.07 to +10.45 around its origin, so placing that
+origin at ground level buried eight units of it — which is what had been happening.
+Lifting it by its own base drop puts all 18.5 units above ground, and it goes from
+subtending about 11° to about 23°. That is the model's true size finally being
+shown; if it reads as too dominant beside the Senate's 5.5 units, the fix is its
+`scale`, not its `y`.
+
+Islands sit on the horizon at 1250–2100 units, half-sunk so the waterline cuts each
+silhouette, unlit on purpose: at that range only the silhouette reads, and a lit
+material would go black the moment the Sun set and take the horizon with it. Their
+colour rides `nightness` the way the sea's does.
+
 ### 5.3a No city nameplate — **[corrected]**
 
 §5.1 gave the city a centred heading: the city name, then `tag — country`. It is
