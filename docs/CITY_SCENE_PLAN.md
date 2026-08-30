@@ -1,14 +1,14 @@
 # City Scene Plan — Greece, the Signpost, and the Real Sky
 
-Status: **in progress — steps 1–10 of §13 built** · Scope: `wom-fe` only (no backend,
+Status: **in progress — steps 1–11 of §13 built** · Scope: `wom-fe` only (no backend,
 no protocol change) · Written: 2026-08-30 · Last updated: 2026-08-30
 
-> **Implementation notes.** Steps 1–7 are built on the `city-scene` branch, which
-> carries the running work. Building them disproved four things this plan asserted
-> — the rotation matrix and lunar parallax in §6.3, the camera model in §5.3, and
-> the step ordering in §13 — all corrected in place and flagged **[corrected]** so
-> the history stays legible. Still to come: gaze labels in the city (step 11), the
-> Senate model, and the arcs.
+> **Implementation notes.** Steps 1–11 are built on the `city-scene` branch, which
+> carries the running work. Building them disproved six things this plan asserted
+> — the rotation matrix and lunar parallax in §6.3, the camera model in §5.3, the
+> step ordering in §13, and two things about the label text in §7.4–§7.5 — all
+> corrected in place and flagged **[corrected]** so the history stays legible.
+> Still to come: the dead-code deletion, the Senate model, and the arcs.
 >
 > **Viewing another sky.** `?t=` on the city URL overrides the instant, read as
 > Athens local time: `/city?id=athens&t=02:00` for tonight's 2am starfield,
@@ -571,10 +571,24 @@ Therefore:
 ### 7.4 One shared component, both scenes
 
 ```
-src/components/sky/GazeLabel.tsx    // one body's label, opacity from focus angle
 src/components/sky/SkyLabels.tsx    // maps over bodies, owns the single useFrame
 src/lib/gazeFocus.ts                // pure: focusOpacity(angle), thresholds  (unit-tested)
+src/lib/skyLabelText.ts             // pure: what a label SAYS (§7.5)          (unit-tested)
 ```
+
+**[corrected]** Two changes from the list as first written. `GazeLabel.tsx` was
+never a separate file: the label component is ~40 lines and is only ever driven by
+`SkyLabels`' own frame loop, so splitting it would have put a component and the
+loop that writes to its DOM node in two files for no gain. It lives inside
+`SkyLabels.tsx`.
+
+And a fourth file appeared, `skyLabelText.ts`, which this section did not
+anticipate. Step 9 put `GLYPH` and `labelDetail()` inside `WorldMap.tsx`; step 11
+needed both, and copying them into the city would have left two hand-synced copies
+of what a body says about itself — the exact failure §0.4 keeps one `Sky` snapshot
+to avoid, one level up. They are now pure functions in `src/lib`, which also makes
+the wording assertable (`skyLabelText.test.ts`) without a renderer, per the rule in
+`vitest.config.ts`. `SkyLabels.tsx` itself was reused **unchanged**.
 
 `SkyLabels` runs **one** `useFrame` over all seven bodies and writes opacity
 imperatively, rather than seven components each with their own hook and their own
@@ -598,6 +612,19 @@ Short by default — the glyph and the name (`♃ JUPITER`). Then, only at full 
 
 Colour the label with the body's `BodyAspect.color` so label, glow shell and aura
 all agree by construction.
+
+**[corrected]** The world map shows **no** position line. "Constellation" was
+listed as its counterpart to the city's altitude+compass, but `StarEntry`
+(`starCatalog.ts`) carries only name, RA/Dec and magnitude — naming the
+constellation a body sits in needs IAU boundary polygons the catalogue does not
+have and this feature does not justify importing. So `labelDetail()` takes the
+horizon position as an *optional* argument: the city passes it and opens with
+`24° ESE`, the world map omits it and opens with whatever else is true. The
+remaining three notes are common to both scenes, which is the part that mattered.
+
+The Moon's illuminated fraction (`97% LIT`) was specified here but not built in
+step 9; sharing the text through `skyLabelText.ts` in step 11 gave it to **both**
+scenes at once, which is what this section always asked for.
 
 ### 7.6 On the world map, the sky names itself
 
@@ -730,7 +757,9 @@ coordination and no deploy ordering.
     default orientation holds the signpost and both buildings.
 10. Gaze labels work in both scenes from **one** shared implementation
     (`components/sky/`), and `FreshHtml` lives in a shared location with no
-    remaining drei `<Html>` on the world map.
+    remaining drei `<Html>` on the world map. **Met** — `SkyLabels.tsx` is
+    consumed unchanged by `WorldMap.tsx` and `CityScene.tsx`, and what a label
+    says is shared too (`lib/skyLabelText.ts`, §7.4 [corrected]).
 11. The city and the globe never disagree about a body's position or its
     conjunction colour — both read one `Sky` snapshot.
 12. Athens' *real* longitude (23.7275°E) reaches the `Observer`; the mirrored −25
@@ -775,7 +804,14 @@ Each step is independently reviewable and leaves the app working.
 10. **Real sky rendering in the city** — bodies placed from `skyLocal`, day/night
     gradient, star opacity driven by `nightness`. (§6.4)
 11. **Gaze labels in the city**, reusing step 8–9's component unchanged. Horizon
-    occlusion via `altitude > 0`. (§7.2, §7.4)
+    occlusion via `altitude > 0`. (§7.2, §7.4) **[corrected]** The occlusion test
+    is `visibility > 0` off `useCitySky`'s placements, which is `altitude > 0`
+    *and* "not a planet lost in daylight". Both conditions already decide whether
+    the sprite is drawn, so reading the same scalar is what guarantees a label can
+    never name something that is not on screen — a separate `altitude > 0` here
+    would have named planets that daylight had removed. `useCitySky` now also
+    returns the `Sky` snapshot and the `LocalFrame` it had already computed, so
+    the labels, the sprites and the starfield are provably one instant.
 12. **Delete dead code:** `TempleScene`, `CameraAnimator`, `HomeOverlay`'s city
     props, `RankedLabelInfo`. (§8.2)
 13. **Senate model** replaces the placeholder. (§9)

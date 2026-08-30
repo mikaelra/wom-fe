@@ -1,12 +1,16 @@
 'use client';
 
-import { Suspense, useState, type ReactNode } from 'react';
+import { Suspense, useMemo, useState, type ReactNode } from 'react';
 import { OrbitControls } from '@react-three/drei';
+import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Temple from '@/components/temple';
 import Senate from '@/components/city/Senate';
 import CitySky, { useCitySky } from '@/components/city/CitySky';
 import Signpost, { type SignpostArm } from '@/components/city/Signpost';
+import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
+import { GLYPH, labelDetail } from '@/lib/skyLabelText';
+import { SKY_R } from '@/lib/citySkyGeometry';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
 /**
@@ -49,6 +53,19 @@ export const CITY_CAMERA: [number, number, number] = [EYE[0], EYE[1], EYE[2] + E
 /** Wider than the lobby's 75: standing among buildings and looking up wants
  *  more sky in frame than a table-top scene does. */
 export const CITY_FOV = 70;
+
+/**
+ * Keeps a gaze label at its authored pixel size (docs/CITY_SCENE_PLAN.md §7).
+ *
+ * FreshHtml scales a label by `distanceFactor / (2 tan(fov/2) * distance)`.
+ * Every body here sits at exactly SKY_R from the eye -- they are points on
+ * one dome, not objects at different depths -- so a single factor that
+ * cancels that denominator gives every label the same size on screen, which
+ * is what "the sky names itself" wants. The globe's own 24 is not
+ * transferable: there the bodies really are at different distances and the
+ * falloff is doing visible work.
+ */
+const LABEL_DISTANCE_FACTOR = SKY_R * 2 * Math.tan((CITY_FOV * Math.PI) / 360);
 
 // Look limits. Azimuth is deliberately UNCLAMPED -- a full 360 is the point.
 const MIN_POLAR = 0.02;               // ~1 deg off the zenith
@@ -126,11 +143,42 @@ export default function CityScene({
 }: CitySceneProps) {
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
-  const { nightness } = useCitySky(date, realLat, realLng, EYE);
+  const { placements, sky, nightness } = useCitySky(date, realLat, realLng, EYE);
   // Hovering either an arm or its building lights both -- that pairing is
   // what teaches which building is which without a tutorial.
   const [templeHot, setTempleHot] = useState(false);
   const [senateHot, setSenateHot] = useState(false);
+
+  /**
+   * Gaze labels, step 11 (§7.2, §7.4). The world map's component unchanged;
+   * only the placements differ.
+   *
+   * Positions come straight off `useCitySky`'s placements rather than being
+   * recomputed here -- recomputing is exactly how a label and the sprite it
+   * names would drift apart. `visibility` carries the occlusion rule with
+   * them: in the city there is no ray/sphere test to do, because a body
+   * below the horizon is behind the Earth by definition, and a planet lost
+   * in daylight is not on screen to be named either. Filtering on the same
+   * scalar the sprite's opacity uses means a label can never name something
+   * that is not drawn.
+   */
+  const labelBodies = useMemo<SkyLabelBody[]>(
+    () => placements
+      .filter((p) => p.visibility > 0)
+      .map((p) => ({
+        key: p.body,
+        position: new THREE.Vector3(...p.position),
+        glyph: GLYPH[p.body],
+        name: p.body.toUpperCase(),
+        // The body's own aspect colour, so the label and the glow sprite it
+        // sits on are the same hue by construction.
+        color: p.color,
+        // The city has a horizon to measure against, so its detail line
+        // opens with where the body actually stands (§7.5).
+        detail: labelDetail(sky, p.body, p.horizon),
+      })),
+    [placements, sky],
+  );
 
   const arms: SignpostArm[] = [
     {
@@ -154,6 +202,10 @@ export default function CityScene({
   return (
     <>
       <CitySky date={date} realLat={realLat} realLng={realLng} eye={EYE} seaLevel={SEA_LEVEL} />
+
+      {/* Outside the <Suspense> below: the labels are DOM, not a model, and
+          must not wait on a texture to start naming what you look at. */}
+      <SkyLabels bodies={labelBodies} distanceFactor={LABEL_DISTANCE_FACTOR} />
 
       {/* Scene lighting follows the same nightness the sky does, so the
           marble goes down with the sun instead of staying lit under stars.

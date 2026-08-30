@@ -4,7 +4,8 @@ import { Suspense, useMemo } from 'react';
 import { Sky, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { STAR_CATALOG } from '@/components/worldmap/starCatalog';
-import { computeSky, computeAspects, type AspectBody } from '@/lib/astrology';
+// `Sky` is aliased: drei's atmospheric <Sky> component owns that name here.
+import { computeSky, computeAspects, type AspectBody, type Sky as SkySnapshot } from '@/lib/astrology';
 import {
   localFrame, horizonOf, horizonOfRaDec, nightness, twilightBand,
   type HorizonPos, type LocalFrame,
@@ -69,6 +70,13 @@ export interface CityBodyPlacement {
 
 export interface CitySkyState {
   placements: CityBodyPlacement[];
+  /** The snapshot every placement was derived from. Returned rather than
+   *  recomputed by callers so a label and the sprite it names can never be
+   *  reading two different instants (§0.4). */
+  sky: SkySnapshot;
+  /** Athens' horizon frame at that instant -- what the stars and the Milky
+   *  Way are rotated by. */
+  frame: LocalFrame;
   /** 0 (full day) to 1 (fully dark). */
   nightness: number;
   band: ReturnType<typeof twilightBand>;
@@ -112,6 +120,8 @@ export function useCitySky(
 
     return {
       placements,
+      sky,
+      frame,
       nightness: night,
       band: twilightBand(sunHorizon.altitude),
       sunAltitude: sunHorizon.altitude,
@@ -233,12 +243,11 @@ export default function CitySky({
   eye: readonly [number, number, number];
   seaLevel: number;
 }) {
-  const { placements, nightness: night, sunPosition } = useCitySky(date, realLat, realLng, eye);
+  // One call, one snapshot: the frame the stars are rotated by is the same
+  // object the bodies were placed with, rather than a second computeSky of
+  // the same instant.
+  const { placements, frame, nightness: night, sunPosition } = useCitySky(date, realLat, realLng, eye);
   const glow = useMemo(() => glowTexture(), []);
-  const frame = useMemo(
-    () => localFrame(computeSky(date), realLat, realLng),
-    [date, realLat, realLng],
-  );
 
   // The sea keeps the sky's own light: bright by day, near-black at night,
   // so the horizon does not glow blue under a starfield.

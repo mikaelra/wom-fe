@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
+import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import {
   milkyWayQuaternion, milkyWayTexturePath, orientMilkyWayTexture,
 } from '@/lib/milkyWay';
@@ -14,8 +15,8 @@ import GlobeCrackleEffect from './GlobeCrackleEffect';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
 import {
-  getSky, computeAspects, raDecToVec3, separationDeg, ORB,
-  type BodyAspect, type AspectBody, type Sky,
+  getSky, computeAspects, raDecToVec3,
+  type BodyAspect, type AspectBody,
 } from '@/lib/astrology';
 import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
 
@@ -861,45 +862,10 @@ function MoonLight() {
 
 // ── Gaze-label metadata (docs/CITY_SCENE_PLAN.md §7.5) ────────────────────
 
-const GLYPH: Record<AspectBody, string> = {
-  Sun: '\u2609', Moon: '\u263E', Mercury: '\u263F', Venus: '\u2640',
-  Mars: '\u2642', Jupiter: '\u2643', Saturn: '\u2644',
-};
-
 /** The phase at which each body is revealed, mirroring the map above. */
 const REVEAL_PHASE: Record<AspectBody, number> = {
   Moon: 2, Mercury: 3, Venus: 4, Sun: 5, Mars: 6, Jupiter: 7, Saturn: 8,
 };
-
-/**
- * The second line of a body's label: what is notable about it right now.
- *
- * Reads the same snapshot and the same orbs the aspect maths uses
- * (astrology.ts's ORB), so a conjunction the label announces is exactly the
- * one tinting the body's aura -- no second opinion about what counts as
- * close. Zero new maths, per §7.5.
- */
-function labelDetail(sky: Sky, body: AspectBody): string | null {
-  const parts: string[] = [];
-  if (body === 'Mercury' && sky.mercuryRetrograde) parts.push('RETROGRADE');
-
-  // Nearest other body inside this one's own orb. The Sun neither donates
-  // nor receives colour (docs/ASPECTS_PLAN.md §1.4), so it announces nothing.
-  if (body !== 'Sun') {
-    let nearest: AspectBody | null = null;
-    let nearestSep = Infinity;
-    for (const other of Object.keys(GLYPH) as AspectBody[]) {
-      if (other === body || other === 'Sun') continue;
-      const sep = separationDeg(sky, body, other);
-      if (sep < nearestSep) { nearestSep = sep; nearest = other; }
-    }
-    if (nearest && nearestSep <= ORB[body]) {
-      parts.push(`\u260C ${GLYPH[nearest]} ${nearestSep.toFixed(1)}\u00B0`);
-    }
-  }
-
-  return parts.length ? parts.join('  \u00B7  ') : null;
-}
 
 const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) {
   const groupRef = useRef<THREE.Group>(null);
