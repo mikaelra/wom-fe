@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
   focusOpacity, viewAngleDeg, occludedBySphere, FOCUS_INNER_DEG, FOCUS_OUTER_DEG,
+  hoverOpacity, HOVER_INNER_DEG, HOVER_OUTER_DEG,
 } from '@/lib/gazeFocus';
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -130,5 +131,41 @@ describe('occludedBySphere', () => {
   it('does not hide a body that sits between the camera and the globe', () => {
     // The near intersection is beyond the body, so nothing is in the way.
     expect(occludedBySphere(cam, v(0, 0, 8), globe, R)).toBe(false);
+  });
+});
+
+// ── Hover reveal (pointing devices) ────────────────────────────────────────
+
+describe('hoverOpacity', () => {
+  it('names a body the cursor is sitting on', () => {
+    expect(hoverOpacity(0)).toBe(1);
+    expect(hoverOpacity(HOVER_INNER_DEG)).toBe(1);
+  });
+
+  it('is nothing once the cursor is clear of it', () => {
+    expect(hoverOpacity(HOVER_OUTER_DEG)).toBe(0);
+    expect(hoverOpacity(30)).toBe(0);
+  });
+
+  it('is far tighter than the gaze, so hovering picks out ONE body', () => {
+    // The gaze answers "am I looking that way", which is deliberately
+    // generous. A cursor is a sharper statement of intent, and at the gaze's
+    // width it would light up whichever bodies were near the middle of the
+    // screen rather than the one being pointed at.
+    expect(HOVER_OUTER_DEG).toBeLessThan(FOCUS_OUTER_DEG);
+    expect(HOVER_INNER_DEG).toBeLessThan(FOCUS_INNER_DEG);
+    expect(hoverOpacity(FOCUS_INNER_DEG)).toBeLessThan(focusOpacity(FOCUS_INNER_DEG));
+  });
+
+  it('fades rather than switching, so a label cannot strobe at the edge', () => {
+    const mid = hoverOpacity((HOVER_INNER_DEG + HOVER_OUTER_DEG) / 2);
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(1);
+  });
+
+  it('is nothing for a non-finite angle, which is how "not hovering" is spelled', () => {
+    // SkyLabels passes Infinity when the device has no hovering pointer.
+    expect(hoverOpacity(Infinity)).toBe(0);
+    expect(hoverOpacity(NaN)).toBe(0);
   });
 });

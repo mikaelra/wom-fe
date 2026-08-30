@@ -967,6 +967,30 @@ The Moon's illuminated fraction (`97% LIT`) was specified here but not built in
 step 9; sharing the text through `skyLabelText.ts` in step 11 gave it to **both**
 scenes at once, which is what this section always asked for.
 
+### 7.5a Hovering names a body too — **[added]**
+
+§7.1's focus test answers "am I *looking* that way", which is the right question
+when the only input is where the camera points — a phone, and the world map's own
+slow drift. A mouse offers a second, sharper statement of intent: putting the
+cursor **on** something.
+
+So a body also names itself when the pointer sits on it, at a much tighter angle
+than the gaze (1.5°/4.5° against 4°/11°) — wide enough is not the goal here;
+hovering should pick out *one* body rather than whichever three are near the middle
+of the screen. Still an angle rather than a pixel radius, for §7.1's own reason: it
+means the same thing at every viewport and FOV. The two intents combine as a max,
+so looking still works with no cursor involved, and hovering works wherever the
+camera happens to point. Hovering earns the detail line outright, since it is a
+deliberate act in a way that drifting past the centre is not.
+
+Two things it is careful about. It is gated on the device actually having a
+hovering pointer (`(hover: hover) and (pointer: fine)`) — a touchscreen leaves the
+pointer wherever it was last tapped, which would strand a label on screen with
+nothing hovering anything. And the pointer ray is unprojected directly rather than
+read off R3F's raycaster: that one is shared with click-picking (the signpost arms,
+the buildings), and re-aiming it every frame is not a thing to do to state someone
+else owns.
+
 ### 7.6 On the world map, the sky names itself
 
 The globe scene keeps `autoRotate` and `CameraRig`'s slow drift. Combined with

@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { FreshHtml } from '@/components/hud/FreshHtml';
-import { focusOpacity, viewAngleDeg, occludedBySphere, FOCUS_INNER_DEG } from '@/lib/gazeFocus';
+import {
+  focusOpacity, hoverOpacity, viewAngleDeg, occludedBySphere, FOCUS_INNER_DEG,
+} from '@/lib/gazeFocus';
 
 /**
  * Gaze labels (docs/CITY_SCENE_PLAN.md §7).
@@ -22,6 +24,11 @@ import { focusOpacity, viewAngleDeg, occludedBySphere, FOCUS_INNER_DEG } from '@
  * Built on FreshHtml, never drei's <Html>: see hud/FreshHtml.tsx for the two
  * drei bugs a per-frame label on a responsive-FOV camera would otherwise hit,
  * and §7.2 for why occlusion is a manual ray/sphere test.
+ *
+ * On a pointing device a body also names itself when the cursor is ON it, at
+ * a much tighter angle than the gaze. Gated on the pointer actually being a
+ * hovering one: a touchscreen leaves `pointer` wherever it was last tapped,
+ * which would strand a label on screen with nothing hovering anything.
  */
 
 export interface SkyLabelBody {
@@ -56,22 +63,53 @@ interface LabelNode {
 
 const _forward = new THREE.Vector3();
 const _world = new THREE.Vector3();
+const _pointerDir = new THREE.Vector3();
 
 export default function SkyLabels({ bodies, occluder, distanceFactor = 24 }: SkyLabelsProps) {
   const nodes = useRef(new Map<string, LabelNode>());
+  // A mouse or trackpad, as opposed to a finger. Read once, since it cannot
+  // change without a new pointing device being plugged in.
+  const canHover = useRef(false);
+  useEffect(() => {
+    canHover.current = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  }, []);
 
   const register = useCallback((key: string, node: LabelNode | null) => {
     if (node) nodes.current.set(key, node);
     else nodes.current.delete(key);
   }, []);
 
-  useFrame(({ camera }) => {
+  useFrame(({ camera, pointer }) => {
     camera.getWorldDirection(_forward);
+
+    // The direction the cursor points into the scene, unprojected straight
+    // from the pointer rather than borrowed from R3F's raycaster: that one
+    // is shared with click-picking (the signpost arms, the buildings), and
+    // re-aiming it every frame is not something to do to state someone else
+    // owns. Recomputed per frame on purpose -- the sky drifts under a
+    // stationary cursor, so the label has to follow the body, not the mouse.
+    const hovering = canHover.current;
+    if (hovering) {
+      _pointerDir.set(pointer.x, pointer.y, 0.5)
+        .unproject(camera)
+        .sub(camera.position)
+        .normalize();
+    }
+
     for (const node of nodes.current.values()) {
       node.group.getWorldPosition(_world);
 
       const angle = viewAngleDeg(camera.position, _forward, _world);
-      let opacity = focusOpacity(angle);
+      // Whichever of the two intents is stronger. Looking at a body still
+      // names it with no cursor involved; putting the cursor on one names it
+      // wherever the camera happens to point.
+      const hoverAngle = hovering
+        ? viewAngleDeg(camera.position, _pointerDir, _world)
+        : Infinity;
+      const hover = hoverOpacity(hoverAngle);
+      let opacity = Math.max(focusOpacity(angle), hover);
       if (opacity > 0 && occluder && occludedBySphere(camera.position, _world, occluder.center, occluder.radius)) {
         opacity = 0;
       }
@@ -84,8 +122,12 @@ export default function SkyLabels({ bodies, occluder, distanceFactor = 24 }: Sky
       // The detail line fades in only as the body approaches dead centre,
       // so a glancing pass gives you the name and a deliberate look gives
       // you the rest.
+      // Hovering is a deliberate act, so it earns the detail line outright
+      // rather than only at dead centre.
       if (node.detail) {
-        node.detail.style.opacity = String(focusOpacity(angle, 0, FOCUS_INNER_DEG));
+        node.detail.style.opacity = String(
+          Math.max(focusOpacity(angle, 0, FOCUS_INNER_DEG), hover),
+        );
       }
     }
   });

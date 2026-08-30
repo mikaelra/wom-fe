@@ -39,6 +39,27 @@ export function focusOpacity(
   return 1 - smoothstep(inner, outer, angleDeg);
 }
 
+/**
+ * Hover reveal, for pointing devices (§7.1's angle rule, tighter).
+ *
+ * The gaze thresholds answer "am I looking that way", which is the right
+ * question when the only input is where the camera points -- on a phone, and
+ * on the world map's own slow drift. With a mouse there is a second, sharper
+ * intent available: putting the cursor ON something. These are deliberately
+ * much tighter than the gaze pair, so hovering names one body rather than
+ * whichever three are near the middle of the screen.
+ *
+ * Still an angle rather than a pixel radius, for the same reason §7.1 gives:
+ * it is the one measure that means the same thing at every viewport and FOV.
+ */
+export const HOVER_INNER_DEG = 1.5;
+export const HOVER_OUTER_DEG = 4.5;
+
+/** Label opacity for a body sitting `angleDeg` off the pointer's own ray. */
+export function hoverOpacity(angleDeg: number): number {
+  return focusOpacity(angleDeg, HOVER_INNER_DEG, HOVER_OUTER_DEG);
+}
+
 const _toBody = new THREE.Vector3();
 
 /**
