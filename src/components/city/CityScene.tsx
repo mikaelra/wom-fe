@@ -94,6 +94,11 @@ const BACK_COLOR = '#e8d9a0';
 /**
  * The light Hades keeps burning (docs/CITY_SCENE_PLAN.md §5.2).
  *
+ * Blue, matching BOSSFIGHT_COLOR above: the signpost's bossfight arm has
+ * always been blue, so the building that arm points at now says the same
+ * thing from across the bay. (It was purple for one pass; the scene already
+ * had a colour for this and it was not that.)
+ *
  * A point light standing on the temple's own floor, so at night it throws
  * the near columns forward and leaves the far ones dark -- which is what
  * actually gives a building its shape. A uniform wash would only tell you
@@ -105,14 +110,14 @@ const BACK_COLOR = '#e8d9a0';
  * its centre where the fire lights a signpost 3 units away, and physical
  * falloff means that costs roughly two orders of magnitude.
  */
-const TEMPLE_GLOW_COLOR = '#8b3dff';
+const TEMPLE_GLOW_COLOR = '#4da6ff';
 const TEMPLE_GLOW_PEAK = 400;
 const TEMPLE_GLOW_DISTANCE = 130;
 const TEMPLE_GLOW_DECAY = 1.5;
 /** How far the marble itself is pulled toward that purple after dark. The
  *  light gives the shape; this only makes sure the hue reads even on the
  *  faces it does not reach. */
-const TEMPLE_NIGHT_TINT = '#2a1140';
+const TEMPLE_NIGHT_TINT = '#0e2440';
 const TEMPLE_TINT_STRENGTH = 0.45;
 
 /** Tint applied to a building while it or its arm is hovered. */

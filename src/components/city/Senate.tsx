@@ -34,6 +34,26 @@ import { senateColumns } from '@/lib/senateGeometry';
 
 /** The Pantheon's oculus is 8.2m across in a 43.3m dome. */
 const OCULUS_RATIO = 0.19;
+
+/**
+ * A red light in the oculus, lighting the dome from its own hole.
+ *
+ * Red to match RANKED_COLOR on the signpost's right arm, the way the
+ * temple's blue matches the left one: each building says from a distance
+ * what it sends you to.
+ *
+ * The strength is expressed as the illuminance it lands on the wall rather
+ * than as a raw candela figure, because this component is built at two very
+ * different sizes -- the city's Senate is about 8 units across and the
+ * ranked arena 28. A fixed intensity would be a hot spot in one and
+ * invisible in the other. Working back from the wall means the two read the
+ * same: intensity = strength x reach^decay, so at reach the illuminance is
+ * exactly `strength`. For scale, the city's campfire lands about 5 on the
+ * signpost it lights.
+ */
+const OCULUS_LIGHT_COLOR = '#ff4d4d';
+const OCULUS_LIGHT_STRENGTH = 8;
+const OCULUS_LIGHT_DECAY = 1.6;
 /** Dome height as a fraction of the building's SHORT half-axis. */
 const DOME_RISE = 0.9;
 const ARCHITRAVE_THICK = 0.5;
@@ -105,6 +125,10 @@ export default function Senate({
   // A shallow dome rather than a true hemisphere: over a rectangle the
   // short axis sets how tall it can be before it looks like a balloon.
   const domeHeight = Math.min(halfW, halfD) * DOME_RISE;
+  // How far the oculus light has to throw: the far corner of the floor it
+  // stands over. Scaling the intensity by this is what lets the same
+  // building read the same at the city's size and the arena's.
+  const oculusReach = Math.hypot(halfW, halfD);
 
   return (
     <group position={position}>
@@ -144,6 +168,19 @@ export default function Senate({
           <meshStandardMaterial color={color} />
         </mesh>
       ))}
+
+      {/* A red light hanging in the oculus, so the dome is lit from its own
+          hole and the opening reads as an eye rather than as a gap. Sitting
+          at the apex rather than below it: from here it washes the whole
+          inner shell, which is the surface anyone under the dome is looking
+          at. */}
+      <pointLight
+        position={[0, baseTop + COLUMN_HEIGHT + 0.6 + domeHeight, 0]}
+        color={OCULUS_LIGHT_COLOR}
+        intensity={OCULUS_LIGHT_STRENGTH * Math.pow(oculusReach, OCULUS_LIGHT_DECAY)}
+        distance={oculusReach * 6}
+        decay={OCULUS_LIGHT_DECAY}
+      />
 
       {/* The dome. DoubleSide because you stand under it as often as you
           look at it -- a ranked match is played beneath this thing. */}
