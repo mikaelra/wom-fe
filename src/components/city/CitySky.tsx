@@ -83,6 +83,18 @@ const BODY_SIZE: Record<AspectBody, number> = {
  */
 const BODY_SIZE_BOOST = 1.25;
 
+/**
+ * A uniform trim on how strongly the bodies assert themselves -- size and
+ * emitted light together. 1 leaves them exactly as the magnitude maths
+ * computes them.
+ *
+ * Kept as its own factor rather than folded back into BODY_SIZE_BOOST and
+ * HALO_OPACITY, so the reasoning behind those two (the midpoint between the
+ * original sizes and a first pass that overshot) stays legible and this
+ * stays the one number to turn.
+ */
+const BODY_INTENSITY = 0.88;
+
 /** The halo drawn behind each body: how much wider than the core, and how
  *  strong. This is what makes a bright planet read as GLOWING rather than as
  *  a slightly larger dot -- a low sun over water does the same thing. */
@@ -482,7 +494,7 @@ export default function CitySky({
         if (p.visibility <= 0) return null;
         // Brighter planets are drawn bigger as well as sooner, so Venus
         // reads as Venus rather than as one more dot.
-        const size = BODY_SIZE[p.body] * BODY_SIZE_BOOST * magnitudeSizeFactor(p.magnitude);
+        const size = BODY_SIZE[p.body] * BODY_SIZE_BOOST * magnitudeSizeFactor(p.magnitude) * BODY_INTENSITY;
         return (
           <group key={p.body} position={p.position}>
             {/* Halo first: wider and much fainter, additively blended, so a
@@ -492,7 +504,7 @@ export default function CitySky({
                 map={glow}
                 color={p.color}
                 transparent
-                opacity={p.visibility * HALO_OPACITY}
+                opacity={p.visibility * HALO_OPACITY * BODY_INTENSITY}
                 depthWrite={false}
                 blending={THREE.AdditiveBlending}
               />
@@ -502,7 +514,10 @@ export default function CitySky({
                 map={glow}
                 color={p.color}
                 transparent
-                opacity={p.visibility}
+                // Additive blending, so opacity is literally how much light
+                // this body adds to the sky -- the trim dims as well as
+                // shrinks.
+                opacity={p.visibility * BODY_INTENSITY}
                 depthWrite={false}
                 blending={THREE.AdditiveBlending}
               />
