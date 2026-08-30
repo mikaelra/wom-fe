@@ -2,6 +2,7 @@ import {
   SEA_LEVEL, LAND_LEVEL, SIGNPOST_POSITION, CAMPFIRE_POSITION,
   TEMPLE_POSITION, SENATE_POSITION,
 } from '@/lib/cityLayout';
+import { TEMPLE_TABLEAU_LIFT } from '@/lib/templeTableau';
 
 export { LAND_LEVEL };
 
@@ -170,15 +171,20 @@ export function islandPlacements(): IslandPlacement[] {
 }
 
 /**
- * How far to lift the island so its surface lands on a given standing height.
+ * How far to lift the island so the temple's floor lands on a given standing
+ * height -- and therefore so the ground sits the same distance below that
+ * floor as it does in the city.
  *
- * The city and the lobby measure their floors from different places -- the
- * city's ground is LAND_LEVEL, the lobby's players stand at PLAYER_Y -- so a
- * boss fight staged on the city's terrain has to reconcile the two or the
- * players hover above the ground (or sink into it). Lifting the whole island
- * carries the sea with it, which keeps the coastline's own relationship to
- * the land intact.
+ * The first version of this aligned the island to the standing height
+ * itself, which put the ground AT the temple's floor: inside the building,
+ * underfoot, where the city has a floor 7.27 units above open ground. The
+ * temple is entered at its base and stood in at its floor, and only the
+ * base has anything to do with the terrain.
+ *
+ * Stated as "put the city's temple floor where this scene's players stand",
+ * so the whole relationship -- floor above base, base on the ground --
+ * carries over from the city intact rather than being re-derived.
  */
-export function groundOffsetFor(standingHeight: number): number {
-  return standingHeight - LAND_LEVEL;
+export function templeFloorOffsetFor(standingHeight: number): number {
+  return standingHeight - (LAND_LEVEL + TEMPLE_TABLEAU_LIFT);
 }

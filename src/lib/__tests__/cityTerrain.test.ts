@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  terrainHeight, relief, padFlatness, islandPlacements, groundOffsetFor,
+  terrainHeight, relief, padFlatness, islandPlacements, templeFloorOffsetFor,
   LAND_LEVEL, SHORE_RADIUS, LAND_RADIUS, RELIEF_HEIGHT,
 } from '@/lib/cityTerrain';
 import { PLAYER_Y } from '@/lib/sceneConstants';
+import { TEMPLE_TABLEAU_LIFT } from '@/lib/templeTableau';
 import {
   SEA_LEVEL, SIGNPOST_POSITION, CAMPFIRE_POSITION, TEMPLE_POSITION, SENATE_POSITION,
 } from '@/lib/cityLayout';
@@ -150,26 +151,31 @@ describe('the islands on the horizon', () => {
 });
 
 describe('staging the island in a lobby', () => {
-  it('lands the ground exactly under the players\' feet', () => {
-    // A boss fight is fought on the city's terrain, but the two scenes
-    // measure their floors from different places: the city's ground is
-    // LAND_LEVEL and the lobby's players stand at PLAYER_Y. Get this wrong
-    // and everyone hovers above the island -- or sinks into it.
-    const lifted = terrainHeight(0, 0) + groundOffsetFor(PLAYER_Y);
-    expect(lifted).toBeCloseTo(PLAYER_Y, 6);
+  const offset = templeFloorOffsetFor(PLAYER_Y);
+
+  it('puts the ground at the temple\'s base, not at its floor', () => {
+    // The bug this replaces: aligning the island to the players' feet put
+    // the terrain AT the temple's floor -- ground inside the building. They
+    // stand on the floor; only the BASE has anything to do with the terrain.
+    const groundUnderTheTable = terrainHeight(0, 0) + offset;
+    expect(groundUnderTheTable).toBeCloseTo(PLAYER_Y - TEMPLE_TABLEAU_LIFT, 6);
+    expect(groundUnderTheTable).toBeLessThan(PLAYER_Y);
+  });
+
+  it('leaves the same gap under the floor as the city does', () => {
+    // The whole point: the view out from between the columns should be the
+    // one the city gives from inside its temple.
+    expect(PLAYER_Y - (terrainHeight(0, 0) + offset)).toBeCloseTo(TEMPLE_TABLEAU_LIFT, 6);
   });
 
   it('keeps the sea the same distance below the land after the lift', () => {
     // Lifting the whole island rather than the terrain alone is what stops
     // the coastline drowning or stranding.
     const before = LAND_LEVEL - SEA_LEVEL;
-    const offset = groundOffsetFor(PLAYER_Y);
     expect((LAND_LEVEL + offset) - (SEA_LEVEL + offset)).toBeCloseTo(before, 6);
   });
 
   it('is flat where the table stands, not on a hillside', () => {
-    // The origin pad exists for the city's viewer; the lobby's table
-    // inherits it, which is why a boss fight is not played on a slope.
     for (const [x, z] of [[0, 0], [2, 0], [0, 2], [-2, -2]]) {
       expect(terrainHeight(x, z)).toBeCloseTo(LAND_LEVEL, 6);
     }

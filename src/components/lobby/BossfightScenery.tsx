@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import CitySky, { useCitySky } from '@/components/city/CitySky';
 import Terrain from '@/components/city/Terrain';
-import { groundOffsetFor } from '@/lib/cityTerrain';
+import { templeFloorOffsetFor } from '@/lib/cityTerrain';
 import { horizonToScene } from '@/lib/citySkyGeometry';
 import { LAND_LEVEL, SEA_LEVEL, EYE_HEIGHT } from '@/lib/cityLayout';
 import { PLAYER_Y } from '@/lib/sceneConstants';
@@ -28,10 +28,14 @@ import { findCity } from '@/lib/cities';
 const EYE: [number, number, number] = [0, LAND_LEVEL + EYE_HEIGHT, 0];
 
 /**
- * The city's ground is at LAND_LEVEL; the lobby's players stand at PLAYER_Y.
- * Lifting the whole island by the difference puts the terrain exactly under
- * their feet instead of six tenths of a unit below them, and carries the sea
- * with it so the coastline keeps its own relationship to the land.
+ * Where the island sits relative to the table.
+ *
+ * NOT under the players' feet: they stand on the temple's FLOOR, which in
+ * the city is 7.27 units above open ground. Aligning the terrain to their
+ * feet instead put the ground inside the building. Matching the city's own
+ * floor-above-base relationship drops the island to the temple's base, where
+ * it belongs -- so you look out between the columns and down onto it, as you
+ * would from inside the temple in the city. The sea comes with it.
  */
 /**
  * temple.glb's own footprint, which the island has to be flat across.
@@ -45,17 +49,7 @@ const EYE: [number, number, number] = [0, LAND_LEVEL + EYE_HEIGHT, 0];
  */
 const TEMPLE_CLEAR_RADIUS = 38;
 
-/**
- * A hair below the temple's floor rather than exactly on it.
- *
- * Both planes are now flat at the same height across the whole interior,
- * which is precisely the arrangement that z-fights -- the two surfaces
- * trading places pixel by pixel as the camera moves. Six centimetres of
- * clearance is invisible underfoot and settles it.
- */
-const TEMPLE_FLOOR_CLEARANCE = 0.06;
-
-const GROUND_OFFSET = groundOffsetFor(PLAYER_Y) - TEMPLE_FLOOR_CLEARANCE;
+const GROUND_OFFSET = templeFloorOffsetFor(PLAYER_Y);
 
 /**
  * The lamp over the table.
