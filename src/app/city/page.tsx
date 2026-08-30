@@ -107,7 +107,6 @@ function CityPageContent() {
 
       <CityLoadingScreen
         title={city.actionLabel ?? city.name}
-        subtitle={`The real sky over ${city.country}`}
         accent={city.color}
         done={sceneReady}
       />

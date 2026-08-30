@@ -33,15 +33,10 @@ const FADE_MS = 450;
 
 export default function CityLoadingScreen({
   title,
-  subtitle,
   accent = '#e8d9a0',
   done = false,
 }: {
   title: string;
-  /** Deliberately NOT the city card the overlay underneath already shows --
-   *  two near-identical name/tag lines in the DOM at once is redundant to
-   *  read and ambiguous to query. */
-  subtitle?: string;
   accent?: string;
   /** Flip to true when the scene is ready; the curtain fades and unmounts. */
   done?: boolean;
@@ -76,8 +71,6 @@ export default function CityLoadingScreen({
       >
         {title}
       </h1>
-
-      {subtitle && <p className="text-sm text-white/50 tracking-wide">{subtitle}</p>}
 
       <div className="mt-2 h-[3px] w-56 overflow-hidden rounded-full bg-white/10">
         {active ? (

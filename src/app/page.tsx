@@ -75,7 +75,6 @@ export default function Page() {
       {enteringCity && (
         <CityLoadingScreen
           title={enteringCity.actionLabel ?? enteringCity.name}
-          subtitle={`The real sky over ${enteringCity.country}`}
           accent={enteringCity.color}
         />
       )}

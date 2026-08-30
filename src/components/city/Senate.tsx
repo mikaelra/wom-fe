@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import * as THREE from 'three';
+import { senateColumns } from '@/lib/senateGeometry';
 
 /**
  * The Senate -- procedural placeholder (docs/CITY_SCENE_PLAN.md §9).
@@ -14,9 +15,20 @@ import * as THREE from 'three';
  * Sized to stand beside temple.glb without towering over it. Swap the whole
  * body for a <primitive> once the model exists; the interaction wrapper in
  * CityScene does not care what is inside.
+ *
+ * **It is hollow.** It used to have a solid cella filling the middle -- a
+ * wall behind the front columns so it read as a building rather than a
+ * fence. That block is gone and the colonnade now runs the full perimeter,
+ * because the Senate is becoming the arena ranked matches are played in and
+ * players have to fit inside it and be visible from outside. An open
+ * peristyle does both: it is still unmistakably a building from the street,
+ * and you can see who is in it.
  */
 
 const COLUMN_COUNT = 6;
+/** Along the shorter sides. Fewer, so the long views into the open middle
+ *  stay open and the building does not read as a cage. */
+const SIDE_COLUMN_COUNT = 4;
 const COLUMN_HEIGHT = 4.2;
 const COLUMN_RADIUS = 0.32;
 const WIDTH = 8.4;
@@ -30,14 +42,11 @@ export default function Senate({
   position?: [number, number, number];
   color?: THREE.ColorRepresentation;
 }) {
-  const columns = useMemo(
-    () =>
-      // Evenly spaced across the facade, inset so the outer columns sit on
-      // the base rather than overhanging it.
-      Array.from({ length: COLUMN_COUNT }, (_, i) => {
-        const t = i / (COLUMN_COUNT - 1);
-        return (t - 0.5) * (WIDTH - COLUMN_RADIUS * 4);
-      }),
+  // Built as a ring in lib/senateGeometry.ts rather than four hard-coded
+  // rows: placed per-side, every corner gets a column twice, which shows up
+  // as z-fighting that flickers as the camera moves. A test holds that.
+  const { positions: columns } = useMemo(
+    () => senateColumns(WIDTH, DEPTH, COLUMN_RADIUS, COLUMN_COUNT, SIDE_COLUMN_COUNT),
     [],
   );
 
@@ -63,19 +72,14 @@ export default function Senate({
         </mesh>
       ))}
 
-      {/* Colonnade */}
-      {columns.map((x) => (
-        <mesh key={x} position={[x, baseTop + COLUMN_HEIGHT / 2, DEPTH / 2 - 0.6]}>
+      {/* Peristyle. No cella: the middle is deliberately empty, so a ranked
+          match can be played in there and watched from outside. */}
+      {columns.map(([x, z]) => (
+        <mesh key={`${x},${z}`} position={[x, baseTop + COLUMN_HEIGHT / 2, z]}>
           <cylinderGeometry args={[COLUMN_RADIUS, COLUMN_RADIUS * 1.1, COLUMN_HEIGHT, 12]} />
           <meshStandardMaterial color={color} />
         </mesh>
       ))}
-
-      {/* Cella wall behind the columns, so it reads as a building not a fence */}
-      <mesh position={[0, baseTop + COLUMN_HEIGHT / 2, -DEPTH / 4]}>
-        <boxGeometry args={[WIDTH - 1.2, COLUMN_HEIGHT, DEPTH * 0.5]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
 
       {/* Entablature */}
       <mesh position={[0, baseTop + COLUMN_HEIGHT + 0.3, 0]}>

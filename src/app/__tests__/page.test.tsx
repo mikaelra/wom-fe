@@ -158,7 +158,7 @@ describe('Page (world map view, city routing)', () => {
     // page is still mounted, so without this a tap looks like it did
     // nothing at all.
     expect(screen.getByText('ENTERING')).toBeInTheDocument();
-    expect(screen.getByText(`The real sky over ${ATHENS.country}`)).toBeInTheDocument();
+    expect(screen.getByText(ATHENS.name)).toBeInTheDocument();
   });
 
   it('routes to the city the same way when already logged in', async () => {
