@@ -18,7 +18,7 @@ import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
 // left/right pairing with the signpost's arms can be tested.
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION,
-  SEA_LEVEL, LAND_LEVEL,
+  SEA_LEVEL, LAND_LEVEL, EYE_HEIGHT,
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
 import TempleTableau from '@/components/city/TempleTableau';
@@ -55,7 +55,7 @@ import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
 /** Where the player stands: eye height above the GROUND, at the origin. Was
  *  measured from the sea until there was ground to stand on. */
-export const EYE: [number, number, number] = [0, LAND_LEVEL + 3.2, 0];
+export const EYE: [number, number, number] = [0, LAND_LEVEL + EYE_HEIGHT, 0];
 /** How far the camera sits from the pin. Small enough to read as rotating in
  *  place, large enough to keep OrbitControls' maths well-conditioned. */
 const EYE_RADIUS = 0.01;

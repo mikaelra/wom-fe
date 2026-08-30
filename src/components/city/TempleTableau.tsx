@@ -6,16 +6,15 @@ import Table from '@/components/Table';
 import { skinUrl } from '@/lib/frogSkins';
 import { getBossPosition, getBossPlayerPositions, PLAYER_Y, TABLE_POSITION } from '@/lib/sceneConstants';
 import { TEMPLE_POSITION, LAND_LEVEL } from '@/lib/cityLayout';
-import { TEMPLE_TABLEAU_LIFT, CITY_TABLEAU_MAX_FIGURES } from '@/lib/templeTableau';
+import {
+  CITY_TABLEAU_MAX_FIGURES, TABLEAU_ZOOM, LOBBY_FIGURE_SCALE, LOBBY_BOSS_SCALE,
+  tableauGroupY,
+} from '@/lib/templeTableau';
 import type { BossfightRosterPlayer } from '@/lib/api';
 
 const PlayerV1 = dynamic(() => import('@/components/Playerv1'), { ssr: false });
 
 const HADES_URL = '/models/hades/hades_v4.glb';
-/** The same scale the lobby draws its figures at, so the people in the
- *  temple are the size the temple was built for. */
-const FIGURE_SCALE = 0.15;
-const HADES_SCALE = 0.22;
 
 /**
  * The live bossfight, seen from the street (docs/CITY_SCENE_PLAN.md §5.2).
@@ -68,13 +67,20 @@ export default function TempleTableau({
     // The lobby's seat helpers return positions around its own origin with
     // y = PLAYER_Y, so the group is offset to put that plane on the temple's
     // floor and the whole composition drops into place unchanged.
-    <group position={[TEMPLE_POSITION[0], LAND_LEVEL + TEMPLE_TABLEAU_LIFT - PLAYER_Y, TEMPLE_POSITION[2]]}>
+    <group
+      position={[TEMPLE_POSITION[0], tableauGroupY(LAND_LEVEL, PLAYER_Y), TEMPLE_POSITION[2]]}
+      // Scaling the whole group rather than each figure keeps the lobby's
+      // composition exactly -- seat spacing, the Well's size and the boss's
+      // distance across it all grow together, so it is the same tableau seen
+      // from closer rather than a differently-proportioned one.
+      scale={TABLEAU_ZOOM}
+    >
       <Suspense fallback={null}>
         <Table position={TABLE_POSITION} scale={1.2} />
 
         <PlayerV1
           url={HADES_URL}
-          scale={HADES_SCALE}
+          scale={LOBBY_BOSS_SCALE}
           position={boss.position}
           rotation={boss.rotation}
         />
@@ -83,7 +89,7 @@ export default function TempleTableau({
           <PlayerV1
             key={player.name}
             url={skinUrl(player.skin ?? 'frog_green_v1')}
-            scale={FIGURE_SCALE}
+            scale={LOBBY_FIGURE_SCALE}
             position={seats[i].position}
             rotation={seats[i].rotation}
             // Deliberately not animated. These are 45 units away and a

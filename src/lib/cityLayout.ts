@@ -53,6 +53,9 @@ export const SEA_LEVEL = 2;
  */
 export const LAND_LEVEL = SEA_LEVEL + 0.6;
 
+/** Eye height above the ground the viewer stands on. */
+export const EYE_HEIGHT = 3.2;
+
 /**
  * How far below its own origin temple.glb's base sits, measured from the GLB
  * (its bounding box runs y -8.07 to 10.45). Needed to stand it ON something:
