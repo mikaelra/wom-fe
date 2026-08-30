@@ -11,6 +11,7 @@ import { getSocket, subscribe } from '@/lib/socket';
 import { getStoredToken } from '@/lib/http';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { LobbyState } from '@/types/game';
+import { CITY_PATH } from '@/lib/cities';
 
 const LobbyScene = dynamic(() => import('@/components/lobby/LobbyScene'), { ssr: false });
 
@@ -195,14 +196,25 @@ function LobbyPageContent() {
             {gameAlreadyStarted ? (
               <>
                 <p className="text-gray-700 text-center mb-4">This game is already in progress.</p>
-                <button
-                  type="button"
-                  onClick={() => router.push('/')}
-                  className="block w-full text-center text-blue-500 hover:underline text-lg bg-transparent border-none cursor-pointer"
-                  aria-label="Back to Home"
-                >
-                  🌍
-                </button>
+                {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+                <span className="emoji-pair inline-flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/')}
+                    className="block w-full text-center text-blue-500 hover:underline text-lg bg-transparent border-none cursor-pointer"
+                    aria-label="Back to Home"
+                  >
+                    🌍
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push(CITY_PATH)}
+                    className="block w-full text-center text-blue-500 hover:underline text-lg bg-transparent border-none cursor-pointer"
+                    aria-label="Go to the city"
+                  >
+                    🏛️
+                  </button>
+                </span>
               </>
             ) : (
               <>
@@ -328,14 +340,25 @@ function LobbyPageContent() {
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => router.push('/')}
-                  className="block w-full text-center text-blue-400 hover:underline text-lg bg-transparent border-none cursor-pointer"
-                  aria-label="Back to Home"
-                >
-                  🌍
-                </button>
+                {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+                <span className="emoji-pair inline-flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/')}
+                    className="block w-full text-center text-blue-400 hover:underline text-lg bg-transparent border-none cursor-pointer"
+                    aria-label="Back to Home"
+                  >
+                    🌍
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push(CITY_PATH)}
+                    className="block w-full text-center text-blue-400 hover:underline text-lg bg-transparent border-none cursor-pointer"
+                    aria-label="Go to the city"
+                  >
+                    🏛️
+                  </button>
+                </span>
               </>
             )}
           </div>

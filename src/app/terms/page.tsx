@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { SUPPORT_EMAIL } from '@/config';
+import { CITY_PATH } from '@/lib/cities';
 
 export const metadata = { title: 'Terms — World of Mythos' };
 
@@ -9,13 +10,23 @@ export default function TermsPage() {
       <div className="w-full max-w-2xl">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold tracking-wide">Terms of Sale</h1>
-          <Link
-            href="/"
-            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
-            aria-label="Back to Home"
-          >
-            🌍
-          </Link>
+          {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+          <span className="emoji-pair inline-flex items-center gap-2">
+            <Link
+              href="/"
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+              aria-label="Back to Home"
+            >
+              🌍
+            </Link>
+            <Link
+              href={CITY_PATH}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+              aria-label="Go to the city"
+            >
+              🏛️
+            </Link>
+          </span>
         </div>
 
         <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 space-y-4 text-sm text-white/80 leading-relaxed">

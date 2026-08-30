@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { confirmEmailVerification } from '@/lib/api';
 import { useToast } from '@/components/Toast';
+import { CITY_PATH } from '@/lib/cities';
 
 type Status = 'loading' | 'error';
 
@@ -63,13 +64,23 @@ function VerifyEmailContent() {
           {status === 'error' && (
             <>
               <p className="text-red-400 font-semibold mb-3">{message}</p>
-              <Link
-                href="/"
-                className="inline-block bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors"
-                aria-label="Back to Home"
-              >
-                🌍
-              </Link>
+              {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+              <span className="emoji-pair inline-flex items-center gap-2">
+                <Link
+                  href="/"
+                  className="inline-block bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors"
+                  aria-label="Back to Home"
+                >
+                  🌍
+                </Link>
+                <Link
+                  href={CITY_PATH}
+                  className="inline-block bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors"
+                  aria-label="Go to the city"
+                >
+                  🏛️
+                </Link>
+              </span>
             </>
           )}
         </div>

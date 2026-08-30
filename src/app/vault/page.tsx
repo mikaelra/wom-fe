@@ -5,6 +5,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { BACKEND_URL } from '@/config';
 import { useToast } from '@/components/Toast';
+import { CITY_PATH } from '@/lib/cities';
 
 const VaultScene = dynamic(() => import('@/components/vault/VaultScene'), { ssr: false });
 
@@ -90,9 +91,15 @@ export default function VaultPage() {
         </button>
 
         <div className="mt-4">
-          <Link href="/" className="no-underline" style={{ fontSize: '2rem' }} aria-label="Back to Home">
-            🌍
-          </Link>
+          {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+          <span className="emoji-pair inline-flex items-center gap-2">
+            <Link href="/" className="no-underline" style={{ fontSize: '2rem' }} aria-label="Back to Home">
+              🌍
+            </Link>
+            <Link href={CITY_PATH} className="no-underline" style={{ fontSize: '2rem' }} aria-label="Go to the city">
+              🏛️
+            </Link>
+          </span>
         </div>
       </div>
     </div>

@@ -15,6 +15,7 @@ import ResourceCard from '@/components/ResourceCard';
 import { useStagedResources } from '@/lib/useStagedResources';
 import { useToast } from '@/components/Toast';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
+import { CITY_PATH } from '@/lib/cities';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -543,9 +544,16 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         <p className={`${theme.loadingTextClass} text-lg font-semibold`}>
           You were removed from this lobby.
         </p>
-        <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
-          🌍
-        </Link>
+        {/* Home, and beside it the city -- as a pair, so the column layout
+            of this screen does not stack them one above the other. */}
+        <span className="inline-flex items-center gap-3">
+          <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
+            🌍
+          </Link>
+          <Link href={CITY_PATH} className="text-blue-400 no-underline text-2xl" aria-label="Go to the city">
+            🏛️
+          </Link>
+        </span>
       </div>
     );
   }
@@ -645,10 +653,16 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         }
       `}</style>
 
-      {/* Back button */}
-      <div className="absolute top-4 left-4 pointer-events-auto z-20">
+      {/* Back button, and beside it the way into the city. The globe is the
+          theme's own `backLabel` (a string, so it cannot carry a second link
+          of its own) -- hence the temple being spelled out here rather than
+          coming through the theme with it. */}
+      <div className="absolute top-4 left-4 pointer-events-auto z-20 flex items-center gap-2">
         <Link href="/" className={`${theme.backLinkClass} no-underline text-2xl drop-shadow-md`} aria-label="Back to Home">
           {backLabel}
+        </Link>
+        <Link href={CITY_PATH} className={`${theme.backLinkClass} no-underline text-2xl drop-shadow-md`} aria-label="Go to the city">
+          🏛️
         </Link>
       </div>
 

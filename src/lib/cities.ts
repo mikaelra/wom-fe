@@ -98,6 +98,19 @@ export function latLngToVec3(lat: number, lng: number, radius: number): [number,
  * Returns undefined for anything unrecognised -- the route renders a
  * not-found state rather than guessing at a city.
  */
+/**
+ * Where the "visit the city" links point.
+ *
+ * Derived from CITIES rather than hardcoded as "athens": the vault and rules
+ * entries are cities in the data but not places you can stand in, so this
+ * picks the first real one. Falls back to home rather than emitting a broken
+ * `/city?id=` if there is ever no such entry.
+ */
+export const CITY_PATH: string = (() => {
+  const city = CITIES.find((c) => !c.isVault && !c.isRules);
+  return city ? `/city?id=${city.id}` : '/';
+})();
+
 export function findCity(idOrSlug: string | null | undefined): City | undefined {
   if (!idOrSlug) return undefined;
   const key = String(idOrSlug).trim().toLowerCase();

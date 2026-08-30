@@ -21,6 +21,7 @@ import SfxToggleButton from '@/components/audio/SfxToggleButton';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import { playMusic, PRE_LOBBY_MUSIC, BATTLE_MUSIC } from '@/lib/music';
 import type { LobbyState } from '@/types/game';
+import { CITY_PATH } from '@/lib/cities';
 
 type LobbyOverlayProps = {
   lobbyId: string;
@@ -206,6 +207,9 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
         <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
           🌍
         </Link>
+        <Link href={CITY_PATH} className="text-blue-400 no-underline text-2xl" aria-label="Go to the city">
+          🏛️
+        </Link>
       </div>
     </div>
   );
@@ -321,9 +325,14 @@ export function renderPreGame({
   // status pill plus the admin/invite controls pinned to the bottom.
   return (
     <>
-      <div className="absolute top-4 left-4 z-20 pointer-events-auto">
+      {/* Home, and beside it the city. flex+gap so the two icons sit as a
+          pair rather than butting straight up against each other. */}
+      <div className="absolute top-4 left-4 z-20 pointer-events-auto flex items-center gap-2">
         <Link href="/" className="text-white/90 no-underline text-2xl drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" aria-label="Back to Home">
           🌍
+        </Link>
+        <Link href={CITY_PATH} className="text-white/90 no-underline text-2xl drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" aria-label="Go to the city">
+          🏛️
         </Link>
       </div>
 

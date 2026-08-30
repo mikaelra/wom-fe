@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
 import { APP_VERSION, BUILD_NUMBER } from '@/config';
+import { CITY_PATH } from '@/lib/cities';
 
 const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
@@ -96,14 +97,25 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
       <div className="w-full max-w-xl">
         <div className="flex items-center justify-between mb-6">
-          <button
-            type="button"
-            onClick={() => router.push('/')}
-            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
-            aria-label="Back to Home"
-          >
-            🌍
-          </button>
+          {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+          <span className="emoji-pair inline-flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+              aria-label="Back to Home"
+            >
+              🌍
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push(CITY_PATH)}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+              aria-label="Go to the city"
+            >
+              🏛️
+            </button>
+          </span>
           <h1 className="text-2xl font-bold tracking-wide">Settings</h1>
         </div>
 

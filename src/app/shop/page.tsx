@@ -8,6 +8,7 @@ import { ApiError, getStoredAccountToken } from '@/lib/http';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 import { skinLabel, skinUrl } from '@/lib/frogSkins';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
+import { CITY_PATH } from '@/lib/cities';
 
 function formatPrice(cents: number, currency: string): string {
   try {
@@ -183,13 +184,23 @@ export default function ShopPage() {
       <div className="w-full max-w-2xl">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
-              aria-label="Back to Home"
-            >
-              🌍
-            </Link>
+            {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+            <span className="emoji-pair inline-flex items-center gap-2">
+              <Link
+                href="/"
+                className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+                aria-label="Back to Home"
+              >
+                🌍
+              </Link>
+              <Link
+                href={CITY_PATH}
+                className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+                aria-label="Go to the city"
+              >
+                🏛️
+              </Link>
+            </span>
             <Link
               href="/inventory"
               className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-white/20 transition-colors no-underline"

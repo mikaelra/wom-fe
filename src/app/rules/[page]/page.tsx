@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import GuideStepPreview from '@/components/rules/GuideStepPreview';
 import { GUIDE_STEPS } from '@/lib/guideSteps';
+import { CITY_PATH } from '@/lib/cities';
 
 const PAGE_NUMBERS = GUIDE_STEPS.map((_, i) => `p${i + 1}`);
 
@@ -59,9 +60,15 @@ export default async function RulesWalkerPage({ params }: { params: Promise<{ pa
               ← Previous
             </Link>
           )}
-          <Link href="/" className="no-underline" style={{ fontSize: '1.5rem' }} aria-label="Back to Home">
-            🌍
-          </Link>
+          {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+          <span className="emoji-pair inline-flex items-center gap-2">
+            <Link href="/" className="no-underline" style={{ fontSize: '1.5rem' }} aria-label="Back to Home">
+              🌍
+            </Link>
+            <Link href={CITY_PATH} className="no-underline" style={{ fontSize: '1.5rem' }} aria-label="Go to the city">
+              🏛️
+            </Link>
+          </span>
           {!isLast && (
             <Link href={`/rules/${nextPage}`} className="underline text-blue-600" style={{ fontSize: '1.5rem' }}>
               Next →
