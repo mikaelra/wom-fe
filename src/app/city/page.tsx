@@ -9,6 +9,7 @@ import AuthGatePopup from '@/components/AuthGatePopup';
 import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
 import { findCity } from '@/lib/cities';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
+import { useEnterRanked } from '@/lib/useEnterRanked';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 
 const CityScene = dynamic(() => import('@/components/city/CityScene'), { ssr: false });
@@ -32,6 +33,7 @@ function CityPageContent() {
   const city = findCity(searchParams.get('id'));
 
   const { enterBossfight, loading, gateOpen, closeGate, authFlow } = useEnterBossfight();
+  const ranked = useEnterRanked();
   // Same countdown the world map used to show under the Athens sword; it now
   // reads under the signpost's Bossfight arm.
   const { bossfightMins, bossfightSecs } = useBossfightCountdown(true);
@@ -67,7 +69,13 @@ function CityPageContent() {
         gl={{ powerPreference: 'high-performance' }}
         style={{ position: 'absolute', inset: 0 }}
       >
-        <CityScene onBossfight={enterBossfight} bossfightSublabel={bossfightSublabel} />
+        <CityScene
+          onBossfight={enterBossfight}
+          bossfightSublabel={bossfightSublabel}
+          onRanked={ranked.enterRanked}
+          rankedLabel={ranked.label}
+          rankedSublabel={ranked.sublabel}
+        />
       </Canvas>
       <CityOverlay city={city} />
 
@@ -86,6 +94,18 @@ function CityPageContent() {
           submitLabel="Enter Bossfight"
           submitLoadingLabel="Entering..."
           onClose={closeGate}
+        />
+      )}
+
+      {ranked.gateOpen && (
+        <AuthGatePopup
+          authFlow={ranked.authFlow}
+          accent="blue"
+          title="Play Ranked"
+          blurb="Choose a battle name to join the ranked queue."
+          submitLabel="Continue"
+          submitLoadingLabel="Checking..."
+          onClose={ranked.closeGate}
         />
       )}
     </div>

@@ -1,11 +1,14 @@
 # City Scene Plan — Greece, the Signpost, and the Real Sky
 
-Status: **in progress — steps 1–2 of §13 built** · Scope: `wom-fe` only (no backend,
+Status: **in progress — steps 1–7 of §13 built** · Scope: `wom-fe` only (no backend,
 no protocol change) · Written: 2026-08-30 · Last updated: 2026-08-30
 
-> **Implementation notes.** `refactor/auth-gate-popup` (step 1) and `feat/sky-local`
-> (step 2) are pushed. Building step 2 disproved two claims in §6.3 below; both are
-> corrected in place and flagged with **[corrected]** so the history is legible.
+> **Implementation notes.** Steps 1–7 are built on the `city-scene` branch, which
+> carries the running work. Building them disproved four things this plan asserted
+> — the rotation matrix and lunar parallax in §6.3, the camera model in §5.3, and
+> the step ordering in §13 — all corrected in place and flagged **[corrected]** so
+> the history stays legible. Still to come: the real sky (steps 8–11), the Senate
+> model, and the arcs.
 Depends on: `docs/ASPECTS_PLAN.md` (the `Sky` snapshot and aspect maths this reuses
 wholesale), `docs/MOBILE_AND_STEAM_PLAN.md` §5.3 (why the route shape is a query
 param, not a path segment), `docs/ART_STYLE_PLAN.md` (§0 is amended by this plan —
@@ -631,8 +634,8 @@ LD models.
 | Asset | Status | Note |
 |---|---|---|
 | Temple building | **exists** — `public/models/temple.glb` | `ART_STYLE_PLAN.md` §5 lists it as a keeper |
-| Senate building | **must be made** | New GLB; classical portico + steps, must sit beside `temple.glb` without clashing |
-| Signpost + arms | **must be made** | Wooden post, two carved arms. `red_arrow_v1.glb` may work as a pointer motif |
+| Senate building | **placeholder built** | `components/city/Senate.tsx` — procedural stepped base, colonnade, entablature and pediment. Deliberately plain so it reads as provisional. Still wants a real GLB; the interaction wrapper does not care what is inside |
+| Signpost + arms | **placeholder built** | `components/city/Signpost.tsx` — post, arms and pointed tips from primitives. Same reasoning as the Senate: a stock model would quietly become permanent |
 | Sky gradient | procedural | Drive from `nightness` (§6.4); no asset needed |
 | Body glyphs (☉☾♀♂♃♄☿) | text | Unicode is fine to start; hand-drawn later per `ART_STYLE_PLAN.md` |
 | Gaze label styling | CSS | No frame art needed — a label over the sky should be light; `RopedFrame` would be too heavy here |

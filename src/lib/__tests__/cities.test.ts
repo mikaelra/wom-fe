@@ -34,11 +34,13 @@ describe('marker labels', () => {
     expect(athens.actionLabel).toBe('GREECE');
   });
 
-  it('leaves New York unlabelled, because its pill is live queue state', () => {
-    const ny = CITIES.find((c) => c.name === 'New York');
-    // Still present until step 7 moves ranked into the city.
-    expect(ny).toBeDefined();
-    expect(ny!.actionLabel).toBeUndefined();
+  it('leaves the globe with a single marker, now that ranked lives in the city', () => {
+    // docs/CITY_SCENE_PLAN.md step 7: New York existed only to launch the
+    // ranked queue. Ranked is reached from the Senate and the signpost's
+    // right arm inside Athens, so the marker went with it and the globe
+    // stops competing with itself for attention.
+    expect(CITIES.find((c) => c.name === 'New York')).toBeUndefined();
+    expect(CITIES.map((c) => c.name)).toEqual(['Athens']);
   });
 });
 

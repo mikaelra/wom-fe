@@ -5,7 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
-import CityMarker, { type RankedLabelInfo } from './CityMarker';
+import CityMarker from './CityMarker';
 import GlobeCrackleEffect from './GlobeCrackleEffect';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
@@ -994,11 +994,10 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
 
 interface GlobeProps {
   onCityClick: (city: City) => void;
-  rankedInfo?: RankedLabelInfo;
   onReady?: () => void;
 }
 
-function Globe({ onCityClick, rankedInfo, onReady }: GlobeProps) {
+function Globe({ onCityClick, onReady }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
   // Epicenter for the crackle effect — Athens on the globe surface
@@ -1087,7 +1086,6 @@ function Globe({ onCityClick, rankedInfo, onReady }: GlobeProps) {
           city={city}
           globeRadius={GLOBE_RADIUS}
           onClick={onCityClick}
-          rankedInfo={city.name === 'New York' ? rankedInfo : undefined}
         />
       ))}
 
@@ -1113,22 +1111,7 @@ const _yAxis    = new THREE.Vector3(0, 1, 0);
 
 const CAMERA_RADIUS = 13;
 
-// Used to zoom the camera in on New York while the ranked queue is
-// searching (see RankedZoomRig below).
-const NEW_YORK_DIR = (() => {
-  const newYork = CITIES.find((c) => c.name === 'New York')!;
-  const [x, y, z] = latLngToVec3(newYork.lat, newYork.lng, 1);
-  return new THREE.Vector3(x, y, z).applyAxisAngle(_yAxis, EARTH_ROTATION_Y).normalize();
-})();
-// Closer than the ambient CAMERA_RADIUS (13) so New York reads clearly
-// while its "Searching..." label is the thing the player is waiting on.
-const RANKED_ZOOM_RADIUS = 6;
-const RANKED_ZOOM_SECONDS = 1.6;
 
-// Camera behaviour: OrbitControls owns azimuth/autoRotate (and user drag)
-// from the very first frame. This rig only adds the slow sky-drift shared
-// with the planet/ecliptic groups so the camera stays locked to the
-// ecliptic plane as the sky drifts.
 function CameraRig({
   paused,
 }: {
@@ -1162,65 +1145,6 @@ function CameraRig({
   return null;
 }
 
-// Zooms the camera in on New York while `active` (the ranked queue is
-// searching for a match) so the "Searching..." label reads clearly, instead
-// of leaving it small and easy to lose on the ambient wide shot. Eases both
-// in and back out with a smoothstep rather than a hard cut; on the way back
-// out it returns to exactly the camera pose it left the ambient orbit at,
-// so CameraRig (paused meanwhile, see `paused` above) picks back up clean.
-function RankedZoomRig({ active }: { active: boolean }) {
-  const { camera } = useThree();
-  const wasActive = useRef(false);
-  const transitioning = useRef(false);
-  const elapsed = useRef(0);
-  const startPos = useRef(new THREE.Vector3());
-  const startUp = useRef(new THREE.Vector3());
-  const targetPos = useRef(new THREE.Vector3());
-  const targetUp = useRef(new THREE.Vector3());
-  // Camera pose captured the instant the zoom-in starts, so cancelling can
-  // ease back to exactly where the ambient orbit was left.
-  const preZoomPos = useRef(new THREE.Vector3());
-  const preZoomUp = useRef(new THREE.Vector3());
-
-  useFrame((_, delta) => {
-    if (active && !wasActive.current) {
-      preZoomPos.current.copy(camera.position);
-      preZoomUp.current.copy(camera.up);
-      startPos.current.copy(camera.position);
-      startUp.current.copy(camera.up);
-      targetPos.current.copy(NEW_YORK_DIR).multiplyScalar(RANKED_ZOOM_RADIUS);
-      targetUp.current.copy(ECLIPTIC_POLE);
-      elapsed.current = 0;
-      transitioning.current = true;
-    } else if (!active && wasActive.current) {
-      startPos.current.copy(camera.position);
-      startUp.current.copy(camera.up);
-      targetPos.current.copy(preZoomPos.current);
-      targetUp.current.copy(preZoomUp.current);
-      elapsed.current = 0;
-      transitioning.current = true;
-    }
-    wasActive.current = active;
-
-    if (transitioning.current) {
-      elapsed.current += delta;
-      const t = Math.min(elapsed.current / RANKED_ZOOM_SECONDS, 1);
-      const eased = t * t * (3 - 2 * t); // smoothstep
-      camera.position.lerpVectors(startPos.current, targetPos.current, eased);
-      camera.up.lerpVectors(startUp.current, targetUp.current, eased).normalize();
-      camera.lookAt(0, 0, 0);
-      if (t >= 1) transitioning.current = false;
-    } else if (active) {
-      // Hold steady on New York for the rest of the search.
-      camera.position.copy(targetPos.current);
-      camera.up.copy(targetUp.current);
-      camera.lookAt(0, 0, 0);
-    }
-  });
-
-  return null;
-}
-
 // ── WorldMap ───────────────────────────────────────────────────────────────
 //
 // Progressive load phases (staggered with timers so the UI stays responsive):
@@ -1236,17 +1160,13 @@ function RankedZoomRig({ active }: { active: boolean }) {
 
 interface WorldMapProps {
   onCityClick: (city: City) => void;
-  rankedInfo?: RankedLabelInfo;
 }
 
-export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
+export default function WorldMap({ onCityClick }: WorldMapProps) {
   const [phase, setPhase] = useState(0);
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
   const [globeReady, setGlobeReady] = useState(false);
-  // True while the ranked queue is searching -- camera zooms in and locks
-  // onto New York for the duration (see RankedZoomRig).
-  const rankedSearching = rankedInfo?.status === 'searching';
 
   // Phase 1: mount the Globe immediately.
   useEffect(() => { setPhase(1); }, []);
@@ -1269,8 +1189,7 @@ export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
 
   return (
     <>
-      <CameraRig paused={rankedSearching} />
-      <RankedZoomRig active={rankedSearching} />
+      <CameraRig />
       <color attach="background" args={['#070b15']} />
       {/* Raised from 0.05 so the dark side of the globe stays readable */}
       <ambientLight intensity={0.12} />
@@ -1288,7 +1207,7 @@ export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
           textures are ready without waiting for moon/star textures. */}
       {phase >= 1 && (
         <Suspense fallback={null}>
-          <Globe onCityClick={onCityClick} rankedInfo={rankedInfo} onReady={() => setGlobeReady(true)} />
+          <Globe onCityClick={onCityClick} onReady={() => setGlobeReady(true)} />
         </Suspense>
       )}
 
@@ -1305,12 +1224,11 @@ export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
 
       <OrbitControls
         makeDefault
-        enabled={!rankedSearching}
         enablePan={false}
         enableZoom
         minDistance={4}
         maxDistance={18}
-        autoRotate={!rankedSearching}
+        autoRotate
         autoRotateSpeed={0.4}
         maxPolarAngle={Math.PI * 0.80}
         minPolarAngle={Math.PI * 0.10}

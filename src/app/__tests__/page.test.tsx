@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import * as THREE from 'three';
 import Page from '@/app/page';
@@ -13,7 +13,6 @@ import {
   leaveRankedQueue,
 } from '@/lib/api';
 import type { City } from '@/lib/cities';
-import type { RankedLabelInfo } from '@/components/worldmap/CityMarker';
 import * as socketModule from '@/lib/socket';
 
 const push = vi.fn();
@@ -80,14 +79,11 @@ vi.mock('@react-three/fiber', () => ({
 const ATHENS: City = { id: 1, name: 'Athens', country: 'Greece', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '' };
 const VAULT: City = { id: 2, name: 'Vault City', country: '', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '', isVault: true };
 const RULES: City = { id: 3, name: 'Rules City', country: '', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '', isRules: true };
-const NEW_YORK: City = { id: 4, name: 'New York', country: 'USA', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '' };
 
 let cityClickHandler: ((city: City) => void) | undefined;
-let lastRankedInfo: RankedLabelInfo | undefined;
 vi.mock('@/components/worldmap/WorldMap', () => ({
-  default: ({ onCityClick, rankedInfo }: { onCityClick: (city: City) => void; rankedInfo?: RankedLabelInfo }) => {
+  default: ({ onCityClick }: { onCityClick: (city: City) => void }) => {
     cityClickHandler = onCityClick;
-    lastRankedInfo = rankedInfo;
     return null;
   },
 }));
@@ -116,12 +112,10 @@ const clickCity = async (city: City) => {
   await act(async () => { cityClickHandler!(city); await flush(); });
 };
 const clickAthens = () => clickCity(ATHENS);
-const clickNewYork = () => clickCity(NEW_YORK);
 
 beforeEach(() => {
   push.mockClear();
   cityClickHandler = undefined;
-  lastRankedInfo = undefined;
   mockedCheckName.mockReset();
   mockedLogInUser.mockReset();
   mockedVerifyLoginCode.mockReset();
@@ -179,104 +173,5 @@ describe('Page (world map view, city routing)', () => {
     await clickCity(RULES);
     expect(push).toHaveBeenCalledWith('/rules');
     expect(screen.queryByText('Enter the Hades Bossfight')).not.toBeInTheDocument();
-  });
-});
-
-describe('Page (world map view, New York ranked queue)', () => {
-  it('opens the ranked popup when logged out, and starts the queue for an unclaimed name', async () => {
-    mockedCheckName.mockResolvedValue({ claimed: false });
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
-    render(<Page />);
-
-    await clickNewYork();
-    expect(screen.getByText('Play Ranked')).toBeInTheDocument();
-    expect(lastRankedInfo?.status).toBe('idle');
-
-    fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Continue'));
-      await flush();
-    });
-
-    expect(mockedCheckName).toHaveBeenCalledWith('Alice');
-    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
-    expect(mockedJoinRankedQueue).toHaveBeenCalledWith('Alice');
-    expect(localStorage.getItem('playerName')).toBe('Alice');
-    expect(screen.queryByText('Play Ranked')).not.toBeInTheDocument();
-    expect(lastRankedInfo?.status).toBe('searching');
-  });
-
-  it('starts the ranked queue directly when already logged in, reporting searching status', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
-    render(<Page />);
-
-    await clickNewYork();
-
-    expect(mockedCheckName).not.toHaveBeenCalled();
-    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
-    expect(lastRankedInfo?.status).toBe('searching');
-  });
-
-  it('cancels the ranked queue on a second click while searching', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
-    mockedLeaveRankedQueue.mockResolvedValue({ status: 'left', was_queued: true });
-    render(<Page />);
-
-    await clickNewYork();
-    expect(lastRankedInfo?.status).toBe('searching');
-
-    await clickNewYork();
-    expect(mockedLeaveRankedQueue).toHaveBeenCalledWith('Alice');
-    expect(lastRankedInfo?.status).toBe('idle');
-  });
-
-  it('lands the matched player via join_room and navigates, mirroring the lobby-join pattern', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
-    render(<Page />);
-
-    await clickNewYork();
-
-    act(() => {
-      socket.__fireSubscribeEvent('ranked_match_found', { lobby_id: 'RNKD', token: 'tok-1' });
-    });
-
-    expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'RNKD', token: 'tok-1' });
-    expect(push).toHaveBeenCalledWith('/lobby?id=RNKD');
-  });
-
-  it('reports an active match on mount, and navigates to it on click instead of re-queueing', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedGetActiveRankedLobby.mockResolvedValue({
-      lobby_id: 'RNKD',
-      token: 'tok-active',
-      ranked_countdown_deadline: new Date(Date.now() + 30_000).toISOString(),
-      started: false,
-    });
-    render(<Page />);
-    await waitFor(() => expect(lastRankedInfo?.status).toBe('activeMatch'));
-
-    expect(mockedGetActiveRankedLobby).toHaveBeenCalledWith('Alice');
-    expect(lastRankedInfo?.activeMatchStarted).toBe(false);
-
-    await clickNewYork();
-    expect(mockedJoinRankedQueue).not.toHaveBeenCalled();
-    expect(push).toHaveBeenCalledWith('/lobby?id=RNKD');
-  });
-
-  it('reports the match as started once the countdown deadline has passed', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedGetActiveRankedLobby.mockResolvedValue({
-      lobby_id: 'RNKD',
-      token: 'tok-active',
-      ranked_countdown_deadline: null,
-      started: true,
-    });
-    render(<Page />);
-    await waitFor(() => expect(lastRankedInfo?.status).toBe('activeMatch'));
-
-    expect(lastRankedInfo?.activeMatchStarted).toBe(true);
   });
 });

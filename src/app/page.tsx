@@ -10,17 +10,9 @@ import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import ExplosionEffect from '@/components/ExplosionEffect';
 import HomeOverlay from '@/components/home/HomeOverlay';
-import AuthGatePopup from '@/components/AuthGatePopup';
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
-import type { RankedLabelInfo } from '@/components/worldmap/CityMarker';
-import { getActiveRankedLobby } from '@/lib/api';
-import { useAuthFlow } from '@/lib/useAuthFlow';
-import { useRankedQueue } from '@/lib/useRankedQueue';
-import { useCountdown } from '@/lib/useCountdown';
-import { setStoredToken } from '@/lib/http';
-import { useToast } from '@/components/Toast';
 
 // Dynamically import heavy 3D models
 const PlayerV1 = dynamic(() => import('../components/Playerv1'), { ssr: false });
@@ -182,113 +174,11 @@ export default function Page() {
 
 
   const router = useRouter();
-  const { showError } = useToast();
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setSceneReady(true));
     return () => cancelAnimationFrame(raf);
   }, []);
-
-  // ---- Ranked queue handlers (New York sword) --------------------------------
-  // Moved here from WorldMapOverlay's "Play Ranked" button -- the queue
-  // state/text now lives on the New York marker's label instead, following
-  // the same pattern as Athens' bossfight countdown above.
-  const [showRankedPopup, setShowRankedPopup] = useState(false);
-  const [rankedLoading, setRankedLoading] = useState(false);
-  const rankedQueue = useRankedQueue();
-
-  // A ranked match this player is already in (matched, then left via "Back
-  // to Home" -- that only navigates away, it never leaves the lobby
-  // server-side, see wom-be's sockets/lobby.py handle_disconnect) or is
-  // mid-game in. Checked once per mount, same lifetime as the ranked/well
-  // profile fetches on the Stats page.
-  const [activeMatch, setActiveMatch] = useState<{
-    lobbyId: string;
-    deadline: string | null;
-    started: boolean;
-  } | null>(null);
-  const activeMatchSecondsLeft = useCountdown(activeMatch?.started ? null : activeMatch?.deadline);
-
-  useEffect(() => {
-    const name = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
-    if (!name) return;
-    getActiveRankedLobby(name)
-      .then((data) => {
-        if (!data.lobby_id || !data.token) return;
-        setStoredToken(data.lobby_id, data.token);
-        setActiveMatch({ lobbyId: data.lobby_id, deadline: data.ranked_countdown_deadline, started: data.started });
-      })
-      .catch(() => {
-        // Best-effort -- worst case the player just sees "Play Ranked"
-        // again and the backend's own duplicate-name guard still protects
-        // them if they re-queue while actually still in the old match.
-      });
-  }, []);
-
-  // Animated "" -> "." -> ".." -> "..." while queued, so the New York
-  // label's "Searching" text reads as active rather than stalled. Starts
-  // at 0 dots (bare "Searching") -- it used to start at 1 and cycle
-  // 1/2/3/1/2/3..., which meant the label always had at least one dot and
-  // never actually showed the plain "Searching" state.
-  const [searchingDots, setSearchingDots] = useState(0);
-  useEffect(() => {
-    if (rankedQueue.status !== 'searching') return;
-    const id = setInterval(() => setSearchingDots((d) => (d + 1) % 4), 500);
-    return () => clearInterval(id);
-  }, [rankedQueue.status]);
-
-  const doRanked = useCallback(async (name: string) => {
-    setRankedLoading(true);
-    try {
-      await rankedQueue.startQueue(name);
-      if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to join the ranked queue');
-    } finally {
-      setRankedLoading(false);
-    }
-  }, [rankedQueue, showError]);
-
-  const proceedRanked = useCallback((name: string, email: string) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('playerName', name);
-      if (email) localStorage.setItem('playerEmail', email);
-    }
-    setShowRankedPopup(false);
-    doRanked(name);
-  }, [doRanked]);
-
-  const rankedAuthFlow = useAuthFlow({
-    submitErrorFallback: 'Failed to join the ranked queue.',
-    onAuthenticated: proceedRanked,
-  });
-  const resetRankedAuthFlow = rankedAuthFlow.reset;
-
-  const handleRankedClick = useCallback(() => {
-    if (rankedQueue.status === 'searching') {
-      rankedQueue.cancelQueue();
-      return;
-    }
-    if (activeMatch) {
-      router.push(`/lobby?id=${activeMatch.lobbyId}`);
-      return;
-    }
-    if (rankedLoading) return;
-    const name = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
-    if (!name) {
-      resetRankedAuthFlow();
-      setShowRankedPopup(true);
-      return;
-    }
-    doRanked(name);
-  }, [rankedQueue, activeMatch, rankedLoading, router, doRanked, resetRankedAuthFlow]);
-
-  const rankedInfo: RankedLabelInfo = {
-    status: rankedQueue.status === 'searching' ? 'searching' : activeMatch ? 'activeMatch' : 'idle',
-    searchingDots,
-    activeMatchStarted: activeMatch?.started,
-    activeMatchSecondsLeft,
-  };
 
   const handleCityClick = useCallback((city: City) => {
     if (city.isVault) {
@@ -306,13 +196,8 @@ export default function Page() {
       router.push(`/city?id=${city.id}`);
       return;
     }
-    // New York → ranked queue instead of the City Hub
-    if (city.name === 'New York') {
-      handleRankedClick();
-      return;
-    }
     setSelectedCity(city);
-  }, [router, handleRankedClick]);
+  }, [router]);
 
   const handleBackToMap = useCallback(() => {
     setSelectedCity(null);
@@ -325,24 +210,8 @@ export default function Page() {
         <WorldMapOverlay />
         {sceneReady && (
           <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
-            <WorldMap
-              onCityClick={handleCityClick}
-              rankedInfo={rankedInfo}
-            />
+            <WorldMap onCityClick={handleCityClick} />
           </Canvas>
-        )}
-
-        {/* Ranked queue login popup — shown when clicking the New York sword with no stored name */}
-        {showRankedPopup && (
-          <AuthGatePopup
-            authFlow={rankedAuthFlow}
-            accent="blue"
-            title="Play Ranked"
-            blurb="Choose a battle name to join the ranked queue."
-            submitLabel="Continue"
-            submitLoadingLabel="Checking..."
-            onClose={() => setShowRankedPopup(false)}
-          />
         )}
 
       </div>

@@ -2,8 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import CityPage from '@/app/city/page';
-import { checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime } from '@/lib/api';
+import {
+  checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime,
+  getActiveRankedLobby, joinRankedQueue, leaveRankedQueue,
+} from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
+import * as socketModule from '@/lib/socket';
 
 const push = vi.fn();
 let searchId: string | null = 'athens';
@@ -18,7 +22,37 @@ vi.mock('@/lib/api', () => ({
   verifyLoginCode: vi.fn(),
   getBossfightLobby: vi.fn(),
   getNextBossfightTime: vi.fn(),
+  getActiveRankedLobby: vi.fn(),
+  joinRankedQueue: vi.fn(),
+  leaveRankedQueue: vi.fn(),
 }));
+
+// Same fake-subscribe pattern the world-map tests used before ranked moved
+// here -- useRankedQueue talks to the socket directly for
+// join_ranked_queue / ranked_match_found.
+vi.mock('@/lib/socket', () => {
+  const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
+  const emit = vi.fn();
+  return {
+    getSocket: () => ({ emit }),
+    subscribe: (event: string, handler: (...args: unknown[]) => void) => {
+      if (!listeners.has(event)) listeners.set(event, new Set());
+      listeners.get(event)!.add(handler);
+      return () => listeners.get(event)?.delete(handler);
+    },
+    __fireSubscribeEvent: (event: string, payload: unknown) => {
+      listeners.get(event)?.forEach((h) => h(payload));
+    },
+    __emit: emit,
+    __reset: () => { listeners.clear(); emit.mockClear(); },
+  };
+});
+
+const socket = socketModule as unknown as {
+  __fireSubscribeEvent: (event: string, payload: unknown) => void;
+  __emit: ReturnType<typeof vi.fn>;
+  __reset: () => void;
+};
 
 // R3F's real Canvas needs a WebGL context jsdom cannot provide; render
 // children directly, same approach as app/__tests__/page.test.tsx.
@@ -31,11 +65,20 @@ vi.mock('@react-three/fiber', () => ({
 // the world-map tests use on <WorldMap>. R3F scene components are not unit
 // tested in this repo (vitest.config.ts), so this is the seam.
 let bossfightHandler: (() => void) | undefined;
+let rankedHandler: (() => void) | undefined;
 let lastSublabel: string | null | undefined;
+let lastRankedLabel: string | undefined;
+let lastRankedSublabel: string | null | undefined;
 vi.mock('@/components/city/CityScene', () => ({
-  default: ({ onBossfight, bossfightSublabel }: { onBossfight: () => void; bossfightSublabel?: string | null }) => {
+  default: ({ onBossfight, bossfightSublabel, onRanked, rankedLabel, rankedSublabel }: {
+    onBossfight: () => void; bossfightSublabel?: string | null;
+    onRanked: () => void; rankedLabel: string; rankedSublabel?: string | null;
+  }) => {
     bossfightHandler = onBossfight;
     lastSublabel = bossfightSublabel;
+    rankedHandler = onRanked;
+    lastRankedLabel = rankedLabel;
+    lastRankedSublabel = rankedSublabel;
     return <div data-testid="city-scene" />;
   },
   CITY_CAMERA: [0, 5, 0.01],
@@ -47,6 +90,9 @@ const mockedLogInUser = vi.mocked(logInUser);
 const mockedVerifyLoginCode = vi.mocked(verifyLoginCode);
 const mockedGetBossfightLobby = vi.mocked(getBossfightLobby);
 const mockedGetNextBossfightTime = vi.mocked(getNextBossfightTime);
+const mockedGetActiveRankedLobby = vi.mocked(getActiveRankedLobby);
+const mockedJoinRankedQueue = vi.mocked(joinRankedQueue);
+const mockedLeaveRankedQueue = vi.mocked(leaveRankedQueue);
 
 const flush = () => act(async () => Promise.resolve());
 const renderCity = () => render(<ToastProvider><CityPage /></ToastProvider>);
@@ -56,18 +102,36 @@ const clickBossfight = async () => {
   await waitForScene();
   await act(async () => { bossfightHandler!(); await flush(); });
 };
+const clickRanked = async () => {
+  await waitForScene();
+  await act(async () => { rankedHandler!(); await flush(); });
+};
 
 beforeEach(() => {
   push.mockClear();
   searchId = 'athens';
   bossfightHandler = undefined;
+  rankedHandler = undefined;
   lastSublabel = undefined;
+  lastRankedLabel = undefined;
+  lastRankedSublabel = undefined;
+  socket.__reset();
   mockedCheckName.mockReset();
   mockedLogInUser.mockReset();
   mockedVerifyLoginCode.mockReset();
   mockedGetBossfightLobby.mockReset();
   mockedGetNextBossfightTime.mockReset();
   mockedGetNextBossfightTime.mockResolvedValue({ start_time: '2099-01-01T00:00:00Z' });
+  mockedGetActiveRankedLobby.mockReset();
+  // useEnterRanked checks for an existing match on mount whenever a name is
+  // stored, so every test with a logged-in player hits this. Default to
+  // "no active match" -- a bare mockReset() returns undefined and the hook's
+  // .then() would throw.
+  mockedGetActiveRankedLobby.mockResolvedValue({
+    lobby_id: null, token: null, ranked_countdown_deadline: null, started: false,
+  });
+  mockedJoinRankedQueue.mockReset();
+  mockedLeaveRankedQueue.mockReset();
   localStorage.clear();
 });
 
@@ -218,5 +282,110 @@ describe('CityPage (bossfight countdown)', () => {
     renderCity();
     await waitForScene();
     await waitFor(() => expect(lastSublabel).toBe('IN PROGRESS'), { timeout: 3000 });
+  });
+});
+
+// Ported from app/__tests__/page.test.tsx, where these hung off the New York
+// sword (docs/CITY_SCENE_PLAN.md step 7). Assertions moved from an internal
+// status field to the copy the arm actually shows, which is what a player
+// sees and therefore the better thing to pin.
+describe('CityPage (ranked)', () => {
+  it('shows RANKED with nothing under it when idle', async () => {
+    renderCity();
+    await waitForScene();
+    expect(lastRankedLabel).toBe('RANKED');
+    expect(lastRankedSublabel).toBeNull();
+  });
+
+  it('opens the gate when logged out, then queues for an unclaimed name', async () => {
+    mockedCheckName.mockResolvedValue({ claimed: false });
+    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+    renderCity();
+
+    await clickRanked();
+    expect(screen.getByText('Play Ranked')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
+    await act(async () => { fireEvent.click(screen.getByText('Continue')); await flush(); });
+
+    expect(mockedCheckName).toHaveBeenCalledWith('Alice');
+    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+    expect(mockedJoinRankedQueue).toHaveBeenCalledWith('Alice');
+    expect(localStorage.getItem('playerName')).toBe('Alice');
+    expect(screen.queryByText('Play Ranked')).not.toBeInTheDocument();
+    expect(lastRankedSublabel).toMatch(/^SEARCHING/);
+  });
+
+  it('queues directly when already logged in', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+    renderCity();
+
+    await clickRanked();
+
+    expect(mockedCheckName).not.toHaveBeenCalled();
+    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+    expect(lastRankedSublabel).toMatch(/^SEARCHING/);
+  });
+
+  it('cancels the queue on a second click while searching', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+    mockedLeaveRankedQueue.mockResolvedValue({ status: 'left', was_queued: true });
+    renderCity();
+
+    await clickRanked();
+    expect(lastRankedSublabel).toMatch(/^SEARCHING/);
+
+    await clickRanked();
+    expect(mockedLeaveRankedQueue).toHaveBeenCalledWith('Alice');
+    expect(lastRankedLabel).toBe('RANKED');
+    expect(lastRankedSublabel).toBeNull();
+  });
+
+  it('lands a matched player via join_room and navigates', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+    renderCity();
+
+    await clickRanked();
+    act(() => { socket.__fireSubscribeEvent('ranked_match_found', { lobby_id: 'RNKD', token: 'tok-1' }); });
+
+    expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'RNKD', token: 'tok-1' });
+    expect(push).toHaveBeenCalledWith('/lobby?id=RNKD');
+  });
+
+  it('offers a return to an existing match instead of re-queueing', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedGetActiveRankedLobby.mockResolvedValue({
+      lobby_id: 'RNKD',
+      token: 'tok-active',
+      ranked_countdown_deadline: new Date(Date.now() + 30_000).toISOString(),
+      started: false,
+    });
+    renderCity();
+    await waitForScene();
+    await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
+
+    expect(mockedGetActiveRankedLobby).toHaveBeenCalledWith('Alice');
+    expect(lastRankedSublabel).toMatch(/^STARTS IN \d+s$/);
+
+    await clickRanked();
+    expect(mockedJoinRankedQueue).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith('/lobby?id=RNKD');
+  });
+
+  it('reads GAME STARTED! once the match is under way', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedGetActiveRankedLobby.mockResolvedValue({
+      lobby_id: 'RNKD',
+      token: 'tok-active',
+      ranked_countdown_deadline: null,
+      started: true,
+    });
+    renderCity();
+    await waitForScene();
+    await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
+    expect(lastRankedSublabel).toBe('GAME STARTED!');
   });
 });
