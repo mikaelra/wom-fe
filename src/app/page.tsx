@@ -10,12 +10,13 @@ import Mountain from '@/components/mountain';
 import Table from '@/components/Table';
 import ExplosionEffect from '@/components/ExplosionEffect';
 import HomeOverlay from '@/components/home/HomeOverlay';
+import AuthGatePopup from '@/components/AuthGatePopup';
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import type { City } from '@/lib/cities';
 import type { RankedLabelInfo } from '@/components/worldmap/CityMarker';
 import { getBossfightLobby, getActiveRankedLobby } from '@/lib/api';
-import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
+import { useAuthFlow } from '@/lib/useAuthFlow';
 import { useRankedQueue } from '@/lib/useRankedQueue';
 import { useCountdown } from '@/lib/useCountdown';
 import { setStoredToken } from '@/lib/http';
@@ -376,281 +377,28 @@ export default function Page() {
 
         {/* Athens raid login popup */}
         {showAthensPopup && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-            onClick={() => setShowAthensPopup(false)}
-          >
-            <div
-              className="bg-gray-900 border border-red-700/60 text-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-xl font-bold mb-1 text-red-400">Enter the Hades Raid</h2>
-              <p className="text-sm text-white/60 mb-4">Choose a battle name to face Hades.</p>
-              <input
-                type="text"
-                maxLength={NAME_MAX_LENGTH}
-                placeholder="Your battle name"
-                value={authFlow.name}
-                onChange={(e) => authFlow.setName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') return;
-                  if (authFlow.codeMode) authFlow.handleVerifyCode();
-                  else if (authFlow.emailMode) authFlow.handleLogin();
-                  else authFlow.handleSubmitName();
-                }}
-                autoFocus
-                readOnly={authFlow.emailMode}
-                className={`w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 focus:outline-none focus:border-red-500 mb-3 ${authFlow.emailMode ? 'opacity-70' : ''}`}
-              />
-              {authFlow.error && !authFlow.emailMode && (
-                <p className="text-red-400 text-sm mb-3">{authFlow.error}</p>
-              )}
-
-              {authFlow.emailMode && (
-                <>
-                  <p className="text-sm text-white/80 mb-2">
-                    This name is claimed. Type your email if you have claimed this username.
-                  </p>
-                  <input
-                    type="email"
-                    placeholder="email"
-                    value={authFlow.email}
-                    onChange={(e) => authFlow.setEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !authFlow.codeMode) authFlow.handleLogin(); }}
-                    autoFocus={!authFlow.codeMode}
-                    readOnly={authFlow.codeMode}
-                    className={`w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 focus:outline-none focus:border-red-500 mb-1 ${authFlow.codeMode ? 'opacity-70' : ''}`}
-                  />
-                  <p className="text-xs text-white/50 mb-3">email</p>
-                  {authFlow.emailError && !authFlow.codeMode && (
-                    <p className="text-red-500 text-sm mb-3 font-semibold">{authFlow.emailError}</p>
-                  )}
-                </>
-              )}
-
-              {authFlow.codeMode && (
-                <>
-                  <p className="text-sm text-white/80 mb-2">
-                    We sent a 6-digit code to <strong>{authFlow.email}</strong>.
-                  </p>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    placeholder="6-digit code"
-                    value={authFlow.code}
-                    onChange={(e) => authFlow.setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    onKeyDown={(e) => e.key === 'Enter' && authFlow.handleVerifyCode()}
-                    autoFocus
-                    className="w-full p-2 rounded-md bg-gray-800 border border-red-700/50 text-white placeholder-white/30 tracking-[0.3em] font-mono text-center focus:outline-none focus:border-red-500 mb-3"
-                  />
-                  {authFlow.codeError && (
-                    <p className="text-red-500 text-sm mb-3 font-semibold">{authFlow.codeError}</p>
-                  )}
-                </>
-              )}
-
-              <div className="flex gap-3">
-                {authFlow.codeMode ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={authFlow.handleVerifyCode}
-                      disabled={authFlow.loading}
-                      className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {authFlow.loading ? 'Verifying...' : 'Verify'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={authFlow.backToEmailStep}
-                      disabled={authFlow.loading}
-                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      Back
-                    </button>
-                  </>
-                ) : authFlow.emailMode ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={authFlow.handleLogin}
-                      disabled={authFlow.loading}
-                      className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {authFlow.loading ? 'Logging in...' : 'Log in'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={authFlow.reset}
-                      disabled={authFlow.loading}
-                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      Choose new name
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={authFlow.handleSubmitName}
-                      disabled={authFlow.loading}
-                      className="flex-1 py-2 rounded-lg bg-red-700 hover:bg-red-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {authFlow.loading ? 'Entering...' : 'Enter Raid'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowAthensPopup(false)}
-                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+          <AuthGatePopup
+            authFlow={authFlow}
+            accent="red"
+            title="Enter the Hades Raid"
+            blurb="Choose a battle name to face Hades."
+            submitLabel="Enter Raid"
+            submitLoadingLabel="Entering..."
+            onClose={() => setShowAthensPopup(false)}
+          />
         )}
 
         {/* Ranked queue login popup — shown when clicking the New York sword with no stored name */}
         {showRankedPopup && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-            onClick={() => setShowRankedPopup(false)}
-          >
-            <div
-              className="bg-gray-900 border border-blue-700/60 text-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-xl font-bold mb-1 text-blue-400">Play Ranked</h2>
-              <p className="text-sm text-white/60 mb-4">Choose a battle name to join the ranked queue.</p>
-              <input
-                type="text"
-                maxLength={NAME_MAX_LENGTH}
-                placeholder="Your battle name"
-                value={rankedAuthFlow.name}
-                onChange={(e) => rankedAuthFlow.setName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') return;
-                  if (rankedAuthFlow.codeMode) rankedAuthFlow.handleVerifyCode();
-                  else if (rankedAuthFlow.emailMode) rankedAuthFlow.handleLogin();
-                  else rankedAuthFlow.handleSubmitName();
-                }}
-                autoFocus
-                readOnly={rankedAuthFlow.emailMode}
-                className={`w-full p-2 rounded-md bg-gray-800 border border-blue-700/50 text-white placeholder-white/30 focus:outline-none focus:border-blue-500 mb-3 ${rankedAuthFlow.emailMode ? 'opacity-70' : ''}`}
-              />
-              {rankedAuthFlow.error && !rankedAuthFlow.emailMode && (
-                <p className="text-red-400 text-sm mb-3">{rankedAuthFlow.error}</p>
-              )}
-
-              {rankedAuthFlow.emailMode && (
-                <>
-                  <p className="text-sm text-white/80 mb-2">
-                    This name is claimed. Type your email if you have claimed this username.
-                  </p>
-                  <input
-                    type="email"
-                    placeholder="email"
-                    value={rankedAuthFlow.email}
-                    onChange={(e) => rankedAuthFlow.setEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !rankedAuthFlow.codeMode) rankedAuthFlow.handleLogin(); }}
-                    autoFocus={!rankedAuthFlow.codeMode}
-                    readOnly={rankedAuthFlow.codeMode}
-                    className={`w-full p-2 rounded-md bg-gray-800 border border-blue-700/50 text-white placeholder-white/30 focus:outline-none focus:border-blue-500 mb-1 ${rankedAuthFlow.codeMode ? 'opacity-70' : ''}`}
-                  />
-                  <p className="text-xs text-white/50 mb-3">email</p>
-                  {rankedAuthFlow.emailError && !rankedAuthFlow.codeMode && (
-                    <p className="text-red-500 text-sm mb-3 font-semibold">{rankedAuthFlow.emailError}</p>
-                  )}
-                </>
-              )}
-
-              {rankedAuthFlow.codeMode && (
-                <>
-                  <p className="text-sm text-white/80 mb-2">
-                    We sent a 6-digit code to <strong>{rankedAuthFlow.email}</strong>.
-                  </p>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    placeholder="6-digit code"
-                    value={rankedAuthFlow.code}
-                    onChange={(e) => rankedAuthFlow.setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    onKeyDown={(e) => e.key === 'Enter' && rankedAuthFlow.handleVerifyCode()}
-                    autoFocus
-                    className="w-full p-2 rounded-md bg-gray-800 border border-blue-700/50 text-white placeholder-white/30 tracking-[0.3em] font-mono text-center focus:outline-none focus:border-blue-500 mb-3"
-                  />
-                  {rankedAuthFlow.codeError && (
-                    <p className="text-red-500 text-sm mb-3 font-semibold">{rankedAuthFlow.codeError}</p>
-                  )}
-                </>
-              )}
-
-              <div className="flex gap-3">
-                {rankedAuthFlow.codeMode ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={rankedAuthFlow.handleVerifyCode}
-                      disabled={rankedAuthFlow.loading}
-                      className="flex-1 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {rankedAuthFlow.loading ? 'Verifying...' : 'Verify'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={rankedAuthFlow.backToEmailStep}
-                      disabled={rankedAuthFlow.loading}
-                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      Back
-                    </button>
-                  </>
-                ) : rankedAuthFlow.emailMode ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={rankedAuthFlow.handleLogin}
-                      disabled={rankedAuthFlow.loading}
-                      className="flex-1 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {rankedAuthFlow.loading ? 'Logging in...' : 'Log in'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={rankedAuthFlow.reset}
-                      disabled={rankedAuthFlow.loading}
-                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      Choose new name
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={rankedAuthFlow.handleSubmitName}
-                      disabled={rankedAuthFlow.loading}
-                      className="flex-1 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {rankedAuthFlow.loading ? 'Checking...' : 'Continue'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowRankedPopup(false)}
-                      disabled={rankedAuthFlow.loading}
-                      className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-white transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+          <AuthGatePopup
+            authFlow={rankedAuthFlow}
+            accent="blue"
+            title="Play Ranked"
+            blurb="Choose a battle name to join the ranked queue."
+            submitLabel="Continue"
+            submitLoadingLabel="Checking..."
+            onClose={() => setShowRankedPopup(false)}
+          />
         )}
 
       </div>
