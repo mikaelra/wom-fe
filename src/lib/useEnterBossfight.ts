@@ -7,7 +7,7 @@ import { useAuthFlow } from '@/lib/useAuthFlow';
 import { useToast } from '@/components/Toast';
 
 /**
- * Entering the Hades raid, name gate and all (docs/CITY_SCENE_PLAN.md §5.2).
+ * Entering the Hades bossfight, name gate and all (docs/CITY_SCENE_PLAN.md §5.2).
  *
  * Lifted verbatim out of `app/page.tsx`, where it hung off the Athens sword,
  * so the city scene can own it instead. Behaviour is unchanged: a player with
@@ -18,7 +18,7 @@ import { useToast } from '@/components/Toast';
  * that happens is a route change, and flicking the overlay off first would
  * show a bare scene for a frame.
  */
-export function useEnterRaid() {
+export function useEnterBossfight() {
   const router = useRouter();
   const { showError } = useToast();
   const [loading, setLoading] = useState(false);
@@ -31,12 +31,12 @@ export function useEnterRaid() {
       router.push(`/lobby?id=${data.lobby_id}`);
     } catch (err) {
       setLoading(false);
-      showError(err instanceof Error ? err.message : 'Failed to enter raid.');
+      showError(err instanceof Error ? err.message : 'Failed to enter the bossfight.');
     }
   }, [router, showError]);
 
   const authFlow = useAuthFlow({
-    submitErrorFallback: 'Failed to enter raid.',
+    submitErrorFallback: 'Failed to enter the bossfight.',
     onAuthenticated: async (name, email) => {
       if (typeof window !== 'undefined') {
         localStorage.setItem('playerName', name);
@@ -47,11 +47,11 @@ export function useEnterRaid() {
     },
   });
   // authFlow is a fresh object every render, but .reset is a stable
-  // useCallback(..., []) inside the hook -- pull it out so enterRaid's own
+  // useCallback(..., []) inside the hook -- pull it out so enterBossfight's own
   // dependency list stays stable.
   const resetAuthFlow = authFlow.reset;
 
-  const enterRaid = useCallback(() => {
+  const enterBossfight = useCallback(() => {
     const name = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
     if (!name) {
       resetAuthFlow();
@@ -63,5 +63,5 @@ export function useEnterRaid() {
 
   const closeGate = useCallback(() => setGateOpen(false), []);
 
-  return { enterRaid, loading, gateOpen, closeGate, authFlow };
+  return { enterBossfight, loading, gateOpen, closeGate, authFlow };
 }

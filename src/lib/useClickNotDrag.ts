@@ -10,7 +10,7 @@ import { useCallback, useRef } from 'react';
  * signpost arms and buildings need pointer clicks to start a fight. R3F
  * fires `onClick` on pointer-up no matter how far the pointer travelled in
  * between, so a player who begins a camera drag on top of the Temple and
- * happens to release still on top of it enters the raid they never asked
+ * happens to release still on top of it enters the bossfight they never asked
  * for. A misfire here is not cosmetic -- it drops you into a boss fight.
  *
  * The same latent bug exists on the world map's swords today, against that

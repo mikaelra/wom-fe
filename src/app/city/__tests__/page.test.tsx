@@ -101,15 +101,15 @@ describe('CityPage (routing)', () => {
 // These behaviours moved here wholesale from the world map's Athens sword
 // (docs/CITY_SCENE_PLAN.md §4.4 / step 6). Kept test-for-test so the move
 // cannot quietly drop one.
-describe('CityPage (entering the raid)', () => {
+describe('CityPage (entering the bossfight)', () => {
   it('opens the name gate when logged out, without calling checkName yet', async () => {
     renderCity();
     await clickBossfight();
-    expect(screen.getByText('Enter the Hades Raid')).toBeInTheDocument();
+    expect(screen.getByText('Enter the Hades Bossfight')).toBeInTheDocument();
     expect(mockedCheckName).not.toHaveBeenCalled();
   });
 
-  it('enters the raid directly, skipping the gate, when already logged in', async () => {
+  it('enters the bossfight directly, skipping the gate, when already logged in', async () => {
     localStorage.setItem('playerName', 'Alice');
     mockedGetBossfightLobby.mockResolvedValue({ lobby_id: 'AAAA', start_time: '2026-01-01T00:00:00Z' });
     renderCity();
@@ -117,19 +117,19 @@ describe('CityPage (entering the raid)', () => {
     await clickBossfight();
 
     expect(mockedCheckName).not.toHaveBeenCalled();
-    expect(screen.queryByText('Enter the Hades Raid')).not.toBeInTheDocument();
+    expect(screen.queryByText('Enter the Hades Bossfight')).not.toBeInTheDocument();
     expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
     expect(push).toHaveBeenCalledWith('/lobby?id=AAAA');
   });
 
-  it('enters the raid for an unclaimed name, writing localStorage with no email', async () => {
+  it('enters the bossfight for an unclaimed name, writing localStorage with no email', async () => {
     mockedCheckName.mockResolvedValue({ claimed: false });
     mockedGetBossfightLobby.mockResolvedValue({ lobby_id: 'BBBB', start_time: '2026-01-01T00:00:00Z' });
     renderCity();
 
     await clickBossfight();
     fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
-    await act(async () => { fireEvent.click(screen.getByText('Enter Raid')); await flush(); });
+    await act(async () => { fireEvent.click(screen.getByText('Enter Bossfight')); await flush(); });
 
     expect(mockedCheckName).toHaveBeenCalledWith('Alice');
     expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
@@ -138,7 +138,7 @@ describe('CityPage (entering the raid)', () => {
     expect(push).toHaveBeenCalledWith('/lobby?id=BBBB');
   });
 
-  it('shows the email step for a claimed name, and enters the raid on login', async () => {
+  it('shows the email step for a claimed name, and enters the bossfight on login', async () => {
     mockedCheckName.mockResolvedValue({ claimed: true });
     mockedLogInUser.mockResolvedValue({ success: true, requires_code: false });
     mockedGetBossfightLobby.mockResolvedValue({ lobby_id: 'CCCC', start_time: '2026-01-01T00:00:00Z' });
@@ -146,7 +146,7 @@ describe('CityPage (entering the raid)', () => {
 
     await clickBossfight();
     fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
-    await act(async () => { fireEvent.click(screen.getByText('Enter Raid')); await flush(); });
+    await act(async () => { fireEvent.click(screen.getByText('Enter Bossfight')); await flush(); });
 
     expect(screen.getByPlaceholderText('email')).toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText('email'), { target: { value: 'a@b.co' } });
@@ -166,7 +166,7 @@ describe('CityPage (entering the raid)', () => {
 
     await clickBossfight();
     fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
-    await act(async () => { fireEvent.click(screen.getByText('Enter Raid')); await flush(); });
+    await act(async () => { fireEvent.click(screen.getByText('Enter Bossfight')); await flush(); });
     fireEvent.change(screen.getByPlaceholderText('email'), { target: { value: 'a@b.co' } });
     await act(async () => { fireEvent.click(screen.getByText('Log in')); await flush(); });
 
@@ -178,14 +178,14 @@ describe('CityPage (entering the raid)', () => {
     expect(push).toHaveBeenCalledWith('/lobby?id=DDDD');
   });
 
-  it('surfaces a toast and clears the loading overlay when entering the raid fails', async () => {
+  it('surfaces a toast and clears the loading overlay when entering the bossfight fails', async () => {
     localStorage.setItem('playerName', 'Alice');
-    mockedGetBossfightLobby.mockRejectedValue(new Error('Raid is full'));
+    mockedGetBossfightLobby.mockRejectedValue(new Error('Bossfight is full'));
     renderCity();
 
     await clickBossfight();
 
-    expect(await screen.findByText('Raid is full')).toBeInTheDocument();
+    expect(await screen.findByText('Bossfight is full')).toBeInTheDocument();
     expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     expect(push).not.toHaveBeenCalledWith(expect.stringContaining('/lobby'));
   });
@@ -208,7 +208,7 @@ describe('CityPage (bossfight countdown)', () => {
     await waitForScene();
     // The hook only publishes a value from inside its 1s interval, so the
     // default 1000ms waitFor window is a coin flip -- wait past two ticks.
-    await waitFor(() => expect(lastSublabel).toMatch(/^RAID IN \d+:\d{2}$/), { timeout: 3000 });
+    await waitFor(() => expect(lastSublabel).toMatch(/^BOSSFIGHT IN \d+:\d{2}$/), { timeout: 3000 });
   });
 
   it('reads IN PROGRESS once the countdown reaches zero', async () => {

@@ -136,17 +136,17 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     authFlow.reset();
   };
 
-  const handleEnterRaid = async () => {
+  const handleEnterBossfight = async () => {
     const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
     if (!playerName) {
-      showError('You must be logged in to enter the raid.');
+      showError('You must be logged in to enter the bossfight.');
       return;
     }
     try {
       const data = await getBossfightLobby(playerName);
       router.push(`/lobby?id=${data.lobby_id}`);
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to enter raid.');
+      showError(err instanceof Error ? err.message : 'Failed to enter the bossfight.');
     }
   };
 
@@ -441,7 +441,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
 
           <button
             type="button"
-            onClick={handleEnterRaid}
+            onClick={handleEnterBossfight}
             className="text-2xl bg-transparent border-none cursor-pointer underline mt-2"
             style={{ color: 'gold' }}
           >

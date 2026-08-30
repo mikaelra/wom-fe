@@ -81,7 +81,7 @@ export async function joinLobby(joinCode: string, name: string, email: string): 
 export async function getBossfightLobby(playerName: string): Promise<{ lobby_id: string; start_time: string; token?: string }> {
   const data = await request('/get_bossfight_lobby', GetBossfightLobbyResponseSchema, {
     body: { name: playerName },
-    defaultErrorMessage: 'Failed to enter boss fight.',
+    defaultErrorMessage: 'Failed to enter the bossfight.',
   });
   // token may be absent when the caller is already a member re-checking in
   // (e.g. a page refresh) -- in that case they're expected to still hold
@@ -94,7 +94,7 @@ export async function getBossfightLobby(playerName: string): Promise<{ lobby_id:
 
 export async function getNextBossfightTime(): Promise<{ start_time: string }> {
   return request('/get_next_bossfight_time', GetNextBossfightTimeResponseSchema, {
-    defaultErrorMessage: 'Failed to fetch next boss fight time',
+    defaultErrorMessage: 'Failed to fetch the next bossfight time',
   });
 }
 

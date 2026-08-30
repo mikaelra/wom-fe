@@ -35,7 +35,7 @@ This is good news: the seam this plan needs already exists and is already wired.
 It is not, however, the right implementation to keep — see §3.
 
 **0.2 — `page.tsx` is ~700 lines and carries two near-identical auth popups.**
-The Athens raid popup and the ranked queue popup are the same three-step
+The Athens bossfight popup and the ranked queue popup are the same three-step
 name → email → code flow rendered twice, differing only in colour (`red-700` vs
 `blue-700`) and copy. Roughly 200 lines are duplicated. Moving both entry points
 into the city scene is the natural moment to extract them (§8.1).
@@ -78,13 +78,30 @@ Settled in the design session that produced this document:
    to be freely lookable while the signpost and buildings stay reliably
    clickable (§5.3, §7).
 
+### 1.1 Terminology
+
+**"Bossfight" and "The Well", never "raid".** "Raid" is legacy vocabulary that
+meant *both* of them at different times, which is exactly why it had to go: the
+backend already renamed `raid_wins` to `well_wins` (migration
+`ea153b861903`), so in that sense "raid" meant the Well, while every surviving
+frontend use meant the Hades bossfight. The drift was visible in the code — one
+lobby string read `Boss-fight starts in {raidMins}m`, copy migrated, variable
+name not.
+
+Identifiers were already almost all `bossfight` (`getBossfightLobby`,
+`useBossfightCountdown`, `onBossfight`); user-facing copy carried three
+spellings ("Boss-fight", "boss fight", "BOSSFIGHT"). Both are now uniformly
+**`bossfight`** / **Bossfight**. The one deliberate exception is `isBossFight`,
+which mirrors the wire field `boss_fight` (`docs/PROTOCOL.md`) and should keep
+tracking the protocol rather than this document.
+
 ### 1.1 One open assumption, flagged
 
 Which building maps to which fight was given as "one building in the right and
 left ... (senate and temple)". This plan assumes the **thematic** mapping, which is
 the stronger reading:
 
-- **Temple (left)** → **Bossfight**. Hades, relics, the sacred raid.
+- **Temple (left)** → **Bossfight**. Hades, relics, the sacred bossfight.
 - **Senate (right)** → **Ranked**. A contest among peers, a ladder, civic rank.
 
 Both are a one-line constant swap (`CITY_BUILDINGS` in §5.2) if you want them the
@@ -98,7 +115,7 @@ other way round. Nothing else depends on the choice.
   WORLD (Earth)                CITY (Athens)                 LOBBY
   ─────────────                ─────────────                 ─────
   globe + planets              ground-level Greece           the table
-  ⚔ GREECE sword        ──▶    real sky overhead      ──▶    PvP / raid / ranked
+  ⚔ GREECE sword        ──▶    real sky overhead      ──▶    PvP / bossfight / ranked
   Create Lobby                 ⚔ signpost: 2 pointers
   Join Lobby + code            Temple (L)  Senate (R)
   Rules · Profile              Rules · Profile
@@ -181,8 +198,8 @@ solve this by keeping the globe mounted.
 - Delete the entire ranked block: `useRankedQueue`, `activeMatch`,
   `getActiveRankedLobby`, `searchingDots`, `doRanked`, `proceedRanked`,
   `rankedAuthFlow`, `handleRankedClick`, `rankedInfo`, and the ranked popup JSX.
-- Delete the Athens raid block: `enterAthensRaid`, `proceedAthens`, `authFlow`,
-  `athensSceneLoading`, and the raid popup JSX.
+- Delete the Athens bossfight block: `enterAthensRaid`, `proceedAthens`, `authFlow`,
+  `athensSceneLoading`, and the bossfight popup JSX.
 - Delete the City Hub branch, `TempleScene`, `CameraAnimator`, `PlayersAtTable`,
   `adjustSkyColor`, and the temple scene constants — all of it is either dead
   (§0.1) or superseded by the real city scene.
@@ -250,7 +267,7 @@ export const CITY_BUILDINGS = {
   mapping without a tutorial.
 - Arms carry live state as text, replacing what the globe labels used to do:
   `RANKED` → `SEARCHING…` (animated dots) → `MATCH FOUND · 12s`, and
-  `BOSSFIGHT` → `RAID IN 4:12` when a scheduled raid is pending.
+  `BOSSFIGHT` → `RAID IN 4:12` when a scheduled bossfight is pending.
 - Clicking an arm or its building triggers the action. Both go through the same
   handler; the building is not a separate code path.
 - `temple.glb` **already exists** and is listed in `ART_STYLE_PLAN.md` §5 as a
@@ -297,7 +314,7 @@ OrbitControls consumes pointer drags to rotate the camera; the signpost arms and
 the buildings need pointer clicks to activate. R3F fires `onClick` on pointer-up
 regardless of how far the pointer travelled in between, so a player who starts a
 camera drag on top of the Temple and releases still on top of it will **fire the
-raid**. Solve it once, in a shared helper, not per-object:
+bossfight**. Solve it once, in a shared helper, not per-object:
 
 ```ts
 // src/lib/useClickNotDrag.ts
@@ -672,7 +689,7 @@ coordination and no deploy ordering.
    player ever reaches the city.
 6. **Click-vs-drag (§5.3).** A camera that must be dragged and objects that must
    be clicked, in the same scene, is a classic source of misfires — and a misfire
-   here enters a raid. The shared threshold helper is not optional polish.
+   here enters a bossfight. The shared threshold helper is not optional polish.
 7. **Scope.** §6.5's arcs and ecliptic band are the most beautiful part and the
    most cuttable. They are deliberately last in the commit sequence.
 

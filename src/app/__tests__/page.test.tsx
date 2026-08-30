@@ -143,15 +143,15 @@ afterEach(() => {
 });
 
 describe('Page (world map view, city routing)', () => {
-  it('routes to the Athens city scene instead of entering the raid', async () => {
+  it('routes to the Athens city scene instead of entering the bossfight', async () => {
     render(<Page />);
     await clickAthens();
 
     expect(push).toHaveBeenCalledWith(`/city?id=${ATHENS.id}`);
-    // The raid gate moved into the city scene (docs/CITY_SCENE_PLAN.md
+    // The bossfight gate moved into the city scene (docs/CITY_SCENE_PLAN.md
     // §4.4). The world map must not open it, and must not reach for the
-    // raid endpoints at all -- not even the name check.
-    expect(screen.queryByText('Enter the Hades Raid')).not.toBeInTheDocument();
+    // bossfight endpoints at all -- not even the name check.
+    expect(screen.queryByText('Enter the Hades Bossfight')).not.toBeInTheDocument();
     expect(mockedGetBossfightLobby).not.toHaveBeenCalled();
     expect(mockedCheckName).not.toHaveBeenCalled();
   });
@@ -171,14 +171,14 @@ describe('Page (world map view, city routing)', () => {
     render(<Page />);
     await clickCity(VAULT);
     expect(push).toHaveBeenCalledWith('/vault');
-    expect(screen.queryByText('Enter the Hades Raid')).not.toBeInTheDocument();
+    expect(screen.queryByText('Enter the Hades Bossfight')).not.toBeInTheDocument();
   });
 
   it('navigates directly to the rules for a rules city, without opening the popup', async () => {
     render(<Page />);
     await clickCity(RULES);
     expect(push).toHaveBeenCalledWith('/rules');
-    expect(screen.queryByText('Enter the Hades Raid')).not.toBeInTheDocument();
+    expect(screen.queryByText('Enter the Hades Bossfight')).not.toBeInTheDocument();
   });
 });
 

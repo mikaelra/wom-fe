@@ -50,8 +50,8 @@ export type PreGameRenderOpts = {
   playerName: string;
   isAdmin: boolean;
   boss: Player | undefined;
-  raidMins: number | null;
-  raidSecs: number | null;
+  bossfightMins: number | null;
+  bossfightSecs: number | null;
   rankedSecondsLeft: number | null;
   btn: string;
   onStartGame: () => void;
@@ -76,7 +76,7 @@ export type SceneOverlayConfig = {
   showEnemyAlways?: boolean;
   showPlayerList?: boolean;
   showChat?: boolean;
-  enableRaidTimer?: boolean;
+  enableBossfightTimer?: boolean;
   /** When true the WELL/DEFEND/resource/nametag buttons are suppressed from the
    *  overlay — the 3D scene renders them anchored to the player model instead. */
   hidePlayerActionButtons?: boolean;
@@ -141,7 +141,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     showEnemyAlways = false,
     showPlayerList = false,
     showChat = false,
-    enableRaidTimer = false,
+    enableBossfightTimer = false,
     hidePlayerActionButtons = false,
     suppressEnemyPanel = false,
     stageCombatDamage = false,
@@ -306,7 +306,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   // the player's real values for every other case.
   const stagedResources = useStagedResources(state, playerName, gameEvents, { stageCombat: stageCombatDamage });
 
-  const { raidMins, raidSecs } = useBossfightCountdown(enableRaidTimer && isAlive);
+  const { bossfightMins, bossfightSecs } = useBossfightCountdown(enableBossfightTimer && isAlive);
   const rankedSecondsLeft = useCountdown(state?.ranked_countdown_deadline);
 
   // Detect if messages overflow the collapsed container. We compare the
@@ -560,8 +560,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           playerName,
           isAdmin,
           boss: enemy,
-          raidMins,
-          raidSecs,
+          bossfightMins,
+          bossfightSecs,
           rankedSecondsLeft,
           btn,
           onStartGame: handleStartGame,

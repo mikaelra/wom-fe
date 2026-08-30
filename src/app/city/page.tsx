@@ -8,7 +8,7 @@ import CityOverlay from '@/components/city/CityOverlay';
 import AuthGatePopup from '@/components/AuthGatePopup';
 import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
 import { findCity } from '@/lib/cities';
-import { useEnterRaid } from '@/lib/useEnterRaid';
+import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 
 const CityScene = dynamic(() => import('@/components/city/CityScene'), { ssr: false });
@@ -31,16 +31,16 @@ function CityPageContent() {
   const router = useRouter();
   const city = findCity(searchParams.get('id'));
 
-  const { enterRaid, loading, gateOpen, closeGate, authFlow } = useEnterRaid();
+  const { enterBossfight, loading, gateOpen, closeGate, authFlow } = useEnterBossfight();
   // Same countdown the world map used to show under the Athens sword; it now
   // reads under the signpost's Bossfight arm.
-  const { raidMins, raidSecs } = useBossfightCountdown(true);
+  const { bossfightMins, bossfightSecs } = useBossfightCountdown(true);
   const bossfightSublabel =
-    raidMins == null || raidSecs == null
+    bossfightMins == null || bossfightSecs == null
       ? null
-      : raidMins <= 0 && raidSecs <= 0
+      : bossfightMins <= 0 && bossfightSecs <= 0
         ? 'IN PROGRESS'
-        : `RAID IN ${raidMins}:${String(raidSecs).padStart(2, '0')}`;
+        : `BOSSFIGHT IN ${bossfightMins}:${String(bossfightSecs).padStart(2, '0')}`;
 
   if (!city) {
     return (
@@ -67,7 +67,7 @@ function CityPageContent() {
         gl={{ powerPreference: 'high-performance' }}
         style={{ position: 'absolute', inset: 0 }}
       >
-        <CityScene onBossfight={enterRaid} bossfightSublabel={bossfightSublabel} />
+        <CityScene onBossfight={enterBossfight} bossfightSublabel={bossfightSublabel} />
       </Canvas>
       <CityOverlay city={city} />
 
@@ -81,9 +81,9 @@ function CityPageContent() {
         <AuthGatePopup
           authFlow={authFlow}
           accent="red"
-          title="Enter the Hades Raid"
+          title="Enter the Hades Bossfight"
           blurb="Choose a battle name to face Hades."
-          submitLabel="Enter Raid"
+          submitLabel="Enter Bossfight"
           submitLoadingLabel="Entering..."
           onClose={closeGate}
         />

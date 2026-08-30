@@ -34,7 +34,7 @@ describe('isClickNotDrag', () => {
   });
 
   it('fails closed on a backwards timestamp rather than firing', () => {
-    // A clock change or synthetic event must never activate a raid entry.
+    // A clock change or synthetic event must never activate a bossfight entry.
     expect(isClickNotDrag(at(100, 100, 500), at(100, 100, 100))).toBe(false);
     expect(isClickNotDrag(at(100, 100, 0), at(100, 100, NaN))).toBe(false);
   });

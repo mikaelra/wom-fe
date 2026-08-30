@@ -34,11 +34,11 @@ export interface AuthGatePopupProps {
    *  caller still owns `onAuthenticated`. */
   authFlow: UseAuthFlowResult;
   accent: AuthGateAccent;
-  /** Heading, e.g. "Enter the Hades Raid". */
+  /** Heading, e.g. "Enter the Hades Bossfight". */
   title: string;
   /** One line under the heading explaining what the name is for. */
   blurb: string;
-  /** Primary button on the name step, e.g. "Enter Raid". */
+  /** Primary button on the name step, e.g. "Enter Bossfight". */
   submitLabel: string;
   /** Primary button on the name step while a request is in flight. */
   submitLoadingLabel: string;
@@ -55,7 +55,7 @@ const NEUTRAL_ACTION =
 
 /**
  * The name -> email -> code gate shown before an action that needs a
- * confirmed player name (the Hades raid, the ranked queue).
+ * confirmed player name (the Hades bossfight, the ranked queue).
  *
  * Extracted from two byte-for-byte-equivalent copies in `app/page.tsx`
  * that differed only in accent colour, copy, and the primary button's
@@ -206,7 +206,7 @@ export default function AuthGatePopup({
                   deliberate behaviour change in this extraction. Closing
                   the Athens popup mid-flight never cancelled the in-flight
                   checkName, so the request could still resolve and navigate
-                  the player into the raid they had just backed out of. */}
+                  the player into the bossfight they had just backed out of. */}
               <button
                 type="button"
                 onClick={onClose}

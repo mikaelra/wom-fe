@@ -19,9 +19,9 @@ function renderPopup(over: Partial<AuthGatePopupProps> = {}) {
   const props: AuthGatePopupProps = {
     authFlow: authFlow(),
     accent: 'red',
-    title: 'Enter the Hades Raid',
+    title: 'Enter the Hades Bossfight',
     blurb: 'Choose a battle name to face Hades.',
-    submitLabel: 'Enter Raid',
+    submitLabel: 'Enter Bossfight',
     submitLoadingLabel: 'Entering...',
     onClose: vi.fn(),
     ...over,
@@ -32,10 +32,10 @@ function renderPopup(over: Partial<AuthGatePopupProps> = {}) {
 describe('AuthGatePopup', () => {
   it('shows the name step first, with the caller-supplied copy', () => {
     renderPopup();
-    expect(screen.getByText('Enter the Hades Raid')).toBeInTheDocument();
+    expect(screen.getByText('Enter the Hades Bossfight')).toBeInTheDocument();
     expect(screen.getByText('Choose a battle name to face Hades.')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Your battle name')).toBeInTheDocument();
-    expect(screen.getByText('Enter Raid')).toBeInTheDocument();
+    expect(screen.getByText('Enter Bossfight')).toBeInTheDocument();
     // Later steps must not be rendered yet.
     expect(screen.queryByPlaceholderText('email')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('6-digit code')).not.toBeInTheDocument();
@@ -44,7 +44,7 @@ describe('AuthGatePopup', () => {
   it('swaps the primary label while loading, and disables both buttons', () => {
     renderPopup({ authFlow: authFlow({ loading: true }) });
     expect(screen.getByText('Entering...')).toBeInTheDocument();
-    expect(screen.queryByText('Enter Raid')).not.toBeInTheDocument();
+    expect(screen.queryByText('Enter Bossfight')).not.toBeInTheDocument();
     // The Athens original left Cancel enabled mid-flight; unified on the
     // ranked behaviour so backing out cannot race an in-flight request.
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
@@ -59,7 +59,7 @@ describe('AuthGatePopup', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
 
     // A click on the card itself must not bubble out to the backdrop.
-    fireEvent.click(screen.getByText('Enter the Hades Raid'));
+    fireEvent.click(screen.getByText('Enter the Hades Bossfight'));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -71,7 +71,7 @@ describe('AuthGatePopup', () => {
     expect(screen.getByText('Log in')).toBeInTheDocument();
     expect(screen.getByText('Choose new name')).toBeInTheDocument();
     // The name step's primary action is replaced, not stacked alongside.
-    expect(screen.queryByText('Enter Raid')).not.toBeInTheDocument();
+    expect(screen.queryByText('Enter Bossfight')).not.toBeInTheDocument();
   });
 
   it('renders the code step with the address it was sent to, and hides the email error', () => {
@@ -128,8 +128,8 @@ describe('AuthGatePopup', () => {
 
   it('applies the accent as complete Tailwind class names, never interpolated', () => {
     const { unmount } = renderPopup({ accent: 'red' });
-    expect(screen.getByText('Enter the Hades Raid')).toHaveClass('text-red-400');
-    expect(screen.getByRole('button', { name: 'Enter Raid' })).toHaveClass('bg-red-700');
+    expect(screen.getByText('Enter the Hades Bossfight')).toHaveClass('text-red-400');
+    expect(screen.getByRole('button', { name: 'Enter Bossfight' })).toHaveClass('bg-red-700');
     unmount();
 
     renderPopup({ accent: 'blue', title: 'Play Ranked', submitLabel: 'Continue' });

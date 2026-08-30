@@ -108,7 +108,7 @@ beforeEach(() => {
   mockConnection(baseState);
   mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult });
   mockedUseRoundTimer.mockReturnValue(null);
-  mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: null, raidMins: null, raidSecs: null });
+  mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: null, bossfightMins: null, bossfightSecs: null });
   mockedUseGameEvents.mockReturnValue(null);
   mockedUseStagedResources.mockReturnValue(null);
 });
@@ -156,7 +156,7 @@ describe('pre-game delegation', () => {
       isAdmin: true,
       enemy: undefined,
     });
-    mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: 90, raidMins: 1, raidSecs: 30 });
+    mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: 90, bossfightMins: 1, bossfightSecs: 30 });
     const renderPreGame = vi.fn(() => <div data-testid="pre-game" />);
 
     render(
@@ -173,8 +173,8 @@ describe('pre-game delegation', () => {
       lobbyId: 'AAAA',
       isAdmin: true,
       boss: undefined,
-      raidMins: 1,
-      raidSecs: 30,
+      bossfightMins: 1,
+      bossfightSecs: 30,
     }));
   });
 

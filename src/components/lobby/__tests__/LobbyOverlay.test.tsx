@@ -269,8 +269,8 @@ describe('renderPreGame', () => {
     playerName: 'Alice',
     isAdmin: false,
     boss: undefined,
-    raidMins: null,
-    raidSecs: null,
+    bossfightMins: null,
+    bossfightSecs: null,
     rankedSecondsLeft: null,
     btn: '',
     onStartGame: vi.fn(),
@@ -392,12 +392,12 @@ describe('renderPreGame', () => {
       ...baseOpts,
       state: { ...baseState, boss_fight: true },
       boss,
-      raidMins: 1,
-      raidSecs: 30,
+      bossfightMins: 1,
+      bossfightSecs: 30,
     })}</>);
     expect(screen.getByText('Hades')).toBeInTheDocument();
     expect(screen.getByText('Lord of the Underworld')).toBeInTheDocument();
-    expect(screen.getByText('Boss-fight starts in 1m 30s')).toBeInTheDocument();
+    expect(screen.getByText('Bossfight starts in 1m 30s')).toBeInTheDocument();
     expect(screen.queryByText(/Lobby ID/)).not.toBeInTheDocument();
   });
 

@@ -304,8 +304,8 @@ export function renderPreGame({
   lobbyId,
   isAdmin,
   boss,
-  raidMins,
-  raidSecs,
+  bossfightMins,
+  bossfightSecs,
   rankedSecondsLeft,
   btn,
   onStartGame,
@@ -333,8 +333,8 @@ export function renderPreGame({
             <p className="font-bold">{boss.name}</p>
             <p className="text-white/60 text-xs">{boss.title}</p>
             <p className="text-sm">HP: {boss.hp}</p>
-            {raidMins != null && raidSecs != null && (
-              <p className="text-white/60 text-xs">Boss-fight starts in {raidMins}m {raidSecs}s</p>
+            {bossfightMins != null && bossfightSecs != null && (
+              <p className="text-white/60 text-xs">Bossfight starts in {bossfightMins}m {bossfightSecs}s</p>
             )}
           </div>
         ) : state.ranked ? (
@@ -425,7 +425,7 @@ const lobbyConfig: SceneOverlayConfig = {
   showEnemyAlways: false,
   showPlayerList: true,
   showChat: true,
-  enableRaidTimer: true,
+  enableBossfightTimer: true,
   hidePlayerActionButtons: true,
   stageCombatDamage: true,
   renderGameOver,

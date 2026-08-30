@@ -70,11 +70,11 @@ export const SIGNPOST_POSITION: [number, number, number] = [0, 0, -11];
 const BOSSFIGHT_COLOR = '#4da6ff';
 
 export interface CitySceneProps {
-  /** Enter the Hades raid -- the Temple and the signpost's left arm both
+  /** Enter the Hades bossfight -- the Temple and the signpost's left arm both
    *  call this, so the building is a second, larger target for the same
    *  action rather than a separate code path. */
   onBossfight: () => void;
-  /** Live countdown shown under the arm's label, e.g. "RAID IN 4:12". */
+  /** Live countdown shown under the arm's label, e.g. "BOSSFIGHT IN 4:12". */
   bossfightSublabel?: string | null;
 }
 

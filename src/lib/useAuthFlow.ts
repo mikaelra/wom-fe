@@ -62,7 +62,7 @@ export interface UseAuthFlowResult {
 /**
  * The checkName -> claimed? -> logInUser -> requires_code? -> verifyLoginCode
  * flow, shared by the "single action, always checkName-gated" call sites
- * (the Athens raid popup, the lobby join form). Presentation-free: callers
+ * (the Athens bossfight popup, the lobby join form). Presentation-free: callers
  * own their own JSX and supply `onAuthenticated` for whatever should happen
  * once a name is confirmed usable.
  */

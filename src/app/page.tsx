@@ -192,7 +192,7 @@ export default function Page() {
   // ---- Ranked queue handlers (New York sword) --------------------------------
   // Moved here from WorldMapOverlay's "Play Ranked" button -- the queue
   // state/text now lives on the New York marker's label instead, following
-  // the same pattern as Athens' raid countdown above.
+  // the same pattern as Athens' bossfight countdown above.
   const [showRankedPopup, setShowRankedPopup] = useState(false);
   const [rankedLoading, setRankedLoading] = useState(false);
   const rankedQueue = useRankedQueue();
@@ -299,7 +299,7 @@ export default function Page() {
       router.push('/rules');
       return;
     }
-    // Athens → the city scene, which is where the raid now starts from
+    // Athens → the city scene, which is where the bossfight now starts from
     // (docs/CITY_SCENE_PLAN.md §4.4). The sword reads GREECE; the scene
     // behind it is the city.
     if (city.name === 'Athens') {

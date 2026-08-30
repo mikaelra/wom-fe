@@ -5,9 +5,9 @@ export interface BossfightCountdown {
   /** Total seconds until the next scheduled boss fight. */
   secondsUntil: number | null;
   /** `secondsUntil` split into whole minutes... */
-  raidMins: number | null;
+  bossfightMins: number | null;
   /** ...and the remaining seconds. */
-  raidSecs: number | null;
+  bossfightSecs: number | null;
 }
 
 /**
@@ -44,8 +44,8 @@ export function useBossfightCountdown(enabled: boolean): BossfightCountdown {
     };
   }, [enabled]);
 
-  const raidMins = secondsUntil == null ? null : Math.floor(secondsUntil / 60);
-  const raidSecs = secondsUntil == null ? null : Math.floor(secondsUntil % 60);
+  const bossfightMins = secondsUntil == null ? null : Math.floor(secondsUntil / 60);
+  const bossfightSecs = secondsUntil == null ? null : Math.floor(secondsUntil % 60);
 
-  return { secondsUntil, raidMins, raidSecs };
+  return { secondsUntil, bossfightMins, bossfightSecs };
 }
