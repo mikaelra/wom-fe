@@ -37,10 +37,6 @@ function CityPageContent() {
   // "02:00" is 2am Athens tonight (docs/CITY_SCENE_PLAN.md §6.6).
   const { date: skyDate, overridden: skyOverridden } = resolveCityTime(searchParams.get('t'));
 
-  // The red alignment band is on while the sky is being tuned; `?ecliptic=0`
-  // turns it off without a code change (§6.5).
-  const showEcliptic = searchParams.get('ecliptic') !== '0';
-
   // The loading curtain lifts on the scene's own signal, never on a timer --
   // except as a last resort, below.
   const [sceneReady, setSceneReady] = useState(false);
@@ -101,7 +97,6 @@ function CityPageContent() {
           rankedSublabel={ranked.sublabel}
           onBackToEarth={() => router.push('/')}
           onReady={handleReady}
-          showEcliptic={showEcliptic}
         />
       </Canvas>
       <CityOverlay

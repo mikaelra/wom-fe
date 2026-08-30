@@ -404,6 +404,23 @@ a stalled asset can never leave a working scene behind a permanent curtain.
 
 The art is explicitly temporary, like §6.5's red band.
 
+### 5.3a No city nameplate — **[corrected]**
+
+§5.1 gave the city a centred heading: the city name, then `tag — country`. It is
+removed. The scene states where you are far better than a caption does — the
+temple, the signpost and the sky over Greece *are* the identity — and once the
+shared top bar arrived (§5.4a) the heading sat squarely between its two chips,
+which on a phone is the worst possible place for text nobody needs to read twice.
+
+What stays is the sky's own clock (`SKY AT 02:00 ATHENS`) and the time controls
+beneath it. Those are not decoration: they are how the night rendering gets checked
+without hand-typing `?t=` onto a URL (§6.6).
+
+The page's tests used to assert the city had resolved by reading that heading. They
+now assert the coordinates that reached the scene instead, which is a stronger
+check — it also guards §6.2's trap, that only `realLng` may ever reach anything
+astronomical.
+
 ### 5.4a The top bar is now literally shared — **[done]**
 
 Locked decision 4 says "Rules and the profile/user menu stay in the top bar on the
@@ -678,15 +695,24 @@ directly.
 Ship the arcs as a **toggle**, off by default. A sky full of trails is beautiful
 once and noisy on the tenth visit.
 
-**[corrected] The ecliptic band shipped early, in red, as a tuning instrument.**
-It was scheduled last (step 14) as the most cuttable item, but it turns out to be
-the fastest way to *check* the sky rather than merely decorate it: the Sun sits on
-the ecliptic by definition and every planet within a few degrees of it, so a body
-drawn far off the line means the placement maths is wrong, visible at a glance and
-without reading a single number. That made it worth having while steps 10–11 were
-being tuned by eye, not after. It is currently **on by default** and plainly
-temporary -- `?ecliptic=0` hides it. Step 14 still owns turning it into the
-finished zodiac band, off by default, with a treatment that matches the art.
+**[corrected, then removed] The ecliptic band shipped early, in red, as a tuning
+instrument — and has now been taken out again.** It was scheduled last (step 14) as
+the most cuttable item, but it turned out to be the fastest way to *check* the sky
+rather than merely decorate it: the Sun sits on the ecliptic by definition and every
+planet within a few degrees of it, so a body drawn far off the line means the
+placement maths is wrong, visible at a glance without reading a number. That earned
+it a place while steps 10–11 were tuned by eye. Once they were, it was scaffolding,
+and scaffolding that stays becomes furniture — so the band, its `showEcliptic`
+plumbing and the `?ecliptic=0` escape hatch are gone.
+
+**The maths behind it deliberately survives** (`eclipticToHorizon`,
+`horizonOfEclipticLon`, `eclipticPolyline`, `separationOnSky`) along with its tests.
+Two reasons: step 14 still owns the finished zodiac band and will want exactly
+this; and the test that the band passes through the Sun to within the sampling
+resolution is an *independent* check on the whole sky pipeline — the bodies reach
+the horizon through `Rotation_EQJ_HOR` from the snapshot, the ecliptic through
+`Rotation_ECL_HOR`, so their agreement proves both conversions regardless of
+whether anything red is drawn.
 
 `Rotation_ECL_HOR` did give it directly, as this section predicted: one matrix,
 ecliptic straight to this horizon, no hand-rolled obliquity. `eclipticPolyline`

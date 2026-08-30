@@ -8,6 +8,7 @@ import {
 } from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
 import * as socketModule from '@/lib/socket';
+import { findCity } from '@/lib/cities';
 
 const push = vi.fn();
 let searchId: string | null = 'athens';
@@ -71,15 +72,17 @@ let lastRankedLabel: string | undefined;
 let lastRankedSublabel: string | null | undefined;
 let readyHandler: (() => void) | undefined;
 let backHandler: (() => void) | undefined;
+let lastCoords: { realLat: number; realLng: number } | undefined;
 vi.mock('@/components/city/CityScene', () => ({
   default: ({
     onBossfight, bossfightSublabel, onRanked, rankedLabel, rankedSublabel,
-    onBackToEarth, onReady,
+    onBackToEarth, onReady, realLat, realLng,
   }: {
     onBossfight: () => void; bossfightSublabel?: string | null;
     onRanked: () => void; rankedLabel: string; rankedSublabel?: string | null;
     onBackToEarth: () => void;
     onReady?: () => void;
+    realLat: number; realLng: number;
   }) => {
     bossfightHandler = onBossfight;
     lastSublabel = bossfightSublabel;
@@ -90,6 +93,7 @@ vi.mock('@/components/city/CityScene', () => ({
     // resolved AND the canvas has drawn; here the test decides when.
     readyHandler = onReady;
     backHandler = onBackToEarth;
+    lastCoords = { realLat, realLng };
     return <div data-testid="city-scene" />;
   },
   CITY_CAMERA: [0, 5, 0.01],
@@ -136,6 +140,7 @@ beforeEach(() => {
   lastRankedSublabel = undefined;
   readyHandler = undefined;
   backHandler = undefined;
+  lastCoords = undefined;
   socket.__reset();
   mockedCheckName.mockReset();
   mockedLogInUser.mockReset();
@@ -157,16 +162,33 @@ beforeEach(() => {
 });
 
 describe('CityPage (routing)', () => {
-  it('renders the city named by ?id=', async () => {
+  // The city used to be asserted through its on-screen nameplate. That is
+  // gone -- the scene says where you are better than a caption does -- so
+  // these check the thing that actually matters instead: which coordinates
+  // reached the scene. That is a stronger test than the heading ever was,
+  // because it also guards the trap in lib/cities.ts, where `lng` is the
+  // MIRRORED globe-texture longitude and only `realLng` may reach anything
+  // astronomical (§6.2).
+  const ATHENS = findCity('athens')!;
+
+  it('resolves the city named by ?id= and hands the scene its real coordinates', async () => {
     renderCity();
-    expect(await screen.findByText('Athens')).toBeInTheDocument();
-    expect(screen.getByText(/Marble Columns/)).toBeInTheDocument();
+    await waitForScene();
+    expect(lastCoords).toEqual({ realLat: ATHENS.realLat, realLng: ATHENS.realLng });
+    expect(lastCoords!.realLng).not.toBe(ATHENS.lng);
   });
 
   it('accepts the numeric id form too', async () => {
     searchId = '3';
     renderCity();
-    expect(await screen.findByText('Athens')).toBeInTheDocument();
+    await waitForScene();
+    expect(lastCoords).toEqual({ realLat: ATHENS.realLat, realLng: ATHENS.realLng });
+  });
+
+  it('shows no city nameplate over the scene', async () => {
+    renderCity();
+    await waitForScene();
+    expect(screen.queryByText(/Marble Columns/)).not.toBeInTheDocument();
   });
 
   it('shows a not-found state for an unknown city rather than guessing', () => {

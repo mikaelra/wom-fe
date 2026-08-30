@@ -58,22 +58,23 @@ export default function CityOverlay({
           world rather than a button floating over it. */}
       <SceneTopBar />
 
-      {/* City identity. The globe marker is labelled by country (GREECE from
-          step 6); the scene is the city itself. */}
+      {/* No city nameplate. The scene says where you are far better than a
+          caption does -- the temple, the signpost and the sky over Greece
+          are the identity -- and the heading sat between the shared top
+          bar's two chips, which is the worst place on a phone for text
+          nobody needs to read twice.
+
+          What stays is the sky's own clock and the time controls: those are
+          not decoration, they are how the night rendering gets checked
+          without hand-typing ?t= onto the URL (§6.6). */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 text-center pointer-events-none">
-        <h1 className="text-3xl font-extrabold tracking-wide drop-shadow-lg" style={{ color: city.color }}>
-          {city.name}
-        </h1>
-        <p className="text-sm text-white/70 mt-1 drop-shadow">
-          {city.tag} &mdash; {city.country}
-        </p>
         {skyClock && (
           <p className="text-xs text-amber-300/90 mt-1 tracking-widest drop-shadow font-mono">
             SKY AT {skyClock} ATHENS
           </p>
         )}
 
-        {/* pointer-events re-enabled here only: the heading above it stays
+        {/* pointer-events re-enabled here only: the clock above stays
             click-through so it never eats a drag meant for the camera. */}
         <div className="mt-2 flex items-center justify-center gap-1 pointer-events-auto">
           <TimeButton onClick={() => step(-1)} label="−1h" />

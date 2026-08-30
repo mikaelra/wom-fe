@@ -112,8 +112,6 @@ export interface CitySceneProps {
   /** Fired once the scene is genuinely on screen, so the loading curtain
    *  knows when to lift. */
   onReady?: () => void;
-  /** The temporary red ecliptic band (§6.5). */
-  showEcliptic?: boolean;
 }
 
 /**
@@ -179,7 +177,6 @@ export default function CityScene({
   rankedSublabel,
   onBackToEarth,
   onReady,
-  showEcliptic,
 }: CitySceneProps) {
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
@@ -271,14 +268,7 @@ export default function CityScene({
 
   return (
     <>
-      <CitySky
-        date={date}
-        realLat={realLat}
-        realLng={realLng}
-        eye={EYE}
-        seaLevel={SEA_LEVEL}
-        showEcliptic={showEcliptic}
-      />
+      <CitySky date={date} realLat={realLat} realLng={realLng} eye={EYE} seaLevel={SEA_LEVEL} />
 
       {/* Outside the <Suspense> below: the labels are DOM, not a model, and
           must not wait on a texture to start naming what you look at. */}
