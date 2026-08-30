@@ -154,10 +154,6 @@ interface CityMarkerProps {
 }
 
 export default function CityMarker({ city, globeRadius, onClick, rankedInfo }: CityMarkerProps) {
-  // Athens is always the bossfight city -- the "Bossfight" pill below used
-  // to be gated on a raidInfo prop, but that only ever carried a countdown
-  // (removed) and was otherwise unconditionally truthy for Athens anyway.
-  const isBossfightCity = city.name === 'Athens';
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -224,7 +220,7 @@ export default function CityMarker({ city, globeRadius, onClick, rankedInfo }: C
               the city name, bigger, wrapped in a pill so it reads as a
               button rather than plain text, with a white outline so it
               stands out as the primary call to action. */}
-          {isBossfightCity && (
+          {city.actionLabel && (
             <span
               style={{
                 color: '#4da6ff',
@@ -240,7 +236,7 @@ export default function CityMarker({ city, globeRadius, onClick, rankedInfo }: C
                 transition: 'font-size 0.2s',
               }}
             >
-              Bossfight
+              {city.actionLabel}
             </span>
           )}
           {rankedInfo?.status === 'idle' && (

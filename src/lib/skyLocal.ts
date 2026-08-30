@@ -17,15 +17,13 @@ import * as Astronomy from 'astronomy-engine';
 import * as THREE from 'three';
 import { ASTRO_BODY, type AspectBody, type Sky } from '@/lib/astrology';
 
-/** Athens, GENUINE geographic coordinates.
- *
- *  NOT the values in `lib/cities.ts`, which are deliberately mirrored
- *  (`system_lng = -1.3 - real_lng`) to land the marker correctly on an
- *  east/west-flipped globe texture. Feeding that mirrored longitude (-25)
- *  to an Observer does not throw -- it silently yields a plausible-looking
- *  sky for the wrong place, putting sunset 3.25 hours out and mirroring
- *  every arc. `skyLocal.test.ts` pins this so the swap fails loudly. */
-export const ATHENS = { realLat: 37.9838, realLng: 23.7275 } as const;
+// Deliberately does NOT import lib/cities.ts. Every entry point here takes
+// bare `realLat`/`realLng` numbers, so this module stays pure maths with no
+// opinion about which cities exist -- and, more importantly, cannot be
+// handed a whole `City` and pick the mirrored `lng` off it by mistake
+// (docs/CITY_SCENE_PLAN.md §6.2). The real coordinates live on the city
+// records in lib/cities.ts; skyLocal.test.ts reads them from there so there
+// is exactly one place they are written down.
 
 export interface LocalFrame {
   observer: Astronomy.Observer;

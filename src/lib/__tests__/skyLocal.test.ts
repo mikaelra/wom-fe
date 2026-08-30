@@ -2,9 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { computeSky } from '@/lib/astrology';
 import type { AspectBody } from '@/lib/astrology';
 import {
-  ATHENS, localFrame, horizonFromSnapshot, horizonTopocentric, horizonOf,
+  localFrame, horizonFromSnapshot, horizonTopocentric, horizonOf,
   isAboveHorizon, nightness, twilightBand, sunAltitude, sunEvents, compassPoint, TWILIGHT,
 } from '@/lib/skyLocal';
+import { CITIES } from '@/lib/cities';
+
+// Read the coordinates from the real city record rather than a copy: these
+// tests exist to guard lib/cities.ts's own realLng against being swapped for
+// its mirrored lng, so they have to be looking at the actual shipped data.
+const ATHENS = CITIES.find((c) => c.name === 'Athens')!;
 
 // A fixed instant, so every expectation below is a real ephemeris value and
 // not a moving target. Summer solstice evening, Athens: the Sun is just
@@ -14,7 +20,7 @@ const sky = computeSky(SOLSTICE);
 const frame = localFrame(sky, ATHENS.realLat, ATHENS.realLng);
 
 // The mirrored value that lib/cities.ts stores for the globe texture.
-const MIRRORED_LNG = -25;
+const MIRRORED_LNG = ATHENS.lng;   // the mirrored value the globe marker uses
 
 const PLANETS: AspectBody[] = ['Sun', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
 
@@ -40,11 +46,22 @@ describe('the mirrored-longitude guard', () => {
     expect(hoursApart).toBeGreaterThan(1);
   });
 
-  it('keeps ATHENS as the real coordinates, never the globe-texture ones', () => {
+  it("keeps Athens' realLng genuine and distinct from its mirrored lng", () => {
     expect(ATHENS.realLng).toBeCloseTo(23.7275, 3);
-    expect(ATHENS.realLng).not.toBe(MIRRORED_LNG);
+    expect(ATHENS.realLng).not.toBe(ATHENS.lng);
     // The mirror relation cities.ts documents: system_lng = -1.3 - real_lng.
-    expect(-1.3 - ATHENS.realLng).toBeCloseTo(MIRRORED_LNG, 1);
+    expect(-1.3 - ATHENS.realLng).toBeCloseTo(ATHENS.lng, 1);
+    // Latitude is NOT mirrored -- the two forms must agree.
+    expect(ATHENS.realLat).toBe(ATHENS.lat);
+  });
+
+  it('holds the same invariants for every city, so a new one cannot skip them', () => {
+    for (const city of CITIES) {
+      expect(city.realLat).toBe(city.lat);
+      expect(-1.3 - city.realLng).toBeCloseTo(city.lng, 1);
+      expect(Math.abs(city.realLat)).toBeLessThanOrEqual(90);
+      expect(Math.abs(city.realLng)).toBeLessThanOrEqual(180);
+    }
   });
 });
 

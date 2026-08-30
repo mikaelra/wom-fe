@@ -78,10 +78,10 @@ vi.mock('@react-three/fiber', () => ({
   useThree: () => ({ camera: new THREE.PerspectiveCamera(), size: { width: 1024, height: 768 } }),
 }));
 
-const ATHENS: City = { id: 1, name: 'Athens', country: 'Greece', lat: 0, lng: 0, color: '#fff', tag: '' };
-const VAULT: City = { id: 2, name: 'Vault City', country: '', lat: 0, lng: 0, color: '#fff', tag: '', isVault: true };
-const RULES: City = { id: 3, name: 'Rules City', country: '', lat: 0, lng: 0, color: '#fff', tag: '', isRules: true };
-const NEW_YORK: City = { id: 4, name: 'New York', country: 'USA', lat: 0, lng: 0, color: '#fff', tag: '' };
+const ATHENS: City = { id: 1, name: 'Athens', country: 'Greece', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '' };
+const VAULT: City = { id: 2, name: 'Vault City', country: '', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '', isVault: true };
+const RULES: City = { id: 3, name: 'Rules City', country: '', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '', isRules: true };
+const NEW_YORK: City = { id: 4, name: 'New York', country: 'USA', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '' };
 
 let cityClickHandler: ((city: City) => void) | undefined;
 let lastRankedInfo: RankedLabelInfo | undefined;

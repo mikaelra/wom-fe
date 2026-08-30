@@ -5,10 +5,20 @@ export interface City {
   id: number;
   name: string;
   country: string;
-  /** Latitude in degrees */
+  /** Latitude in degrees, in the MIRRORED globe-texture system below. */
   lat: number;
-  /** Longitude in degrees */
+  /** Longitude in degrees, in the MIRRORED globe-texture system below.
+   *  Never hand this to anything astronomical -- see `realLng`. */
   lng: number;
+  /** GENUINE geographic latitude. Same as `lat` (latitude is not mirrored),
+   *  but named separately so an astronomical call site never has to know
+   *  that and can take `realLat`/`realLng` as a matching pair. */
+  realLat: number;
+  /** GENUINE geographic longitude -- what an `Astronomy.Observer` must be
+   *  given (`lib/skyLocal.ts`). Feeding it `lng` instead does not throw; it
+   *  silently produces a confident sky for the wrong place, putting Athens'
+   *  sunset 3.25 hours out. Guarded by `skyLocal.test.ts`. */
+  realLng: number;
   /** Colour used for the marker glow */
   color: string;
   /** Short thematic label */
@@ -19,6 +29,13 @@ export interface City {
   isRules?: boolean;
   /** Sword marker impact glow theme (sprite/ring/point-light colour) — defaults to blue. */
   swordColor?: 'blue' | 'red';
+  /** Text on the marker's call-to-action pill — what clicking this sword
+   *  does. Data rather than a `city.name === 'Athens'` comparison in
+   *  CityMarker, so the label can change (to "GREECE", once the city scene
+   *  exists — docs/CITY_SCENE_PLAN.md §4.2) without touching the component.
+   *  Cities whose label is driven by live state (New York's ranked queue)
+   *  leave this unset. */
+  actionLabel?: string;
 }
 
 /**
@@ -44,10 +61,18 @@ export interface City {
  *                     mapping either way, only the latitude one below)
  *
  * Latitude values match real-world values without adjustment.
+ *
+ * Every city therefore carries BOTH forms: `lat`/`lng` place the marker on
+ * the globe, `realLat`/`realLng` are the true coordinates that anything
+ * astronomical must use. They are never interchangeable, and the pair is
+ * named rather than derived so a call site cannot pick the wrong one by
+ * accident (docs/CITY_SCENE_PLAN.md §6.2).
  */
 export const CITIES: City[] = [
-  { id: 3, name: "Athens", country: "Greece", lat: 37.9838, lng: -25, color: "#fa0202", tag: "Marble Columns" },
-  { id: 4, name: "New York", country: "USA", lat: 40.7128, lng: 72.7, color: "#ff3333", tag: "Ranked Arena", swordColor: "red" },
+  { id: 3, name: "Athens", country: "Greece", lat: 37.9838, lng: -25, realLat: 37.9838, realLng: 23.7275, color: "#fa0202", tag: "Marble Columns", actionLabel: "Bossfight" },
+  // actionLabel deliberately unset: this marker's pill is driven by live
+  // ranked-queue state (idle / searching / active match), not static data.
+  { id: 4, name: "New York", country: "USA", lat: 40.7128, lng: 72.7, realLat: 40.7128, realLng: -74.0060, color: "#ff3333", tag: "Ranked Arena", swordColor: "red" },
   // { id: 13, name: "Rules", country: "North Pole", lat: 90, lng: 0, color: "#ffffff", tag: "The Rules", isRules: true },
   // { id: 12, name: "The Vault", country: "South Pole", lat: -90, lng: 0, color: "#FFD700", tag: "The Vault", isVault: true },
 ];

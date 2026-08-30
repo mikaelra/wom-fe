@@ -151,13 +151,17 @@ solve this by keeping the globe mounted.
   geographic position (Athens: `37.9838, 23.7275`). This is what the astronomy
   code consumes, and having both on one record with named fields is what stops the
   two ever being confused again.
-- Add `display: 'GREECE'` (the sword label) alongside the existing `name: 'Athens'`
-  (the city identity). The label is the country; the scene is the city.
-- **Remove the New York entry.**
+- Add `actionLabel` (the marker's call-to-action pill) alongside the existing
+  `name: 'Athens'` (the city identity). It starts as `'Bossfight'` — an exact
+  match for today's hardcoded label — and becomes `'GREECE'` at step 6, when the
+  click actually leads somewhere new. The label is the country; the scene is
+  the city.
+- **Remove the New York entry — at step 7, not here.** See §13's corrected note.
 
 ### 4.2 `src/components/worldmap/CityMarker.tsx`
-- Delete `isBossfightCity = city.name === 'Athens'`. Render `city.display` from
-  data instead of a name comparison.
+- Delete `isBossfightCity = city.name === 'Athens'`. Render `city.actionLabel`
+  from data instead of a name comparison. A city with no `actionLabel` (New York,
+  whose pill is driven by live queue state) renders no static pill.
 - Delete `RankedLabelInfo` and every ranked branch (`idle` / `searching` /
   `activeMatch`). Ranked no longer has a globe presence.
 - The pill becomes a single, larger `GREECE` label. Keep the hover scale-up and the
@@ -704,7 +708,12 @@ Each step is independently reviewable and leaves the app working.
    third copy. Pure refactor, no behaviour change. (§8.1)
 2. **`skyLocal.ts` + tests.** Topocentric maths only, nothing rendered: horizon
    coords, `nightness`, sunset/sunrise, the fixed-date Athens guard test. (§6.2–6.4)
-3. **`cities.ts`:** add `realLat`/`realLng`/`display`, remove New York.
+3. **`cities.ts`:** add `realLat`/`realLng`/`actionLabel`. **[corrected]** The
+   original step 3 also removed New York — but ranked does not reach its new home
+   until step 7, so that would have left the ranked queue unreachable for four
+   steps and broken this list's own promise that every step leaves the app
+   working. **The New York removal moved to step 7.** Step 3 is now purely
+   additive plus making `CityMarker` data-driven.
 4. **Promote `FreshHtml`** to `components/hud/`, update lobby importers, and
    migrate `CityMarker` off drei's `<Html>`. Pure refactor, no behaviour change.
    (§7.3)
@@ -712,8 +721,11 @@ Each step is independently reviewable and leaves the app working.
    `useClickNotDrag`, back button, top bar. No sky, no signpost yet. (§5.3)
 6. **Move Bossfight into the city** behind the signpost's left arm + Temple. World
    map's Athens sword now reads `GREECE` and routes to the city.
-7. **Move Ranked into the city** behind the right arm + Senate placeholder. Delete
-   `RankedZoomRig`, `NEW_YORK_DIR` and the ranked plumbing from `WorldMap`. (§4.3)
+7. **Move Ranked into the city** behind the right arm + Senate placeholder. **Only
+   now remove the New York marker** (moved here from step 3), together with
+   `RankedZoomRig`, `NEW_YORK_DIR` and the ranked plumbing in `WorldMap`. Ranked
+   never stops being reachable: it has its new home before it loses the old one.
+   (§4.3)
 8. **`gazeFocus.ts` + tests** — pure focus-angle/opacity maths, nothing rendered.
    (§7.1)
 9. **Gaze labels on the world map first.** That scene already has bodies placed
