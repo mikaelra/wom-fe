@@ -9,8 +9,9 @@ import { senateColumns } from '@/lib/senateGeometry';
  *
  * There is no Senate model yet; §9 lists one as art still to be made. This
  * is a deliberately plain classical portico built from primitives: stepped
- * base, a colonnade, entablature and pediment. Obviously provisional, which
- * is the point -- a stock model would quietly become permanent.
+ * base, a colonnade, an architrave ring and a domed roof with an oculus in
+ * it, Pantheon-fashion. Obviously provisional, which is the point -- a
+ * stock model would quietly become permanent.
  *
  * Its dimensions are props, with the city's own as the defaults. The lobby
  * builds a much larger version of the SAME building to play ranked matches
@@ -30,6 +31,12 @@ import { senateColumns } from '@/lib/senateGeometry';
  * peristyle does both: it is still unmistakably a building from the street,
  * and you can see who is in it.
  */
+
+/** The Pantheon's oculus is 8.2m across in a 43.3m dome. */
+const OCULUS_RATIO = 0.19;
+/** Dome height as a fraction of the building's SHORT half-axis. */
+const DOME_RISE = 0.9;
+const ARCHITRAVE_THICK = 0.5;
 
 export interface SenateProps {
   position?: [number, number, number];
@@ -71,17 +78,33 @@ export default function Senate({
     [WIDTH, DEPTH, COLUMN_RADIUS, columnCount, sideColumnCount],
   );
 
-  // Triangular pediment, extruded across the building's depth.
-  const pediment = useMemo(() => {
-    const s = new THREE.Shape();
-    s.moveTo(-WIDTH / 2, 0);
-    s.lineTo(WIDTH / 2, 0);
-    s.lineTo(0, 1.5);
-    s.lineTo(-WIDTH / 2, 0);
-    return new THREE.ExtrudeGeometry(s, { depth: DEPTH * 0.5, bevelEnabled: false });
-  }, [WIDTH, DEPTH]);
+  /**
+   * A dome with an oculus, in place of the pediment and the solid roof slab.
+   *
+   * A sphere segment whose top is simply never generated: starting theta
+   * below the pole leaves a circular hole there. The proportion is the
+   * Pantheon's own -- its oculus is 8.2m across in a 43.3m dome, a ratio of
+   * 0.19 -- so the hole reads as an oculus rather than as missing geometry.
+   *
+   * Unit-sized and scaled by the caller, so it stretches to whatever
+   * rectangle the building is: the city's Senate and the ranked arena have
+   * quite different footprints and a true hemisphere would only fit one.
+   */
+  const dome = useMemo(() => {
+    const thetaStart = Math.asin(OCULUS_RATIO / 2);
+    return new THREE.SphereGeometry(
+      1, 48, 24,
+      0, Math.PI * 2,
+      thetaStart, Math.PI / 2 - thetaStart,
+    );
+  }, []);
 
   const baseTop = STEP_HEIGHT * 3;
+  const halfW = (WIDTH - COLUMN_RADIUS * 4) / 2;
+  const halfD = (DEPTH - COLUMN_RADIUS * 4) / 2;
+  // A shallow dome rather than a true hemisphere: over a rectangle the
+  // short axis sets how tall it can be before it looks like a balloon.
+  const domeHeight = Math.min(halfW, halfD) * DOME_RISE;
 
   return (
     <group position={position}>
@@ -102,15 +125,34 @@ export default function Senate({
         </mesh>
       ))}
 
-      {/* Entablature */}
-      <mesh position={[0, baseTop + COLUMN_HEIGHT + 0.3, 0]}>
-        <boxGeometry args={[WIDTH + 0.4, 0.6, DEPTH + 0.4]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
+      {/* Architrave: a RING the columns carry and the dome springs from, not
+          the solid slab that used to sit here. The slab would cap the
+          interior, and an oculus opening onto a closed ceiling is just a
+          hole in a dome nobody can see through. */}
+      {([
+        [0, halfD + ARCHITRAVE_THICK / 2, WIDTH + ARCHITRAVE_THICK * 2, ARCHITRAVE_THICK],
+        [0, -halfD - ARCHITRAVE_THICK / 2, WIDTH + ARCHITRAVE_THICK * 2, ARCHITRAVE_THICK],
+      ] as const).map(([x, z, w, d], i) => (
+        <mesh key={`ew${i}`} position={[x, baseTop + COLUMN_HEIGHT + 0.3, z]}>
+          <boxGeometry args={[w, 0.6, d]} />
+          <meshStandardMaterial color={color} />
+        </mesh>
+      ))}
+      {([halfW + ARCHITRAVE_THICK / 2, -halfW - ARCHITRAVE_THICK / 2]).map((x, i) => (
+        <mesh key={`ns${i}`} position={[x, baseTop + COLUMN_HEIGHT + 0.3, 0]}>
+          <boxGeometry args={[ARCHITRAVE_THICK, 0.6, halfD * 2 + ARCHITRAVE_THICK * 2]} />
+          <meshStandardMaterial color={color} />
+        </mesh>
+      ))}
 
-      {/* Pediment */}
-      <mesh geometry={pediment} position={[0, baseTop + COLUMN_HEIGHT + 0.6, -DEPTH * 0.25]}>
-        <meshStandardMaterial color={color} />
+      {/* The dome. DoubleSide because you stand under it as often as you
+          look at it -- a ranked match is played beneath this thing. */}
+      <mesh
+        geometry={dome}
+        position={[0, baseTop + COLUMN_HEIGHT + 0.6, 0]}
+        scale={[halfW + ARCHITRAVE_THICK, domeHeight, halfD + ARCHITRAVE_THICK]}
+      >
+        <meshStandardMaterial color={color} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );
