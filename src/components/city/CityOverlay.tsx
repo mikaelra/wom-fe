@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation';
 import SceneTopBar from '@/components/hud/SceneTopBar';
-import { formatAthensParam } from '@/lib/cityTime';
 import type { City } from '@/lib/cities';
 
 /**
@@ -20,12 +19,9 @@ export default function CityOverlay({
   /** Athens wall-clock time being viewed, when ?t= overrode the real one.
    *  Null while the sky is live -- there is nothing to say then. */
   skyClock,
-  /** The instant currently on screen, for the time controls to step from. */
-  skyDate,
 }: {
   city: City;
   skyClock?: string | null;
-  skyDate: Date;
 }) {
   const router = useRouter();
 
@@ -42,10 +38,6 @@ export default function CityOverlay({
     const base = `/city?id=${city.id}`;
     router.push(t ? `${base}&t=${t}` : base);
   };
-  // Stepping carries the DATE as well as the clock, so crossing midnight
-  // moves to the next day instead of snapping back to this morning.
-  const step = (hours: number) =>
-    gotoTime(formatAthensParam(new Date(skyDate.getTime() + hours * 3600_000)));
 
   return (
     <>
@@ -77,9 +69,7 @@ export default function CityOverlay({
         {/* pointer-events re-enabled here only: the clock above stays
             click-through so it never eats a drag meant for the camera. */}
         <div className="mt-2 flex items-center justify-center gap-1 pointer-events-auto">
-          <TimeButton onClick={() => step(-1)} label="−1h" />
           <TimeButton onClick={() => gotoTime(null)} label="NOW" />
-          <TimeButton onClick={() => step(1)} label="+1h" />
           {/* The bare HH:MM form, which resolveCityTime reads as 2am Athens
               today -- the quickest way to a full-night sky. */}
           <TimeButton onClick={() => gotoTime('02:00')} label="☾ 02:00" />

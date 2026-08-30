@@ -9,7 +9,11 @@ import Senate from '@/components/city/Senate';
 import { ARENA, arenaPosition } from '@/lib/rankedArena';
 import SeaAndSky from '@/components/lobby/SeaAndSky';
 import Table from '@/components/Table';
+import dynamic from 'next/dynamic';
 import CameraFlyIn from '@/components/lobby/CameraFlyIn';
+// Dynamic: it pulls in the city's sky, star catalogue and terrain, which an
+// ordinary PvP lobby has no use for and should not pay to download.
+const BossfightScenery = dynamic(() => import('@/components/lobby/BossfightScenery'), { ssr: false });
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
@@ -1245,12 +1249,21 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         resetSignal={resetCameraSignal}
         onUserAdjust={onCameraUserAdjust}
       />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 10]} intensity={1.2} />
+      {/* A boss fight is fought in the city you walked in from, so it gets
+          that scene's sky, island and lighting rather than the generic sea
+          and a sun nailed to [100, 20, 100]. Every other lobby is unchanged. */}
+      {isBossFight ? (
+        <BossfightScenery />
+      ) : (
+        <>
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[10, 10, 10]} intensity={1.2} />
 
-      {/* Sky dome + sea plane — the sea horizon sits where they meet in the distance.
-          Tweak seaLevel to line the water up with the temple/player base. */}
-      <SeaAndSky seaLevel={SEA_LEVEL} sunPosition={SUN_POSITION} />
+          {/* Sky dome + sea plane — the sea horizon sits where they meet in the distance.
+              Tweak seaLevel to line the water up with the temple/player base. */}
+          <SeaAndSky seaLevel={SEA_LEVEL} sunPosition={SUN_POSITION} />
+        </>
+      )}
 
       {/* Stage 1: the building the match is played in.
           Ranked is staged inside the Senate -- the same building that stands

@@ -102,7 +102,6 @@ function CityPageContent() {
       <CityOverlay
         city={city}
         skyClock={skyOverridden ? formatAthensClock(skyDate) : null}
-        skyDate={skyDate}
       />
 
       <CityLoadingScreen

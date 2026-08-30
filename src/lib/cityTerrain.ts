@@ -156,3 +156,17 @@ export function islandPlacements(): IslandPlacement[] {
     };
   });
 }
+
+/**
+ * How far to lift the island so its surface lands on a given standing height.
+ *
+ * The city and the lobby measure their floors from different places -- the
+ * city's ground is LAND_LEVEL, the lobby's players stand at PLAYER_Y -- so a
+ * boss fight staged on the city's terrain has to reconcile the two or the
+ * players hover above the ground (or sink into it). Lifting the whole island
+ * carries the sea with it, which keeps the coastline's own relationship to
+ * the land intact.
+ */
+export function groundOffsetFor(standingHeight: number): number {
+  return standingHeight - LAND_LEVEL;
+}

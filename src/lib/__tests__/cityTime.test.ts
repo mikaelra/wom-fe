@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   resolveCityTime, athensWallClock, athensToday, tzOffsetMinutes,
-  formatAthensClock, formatAthensParam, ATHENS_TZ,
+  formatAthensClock, ATHENS_TZ,
 } from '@/lib/cityTime';
 
 describe('tzOffsetMinutes', () => {
@@ -72,36 +72,5 @@ describe('resolveCityTime', () => {
       expect(t.date).toBe(now);
       expect(t.overridden).toBe(false);
     }
-  });
-});
-
-// ── formatAthensParam: the inverse of resolveCityTime ──────────────────────
-
-describe('formatAthensParam', () => {
-  it('round-trips through resolveCityTime to the same minute', () => {
-    // What the city's time controls rely on: step an hour, format, put it in
-    // the URL, and get back the instant you meant.
-    for (const iso of [
-      '2026-08-30T23:00:00Z',   // 02:00 Athens, EEST (UTC+3)
-      '2026-12-21T00:30:00Z',   // 02:30 Athens, EET  (UTC+2), winter
-      '2026-06-15T12:00:00Z',
-    ]) {
-      const at = new Date(iso);
-      const back = resolveCityTime(formatAthensParam(at)).date;
-      expect(back.getTime()).toBe(Math.floor(at.getTime() / 60000) * 60000);
-    }
-  });
-
-  it('carries the date, so stepping past midnight does not snap back', () => {
-    // 23:30 Athens + 1h is the NEXT day. The bare HH:MM form cannot say that,
-    // which is exactly why the controls emit the full local ISO form.
-    const at = new Date('2026-08-30T20:30:00Z');          // 23:30 Athens
-    const nextHour = new Date(at.getTime() + 3600_000);   // 00:30, the 31st
-    expect(formatAthensParam(at)).toBe('2026-08-30T23:30');
-    expect(formatAthensParam(nextHour)).toBe('2026-08-31T00:30');
-  });
-
-  it('is marked as an override when it comes back', () => {
-    expect(resolveCityTime(formatAthensParam(new Date())).overridden).toBe(true);
   });
 });

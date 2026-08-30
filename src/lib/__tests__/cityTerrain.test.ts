@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  terrainHeight, relief, padFlatness, islandPlacements,
+  terrainHeight, relief, padFlatness, islandPlacements, groundOffsetFor,
   LAND_LEVEL, SHORE_RADIUS, LAND_RADIUS, RELIEF_HEIGHT,
 } from '@/lib/cityTerrain';
+import { PLAYER_Y } from '@/lib/sceneConstants';
 import {
   SEA_LEVEL, SIGNPOST_POSITION, CAMPFIRE_POSITION, TEMPLE_POSITION, SENATE_POSITION,
 } from '@/lib/cityLayout';
@@ -144,6 +145,33 @@ describe('the islands on the horizon', () => {
       .sort((a, b) => a - b);
     for (let i = 1; i < bearings.length; i++) {
       expect(bearings[i] - bearings[i - 1]).toBeGreaterThan(15);
+    }
+  });
+});
+
+describe('staging the island in a lobby', () => {
+  it('lands the ground exactly under the players\' feet', () => {
+    // A boss fight is fought on the city's terrain, but the two scenes
+    // measure their floors from different places: the city's ground is
+    // LAND_LEVEL and the lobby's players stand at PLAYER_Y. Get this wrong
+    // and everyone hovers above the island -- or sinks into it.
+    const lifted = terrainHeight(0, 0) + groundOffsetFor(PLAYER_Y);
+    expect(lifted).toBeCloseTo(PLAYER_Y, 6);
+  });
+
+  it('keeps the sea the same distance below the land after the lift', () => {
+    // Lifting the whole island rather than the terrain alone is what stops
+    // the coastline drowning or stranding.
+    const before = LAND_LEVEL - SEA_LEVEL;
+    const offset = groundOffsetFor(PLAYER_Y);
+    expect((LAND_LEVEL + offset) - (SEA_LEVEL + offset)).toBeCloseTo(before, 6);
+  });
+
+  it('is flat where the table stands, not on a hillside', () => {
+    // The origin pad exists for the city's viewer; the lobby's table
+    // inherits it, which is why a boss fight is not played on a slope.
+    for (const [x, z] of [[0, 0], [2, 0], [0, 2], [-2, -2]]) {
+      expect(terrainHeight(x, z)).toBeCloseTo(LAND_LEVEL, 6);
     }
   });
 });
