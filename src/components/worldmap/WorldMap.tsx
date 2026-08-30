@@ -7,6 +7,9 @@ import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
+import {
+  milkyWayQuaternion, milkyWayTexturePath, orientMilkyWayTexture,
+} from '@/lib/milkyWay';
 import GlobeCrackleEffect from './GlobeCrackleEffect';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
@@ -175,8 +178,6 @@ const jupiterTexturePath = (): string => '/textures/jupiter/jupiter2_1k.jpg';
 // (8000x4000, MilkyWay-extreme.png -- MilkyWay-Stars.png is the same shot
 // but with a survey reference grid/star-name overlay baked in, not a game
 // asset) for the extra visual value. See docs/MOBILE_AND_STEAM_PLAN.md.
-const milkyWayTexturePath = (): string =>
-  IS_NATIVE_BUILD ? '/textures/stars/MilkyWay-extreme.png' : '/textures/stars/MilkyWay-HD.jpg';
 
 // Preload async textures early so they are likely cached by the time their
 // phase is reached.
@@ -197,19 +198,11 @@ useTexture.preload(jupiterTexturePath());
 const Starfield = memo(function Starfield() {
   const [circleTex, milkyWayTex] = useTexture([
     '/textures/stars/circle.png',
-    milkyWayTexturePath(),
+    milkyWayTexturePath(IS_NATIVE_BUILD),
   ]);
 
-  // Fixed: horizontal flip via repeat + offset so the Milky Way is no longer mirrored
-  // (BackSide + sphere UVs cause the default image to appear flipped left↔right)
-  useMemo(() => {
-    milkyWayTex.wrapS = THREE.RepeatWrapping;
-    milkyWayTex.wrapT = THREE.RepeatWrapping; // good practice
-    milkyWayTex.repeat.x = -1;      // ← this un-mirrors the texture
-    milkyWayTex.offset.x = 1;       // ← compensates for the flip (keeps your previous alignment)
-    milkyWayTex.offset.y = 0;
-    milkyWayTex.needsUpdate = true;
-  }, [milkyWayTex]);
+  // BackSide sphere UVs mirror the panorama left/right; this un-flips it.
+  useMemo(() => orientMilkyWayTexture(milkyWayTex), [milkyWayTex]);
 
   // Reveal magnitude bands one at a time, brightest first.
   // Starts at 1 so the brightest band (index 0) shows immediately on mount.
@@ -263,46 +256,15 @@ const Starfield = memo(function Starfield() {
 
   const milkyWayRef = useRef<THREE.Mesh>(null);
 
-  // 1. Sirius unit vector (the axis we rotate around – never changes)
-  const siriusVec = useMemo(() => {
-    const siriusStar = STAR_CATALOG.find(
-      (star) => Math.abs(star.mag + 1.46) < 0.01   // Sirius = mag ≈ -1.46
-    );
-    if (!siriusStar) {
-      console.warn('Sirius not found in STAR_CATALOG');
-      return new THREE.Vector3(0, 0, 1);
-    }
-    const raH = siriusStar.ra[0] + siriusStar.ra[1] / 60;
-    return raDecToVec3(raH, siriusStar.dec, 1).normalize();
-  }, []);
-
-  // 2. Final quaternion = base alignment + exact 60° rotation around Sirius
-  const milkyWayQuaternion = useMemo(() => {
-    // Your original base rotation that already lands Sirius correctly
-    const baseEuler = new THREE.Euler(
-      -Math.PI / 25.8,
-      -Math.PI / 1.3865,
-      0,
-      'XYZ'
-    );
-    const baseQ = new THREE.Quaternion().setFromEuler(baseEuler);
-
-    // Exact 60° (π/3) twist around the Sirius axis
-    // (Right-hand rule: positive = counter-clockwise when looking from outside toward center)
-    const TWIST_ANGLE = -Math.PI / 2.55;          // ← 60 degrees exactly
-    const twistQ = new THREE.Quaternion().setFromAxisAngle(siriusVec, TWIST_ANGLE);
-
-    // Combine: apply base first, then twist around Sirius
-    // (Sirius position stays perfectly fixed)
-    return twistQ.multiply(baseQ);   // twist * base
-  }, [siriusVec]);
+  // Hand-tuned alignment, now shared with the city scene (lib/milkyWay.ts).
+  const milkyWayQ = useMemo(() => milkyWayQuaternion(), []);
 
   return (
     <group ref={groupRef}>
       <mesh
         ref={milkyWayRef}
         renderOrder={-1}
-        quaternion={milkyWayQuaternion}   // ← this replaces the old rotation={...} prop
+        quaternion={milkyWayQ}
       >
         <sphereGeometry args={[STAR_R, 64, 64]} />
         <meshBasicMaterial

@@ -1,14 +1,19 @@
 # City Scene Plan — Greece, the Signpost, and the Real Sky
 
-Status: **in progress — steps 1–9 of §13 built** · Scope: `wom-fe` only (no backend,
+Status: **in progress — steps 1–10 of §13 built** · Scope: `wom-fe` only (no backend,
 no protocol change) · Written: 2026-08-30 · Last updated: 2026-08-30
 
 > **Implementation notes.** Steps 1–7 are built on the `city-scene` branch, which
 > carries the running work. Building them disproved four things this plan asserted
 > — the rotation matrix and lunar parallax in §6.3, the camera model in §5.3, and
 > the step ordering in §13 — all corrected in place and flagged **[corrected]** so
-> the history stays legible. Still to come: the real sky in the city (steps 10–11),
-> the Senate model, and the arcs.
+> the history stays legible. Still to come: gaze labels in the city (step 11), the
+> Senate model, and the arcs.
+>
+> **Viewing another sky.** `?t=` on the city URL overrides the instant, read as
+> Athens local time: `/city?id=athens&t=02:00` for tonight's 2am starfield,
+> `&t=2026-12-21T02:00` for a winter one. Unparseable values fall back to the
+> real sky rather than erroring.
 Depends on: `docs/ASPECTS_PLAN.md` (the `Sky` snapshot and aspect maths this reuses
 wholesale), `docs/MOBILE_AND_STEAM_PLAN.md` §5.3 (why the route shape is a query
 param, not a path segment), `docs/ART_STYLE_PLAN.md` (§0 is amended by this plan —

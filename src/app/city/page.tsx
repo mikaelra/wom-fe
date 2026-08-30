@@ -8,6 +8,7 @@ import CityOverlay from '@/components/city/CityOverlay';
 import AuthGatePopup from '@/components/AuthGatePopup';
 import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
 import { findCity } from '@/lib/cities';
+import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
@@ -31,6 +32,9 @@ function CityPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const city = findCity(searchParams.get('id'));
+  // ?t= lets you look at a sky that is not the one currently overhead --
+  // "02:00" is 2am Athens tonight (docs/CITY_SCENE_PLAN.md §6.6).
+  const { date: skyDate, overridden: skyOverridden } = resolveCityTime(searchParams.get('t'));
 
   const { enterBossfight, loading, gateOpen, closeGate, authFlow } = useEnterBossfight();
   const ranked = useEnterRanked();
@@ -70,6 +74,9 @@ function CityPageContent() {
         style={{ position: 'absolute', inset: 0 }}
       >
         <CityScene
+          date={skyDate}
+          realLat={city.realLat}
+          realLng={city.realLng}
           onBossfight={enterBossfight}
           bossfightSublabel={bossfightSublabel}
           onRanked={ranked.enterRanked}
@@ -77,7 +84,7 @@ function CityPageContent() {
           rankedSublabel={ranked.sublabel}
         />
       </Canvas>
-      <CityOverlay city={city} />
+      <CityOverlay city={city} skyClock={skyOverridden ? formatAthensClock(skyDate) : null} />
 
       {loading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 pointer-events-none">

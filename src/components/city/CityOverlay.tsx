@@ -13,7 +13,15 @@ import type { City } from '@/lib/cities';
  * WorldMapOverlay and is extracted separately; this carries Rules and the
  * way back for now.
  */
-export default function CityOverlay({ city }: { city: City }) {
+export default function CityOverlay({
+  city,
+  /** Athens wall-clock time being viewed, when ?t= overrode the real one.
+   *  Null while the sky is live -- there is nothing to say then. */
+  skyClock,
+}: {
+  city: City;
+  skyClock?: string | null;
+}) {
   const router = useRouter();
   const [showRules, setShowRules] = useState(false);
 
@@ -45,6 +53,11 @@ export default function CityOverlay({ city }: { city: City }) {
         <p className="text-sm text-white/70 mt-1 drop-shadow">
           {city.tag} &mdash; {city.country}
         </p>
+        {skyClock && (
+          <p className="text-xs text-amber-300/90 mt-1 tracking-widest drop-shadow font-mono">
+            SKY AT {skyClock} ATHENS
+          </p>
+        )}
       </div>
 
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}

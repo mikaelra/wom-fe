@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { computeSky } from '@/lib/astrology';
 import type { AspectBody } from '@/lib/astrology';
 import {
-  localFrame, horizonFromSnapshot, horizonTopocentric, horizonOf,
+  localFrame, horizonFromSnapshot, horizonTopocentric, horizonOf, horizonOfRaDec,
   isAboveHorizon, nightness, twilightBand, sunAltitude, sunEvents, compassPoint, TWILIGHT,
 } from '@/lib/skyLocal';
 import { CITIES } from '@/lib/cities';
@@ -108,6 +108,59 @@ describe('rotating the shared snapshot into the local horizon', () => {
       const pos = horizonOf(sky, body, frame);
       expect(isAboveHorizon(pos)).toBe(pos.altitude > 0);
     }
+  });
+});
+
+describe('horizonOfRaDec (the star catalogue)', () => {
+  // Polaris sits near the celestial pole, so from the northern hemisphere it
+  // stands due north at roughly the observer's latitude and barely moves all
+  // night while everything else wheels around it. That pins the rotation, the
+  // latitude and the time-independence in one assertion.
+  //
+  // "Near", not "on": at dec +89.26 it is POLAR_DISTANCE off the pole and
+  // therefore traces a small circle of that radius, so its altitude varies by
+  // +/- 0.74 deg through the night. Tolerances below are that figure plus a
+  // margin, NOT slack hiding an error -- an implementation that was actually
+  // wrong would be out by degrees, not by less than one.
+  const POLARIS = { ra: 2 + 31 / 60, dec: 89.26 };
+  const POLAR_DISTANCE = 90 - POLARIS.dec;   // 0.74 deg
+
+  it('stands Polaris due north at roughly the latitude', () => {
+    const pos = horizonOfRaDec(POLARIS.ra, POLARIS.dec, frame);
+    expect(Math.abs(pos.altitude - ATHENS.realLat)).toBeLessThan(POLAR_DISTANCE + 0.2);
+    const offNorth = Math.min(pos.azimuth, 360 - pos.azimuth);
+    expect(offNorth).toBeLessThan(2);
+  });
+
+  it('keeps Polaris put as the night turns, unlike everything else', () => {
+    const later = localFrame(
+      computeSky(new Date(SOLSTICE.getTime() + 6 * 3600_000)),
+      ATHENS.realLat, ATHENS.realLng,
+    );
+    const a = horizonOfRaDec(POLARIS.ra, POLARIS.dec, frame);
+    const b = horizonOfRaDec(POLARIS.ra, POLARIS.dec, later);
+    // Bounded by the diameter of its little circle around the pole.
+    expect(Math.abs(a.altitude - b.altitude)).toBeLessThan(2 * POLAR_DISTANCE + 0.2);
+
+    // A star on the celestial equator must have moved far further in the
+    // same six hours -- otherwise the rotation is not being applied at all
+    // and Polaris' stillness would prove nothing. The CONTRAST is the claim;
+    // the absolute figure is not, since how much altitude a star trades for
+    // azimuth depends on where in its arc it happens to be (this one moves
+    // ~11 deg, another would move more).
+    const equatorial = { ra: 6, dec: 0 };
+    const e1 = horizonOfRaDec(equatorial.ra, equatorial.dec, frame);
+    const e2 = horizonOfRaDec(equatorial.ra, equatorial.dec, later);
+    const equatorialMoved = Math.abs(e1.altitude - e2.altitude);
+    const polarisMoved = Math.abs(a.altitude - b.altitude);
+    expect(equatorialMoved).toBeGreaterThan(5);
+    expect(equatorialMoved).toBeGreaterThan(polarisMoved * 5);
+  });
+
+  it('puts a far-southern star below the Athens horizon', () => {
+    // Canopus, dec -52.7: never rises from 38 deg north.
+    const pos = horizonOfRaDec(6 + 24 / 60, -52.7, frame);
+    expect(pos.altitude).toBeLessThan(0);
   });
 });
 

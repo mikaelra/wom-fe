@@ -5,7 +5,7 @@ import { OrbitControls } from '@react-three/drei';
 import Mountain from '@/components/mountain';
 import Temple from '@/components/temple';
 import Senate from '@/components/city/Senate';
-import SeaAndSky from '@/components/lobby/SeaAndSky';
+import CitySky, { useCitySky } from '@/components/city/CitySky';
 import Signpost, { type SignpostArm } from '@/components/city/Signpost';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
@@ -27,7 +27,8 @@ import { useClickNotDrag } from '@/lib/useClickNotDrag';
  * hand-rolling a look controller. Pan and zoom are off: both would slide the
  * viewer off the spot they are pinned to.
  *
- * No real sky yet -- step 10 swaps SeaAndSky for the ephemeris-driven one.
+ * The sky is the real one over Athens at `date`, ephemeris-placed and
+ * lit by where the Sun actually is (CitySky).
  *
  * FRAMING IS PROVISIONAL. temple.glb's origin sits on one of its corner
  * columns rather than its centre (LobbyScene.tsx notes the same at its own
@@ -36,7 +37,6 @@ import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
 // Shared with LobbyScene so the two scenes agree on world scale.
 const SEA_LEVEL = 2;
-const SUN_POSITION: [number, number, number] = [100, 20, 100];
 
 /** Where the player stands. Eye height above SEA_LEVEL, at the origin. */
 export const EYE: [number, number, number] = [0, SEA_LEVEL + 3.2, 0];
@@ -69,6 +69,11 @@ const LIT_BOSSFIGHT = '#eaf4ff';
 const LIT_RANKED = '#ffeaea';
 
 export interface CitySceneProps {
+  /** The instant to render the sky at -- now, unless ?t= overrode it. */
+  date: Date;
+  /** GENUINE coordinates. Never the mirrored globe-texture ones (§6.2). */
+  realLat: number;
+  realLng: number;
   /** Enter the Hades bossfight. The Temple and the signpost's left arm both
    *  call this, so the building is a second, larger target for one action
    *  rather than a separate code path. */
@@ -110,12 +115,18 @@ function BuildingTarget({
 }
 
 export default function CityScene({
+  date,
+  realLat,
+  realLng,
   onBossfight,
   bossfightSublabel,
   onRanked,
   rankedLabel,
   rankedSublabel,
 }: CitySceneProps) {
+  // Same hook CitySky uses, so the lighting below and the sky itself are
+  // reading one computation rather than two that could disagree.
+  const { nightness } = useCitySky(date, realLat, realLng, EYE);
   // Hovering either an arm or its building lights both -- that pairing is
   // what teaches which building is which without a tutorial.
   const [templeHot, setTempleHot] = useState(false);
@@ -142,13 +153,20 @@ export default function CityScene({
 
   return (
     <>
-      {/* Placeholder ground/sky. Step 10 replaces this with a sky driven by
-          skyLocal's nightness, so Athens is dark when Athens is dark. Both
-          the dome and the sea plane already read correctly through 360. */}
-      <SeaAndSky seaLevel={SEA_LEVEL} sunPosition={SUN_POSITION} />
+      <CitySky date={date} realLat={realLat} realLng={realLng} eye={EYE} seaLevel={SEA_LEVEL} />
 
-      <ambientLight intensity={0.6} />
-      <directionalLight position={SUN_POSITION} intensity={1.1} />
+      {/* Scene lighting follows the same nightness the sky does, so the
+          marble goes down with the sun instead of staying lit under stars.
+          Never to zero: a pitch-black building reads as a rendering failure
+          rather than as night, and moonlight is a real thing. */}
+      <ambientLight intensity={0.6 - 0.42 * nightness} />
+      <directionalLight
+        position={[100, 20, 100]}
+        intensity={1.1 - 0.95 * nightness}
+      />
+      {/* A cool fill that only comes up at night, so the buildings keep an
+          edge against the sky once the sun light is gone. */}
+      <hemisphereLight args={['#9fb8ff', '#0a1020', 0.35 * nightness]} />
 
       <Suspense fallback={null}>
         <BuildingTarget

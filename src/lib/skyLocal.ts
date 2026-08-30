@@ -126,6 +126,31 @@ export function horizonOf(sky: Sky, body: AspectBody, frame: LocalFrame): Horizo
     : horizonFromSnapshot(sky, body, frame);
 }
 
+/**
+ * Where a fixed star sits over this place.
+ *
+ * Takes catalogue RA/Dec (J2000, which is the epoch STAR_CATALOG uses and the
+ * same frame the Sky snapshot is in) and runs it through the very same
+ * EQJ->HOR matrix the planets use, so the real constellations stand over the
+ * city in the right places at the right time of night. Stars are far enough
+ * away that topocentric parallax is meaningless, so there is no second path
+ * for them.
+ */
+export function horizonOfRaDec(raHours: number, decDeg: number, frame: LocalFrame): HorizonPos {
+  const ra = raHours * (Math.PI / 12);
+  const dec = decDeg * (Math.PI / 180);
+  // Straight into astronomy-engine's Z-up equatorial convention -- no detour
+  // through the Y-up three.js layout the snapshot happens to use.
+  const vec = new Astronomy.Vector(
+    Math.cos(dec) * Math.cos(ra),
+    Math.cos(dec) * Math.sin(ra),
+    Math.sin(dec),
+    frame.time,
+  );
+  const sph = Astronomy.HorizonFromVector(Astronomy.RotateVector(frame.rot, vec), NO_REFRACTION);
+  return { altitude: sph.lat, azimuth: sph.lon };
+}
+
 export function isAboveHorizon(pos: HorizonPos): boolean {
   return pos.altitude > 0;
 }
