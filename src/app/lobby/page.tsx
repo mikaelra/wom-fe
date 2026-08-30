@@ -187,6 +187,11 @@ function LobbyPageContent() {
           cameraMoved={cameraMoved}
           onResetCamera={handleResetCamera}
           instakillActive={instakillActive}
+          // The lobby stopped existing under us (a backend restart drops
+          // every in-memory lobby). Nothing here can recover, and naming
+          // the failure at the player would only confuse them, so walk
+          // them back out to the world map without a word.
+          onLobbyGone={() => router.push('/')}
         />
       )}
 

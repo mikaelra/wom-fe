@@ -16,6 +16,7 @@ import { useStagedResources } from '@/lib/useStagedResources';
 import { useToast } from '@/components/Toast';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { CITY_PATH } from '@/lib/cities';
+import { isLobbyGoneError } from '@/lib/lobbyErrors';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -131,9 +132,13 @@ type SceneOverlayProps = {
    *  its own onInstakillActiveChange), passed down instead of re-derived
    *  here so the card and the 3D scene's cues stay in lockstep. */
   instakillActive?: boolean;
+  /** Fired when the socket reports that this lobby no longer exists.
+   *  Routing lives with the caller (the same split as CityScene's
+   *  onBackToEarth), so this component stays free of next/navigation. */
+  onLobbyGone?: () => void;
 };
 
-export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera, onGameOverRevealed, instakillActive }: SceneOverlayProps) {
+export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera, onGameOverRevealed, instakillActive, onLobbyGone }: SceneOverlayProps) {
   const {
     theme,
     backLabel,
@@ -168,6 +173,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const chatExpandedRef = useRef(chatExpanded);
   useEffect(() => { chatExpandedRef.current = chatExpanded; }, [chatExpanded]);
   const { showError } = useToast();
+  // Held in a ref for the same reason useLobbyConnection keeps its own
+  // callbacks in one: the socket subscription must not be torn down and
+  // rebuilt because a parent re-rendered with a fresh closure.
+  const onLobbyGoneRef = useRef(onLobbyGone);
+  onLobbyGoneRef.current = onLobbyGone;
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -184,6 +194,16 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       if (!chatExpandedRef.current) setUnreadChat(true);
     },
     onError: (message) => {
+      // The lobby itself is gone -- most often the backend restarted and
+      // took its in-memory lobbies with it. There is nothing here to come
+      // back to and nothing the player did wrong, so showing them
+      // "Lobby not found" only names an internal object at someone who
+      // was playing a game a second ago. Walk them back out to the world
+      // map instead and say nothing.
+      if (isLobbyGoneError(message)) {
+        onLobbyGoneRef.current?.();
+        return;
+      }
       if (message !== 'Name taken') {
         showError(message);
       }

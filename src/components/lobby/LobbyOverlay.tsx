@@ -42,6 +42,9 @@ type LobbyOverlayProps = {
    *  by LobbyScene (see its own onInstakillActiveChange), passed straight
    *  through to SceneOverlay. */
   instakillActive?: boolean;
+  /** Fired when the socket says this lobby no longer exists -- the page
+   *  walks the player back out to the world map. See SceneOverlay. */
+  onLobbyGone?: () => void;
 };
 
 export function InviteSection({ lobbyId }: { lobbyId: string }) {
@@ -440,7 +443,7 @@ const lobbyConfig: SceneOverlayConfig = {
   renderGameOver,
 };
 
-export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, onResourceChange, spinEnabled, onToggleSpin, cameraMoved, onResetCamera, instakillActive }: LobbyOverlayProps) {
+export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, onResourceChange, spinEnabled, onToggleSpin, cameraMoved, onResetCamera, instakillActive, onLobbyGone }: LobbyOverlayProps) {
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [wheelNudgeDismissed, setWheelNudgeDismissed] = useState(false);
@@ -512,6 +515,7 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
         cameraMoved={cameraMoved}
         onResetCamera={onResetCamera}
         instakillActive={instakillActive}
+        onLobbyGone={onLobbyGone}
       />
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
       {showNudge && (

@@ -19,6 +19,12 @@ vi.mock('@/lib/useStagedResources', () => ({ useStagedResources: vi.fn() }));
 const emit = vi.fn();
 vi.mock('@/lib/socket', () => ({ getSocket: () => ({ emit }) }));
 
+// Toast is mocked so a test can assert what the player was NOT told: the
+// lobby-gone path is defined as much by the absence of a message as by the
+// redirect it fires.
+const showError = vi.fn();
+vi.mock('@/components/Toast', () => ({ useToast: () => ({ showError }) }));
+
 const mockedUseLobbyConnection = vi.mocked(useLobbyConnection);
 const mockedUseLobbyGame = vi.mocked(useLobbyGame);
 const mockedUseRoundTimer = vi.mocked(useRoundTimer);
@@ -104,6 +110,7 @@ function mockConnection(state: LobbyState | null) {
 
 beforeEach(() => {
   emit.mockClear();
+  showError.mockClear();
   capturedConnectionOptions = undefined;
   mockConnection(baseState);
   mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult });
@@ -141,6 +148,52 @@ describe('connection lost', () => {
   it('does not show the connection-lost message while connected', () => {
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
     expect(screen.queryByText('Connection lost. Please refresh.')).not.toBeInTheDocument();
+  });
+});
+
+describe('a lobby that no longer exists', () => {
+  // The backend restarting drops every in-memory lobby, and the next
+  // socket message back is "Lobby not found". Naming an internal object at
+  // someone who was mid-game a second ago tells them nothing they can act
+  // on, so they are walked out to the world map in silence instead.
+  const fireError = (message: string) => {
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} onLobbyGone={onLobbyGone} />);
+    act(() => { capturedConnectionOptions?.onError?.(message); });
+  };
+  const onLobbyGone = vi.fn();
+  beforeEach(() => onLobbyGone.mockClear());
+
+  it('leaves for the world map instead of showing "Lobby not found"', () => {
+    fireError('Lobby not found');
+    expect(onLobbyGone).toHaveBeenCalledTimes(1);
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('also catches the spelling that names the lobby', () => {
+    // One backend handler emits "Lobby <id> not found" rather than the
+    // bare string -- both mean the same thing to the player.
+    fireError('Lobby AAAA not found');
+    expect(onLobbyGone).toHaveBeenCalledTimes(1);
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('still shows every other error, and does not leave', () => {
+    fireError('You are not the admin');
+    expect(onLobbyGone).not.toHaveBeenCalled();
+    expect(showError).toHaveBeenCalledWith('You are not the admin');
+  });
+
+  it('goes on swallowing "Name taken" without leaving', () => {
+    fireError('Name taken');
+    expect(onLobbyGone).not.toHaveBeenCalled();
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('does not fall over when no handler was supplied', () => {
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(() => act(() => { capturedConnectionOptions?.onError?.('Lobby not found'); }))
+      .not.toThrow();
+    expect(showError).not.toHaveBeenCalled();
   });
 });
 
