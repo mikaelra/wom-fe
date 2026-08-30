@@ -115,6 +115,27 @@ export function resolveCityTime(param: string | null | undefined, now: Date = ne
   return { date: now, overridden: false };
 }
 
+/**
+ * An instant as a `?t=` value: Athens local `YYYY-MM-DDTHH:MM`.
+ *
+ * The inverse of `resolveCityTime`'s second form, so the scene's own time
+ * controls can step forward an hour and hand the result straight back to the
+ * URL. Carries the date as well as the clock deliberately -- stepping past
+ * midnight with the bare `HH:MM` form would silently jump back to today.
+ */
+export function formatAthensParam(at: Date): string {
+  const dtf = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ATHENS_TZ, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(at)) parts[p.type] = p.value;
+  // Some environments render midnight as hour 24 under hour12:false.
+  const hour = String(Number(parts.hour) % 24).padStart(2, '0');
+  return `${parts.year}-${parts.month}-${parts.day}T${hour}:${parts.minute}`;
+}
+
 /** Athens wall-clock time of an instant, for showing what is being viewed. */
 export function formatAthensClock(at: Date): string {
   return new Intl.DateTimeFormat('en-GB', {

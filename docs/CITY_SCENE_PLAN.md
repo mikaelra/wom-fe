@@ -8,7 +8,10 @@ no protocol change) · Written: 2026-08-30 · Last updated: 2026-08-30
 > — the rotation matrix and lunar parallax in §6.3, the camera model in §5.3, the
 > step ordering in §13, and two things about the label text in §7.4–§7.5 — all
 > corrected in place and flagged **[corrected]** so the history stays legible.
-> Still to come: the dead-code deletion, the Senate model, and the arcs.
+> Still to come: the dead-code deletion, the Senate model, and the arcs. Two
+> unplanned additions carry their own **[added]**/**[corrected]** notes: the
+> loading curtain (§5.4) and the temporary tuning instruments — the red ecliptic
+> band (§6.5) and the city's time controls (§6.6).
 >
 > **Viewing another sky.** `?t=` on the city URL overrides the instant, read as
 > Athens local time: `/city?id=athens&t=02:00` for tonight's 2am starfield,
@@ -337,6 +340,35 @@ latent problem today against that scene's OrbitControls.
 
 ---
 
+### 5.4 The loading curtain — **[added]**
+
+Not in the original plan, and needed the moment the city became a real route.
+There are two separate waits between tapping the sword and standing in Athens,
+and neither showed anything at all:
+
+1. **On the world map** — the route change plus the city chunk's download, all of
+   which happens while the globe is still the page on screen. A tap on the sword
+   looked like it had done nothing.
+2. **On the city page** — `temple.glb`, the Senate, the mountain and the Milky Way
+   texture loading behind a `Suspense fallback={null}`, i.e. an empty dark screen.
+
+`CityLoadingScreen` renders in **both** places, which is what makes the two waits
+read as one continuous transition rather than a stall, a flash and a pop. Its
+progress bar is drei's `useProgress`, honest about what it knows: a real
+percentage only while something is genuinely in three's loading manager, and an
+indeterminate sweep otherwise (the world-map half, and any second visit where
+every asset is already cached) rather than a fake 100%.
+
+The curtain lifts on the scene's **own** signal, never a timer. `SceneReady` sits
+*inside* the buildings' `<Suspense>`, so it cannot mount until they resolve, and
+then waits two drawn frames before reporting — Suspense resolving means the models
+are parsed, not that the canvas has painted them. A 20s fallback exists purely so
+a stalled asset can never leave a working scene behind a permanent curtain.
+
+The art is explicitly temporary, like §6.5's red band.
+
+---
+
 ## 6. The real sky — the engineering core
 
 ### 6.1 No new library is needed
@@ -475,6 +507,28 @@ directly.
 Ship the arcs as a **toggle**, off by default. A sky full of trails is beautiful
 once and noisy on the tenth visit.
 
+**[corrected] The ecliptic band shipped early, in red, as a tuning instrument.**
+It was scheduled last (step 14) as the most cuttable item, but it turns out to be
+the fastest way to *check* the sky rather than merely decorate it: the Sun sits on
+the ecliptic by definition and every planet within a few degrees of it, so a body
+drawn far off the line means the placement maths is wrong, visible at a glance and
+without reading a single number. That made it worth having while steps 10–11 were
+being tuned by eye, not after. It is currently **on by default** and plainly
+temporary -- `?ecliptic=0` hides it. Step 14 still owns turning it into the
+finished zodiac band, off by default, with a treatment that matches the art.
+
+`Rotation_ECL_HOR` did give it directly, as this section predicted: one matrix,
+ecliptic straight to this horizon, no hand-rolled obliquity. `eclipticPolyline`
+samples the full circle and lets the sea plane hide the half below the observer,
+so the line meets the horizon exactly where the ecliptic really rises and sets.
+The tests assert the property that matters -- the band passes through the Sun to
+within the sampling resolution -- and, separately, that every planet lies inside
+its **geocentric** latitude bound. Note that those bounds are *not* the planets'
+orbital inclinations: Earth sits off to one side of the Sun, so a planet at
+heliocentric latitude `i` and distance `r` appears at roughly `i · r/Δ`. Saturn
+measures 2.65° against an inclination of 2.49°, and an earlier version of the
+test failed for exactly that reason.
+
 ### 6.6 Time source and freshness
 
 `getSky()` is a deliberately **session-length cached singleton** — frozen so the
@@ -492,6 +546,22 @@ Resolution:
 Document the tradeoff in the module: a player who sits in the city across sunset
 will not see it fall until they leave and return. That is acceptable; a live
 sunset is a later, opt-in feature.
+
+**[corrected] `?t=` alone is not a usable way to look at night.** The parameter
+works exactly as specified, but in practice it was repeatedly reported as "the
+sky is broken, it is still day" -- three times -- and every report was the URL,
+not the sky. It lives on the *city* route, so the bare host is the world map and
+has no `?t=` at all; and hand-typing `&t=02:00` on a phone, where the scene is
+actually being reviewed, is miserable. Since Athens is in daylight for most of a
+working day, the default view is correctly, stubbornly bright.
+
+So the city overlay now carries **temporary time controls** -- `−1h`, `NOW`,
+`+1h`, `☾ 02:00` -- which only rewrite the same `?t=` parameter. Nothing about
+the sky's defaults changed: locked decision 5 stands, and with no parameter the
+scene still shows the real sky over Greece right now. Stepping emits the full
+`YYYY-MM-DDTHH:MM` form rather than bare `HH:MM`, so crossing midnight moves to
+the next day instead of snapping back to this morning (`formatAthensParam`, the
+inverse of `resolveCityTime`, round-trip tested).
 
 ---
 

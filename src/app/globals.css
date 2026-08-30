@@ -97,3 +97,13 @@ body {
   100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
 }
 .resource-block-aura { animation: resource-block-aura 0.73s ease-out; } /* scaled to 0.8x for a modest speedup */
+
+/* Indeterminate progress: a short bar sweeping across its track. Used by the
+   city loading curtain when nothing is in three's loading manager to measure
+   -- a cached second visit, or the moment before the scene chunk arrives --
+   where a percentage would be invented rather than reported. */
+@keyframes city-loading-sweep {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(320%);  }
+}
+.city-loading-sweep { animation: city-loading-sweep 1.15s ease-in-out infinite; }

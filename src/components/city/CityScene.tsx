@@ -1,7 +1,8 @@
 'use client';
 
-import { Suspense, useMemo, useState, type ReactNode } from 'react';
+import { Suspense, useMemo, useRef, useState, type ReactNode } from 'react';
 import { OrbitControls } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Temple from '@/components/temple';
@@ -101,6 +102,35 @@ export interface CitySceneProps {
   onRanked: () => void;
   rankedLabel: string;
   rankedSublabel?: string | null;
+  /** Fired once the scene is genuinely on screen, so the loading curtain
+   *  knows when to lift. */
+  onReady?: () => void;
+  /** The temporary red ecliptic band (§6.5). */
+  showEcliptic?: boolean;
+}
+
+/**
+ * Says when the scene is actually on screen, for the loading curtain.
+ *
+ * Rendered INSIDE the buildings' <Suspense>, so it cannot mount until every
+ * model behind that boundary has resolved -- that is the whole point, and it
+ * is why this is a component rather than an effect in the parent. Then it
+ * waits two drawn frames before reporting: Suspense resolving means the
+ * models are parsed, not that the canvas has painted them, and lifting the
+ * curtain on that first frame shows a visibly empty scene for a beat.
+ */
+function SceneReady({ onReady }: { onReady?: () => void }) {
+  const frames = useRef(0);
+  const fired = useRef(false);
+
+  useFrame(() => {
+    if (fired.current) return;
+    if (++frames.current < 2) return;
+    fired.current = true;
+    onReady?.();
+  });
+
+  return null;
 }
 
 /** Wraps a building in the tap-not-drag interaction and hover reporting, so
@@ -140,6 +170,8 @@ export default function CityScene({
   onRanked,
   rankedLabel,
   rankedSublabel,
+  onReady,
+  showEcliptic,
 }: CitySceneProps) {
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
@@ -201,7 +233,14 @@ export default function CityScene({
 
   return (
     <>
-      <CitySky date={date} realLat={realLat} realLng={realLng} eye={EYE} seaLevel={SEA_LEVEL} />
+      <CitySky
+        date={date}
+        realLat={realLat}
+        realLng={realLng}
+        eye={EYE}
+        seaLevel={SEA_LEVEL}
+        showEcliptic={showEcliptic}
+      />
 
       {/* Outside the <Suspense> below: the labels are DOM, not a model, and
           must not wait on a texture to start naming what you look at. */}
@@ -221,6 +260,8 @@ export default function CityScene({
       <hemisphereLight args={['#9fb8ff', '#0a1020', 0.35 * nightness]} />
 
       <Suspense fallback={null}>
+        <SceneReady onReady={onReady} />
+
         <BuildingTarget
           position={TEMPLE_POSITION}
           onActivate={onBossfight}

@@ -1,10 +1,11 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import CityOverlay from '@/components/city/CityOverlay';
+import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import AuthGatePopup from '@/components/AuthGatePopup';
 import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
 import { findCity } from '@/lib/cities';
@@ -35,6 +36,22 @@ function CityPageContent() {
   // ?t= lets you look at a sky that is not the one currently overhead --
   // "02:00" is 2am Athens tonight (docs/CITY_SCENE_PLAN.md §6.6).
   const { date: skyDate, overridden: skyOverridden } = resolveCityTime(searchParams.get('t'));
+
+  // The red alignment band is on while the sky is being tuned; `?ecliptic=0`
+  // turns it off without a code change (§6.5).
+  const showEcliptic = searchParams.get('ecliptic') !== '0';
+
+  // The loading curtain lifts on the scene's own signal, never on a timer --
+  // except as a last resort, below.
+  const [sceneReady, setSceneReady] = useState(false);
+  const handleReady = useCallback(() => setSceneReady(true), []);
+  useEffect(() => {
+    // Safety net. A stalled texture must never leave the player staring at a
+    // permanent curtain with a working scene hidden behind it; showing a
+    // half-dressed Athens is strictly better than showing nothing.
+    const id = setTimeout(() => setSceneReady(true), 20000);
+    return () => clearTimeout(id);
+  }, []);
 
   const { enterBossfight, loading, gateOpen, closeGate, authFlow } = useEnterBossfight();
   const ranked = useEnterRanked();
@@ -82,9 +99,22 @@ function CityPageContent() {
           onRanked={ranked.enterRanked}
           rankedLabel={ranked.label}
           rankedSublabel={ranked.sublabel}
+          onReady={handleReady}
+          showEcliptic={showEcliptic}
         />
       </Canvas>
-      <CityOverlay city={city} skyClock={skyOverridden ? formatAthensClock(skyDate) : null} />
+      <CityOverlay
+        city={city}
+        skyClock={skyOverridden ? formatAthensClock(skyDate) : null}
+        skyDate={skyDate}
+      />
+
+      <CityLoadingScreen
+        title={city.actionLabel ?? city.name}
+        subtitle={`The real sky over ${city.country}`}
+        accent={city.color}
+        done={sceneReady}
+      />
 
       {loading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 pointer-events-none">

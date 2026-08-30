@@ -150,6 +150,20 @@ describe('Page (world map view, city routing)', () => {
     expect(mockedCheckName).not.toHaveBeenCalled();
   });
 
+  it('raises the loading curtain on the click, not after the route change', async () => {
+    render(<Page />);
+    // Nothing to see until the sword is actually tapped.
+    expect(screen.queryByText('ENTERING')).not.toBeInTheDocument();
+
+    await clickAthens();
+
+    // The route change and the city chunk's download both happen while this
+    // page is still mounted, so without this a tap looks like it did
+    // nothing at all.
+    expect(screen.getByText('ENTERING')).toBeInTheDocument();
+    expect(screen.getByText(`The real sky over ${ATHENS.country}`)).toBeInTheDocument();
+  });
+
   it('routes to the city the same way when already logged in', async () => {
     // Previously this was the "skip the popup, go straight in" path. There
     // is no longer a fast path on the world map: everyone goes to the city.

@@ -10,7 +10,9 @@ import {
   localFrame, horizonOf, horizonOfRaDec, nightness, twilightBand,
   type HorizonPos, type LocalFrame,
 } from '@/lib/skyLocal';
-import { horizonToScene, eqjToSceneMatrix, SKY_R, STAR_R } from '@/lib/citySkyGeometry';
+import {
+  horizonToScene, eqjToSceneMatrix, eclipticPolyline, SKY_R, STAR_R,
+} from '@/lib/citySkyGeometry';
 
 export { horizonToScene } from '@/lib/citySkyGeometry';
 import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
@@ -230,18 +232,56 @@ function Stars({ frame, eye, opacity }: {
   );
 }
 
+/**
+ * The ecliptic, drawn in red (docs/CITY_SCENE_PLAN.md §6.5).
+ *
+ * TEMPORARY, and deliberately so: this is the alignment aid for tuning the
+ * sky by eye, not the finished "zodiac band" §6.5 describes. Every planet
+ * rides within a few degrees of this line and the Sun sits exactly on it,
+ * so if a body is drawn far off the band, the placement maths is wrong --
+ * which makes it the fastest possible check that the sky is right. Step 14
+ * turns it into a real toggle with a treatment to match the art; until
+ * then `?ecliptic=0` on the city URL hides it.
+ *
+ * Depth-tested rather than drawn on top, so the sea plane hides the half of
+ * the circle that is under the observer's feet and the line meets the
+ * horizon exactly where the ecliptic really rises and sets.
+ */
+function EclipticBand({ frame, eye }: {
+  frame: LocalFrame; eye: readonly [number, number, number];
+}) {
+  const line = useMemo(() => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(eclipticPolyline(frame, SKY_R * 0.995, eye), 3),
+    );
+    const material = new THREE.LineBasicMaterial({
+      color: '#ff2a2a', transparent: true, opacity: 0.75, depthWrite: false,
+    });
+    return new THREE.Line(geometry, material);
+  }, [frame, eye]);
+
+  // Slightly inside the body sphere (0.995) so a planet sitting on the
+  // ecliptic draws in front of the line rather than z-fighting with it.
+  return <primitive object={line} />;
+}
+
 export default function CitySky({
   date,
   realLat,
   realLng,
   eye,
   seaLevel,
+  showEcliptic = true,
 }: {
   date: Date;
   realLat: number;
   realLng: number;
   eye: readonly [number, number, number];
   seaLevel: number;
+  /** The red alignment band. On by default while the sky is being tuned. */
+  showEcliptic?: boolean;
 }) {
   // One call, one snapshot: the frame the stars are rotated by is the same
   // object the bodies were placed with, rather than a second computeSky of
@@ -278,6 +318,8 @@ export default function CitySky({
           <Stars frame={frame} eye={eye} opacity={night} />
         </Suspense>
       )}
+
+      {showEcliptic && <EclipticBand frame={frame} eye={eye} />}
 
       {placements.map((p) => (
         p.visibility > 0 && (

@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { horizonOfRaDec, type HorizonPos, type LocalFrame } from '@/lib/skyLocal';
+import {
+  horizonOfRaDec, eclipticToHorizon, horizonOfEclipticLon,
+  type HorizonPos, type LocalFrame,
+} from '@/lib/skyLocal';
 
 /**
  * Placing the sky in the city scene (docs/CITY_SCENE_PLAN.md §6).
@@ -61,4 +64,36 @@ export function eqjToSceneMatrix(frame: LocalFrame): THREE.Matrix4 {
     return new THREE.Vector3(x, y, z);
   };
   return new THREE.Matrix4().makeBasis(dir(0, 0), dir(0, 90), dir(18, 0));
+}
+
+/**
+ * The ecliptic as a closed polyline in scene space (§6.5).
+ *
+ * A full 360 deg circle, not just the visible half: the part below the
+ * horizon is hidden by the sea plane, which puts the line's ends exactly
+ * where the ecliptic actually rises and sets rather than at an arbitrary
+ * clip. Every sample goes through the same `eclipticToHorizon` matrix, and
+ * from there the same `horizonToScene` the bodies use, so the band cannot
+ * disagree with the planets sitting on it.
+ *
+ * `steps` is the number of segments around the circle; 360 gives one sample
+ * per degree, which is well under the width of the line on screen.
+ */
+export function eclipticPolyline(
+  frame: LocalFrame,
+  radius: number,
+  eye: readonly [number, number, number],
+  steps = 360,
+): Float32Array {
+  const rot = eclipticToHorizon(frame);
+  // steps + 1 points, the last repeating the first, so the loop closes.
+  const out = new Float32Array((steps + 1) * 3);
+  for (let i = 0; i <= steps; i++) {
+    const lon = (i % steps) * (360 / steps);
+    const [x, y, z] = horizonToScene(horizonOfEclipticLon(lon, rot, frame), radius, eye);
+    out[i * 3] = x;
+    out[i * 3 + 1] = y;
+    out[i * 3 + 2] = z;
+  }
+  return out;
 }

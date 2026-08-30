@@ -12,6 +12,7 @@ import ExplosionEffect from '@/components/ExplosionEffect';
 import HomeOverlay from '@/components/home/HomeOverlay';
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
+import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import type { City } from '@/lib/cities';
 
 // Dynamically import heavy 3D models
@@ -193,11 +194,20 @@ export default function Page() {
     // (docs/CITY_SCENE_PLAN.md §4.4). The sword reads GREECE; the scene
     // behind it is the city.
     if (city.name === 'Athens') {
+      // Curtain first, THEN navigate. The route change and the city chunk's
+      // download both happen while this page is still the one on screen, so
+      // without it a tap on the sword looks like it did nothing at all.
+      setEnteringCity(city);
       router.push(`/city?id=${city.id}`);
       return;
     }
     setSelectedCity(city);
   }, [router]);
+
+  // Set when the city route has been asked for but this page is still
+  // mounted. Never cleared: the only way out is the navigation itself, and
+  // clearing it would flash the globe back for a frame.
+  const [enteringCity, setEnteringCity] = useState<City | null>(null);
 
   const handleBackToMap = useCallback(() => {
     setSelectedCity(null);
@@ -214,6 +224,13 @@ export default function Page() {
           </Canvas>
         )}
 
+        {enteringCity && (
+          <CityLoadingScreen
+            title={enteringCity.actionLabel ?? enteringCity.name}
+            subtitle={`The real sky over ${enteringCity.country}`}
+            accent={enteringCity.color}
+          />
+        )}
       </div>
     );
   }

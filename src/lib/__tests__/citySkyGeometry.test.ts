@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { computeSky } from '@/lib/astrology';
-import { localFrame } from '@/lib/skyLocal';
+import { computeSky, type AspectBody } from '@/lib/astrology';
+import {
+  localFrame, horizonOf, eclipticToHorizon, horizonOfEclipticLon, separationOnSky,
+} from '@/lib/skyLocal';
 import { CITIES } from '@/lib/cities';
-import { horizonToScene, eqjToSceneMatrix, STAR_R } from '@/lib/citySkyGeometry';
+import {
+  horizonToScene, eqjToSceneMatrix, eclipticPolyline, STAR_R,
+} from '@/lib/citySkyGeometry';
 
 const ATHENS = CITIES.find((c) => c.name === 'Athens')!;
 const AT = new Date('2026-08-29T23:00:00Z'); // 02:00 Athens, EEST
@@ -104,5 +108,77 @@ describe('eqjToSceneMatrix', () => {
     const a = new THREE.Vector3(1, 0, 0).applyMatrix4(m);
     const b = new THREE.Vector3(1, 0, 0).applyMatrix4(later);
     expect(a.angleTo(b)).toBeGreaterThan(THREE.MathUtils.degToRad(60));
+  });
+});
+
+// ── The ecliptic band (docs/CITY_SCENE_PLAN.md §6.5) ───────────────────────
+
+/** Nearest approach of a horizon position to the sampled ecliptic, in
+ *  degrees. Quarter-degree sampling, so the answer is good to 0.125. */
+function offEcliptic(pos: { altitude: number; azimuth: number }): number {
+  const rot = eclipticToHorizon(frame);
+  let nearest = Infinity;
+  for (let lon = 0; lon < 360; lon += 0.25) {
+    nearest = Math.min(nearest, separationOnSky(pos, horizonOfEclipticLon(lon, rot, frame)));
+  }
+  return nearest;
+}
+
+describe('eclipticPolyline', () => {
+  it('closes the loop, so the band has no visible seam', () => {
+    const pts = eclipticPolyline(frame, 400, EYE, 360);
+    expect(pts.length).toBe((360 + 1) * 3);
+    for (let i = 0; i < 3; i++) {
+      expect(pts[i]).toBeCloseTo(pts[360 * 3 + i], 6);
+    }
+  });
+
+  it('lies on a sphere of the requested radius around the eye', () => {
+    const R = 400;
+    const pts = eclipticPolyline(frame, R, EYE, 72);
+    for (let i = 0; i < pts.length; i += 3) {
+      const d = Math.hypot(pts[i] - EYE[0], pts[i + 1] - EYE[1], pts[i + 2] - EYE[2]);
+      expect(d).toBeCloseTo(R, 3);
+    }
+  });
+
+  it('passes through the Sun -- which is what makes it a real check', () => {
+    // The Sun's ecliptic latitude is zero by definition, so it sits exactly
+    // on this circle. If a later change breaks the frame conversion, the band
+    // and the Sun part company and this fails. It is the assertion the red
+    // line lets you make by eye, done in numbers.
+    // Half a sampling step is 0.125 deg, so anything under that is exact.
+    expect(offEcliptic(horizonOf(computeSky(AT), 'Sun', frame))).toBeLessThan(0.13);
+  });
+
+  it('holds every planet inside the zodiac band it really rides in', () => {
+    // Not a tautology: the bodies reach the horizon through the SNAPSHOT and
+    // Rotation_EQJ_HOR, the band through Rotation_ECL_HOR. Agreement means
+    // both conversions are right.
+    //
+    // The bounds are NOT the planets' orbital inclinations. Those are
+    // heliocentric, and what an observer sees is the GEOCENTRIC latitude,
+    // which is larger because Earth sits off to one side of the Sun: a
+    // planet at heliocentric latitude i and distance r appears at roughly
+    // i * r/delta, where delta is its distance from Earth. Saturn measures
+    // 2.65 deg here against an inclination of only 2.49 -- 9.58/8.6 at
+    // opposition accounts for it exactly, and an earlier version of this
+    // test failed for precisely that reason. Each bound below is that
+    // amplified maximum, rounded up:
+    //
+    //   Mercury  7.00 * 0.387/0.52  ~ 5.2      Jupiter 1.30 * 5.20/4.20 ~ 1.6
+    //   Venus    3.39 * 0.723/0.265 ~ 9.3      Saturn  2.49 * 9.58/8.60 ~ 2.8
+    //   Mars     1.85 * 1.524/0.373 ~ 7.6      Moon -- geocentric already, 5.145
+    //
+    // Venus is why the classical zodiac band is 9 deg wide and not 8.
+    const MAX_OFF: Partial<Record<AspectBody, number>> = {
+      Mercury: 7.5, Venus: 9.5, Mars: 8.0, Jupiter: 2.0, Saturn: 3.2, Moon: 5.3,
+    };
+    const sky = computeSky(AT);
+
+    for (const [body, bound] of Object.entries(MAX_OFF)) {
+      const off = offEcliptic(horizonOf(sky, body as AspectBody, frame));
+      expect(off, `${body} sits ${off.toFixed(2)} deg off the ecliptic`).toBeLessThan(bound!);
+    }
   });
 });

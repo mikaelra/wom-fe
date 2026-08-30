@@ -151,6 +151,56 @@ export function horizonOfRaDec(raHours: number, decDeg: number, frame: LocalFram
   return { altitude: sph.lat, azimuth: sph.lon };
 }
 
+/**
+ * The ecliptic -- the plane the planets ride -- over this place.
+ *
+ * `Rotation_ECL_HOR` goes straight from ecliptic coordinates to this
+ * horizon in one matrix, so the band needs no hand-rolled obliquity and
+ * cannot drift out of agreement with the bodies drawn on it. ECL is the
+ * J2000 mean ecliptic, the same epoch the `Sky` snapshot uses.
+ *
+ * Returned separately from `horizonOfEclipticLon` so a caller sampling the
+ * whole circle builds the matrix once rather than 360 times.
+ */
+export function eclipticToHorizon(frame: LocalFrame): Astronomy.RotationMatrix {
+  return Astronomy.Rotation_ECL_HOR(frame.time, frame.observer);
+}
+
+/**
+ * Where ecliptic longitude `lonDeg` (at latitude 0, i.e. the plane itself)
+ * stands over this place. `rot` comes from `eclipticToHorizon`.
+ *
+ * The Sun sits on this circle by definition, so "does the drawn band pass
+ * through the Sun" is a test with a real right answer -- see the tests.
+ */
+export function horizonOfEclipticLon(
+  lonDeg: number,
+  rot: Astronomy.RotationMatrix,
+  frame: LocalFrame,
+): HorizonPos {
+  const lon = lonDeg * (Math.PI / 180);
+  // Ecliptic cartesian: x toward the vernal equinox, z toward ecliptic
+  // north, so latitude 0 is simply z = 0.
+  const vec = new Astronomy.Vector(Math.cos(lon), Math.sin(lon), 0, frame.time);
+  const sph = Astronomy.HorizonFromVector(Astronomy.RotateVector(rot, vec), NO_REFRACTION);
+  return { altitude: sph.lat, azimuth: sph.lon };
+}
+
+/** Angle between two horizon positions, in degrees. */
+export function separationOnSky(a: HorizonPos, b: HorizonPos): number {
+  const toVec = (p: HorizonPos) => {
+    const alt = p.altitude * (Math.PI / 180);
+    const az = p.azimuth * (Math.PI / 180);
+    return new THREE.Vector3(
+      Math.cos(alt) * Math.cos(az),
+      Math.cos(alt) * Math.sin(az),
+      Math.sin(alt),
+    );
+  };
+  const dot = Math.min(1, Math.max(-1, toVec(a).dot(toVec(b))));
+  return (Math.acos(dot) * 180) / Math.PI;
+}
+
 export function isAboveHorizon(pos: HorizonPos): boolean {
   return pos.altitude > 0;
 }

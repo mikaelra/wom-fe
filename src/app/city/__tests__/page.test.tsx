@@ -69,16 +69,21 @@ let rankedHandler: (() => void) | undefined;
 let lastSublabel: string | null | undefined;
 let lastRankedLabel: string | undefined;
 let lastRankedSublabel: string | null | undefined;
+let readyHandler: (() => void) | undefined;
 vi.mock('@/components/city/CityScene', () => ({
-  default: ({ onBossfight, bossfightSublabel, onRanked, rankedLabel, rankedSublabel }: {
+  default: ({ onBossfight, bossfightSublabel, onRanked, rankedLabel, rankedSublabel, onReady }: {
     onBossfight: () => void; bossfightSublabel?: string | null;
     onRanked: () => void; rankedLabel: string; rankedSublabel?: string | null;
+    onReady?: () => void;
   }) => {
     bossfightHandler = onBossfight;
     lastSublabel = bossfightSublabel;
     rankedHandler = onRanked;
     lastRankedLabel = rankedLabel;
     lastRankedSublabel = rankedSublabel;
+    // The real scene fires this from a useFrame once its models have
+    // resolved AND the canvas has drawn; here the test decides when.
+    readyHandler = onReady;
     return <div data-testid="city-scene" />;
   },
   CITY_CAMERA: [0, 5, 0.01],
@@ -115,6 +120,7 @@ beforeEach(() => {
   lastSublabel = undefined;
   lastRankedLabel = undefined;
   lastRankedSublabel = undefined;
+  readyHandler = undefined;
   socket.__reset();
   mockedCheckName.mockReset();
   mockedLogInUser.mockReset();
@@ -160,6 +166,37 @@ describe('CityPage (routing)', () => {
     fireEvent.click(await screen.findByText(/Back to Earth/));
     expect(push).toHaveBeenCalledWith('/');
   });
+});
+
+describe('CityPage (loading curtain)', () => {
+  it('covers the scene until it reports itself ready', async () => {
+    renderCity();
+    await waitForScene();
+    // temple.glb, the Senate, the mountain and the Milky Way texture all
+    // load behind a Suspense that used to fall back to null -- i.e. to an
+    // empty dark screen with no sign that anything was coming.
+    expect(screen.getByText('ENTERING')).toBeInTheDocument();
+    expect(screen.getByText('GREECE')).toBeInTheDocument();
+  });
+
+  it('lifts once the scene signals it is on screen', async () => {
+    renderCity();
+    await waitFor(() => expect(readyHandler).toBeDefined());
+    expect(screen.getByText('ENTERING')).toBeInTheDocument();
+
+    // The real scene calls this from a useFrame, two drawn frames after its
+    // models resolve -- Suspense resolving only means they are parsed.
+    act(() => { readyHandler!(); });
+
+    // It fades before it unmounts, so this is not synchronous.
+    await waitFor(() => expect(screen.queryByText('ENTERING')).not.toBeInTheDocument());
+  });
+
+  // The 20s "the scene never reported" fallback is deliberately NOT tested
+  // here: driving it needs fake timers installed before render, and this
+  // file's dynamic import and waitFor polling both need real ones. Faking
+  // them mid-test does not work either, since the timeout is already
+  // scheduled against the real clock by then.
 });
 
 // These behaviours moved here wholesale from the world map's Athens sword
