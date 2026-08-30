@@ -13,6 +13,7 @@ import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
 import CompassMarks from '@/components/city/CompassMarks';
 import Campfire from '@/components/city/Campfire';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
+import { sunIsDown } from '@/lib/skyLocal';
 import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
 // Temple left, Senate right, signpost between (§1.1). In lib/ so the
 // left/right pairing with the signpost's arms can be tested.
@@ -221,7 +222,7 @@ export default function CityScene({
 }: CitySceneProps) {
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
-  const { placements, sky, nightness } = useCitySky(date, realLat, realLng, EYE);
+  const { placements, sky, nightness, sunAltitude } = useCitySky(date, realLat, realLng, EYE);
 
 
   // The key light follows the real Sun's compass direction rather than the
@@ -397,8 +398,17 @@ export default function CityScene({
         {/* Between the viewer and the signpost, so it lights the face of the
             arms rather than their backs. Once the Sun sets the scene's key
             light goes with it and the signpost -- the one thing that must
-            stay readable -- went dark with it; this is what keeps it lit. */}
-        <Campfire position={CAMPFIRE_POSITION} nightness={nightness} />
+            stay readable -- went dark with it; this is what keeps it lit.
+
+            Laid at sunset and gone after sunrise, off the same Sun altitude
+            the sky is drawn from. Nobody builds a fire they do not need, and
+            a cold fire burning through an Athens afternoon read as scenery
+            somebody forgot to clear away. `nightness` still ramps the light
+            itself, so it catches at dusk rather than snapping to full
+            brightness the instant it appears. */}
+        {sunIsDown(sunAltitude) && (
+          <Campfire position={CAMPFIRE_POSITION} nightness={nightness} />
+        )}
 
         {/* A landmark to turn toward, so a full rotation is not three
             quarters of empty horizon. */}

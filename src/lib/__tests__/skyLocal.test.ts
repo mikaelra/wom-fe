@@ -4,6 +4,7 @@ import type { AspectBody } from '@/lib/astrology';
 import {
   localFrame, horizonFromSnapshot, horizonTopocentric, horizonOf, horizonOfRaDec,
   isAboveHorizon, nightness, twilightBand, sunAltitude, sunEvents, compassPoint, TWILIGHT,
+  sunIsDown,
 } from '@/lib/skyLocal';
 import { CITIES } from '@/lib/cities';
 
@@ -187,6 +188,38 @@ describe('day and night', () => {
     expect(twilightBand(TWILIGHT.civil)).toBe('nautical');
     expect(twilightBand(TWILIGHT.nautical)).toBe('astronomical');
     expect(twilightBand(TWILIGHT.astronomical)).toBe('night');
+  });
+
+  it('says the Sun is down from sunset until sunrise', () => {
+    // Drives whether the city's campfire is laid at all.
+    expect(sunIsDown(45)).toBe(false);
+    expect(sunIsDown(0.1)).toBe(false);
+    expect(sunIsDown(-0.1)).toBe(true);
+    expect(sunIsDown(-6)).toBe(true);
+    expect(sunIsDown(-90)).toBe(true);
+  });
+
+  it('puts the Sun down at exactly the altitude twilightBand stops saying day', () => {
+    // The two must agree on the crossing, or the fire is alight in a scene
+    // still being drawn as daylight (or the reverse).
+    expect(sunIsDown(TWILIGHT.day)).toBe(true);
+    expect(twilightBand(TWILIGHT.day)).not.toBe('day');
+  });
+
+  it('agrees with the real sunset and sunrise it is standing in for', () => {
+    // The point of reading the altitude rather than SearchRiseSet is that
+    // the two say the same thing; this checks that, either side of a real
+    // computed Athens sunset.
+    const frameAt = (iso: string) =>
+      localFrame(computeSky(new Date(iso)), ATHENS.realLat, ATHENS.realLng);
+    const midday = frameAt('2026-06-21T09:00:00Z');
+    const { sunset } = sunEvents(midday);
+    expect(sunset).not.toBeNull();
+
+    const before = new Date(sunset!.getTime() - 5 * 60_000);
+    const after = new Date(sunset!.getTime() + 5 * 60_000);
+    expect(sunIsDown(sunAltitude(computeSky(before), frameAt(before.toISOString())))).toBe(false);
+    expect(sunIsDown(sunAltitude(computeSky(after), frameAt(after.toISOString())))).toBe(true);
   });
 
   it('gives nightness 0 in daylight, 1 past astronomical twilight, and clamps outside', () => {

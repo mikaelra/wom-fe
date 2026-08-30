@@ -251,6 +251,24 @@ export function nightness(sunAltitudeDeg: number): number {
   return smoothstep(TWILIGHT.day, TWILIGHT.astronomical, sunAltitudeDeg);
 }
 
+/**
+ * Whether the Sun is below the horizon -- between sunset and sunrise.
+ *
+ * Read off the same altitude the sky is drawn from rather than from
+ * SearchRiseSet (below), deliberately. Sunset computed as an *event* is a
+ * second answer to a question the scene has already answered, and the two
+ * can disagree by a minute or two around the crossing -- which would put
+ * the campfire alight while the player can still see the Sun sitting on
+ * the water. Same rule as the single-snapshot invariant in
+ * docs/ASPECTS_PLAN.md 0: one computation, not two copies of one.
+ *
+ * The boundary is TWILIGHT.day, so this agrees exactly with twilightBand:
+ * the instant it stops saying 'day', the Sun is down.
+ */
+export function sunIsDown(sunAltitudeDeg: number): boolean {
+  return sunAltitudeDeg <= TWILIGHT.day;
+}
+
 /** The Sun's altitude right now, at this place. */
 export function sunAltitude(sky: Sky, frame: LocalFrame): number {
   return horizonFromSnapshot(sky, 'Sun', frame).altitude;
