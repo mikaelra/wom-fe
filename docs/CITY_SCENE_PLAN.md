@@ -264,20 +264,33 @@ That inversion is the point: on the world map you look down at the Earth with th
 planets around it; in the city you stand on that Earth and look up at the same
 planets.
 
-The city camera **must be freely lookable**, because §7's labels are driven by
-where you aim it. Constraints:
+**[corrected]** The city camera is the **exact inverse of the world map's**, and
+that inversion is the design, not a detail. On the globe you *orbit around* the
+Earth looking inward, planets ringing it. In the city you are **pinned to one spot
+on that Earth and turn on the spot**, looking outward: full 360° of horizon, all
+the way up to the zenith. Same sky, other side of it.
 
-- **Polar:** free from just below the horizon up to the zenith, so the player can
-  crane all the way up. This is a wider vertical range than the globe's
-  `minPolarAngle`/`maxPolarAngle` clamp.
-- **Azimuth:** clamped to roughly **±70° around the signpost's facing**, via
-  OrbitControls' `minAzimuthAngle`/`maxAzimuthAngle`. Unbounded spin lets a player
-  end up facing an empty backdrop with no idea how to get back.
-- **No auto-rotate**, unlike the globe. Here the player drives.
-- **A recentre affordance** — double-tap, or a small compass control — that eases
-  back to the signpost. Reuse the smoothstep easing pattern from the
-  `RankedZoomRig` being deleted in §4.3; it is a good transition and worth keeping
-  even though its original caller is going away.
+- **Pinned.** The viewer does not travel. `enablePan` and `enableZoom` are both
+  **off** — either would slide them off the spot they are standing on.
+- **Azimuth: unclamped, a full 360°.** An earlier draft of this plan clamped it to
+  ±70° around the signpost to stop players getting lost. That was wrong: being able
+  to turn all the way round *is* the feature, and the sky is the reason to do it.
+- **Polar:** from just shy of the zenith down to well past the horizon, so the
+  ground is visible but the view cannot tip fully upside down.
+- **No auto-rotate**, unlike the globe. Here the player drives, because §7's labels
+  key off where they aim.
+- **Default view holds the signpost and both buildings**, so the way on is the
+  first thing you see and turning away is a choice.
+
+**How to rotate in place with OrbitControls.** It always orbits a camera *around a
+target*, so the camera sits essentially **on** its own target — a centimetre away.
+This is the standard three.js panorama-viewer arrangement: orbiting at that radius
+is indistinguishable from turning your head, and it inherits OrbitControls' damping
+and touch handling instead of hand-rolling a look controller. `rotateSpeed` goes
+**negative** so dragging feels like turning your head rather than spinning an object.
+
+A recentre affordance (double-tap, or a compass) is still worth having now that a
+player *can* turn their back on the buildings — but as a convenience, not a cage.
 
 **The click-vs-drag conflict (called out explicitly, because it will bite).**
 OrbitControls consumes pointer drags to rotate the camera; the signpost arms and
@@ -687,6 +700,9 @@ coordination and no deploy ordering.
    horizon, shows no label.
 9. Dragging the camera across the signpost or a building does **not** trigger it;
    a clean tap does. Same for the `GREECE` sword on the world map.
+9a. The city camera is **pinned and turns 360°** — the viewer never translates,
+    can face any direction, and can look from the ground up to the zenith. The
+    default orientation holds the signpost and both buildings.
 10. Gaze labels work in both scenes from **one** shared implementation
     (`components/sky/`), and `FreshHtml` lives in a shared location with no
     remaining drei `<Html>` on the world map.

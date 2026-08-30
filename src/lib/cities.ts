@@ -94,3 +94,18 @@ export function latLngToVec3(lat: number, lng: number, radius: number): [number,
   const z = -radius * Math.sin(phi) * Math.sin(lngRad);
   return [x, y, z];
 }
+
+/**
+ * Resolve the `?id=` segment of a city URL to a city.
+ *
+ * Accepts the city's name as a slug ("athens", case-insensitive) or its
+ * numeric id, so a link keeps working whichever the caller had to hand.
+ * Returns undefined for anything unrecognised -- the route renders a
+ * not-found state rather than guessing at a city.
+ */
+export function findCity(idOrSlug: string | null | undefined): City | undefined {
+  if (!idOrSlug) return undefined;
+  const key = String(idOrSlug).trim().toLowerCase();
+  if (!key) return undefined;
+  return CITIES.find((c) => c.name.toLowerCase() === key || String(c.id) === key);
+}
