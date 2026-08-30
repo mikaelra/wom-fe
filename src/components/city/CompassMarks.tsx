@@ -4,10 +4,8 @@ import { useCallback, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { FreshHtml } from '@/components/hud/FreshHtml';
-import { viewAngleDeg } from '@/lib/gazeFocus';
-import {
-  compassPlacements, horizontalHalfFovDeg, edgeOpacity, type CompassPlacement,
-} from '@/lib/cityCompass';
+import { viewAngleDeg, focusOpacity } from '@/lib/gazeFocus';
+import { compassPlacements, type CompassPlacement } from '@/lib/cityCompass';
 
 /**
  * N, NE, E, SE, S, SW, W, NW standing on the horizon where they belong.
@@ -17,11 +15,13 @@ import {
  * horizon does, so the scene tells you which way you are facing instead of
  * an overlay asserting it.
  *
- * They are shown only while in frame. Because they sit in the world that is
- * already almost true -- an off-screen mark projects outside the viewport --
- * but only almost: a mark would otherwise pop in at the edge as you pan.
- * The frame edge is computed per frame from the camera's own FOV and aspect
- * so the fade is right on a phone and a desktop alike (lib/cityCompass.ts).
+ * A mark shows only while you are LOOKING at it, on exactly the same
+ * focus-angle rule as the gaze labels -- `focusOpacity`, shared rather than
+ * reimplemented, so the two families of text fade identically. An earlier
+ * version faded them at the edge of frame instead, which on a desktop (~51
+ * degrees of horizontal half-angle, against ~18 on a phone held upright)
+ * left three or four captions on screen at once. The horizon is not a
+ * legend; you ask it a direction by looking that way.
  *
  * One useFrame drives all eight and writes opacity imperatively, the same
  * allocation-free discipline SkyLabels follows.
@@ -52,18 +52,14 @@ export default function CompassMarks({
     else nodes.current.delete(key);
   }, []);
 
-  useFrame(({ camera, size }) => {
+  useFrame(({ camera }) => {
     camera.getWorldDirection(_forward);
-    // Vertical FOV widened by the aspect ratio is what actually decides
-    // whether something off to the side is on screen.
-    const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 70;
-    const halfFov = horizontalHalfFovDeg(fov, size.width / Math.max(1, size.height));
 
     for (const node of nodes.current.values()) {
       node.group.getWorldPosition(_world);
-      const opacity = edgeOpacity(viewAngleDeg(camera.position, _forward, _world), halfFov);
-      // display:none rather than opacity alone -- an off-screen mark should
-      // cost no paint, and most of the eight are off-screen at any moment.
+      const opacity = focusOpacity(viewAngleDeg(camera.position, _forward, _world));
+      // display:none rather than opacity alone -- a hidden mark should cost
+      // no paint, and seven of the eight are hidden at any moment.
       node.root.style.display = opacity > 0 ? 'block' : 'none';
       node.root.style.opacity = String(opacity);
     }
@@ -115,8 +111,10 @@ function Mark({
             whiteSpace: 'nowrap',
             // The quarter points are what you navigate by, so they carry
             // more weight than the ordinals between them.
-            color: mark.cardinal ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.62)',
-            fontSize: mark.cardinal ? 17 : 13,
+            color: mark.cardinal ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.66)',
+            // The quarter points are spelled out, so they do not need as
+            // much extra size as they did when they were single letters.
+            fontSize: mark.cardinal ? 15 : 13,
             fontWeight: mark.cardinal ? 800 : 700,
             letterSpacing: '0.18em',
             textShadow: '0 0 8px rgba(0,0,0,0.95), 0 0 2px rgba(0,0,0,1)',

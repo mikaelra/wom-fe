@@ -1,38 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import {
-  COMPASS_MARKS, COMPASS_ALTITUDE_DEG, compassPlacements,
-  horizontalHalfFovDeg, edgeOpacity,
-} from '@/lib/cityCompass';
+import { COMPASS_MARKS, COMPASS_ALTITUDE_DEG, compassPlacements } from '@/lib/cityCompass';
+import { focusOpacity, FOCUS_OUTER_DEG } from '@/lib/gazeFocus';
 
 const EYE: readonly [number, number, number] = [0, 5.2, 0];
 const R = 400;
+const marks = compassPlacements(EYE, R);
+const at = (label: string) => marks.find((m) => m.label === label)!;
 
 describe('the marks themselves', () => {
-  it('is the 8-point set, and never the 16-point one', () => {
-    expect(COMPASS_MARKS).toEqual(['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']);
+  it('is the 8-point set, quarter points spelled out', () => {
+    expect(COMPASS_MARKS).toEqual(['NORTH', 'NE', 'EAST', 'SE', 'SOUTH', 'SW', 'WEST', 'NW']);
   });
 
-  it('uses one or two letters only -- no NNE or ESE on the horizon', () => {
-    for (const mark of COMPASS_MARKS) {
-      expect(mark.length).toBeLessThanOrEqual(2);
+  it('never abbreviates to three letters -- no NNE or ESE on the horizon', () => {
+    // The 16-point compass belongs in a gaze label's numeric readout, not on
+    // a skyline. An ordinal is exactly two letters or it does not belong.
+    for (const mark of marks.filter((m) => !m.cardinal)) {
+      expect(mark.label).toMatch(/^[NESW]{2}$/);
     }
   });
 
-  it('spaces them evenly all the way round, starting at north', () => {
-    const marks = compassPlacements(EYE, R);
-    expect(marks.map((m) => m.azimuth)).toEqual([0, 45, 90, 135, 180, 225, 270, 315]);
+  it('writes the quarter points in full, not as single letters', () => {
+    expect(marks.filter((m) => m.cardinal).map((m) => m.label))
+      .toEqual(['NORTH', 'EAST', 'SOUTH', 'WEST']);
   });
 
-  it('treats N/E/S/W as the cardinals and the rest as ordinals', () => {
-    const marks = compassPlacements(EYE, R);
-    const cardinals = marks.filter((m) => m.cardinal).map((m) => m.label);
-    expect(cardinals).toEqual(['N', 'E', 'S', 'W']);
+  it('spaces them evenly all the way round, starting at north', () => {
+    expect(marks.map((m) => m.azimuth)).toEqual([0, 45, 90, 135, 180, 225, 270, 315]);
   });
 });
 
 describe('where they sit', () => {
-  const marks = compassPlacements(EYE, R);
-
   it('stands them all at one radius around the viewer', () => {
     for (const m of marks) {
       const d = Math.hypot(m.position[0] - EYE[0], m.position[1] - EYE[1], m.position[2] - EYE[2]);
@@ -45,74 +43,35 @@ describe('where they sit', () => {
     // unreadable against either.
     expect(COMPASS_ALTITUDE_DEG).toBeGreaterThan(0);
     for (const m of marks) {
-      const rise = m.position[1] - EYE[1];
-      expect(rise).toBeCloseTo(R * Math.sin((COMPASS_ALTITUDE_DEG * Math.PI) / 180), 6);
+      expect(m.position[1] - EYE[1])
+        .toBeCloseTo(R * Math.sin((COMPASS_ALTITUDE_DEG * Math.PI) / 180), 6);
     }
   });
 
-  it('puts N down -Z and E down +X, the scene compass', () => {
+  it('puts NORTH down -Z and EAST down +X, the scene compass', () => {
     // lib/citySkyGeometry.ts fixes this once: -Z is north, +X is east, and
     // the default camera looks down -Z. If this flips, every direction in
     // the scene is a lie.
-    const north = marks.find((m) => m.label === 'N')!;
-    const east = marks.find((m) => m.label === 'E')!;
-    expect(north.position[2] - EYE[2]).toBeLessThan(0);
-    expect(north.position[0] - EYE[0]).toBeCloseTo(0, 6);
-    expect(east.position[0] - EYE[0]).toBeGreaterThan(0);
-    expect(east.position[2] - EYE[2]).toBeCloseTo(0, 6);
+    expect(at('NORTH').position[2] - EYE[2]).toBeLessThan(0);
+    expect(at('NORTH').position[0] - EYE[0]).toBeCloseTo(0, 6);
+    expect(at('EAST').position[0] - EYE[0]).toBeGreaterThan(0);
+    expect(at('EAST').position[2] - EYE[2]).toBeCloseTo(0, 6);
   });
 
   it('puts opposite marks on opposite sides of the viewer', () => {
-    const at = (l: string) => marks.find((m) => m.label === l)!.position;
-    expect(at('S')[2] - EYE[2]).toBeCloseTo(-(at('N')[2] - EYE[2]), 6);
-    expect(at('W')[0] - EYE[0]).toBeCloseTo(-(at('E')[0] - EYE[0]), 6);
+    expect(at('SOUTH').position[2] - EYE[2]).toBeCloseTo(-(at('NORTH').position[2] - EYE[2]), 6);
+    expect(at('WEST').position[0] - EYE[0]).toBeCloseTo(-(at('EAST').position[0] - EYE[0]), 6);
   });
 });
 
-describe('horizontalHalfFovDeg', () => {
-  it('equals half the vertical FOV on a square viewport', () => {
-    expect(horizontalHalfFovDeg(70, 1)).toBeCloseTo(35, 6);
-  });
-
-  it('is far narrower on a phone than on a desktop -- the whole reason it exists', () => {
-    const phone = horizontalHalfFovDeg(70, 390 / 844);
-    const desktop = horizontalHalfFovDeg(70, 16 / 9);
-    expect(phone).toBeCloseTo(17.9, 1);
-    expect(desktop).toBeCloseTo(51.2, 1);
-    expect(phone).toBeLessThan(desktop);
-  });
-
-  it('widens monotonically with the aspect ratio', () => {
-    expect(horizontalHalfFovDeg(70, 2)).toBeGreaterThan(horizontalHalfFovDeg(70, 1));
-  });
-});
-
-describe('edgeOpacity', () => {
-  it('shows a mark dead ahead', () => {
-    expect(edgeOpacity(0, 30)).toBe(1);
-  });
-
-  it('hides one past the edge of frame', () => {
-    expect(edgeOpacity(30, 30)).toBe(0);
-    expect(edgeOpacity(90, 30)).toBe(0);
-  });
-
-  it('fades across the last few degrees rather than popping', () => {
-    const mid = edgeOpacity(27, 30, 7);
-    expect(mid).toBeGreaterThan(0);
-    expect(mid).toBeLessThan(1);
-    // Monotonically decreasing as it approaches the edge.
-    expect(edgeOpacity(24, 30, 7)).toBeGreaterThan(mid);
-  });
-
-  it('still behaves when the fade is wider than the frame', () => {
-    // A very narrow FOV must not produce a negative inner edge and invert.
-    const o = edgeOpacity(1, 4, 7);
-    expect(o).toBeGreaterThanOrEqual(0);
-    expect(o).toBeLessThanOrEqual(1);
-  });
-
-  it('is nothing for a non-finite angle', () => {
-    expect(edgeOpacity(NaN, 30)).toBe(0);
+describe('how they appear', () => {
+  it('shows only the one you are looking at', () => {
+    // The marks are 45 degrees apart and the gaze fade is gone by
+    // FOCUS_OUTER_DEG, so centring one cannot bring up its neighbour. This
+    // is the whole fix for "too many captions on a desktop": the frame edge
+    // is ~51 degrees of half-angle there, which held three or four at once.
+    expect(FOCUS_OUTER_DEG).toBeLessThan(45 / 2);
+    expect(focusOpacity(0)).toBe(1);
+    expect(focusOpacity(45)).toBe(0);
   });
 });

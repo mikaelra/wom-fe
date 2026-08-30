@@ -56,23 +56,28 @@ export const TEMPLE_EXTENT = { x: 17.8, y: 9.3, z: 31.6 } as const;
  * times the Senate's width and twelve times its depth, so at a matching
  * distance it dominates the scene and crowds the signpost between them.
  *
- * How far left is decided by the PHONE, which is the narrow case and the one
- * the scene is reviewed on. A 70 degree vertical FOV in portrait is only
- * about **17.9 degrees** of horizontal half-angle (it is ~51 on a 16:9
- * desktop), and because the model is 35.6 wide, moving its centre left
- * mostly slides its bulk out of frame while its right edge stays near the
- * middle. Measured from the viewer, with the right edge at x + 17.8:
+ * How far out is a judgement call that has been made by eye twice; the
+ * bearing has stayed put and only the distance has grown. Scaling the whole
+ * vector by 1.33 from [-22, -26] keeps the direction identical and moves the
+ * building back from 34.1 units to 45.3.
  *
- *   [-15, -22]  centre 34.3 deg left, right edge 7.3 deg past centre  <- old
- *   [-22, -26]  centre 40.2 deg left, right edge  9.2 deg left        <- here
- *   [-28, -34]  centre 39.5 deg left, right edge 16.7 deg left
+ * The framing cost of that is worth writing down, because it is not
+ * symmetric across devices. A 70 degree vertical FOV in portrait is only
+ * about **17.9 degrees** of horizontal half-angle, against ~51 on a 16:9
+ * desktop, and because the model is 35.6 wide, moving its centre out mostly
+ * slides its bulk out of frame. Measured from the viewer, right edge at
+ * x + 17.8:
  *
- * The old position had the building crossing the centre of the frame. The
- * furthest leaves a sliver at the screen edge on a phone. This one keeps a
- * readable piece of the temple in the default portrait view and shows it
- * whole on a small turn to the left.
+ *   [-15, -22]  dist 26.6  centre 34.3 deg left, right edge 7.3 deg PAST centre
+ *   [-22, -26]  dist 34.1  centre 40.2 deg left, right edge  9.2 deg left
+ *   [-29.3, -34.6] dist 45.3  centre 40.2 deg left, right edge 18.4 deg left  <- here
+ *
+ * So on a desktop it sits comfortably in the default view, and on a phone
+ * held upright its edge sits right on the frame boundary -- a turn of a few
+ * degrees left brings it in. That is the intended trade: it is scenery
+ * across the bay, not a doorway.
  */
-export const TEMPLE_POSITION: [number, number, number] = [-22, 0, -26];
+export const TEMPLE_POSITION: [number, number, number] = [-29.3, 0, -34.6];
 export const SENATE_POSITION: [number, number, number] = [15, 0, -22];
 
 /** Between them and nearer the viewer, so it is read first. */

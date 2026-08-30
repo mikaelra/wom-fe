@@ -295,13 +295,26 @@ deep**, against the Senate placeholder's 8.4 × 5.0. They are not peers and cann
 be posed as a matching pair. At the original `[-15, 0, -22]` the temple's footprint
 swallowed the signpost and the viewer stood inside its bounding box.
 
-It is now at `[-22, 0, -26]` — further left and further out than the Senate, so it
-reads as a great building across the bay rather than a flanking pavilion. How far
-left is decided by the **phone**, which is the narrow case and the one the scene is
-actually reviewed on: a 70° vertical FOV in portrait is only ~17.9° of horizontal
-half-angle (~51° on a 16:9 desktop). Because the model is so wide, moving its
-centre left mostly slides its bulk out of frame while its right edge stays near the
-middle — the old position had that edge 7.3° *past* the centre of the frame.
+It is now at `[-29.3, 0, -34.6]` — further left and much further out than the
+Senate, so it reads as a great building across the bay rather than a flanking
+pavilion. That position was settled by eye over two passes: first to `[-22, -26]`,
+then the whole vector scaled by 1.33, which holds the bearing at 40.2° and moves it
+from 34.1 units out to 45.3.
+
+The framing cost is not symmetric across devices, which is worth recording. A 70°
+vertical FOV in portrait is only ~17.9° of horizontal half-angle, against ~51° on a
+16:9 desktop, and because the model is 35.6 wide, moving its centre out mostly
+slides its bulk out of frame while its right edge governs what you actually see:
+
+| position | distance | centre | right edge |
+|---|---|---|---|
+| `[-15, -22]` | 26.6 | 34.3° left | **7.3° past centre** |
+| `[-22, -26]` | 34.1 | 40.2° left | 9.2° left |
+| `[-29.3, -34.6]` | 45.3 | 40.2° left | 18.4° left |
+
+So it sits comfortably in the desktop default view, and on a phone its edge lands
+right on the frame boundary — a few degrees of turn brings it in. That is the
+intended trade: scenery across the bay, not a doorway.
 
 The placements moved to `src/lib/cityLayout.ts` so the one thing that must never
 silently break can be asserted: **the building on the left is the one the
@@ -404,13 +417,18 @@ instead of an overlay asserting it. Deliberately the 8-point set and never the
 16-point `compassPoint()` stays for the gaze labels' `24° ESE` readout, where the
 precision earns its place.)
 
-They show only while in frame. Being world-anchored almost does that by itself,
-but a mark would pop in at the edge as you pan, so the frame edge is computed per
-frame from the camera's own FOV and aspect and the mark fades across the last few
-degrees. That matters more than it sounds: 70° of *vertical* FOV is ~51° of
-horizontal half-angle on a 16:9 desktop and only ~18° on a phone held upright, so
-a fixed angle would be wrong on one of them. Same reasoning as §7.1 — work in
-angles, not pixels.
+**[corrected]** A mark shows only while you are **looking at** it, on exactly the
+same focus-angle rule as the gaze labels (`focusOpacity`, shared rather than
+reimplemented, so the two families of text fade identically). The first version
+faded them at the *edge of frame* instead, which is a much weaker condition: a
+desktop's ~51° of horizontal half-angle held three or four captions on screen at
+once and read as clutter. The horizon is not a legend — you ask it a direction by
+looking that way, and the marks are 45° apart against a fade that is gone by 11°,
+so at most one is ever up.
+
+The quarter points are **spelled out** — NORTH, EAST, SOUTH, WEST — with the
+ordinals abbreviated. That is the hierarchy you navigate by, said in the
+typography rather than only in the styling.
 
 **The campfire** solves a lighting problem, not a decorating one. After sunset
 the key light goes out with the Sun — correctly, the sky being the real sky — and
