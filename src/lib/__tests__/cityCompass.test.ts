@@ -8,8 +8,17 @@ const marks = compassPlacements(EYE, R);
 const at = (label: string) => marks.find((m) => m.label === label)!;
 
 describe('the marks themselves', () => {
-  it('is the 8-point set, quarter points spelled out', () => {
-    expect(COMPASS_MARKS).toEqual(['NORTH', 'NE', 'EAST', 'SE', 'SOUTH', 'SW', 'WEST', 'NW']);
+  it('is the 8-point ring minus north, quarter points spelled out', () => {
+    expect(marks.map((m) => m.label)).toEqual(['NE', 'EAST', 'SE', 'SOUTH', 'SW', 'WEST', 'NW']);
+  });
+
+  it('omits NORTH, which stood permanently on top of the signpost', () => {
+    // SIGNPOST_POSITION is straight down -Z, and -Z is north, so the north
+    // mark and the one object that most needs reading occupied the same
+    // patch of sky. The direction is not lost -- it is the one the signpost
+    // is standing in -- and NW and NE still bracket it.
+    expect(marks.some((m) => m.label === 'NORTH')).toBe(false);
+    expect(marks.some((m) => m.azimuth === 0)).toBe(false);
   });
 
   it('never abbreviates to three letters -- no NNE or ESE on the horizon', () => {
@@ -22,11 +31,18 @@ describe('the marks themselves', () => {
 
   it('writes the quarter points in full, not as single letters', () => {
     expect(marks.filter((m) => m.cardinal).map((m) => m.label))
-      .toEqual(['NORTH', 'EAST', 'SOUTH', 'WEST']);
+      .toEqual(['EAST', 'SOUTH', 'WEST']);
   });
 
-  it('spaces them evenly all the way round, starting at north', () => {
-    expect(marks.map((m) => m.azimuth)).toEqual([0, 45, 90, 135, 180, 225, 270, 315]);
+  it('keeps every remaining mark on its true 45-degree bearing', () => {
+    // Each mark carries its own azimuth rather than deriving it from an
+    // array index, so dropping north cannot silently rotate the rest. This
+    // is the assertion that would have caught that.
+    expect(marks.map((m) => m.azimuth)).toEqual([45, 90, 135, 180, 225, 270, 315]);
+  });
+
+  it('agrees with the exported definitions', () => {
+    expect(marks.map((m) => m.label)).toEqual(COMPASS_MARKS.map((m) => m.label));
   });
 });
 
@@ -48,19 +64,20 @@ describe('where they sit', () => {
     }
   });
 
-  it('puts NORTH down -Z and EAST down +X, the scene compass', () => {
+  it('puts EAST down +X and SOUTH down +Z, the scene compass', () => {
     // lib/citySkyGeometry.ts fixes this once: -Z is north, +X is east, and
     // the default camera looks down -Z. If this flips, every direction in
     // the scene is a lie.
-    expect(at('NORTH').position[2] - EYE[2]).toBeLessThan(0);
-    expect(at('NORTH').position[0] - EYE[0]).toBeCloseTo(0, 6);
     expect(at('EAST').position[0] - EYE[0]).toBeGreaterThan(0);
     expect(at('EAST').position[2] - EYE[2]).toBeCloseTo(0, 6);
+    expect(at('SOUTH').position[2] - EYE[2]).toBeGreaterThan(0);
+    expect(at('SOUTH').position[0] - EYE[0]).toBeCloseTo(0, 6);
   });
 
   it('puts opposite marks on opposite sides of the viewer', () => {
-    expect(at('SOUTH').position[2] - EYE[2]).toBeCloseTo(-(at('NORTH').position[2] - EYE[2]), 6);
     expect(at('WEST').position[0] - EYE[0]).toBeCloseTo(-(at('EAST').position[0] - EYE[0]), 6);
+    expect(at('NW').position[0] - EYE[0]).toBeCloseTo(-(at('NE').position[0] - EYE[0]), 6);
+    expect(at('NW').position[2] - EYE[2]).toBeCloseTo(at('NE').position[2] - EYE[2], 6);
   });
 });
 

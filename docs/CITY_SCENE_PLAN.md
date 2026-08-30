@@ -472,9 +472,23 @@ once and read as clutter. The horizon is not a legend — you ask it a direction
 looking that way, and the marks are 45° apart against a fade that is gone by 11°,
 so at most one is ever up.
 
-The quarter points are **spelled out** — NORTH, EAST, SOUTH, WEST — with the
-ordinals abbreviated. That is the hierarchy you navigate by, said in the
-typography rather than only in the styling.
+The quarter points are **spelled out** — EAST, SOUTH, WEST — with the ordinals
+abbreviated. That is the hierarchy you navigate by, said in the typography rather
+than only in the styling.
+
+**[corrected] NORTH is not drawn.** The signpost stands straight down −Z, and −Z is
+north, so the north mark sat permanently on top of the one object in the scene that
+most needs to be readable. The direction is not really lost — it is the one the
+signpost itself is standing in, and NW and NE still bracket it. The marks now carry
+their own azimuths instead of deriving them from an array index, so removing one
+cannot silently rotate the rest; a test asserts the remaining seven are still on
+their true bearings.
+
+Worth knowing before adding more scene furniture: the nearest mark to the signpost
+is now 45° away, but NW sits 4.7° off the temple's bearing, NE 10.7° off the
+Senate's and SE 12.2° off the mountain's. Nothing is currently obscured — those are
+distant objects and the marks sit 2° above the horizon — but the scene is small
+enough that a new landmark can easily land under a letter.
 
 **The campfire** solves a lighting problem, not a decorating one. After sunset
 the key light goes out with the Sun — correctly, the sky being the real sky — and
