@@ -5,6 +5,8 @@ import { Environment, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, useState, useEffect, useCallback, Suspense } from 'react';
 import * as THREE from 'three';
 import Temple from '@/components/temple';
+import Senate from '@/components/city/Senate';
+import { ARENA, arenaPosition } from '@/lib/rankedArena';
 import SeaAndSky from '@/components/lobby/SeaAndSky';
 import Table from '@/components/Table';
 import CameraFlyIn from '@/components/lobby/CameraFlyIn';
@@ -396,6 +398,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const showLobbyControls = state?.round === 0;
   const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
+  // `ranked` is optional on the wire and absent means "not ranked", which is
+  // the same as its default (types/game.ts).
+  const isRanked = !!state?.ranked;
   const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
 
   // Skins are owned items now, not a per-lobby hash: the server freezes
@@ -1199,11 +1204,32 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           Tweak seaLevel to line the water up with the temple/player base. */}
       <SeaAndSky seaLevel={SEA_LEVEL} sunPosition={SUN_POSITION} />
 
-      {/* Stage 1: Temple — background scenery, loads first.
-          NOTE: the model's origin sits on one of its corner columns rather than its
-          center, so position/scale will likely need tweaking to frame it nicely. */}
+      {/* Stage 1: the building the match is played in.
+          Ranked is staged inside the Senate -- the same building that stands
+          on the city's right hand, so the one you walk into is the one you
+          play in (docs/CITY_SCENE_PLAN.md §5.2). Everything else keeps the
+          temple. It is sized rather than scaled so the camera stays inside
+          the colonnade at every viewport and player count; lib/rankedArena.ts
+          owns those numbers and the test that holds them.
+
+          NOTE on the temple: its origin is centred, contrary to the comment
+          that stood here for a long time -- measured from the GLB, its
+          visual centre is within 0.15 units of its origin. */}
       <Suspense fallback={null}>
-        <Temple scale={1} position={[0, 4, 0]} />
+        {isRanked ? (
+          <Senate
+            position={arenaPosition()}
+            width={ARENA.width}
+            depth={ARENA.depth}
+            columnHeight={ARENA.columnHeight}
+            columnRadius={ARENA.columnRadius}
+            stepHeight={ARENA.stepHeight}
+            columnCount={ARENA.columnCount}
+            sideColumnCount={ARENA.sideColumnCount}
+          />
+        ) : (
+          <Temple scale={1} position={[0, 4, 0]} />
+        )}
       </Suspense>
 
       {/* Player names, action buttons, and resource cards — immediate, no model dependency.
