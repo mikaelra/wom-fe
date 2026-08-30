@@ -77,6 +77,53 @@ export function getBossPlayerPositions(count: number): { position: [number, numb
   });
 }
 
+/**
+ * Spectators: a ring above the players (docs/CITY_SCENE_PLAN.md is not the
+ * home for this -- it is lobby furniture).
+ *
+ * Where the ring starts is anchored to Hades' seat, a quarter turn away from
+ * it, and runs from there around the Well toward the players. Hades sits at
+ * a FIXED far-side angle (getBossPosition, theta = PI) whether or not a boss
+ * is actually in the lobby, so the anchor is well defined in an ordinary PvP
+ * lobby too -- there is simply no model standing on it.
+ *
+ * Sweeping toward the players (decreasing theta, since the players centre on
+ * theta = 0 nearest the camera) is what puts the watchers behind and above
+ * the people playing rather than behind Hades where nobody would see them.
+ *
+ * Spacing is a fixed step so two spectators stand together near the start
+ * rather than being flung to opposite ends of an arc, and only compresses
+ * once there are enough of them to need the whole circle.
+ */
+export const SPECTATOR_Y_LIFT = 1.15;
+/** Slightly outside the players' ring, so a spectator is never exactly
+ *  overhead and read as part of the player below them. */
+export const SPECTATOR_RADIUS_FACTOR = 1.22;
+/** Comfortable gap between watchers, in radians. */
+export const SPECTATOR_ARC_STEP = Math.PI / 8;
+
+export function getSpectatorPositions(
+  count: number,
+  playerCount: number,
+): { position: [number, number, number]; rotation: [number, number, number] }[] {
+  const radius = BASE_PLAYER_RADIUS * radiusGrowthFactor(Math.max(playerCount, count)) * SPECTATOR_RADIUS_FACTOR;
+  // A quarter turn from Hades' fixed far-side seat.
+  const start = Math.PI / 2;
+  const step = Math.min(SPECTATOR_ARC_STEP, (Math.PI * 2) / Math.max(count, 1));
+
+  return Array.from({ length: count }, (_, i) => {
+    const angle = start - i * step;
+    return {
+      position: [
+        radius * Math.sin(angle),
+        PLAYER_Y + SPECTATOR_Y_LIFT,
+        radius * Math.cos(angle),
+      ] as [number, number, number],
+      rotation: [0, angle + Math.PI / 2, 0] as [number, number, number],
+    };
+  });
+}
+
 // Position "in front of" each seat (further from table) for choice labels.
 export const CHOICE_LABEL_OFFSET = 0.6;
 export function getPlayerFrontPositions(count: number): [number, number, number][] {

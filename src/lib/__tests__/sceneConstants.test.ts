@@ -10,6 +10,8 @@ import {
   PLAYER_Y,
   BOSS_Y_LIFT,
   SCENE_CENTER,
+  getSpectatorPositions,
+  SPECTATOR_ARC_STEP,
 } from '@/lib/sceneConstants';
 
 const distanceFromCenter = ([x, , z]: [number, number, number]) => Math.hypot(x, z);
@@ -94,5 +96,74 @@ describe('radiusGrowthFactor', () => {
     expect(radiusGrowthFactor(7)).toBeCloseTo(1.15, 5);
     expect(radiusGrowthFactor(12)).toBeCloseTo(1.15, 5);
     expect(radiusGrowthFactor(13)).toBeCloseTo(1.3, 5);
+  });
+});
+
+// ── Spectators ─────────────────────────────────────────────────────────────
+
+describe('getSpectatorPositions', () => {
+  const bearing = ([x, , z]: [number, number, number]) => Math.atan2(x, z);
+  const HADES = getBossPosition();
+  const hadesBearing = Math.atan2(HADES.position[0], HADES.position[2]);
+
+  it('starts a quarter turn away from Hades', () => {
+    // The anchor the layout is specified against. Hades sits at a fixed
+    // far-side angle whether or not a boss is in the lobby, so this holds in
+    // an ordinary PvP lobby too -- there is just no model standing there.
+    const [first] = getSpectatorPositions(1, 4);
+    const gap = Math.abs(bearing(first.position) - hadesBearing);
+    expect(Math.min(gap, Math.PI * 2 - gap)).toBeCloseTo(Math.PI / 2, 6);
+  });
+
+  it('runs from there toward the players, not away toward Hades', () => {
+    // Players centre on the near side (bearing 0). Each successive watcher
+    // must get closer to that, or the ring would fill up behind Hades where
+    // nobody can see it.
+    const seats = getSpectatorPositions(4, 4);
+    const distanceToPlayers = seats.map((s) => Math.abs(bearing(s.position)));
+    for (let i = 1; i < distanceToPlayers.length; i++) {
+      expect(distanceToPlayers[i]).toBeLessThan(distanceToPlayers[i - 1]);
+    }
+  });
+
+  it('stands them above the players', () => {
+    for (const seat of getSpectatorPositions(5, 5)) {
+      expect(seat.position[1]).toBeGreaterThan(PLAYER_Y);
+    }
+  });
+
+  it('stands them outside the players\' own ring, never directly overhead', () => {
+    // Exactly overhead would read as part of the player below rather than as
+    // someone watching.
+    const playerRadius = Math.hypot(...[getPlayerPositions(6)[0].position[0], getPlayerPositions(6)[0].position[2]]);
+    for (const seat of getSpectatorPositions(6, 6)) {
+      expect(Math.hypot(seat.position[0], seat.position[2])).toBeGreaterThan(playerRadius);
+    }
+  });
+
+  it('keeps a comfortable gap for a few watchers rather than spreading them out', () => {
+    // Two spectators should stand together near the start, not be flung to
+    // opposite ends of an arc.
+    const [a, b] = getSpectatorPositions(2, 4);
+    const gap = Math.abs(bearing(a.position) - bearing(b.position));
+    expect(gap).toBeCloseTo(SPECTATOR_ARC_STEP, 6);
+  });
+
+  it('compresses rather than overlapping once there are many', () => {
+    const many = getSpectatorPositions(40, 6);
+    const seen = new Set(many.map((s) => bearing(s.position).toFixed(4)));
+    expect(seen.size).toBe(many.length);
+  });
+
+  it('faces every watcher the same way the players face', () => {
+    // Same convention as the seat helpers above: rotation trails the angle
+    // by a quarter turn so the model looks in toward the Well.
+    for (const seat of getSpectatorPositions(3, 3)) {
+      expect(seat.rotation[1]).toBeCloseTo(Math.atan2(seat.position[0], seat.position[2]) + Math.PI / 2, 6);
+    }
+  });
+
+  it('returns nothing when nobody is watching', () => {
+    expect(getSpectatorPositions(0, 4)).toEqual([]);
   });
 });

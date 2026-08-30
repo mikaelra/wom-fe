@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import SceneOverlay, { type SceneOverlayConfig, type PreGameRenderOpts } from '@/components/SceneOverlay';
 import { useLobbyConnection, type UseLobbyConnectionOptions } from '@/lib/useLobbyConnection';
 import { useLobbyGame, type UseLobbyGameResult } from '@/lib/useLobbyGame';
@@ -515,7 +515,7 @@ describe('messages panel overflow', () => {
 });
 
 describe('player list', () => {
-  it('shows crown/skull/idle indicators, excludes spectators, and highlights the local player', () => {
+  it('shows crown/skull/idle indicators, keeps spectators out of the player list, and highlights the local player', () => {
     localStorage.setItem('playerName', 'Alice');
     const dead: Player = { ...basePlayer, name: 'Bob', hp: 0 };
     const spectator: Player = { ...basePlayer, name: 'Carol', spectator: true };
@@ -527,12 +527,35 @@ describe('player list', () => {
     expect(screen.getByText('👑')).toBeInTheDocument();
     expect(screen.getByText('☠️')).toBeInTheDocument();
     expect(screen.getByText('👻')).toBeInTheDocument();
-    expect(screen.queryByText('Carol')).not.toBeInTheDocument();
+    // Carol is a spectator: out of the Players list and its count, but no
+    // longer dropped from the panel altogether -- she is under her own
+    // heading below, so someone spectating can see they are in the lobby.
+    expect(screen.getByText('Players (3)')).toBeInTheDocument();
+    expect(screen.getByText('Spectator (1)')).toBeInTheDocument();
+    const carol = screen.getByText('Carol').closest('li');
+    expect(carol).toBeTruthy();
+    expect(within(carol!).getByTitle('Spectator')).toBeInTheDocument();
     // "Alice" also appears in the separate player-nametag block; scope to
     // the player-list entry specifically (its <li> ancestor).
     const aliceEntries = screen.getAllByText('Alice');
     const listEntry = aliceEntries.find((el) => el.closest('li'));
     expect(listEntry).toHaveClass('text-blue-300');
+  });
+
+  it('says Spectators, plural, once there is more than one', () => {
+    const carol: Player = { ...basePlayer, name: 'Carol', spectator: true };
+    const erin: Player = { ...basePlayer, name: 'Erin', spectator: true };
+    mockConnection({ ...baseState, players: [basePlayer, carol, erin] });
+
+    render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, showPlayerList: true }} />);
+
+    expect(screen.getByText('Spectators (2)')).toBeInTheDocument();
+  });
+
+  it('shows no spectator heading when nobody is watching', () => {
+    mockConnection({ ...baseState, players: [basePlayer] });
+    render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, showPlayerList: true }} />);
+    expect(screen.queryByText(/^Spectator/)).not.toBeInTheDocument();
   });
 
   it('crowns the well-winner instead, only when there is no game winner yet', () => {

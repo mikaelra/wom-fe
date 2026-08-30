@@ -54,6 +54,7 @@ import {
   getPlayerPositions,
   getBossPosition,
   getBossPlayerPositions,
+  getSpectatorPositions,
   radiusGrowthFactor,
   BOSS_Y_LIFT,
 } from '@/lib/sceneConstants';
@@ -454,17 +455,41 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   // Compute seat positions. In boss fights the boss is pinned to the far side and players
   // spread across the near half, so adding a player never moves Hades.
+  //
+  // Spectators are seated separately, in a ring above the players, and are
+  // NOT counted when the players' own circle is laid out. That is a fix as
+  // much as a feature: a spectator used to take a seat in the ring like
+  // anyone else, so someone arriving mid-round to watch shuffled every
+  // player along one place and widened the circle under them.
   const PLAYER_POSITIONS = useMemo(() => {
-    if (!isBossFight) return getPlayerPositions(players.length);
+    const actors = players.filter((p) => !p.spectator);
+    const spectatorSlots = getSpectatorPositions(
+      players.length - actors.length,
+      actors.length,
+    );
+    let si = 0;
+
+    if (!isBossFight) {
+      const actorSlots = getPlayerPositions(actors.length);
+      let ai = 0;
+      return players.map((p) => (p.spectator ? spectatorSlots[si++] : actorSlots[ai++]));
+    }
+
     const bossSlot = getBossPosition();
-    const nonBossSlots = getBossPlayerPositions(players.filter((p) => !p.boss).length);
+    const nonBossSlots = getBossPlayerPositions(actors.filter((p) => !p.boss).length);
     let nbi = 0;
-    return players.map((p) => (p.boss ? bossSlot : nonBossSlots[nbi++]));
+    return players.map((p) => (
+      p.boss ? bossSlot : p.spectator ? spectatorSlots[si++] : nonBossSlots[nbi++]
+    ));
   }, [players, isBossFight]);
 
   // Boss-fight seating never grows past its fixed base radius (getBossPlayerPositions
   // doesn't scale with count), so only back the camera off for the regular circle.
-  const cameraRadiusFactor = isBossFight ? 1 : radiusGrowthFactor(players.length);
+  // Spectators are excluded for the same reason they get their own ring: they
+  // should not push the camera back off the people actually playing.
+  const cameraRadiusFactor = isBossFight
+    ? 1
+    : radiusGrowthFactor(players.filter((p) => !p.spectator).length);
 
   // Keep posMapRef up-to-date each render (synchronous ref write — no re-render triggered).
   // This is read by the round-transition effect below.

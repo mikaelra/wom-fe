@@ -761,6 +761,28 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                 ))}
               </ul>
             )}
+            {/* Watchers, under their own heading below the players. The
+                list has always filtered them out of the player COUNT; until
+                now it dropped them entirely, so someone spectating could
+                not see they were in the lobby at all. */}
+            {!playerListCollapsed && state.players.some((p) => p.spectator) && (
+              <>
+                <p className="text-xs text-gray-400 font-semibold mt-2">
+                  {state.players.filter((p) => p.spectator).length === 1 ? 'Spectator' : 'Spectators'}
+                  {' '}({state.players.filter((p) => p.spectator).length})
+                </p>
+                <ul className="space-y-1 mt-1">
+                  {state.players.filter((p) => p.spectator).map((p, i) => (
+                    <li key={`spectator-${p.name}-${i}`} className="flex items-center gap-1 opacity-60">
+                      <span className="shrink-0" title="Spectator">👁</span>
+                      <span className={`truncate min-w-0 ${p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}`}>
+                        {p.name}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -18,6 +18,8 @@ type Props = {
   isAnimating?: boolean;
   /** When true the model is desaturated to a lifeless gray (player eliminated). */
   isDead?: boolean;
+  /** Spectators: the skin, but ghosted. */
+  isGhost?: boolean;
 };
 
 function PlayerV1Impl({
@@ -27,6 +29,7 @@ function PlayerV1Impl({
   rotation = [0, 0, 0],
   isAnimating = false,
   isDead = false,
+  isGhost = false,
 }: Props) {
   const { scene } = useGLTF(url);
   const sceneClone = useMemo(() => scene.clone(), [scene]); // Each instance needs its own clone
@@ -98,7 +101,21 @@ function PlayerV1Impl({
         | THREE.Material[];
       obj.userData.origMaterial = orig;
 
-      if (isDead) {
+      if (isGhost) {
+        // A spectator is not dead, so it does not take the death treatment:
+        // no gray wash, no toppled pose. Just the player's own skin, thinner
+        // than a corpse -- 0.18 against the dead's 0.3 -- so a watcher above
+        // the ring reads as present but not playing.
+        const haunt = (m: THREE.Material) => {
+          const c = m.clone();
+          c.transparent = true;
+          c.opacity = 0.18;
+          c.depthWrite = false;
+          c.needsUpdate = true;
+          return c;
+        };
+        obj.material = Array.isArray(orig) ? orig.map(haunt) : haunt(orig);
+      } else if (isDead) {
         const fade = (m: THREE.Material) => {
           const c = m.clone();
           c.transparent = true;
@@ -119,7 +136,7 @@ function PlayerV1Impl({
         obj.material = orig;
       }
     });
-  }, [sceneClone, isDead]);
+  }, [sceneClone, isDead, isGhost]);
 
   return (
     <primitive
