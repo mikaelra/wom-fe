@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import * as THREE from 'three';
 import Page from '@/app/page';
 import {
   checkName,
@@ -64,16 +63,14 @@ const socket = socketModule as unknown as {
 // @react-three/fiber's real Canvas needs a WebGL context jsdom can't provide.
 // Rendering children directly (no real <canvas>) keeps the rest of the page's
 // own logic (out of scope: WorldMap's 3D city picking, WorldMapOverlay's own
-// already-tested UI) testable without touching R3F at all. A non-Athens/
-// vault/rules city click sets `selectedCity`, mounting the City Hub view's
-// CameraAnimator, which calls the real useThree() at render time (not just
-// inside its useFrame callback, which never fires here) -- a real
-// THREE.PerspectiveCamera (pure math, no WebGL) satisfies its
-// `camera.position.clone()` call without needing a hand-rolled stub.
+// already-tested UI) testable without touching R3F at all.
+//
+// This used to stub useFrame and useThree as well, because a non-Athens city
+// click mounted the City Hub view's CameraAnimator, which called useThree()
+// at render time. Step 12 deleted that whole branch, so Canvas is now the
+// only thing the page takes from R3F.
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children }: { children?: ReactNode }) => <>{children}</>,
-  useFrame: () => {},
-  useThree: () => ({ camera: new THREE.PerspectiveCamera(), size: { width: 1024, height: 768 } }),
 }));
 
 const ATHENS: City = { id: 1, name: 'Athens', country: 'Greece', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '' };

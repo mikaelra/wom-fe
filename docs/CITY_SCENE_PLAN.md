@@ -1,6 +1,6 @@
 # City Scene Plan — Greece, the Signpost, and the Real Sky
 
-Status: **in progress — steps 1–11 of §13 built** · Scope: `wom-fe` only (no backend,
+Status: **in progress — steps 1–12 of §13 built** · Scope: `wom-fe` only (no backend,
 no protocol change) · Written: 2026-08-30 · Last updated: 2026-08-30
 
 > **Implementation notes.** Steps 1–11 are built on the `city-scene` branch, which
@@ -1084,7 +1084,21 @@ Each step is independently reviewable and leaves the app working.
     returns the `Sky` snapshot and the `LocalFrame` it had already computed, so
     the labels, the sprites and the starfield are provably one instant.
 12. **Delete dead code:** `TempleScene`, `CameraAnimator`, `HomeOverlay`'s city
-    props, `RankedLabelInfo`. (§8.2)
+    props, `RankedLabelInfo`. (§8.2) **Done.** `RankedLabelInfo` had already gone
+    with step 7. The rest went together with the whole City Hub branch, and with
+    it `adjustSkyColor`, the players-at-a-table group, the table/explosion demo
+    and their constants — `page.tsx` fell from **247 lines to 84**, which settles
+    acceptance criterion 13.
+
+    Two things went slightly beyond a straight deletion, both because leaving
+    them would have preserved the shape of the thing being removed.
+    `handleCityClick` no longer special-cases `city.name === 'Athens'`: §4.2's
+    whole point is that the marker is data-driven, and a name comparison in the
+    click handler is the same smell one layer up. Every non-vault, non-rules city
+    now routes to the city scene, and one the scene cannot resolve shows its own
+    "No such city" — a visible failure rather than a click that does nothing. And
+    the world-map test's R3F mock lost its `useFrame`/`useThree` stubs, which
+    existed solely because `CameraAnimator` called `useThree()` at render time.
 13. **Senate model** replaces the placeholder. (§9)
 14. **Arcs + ecliptic band**, toggle off by default. (§6.5)
 15. **First-visit hint** for the gaze mechanic via `guideHighlights`. (§11.5)
