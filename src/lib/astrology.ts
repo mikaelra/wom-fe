@@ -111,7 +111,7 @@ export function isRetrograde(body: Astronomy.Body, date: Date): boolean {
 // *receiver* -- Jupiter feels Saturn out to 4°, Saturn feels Jupiter only
 // out to 3°, so a pair lights up asymmetrically (docs/ASPECTS_PLAN.md §1.2).
 // Moon's orb (10°) is unchanged from before this module existed.
-const ORB: Record<AspectBody, number> = {
+export const ORB: Record<AspectBody, number> = {
   Moon: 10,
   Mercury: 8,
   Venus: 7,
