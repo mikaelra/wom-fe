@@ -175,3 +175,37 @@ describe('staging the island in a lobby', () => {
     }
   });
 });
+
+describe('a building standing at the origin', () => {
+  // temple.glb, which the boss lobby puts at 0,0 -- 35.7 wide and 63.2 deep.
+  const HALF_X = 17.8;
+  const HALF_Z = 31.6;
+  const CLEAR = 38;
+
+  it('was growing hills inside the temple before the clear radius existed', () => {
+    // The reported bug, kept as the reason this parameter is here: the
+    // city's origin pad is 16 units, the temple reaches 31.6, so its far end
+    // sat on rising ground more than a unit above its own floor.
+    expect(terrainHeight(0, 25)).toBeGreaterThan(LAND_LEVEL + 0.5);
+  });
+
+  it('is flat across the whole footprint once cleared', () => {
+    for (const x of [-HALF_X, 0, HALF_X]) {
+      for (const z of [-HALF_Z, 0, HALF_Z]) {
+        expect(terrainHeight(x, z, CLEAR)).toBeCloseTo(LAND_LEVEL, 6);
+      }
+    }
+  });
+
+  it('still has hills further out, so the island is not simply flattened', () => {
+    let highest = -Infinity;
+    for (let a = 0; a < Math.PI * 2; a += 0.3) {
+      highest = Math.max(highest, terrainHeight(Math.cos(a) * 70, Math.sin(a) * 70, CLEAR));
+    }
+    expect(highest).toBeGreaterThan(LAND_LEVEL + 0.5);
+  });
+
+  it('leaves the city itself untouched -- the default clears nothing', () => {
+    expect(terrainHeight(0, 25, 0)).toBe(terrainHeight(0, 25));
+  });
+});

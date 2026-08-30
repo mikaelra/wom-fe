@@ -80,12 +80,24 @@ export function relief(x: number, z: number): number {
   return 0.5 + 0.5 * Math.max(-1, Math.min(1, n));
 }
 
-/** 0 on a building's pad, 1 well clear of every one of them. */
-export function padFlatness(x: number, z: number): number {
+/**
+ * 0 on a building's pad, 1 well clear of every one of them.
+ *
+ * `clearRadius` adds one more pad at the origin, for a caller that stands a
+ * building there which the city's own PADS know nothing about. The boss
+ * lobby is exactly that: it puts temple.glb at the origin, where the city
+ * only has the viewer's 16-unit clearing -- and the temple reaches 31.6
+ * units down its long axis, so hills were rising more than a unit above its
+ * own floor, inside the building.
+ */
+export function padFlatness(x: number, z: number, clearRadius = 0): number {
   let flat = 1;
   for (const pad of PADS) {
     const d = Math.hypot(x - pad.x, z - pad.z);
     flat = Math.min(flat, smoothstep(pad.radius, pad.radius * 1.9, d));
+  }
+  if (clearRadius > 0) {
+    flat = Math.min(flat, smoothstep(clearRadius, clearRadius * 1.35, Math.hypot(x, z)));
   }
   return flat;
 }
@@ -98,10 +110,10 @@ export function padFlatness(x: number, z: number): number {
  * hill near the coast is cut down by it rather than surviving as a spike
  * standing out of the water.
  */
-export function terrainHeight(x: number, z: number): number {
+export function terrainHeight(x: number, z: number, clearRadius = 0): number {
   const r = Math.hypot(x, z);
   const offshore = smoothstep(SHORE_RADIUS, LAND_RADIUS, r);
-  const hills = RELIEF_HEIGHT * relief(x, z) * padFlatness(x, z);
+  const hills = RELIEF_HEIGHT * relief(x, z) * padFlatness(x, z, clearRadius);
   return (LAND_LEVEL + hills) * (1 - offshore) - RIM_DEPTH * offshore;
 }
 

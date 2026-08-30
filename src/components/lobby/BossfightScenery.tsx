@@ -33,7 +33,29 @@ const EYE: [number, number, number] = [0, LAND_LEVEL + EYE_HEIGHT, 0];
  * their feet instead of six tenths of a unit below them, and carries the sea
  * with it so the coastline keeps its own relationship to the land.
  */
-const GROUND_OFFSET = groundOffsetFor(PLAYER_Y);
+/**
+ * temple.glb's own footprint, which the island has to be flat across.
+ *
+ * The city knows the temple stands at TEMPLE_POSITION and gives it a
+ * clearing there; here it stands at the ORIGIN, where the city only has the
+ * viewer's 16-unit one. The model reaches 31.6 units down its long axis, so
+ * without this hills rise to 4.8 against a floor at 3.2 -- ground growing up
+ * inside the building. 38 is its half-diagonal rounded up, the same figure
+ * the city's own temple pad uses for the same model.
+ */
+const TEMPLE_CLEAR_RADIUS = 38;
+
+/**
+ * A hair below the temple's floor rather than exactly on it.
+ *
+ * Both planes are now flat at the same height across the whole interior,
+ * which is precisely the arrangement that z-fights -- the two surfaces
+ * trading places pixel by pixel as the camera moves. Six centimetres of
+ * clearance is invisible underfoot and settles it.
+ */
+const TEMPLE_FLOOR_CLEARANCE = 0.06;
+
+const GROUND_OFFSET = groundOffsetFor(PLAYER_Y) - TEMPLE_FLOOR_CLEARANCE;
 
 /**
  * The lamp over the table.
@@ -91,7 +113,7 @@ export default function BossfightScenery() {
           eye={EYE}
           seaLevel={SEA_LEVEL}
         />
-        <Terrain nightness={nightness} />
+        <Terrain nightness={nightness} clearRadius={TEMPLE_CLEAR_RADIUS} />
       </group>
 
       <ambientLight intensity={0.6 - 0.42 * nightness} />

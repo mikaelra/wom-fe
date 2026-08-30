@@ -30,7 +30,7 @@ const ROCK = new THREE.Color('#b9b2a4');
 
 const _c = new THREE.Color();
 
-function Ground() {
+function Ground({ clearRadius }: { clearRadius: number }) {
   const geometry = useMemo(() => {
     const geo = new THREE.PlaneGeometry(SPAN, SPAN, GRID, GRID);
     // Lay it flat before displacing, so the heights below are world Y and
@@ -43,7 +43,7 @@ function Ground() {
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
-      const y = terrainHeight(x, z);
+      const y = terrainHeight(x, z, clearRadius);
       pos.setY(i, y);
 
       // Height above the waterline decides the band. Anything at or under
@@ -62,7 +62,7 @@ function Ground() {
     pos.needsUpdate = true;
     geo.computeVertexNormals();
     return geo;
-  }, []);
+  }, [clearRadius]);
 
   return (
     <mesh geometry={geometry} receiveShadow>
@@ -106,10 +106,19 @@ function Islands({ nightness }: { nightness: number }) {
   );
 }
 
-export default function Terrain({ nightness }: { nightness: number }) {
+export default function Terrain({
+  nightness,
+  /** Flatten this radius around the origin as well as the city's own pads --
+   *  for a caller standing a building there that the city does not know
+   *  about. See padFlatness. */
+  clearRadius = 0,
+}: {
+  nightness: number;
+  clearRadius?: number;
+}) {
   return (
     <>
-      <Ground />
+      <Ground clearRadius={clearRadius} />
       <Islands nightness={nightness} />
     </>
   );
