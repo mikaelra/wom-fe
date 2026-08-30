@@ -2,7 +2,8 @@
 
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html, useGLTF } from '@react-three/drei';
+import { useGLTF } from '@react-three/drei';
+import { FreshHtml } from '@/components/hud/FreshHtml';
 import * as THREE from 'three';
 import type { City } from '@/lib/cities';
 import { latLngToVec3 } from '@/lib/cities';
@@ -189,14 +190,18 @@ export default function CityMarker({ city, globeRadius, onClick, rankedInfo }: C
     >
       <SwordPinFigure hovered={hovered} swordColor={city.swordColor} />
 
-      {/* Label (HTML overlay).
+      {/* Label (HTML overlay), on FreshHtml rather than drei's <Html> --
+          see hud/FreshHtml.tsx for the two drei bugs it exists to avoid.
+
           Tried occlude="blending" here to fade the label out when its
           marker rotates to the far side of the globe -- reverted: broke the
           rest of the page's rendering on real devices (confirmed on both
           Safari and Firefox on a phone), not just caught by headless
           testing. Labels on the far side stay visible through the globe for
-          now; that's a lesser issue than taking down the whole page. */}
-      <Html
+          now; that's a lesser issue than taking down the whole page. The
+          gaze labels solve far-side hiding with an explicit ray/sphere test
+          instead, never occlude (docs/CITY_SCENE_PLAN.md §7.2). */}
+      <FreshHtml
         position={[0, 1.0, 0]}
         center
         distanceFactor={6}
@@ -279,7 +284,7 @@ export default function CityMarker({ city, globeRadius, onClick, rankedInfo }: C
             </>
           )}
         </div>
-      </Html>
+      </FreshHtml>
     </group>
   );
 }

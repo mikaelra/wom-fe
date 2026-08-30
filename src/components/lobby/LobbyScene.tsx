@@ -20,7 +20,7 @@ import DamageNumberEffect from '@/components/lobby/DamageNumberEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
 import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
-import { FreshHtml } from '@/components/lobby/FreshHtml';
+import { FreshHtml } from '@/components/hud/FreshHtml';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';

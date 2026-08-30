@@ -9,7 +9,7 @@ import ActionImageButton from '@/components/lobby/ActionImageButton';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import DenyModelButton from '@/components/lobby/DenyModelButton';
 import EquippedCoinModel from '@/components/lobby/EquippedCoinModel';
-import { FreshHtml } from '@/components/lobby/FreshHtml';
+import { FreshHtml } from '@/components/hud/FreshHtml';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { skinUrl } from '@/lib/frogSkins';
 import { COIN_RELIC_ID } from '@/types/game';
