@@ -163,7 +163,9 @@ describe('CityPage (routing)', () => {
 
   it('goes back to the world map', async () => {
     renderCity();
-    fireEvent.click(await screen.findByText(/Back to Earth/));
+    // Icon-only now (a globe), so it is addressed by its label rather
+    // than its text.
+    fireEvent.click(await screen.findByLabelText('Back to Earth'));
     expect(push).toHaveBeenCalledWith('/');
   });
 });

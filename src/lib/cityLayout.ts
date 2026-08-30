@@ -1,0 +1,73 @@
+/**
+ * Where the city's buildings stand (docs/CITY_SCENE_PLAN.md §5.1–5.2).
+ *
+ * Plain constants in a pure module rather than in CityScene.tsx, so the one
+ * thing that must never silently break can be asserted in a test: the
+ * building on the left is the one the signpost's LEFT arm points at. Get
+ * that backwards and the scene still renders perfectly, the hover
+ * highlighting still pairs up, and every player is sent to the wrong fight.
+ * R3F scene components are not unit-tested here (vitest.config.ts), which is
+ * exactly why this does not live next to the JSX.
+ *
+ * Scene compass, from lib/citySkyGeometry.ts: **-Z is north, +X is east**,
+ * and the default camera looks down -Z. So "in front of the viewer" is
+ * negative Z, and -X is the viewer's left.
+ *
+ * ## The temple is not a building, it is a backdrop
+ *
+ * **[corrected]** LobbyScene.tsx has said since it was written that
+ * temple.glb's "origin sits on one of its corner columns rather than its
+ * center", and CityScene repeated it. Measured from the GLB's own accessor
+ * bounds, that is **wrong**: the model's visual centre sits within 0.15
+ * units of its origin. It is centred.
+ *
+ * What actually makes it hard to place is its SIZE. temple.glb is
+ * **35.7 wide, 18.5 tall and 63.2 deep**. The Senate placeholder is 8.4 by
+ * 5.0. They are not peers and cannot be posed as a matching pair: at its old
+ * position the temple's footprint swallowed the signpost and the viewer
+ * stood inside its bounding box. Treat it as scenery that happens to be
+ * clickable, and give it the room a thing that size needs.
+ *
+ * Its base sits ~8 units below its origin, i.e. below the sea plane, so only
+ * the upper ~8.5 units show. That is deliberate and is what keeps a 63-unit
+ * building from filling the sky.
+ */
+
+/** Half-extents of temple.glb at scale 1, measured from the GLB. Kept here
+ *  because every future placement decision needs them and reading them off
+ *  the model again is a half-hour nobody should spend twice. */
+export const TEMPLE_EXTENT = { x: 17.8, y: 9.3, z: 31.6 } as const;
+
+/**
+ * Temple (left) -> Bossfight. Senate (right) -> Ranked (§1.1).
+ *
+ * The temple is pushed left and further out than the Senate: it is four
+ * times the Senate's width and twelve times its depth, so at a matching
+ * distance it dominates the scene and crowds the signpost between them.
+ *
+ * How far left is decided by the PHONE, which is the narrow case and the one
+ * the scene is reviewed on. A 70 degree vertical FOV in portrait is only
+ * about **17.9 degrees** of horizontal half-angle (it is ~51 on a 16:9
+ * desktop), and because the model is 35.6 wide, moving its centre left
+ * mostly slides its bulk out of frame while its right edge stays near the
+ * middle. Measured from the viewer, with the right edge at x + 17.8:
+ *
+ *   [-15, -22]  centre 34.3 deg left, right edge 7.3 deg past centre  <- old
+ *   [-22, -26]  centre 40.2 deg left, right edge  9.2 deg left        <- here
+ *   [-28, -34]  centre 39.5 deg left, right edge 16.7 deg left
+ *
+ * The old position had the building crossing the centre of the frame. The
+ * furthest leaves a sliver at the screen edge on a phone. This one keeps a
+ * readable piece of the temple in the default portrait view and shows it
+ * whole on a small turn to the left.
+ */
+export const TEMPLE_POSITION: [number, number, number] = [-22, 0, -26];
+export const SENATE_POSITION: [number, number, number] = [15, 0, -22];
+
+/** Between them and nearer the viewer, so it is read first. */
+export const SIGNPOST_POSITION: [number, number, number] = [0, 0, -11];
+
+/** Distance from the viewer, who stands at the origin in x/z. */
+export function groundDistance(position: readonly [number, number, number]): number {
+  return Math.hypot(position[0], position[2]);
+}

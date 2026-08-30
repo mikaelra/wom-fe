@@ -102,7 +102,7 @@ export default function LoginPage() {
 
         <div className="mt-4 flex justify-between">
           <Link href="/" className="text-blue-400 hover:text-blue-300 underline text-xl" aria-label="Back to Home">
-            🏠
+            🌍
           </Link>
           <Link href="/signup" className="text-blue-400 hover:text-blue-300 underline">
             Create user

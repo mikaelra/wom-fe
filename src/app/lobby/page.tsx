@@ -201,7 +201,7 @@ function LobbyPageContent() {
                   className="block w-full text-center text-blue-500 hover:underline text-lg bg-transparent border-none cursor-pointer"
                   aria-label="Back to Home"
                 >
-                  🏠
+                  🌍
                 </button>
               </>
             ) : (
@@ -334,7 +334,7 @@ function LobbyPageContent() {
                   className="block w-full text-center text-blue-400 hover:underline text-lg bg-transparent border-none cursor-pointer"
                   aria-label="Back to Home"
                 >
-                  🏠
+                  🌍
                 </button>
               </>
             )}

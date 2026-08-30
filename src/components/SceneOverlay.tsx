@@ -544,7 +544,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           You were removed from this lobby.
         </p>
         <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
-          🏠
+          🌍
         </Link>
       </div>
     );

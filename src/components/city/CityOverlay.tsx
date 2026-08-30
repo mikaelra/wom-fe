@@ -50,12 +50,18 @@ export default function CityOverlay({
   return (
     <>
       <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 items-start">
+        {/* The globe, not the house every other page used: the way out of
+            the city is literally back to the Earth you came from, and the
+            same icon now means "home" everywhere in the app. Icon-only, so
+            it carries its own label for screen readers. */}
         <button
           type="button"
           onClick={() => router.push('/')}
-          className="flex items-center gap-2 bg-black/60 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold cursor-pointer hover:bg-black/80 transition-colors"
+          aria-label="Back to Earth"
+          title="Back to Earth"
+          className="flex items-center justify-center bg-black/60 backdrop-blur-sm border border-white/20 text-white w-11 h-11 rounded-lg text-2xl leading-none cursor-pointer hover:bg-black/80 transition-colors"
         >
-          <span className="text-lg leading-none">&larr;</span> Back to Earth
+          🌍
         </button>
         <button
           type="button"

@@ -68,7 +68,7 @@ function VerifyEmailContent() {
                 className="inline-block bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors"
                 aria-label="Back to Home"
               >
-                🏠
+                🌍
               </Link>
             </>
           )}

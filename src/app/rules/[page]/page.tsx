@@ -60,7 +60,7 @@ export default async function RulesWalkerPage({ params }: { params: Promise<{ pa
             </Link>
           )}
           <Link href="/" className="no-underline" style={{ fontSize: '1.5rem' }} aria-label="Back to Home">
-            🏠
+            🌍
           </Link>
           {!isLast && (
             <Link href={`/rules/${nextPage}`} className="underline text-blue-600" style={{ fontSize: '1.5rem' }}>

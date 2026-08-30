@@ -16,7 +16,7 @@ export default function RulesPage() {
         </p>
         <div className="mt-2 flex gap-6">
           <Link href="/" className="no-underline" style={{ fontSize: '2rem' }} aria-label="Back to Home">
-            🏠
+            🌍
           </Link>
           <Link href="/rules/p1" className="underline text-blue-600" style={{ fontSize: '2rem' }}>
             Start →

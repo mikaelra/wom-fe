@@ -353,13 +353,14 @@ function Sea({ seaLevel, color, sun, moon, sunColor, moonColor }: {
       }
     `,
     fragmentShader: /* glsl */ `
-      // The _pars_ halves are not optional: they define toneMapping() and
-      // linearToOutputTexel(), which the two chunks at the end of main()
-      // call. A ShaderMaterial gets three's #defines but not its chunks, so
-      // omitting these fails to compile and the sea renders black.
-      #include <tonemapping_pars_fragment>
-      #include <colorspace_pars_fragment>
-
+      // Do NOT include the <..._pars_fragment> halves here. Unlike a
+      // RawShaderMaterial, a plain ShaderMaterial already gets three's
+      // fragment prefix, which defines toneMapping() and
+      // linearToOutputTexel() for us. Including them again is a compile
+      // error ("toneMappingExposure: redefinition") and the whole sea fails
+      // to build -- confirmed from the browser console, which the frontend
+      // container forwards into its docker log with a [browser] prefix.
+      // (No backticks in here: this whole shader is a template literal.)
       uniform vec3  uWater;
       uniform vec3  uSunDir, uSunColor, uMoonDir, uMoonColor;
       uniform float uSunStrength, uSunSigma, uMoonStrength, uMoonSigma;

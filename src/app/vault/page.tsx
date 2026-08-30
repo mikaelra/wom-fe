@@ -91,7 +91,7 @@ export default function VaultPage() {
 
         <div className="mt-4">
           <Link href="/" className="no-underline" style={{ fontSize: '2rem' }} aria-label="Back to Home">
-            🏠
+            🌍
           </Link>
         </div>
       </div>

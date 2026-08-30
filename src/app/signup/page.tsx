@@ -94,7 +94,7 @@ export default function SignupPage() {
 
         <div className="mt-4 flex justify-between">
           <Link href="/" className="text-xl no-underline" aria-label="Back to Home">
-            🏠
+            🌍
           </Link>
           <Link href="/login" className="text-blue-400 hover:text-blue-300 underline">
             Log in

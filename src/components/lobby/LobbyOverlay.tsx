@@ -204,7 +204,7 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
       )}
       <div className="flex flex-col gap-2 items-center">
         <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
-          🏠
+          🌍
         </Link>
       </div>
     </div>
@@ -323,7 +323,7 @@ export function renderPreGame({
     <>
       <div className="absolute top-4 left-4 z-20 pointer-events-auto">
         <Link href="/" className="text-white/90 no-underline text-2xl drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" aria-label="Back to Home">
-          🏠
+          🌍
         </Link>
       </div>
 
@@ -418,7 +418,7 @@ const lobbyConfig: SceneOverlayConfig = {
     loadingTextClass: 'text-gray-700',
     loadingBgClass: 'bg-gray-100',
   },
-  backLabel: '🏠',
+  backLabel: '🌍',
   loadingText: 'Loading lobby…',
   enemyMaxHp: 8,
   suppressEnemyPanel: true,

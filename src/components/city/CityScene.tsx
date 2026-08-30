@@ -12,6 +12,9 @@ import Signpost, { type SignpostArm } from '@/components/city/Signpost';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
+// Temple left, Senate right, signpost between (§1.1). In lib/ so the
+// left/right pairing with the signpost's arms can be tested.
+import { TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION } from '@/lib/cityLayout';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
 /**
@@ -35,9 +38,11 @@ import { useClickNotDrag } from '@/lib/useClickNotDrag';
  * The sky is the real one over Athens at `date`, ephemeris-placed and
  * lit by where the Sun actually is (CitySky).
  *
- * FRAMING IS PROVISIONAL. temple.glb's origin sits on one of its corner
- * columns rather than its centre (LobbyScene.tsx notes the same at its own
- * <Temple>), so it does not sit where its coordinates suggest.
+ * FRAMING IS PROVISIONAL. Note that temple.glb is NOT origin-on-a-corner as
+ * LobbyScene.tsx claims -- it is centred on its origin to within 0.15 units.
+ * What makes it awkward is its size: 35.7 x 18.5 x 63.2 units against the
+ * Senate's 8.4 x 5.0. See lib/cityLayout.ts, which owns the placements and
+ * the measurements behind them.
  */
 
 // Shared with LobbyScene so the two scenes agree on world scale.
@@ -72,11 +77,6 @@ const LABEL_DISTANCE_FACTOR = SKY_R * 2 * Math.tan((CITY_FOV * Math.PI) / 360);
 const MIN_POLAR = 0.02;               // ~1 deg off the zenith
 const MAX_POLAR = Math.PI * 0.86;     // well below the horizon, short of inverting
 
-/** Temple left, Senate right (§1.1). Both forward of the pin so the default
- *  view holds them, flanking the signpost between. */
-export const TEMPLE_POSITION: [number, number, number] = [-15, 0, -22];
-export const SENATE_POSITION: [number, number, number] = [15, 0, -22];
-export const SIGNPOST_POSITION: [number, number, number] = [0, 0, -11];
 
 const BOSSFIGHT_COLOR = '#4da6ff';
 const RANKED_COLOR = '#ff6666';

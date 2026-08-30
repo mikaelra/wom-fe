@@ -147,7 +147,7 @@ export default function InventoryPage() {
             className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
             aria-label="Back to Home"
           >
-            🏠
+            🌍
           </Link>
           <h1 className="text-2xl font-bold tracking-wide">Inventory</h1>
         </div>

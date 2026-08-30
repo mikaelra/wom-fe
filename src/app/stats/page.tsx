@@ -107,7 +107,7 @@ export default function StatsPage() {
             className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
             aria-label="Back to Home"
           >
-            🏠
+            🌍
           </button>
           <h1 className="text-2xl font-bold tracking-wide">Stats</h1>
         </div>

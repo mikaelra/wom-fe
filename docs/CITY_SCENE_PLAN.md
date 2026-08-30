@@ -284,6 +284,30 @@ export const CITY_BUILDINGS = {
 - `temple.glb` **already exists** and is listed in `ART_STYLE_PLAN.md` §5 as a
   keeper. **A Senate model does not exist and must be made** (§9).
 
+**[corrected] temple.glb is centred on its origin, and it is enormous.**
+LobbyScene.tsx has said since it was written that the model's "origin sits on one
+of its corner columns rather than its center", and this scene repeated it.
+Measured from the GLB's own accessor bounds, that is wrong: the visual centre sits
+within **0.15 units** of the origin.
+
+What actually makes it hard to place is its size — **35.7 wide, 18.5 tall, 63.2
+deep**, against the Senate placeholder's 8.4 × 5.0. They are not peers and cannot
+be posed as a matching pair. At the original `[-15, 0, -22]` the temple's footprint
+swallowed the signpost and the viewer stood inside its bounding box.
+
+It is now at `[-22, 0, -26]` — further left and further out than the Senate, so it
+reads as a great building across the bay rather than a flanking pavilion. How far
+left is decided by the **phone**, which is the narrow case and the one the scene is
+actually reviewed on: a 70° vertical FOV in portrait is only ~17.9° of horizontal
+half-angle (~51° on a 16:9 desktop). Because the model is so wide, moving its
+centre left mostly slides its bulk out of frame while its right edge stays near the
+middle — the old position had that edge 7.3° *past* the centre of the frame.
+
+The placements moved to `src/lib/cityLayout.ts` so the one thing that must never
+silently break can be asserted: **the building on the left is the one the
+signpost's left arm points at.** Swap them and the scene still renders perfectly,
+the hover pairing still works, and every player is sent to the wrong fight.
+
 ### 5.3 Ground, camera, and the click-vs-look problem
 
 Reuse `mountainv1.glb` for the backdrop as the dead `TempleScene` did. The camera
