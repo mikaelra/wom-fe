@@ -481,6 +481,45 @@ bands avoids visible popping at the boundaries.
 approximation — it is a direct function of the ephemeris.** Use `SearchRiseSet` to
 show the actual sunset/sunrise clock times in the legend.
 
+**[added] Light on the water, and where the key light comes from.** The sea was
+copied from `SeaAndSky.tsx`, the lobby's, where a `directionalLight` parked at a
+fixed `[100, 20, 100]` is harmless because there is no real sun to contradict. Here
+it was actively wrong: a `meshStandardMaterial` at `metalness: 0.45` turned that
+constant into a bright white column on the water, pointing nowhere in particular
+and unrelated to the Sun that was setting 90° away. Reported from a phone, and
+obvious once seen.
+
+The sea now has its own material (`lib/seaGlitter.ts` + the `Sea` shader in
+`CitySky.tsx`) with the reflection built from the bodies' real positions:
+
+- **The mirror direction.** Each fragment reflects the view ray about the water's
+  flat normal and measures the angle to the body. Across a plane that sweeps from
+  the horizon down to the viewer's feet, that stretches a point-like body into a
+  road along its own azimuth. The path is therefore aligned with the Sun by
+  construction rather than by a constant somebody has to keep in sync.
+- **Fresnel.** Water reflects ~2% straight down and nearly everything at grazing
+  incidence, so the road is bright out by the horizon and fades as it approaches.
+  A low Sun laying a long road and a high one making a small hot spot are then the
+  *same* rule, not two cases — which is why `seaGlitter` deliberately has no
+  falloff with altitude beyond a fade across the first 1.5°.
+- **Two bodies.** The Moon gets its own path at roughly a third of the Sun's peak,
+  further scaled by its illuminated fraction: a crescent lays down far less light
+  than a full Moon.
+- **Width is tied to the sprite.** The path's angular half-width is the body's
+  drawn angular radius and the water's own slope RMS added in quadrature, so the
+  `BODY_SIZE` entry that scales a body's sprite also widens its reflection. A body
+  and its glitter cannot be resized independently and end up disagreeing.
+
+The scene's key light now follows the Sun's real compass direction too, clamped at
+the horizon so twilight lights the marble horizontally from the correct quarter
+rather than from underneath it. With the water's road on the true azimuth, a scene
+lit from some other direction reads as an error immediately.
+
+**[added] Bodies are drawn at twice their first-pass size** — the Moon and all
+five planets, not the Sun, which is already the brightest thing in frame. From the
+ground under a 70° field of view a planet is much further from the eye than it is
+on the globe, and at the original sizes the wanderers read as dust.
+
 ### 6.5 The arcs — across the night, and across the year
 
 Both fall out of the same call, which is why this is far less work than it sounds.

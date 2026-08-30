@@ -11,7 +11,7 @@ import CitySky, { useCitySky } from '@/components/city/CitySky';
 import Signpost, { type SignpostArm } from '@/components/city/Signpost';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
-import { SKY_R } from '@/lib/citySkyGeometry';
+import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
 /**
@@ -176,6 +176,22 @@ export default function CityScene({
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
   const { placements, sky, nightness } = useCitySky(date, realLat, realLng, EYE);
+
+  // The key light follows the real Sun's compass direction rather than the
+  // fixed [100, 20, 100] inherited from the lobby -- with the water's
+  // glitter path now laid along the true azimuth, a scene lit from some
+  // other quarter reads as an error immediately. Altitude is clamped at the
+  // horizon so twilight lights the marble horizontally from the right side
+  // instead of from underneath it once the Sun has set.
+  const sunLightPosition = useMemo<[number, number, number]>(() => {
+    const sun = placements.find((p) => p.body === 'Sun');
+    if (!sun) return [100, 20, 100];
+    return horizonToScene(
+      { altitude: Math.max(sun.horizon.altitude, 0), azimuth: sun.horizon.azimuth },
+      300,
+      [0, 0, 0],
+    );
+  }, [placements]);
   // Hovering either an arm or its building lights both -- that pairing is
   // what teaches which building is which without a tutorial.
   const [templeHot, setTempleHot] = useState(false);
@@ -252,7 +268,7 @@ export default function CityScene({
           rather than as night, and moonlight is a real thing. */}
       <ambientLight intensity={0.6 - 0.42 * nightness} />
       <directionalLight
-        position={[100, 20, 100]}
+        position={sunLightPosition}
         intensity={1.1 - 0.95 * nightness}
       />
       {/* A cool fill that only comes up at night, so the buildings keep an

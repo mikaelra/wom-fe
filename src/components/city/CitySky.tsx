@@ -13,6 +13,9 @@ import {
 import {
   horizonToScene, eqjToSceneMatrix, eclipticPolyline, SKY_R, STAR_R,
 } from '@/lib/citySkyGeometry';
+import {
+  seaGlitter, SUN_GLITTER_PEAK, MOON_GLITTER_PEAK, type SeaGlitter,
+} from '@/lib/seaGlitter';
 
 export { horizonToScene } from '@/lib/citySkyGeometry';
 import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
@@ -50,10 +53,23 @@ function glowTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
-/** Apparent size on the sky dome. The Sun and Moon really are about half a
- *  degree across; the planets are points, drawn larger so they read at all. */
+/**
+ * Apparent size on the sky dome. The Sun and Moon really are about half a
+ * degree across; the planets are points, drawn far larger so they read at
+ * all.
+ *
+ * Everything except the Sun is at TWICE its first-pass size: standing on the
+ * ground under a 70-degree field of view, a planet is much further from the
+ * eye than it is on the globe, and at the old sizes the wanderers read as
+ * dust rather than as bodies. The Sun keeps its size -- it is already the
+ * brightest thing in the scene and doubling it swallows the horizon.
+ *
+ * These numbers also set how wide a body's reflection lies across the water
+ * (lib/seaGlitter.ts), so a body and its glitter path cannot be resized
+ * independently and end up disagreeing.
+ */
 const BODY_SIZE: Record<AspectBody, number> = {
-  Sun: 16, Moon: 14, Venus: 6, Jupiter: 5.5, Mars: 4.5, Mercury: 4, Saturn: 4,
+  Sun: 16, Moon: 28, Venus: 12, Jupiter: 11, Mars: 9, Mercury: 8, Saturn: 8,
 };
 
 /** Sun and Moon are visible in daylight; the planets are not. */
@@ -267,6 +283,137 @@ function EclipticBand({ frame, eye }: {
   return <primitive object={line} />;
 }
 
+/** Unit direction from the viewer to a placed body. The placements are
+ *  absolute scene points on a sphere of SKY_R around the eye, so undoing
+ *  exactly that gives the direction the water needs. */
+function directionFromEye(
+  p: CityBodyPlacement | undefined,
+  eye: readonly [number, number, number],
+): [number, number, number] {
+  // Straight down when there is no body: a direction the water's mirror ray
+  // can never match, so the path is off as well as zero-strength.
+  if (!p) return [0, -1, 0];
+  return [
+    (p.position[0] - eye[0]) / SKY_R,
+    (p.position[1] - eye[1]) / SKY_R,
+    (p.position[2] - eye[2]) / SKY_R,
+  ];
+}
+
+/**
+ * The sea, and the light the sky lays on it.
+ *
+ * A custom material rather than `meshStandardMaterial` because the highlight
+ * has to come from where the Sun and Moon ACTUALLY are, and a lit material
+ * gets that from whatever lights the scene happens to contain -- which is
+ * how a fixed [100, 20, 100] directional light ended up painting a bright
+ * column on the water pointing nowhere in particular.
+ *
+ * Two things do the work:
+ *
+ * - **The mirror direction.** Every fragment reflects the view ray about the
+ *   water's flat normal and asks how close that lands to the body. On a
+ *   plane that sweeps smoothly from the horizon to the viewer's feet, which
+ *   is what stretches a point-like body into a road along its own azimuth.
+ * - **Fresnel.** Water reflects almost nothing when you look straight down
+ *   into it and almost everything at a grazing angle. So the path is bright
+ *   out by the horizon and fades as it comes toward you, and a low Sun makes
+ *   a long road while a high one makes a small hot spot -- without either
+ *   case being special-cased.
+ *
+ * Colours come from the bodies' own aspect colours, so the water agrees with
+ * the sprite, the glow and the gaze label by construction.
+ */
+function Sea({ seaLevel, color, sun, moon, sunColor, moonColor }: {
+  seaLevel: number;
+  color: THREE.Color;
+  sun: SeaGlitter;
+  moon: SeaGlitter;
+  sunColor: string;
+  moonColor: string;
+}) {
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uWater:        { value: new THREE.Color() },
+      uSunDir:       { value: new THREE.Vector3() },
+      uSunColor:     { value: new THREE.Color() },
+      uSunStrength:  { value: 0 },
+      uSunSigma:     { value: 1 },
+      uMoonDir:      { value: new THREE.Vector3() },
+      uMoonColor:    { value: new THREE.Color() },
+      uMoonStrength: { value: 0 },
+      uMoonSigma:    { value: 1 },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vWorld;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorld = worldPosition.xyz;
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      // The _pars_ halves are not optional: they define toneMapping() and
+      // linearToOutputTexel(), which the two chunks at the end of main()
+      // call. A ShaderMaterial gets three's #defines but not its chunks, so
+      // omitting these fails to compile and the sea renders black.
+      #include <tonemapping_pars_fragment>
+      #include <colorspace_pars_fragment>
+
+      uniform vec3  uWater;
+      uniform vec3  uSunDir, uSunColor, uMoonDir, uMoonColor;
+      uniform float uSunStrength, uSunSigma, uMoonStrength, uMoonSigma;
+      varying vec3  vWorld;
+
+      // A Gaussian on the ANGLE between the mirror direction and the body,
+      // rather than a Phong power: sigma is then literally the half-width of
+      // the glitter path in radians, which is the number seaGlitter.ts
+      // computes and the one worth tuning.
+      float lobe(vec3 mirror, vec3 toBody, float sigma) {
+        float a = acos(clamp(dot(mirror, toBody), -1.0, 1.0));
+        return exp(-(a * a) / (2.0 * sigma * sigma));
+      }
+
+      void main() {
+        vec3 view   = normalize(vWorld - cameraPosition);
+        vec3 up     = vec3(0.0, 1.0, 0.0);
+        vec3 mirror = reflect(view, up);
+
+        // Schlick's approximation, water against air.
+        float facing = clamp(dot(-view, up), 0.0, 1.0);
+        float fresnel = 0.02 + 0.98 * pow(1.0 - facing, 5.0);
+
+        vec3 col = uWater;
+        col += uSunColor  * (uSunStrength  * lobe(mirror, uSunDir,  uSunSigma)  * fresnel);
+        col += uMoonColor * (uMoonStrength * lobe(mirror, uMoonDir, uMoonSigma) * fresnel);
+
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+  }), []);
+
+  const u = material.uniforms;
+  u.uWater.value.copy(color);
+  u.uSunColor.value.set(sunColor);
+  u.uMoonColor.value.set(moonColor);
+  u.uSunDir.value.set(...sun.direction);
+  u.uMoonDir.value.set(...moon.direction);
+  u.uSunStrength.value = sun.strength;
+  u.uMoonStrength.value = moon.strength;
+  u.uSunSigma.value = sun.sigma;
+  u.uMoonSigma.value = moon.sigma;
+
+  // Flat to the horizon in every direction, so a full 360 turn always meets
+  // a horizon line.
+  return (
+    <mesh position={[0, seaLevel, 0]} rotation={[-Math.PI / 2, 0, 0]} material={material}>
+      <planeGeometry args={[6000, 6000]} />
+    </mesh>
+  );
+}
+
 export default function CitySky({
   date,
   realLat,
@@ -286,7 +433,28 @@ export default function CitySky({
   // One call, one snapshot: the frame the stars are rotated by is the same
   // object the bodies were placed with, rather than a second computeSky of
   // the same instant.
-  const { placements, frame, nightness: night, sunPosition } = useCitySky(date, realLat, realLng, eye);
+  const { placements, sky, frame, nightness: night, sunPosition } = useCitySky(date, realLat, realLng, eye);
+
+  const sunPlacement = placements.find((p) => p.body === 'Sun');
+  const moonPlacement = placements.find((p) => p.body === 'Moon');
+
+  const sunGlitter = useMemo(() => seaGlitter({
+    direction: directionFromEye(sunPlacement, eye),
+    altitudeDeg: sunPlacement?.horizon.altitude ?? -90,
+    bodySize: BODY_SIZE.Sun,
+    skyRadius: SKY_R,
+    peak: SUN_GLITTER_PEAK,
+  }), [sunPlacement, eye]);
+
+  const moonGlitter = useMemo(() => seaGlitter({
+    direction: directionFromEye(moonPlacement, eye),
+    altitudeDeg: moonPlacement?.horizon.altitude ?? -90,
+    bodySize: BODY_SIZE.Moon,
+    skyRadius: SKY_R,
+    peak: MOON_GLITTER_PEAK,
+    // A crescent lays down far less light than a full Moon.
+    brightness: sky.moonPhaseFraction,
+  }), [moonPlacement, eye, sky]);
   const glow = useMemo(() => glowTexture(), []);
 
   // The sea keeps the sky's own light: bright by day, near-black at night,
@@ -336,12 +504,14 @@ export default function CitySky({
         )
       ))}
 
-      {/* Sea -- a huge horizontal plane, flat to the horizon in every
-          direction, so a full 360 turn always meets a horizon line. */}
-      <mesh position={[0, seaLevel, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[6000, 6000]} />
-        <meshStandardMaterial color={seaColor} roughness={0.35} metalness={0.45} />
-      </mesh>
+      <Sea
+        seaLevel={seaLevel}
+        color={seaColor}
+        sun={sunGlitter}
+        moon={moonGlitter}
+        sunColor={sunPlacement?.color ?? '#fff3d0'}
+        moonColor={moonPlacement?.color ?? '#cfe3ff'}
+      />
     </>
   );
 }
