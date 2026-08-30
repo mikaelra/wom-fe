@@ -22,6 +22,7 @@ import {
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
 import TempleTableau from '@/components/city/TempleTableau';
+import { TEMPLE_TABLEAU_LIFT } from '@/lib/templeTableau';
 import { useBossfightRoster } from '@/lib/useBossfightRoster';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
@@ -89,6 +90,30 @@ const RANKED_COLOR = '#ff6666';
 /** Parchment rather than a third saturated hue: the way out is not a third
  *  destination competing with the two fights. */
 const BACK_COLOR = '#e8d9a0';
+
+/**
+ * The light Hades keeps burning (docs/CITY_SCENE_PLAN.md §5.2).
+ *
+ * A point light standing on the temple's own floor, so at night it throws
+ * the near columns forward and leaves the far ones dark -- which is what
+ * actually gives a building its shape. A uniform wash would only tell you
+ * the temple is purple, not where it is.
+ *
+ * Rides `nightness`, so it contributes nothing while the Sun is up and comes
+ * on as the sky goes over. Intensity is in candela like the campfire's, and
+ * has to carry much further: the temple's columns stand 15 to 30 units from
+ * its centre where the fire lights a signpost 3 units away, and physical
+ * falloff means that costs roughly two orders of magnitude.
+ */
+const TEMPLE_GLOW_COLOR = '#8b3dff';
+const TEMPLE_GLOW_PEAK = 400;
+const TEMPLE_GLOW_DISTANCE = 130;
+const TEMPLE_GLOW_DECAY = 1.5;
+/** How far the marble itself is pulled toward that purple after dark. The
+ *  light gives the shape; this only makes sure the hue reads even on the
+ *  faces it does not reach. */
+const TEMPLE_NIGHT_TINT = '#2a1140';
+const TEMPLE_TINT_STRENGTH = 0.45;
 
 /** Tint applied to a building while it or its arm is hovered. */
 const PLAIN = '#D6D6D6';
@@ -246,6 +271,14 @@ export default function CityScene({
     [placements, sky],
   );
 
+  // Marble by day, and after dark the underworld's own colour -- but only
+  // the hue: the shape still comes from the light inside it.
+  const templeColor = useMemo(() => {
+    const base = new THREE.Color(templeHot ? LIT_BOSSFIGHT : PLAIN);
+    base.lerp(new THREE.Color(TEMPLE_NIGHT_TINT), nightness * TEMPLE_TINT_STRENGTH);
+    return `#${base.getHexString()}`;
+  }, [templeHot, nightness]);
+
   const arms: SignpostArm[] = [
     {
       side: 'left',
@@ -317,7 +350,7 @@ export default function CityScene({
         >
           {/* Tinting the whole model is the cheapest honest highlight until
               the art pass gives the buildings their own materials (§9). */}
-          <Temple scale={1} position={[0, 0, 0]} color={templeHot ? LIT_BOSSFIGHT : PLAIN} />
+          <Temple scale={1} position={[0, 0, 0]} color={templeColor} />
         </BuildingTarget>
 
         {/* The bossfight that is actually running, staged inside the temple.
@@ -325,6 +358,24 @@ export default function CityScene({
             wrapping them in the click handler would make a player model a
             second, differently-shaped hit target for "enter the bossfight". */}
         <TempleTableau players={roster.players} active={roster.lobby_id !== null} />
+
+        {/* On the same floor the figures stand on, lifted a couple of units
+            to roughly their head height. At floor level it would rake
+            straight up the columns and wash the ceiling; from here it falls
+            off across the building -- about 18 on the nearest columns, 7
+            mid-way and 2 at the far end -- and it is that gradient, not the
+            colour, that gives the shape away. */}
+        <pointLight
+          position={[
+            TEMPLE_POSITION[0],
+            LAND_LEVEL + TEMPLE_TABLEAU_LIFT + 2,
+            TEMPLE_POSITION[2],
+          ]}
+          color={TEMPLE_GLOW_COLOR}
+          intensity={TEMPLE_GLOW_PEAK * nightness}
+          distance={TEMPLE_GLOW_DISTANCE}
+          decay={TEMPLE_GLOW_DECAY}
+        />
 
         <BuildingTarget
           position={SENATE_POSITION}
