@@ -53,6 +53,18 @@ export interface SkyLabelsProps {
   occluder?: { center: THREE.Vector3; radius: number };
   /** Tunes label size against camera distance (FreshHtml's own scaling). */
   distanceFactor?: number;
+  /** Nudge the label off the body it names, in ems of its own text: x is
+   *  rightward, y is downward. Screen-space on purpose -- a world-space
+   *  offset would swing around the body as the camera orbits, so "under and
+   *  to the side" would only be true from one angle. Because FreshHtml
+   *  scales the whole label with distance, an em offset behaves like a fixed
+   *  world-size gap: it clears a body by the same visible margin near or
+   *  far.
+   *
+   *  Default is dead centre, which is right where a body is a point of light
+   *  (the city's sky) and wrong where it is a model with a radius (the world
+   *  map's planets), where the name lands on top of the thing it names. */
+  offset?: { x: number; y: number };
 }
 
 interface LabelNode {
@@ -65,7 +77,11 @@ const _forward = new THREE.Vector3();
 const _world = new THREE.Vector3();
 const _pointerDir = new THREE.Vector3();
 
-export default function SkyLabels({ bodies, occluder, distanceFactor = 24 }: SkyLabelsProps) {
+const NO_OFFSET = { x: 0, y: 0 };
+
+export default function SkyLabels({
+  bodies, occluder, distanceFactor = 24, offset = NO_OFFSET,
+}: SkyLabelsProps) {
   const nodes = useRef(new Map<string, LabelNode>());
   // A mouse or trackpad, as opposed to a finger. Read once, since it cannot
   // change without a new pointing device being plugged in.
@@ -135,7 +151,13 @@ export default function SkyLabels({ bodies, occluder, distanceFactor = 24 }: Sky
   return (
     <>
       {bodies.map((body) => (
-        <GazeLabel key={body.key} body={body} register={register} distanceFactor={distanceFactor} />
+        <GazeLabel
+          key={body.key}
+          body={body}
+          register={register}
+          distanceFactor={distanceFactor}
+          offset={offset}
+        />
       ))}
     </>
   );
@@ -145,10 +167,12 @@ function GazeLabel({
   body,
   register,
   distanceFactor,
+  offset,
 }: {
   body: SkyLabelBody;
   register: (key: string, node: LabelNode | null) => void;
   distanceFactor: number;
+  offset: { x: number; y: number };
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -174,7 +198,17 @@ function GazeLabel({
           ref={(el) => { rootRef.current = el; sync(); }}
           // Starts hidden: the frame loop decides, and a label must never
           // flash on for one frame before it does.
-          style={{ display: 'none', opacity: 0, textAlign: 'center', whiteSpace: 'nowrap' }}
+          // The offset rides here rather than on the group's position: the
+          // group is what the frame loop measures the gaze and the occluder
+          // against, and it has to stay ON the body. You still point at the
+          // planet, the name just steps aside to be read.
+          style={{
+            display: 'none',
+            opacity: 0,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+            transform: `translate(${offset.x}em, ${offset.y}em)`,
+          }}
         >
           <div
             style={{

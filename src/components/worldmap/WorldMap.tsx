@@ -867,6 +867,15 @@ const REVEAL_PHASE: Record<AspectBody, number> = {
   Moon: 2, Mercury: 3, Venus: 4, Sun: 5, Mars: 6, Jupiter: 7, Saturn: 8,
 };
 
+/** Where a planet's name sits relative to the planet, in ems of its own text
+ *  (see SkyLabels' `offset`). Down and to the right, because these bodies are
+ *  models with a radius rather than the points of light the city's sky is
+ *  made of -- centred, the name landed on top of the thing it was naming and
+ *  neither could be read. Far enough to clear the largest of them at the
+ *  distance the camera actually sits, close enough to still read as attached
+ *  to that body rather than floating loose in the sky. */
+const PLANET_LABEL_OFFSET = { x: 1.4, y: 2.0 };
+
 const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) {
   const groupRef = useRef<THREE.Group>(null);
   const sky = getSky();
@@ -987,7 +996,7 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
       {/* Inside the drifting group, so labels ride with their bodies. The
           globe occludes: a planet on the far side must not be named through
           the Earth (§7.2). */}
-      <SkyLabels bodies={labelBodies} occluder={GLOBE_OCCLUDER} />
+      <SkyLabels bodies={labelBodies} occluder={GLOBE_OCCLUDER} offset={PLANET_LABEL_OFFSET} />
     </group>
   );
 });
