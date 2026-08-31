@@ -25,9 +25,15 @@ const ARM_HEIGHT = 0.62;
 const ARM_THICK = 0.16;
 /** Arms hang just below the top so the post reads as a post, not a cross. */
 const ARM_Y = POST_HEIGHT - 0.9;
-/** How far a second-tier arm hangs below the first. Enough that the lower
+/** How far one full tier hangs below the one above it. Enough that the lower
  *  sign's label clears the upper arm's plank, and no more -- only about
- *  three units of this post stand above the water. */
+ *  three units of this post stand above the water.
+ *
+ *  Tiers are fractional, so an arm can sit between two others: the ranked
+ *  arm rides at 0.5, halfway down between Bossfight and Earth on the far
+ *  side. With both destinations on one row their labels ran into each other
+ *  across the post -- each is nowrap and carries a sublabel, so they are far
+ *  wider than the 3.3 units between the two arms' centres. */
 const ARM_TIER_DROP = 1.25;
 
 const WOOD = '#6b4f2a';
@@ -36,9 +42,15 @@ const WOOD_HOVER = '#8a6836';
 export interface SignpostArm {
   /** Which way it points, and therefore which building it pairs with. */
   side: 'left' | 'right';
-  /** 0 is the main row of arms; 1 hangs beneath it. Lets a second, quieter
-   *  sign share a side with a destination arm without colliding with it. */
+  /** How far down the post this arm hangs, in tiers: 0 is the top row, 1 is
+   *  a full drop below it, and fractions sit between (0.5 is halfway). Lets
+   *  arms interleave down the post instead of stacking two to a row. */
   tier?: number;
+  /** A quieter aside rather than a destination -- smaller text. Kept apart
+   *  from `tier` on purpose: how far down the post a sign hangs and how
+   *  loudly it speaks are different questions, and an arm can be lower than
+   *  another without being lesser than it. */
+  secondary?: boolean;
   /** Fraction of the full arm length. A secondary sign is shorter, so the
    *  post still reads as two big destinations and one small aside. */
   lengthScale?: number;
@@ -59,8 +71,8 @@ function Arm({ arm }: { arm: SignpostArm }) {
   const length = ARM_LENGTH * (arm.lengthScale ?? 1);
   // Offset so the arm grows outward from the post rather than through it.
   const x = dir * (length / 2 + POST_RADIUS);
-  // A lower sign's label rides closer to its own plank: at the main row's
-  // offset it would run into the arm above.
+  // Anything below the top row rides closer to its own plank: at the main
+  // row's offset it would run up into the arm above.
   const labelY = tier === 0 ? ARM_HEIGHT * 1.4 : ARM_HEIGHT * 0.85;
 
   const click = useClickNotDrag(arm.onActivate);
@@ -112,7 +124,7 @@ function Arm({ arm }: { arm: SignpostArm }) {
           <div
             style={{
               color: arm.color,
-              fontSize: (tier === 0 ? 26 : 19) + (hovered ? 4 : 0),
+              fontSize: (arm.secondary ? 19 : 26) + (hovered ? 4 : 0),
               fontWeight: 900,
               letterSpacing: '0.06em',
               WebkitTextStroke: '1px rgba(0,0,0,0.55)',

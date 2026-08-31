@@ -297,7 +297,18 @@ export default function CityScene({
       onHoverChange: setTempleHot,
     },
     {
+      // Halfway down between the two arms on the far side, rather than
+      // level with Bossfight. Sharing the top row put both destinations'
+      // labels at one height, and each is a nowrap name over a sublabel --
+      // far wider than the gap between the two arms, so BOSSFIGHT and the
+      // ranked label ran into each other across the post. Dropping this one
+      // to the midpoint interleaves the three signs down the post instead
+      // of stacking two of them on one line.
+      //
+      // Still a full-length, full-size destination arm: it hangs lower than
+      // Bossfight without being lesser than it.
       side: 'right',
+      tier: 0.5,
       label: rankedLabel,
       sublabel: rankedSublabel,
       color: RANKED_COLOR,
@@ -310,6 +321,7 @@ export default function CityScene({
       // where the way you came from is the small plank at the bottom.
       side: 'left',
       tier: 1,
+      secondary: true,
       lengthScale: 0.62,
       label: '\u{1F30D} EARTH',
       color: BACK_COLOR,
