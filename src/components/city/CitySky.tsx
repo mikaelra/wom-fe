@@ -4,6 +4,7 @@ import { Suspense, useMemo } from 'react';
 import { Sky, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { STAR_CATALOG } from '@/components/worldmap/starCatalog';
+import CityMoon from '@/components/city/CityMoon';
 // `Sky` is aliased: drei's atmospheric <Sky> component owns that name here.
 import { computeSky, computeAspects, type AspectBody, type Sky as SkySnapshot } from '@/lib/astrology';
 import {
@@ -495,6 +496,37 @@ export default function CitySky({
         // Brighter planets are drawn bigger as well as sooner, so Venus
         // reads as Venus rather than as one more dot.
         const size = BODY_SIZE[p.body] * BODY_SIZE_BOOST * magnitudeSizeFactor(p.magnitude) * BODY_INTENSITY;
+        // The Moon is the one body with a face to show. A soft sprite is
+        // right for a point of light and wrong for a disc you can resolve:
+        // drawn like the others it was a featureless blob, telling apart
+        // from the Sun only by its colour. It keeps its halo below, so its
+        // glow and its reflection on the water are unchanged.
+        if (p.body === 'Moon') {
+          return (
+            <group key={p.body}>
+              <Suspense fallback={null}>
+                <CityMoon
+                  position={p.position}
+                  size={size}
+                  sunDirection={sunPosition}
+                  visibility={p.visibility}
+                />
+              </Suspense>
+              <group position={p.position}>
+                <sprite scale={[size * HALO_SIZE, size * HALO_SIZE, 1]}>
+                  <spriteMaterial
+                    map={glow}
+                    color={p.color}
+                    transparent
+                    opacity={p.visibility * HALO_OPACITY * BODY_INTENSITY}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                  />
+                </sprite>
+              </group>
+            </group>
+          );
+        }
         return (
           <group key={p.body} position={p.position}>
             {/* Halo first: wider and much fainter, additively blended, so a
