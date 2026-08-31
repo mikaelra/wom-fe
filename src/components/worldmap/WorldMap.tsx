@@ -5,16 +5,26 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
-import CityMarker, { type RankedLabelInfo } from './CityMarker';
+import CityMarker from './CityMarker';
+import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
+import { GLYPH, labelDetail } from '@/lib/skyLabelText';
+import {
+  milkyWayQuaternion, milkyWayTexturePath, orientMilkyWayTexture,
+} from '@/lib/milkyWay';
 import GlobeCrackleEffect from './GlobeCrackleEffect';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
-import { getSky, computeAspects, raDecToVec3, type BodyAspect } from '@/lib/astrology';
+import {
+  getSky, computeAspects, raDecToVec3,
+  type BodyAspect, type AspectBody,
+} from '@/lib/astrology';
 import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
 const PLANET_R = 46;
+/** The globe, as something that can hide a body from the gaze labels. */
+const GLOBE_OCCLUDER = { center: new THREE.Vector3(0, 0, 0), radius: 2.5 };
 const RAD = Math.PI / 180;
 
 // ── Per-body render depth ("front-to-back" layering) ───────────────────────
@@ -169,8 +179,6 @@ const jupiterTexturePath = (): string => '/textures/jupiter/jupiter2_1k.jpg';
 // (8000x4000, MilkyWay-extreme.png -- MilkyWay-Stars.png is the same shot
 // but with a survey reference grid/star-name overlay baked in, not a game
 // asset) for the extra visual value. See docs/MOBILE_AND_STEAM_PLAN.md.
-const milkyWayTexturePath = (): string =>
-  IS_NATIVE_BUILD ? '/textures/stars/MilkyWay-extreme.png' : '/textures/stars/MilkyWay-HD.jpg';
 
 // Preload async textures early so they are likely cached by the time their
 // phase is reached.
@@ -191,19 +199,11 @@ useTexture.preload(jupiterTexturePath());
 const Starfield = memo(function Starfield() {
   const [circleTex, milkyWayTex] = useTexture([
     '/textures/stars/circle.png',
-    milkyWayTexturePath(),
+    milkyWayTexturePath(IS_NATIVE_BUILD),
   ]);
 
-  // Fixed: horizontal flip via repeat + offset so the Milky Way is no longer mirrored
-  // (BackSide + sphere UVs cause the default image to appear flipped left↔right)
-  useMemo(() => {
-    milkyWayTex.wrapS = THREE.RepeatWrapping;
-    milkyWayTex.wrapT = THREE.RepeatWrapping; // good practice
-    milkyWayTex.repeat.x = -1;      // ← this un-mirrors the texture
-    milkyWayTex.offset.x = 1;       // ← compensates for the flip (keeps your previous alignment)
-    milkyWayTex.offset.y = 0;
-    milkyWayTex.needsUpdate = true;
-  }, [milkyWayTex]);
+  // BackSide sphere UVs mirror the panorama left/right; this un-flips it.
+  useMemo(() => orientMilkyWayTexture(milkyWayTex), [milkyWayTex]);
 
   // Reveal magnitude bands one at a time, brightest first.
   // Starts at 1 so the brightest band (index 0) shows immediately on mount.
@@ -257,46 +257,15 @@ const Starfield = memo(function Starfield() {
 
   const milkyWayRef = useRef<THREE.Mesh>(null);
 
-  // 1. Sirius unit vector (the axis we rotate around – never changes)
-  const siriusVec = useMemo(() => {
-    const siriusStar = STAR_CATALOG.find(
-      (star) => Math.abs(star.mag + 1.46) < 0.01   // Sirius = mag ≈ -1.46
-    );
-    if (!siriusStar) {
-      console.warn('Sirius not found in STAR_CATALOG');
-      return new THREE.Vector3(0, 0, 1);
-    }
-    const raH = siriusStar.ra[0] + siriusStar.ra[1] / 60;
-    return raDecToVec3(raH, siriusStar.dec, 1).normalize();
-  }, []);
-
-  // 2. Final quaternion = base alignment + exact 60° rotation around Sirius
-  const milkyWayQuaternion = useMemo(() => {
-    // Your original base rotation that already lands Sirius correctly
-    const baseEuler = new THREE.Euler(
-      -Math.PI / 25.8,
-      -Math.PI / 1.3865,
-      0,
-      'XYZ'
-    );
-    const baseQ = new THREE.Quaternion().setFromEuler(baseEuler);
-
-    // Exact 60° (π/3) twist around the Sirius axis
-    // (Right-hand rule: positive = counter-clockwise when looking from outside toward center)
-    const TWIST_ANGLE = -Math.PI / 2.55;          // ← 60 degrees exactly
-    const twistQ = new THREE.Quaternion().setFromAxisAngle(siriusVec, TWIST_ANGLE);
-
-    // Combine: apply base first, then twist around Sirius
-    // (Sirius position stays perfectly fixed)
-    return twistQ.multiply(baseQ);   // twist * base
-  }, [siriusVec]);
+  // Hand-tuned alignment, now shared with the city scene (lib/milkyWay.ts).
+  const milkyWayQ = useMemo(() => milkyWayQuaternion(), []);
 
   return (
     <group ref={groupRef}>
       <mesh
         ref={milkyWayRef}
         renderOrder={-1}
-        quaternion={milkyWayQuaternion}   // ← this replaces the old rotation={...} prop
+        quaternion={milkyWayQ}
       >
         <sphereGeometry args={[STAR_R, 64, 64]} />
         <meshBasicMaterial
@@ -891,6 +860,22 @@ function MoonLight() {
 // §0), which kept the forced position and the forced separation as two
 // independent hand-synced copies.
 
+// ── Gaze-label metadata (docs/CITY_SCENE_PLAN.md §7.5) ────────────────────
+
+/** The phase at which each body is revealed, mirroring the map above. */
+const REVEAL_PHASE: Record<AspectBody, number> = {
+  Moon: 2, Mercury: 3, Venus: 4, Sun: 5, Mars: 6, Jupiter: 7, Saturn: 8,
+};
+
+/** Where a planet's name sits relative to the planet, in ems of its own text
+ *  (see SkyLabels' `offset`). Down and to the right, because these bodies are
+ *  models with a radius rather than the points of light the city's sky is
+ *  made of -- centred, the name landed on top of the thing it was naming and
+ *  neither could be read. Far enough to clear the largest of them at the
+ *  distance the camera actually sits, close enough to still read as attached
+ *  to that body rather than floating loose in the sky. */
+const PLANET_LABEL_OFFSET = { x: 1.4, y: 2.0 };
+
 const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) {
   const groupRef = useRef<THREE.Group>(null);
   const sky = getSky();
@@ -912,6 +897,27 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
   const posSat  = useMemo(() => sky.dir.Saturn.clone().multiplyScalar(SATURN_BODY_R), [sky]);
 
   useFrame(() => { if (groupRef.current) groupRef.current.rotation.y -= 0.0002; });
+
+  // Only bodies that have actually been revealed get a label -- otherwise a
+  // name could fade in over empty space during the staggered load.
+  const labelBodies = useMemo<SkyLabelBody[]>(() => {
+    const positions: Record<AspectBody, THREE.Vector3> = {
+      Moon: posMoon, Mercury: posMerc, Venus: posVen, Sun: posSun,
+      Mars: posMars, Jupiter: posJup, Saturn: posSat,
+    };
+    return (Object.keys(GLYPH) as AspectBody[])
+      .filter((b) => phase >= REVEAL_PHASE[b])
+      .map((b) => ({
+        key: b,
+        position: positions[b],
+        glyph: GLYPH[b],
+        name: b.toUpperCase(),
+        // The body's own aspect colour, so the label, its glow shell and its
+        // aura are the same hue by construction rather than by discipline.
+        color: `#${aspects[b].color.getHexString()}`,
+        detail: labelDetail(sky, b),
+      }));
+  }, [phase, sky, aspects, posMoon, posMerc, posVen, posSun, posMars, posJup, posSat]);
 
   return (
     <group ref={groupRef}>
@@ -986,6 +992,11 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
           </sprite>
         </>
       )}
+
+      {/* Inside the drifting group, so labels ride with their bodies. The
+          globe occludes: a planet on the far side must not be named through
+          the Earth (§7.2). */}
+      <SkyLabels bodies={labelBodies} occluder={GLOBE_OCCLUDER} offset={PLANET_LABEL_OFFSET} />
     </group>
   );
 });
@@ -994,11 +1005,10 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
 
 interface GlobeProps {
   onCityClick: (city: City) => void;
-  rankedInfo?: RankedLabelInfo;
   onReady?: () => void;
 }
 
-function Globe({ onCityClick, rankedInfo, onReady }: GlobeProps) {
+function Globe({ onCityClick, onReady }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
   // Epicenter for the crackle effect — Athens on the globe surface
@@ -1087,7 +1097,6 @@ function Globe({ onCityClick, rankedInfo, onReady }: GlobeProps) {
           city={city}
           globeRadius={GLOBE_RADIUS}
           onClick={onCityClick}
-          rankedInfo={city.name === 'New York' ? rankedInfo : undefined}
         />
       ))}
 
@@ -1113,22 +1122,7 @@ const _yAxis    = new THREE.Vector3(0, 1, 0);
 
 const CAMERA_RADIUS = 13;
 
-// Used to zoom the camera in on New York while the ranked queue is
-// searching (see RankedZoomRig below).
-const NEW_YORK_DIR = (() => {
-  const newYork = CITIES.find((c) => c.name === 'New York')!;
-  const [x, y, z] = latLngToVec3(newYork.lat, newYork.lng, 1);
-  return new THREE.Vector3(x, y, z).applyAxisAngle(_yAxis, EARTH_ROTATION_Y).normalize();
-})();
-// Closer than the ambient CAMERA_RADIUS (13) so New York reads clearly
-// while its "Searching..." label is the thing the player is waiting on.
-const RANKED_ZOOM_RADIUS = 6;
-const RANKED_ZOOM_SECONDS = 1.6;
 
-// Camera behaviour: OrbitControls owns azimuth/autoRotate (and user drag)
-// from the very first frame. This rig only adds the slow sky-drift shared
-// with the planet/ecliptic groups so the camera stays locked to the
-// ecliptic plane as the sky drifts.
 function CameraRig({
   paused,
 }: {
@@ -1162,65 +1156,6 @@ function CameraRig({
   return null;
 }
 
-// Zooms the camera in on New York while `active` (the ranked queue is
-// searching for a match) so the "Searching..." label reads clearly, instead
-// of leaving it small and easy to lose on the ambient wide shot. Eases both
-// in and back out with a smoothstep rather than a hard cut; on the way back
-// out it returns to exactly the camera pose it left the ambient orbit at,
-// so CameraRig (paused meanwhile, see `paused` above) picks back up clean.
-function RankedZoomRig({ active }: { active: boolean }) {
-  const { camera } = useThree();
-  const wasActive = useRef(false);
-  const transitioning = useRef(false);
-  const elapsed = useRef(0);
-  const startPos = useRef(new THREE.Vector3());
-  const startUp = useRef(new THREE.Vector3());
-  const targetPos = useRef(new THREE.Vector3());
-  const targetUp = useRef(new THREE.Vector3());
-  // Camera pose captured the instant the zoom-in starts, so cancelling can
-  // ease back to exactly where the ambient orbit was left.
-  const preZoomPos = useRef(new THREE.Vector3());
-  const preZoomUp = useRef(new THREE.Vector3());
-
-  useFrame((_, delta) => {
-    if (active && !wasActive.current) {
-      preZoomPos.current.copy(camera.position);
-      preZoomUp.current.copy(camera.up);
-      startPos.current.copy(camera.position);
-      startUp.current.copy(camera.up);
-      targetPos.current.copy(NEW_YORK_DIR).multiplyScalar(RANKED_ZOOM_RADIUS);
-      targetUp.current.copy(ECLIPTIC_POLE);
-      elapsed.current = 0;
-      transitioning.current = true;
-    } else if (!active && wasActive.current) {
-      startPos.current.copy(camera.position);
-      startUp.current.copy(camera.up);
-      targetPos.current.copy(preZoomPos.current);
-      targetUp.current.copy(preZoomUp.current);
-      elapsed.current = 0;
-      transitioning.current = true;
-    }
-    wasActive.current = active;
-
-    if (transitioning.current) {
-      elapsed.current += delta;
-      const t = Math.min(elapsed.current / RANKED_ZOOM_SECONDS, 1);
-      const eased = t * t * (3 - 2 * t); // smoothstep
-      camera.position.lerpVectors(startPos.current, targetPos.current, eased);
-      camera.up.lerpVectors(startUp.current, targetUp.current, eased).normalize();
-      camera.lookAt(0, 0, 0);
-      if (t >= 1) transitioning.current = false;
-    } else if (active) {
-      // Hold steady on New York for the rest of the search.
-      camera.position.copy(targetPos.current);
-      camera.up.copy(targetUp.current);
-      camera.lookAt(0, 0, 0);
-    }
-  });
-
-  return null;
-}
-
 // ── WorldMap ───────────────────────────────────────────────────────────────
 //
 // Progressive load phases (staggered with timers so the UI stays responsive):
@@ -1236,17 +1171,13 @@ function RankedZoomRig({ active }: { active: boolean }) {
 
 interface WorldMapProps {
   onCityClick: (city: City) => void;
-  rankedInfo?: RankedLabelInfo;
 }
 
-export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
+export default function WorldMap({ onCityClick }: WorldMapProps) {
   const [phase, setPhase] = useState(0);
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
   const [globeReady, setGlobeReady] = useState(false);
-  // True while the ranked queue is searching -- camera zooms in and locks
-  // onto New York for the duration (see RankedZoomRig).
-  const rankedSearching = rankedInfo?.status === 'searching';
 
   // Phase 1: mount the Globe immediately.
   useEffect(() => { setPhase(1); }, []);
@@ -1269,8 +1200,7 @@ export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
 
   return (
     <>
-      <CameraRig paused={rankedSearching} />
-      <RankedZoomRig active={rankedSearching} />
+      <CameraRig />
       <color attach="background" args={['#070b15']} />
       {/* Raised from 0.05 so the dark side of the globe stays readable */}
       <ambientLight intensity={0.12} />
@@ -1288,7 +1218,7 @@ export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
           textures are ready without waiting for moon/star textures. */}
       {phase >= 1 && (
         <Suspense fallback={null}>
-          <Globe onCityClick={onCityClick} rankedInfo={rankedInfo} onReady={() => setGlobeReady(true)} />
+          <Globe onCityClick={onCityClick} onReady={() => setGlobeReady(true)} />
         </Suspense>
       )}
 
@@ -1305,12 +1235,11 @@ export default function WorldMap({ onCityClick, rankedInfo }: WorldMapProps) {
 
       <OrbitControls
         makeDefault
-        enabled={!rankedSearching}
         enablePan={false}
         enableZoom
         minDistance={4}
         maxDistance={18}
-        autoRotate={!rankedSearching}
+        autoRotate
         autoRotateSpeed={0.4}
         maxPolarAngle={Math.PI * 0.80}
         minPolarAngle={Math.PI * 0.10}

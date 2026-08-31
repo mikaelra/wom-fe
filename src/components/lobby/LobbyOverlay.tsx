@@ -21,6 +21,7 @@ import SfxToggleButton from '@/components/audio/SfxToggleButton';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import { playMusic, PRE_LOBBY_MUSIC, BATTLE_MUSIC } from '@/lib/music';
 import type { LobbyState } from '@/types/game';
+import { CITY_PATH } from '@/lib/cities';
 
 type LobbyOverlayProps = {
   lobbyId: string;
@@ -41,6 +42,9 @@ type LobbyOverlayProps = {
    *  by LobbyScene (see its own onInstakillActiveChange), passed straight
    *  through to SceneOverlay. */
   instakillActive?: boolean;
+  /** Fired when the socket says this lobby no longer exists -- the page
+   *  walks the player back out to the world map. See SceneOverlay. */
+  onLobbyGone?: () => void;
 };
 
 export function InviteSection({ lobbyId }: { lobbyId: string }) {
@@ -204,7 +208,10 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
       )}
       <div className="flex flex-col gap-2 items-center">
         <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
-          🏠
+          🌍
+        </Link>
+        <Link href={CITY_PATH} className="text-blue-400 no-underline text-2xl" aria-label="Go to the city">
+          🏛️
         </Link>
       </div>
     </div>
@@ -304,8 +311,8 @@ export function renderPreGame({
   lobbyId,
   isAdmin,
   boss,
-  raidMins,
-  raidSecs,
+  bossfightMins,
+  bossfightSecs,
   rankedSecondsLeft,
   btn,
   onStartGame,
@@ -321,9 +328,14 @@ export function renderPreGame({
   // status pill plus the admin/invite controls pinned to the bottom.
   return (
     <>
-      <div className="absolute top-4 left-4 z-20 pointer-events-auto">
+      {/* Home, and beside it the city. flex+gap so the two icons sit as a
+          pair rather than butting straight up against each other. */}
+      <div className="absolute top-4 left-4 z-20 pointer-events-auto flex items-center gap-2">
         <Link href="/" className="text-white/90 no-underline text-2xl drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" aria-label="Back to Home">
-          🏠
+          🌍
+        </Link>
+        <Link href={CITY_PATH} className="text-white/90 no-underline text-2xl drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" aria-label="Go to the city">
+          🏛️
         </Link>
       </div>
 
@@ -333,8 +345,8 @@ export function renderPreGame({
             <p className="font-bold">{boss.name}</p>
             <p className="text-white/60 text-xs">{boss.title}</p>
             <p className="text-sm">HP: {boss.hp}</p>
-            {raidMins != null && raidSecs != null && (
-              <p className="text-white/60 text-xs">Boss-fight starts in {raidMins}m {raidSecs}s</p>
+            {bossfightMins != null && bossfightSecs != null && (
+              <p className="text-white/60 text-xs">Bossfight starts in {bossfightMins}m {bossfightSecs}s</p>
             )}
           </div>
         ) : state.ranked ? (
@@ -418,20 +430,20 @@ const lobbyConfig: SceneOverlayConfig = {
     loadingTextClass: 'text-gray-700',
     loadingBgClass: 'bg-gray-100',
   },
-  backLabel: '🏠',
+  backLabel: '🌍',
   loadingText: 'Loading lobby…',
   enemyMaxHp: 8,
   suppressEnemyPanel: true,
   showEnemyAlways: false,
   showPlayerList: true,
   showChat: true,
-  enableRaidTimer: true,
+  enableBossfightTimer: true,
   hidePlayerActionButtons: true,
   stageCombatDamage: true,
   renderGameOver,
 };
 
-export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, onResourceChange, spinEnabled, onToggleSpin, cameraMoved, onResetCamera, instakillActive }: LobbyOverlayProps) {
+export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, onResourceChange, spinEnabled, onToggleSpin, cameraMoved, onResetCamera, instakillActive, onLobbyGone }: LobbyOverlayProps) {
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [wheelNudgeDismissed, setWheelNudgeDismissed] = useState(false);
@@ -503,6 +515,7 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
         cameraMoved={cameraMoved}
         onResetCamera={onResetCamera}
         instakillActive={instakillActive}
+        onLobbyGone={onLobbyGone}
       />
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
       {showNudge && (

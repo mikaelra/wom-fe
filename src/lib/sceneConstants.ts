@@ -77,6 +77,96 @@ export function getBossPlayerPositions(count: number): { position: [number, numb
   });
 }
 
+/**
+ * Spectators: a ring above the players (docs/CITY_SCENE_PLAN.md is not the
+ * home for this -- it is lobby furniture).
+ *
+ * Where the ring starts is anchored to Hades' seat, a quarter turn away from
+ * it, and runs from there around the Well toward the players. Hades sits at
+ * a FIXED far-side angle (getBossPosition, theta = PI) whether or not a boss
+ * is actually in the lobby, so the anchor is well defined in an ordinary PvP
+ * lobby too -- there is simply no model standing on it.
+ *
+ * Sweeping toward the players (decreasing theta, since the players centre on
+ * theta = 0 nearest the camera) is what puts the watchers behind and above
+ * the people playing rather than behind Hades where nobody would see them.
+ *
+ * Spacing is a fixed step so two spectators stand together near the start
+ * rather than being flung to opposite ends of an arc, and only compresses
+ * once there are enough of them to need the whole circle.
+ */
+export const SPECTATOR_Y_LIFT = 1.15;
+/** Slightly outside the players' ring, so a spectator is never exactly
+ *  overhead and read as part of the player below them. */
+export const SPECTATOR_RADIUS_FACTOR = 1.22;
+/** Comfortable gap between watchers, in radians. */
+export const SPECTATOR_ARC_STEP = Math.PI / 8;
+
+export function getSpectatorPositions(
+  count: number,
+  playerCount: number,
+): { position: [number, number, number]; rotation: [number, number, number] }[] {
+  const radius = BASE_PLAYER_RADIUS * radiusGrowthFactor(Math.max(playerCount, count)) * SPECTATOR_RADIUS_FACTOR;
+  // A quarter turn from Hades' fixed far-side seat.
+  const start = Math.PI / 2;
+  const step = Math.min(SPECTATOR_ARC_STEP, (Math.PI * 2) / Math.max(count, 1));
+
+  return Array.from({ length: count }, (_, i) => {
+    const angle = start - i * step;
+    return {
+      position: [
+        radius * Math.sin(angle),
+        PLAYER_Y + SPECTATOR_Y_LIFT,
+        radius * Math.cos(angle),
+      ] as [number, number, number],
+      rotation: [0, angle + Math.PI / 2, 0] as [number, number, number],
+    };
+  });
+}
+
+/**
+ * Where a spectator's own camera sits: just over their model's LEFT shoulder.
+ *
+ * A watcher arriving in a lobby used to get the same establishing view as
+ * everyone else, which told them nothing about who they were. Putting the
+ * camera on their own ghost's shoulder does two things at once -- it says
+ * "this one is you" without a label, and it frames the table the way that
+ * figure is already facing.
+ *
+ * "Left shoulder" is the model's own left, not the screen's: the figure
+ * faces the Well, so its left is the world-up cross its facing direction.
+ * Get that backwards and the camera lands on the right shoulder, which
+ * looks deliberate and is wrong.
+ */
+export const SPECTATOR_CAM_BACK = 0.75;
+export const SPECTATOR_CAM_SIDE = 0.42;
+export const SPECTATOR_CAM_LIFT = 0.8;
+
+export function getSpectatorCameraPosition(
+  index: number,
+  count: number,
+  playerCount: number,
+): [number, number, number] {
+  const seats = getSpectatorPositions(count, playerCount);
+  const seat = seats[Math.max(0, Math.min(index, seats.length - 1))];
+  if (!seat) return getCameraTargetPosition(1920, 1080);
+
+  const [sx, sy, sz] = seat.position;
+  // Facing: from the seat in toward the Well, flattened to the ground plane.
+  const len = Math.hypot(SCENE_CENTER[0] - sx, SCENE_CENTER[2] - sz) || 1;
+  const fx = (SCENE_CENTER[0] - sx) / len;
+  const fz = (SCENE_CENTER[2] - sz) / len;
+  // left = worldUp x facing
+  const lx = fz;
+  const lz = -fx;
+
+  return [
+    sx - fx * SPECTATOR_CAM_BACK + lx * SPECTATOR_CAM_SIDE,
+    sy + SPECTATOR_CAM_LIFT,
+    sz - fz * SPECTATOR_CAM_BACK + lz * SPECTATOR_CAM_SIDE,
+  ];
+}
+
 // Position "in front of" each seat (further from table) for choice labels.
 export const CHOICE_LABEL_OFFSET = 0.6;
 export function getPlayerFrontPositions(count: number): [number, number, number][] {
@@ -114,4 +204,45 @@ export function getCameraTargetPosition(width: number, height: number, radiusFac
   const dist = (aspect > 1.5 ? 3.68 : 4.9) * radiusFactor;
   const elevation = (aspect > 1 ? 2.53 : 3.3) * radiusFactor;
   return [0, SCENE_CENTER[1] + elevation, dist];
+}
+
+/** How far the standard lobby camera sits from the point it looks at. */
+export function standardCameraDistance(width: number, height: number, radiusFactor: number = 1): number {
+  const [x, y, z] = getCameraTargetPosition(width, height, radiusFactor);
+  return Math.hypot(x - SCENE_CENTER[0], y - SCENE_CENTER[1], z - SCENE_CENTER[2]);
+}
+
+/**
+ * Push a fixed camera pose straight out along its own line of sight until it
+ * stands the same distance from the Well as the standard lobby camera does.
+ *
+ * The spectator shoulder-cam (getSpectatorCameraPosition) is built by
+ * offsetting from a seat, which put it noticeably closer in than the view
+ * every other player gets -- close enough to feel like a different scene.
+ * Scaling the arm rather than rebuilding the pose keeps the framing exactly
+ * as it was, over the watcher's own left shoulder, at the same angle above
+ * and behind them; only the distance changes.
+ *
+ * Because it reads the live canvas size, a spectator also gets the same
+ * portrait/landscape backing-off as everyone else.
+ */
+export function atStandardCameraDistance(
+  pose: [number, number, number],
+  width: number,
+  height: number,
+  radiusFactor: number = 1,
+): [number, number, number] {
+  const ax = pose[0] - SCENE_CENTER[0];
+  const ay = pose[1] - SCENE_CENTER[1];
+  const az = pose[2] - SCENE_CENTER[2];
+  const len = Math.hypot(ax, ay, az);
+  // A pose sitting exactly on the look-at point has no line of sight to push
+  // along; fall back to the ordinary view rather than dividing by zero.
+  if (len === 0) return getCameraTargetPosition(width, height, radiusFactor);
+  const scale = standardCameraDistance(width, height, radiusFactor) / len;
+  return [
+    SCENE_CENTER[0] + ax * scale,
+    SCENE_CENTER[1] + ay * scale,
+    SCENE_CENTER[2] + az * scale,
+  ];
 }

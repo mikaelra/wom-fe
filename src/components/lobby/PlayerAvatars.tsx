@@ -9,7 +9,7 @@ import ActionImageButton from '@/components/lobby/ActionImageButton';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import DenyModelButton from '@/components/lobby/DenyModelButton';
 import EquippedCoinModel from '@/components/lobby/EquippedCoinModel';
-import { FreshHtml } from '@/components/lobby/FreshHtml';
+import { FreshHtml } from '@/components/hud/FreshHtml';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { skinUrl } from '@/lib/frogSkins';
 import { COIN_RELIC_ID } from '@/types/game';
@@ -250,9 +250,10 @@ function HoveringModel({ children, phase = 0, active = true }: { children: React
 
 // Holds only the GLB-dependent parts of a player slot so it can be Suspense-wrapped
 // independently of the HTML UI (names / action buttons) rendered by PlayerWithName.
-function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, hover, hoverPhase }: {
+function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, isGhost, showShield, hover, hoverPhase }: {
   modelUrl: string;
   isBoss: boolean;
+  isGhost?: boolean;
   isAnimating: boolean;
   isDead?: boolean;
   showShield?: boolean;
@@ -268,6 +269,7 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, h
       rotation={[0, 0, 0]}
       isAnimating={isAnimating}
       isDead={isDead}
+      isGhost={isGhost}
     />
   );
   return (
@@ -431,6 +433,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           isBoss={!!isBoss}
           isAnimating={isAnimating}
           isDead={isDead}
+          isGhost={!!isSpectator}
           showShield={showShield}
           hover={isCherub}
           hoverPhase={position[0]}

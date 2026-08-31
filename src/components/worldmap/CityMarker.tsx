@@ -2,7 +2,8 @@
 
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html, useGLTF } from '@react-three/drei';
+import { useGLTF } from '@react-three/drei';
+import { FreshHtml } from '@/components/hud/FreshHtml';
 import * as THREE from 'three';
 import type { City } from '@/lib/cities';
 import { latLngToVec3 } from '@/lib/cities';
@@ -135,29 +136,13 @@ function SwordPinFigure({ hovered, swordColor = 'blue' }: SwordPinProps) {
 
 useGLTF.preload(isLowQuality() ? '/models/swords/sword_ld_v1.glb' : '/models/swords/sword_hd_v1.glb', '/draco/');
 
-/** Ranked-queue status to display over the New York marker, in place of the
- *  "Play Ranked" button that used to live in the overlay bar. */
-export interface RankedLabelInfo {
-  status: 'idle' | 'searching' | 'activeMatch';
-  /** 1-3, cycling while `status === 'searching'`, for the animated "..." */
-  searchingDots: number;
-  activeMatchStarted?: boolean;
-  activeMatchSecondsLeft?: number | null;
-}
-
 interface CityMarkerProps {
   city: City;
   globeRadius: number;
   onClick: (city: City) => void;
-  /** Ranked-queue info to display over New York */
-  rankedInfo?: RankedLabelInfo;
 }
 
-export default function CityMarker({ city, globeRadius, onClick, rankedInfo }: CityMarkerProps) {
-  // Athens is always the bossfight city -- the "Bossfight" pill below used
-  // to be gated on a raidInfo prop, but that only ever carried a countdown
-  // (removed) and was otherwise unconditionally truthy for Athens anyway.
-  const isBossfightCity = city.name === 'Athens';
+export default function CityMarker({ city, globeRadius, onClick }: CityMarkerProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -193,14 +178,18 @@ export default function CityMarker({ city, globeRadius, onClick, rankedInfo }: C
     >
       <SwordPinFigure hovered={hovered} swordColor={city.swordColor} />
 
-      {/* Label (HTML overlay).
+      {/* Label (HTML overlay), on FreshHtml rather than drei's <Html> --
+          see hud/FreshHtml.tsx for the two drei bugs it exists to avoid.
+
           Tried occlude="blending" here to fade the label out when its
           marker rotates to the far side of the globe -- reverted: broke the
           rest of the page's rendering on real devices (confirmed on both
           Safari and Firefox on a phone), not just caught by headless
           testing. Labels on the far side stay visible through the globe for
-          now; that's a lesser issue than taking down the whole page. */}
-      <Html
+          now; that's a lesser issue than taking down the whole page. The
+          gaze labels solve far-side hiding with an explicit ray/sphere test
+          instead, never occlude (docs/CITY_SCENE_PLAN.md §7.2). */}
+      <FreshHtml
         position={[0, 1.0, 0]}
         center
         distanceFactor={6}
@@ -224,7 +213,7 @@ export default function CityMarker({ city, globeRadius, onClick, rankedInfo }: C
               the city name, bigger, wrapped in a pill so it reads as a
               button rather than plain text, with a white outline so it
               stands out as the primary call to action. */}
-          {isBossfightCity && (
+          {city.actionLabel && (
             <span
               style={{
                 color: '#4da6ff',
@@ -240,50 +229,11 @@ export default function CityMarker({ city, globeRadius, onClick, rankedInfo }: C
                 transition: 'font-size 0.2s',
               }}
             >
-              Bossfight
+              {city.actionLabel}
             </span>
-          )}
-          {rankedInfo?.status === 'idle' && (
-            <span
-              style={{
-                color: '#ff6666',
-                fontSize: hovered ? 22 : 18,
-                fontWeight: 900,
-                letterSpacing: '0.05em',
-                WebkitTextStroke: '0.5px #fff',
-                padding: '4px 14px',
-                borderRadius: 999,
-                background: 'rgba(255,102,102,0.18)',
-                border: '2px solid #ff6666',
-                boxShadow: '0 0 10px rgba(255,102,102,0.5)',
-                transition: 'font-size 0.2s',
-              }}
-            >
-              Play Ranked
-            </span>
-          )}
-
-          {rankedInfo?.status === 'searching' && (
-            <span style={{ color: '#9fd8ff', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
-              Searching{'.'.repeat(rankedInfo.searchingDots)}
-            </span>
-          )}
-          {rankedInfo?.status === 'activeMatch' && (
-            <>
-              <span style={{ color: '#ffcc00', fontSize: hovered ? 12 : 9, fontWeight: 800, letterSpacing: '0.05em' }}>
-                Return to Match
-              </span>
-              <span style={{ color: rankedInfo.activeMatchStarted ? '#ff4444' : '#ff9966', fontSize: hovered ? 11 : 8, fontWeight: rankedInfo.activeMatchStarted ? 900 : 400 }}>
-                {rankedInfo.activeMatchStarted
-                  ? 'Game started!'
-                  : rankedInfo.activeMatchSecondsLeft != null
-                    ? `Starts in ${rankedInfo.activeMatchSecondsLeft}s`
-                    : 'Starting soon…'}
-              </span>
-            </>
           )}
         </div>
-      </Html>
+      </FreshHtml>
     </group>
   );
 }

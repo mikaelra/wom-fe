@@ -23,7 +23,7 @@ export type AspectBody = 'Sun' | 'Moon' | 'Mercury' | 'Venus' | 'Mars' | 'Jupite
 
 const ALL_BODIES: AspectBody[] = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
 
-const ASTRO_BODY: Record<AspectBody, Astronomy.Body> = {
+export const ASTRO_BODY: Record<AspectBody, Astronomy.Body> = {
   Sun: Astronomy.Body.Sun,
   Moon: Astronomy.Body.Moon,
   Mercury: Astronomy.Body.Mercury,
@@ -111,7 +111,7 @@ export function isRetrograde(body: Astronomy.Body, date: Date): boolean {
 // *receiver* -- Jupiter feels Saturn out to 4°, Saturn feels Jupiter only
 // out to 3°, so a pair lights up asymmetrically (docs/ASPECTS_PLAN.md §1.2).
 // Moon's orb (10°) is unchanged from before this module existed.
-const ORB: Record<AspectBody, number> = {
+export const ORB: Record<AspectBody, number> = {
   Moon: 10,
   Mercury: 8,
   Venus: 7,

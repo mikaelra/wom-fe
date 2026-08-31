@@ -5,9 +5,15 @@ import { Environment, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, useState, useEffect, useCallback, Suspense } from 'react';
 import * as THREE from 'three';
 import Temple from '@/components/temple';
+import Senate from '@/components/city/Senate';
+import { ARENA, arenaPosition } from '@/lib/rankedArena';
 import SeaAndSky from '@/components/lobby/SeaAndSky';
 import Table from '@/components/Table';
+import dynamic from 'next/dynamic';
 import CameraFlyIn from '@/components/lobby/CameraFlyIn';
+// Dynamic: it pulls in the city's sky, star catalogue and terrain, which an
+// ordinary PvP lobby has no use for and should not pay to download.
+const BossfightScenery = dynamic(() => import('@/components/lobby/BossfightScenery'), { ssr: false });
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
@@ -20,7 +26,7 @@ import DamageNumberEffect from '@/components/lobby/DamageNumberEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
 import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
-import { FreshHtml } from '@/components/lobby/FreshHtml';
+import { FreshHtml } from '@/components/hud/FreshHtml';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
@@ -52,6 +58,8 @@ import {
   getPlayerPositions,
   getBossPosition,
   getBossPlayerPositions,
+  getSpectatorPositions,
+  getSpectatorCameraPosition,
   radiusGrowthFactor,
   BOSS_Y_LIFT,
 } from '@/lib/sceneConstants';
@@ -396,6 +404,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const showLobbyControls = state?.round === 0;
   const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
+  // `ranked` is optional on the wire and absent means "not ranked", which is
+  // the same as its default (types/game.ts).
+  const isRanked = !!state?.ranked;
   const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
 
   // Skins are owned items now, not a per-lobby hash: the server freezes
@@ -449,17 +460,62 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   // Compute seat positions. In boss fights the boss is pinned to the far side and players
   // spread across the near half, so adding a player never moves Hades.
+  //
+  // Spectators are seated separately, in a ring above the players, and are
+  // NOT counted when the players' own circle is laid out. That is a fix as
+  // much as a feature: a spectator used to take a seat in the ring like
+  // anyone else, so someone arriving mid-round to watch shuffled every
+  // player along one place and widened the circle under them.
   const PLAYER_POSITIONS = useMemo(() => {
-    if (!isBossFight) return getPlayerPositions(players.length);
+    const actors = players.filter((p) => !p.spectator);
+    const spectatorSlots = getSpectatorPositions(
+      players.length - actors.length,
+      actors.length,
+    );
+    let si = 0;
+
+    if (!isBossFight) {
+      const actorSlots = getPlayerPositions(actors.length);
+      let ai = 0;
+      return players.map((p) => (p.spectator ? spectatorSlots[si++] : actorSlots[ai++]));
+    }
+
     const bossSlot = getBossPosition();
-    const nonBossSlots = getBossPlayerPositions(players.filter((p) => !p.boss).length);
+    const nonBossSlots = getBossPlayerPositions(actors.filter((p) => !p.boss).length);
     let nbi = 0;
-    return players.map((p) => (p.boss ? bossSlot : nonBossSlots[nbi++]));
+    return players.map((p) => (
+      p.boss ? bossSlot : p.spectator ? spectatorSlots[si++] : nonBossSlots[nbi++]
+    ));
   }, [players, isBossFight]);
+
+  /**
+   * If I am watching rather than playing, my own camera sits over my ghost's
+   * left shoulder instead of taking the room's establishing shot -- it says
+   * "this one is you" without a label, and frames the table the way that
+   * figure is already facing.
+   *
+   * Keyed off my index among the spectators, in the same order
+   * getSpectatorPositions seats them, so the camera lands on MY model and
+   * not on whoever happens to be first.
+   */
+  const spectatorCameraPosition = useMemo<[number, number, number] | undefined>(() => {
+    const spectators = players.filter((p) => p.spectator);
+    const index = spectators.findIndex((p) => p.name === playerName);
+    if (index < 0) return undefined;
+    return getSpectatorCameraPosition(
+      index,
+      spectators.length,
+      players.length - spectators.length,
+    );
+  }, [players, playerName]);
 
   // Boss-fight seating never grows past its fixed base radius (getBossPlayerPositions
   // doesn't scale with count), so only back the camera off for the regular circle.
-  const cameraRadiusFactor = isBossFight ? 1 : radiusGrowthFactor(players.length);
+  // Spectators are excluded for the same reason they get their own ring: they
+  // should not push the camera back off the people actually playing.
+  const cameraRadiusFactor = isBossFight
+    ? 1
+    : radiusGrowthFactor(players.filter((p) => !p.spectator).length);
 
   // Keep posMapRef up-to-date each render (synchronous ref write — no re-render triggered).
   // This is read by the round-transition effect below.
@@ -1187,23 +1243,54 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     <>
       <CameraFlyIn
         round={state?.round ?? 0}
+        basePosition={spectatorCameraPosition}
         radiusFactor={cameraRadiusFactor}
         spinEnabled={spinEnabled}
         resetSignal={resetCameraSignal}
         onUserAdjust={onCameraUserAdjust}
       />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 10]} intensity={1.2} />
+      {/* A boss fight is fought in the city you walked in from, so it gets
+          that scene's sky, island and lighting rather than the generic sea
+          and a sun nailed to [100, 20, 100]. Every other lobby is unchanged. */}
+      {isBossFight ? (
+        <BossfightScenery />
+      ) : (
+        <>
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[10, 10, 10]} intensity={1.2} />
 
-      {/* Sky dome + sea plane — the sea horizon sits where they meet in the distance.
-          Tweak seaLevel to line the water up with the temple/player base. */}
-      <SeaAndSky seaLevel={SEA_LEVEL} sunPosition={SUN_POSITION} />
+          {/* Sky dome + sea plane — the sea horizon sits where they meet in the distance.
+              Tweak seaLevel to line the water up with the temple/player base. */}
+          <SeaAndSky seaLevel={SEA_LEVEL} sunPosition={SUN_POSITION} />
+        </>
+      )}
 
-      {/* Stage 1: Temple — background scenery, loads first.
-          NOTE: the model's origin sits on one of its corner columns rather than its
-          center, so position/scale will likely need tweaking to frame it nicely. */}
+      {/* Stage 1: the building the match is played in.
+          Ranked is staged inside the Senate -- the same building that stands
+          on the city's right hand, so the one you walk into is the one you
+          play in (docs/CITY_SCENE_PLAN.md §5.2). Everything else keeps the
+          temple. It is sized rather than scaled so the camera stays inside
+          the colonnade at every viewport and player count; lib/rankedArena.ts
+          owns those numbers and the test that holds them.
+
+          NOTE on the temple: its origin is centred, contrary to the comment
+          that stood here for a long time -- measured from the GLB, its
+          visual centre is within 0.15 units of its origin. */}
       <Suspense fallback={null}>
-        <Temple scale={1} position={[0, 4, 0]} />
+        {isRanked ? (
+          <Senate
+            position={arenaPosition()}
+            width={ARENA.width}
+            depth={ARENA.depth}
+            columnHeight={ARENA.columnHeight}
+            columnRadius={ARENA.columnRadius}
+            stepHeight={ARENA.stepHeight}
+            columnCount={ARENA.columnCount}
+            sideColumnCount={ARENA.sideColumnCount}
+          />
+        ) : (
+          <Temple scale={1} position={[0, 4, 0]} />
+        )}
       </Suspense>
 
       {/* Player names, action buttons, and resource cards — immediate, no model dependency.

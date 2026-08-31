@@ -15,6 +15,8 @@ import ResourceCard from '@/components/ResourceCard';
 import { useStagedResources } from '@/lib/useStagedResources';
 import { useToast } from '@/components/Toast';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
+import { CITY_PATH } from '@/lib/cities';
+import { isLobbyGoneError } from '@/lib/lobbyErrors';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -50,8 +52,8 @@ export type PreGameRenderOpts = {
   playerName: string;
   isAdmin: boolean;
   boss: Player | undefined;
-  raidMins: number | null;
-  raidSecs: number | null;
+  bossfightMins: number | null;
+  bossfightSecs: number | null;
   rankedSecondsLeft: number | null;
   btn: string;
   onStartGame: () => void;
@@ -76,7 +78,7 @@ export type SceneOverlayConfig = {
   showEnemyAlways?: boolean;
   showPlayerList?: boolean;
   showChat?: boolean;
-  enableRaidTimer?: boolean;
+  enableBossfightTimer?: boolean;
   /** When true the WELL/DEFEND/resource/nametag buttons are suppressed from the
    *  overlay — the 3D scene renders them anchored to the player model instead. */
   hidePlayerActionButtons?: boolean;
@@ -130,9 +132,13 @@ type SceneOverlayProps = {
    *  its own onInstakillActiveChange), passed down instead of re-derived
    *  here so the card and the 3D scene's cues stay in lockstep. */
   instakillActive?: boolean;
+  /** Fired when the socket reports that this lobby no longer exists.
+   *  Routing lives with the caller (the same split as CityScene's
+   *  onBackToEarth), so this component stays free of next/navigation. */
+  onLobbyGone?: () => void;
 };
 
-export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera, onGameOverRevealed, instakillActive }: SceneOverlayProps) {
+export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera, onGameOverRevealed, instakillActive, onLobbyGone }: SceneOverlayProps) {
   const {
     theme,
     backLabel,
@@ -141,7 +147,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     showEnemyAlways = false,
     showPlayerList = false,
     showChat = false,
-    enableRaidTimer = false,
+    enableBossfightTimer = false,
     hidePlayerActionButtons = false,
     suppressEnemyPanel = false,
     stageCombatDamage = false,
@@ -167,6 +173,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const chatExpandedRef = useRef(chatExpanded);
   useEffect(() => { chatExpandedRef.current = chatExpanded; }, [chatExpanded]);
   const { showError } = useToast();
+  // Held in a ref for the same reason useLobbyConnection keeps its own
+  // callbacks in one: the socket subscription must not be torn down and
+  // rebuilt because a parent re-rendered with a fresh closure.
+  const onLobbyGoneRef = useRef(onLobbyGone);
+  onLobbyGoneRef.current = onLobbyGone;
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -183,6 +194,16 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       if (!chatExpandedRef.current) setUnreadChat(true);
     },
     onError: (message) => {
+      // The lobby itself is gone -- most often the backend restarted and
+      // took its in-memory lobbies with it. There is nothing here to come
+      // back to and nothing the player did wrong, so showing them
+      // "Lobby not found" only names an internal object at someone who
+      // was playing a game a second ago. Walk them back out to the world
+      // map instead and say nothing.
+      if (isLobbyGoneError(message)) {
+        onLobbyGoneRef.current?.();
+        return;
+      }
       if (message !== 'Name taken') {
         showError(message);
       }
@@ -306,7 +327,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   // the player's real values for every other case.
   const stagedResources = useStagedResources(state, playerName, gameEvents, { stageCombat: stageCombatDamage });
 
-  const { raidMins, raidSecs } = useBossfightCountdown(enableRaidTimer && isAlive);
+  const { bossfightMins, bossfightSecs } = useBossfightCountdown(enableBossfightTimer && isAlive);
   const rankedSecondsLeft = useCountdown(state?.ranked_countdown_deadline);
 
   // Detect if messages overflow the collapsed container. We compare the
@@ -543,9 +564,16 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         <p className={`${theme.loadingTextClass} text-lg font-semibold`}>
           You were removed from this lobby.
         </p>
-        <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
-          🏠
-        </Link>
+        {/* Home, and beside it the city -- as a pair, so the column layout
+            of this screen does not stack them one above the other. */}
+        <span className="inline-flex items-center gap-3">
+          <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
+            🌍
+          </Link>
+          <Link href={CITY_PATH} className="text-blue-400 no-underline text-2xl" aria-label="Go to the city">
+            🏛️
+          </Link>
+        </span>
       </div>
     );
   }
@@ -560,8 +588,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           playerName,
           isAdmin,
           boss: enemy,
-          raidMins,
-          raidSecs,
+          bossfightMins,
+          bossfightSecs,
           rankedSecondsLeft,
           btn,
           onStartGame: handleStartGame,
@@ -645,10 +673,16 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         }
       `}</style>
 
-      {/* Back button */}
-      <div className="absolute top-4 left-4 pointer-events-auto z-20">
+      {/* Back button, and beside it the way into the city. The globe is the
+          theme's own `backLabel` (a string, so it cannot carry a second link
+          of its own) -- hence the temple being spelled out here rather than
+          coming through the theme with it. */}
+      <div className="absolute top-4 left-4 pointer-events-auto z-20 flex items-center gap-2">
         <Link href="/" className={`${theme.backLinkClass} no-underline text-2xl drop-shadow-md`} aria-label="Back to Home">
           {backLabel}
+        </Link>
+        <Link href={CITY_PATH} className={`${theme.backLinkClass} no-underline text-2xl drop-shadow-md`} aria-label="Go to the city">
+          🏛️
         </Link>
       </div>
 
@@ -746,6 +780,28 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                   </li>
                 ))}
               </ul>
+            )}
+            {/* Watchers, under their own heading below the players. The
+                list has always filtered them out of the player COUNT; until
+                now it dropped them entirely, so someone spectating could
+                not see they were in the lobby at all. */}
+            {!playerListCollapsed && state.players.some((p) => p.spectator) && (
+              <>
+                <p className="text-xs text-gray-400 font-semibold mt-2">
+                  {state.players.filter((p) => p.spectator).length === 1 ? 'Spectator' : 'Spectators'}
+                  {' '}({state.players.filter((p) => p.spectator).length})
+                </p>
+                <ul className="space-y-1 mt-1">
+                  {state.players.filter((p) => p.spectator).map((p, i) => (
+                    <li key={`spectator-${p.name}-${i}`} className="flex items-center gap-1 opacity-60">
+                      <span className="shrink-0" title="Spectator">👁</span>
+                      <span className={`truncate min-w-0 ${p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}`}>
+                        {p.name}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </div>
         </div>

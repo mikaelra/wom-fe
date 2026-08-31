@@ -44,10 +44,15 @@ function zIndexFor(el: Group, camera: PerspectiveCamera | OrthographicCamera, zI
 }
 
 /**
- * A trimmed fork of drei's <Html> (node_modules/@react-three/drei/web/Html.js),
- * scoped to exactly what this scene needs: a centered, distance-scaled CSS
- * overlay anchored to a 3D point (no transform/occlude/sprite/portal modes,
- * none of which any call site here uses).
+ * A trimmed fork of drei's <Html> (node_modules/@react-three/drei/web/Html.js):
+ * a centered, distance-scaled CSS overlay anchored to a 3D point (no
+ * transform/occlude/sprite/portal modes, none of which any call site uses).
+ *
+ * Lives in hud/ rather than lobby/ because it is scene-agnostic and shared:
+ * the lobby's player avatars and the world map's city markers both render
+ * through it (docs/CITY_SCENE_PLAN.md §7.3). The gaze labels will too --
+ * which is the reason it was promoted, since a per-frame label on a
+ * responsive-FOV camera walks straight into both drei bugs described below.
  *
  * The one deliberate behavior change from upstream: upstream only
  * recomputes its translate+scale CSS when the object's projected 2D screen
@@ -82,18 +87,26 @@ export function FreshHtml({
   center = false,
   distanceFactor,
   zIndexRange = [16777271, 0],
+  style,
 }: {
   children: ReactNode;
   position?: [number, number, number];
   center?: boolean;
   distanceFactor?: number;
   zIndexRange?: [number, number];
+  /** Applied once to the overlay container, matching where drei's <Html>
+   *  puts its own `style`. Static only -- the frame loop rewrites
+   *  transform/display/zIndex and would clobber anything set here that it
+   *  also owns. The one that matters in practice is `pointerEvents: 'none'`:
+   *  without it a label's box intercepts clicks meant for the 3D object
+   *  underneath it (e.g. a city marker's sword). */
+  style?: React.CSSProperties;
 }) {
   const { gl, camera: rawCamera, size, events } = useThree();
-  // This scene only ever renders through CameraFlyIn's PerspectiveCamera --
-  // R3F's useThree() types camera as the loose base `Camera` (no fov/far/
-  // near), same as drei's own Html, which relies on the same assumption
-  // without a TS-visible cast (it's plain JS).
+  // Every scene using this renders through a PerspectiveCamera -- R3F's
+  // useThree() types camera as the loose base `Camera` (no fov/far/near),
+  // same as drei's own Html, which relies on the same assumption without a
+  // TS-visible cast (it's plain JS).
   const camera = rawCamera as PerspectiveCamera | OrthographicCamera;
   const [el] = React.useState(() => document.createElement('div'));
   const root = React.useRef<ReactDOM.Root | null>(null);
@@ -105,6 +118,7 @@ export function FreshHtml({
     const currentRoot = (root.current = ReactDOM.createRoot(el));
     const [x, y] = screenPosition(group.current, camera, size);
     el.style.cssText = `position:absolute;top:0;left:0;transform:translate3d(${x}px,${y}px,0);transform-origin:0 0;`;
+    if (style) Object.assign(el.style, style);
     target.appendChild(el);
     return () => {
       target.removeChild(el);

@@ -13,25 +13,20 @@ import {
 import { getStoredAccountToken } from '@/lib/http';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
-import type { City } from '@/lib/cities';
 import { useToast } from '@/components/Toast';
 import RulesModal from '@/components/lobby/RulesModal';
 
 const buttonBase =
   'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
-interface HomeOverlayProps {
-  /** If set, the overlay is shown as a City Hub for this city. */
-  city?: City | null;
-  /** Called when the player wants to return to the world map. */
-  onBackToMap?: () => void;
-}
-
 type PendingAction =
   | { type: 'create' }
   | { type: 'join'; joinCode: string };
 
-export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
+// No props. It had two -- `city` and `onBackToMap` -- serving a City Hub
+// view that docs/CITY_SCENE_PLAN.md §0.1 recorded as already unreachable,
+// and which step 12 deleted along with its only caller.
+export default function HomeOverlay() {
   const router = useRouter();
   const { showError } = useToast();
   const [joinCode, setJoinCode] = useState('');
@@ -136,17 +131,17 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
     authFlow.reset();
   };
 
-  const handleEnterRaid = async () => {
+  const handleEnterBossfight = async () => {
     const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
     if (!playerName) {
-      showError('You must be logged in to enter the raid.');
+      showError('You must be logged in to enter the bossfight.');
       return;
     }
     try {
       const data = await getBossfightLobby(playerName);
       router.push(`/lobby?id=${data.lobby_id}`);
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to enter raid.');
+      showError(err instanceof Error ? err.message : 'Failed to enter the bossfight.');
     }
   };
 
@@ -194,17 +189,6 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
         >
           Rules
         </button>
-        {/* Back to map button */}
-        {city && onBackToMap && (
-          <button
-            type="button"
-            onClick={onBackToMap}
-            className="flex items-center gap-2 bg-black/60 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold cursor-pointer hover:bg-black/80 transition-colors"
-          >
-            <span className="text-lg leading-none">&larr;</span> Back to Map
-          </button>
-        )}
-
         {!isLoggedIn && (
           <>
             <Link
@@ -384,19 +368,6 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
       {/* Center: main home content */}
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
         <div className="pointer-events-auto flex flex-col items-center gap-4 text-white text-center">
-          {/* City name banner when in a city hub */}
-          {city && (
-            <div className="mb-2">
-              <h2
-                className="text-3xl font-extrabold tracking-wide drop-shadow-lg"
-                style={{ color: city.color }}
-              >
-                {city.name}
-              </h2>
-              <p className="text-sm text-white/60 mt-1">{city.tag} &mdash; {city.country}</p>
-            </div>
-          )}
-
           {!isLoggedIn && (
             <>
               <input
@@ -441,7 +412,7 @@ export default function HomeOverlay({ city, onBackToMap }: HomeOverlayProps) {
 
           <button
             type="button"
-            onClick={handleEnterRaid}
+            onClick={handleEnterBossfight}
             className="text-2xl bg-transparent border-none cursor-pointer underline mt-2"
             style={{ color: 'gold' }}
           >
