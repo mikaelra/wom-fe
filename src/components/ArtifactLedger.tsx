@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { getArtifactLedger } from '@/lib/api';
 import { ApiError, getStoredAccountToken } from '@/lib/http';
+import { discoveryGapMs, formatDiscoveryGap } from '@/lib/artifactLedger';
 
 type Entry = { ordinal: number; finder_name: string; discovered_at: string | null };
 
@@ -152,32 +153,56 @@ export default function ArtifactLedger({
           page itself scroll sideways or push the modal off screen. */}
       <div className="max-h-[50vh] overflow-y-auto -mx-1 px-1">
         <ol className="space-y-1">
-          {entries.map((e) => {
+          {entries.map((e, i) => {
             const isMine = highlightOrdinal === e.ordinal;
+            // The gap to the discovery directly above. entries is one
+            // append-only list across pages, so a row at a page boundary
+            // still measures against the real previous entry rather than
+            // starting over.
+            const gap = i === 0 ? null : discoveryGapMs(entries[i - 1].discovered_at, e.discovered_at);
             return (
               <li
                 key={e.ordinal}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 border ${
+                className={`rounded-lg px-3 py-2 border ${
                   isMine
                     ? 'bg-amber-500/15 border-amber-400/50'
                     : 'bg-white/5 border-white/10'
                 }`}
               >
-                <span
-                  className={`shrink-0 tabular-nums text-sm font-bold ${
-                    e.ordinal === 1 ? 'text-amber-300' : 'text-white/50'
-                  }`}
-                  aria-label={`Artifact number ${e.ordinal}`}
-                >
-                  #{e.ordinal}
-                </span>
-                <span className="flex-1 min-w-0 truncate text-sm font-semibold">
-                  {e.finder_name}
-                  {isMine && <span className="ml-2 text-xs text-amber-300">(you)</span>}
-                </span>
-                <span className="shrink-0 text-xs text-white/50 tabular-nums">
-                  {formatDate(e.discovered_at)}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`shrink-0 tabular-nums text-sm font-bold ${
+                      e.ordinal === 1 ? 'text-amber-300' : 'text-white/50'
+                    }`}
+                    aria-label={`Artifact number ${e.ordinal}`}
+                  >
+                    #{e.ordinal}
+                  </span>
+                  <span className="flex-1 min-w-0 truncate text-sm font-semibold">
+                    {e.finder_name}
+                    {isMine && <span className="ml-2 text-xs text-amber-300">(you)</span>}
+                  </span>
+                  <span className="shrink-0 text-xs text-white/50 tabular-nums">
+                    {formatDate(e.discovered_at)}
+                  </span>
+                </div>
+
+                {/* How long the world waited after the discovery above this
+                    one. Its own line, hard left, so the column of gaps reads
+                    down the list as a rhythm -- which is the interesting
+                    thing about it. #1 has nothing above it and gets none. */}
+                {gap !== null && (
+                  <div
+                    className="mt-0.5 text-[11px] font-semibold tabular-nums"
+                    style={{
+                      color: '#6bff9e',
+                      textShadow: '0 0 6px rgba(107, 255, 158, 0.55)',
+                    }}
+                    title="Time since the previous discovery"
+                  >
+                    + {formatDiscoveryGap(gap)}
+                  </div>
+                )}
               </li>
             );
           })}
