@@ -1,7 +1,8 @@
 # Steam Store Page & Key Art Plan
 
-Status: **active · Steam Direct fee paid, 30-day clock running · art direction
-decided: no custom art, in-game captures only** ·
+Status: **active · Steam Direct fee paid, 30-day clock running · premium, $2 ·
+art direction decided: no custom art, in-game captures only · capture harness
+built (`wom-e2e`, branch `capture-harness`)** ·
 Scope: `wom-fe` (captures, capsules, copy) · Last updated: 2026-09-01
 
 Expands `MOBILE_AND_STEAM_PLAN.md` §10 (Phase 6 — Steam), which scopes the
@@ -100,8 +101,8 @@ page's text rather than its images.
 
 | # | Decision | Notes |
 |---|---|---|
-| 1 | **Premium or free-to-play** | `MOBILE_AND_STEAM_PLAN.md` §10.3 recommends premium with `SHOP_ENABLED` off for Steam. Determines whether a price is set, and whether the loot-box/odds disclosure applies on this platform at all. Blocks the page. |
-| 2 | **Price** | Only if premium. Valve derives regional pricing from the USD anchor. |
+| 1 | ✅ **Premium** | Decided. Matches `MOBILE_AND_STEAM_PLAN.md` §10.3's recommendation: sell the game outright with `SHOP_ENABLED` off for Steam, which also keeps the loot-box/odds disclosure off this platform entirely (§6). |
+| 2 | ✅ **$2 USD** | Decided; Valve derives regional pricing from this anchor. Two consequences worth having in view rather than discovering later: Valve's cut is 30%, so this nets roughly $1.40 a copy; and the $100 Direct fee is recoupable only once the app reaches $1,000 **Adjusted Gross Revenue**, which at $2 is about 500 copies. Neither changes the decision — a low, honest price for a small multiplayer game is coherent — but it does mean the fee should be treated as spent, not as an advance. |
 | 3 | **The tagline** | `src/app/layout.tsx:19` is still `description: "World of Mythos"` — a placeholder. The short description is the most-read text on a Steam page and cannot be written without a positioning sentence. Blocks the page. |
 | 4 | **Genre + tags** | Up to 20; the first few drive the discovery queues far more than the rest. |
 | 5 | **Early Access or 1.0** | An online-only game, solo dev, pending art pass — a textbook Early Access case, and it lowers the bar the screenshots have to clear, which matters more than usual given §2. |
@@ -194,8 +195,10 @@ The game is a real-time three.js renderer, which means it can render at any
 resolution — there is no need to upscale a 1080p screenshot to fill a 3840 × 1240
 library hero. Render it at 3840 directly and it is genuinely sharp.
 
-`wom-e2e` already has Playwright wired against a configurable `baseURL`, which
-makes this automatable rather than manual:
+**This is built** — `wom-e2e`, branch `capture-harness`, `npm run capture`
+(see that repo's `capture/README.md`). `wom-e2e` already had Playwright wired
+against a configurable `baseURL`, which made this automatable rather than
+manual:
 
 - Playwright's `deviceScaleFactor` and an explicit `viewport` give exact output
   dimensions — set `viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 2`
@@ -205,9 +208,42 @@ makes this automatable rather than manual:
   guarantees a reshoot.
 - A capture spec can drive the game into a specific state (lobby joined, round
   committed, aspects visible) rather than hoping to catch the moment live.
+- The sky can be **pinned**. `/city?id=3&t=19:30` fixes the scene's instant
+  (`src/lib/cityTime.ts`), so a capture run is reproducible instead of yielding
+  a sunlit shot one day and a black one the next. Without this the store
+  screenshots are hostage to whatever is genuinely overhead when they are taken.
 
-This is worth building once as a `scenarios/capture/` project rather than a
-throwaway, precisely because the assets are known to be temporary.
+Six scenes are wired, all Hades-free per §2.1: the world map, Athens at dusk,
+the vault, a lobby pre-game, a started round, and the moment after a round
+resolves.
+
+#### 🔴 The captures cannot be produced on the dev VM
+
+Found by building it, not by reasoning about it. The dev box has 2 vCPUs and no
+GPU, so Chromium falls back to SwiftShader, and SwiftShader is granted a WebGL
+context for these scenes, **loses it**, and is then blocked by Chromium from
+getting another. three.js renders nothing.
+
+The dangerous part is that Playwright still writes a perfectly valid PNG — it is
+just blank. A blank capsule source is worse than a failed run, because it looks
+like output and can reach a store page unnoticed. The harness therefore checks
+for context loss and refuses to write the file; on the dev VM all six scenes
+fail that check and produce zero files, which is the correct outcome.
+
+Two further traps, both already handled in the harness but worth knowing if it
+is ever reconfigured:
+
+- Playwright's *default* headless browser is `chromium_headless_shell`, which
+  ships with no GPU stack at all — WebGL is unavailable there regardless of the
+  host machine. The full `chromium` channel is required.
+- Modern Chromium will not fall back to software WebGL without an explicit flag.
+  It is opt-in in the harness, because allowing the fallback lets a weak machine
+  try and fail slowly rather than fail immediately.
+
+**Practical consequence: the store captures have to be taken on a machine that
+can actually play the game** — any ordinary desktop with hardware acceleration.
+This is not a blocker, but it is a step that has to happen somewhere other than
+the usual dev/CI box, and it is worth knowing before the day the assets are due.
 
 ### 5.3 Per-capsule approach
 
@@ -286,8 +322,8 @@ soonest", not "what is most polished".
 2. **Answer §3.1 (premium vs F2P) and §3.3 (tagline)** — block the page's text.
 3. **Write the privacy policy** (`LEGAL_COMPLIANCE_PLAN.md` §2.1) — blocks the
    page, and mobile, and is a few hours of work.
-4. **Build the capture harness** (§5.2) in `wom-e2e` — pays for itself given the
-   guaranteed reshoot.
+4. ~~**Build the capture harness** (§5.2) in `wom-e2e`~~ — ✅ done, branch
+   `capture-harness`.
 5. **Capture screenshots** (5+, HUD visible, no Hades) and **capsule source
    renders** (HUD hidden, high resolution).
 6. **Composite the six capsules** (§5.3).
@@ -307,15 +343,16 @@ soonest", not "what is most polished".
 |---|---|
 | Steam Direct fee paid (30-day clock) | ✅ **Paid — clock running** (record exact date, §1) |
 | Steamworks partner account | Assumed done with the fee — confirm |
+| Price set ($2 USD anchor) | ✅ Decided — not yet entered in Steamworks |
 | Tax interview / ENK position checked | Not started |
 | Art direction for store assets | ✅ **Decided — in-game captures, no custom art** |
 | Wordmark confirmed original + usable | 🔴 Not started — **blocks all capsules** (§5.1) |
-| Premium vs. F2P decision (§3.1) | Not started — blocks page |
+| Premium vs. F2P decision (§3.1) | ✅ **Premium** |
 | Tagline / positioning (§3.3) | Not started — `layout.tsx:19` is a placeholder |
 | Privacy policy page | 🔴 Not started — `LEGAL_COMPLIANCE_PLAN.md` §2.1 |
-| Capture harness in `wom-e2e` (§5.2) | Not started |
-| 5+ gameplay screenshots @1920×1080, Hades-free | Not started |
-| Capsule source renders (HUD hidden) | Not started |
+| Capture harness in `wom-e2e` (§5.2) | ✅ Built — branch `capture-harness`, `npm run capture` |
+| 5+ gameplay screenshots @1920×1080, Hades-free | Not started — **needs a GPU machine** (§5.2) |
+| Capsule source renders (HUD hidden) | Not started — **needs a GPU machine** (§5.2) |
 | Small capsule 462×174 | Not started |
 | Header capsule 920×430 | Not started |
 | Main capsule 1232×706 | Not started |
