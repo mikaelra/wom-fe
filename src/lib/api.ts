@@ -24,6 +24,8 @@ import {
   ResolveAccountSessionResponseSchema,
   LogOutResponseSchema,
   ClaimPendingWheelResponseSchema,
+  ArtifactLedgerResponseSchema,
+  EquipCosmeticResponseSchema,
   InventoryResponseSchema,
   EquipSkinResponseSchema,
   SpinWheelResponseSchema,
@@ -297,13 +299,66 @@ export async function claimPendingWheel(
   });
 }
 
+/** Claim an artifact discovered without a verified account. Same shape as
+ *  claimPendingWheel, because wom-be reuses the same claim flow for both. */
+export async function claimPendingArtifact(
+  lobbyId: string,
+  name: string,
+  email: string
+): Promise<{ success: boolean; pending_verification?: boolean }> {
+  return request('/claim_pending_artifact', ClaimPendingWheelResponseSchema, {
+    body: { lobby_id: lobbyId, name, email },
+    defaultErrorMessage: 'Failed to claim artifact',
+  });
+}
+
 export async function getInventory(
   token: string
-): Promise<{ equipped_skin: string; skins: { skin: string; count: number }[]; wheels: { id: number; kind: string }[] }> {
+): Promise<{
+  equipped_skin: string;
+  skins: { skin: string; count: number }[];
+  wheels: { id: number; kind: string }[];
+  equipped_cosmetic?: string | null;
+  artifact?: { ordinal: number; discovered_at: string | null; cosmetic: string } | null;
+}> {
   return request('/inventory', InventoryResponseSchema, {
     body: { token },
     defaultErrorMessage: 'Failed to load inventory.',
   });
+}
+
+/** Equip a cosmetic, or unequip by passing an empty string. Unequipping is
+ *  always allowed -- taking something off needs no ownership check. */
+export async function equipCosmetic(
+  token: string,
+  cosmetic: string
+): Promise<{ success: boolean; equipped_cosmetic: string | null }> {
+  try {
+    return await request('/inventory/equip_cosmetic', EquipCosmeticResponseSchema, {
+      body: { token, cosmetic },
+      defaultErrorMessage: 'Failed to equip cosmetic.',
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) throw new Error('You do not own this cosmetic.');
+    throw e;
+  }
+}
+
+/** The public discovery ledger: every artifact ever found, oldest first.
+ *  Keyset-paginated on ordinal -- pass the last ordinal seen as `after`. */
+export async function getArtifactLedger(
+  after = 0,
+  limit = 100
+): Promise<{
+  artifacts: { ordinal: number; finder_name: string; discovered_at: string | null }[];
+  total: number;
+  current_chance: number;
+}> {
+  return request(
+    `/artifacts/ledger?after=${after}&limit=${limit}`,
+    ArtifactLedgerResponseSchema,
+    { defaultErrorMessage: 'Failed to load the artifact ledger.' }
+  );
 }
 
 export async function equipSkin(token: string, skin: string): Promise<{ success: boolean; equipped_skin: string }> {

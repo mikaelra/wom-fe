@@ -150,6 +150,39 @@ export const InventoryResponseSchema = z.object({
   equipped_skin: z.string(),
   skins: z.array(z.object({ skin: z.string(), count: z.number().int() })),
   wheels: z.array(z.object({ id: z.number().int(), kind: z.string() })),
+  // Optional for the same deploy-independence reasoning as the wire schema's
+  // player fields (types/game.ts): a wom-be deployed before the artifact
+  // system simply omits these, and every consumer here treats absent the
+  // same as null.
+  equipped_cosmetic: z.string().nullable().optional(),
+  artifact: z
+    .object({
+      ordinal: z.number().int(),
+      discovered_at: z.string().nullable(),
+      cosmetic: z.string(),
+    })
+    .nullable()
+    .optional(),
+});
+
+export const EquipCosmeticResponseSchema = z.object({
+  success: z.boolean(),
+  equipped_cosmetic: z.string().nullable(),
+});
+
+// GET /artifacts/ledger -- public, no auth. current_chance is what one
+// eligible Well win is worth right now; it rises as the world discovers more
+// (wom-be docs/ARTIFACT_PLAN.md §4.2), so nothing should hardcode "1 in 1000".
+export const ArtifactLedgerResponseSchema = z.object({
+  artifacts: z.array(
+    z.object({
+      ordinal: z.number().int(),
+      finder_name: z.string(),
+      discovered_at: z.string().nullable(),
+    }),
+  ),
+  total: z.number().int(),
+  current_chance: z.number(),
 });
 
 export const EquipSkinResponseSchema = z.object({

@@ -3,7 +3,10 @@ import { BACKEND_URL, PROTOCOL_VERSION } from '@/config';
 import {
   checkClaimVerified,
   checkName,
+  claimPendingArtifact,
   claimPendingWheel,
+  equipCosmetic,
+  getArtifactLedger,
   confirmEmailVerification,
   createLobby,
   equipSkin,
@@ -668,5 +671,144 @@ describe('tradeUp', () => {
   it('passes through an unmapped error code unchanged', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: 'Invalid or expired session.', code: 'invalid_session' }, 401));
     await expect(tradeUp('bad', 'frog_blue_v1')).rejects.toThrow('Invalid or expired session.');
+  });
+});
+
+describe('getInventory (artifact fields)', () => {
+  it('carries the equipped cosmetic and the caller\'s artifact through', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        equipped_skin: 'frog_green_v1',
+        skins: [],
+        wheels: [],
+        equipped_cosmetic: 'parchment_v1',
+        artifact: { ordinal: 4, discovered_at: '2026-09-01T00:00:00+00:00', cosmetic: 'parchment_v1' },
+      }),
+    );
+
+    const result = await getInventory('sess-1');
+
+    expect(result.equipped_cosmetic).toBe('parchment_v1');
+    expect(result.artifact?.ordinal).toBe(4);
+  });
+
+  it('accepts a response with no artifact fields at all', async () => {
+    // Deploy independence: a wom-be built before the artifact system omits
+    // these entirely, and the inventory page must still render.
+    fetchMock.mockResolvedValue(
+      jsonResponse({ equipped_skin: 'frog_green_v1', skins: [], wheels: [] }),
+    );
+
+    const result = await getInventory('sess-1');
+
+    expect(result.equipped_cosmetic).toBeUndefined();
+    expect(result.artifact).toBeUndefined();
+  });
+
+  it('accepts a null artifact for an account that has never found one', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        equipped_skin: 'frog_green_v1',
+        skins: [],
+        wheels: [],
+        equipped_cosmetic: null,
+        artifact: null,
+      }),
+    );
+
+    await expect(getInventory('sess-1')).resolves.toMatchObject({ artifact: null });
+  });
+});
+
+describe('equipCosmetic', () => {
+  it('posts the cosmetic and returns what is now equipped', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, equipped_cosmetic: 'parchment_v1' }));
+
+    const result = await equipCosmetic('tok', 'parchment_v1');
+
+    expect(result.equipped_cosmetic).toBe('parchment_v1');
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/inventory/equip_cosmetic`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'tok', cosmetic: 'parchment_v1' }),
+    });
+  });
+
+  it('unequips by sending an empty string, and accepts a null result', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, equipped_cosmetic: null }));
+
+    await expect(equipCosmetic('tok', '')).resolves.toEqual({
+      success: true,
+      equipped_cosmetic: null,
+    });
+  });
+
+  it('turns a 403 into an ownership message', async () => {
+    fetchMock.mockResolvedValue(failingJsonResponse(403));
+
+    await expect(equipCosmetic('tok', 'parchment_v1')).rejects.toThrow(
+      'You do not own this cosmetic.',
+    );
+  });
+});
+
+describe('getArtifactLedger', () => {
+  it('GETs the ledger with a keyset cursor and no body', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        artifacts: [{ ordinal: 1, finder_name: 'Alice', discovered_at: '2026-09-01T00:00:00+00:00' }],
+        total: 1,
+        current_chance: 0.001,
+      }),
+    );
+
+    const result = await getArtifactLedger(0, 100);
+
+    expect(result.artifacts[0].finder_name).toBe('Alice');
+    expect(result.total).toBe(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/artifacts/ledger?after=0&limit=100`,
+      { method: 'GET', headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) }, body: undefined },
+    );
+  });
+
+  it('passes the cursor through so pages continue from the last ordinal', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ artifacts: [], total: 5, current_chance: 1 }));
+
+    await getArtifactLedger(3, 50);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/artifacts/ledger?after=3&limit=50`,
+      expect.anything(),
+    );
+  });
+
+  it('accepts a null discovery date', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        artifacts: [{ ordinal: 1, finder_name: 'Alice', discovered_at: null }],
+        total: 1,
+        current_chance: 0.001,
+      }),
+    );
+
+    await expect(getArtifactLedger()).resolves.toMatchObject({
+      artifacts: [{ discovered_at: null }],
+    });
+  });
+});
+
+describe('claimPendingArtifact', () => {
+  it('posts the lobby, name and email', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, pending_verification: true }));
+
+    const result = await claimPendingArtifact('lobby1', 'Alice', 'a@b.c');
+
+    expect(result).toEqual({ success: true, pending_verification: true });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/claim_pending_artifact`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lobby_id: 'lobby1', name: 'Alice', email: 'a@b.c' }),
+    });
   });
 });

@@ -40,8 +40,17 @@ export const PlayerSchema = z.object({
   // whatever wom-fe branch/PR is being tested). Every consumer already
   // treats a missing value the same as null (`?? 'frog_green_v1'`, `?.`).
   skin: z.string().nullable().optional(),
+  // Same deploy-independence reasoning as skin above. The cosmetic worn
+  // beside the skin (wom-be players.equipped_cosmetic, frozen at join) --
+  // null for nearly everyone, since the only one is granted by discovering
+  // an artifact.
+  cosmetic: z.string().nullable().optional(),
   wheel_awarded: z.boolean().nullable().optional(),
   pending_wheel_nudge: z.boolean().nullable().optional(),
+  // An artifact was discovered by this player this match: granted straight
+  // to a verified account, or held behind the claim-and-verify flow.
+  artifact_awarded: z.boolean().nullable().optional(),
+  pending_artifact_nudge: z.boolean().nullable().optional(),
   // Same deploy-independence reasoning as skin/wheel_awarded above.
   selected_relic_ids: z.array(z.number().int()).optional(),
   // Same deploy-independence reasoning as skin/wheel_awarded above. One of
