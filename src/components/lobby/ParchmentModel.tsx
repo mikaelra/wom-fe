@@ -38,20 +38,25 @@ import { PARCHMENT, cosmeticModelUrl } from '@/lib/cosmetics';
 // the frog's height (which is ~1.14 at its own 0.6 scale) -- a carried
 // object rather than a second character.
 //
-// Placement: held between the frog's hands.
+// Placement: held in the frog's hands, tilted outwards.
 //
-// Measured off frog_green_v1.glb rather than guessed. The hands are two
-// symmetric clusters at x = +/-0.385, y = 0.35, z = 0.38 in model space; at
-// the frog's own 0.6 render scale that is a gap 0.46 wide centred at
-// y = 0.21, with the belly bulging forward to z = 0.37 at that height.
+// These three numbers were tuned by eye against the real model in a lobby.
+// Do not re-derive them from the measurements below and expect a match --
+// the mesh only says where the hands are, not where a scroll looks right
+// between them, and the final Y in particular sits well under the hands
+// because the model's own pivot is not at its grip.
 //
-// The scroll is 1.0 long in its own space, so SCALE 0.5 makes it 0.5 --
-// almost exactly the hand span.
+// The measurements, kept because they are the map for any future
+// re-tuning (taken off frog_green_v1.glb): the hands are two symmetric
+// vertex clusters at x = +/-0.385, y = 0.35, z = 0.38 in model space, which
+// at the frog's own 0.6 render scale is a gap 0.46 wide, with the belly
+// bulging forward to z = 0.37 at that height. The scroll is 1.0 long in its
+// own space, so SCALE 0.5 makes it 0.5 -- close to that hand span.
 //
 // ROTATION is [x, y, z] in radians. The scroll's long axis is its own Y, so
 // it stands upright at zero; x pitches its top away from the chest (the
-// "tilted outwards" part), and z would lay it flat across the body instead.
-// At PI/6 it leans back 30 degrees from vertical.
+// "tilted outwards" part) and is at 30 degrees here; z would lay it flat
+// across the body instead.
 const SCALE = 0.5;
 const OFFSET: [number, number, number] = [0, -0.22, 0.24];
 const ROTATION: [number, number, number] = [Math.PI / 6, 0, 0];
