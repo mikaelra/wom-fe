@@ -451,10 +451,12 @@ export const PlayerWithName = memo(function PlayerWithName({
           above without PlayerV1 needing to know cosmetics exist. Bots and
           the boss never wear one -- the wire field is null for them.
           Its own Suspense: the model is ~6 MB and is not preloaded, so it
-          arrives well after the frog and must not hold the avatar back. */}
+          arrives well after the frog and must not hold the avatar back.
+          Static, not floating -- it is held in the frog's hands, so it takes
+          the body's death transform rather than bobbing on its own. */}
       {cosmetic === PARCHMENT && !isBoss && !isBot && (
         <Suspense fallback={null}>
-          <ParchmentModel isDead={isDead} isGhost={!!isSpectator} phase={position[0]} />
+          <ParchmentModel isDead={isDead} isGhost={!!isSpectator} />
         </Suspense>
       )}
 

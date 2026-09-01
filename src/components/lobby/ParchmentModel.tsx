@@ -1,8 +1,7 @@
 'use client';
 
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 import { AVATAR_RENDER_ORDER, applyFade } from '@/lib/avatarFade';
@@ -39,29 +38,41 @@ import { PARCHMENT, cosmeticModelUrl } from '@/lib/cosmetics';
 // the frog's height (which is ~1.14 at its own 0.6 scale) -- a carried
 // object rather than a second character.
 //
-// Offset puts the scroll just in front of the player's chest. At 0.3 it sits
-// inside the frog's own depth (~0.37 at the 0.6 scale), so it grazes the
-// body rather than standing clear -- intended, it reads as held rather than
-// hovering. It is also nearer than the deny prompt ([0, 0.1, 0.4]) and the
-// equipped-coin cue ([0, -0.05, 0.55]), so it renders in front of both when
-// either is showing.
+// Placement: held between the frog's hands.
 //
-// The offset is in the avatar group's space, which PlayerWithName rotates
-// with the player, so this stays put relative to them wherever they stand
-// in the ring.
+// Measured off frog_green_v1.glb rather than guessed. The hands are two
+// symmetric clusters at x = +/-0.385, y = 0.35, z = 0.38 in model space; at
+// the frog's own 0.6 render scale that is a gap 0.46 wide centred at
+// y = 0.21, with the belly bulging forward to z = 0.37 at that height.
+//
+// The scroll is 1.0 long in its own space, so SCALE 0.5 makes it 0.5 --
+// almost exactly the hand span -- once ROTATION lays it horizontal. OFFSET
+// sits it just clear of the belly.
+//
+// ROTATION is [x, y, z] in radians. z = PI/2 turns the scroll from upright
+// to lying across the body; x tilts the outer edge away from the chest,
+// which is the "tilted outwards" part. Tune x first -- it is the only one
+// doing anything subtle.
 const SCALE = 0.5;
-const OFFSET: [number, number, number] = [0, 0, 0.3];
+const OFFSET: [number, number, number] = [0, 0.21, 0.4];
+const ROTATION: [number, number, number] = [-0.3, 0, Math.PI / 2];
+
+// PlayerV1 tips a dead player 90 degrees about its own origin and drops it
+// 0.5 on Y. A held object has to take the same transform or it detaches and
+// hangs in the air beside a toppled frog -- which a floating cosmetic could
+// get away with and this one cannot. Kept in sync with Playerv1.tsx by hand;
+// there is no shared constant because PlayerV1 applies it to its own
+// primitive rather than to the group.
+const DEAD_DROP: [number, number, number] = [0, -0.5, 0];
+const DEAD_TIP: [number, number, number] = [0, 0, Math.PI / 2];
+const NO_TRANSFORM: [number, number, number] = [0, 0, 0];
 
 function ParchmentModelImpl({
   isDead = false,
   isGhost = false,
-  /** Desynchronises the bob between players, so a lobby's scrolls don't
-   *  pulse in lockstep. Pass something stable per player. */
-  phase = 0,
 }: {
   isDead?: boolean;
   isGhost?: boolean;
-  phase?: number;
 }) {
   const url = cosmeticModelUrl(PARCHMENT);
   // A cosmetic with no model yet renders nothing rather than guessing a
@@ -71,7 +82,6 @@ function ParchmentModelImpl({
   // Each instance needs its own clone: materials and transforms are shared
   // across users of the same cached GLTF otherwise.
   const sceneClone = useMemo(() => scene.clone(), [scene]);
-  const groupRef = useRef<THREE.Group>(null!);
 
   useEffect(() => {
     sceneClone.traverse((obj: THREE.Object3D) => {
@@ -83,27 +93,19 @@ function ParchmentModelImpl({
     applyFade(sceneClone, { isDead, isGhost });
   }, [sceneClone, isDead, isGhost]);
 
-  // A dead player's scroll settles with them -- a relic still bobbing over a
-  // corpse reads as a bug rather than a flourish.
-  const animated = !isDead;
-
-  useFrame((state) => {
-    const g = groupRef.current;
-    if (!g) return;
-    if (!animated) {
-      g.position.y = OFFSET[1] - 0.06;
-      return;
-    }
-    const t = state.clock.elapsedTime + phase;
-    g.position.y = OFFSET[1] + Math.sin(t * 1.1) * 0.035;
-    g.rotation.y = Math.sin(t * 0.5) * 0.4;
-  });
-
   if (!url) return null;
 
   return (
-    <group ref={groupRef} position={OFFSET}>
-      <primitive object={sceneClone} scale={SCALE} />
+    // Outer group carries the death transform about the avatar's own origin,
+    // mirroring what PlayerV1 does to the body, so the scroll stays in the
+    // frog's hands when it topples. Inner group is the placement itself.
+    <group
+      position={isDead ? DEAD_DROP : NO_TRANSFORM}
+      rotation={isDead ? DEAD_TIP : NO_TRANSFORM}
+    >
+      <group position={OFFSET} rotation={ROTATION}>
+        <primitive object={sceneClone} scale={SCALE} />
+      </group>
     </group>
   );
 }
