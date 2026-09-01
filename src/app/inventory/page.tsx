@@ -416,10 +416,9 @@ export default function InventoryPage() {
                 </div>
               ) : (
                 <div className="text-center py-2">
-                  <p className="text-white/60 text-sm mb-1">You have not found an artifact.</p>
+                  <p className="text-white/60 text-sm mb-1">You have no artifacts</p>
                   <p className="text-white/40 text-xs">
-                    They turn up at The Well, and get easier to find every time
-                    someone in the world discovers one.
+                    They turn up here when you find/make one.
                   </p>
                 </div>
               )}
