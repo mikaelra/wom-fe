@@ -681,14 +681,14 @@ describe('getInventory (artifact fields)', () => {
         equipped_skin: 'frog_green_v1',
         skins: [],
         wheels: [],
-        equipped_cosmetic: 'parchment_v1',
-        artifact: { ordinal: 4, discovered_at: '2026-09-01T00:00:00+00:00', cosmetic: 'parchment_v1' },
+        equipped_cosmetic: 'artifact_v1',
+        artifact: { ordinal: 4, discovered_at: '2026-09-01T00:00:00+00:00', cosmetic: 'artifact_v1' },
       }),
     );
 
     const result = await getInventory('sess-1');
 
-    expect(result.equipped_cosmetic).toBe('parchment_v1');
+    expect(result.equipped_cosmetic).toBe('artifact_v1');
     expect(result.artifact?.ordinal).toBe(4);
   });
 
@@ -722,15 +722,15 @@ describe('getInventory (artifact fields)', () => {
 
 describe('equipCosmetic', () => {
   it('posts the cosmetic and returns what is now equipped', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ success: true, equipped_cosmetic: 'parchment_v1' }));
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, equipped_cosmetic: 'artifact_v1' }));
 
-    const result = await equipCosmetic('tok', 'parchment_v1');
+    const result = await equipCosmetic('tok', 'artifact_v1');
 
-    expect(result.equipped_cosmetic).toBe('parchment_v1');
+    expect(result.equipped_cosmetic).toBe('artifact_v1');
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/inventory/equip_cosmetic`, {
       method: 'POST',
       headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: 'tok', cosmetic: 'parchment_v1' }),
+      body: JSON.stringify({ token: 'tok', cosmetic: 'artifact_v1' }),
     });
   });
 
@@ -746,7 +746,7 @@ describe('equipCosmetic', () => {
   it('turns a 403 into an ownership message', async () => {
     fetchMock.mockResolvedValue(failingJsonResponse(403));
 
-    await expect(equipCosmetic('tok', 'parchment_v1')).rejects.toThrow(
+    await expect(equipCosmetic('tok', 'artifact_v1')).rejects.toThrow(
       'You do not own this cosmetic.',
     );
   });

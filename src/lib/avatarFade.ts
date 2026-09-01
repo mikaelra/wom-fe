@@ -7,14 +7,13 @@
  * thing in the avatar's group. It stopped being fine the moment a cosmetic
  * was parented alongside it (`docs/ARTIFACT_PLAN.md` §5.5): a sibling
  * object is not in that traversal, so a ghosted frog would carry a fully
- * opaque Parchment.
+ * opaque scroll.
  *
  * Two consumers, two shapes of geometry, one set of numbers:
  * - `applyFade` handles a loaded GLB, where the materials are whatever the
  *   artist exported and have to be cloned before being touched.
- * - Procedural meshes (`ParchmentModel`) read the constants directly and
- *   set their own material props -- traversing a mesh you authored yourself
- *   to mutate materials you just declared would be a pointless round trip.
+ * - Anything drawn procedurally reads the constants directly and sets its
+ *   own material props, rather than being traversed after the fact.
  */
 import * as THREE from 'three';
 

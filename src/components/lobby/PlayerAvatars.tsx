@@ -12,8 +12,8 @@ import EquippedCoinModel from '@/components/lobby/EquippedCoinModel';
 import { FreshHtml } from '@/components/hud/FreshHtml';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { skinUrl } from '@/lib/frogSkins';
-import { PARCHMENT } from '@/lib/cosmetics';
-import ParchmentModel from './ParchmentModel';
+import { ARTIFACT } from '@/lib/cosmetics';
+import ArtifactModel from './ArtifactModel';
 import { COIN_RELIC_ID } from '@/types/game';
 
 // ── Per-player HTML stack ───────────────────────────────────────────────────
@@ -454,9 +454,9 @@ export const PlayerWithName = memo(function PlayerWithName({
           arrives well after the frog and must not hold the avatar back.
           Static, not floating -- it is held in the frog's hands, so it takes
           the body's death transform rather than bobbing on its own. */}
-      {cosmetic === PARCHMENT && !isBoss && !isBot && (
+      {cosmetic === ARTIFACT && !isBoss && !isBot && (
         <Suspense fallback={null}>
-          <ParchmentModel isDead={isDead} isGhost={!!isSpectator} />
+          <ArtifactModel isDead={isDead} isGhost={!!isSpectator} />
         </Suspense>
       )}
 

@@ -164,7 +164,7 @@ export default function InventoryPage() {
 
   // null when the cosmetic has no model yet; the card falls back to an
   // emoji rather than mounting an empty canvas.
-  const parchmentUrl = artifact ? cosmeticModelUrl(artifact.cosmetic) : null;
+  const artifactUrl = artifact ? cosmeticModelUrl(artifact.cosmetic) : null;
 
   // Green is always owned implicitly -- no skin_items row needed for it
   // (docs/MONETIZATION_PLAN.md §3.1).
@@ -351,7 +351,7 @@ export default function InventoryPage() {
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mt-6">
               {/* No "who has found one" link here. The ledger is readable
                   only by someone who has discovered an artifact, so the way
-                  in is clicking your own Parchment below -- which only
+                  in is clicking your own artifact below -- which only
                   exists if you are entitled to look. Offering a link to
                   everyone would advertise a door most people cannot open. */}
               <h2 className="text-lg font-semibold mb-4">Artifacts</h2>
@@ -370,9 +370,9 @@ export default function InventoryPage() {
                     aria-label={`Artifact number ${artifact.ordinal}, open the discovery ledger`}
                     className="w-28 h-28 shrink-0 bg-transparent border-0 p-0 cursor-pointer"
                   >
-                    {parchmentUrl ? (
+                    {artifactUrl ? (
                       <SpinningModelViewer
-                        url={parchmentUrl}
+                        url={artifactUrl}
                         targetSize={1.8}
                         spinSpeed={0.6}
                       />

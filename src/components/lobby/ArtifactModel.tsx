@@ -5,10 +5,10 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 
 import { AVATAR_RENDER_ORDER, applyFade } from '@/lib/avatarFade';
-import { PARCHMENT, cosmeticModelUrl } from '@/lib/cosmetics';
+import { ARTIFACT, cosmeticModelUrl } from '@/lib/cosmetics';
 
 /**
- * The Parchment: the scroll that floats beside its owner's avatar.
+ * The artifact cosmetic: the scroll held by its owner's avatar.
  *
  * The model (`public/skins/items/pergament_v1.glb`, PR #329) is one mesh
  * with no rig and no animations -- the same shape as a frog skin -- so it
@@ -71,14 +71,14 @@ const DEAD_DROP: [number, number, number] = [0, -0.5, 0];
 const DEAD_TIP: [number, number, number] = [0, 0, Math.PI / 2];
 const NO_TRANSFORM: [number, number, number] = [0, 0, 0];
 
-function ParchmentModelImpl({
+function ArtifactModelImpl({
   isDead = false,
   isGhost = false,
 }: {
   isDead?: boolean;
   isGhost?: boolean;
 }) {
-  const url = cosmeticModelUrl(PARCHMENT);
+  const url = cosmeticModelUrl(ARTIFACT);
   // A cosmetic with no model yet renders nothing rather than guessing a
   // path. Hooks below still run unconditionally -- see the empty-url guard
   // in the loader call.
@@ -114,4 +114,4 @@ function ParchmentModelImpl({
   );
 }
 
-export default memo(ParchmentModelImpl);
+export default memo(ArtifactModelImpl);

@@ -3,8 +3,8 @@
  * instead of one. Mirrors `lib/frogSkins.ts`, which is the same idea for
  * the mutually-exclusive half of the wardrobe.
  *
- * There is exactly one cosmetic, and it cannot be bought: the Parchment is
- * granted by discovering an artifact (`docs/ARTIFACT_PLAN.md`). Ownership
+ * There is exactly one cosmetic, and it cannot be bought: it is granted by
+ * discovering an artifact (`docs/ARTIFACT_PLAN.md`). Ownership
  * lives in the artifacts row itself, so nothing here tracks what a player
  * holds -- `/inventory` answers that.
  *
@@ -13,9 +13,9 @@
  * hangs beside the avatar and touches nothing, which is why it can ship
  * without any of that machinery.
  */
-export const PARCHMENT = 'parchment_v1';
+export const ARTIFACT = 'artifact_v1';
 
-export const COSMETICS = [PARCHMENT] as const;
+export const COSMETICS = [ARTIFACT] as const;
 
 export type Cosmetic = (typeof COSMETICS)[number];
 
@@ -28,16 +28,17 @@ export function isCosmetic(id: string | null | undefined): id is Cosmetic {
  * `frogSkins.ts` for Cherub -- one exception map rather than a filename
  * convention every call site has to know.
  *
- * The Parchment's asset lives under `public/skins/items/`, where it was
- * added (PR #329), not under `public/models/` with everything else. Left
+ * The asset lives under `public/skins/items/` where it was added (PR #329),
+ * under the artist's own filename (pergament_v1.glb) rather than the
+ * cosmetic's id -- which is exactly what this map is for. Left
  * where the artist put it rather than moved: `next build` copies all of
  * `public/` regardless, so relocating it would churn the asset for nothing.
  *
  * Returns null for a cosmetic with no model yet, which is a real state --
- * `ParchmentModel` renders nothing rather than guessing a path.
+ * `ArtifactModel` renders nothing rather than guessing a path.
  */
 const COSMETIC_MODEL_URLS: Record<string, string> = {
-  [PARCHMENT]: '/skins/items/pergament_v1.glb',
+  [ARTIFACT]: '/skins/items/pergament_v1.glb',
 };
 
 export function cosmeticModelUrl(id: string): string | null {
@@ -51,10 +52,8 @@ export function cosmeticModelUrl(id: string): string | null {
 // actually means something. A second artifact item would be "Artifact #2"
 // for all of its owners in turn.
 //
-// "Parchment" survives as the internal id and in the claim flow's prose,
-// not as the item's displayed name.
 const COSMETIC_LABELS: Record<string, string> = {
-  [PARCHMENT]: 'Artifact #1',
+  [ARTIFACT]: 'Artifact #1',
 };
 
 export function cosmeticLabel(id: string): string {
@@ -62,18 +61,9 @@ export function cosmeticLabel(id: string): string {
 }
 
 const COSMETIC_DESCRIPTIONS: Record<string, string> = {
-  [PARCHMENT]: 'A piece of paper found in a well one time.',
+  [ARTIFACT]: 'A piece of paper found in a well one time.',
 };
 
 export function cosmeticDescription(id: string): string {
   return COSMETIC_DESCRIPTIONS[id] ?? '';
 }
-
-/** Parchment colours. The 3D model brings its own textures; these are for
- *  2D chrome that has to sit beside it without clashing. */
-export const PARCHMENT_COLORS = {
-  paper: '#e8dcc0',
-  paperShade: '#cbbb95',
-  rod: '#8a6a3f',
-  ribbon: '#a3242c',
-} as const;

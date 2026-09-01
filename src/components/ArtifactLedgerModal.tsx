@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import ArtifactLedger from '@/components/ArtifactLedger';
 
 /**
- * The discovery ledger in a dialog -- what clicking your Parchment in the
+ * The discovery ledger in a dialog -- what clicking your artifact in the
  * inventory opens. The Vault renders `ArtifactLedger` directly instead,
  * since there the list *is* the page.
  */

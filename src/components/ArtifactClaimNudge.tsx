@@ -62,7 +62,7 @@ export default function ArtifactClaimNudge({ lobbyId, playerName, onDismiss }: P
             <p className="text-3xl mb-3">📜</p>
             <p className="text-green-400 font-bold text-lg mb-1">Artifact claimed!</p>
             <p className="text-gray-400 text-sm mb-5">
-              Your name is now linked to your email, and the Parchment is yours.{' '}
+              Your name is now linked to your email, and the artifact is yours.{' '}
               <Link href="/inventory" className="text-amber-300 underline hover:text-amber-200">
                 Equip it in your inventory
               </Link>
