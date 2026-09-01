@@ -33,12 +33,15 @@ import { PARCHMENT, cosmeticModelUrl } from '@/lib/cosmetics';
  * occasion someone is actually wearing one.
  */
 
-// Frog bbox is +/-0.883 on x and is drawn at scale 0.6, so the body's own
-// half-width is ~0.53. The scroll is 1.0 tall in its own space; at 0.45 it
-// stands about 40% of the frog's height, which reads as a carried object
-// rather than a second character.
-const SCALE = 0.45;
-const OFFSET: [number, number, number] = [0.62, 0.28, 0];
+// Tuned by eye against the real model in the lobby.
+//
+// The scroll is 1.0 tall in its own space, so 0.5 puts it at roughly 44% of
+// the frog's height (which is ~1.14 at its own 0.6 scale) -- a carried
+// object rather than a second character. The x offset clears the body
+// comfortably: the frog is widest at the haunches, but at the scroll's own
+// height its radius is only ~0.22.
+const SCALE = 0.5;
+const OFFSET: [number, number, number] = [0.5, 0, 0];
 
 function ParchmentModelImpl({
   isDead = false,
