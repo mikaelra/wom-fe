@@ -39,13 +39,17 @@ import { PARCHMENT, cosmeticModelUrl } from '@/lib/cosmetics';
 // the frog's height (which is ~1.14 at its own 0.6 scale) -- a carried
 // object rather than a second character.
 //
-// Offset puts the scroll beside the avatar at centre height, well clear of
-// it: the frog's widest radius is ~0.53 (the haunches) and the scroll's own
-// half-width is ~0.05, leaving roughly 0.4 of daylight between them. The
-// offset is in the avatar group's space, which PlayerWithName rotates with
-// the player, so "beside" stays consistent wherever they stand in the ring.
+// Offset puts the scroll on +z -- the same "in front of the player" axis the
+// deny prompt ([0, 0.1, 0.4]) and the equipped-coin cue ([0, -0.05, 0.55])
+// use, but further out at 1.0, so nothing intersects. Note they do line up
+// front-to-back: a player with a deny pending or Hades' Coin selected will
+// have all three on one line from the camera.
+//
+// The offset is in the avatar group's space, which PlayerWithName rotates
+// with the player, so this stays put relative to them wherever they stand
+// in the ring.
 const SCALE = 0.5;
-const OFFSET: [number, number, number] = [1, 0, 0];
+const OFFSET: [number, number, number] = [0, 0, 1];
 
 function ParchmentModelImpl({
   isDead = false,
