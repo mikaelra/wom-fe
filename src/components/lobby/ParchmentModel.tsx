@@ -53,7 +53,7 @@ import { PARCHMENT, cosmeticModelUrl } from '@/lib/cosmetics';
 // "tilted outwards" part), and z would lay it flat across the body instead.
 // At PI/6 it leans back 30 degrees from vertical.
 const SCALE = 0.5;
-const OFFSET: [number, number, number] = [0, 0.0, 0.35];
+const OFFSET: [number, number, number] = [0, -0.22, 0.27];
 const ROTATION: [number, number, number] = [Math.PI / 6, 0, 0];
 
 // PlayerV1 tips a dead player 90 degrees about its own origin and drops it
