@@ -37,11 +37,14 @@ import { PARCHMENT, cosmeticModelUrl } from '@/lib/cosmetics';
 //
 // The scroll is 1.0 tall in its own space, so 0.5 puts it at roughly 44% of
 // the frog's height (which is ~1.14 at its own 0.6 scale) -- a carried
-// object rather than a second character. The x offset clears the body
-// comfortably: the frog is widest at the haunches, but at the scroll's own
-// height its radius is only ~0.22.
+// object rather than a second character.
+//
+// Offset is the avatar's own origin: the scroll sits on the body rather than
+// beside it, and intersects the frog mesh by design. Nudge x outward if it
+// should stand clear instead -- the frog's radius is ~0.22 at this height
+// and ~0.53 at its widest (the haunches, well below).
 const SCALE = 0.5;
-const OFFSET: [number, number, number] = [0.5, 0, 0];
+const OFFSET: [number, number, number] = [0, 0, 0];
 
 function ParchmentModelImpl({
   isDead = false,
