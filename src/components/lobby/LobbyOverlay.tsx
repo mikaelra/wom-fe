@@ -11,6 +11,7 @@ import SceneOverlay, {
 } from '@/components/SceneOverlay';
 import BossSignupNudge from '@/components/BossSignupNudge';
 import WheelClaimNudge from '@/components/WheelClaimNudge';
+import ArtifactClaimNudge from '@/components/ArtifactClaimNudge';
 import StartGameButton from '@/components/StartGameButton';
 import RulesModal from '@/components/lobby/RulesModal';
 import RankBadge from '@/components/hud/RankBadge';
@@ -186,6 +187,17 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
           🎡 You won a Wheel!{' '}
           <Link href="/inventory" className="underline hover:text-amber-200">
             Spin it in your inventory
+          </Link>
+        </p>
+      )}
+      {myPlayer?.artifact_awarded && (
+        <p className="text-amber-300 font-semibold mb-2">
+          📜 You discovered an artifact!{' '}
+          {/* Points at the inventory rather than naming the action: equipping
+              and unequipping both live there, so the link should promise the
+              place, not one of the two things you can do in it. */}
+          <Link href="/inventory" className="underline hover:text-amber-200">
+            Your Inventory
           </Link>
         </p>
       )}
@@ -447,6 +459,7 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [wheelNudgeDismissed, setWheelNudgeDismissed] = useState(false);
+  const [artifactNudgeDismissed, setArtifactNudgeDismissed] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [playerName, setPlayerName] = useState('');
   // Mirrors SceneOverlay's own gate for when the Game Over text actually
@@ -489,6 +502,11 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
     !wheelNudgeDismissed &&
     gameOverRevealed &&
     (myPlayer?.pending_wheel_nudge ?? false);
+  // Same gating as the Wheel nudge: any match end, PvP or boss fight.
+  const showArtifactNudge =
+    !artifactNudgeDismissed &&
+    gameOverRevealed &&
+    (myPlayer?.pending_artifact_nudge ?? false);
 
   return (
     <>
@@ -530,6 +548,13 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
           lobbyId={lobbyId}
           playerName={playerName}
           onDismiss={() => setWheelNudgeDismissed(true)}
+        />
+      )}
+      {showArtifactNudge && (
+        <ArtifactClaimNudge
+          lobbyId={lobbyId}
+          playerName={playerName}
+          onDismiss={() => setArtifactNudgeDismissed(true)}
         />
       )}
     </>

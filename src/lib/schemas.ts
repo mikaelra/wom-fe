@@ -127,7 +127,17 @@ export const ClaimPendingRelicResponseSchema = z.object({
 
 export const ConfirmEmailVerificationResponseSchema = z.object({
   success: z.boolean(),
-  purpose: z.enum(['claim_name', 'claim_relic', 'claim_wheel']),
+  // Deliberately not z.enum. This was pinned to
+  // ['claim_name', 'claim_relic', 'claim_wheel'] and the day wom-be added a
+  // fourth purpose ('claim_artifact') every verification link of that kind
+  // died on this line -- the backend had already verified the email, issued
+  // the session and granted the item, and the only thing that failed was
+  // this page's ability to describe it. A closed enum here turns "wom-be
+  // knows a word we don't" into a hard failure of work that already
+  // succeeded, which is exactly the deploy-independence problem the wire
+  // schema in types/game.ts documents. The page falls back to a generic
+  // confirmation for a purpose it does not recognise.
+  purpose: z.string(),
   relic_name: z.string().nullable().optional(),
   session_token: z.string().optional(),
 });
@@ -150,6 +160,39 @@ export const InventoryResponseSchema = z.object({
   equipped_skin: z.string(),
   skins: z.array(z.object({ skin: z.string(), count: z.number().int() })),
   wheels: z.array(z.object({ id: z.number().int(), kind: z.string() })),
+  // Optional for the same deploy-independence reasoning as the wire schema's
+  // player fields (types/game.ts): a wom-be deployed before the artifact
+  // system simply omits these, and every consumer here treats absent the
+  // same as null.
+  equipped_cosmetic: z.string().nullable().optional(),
+  artifact: z
+    .object({
+      ordinal: z.number().int(),
+      discovered_at: z.string().nullable(),
+      cosmetic: z.string(),
+    })
+    .nullable()
+    .optional(),
+});
+
+export const EquipCosmeticResponseSchema = z.object({
+  success: z.boolean(),
+  equipped_cosmetic: z.string().nullable(),
+});
+
+// GET /artifacts/ledger -- public, no auth. current_chance is what one
+// eligible Well win is worth right now; it rises as the world discovers more
+// (wom-be docs/ARTIFACT_PLAN.md §4.2), so nothing should hardcode "1 in 1000".
+export const ArtifactLedgerResponseSchema = z.object({
+  artifacts: z.array(
+    z.object({
+      ordinal: z.number().int(),
+      finder_name: z.string(),
+      discovered_at: z.string().nullable(),
+    }),
+  ),
+  total: z.number().int(),
+  current_chance: z.number(),
 });
 
 export const EquipSkinResponseSchema = z.object({

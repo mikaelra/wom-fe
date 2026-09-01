@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getInventory, equipSkin, getPlayerRelics, getTradeUpRules } from '@/lib/api';
+import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel, skinThumbnailUrl, skinUrl } from '@/lib/frogSkins';
+import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import WheelSpinModal from '@/components/WheelSpinModal';
 import TradeUpModal from '@/components/TradeUpModal';
 import RelicCoin from '@/components/RelicCoin';
+import ArtifactLedgerModal from '@/components/ArtifactLedgerModal';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
@@ -17,6 +19,7 @@ import type { Relic } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
 
 type SkinEntry = { skin: string; count: number };
+type ArtifactEntry = { ordinal: number; discovered_at: string | null; cosmetic: string };
 type WheelEntry = { id: number; kind: string };
 // One button per distinct wheel kind, not one per row -- id is an arbitrary
 // representative of the group (any wheel of that kind spins the same way).
@@ -43,6 +46,12 @@ export default function InventoryPage() {
   const [wheels, setWheels] = useState<WheelEntry[]>([]);
   const [relics, setRelics] = useState<Relic[]>([]);
   const [equipping, setEquipping] = useState<string | null>(null);
+  // The Artifacts category. `artifact` is null for almost every account --
+  // that is the point of it, and the empty state carries the weight.
+  const [equippedCosmetic, setEquippedCosmetic] = useState<string | null>(null);
+  const [artifact, setArtifact] = useState<ArtifactEntry | null>(null);
+  const [equippingCosmetic, setEquippingCosmetic] = useState(false);
+  const [showLedger, setShowLedger] = useState(false);
   const [spinningWheel, setSpinningWheel] = useState<{ id: number; kind: string } | null>(null);
   const [tradeUpRules, setTradeUpRules] = useState<Record<string, TradeUpRule>>({});
   const [tradingUp, setTradingUp] = useState<{ skin: string; owned: number; rule: TradeUpRule } | null>(null);
@@ -78,6 +87,8 @@ export default function InventoryPage() {
         setEquippedSkin(inventoryData.equipped_skin);
         setSkins(inventoryData.skins);
         setWheels(inventoryData.wheels);
+        setEquippedCosmetic(inventoryData.equipped_cosmetic ?? null);
+        setArtifact(inventoryData.artifact ?? null);
         setRelics(relicsData.relics);
         setLoadError('');
       })
@@ -118,6 +129,23 @@ export default function InventoryPage() {
     }
   };
 
+  // Equip, or unequip by sending "". Unequipping needs no ownership check
+  // server-side, so the same handler covers both directions.
+  const handleToggleCosmetic = async (cosmetic: string) => {
+    const token = getStoredAccountToken();
+    if (!token) return;
+    const next = equippedCosmetic === cosmetic ? '' : cosmetic;
+    setEquippingCosmetic(true);
+    try {
+      const data = await equipCosmetic(token, next);
+      setEquippedCosmetic(data.equipped_cosmetic);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : 'Failed to equip cosmetic.');
+    } finally {
+      setEquippingCosmetic(false);
+    }
+  };
+
   // The wheel modal shows its own result splash once it visually lands --
   // a toast fired the instant the server responds (well before landing)
   // would spoil it, so this only refreshes the background inventory data.
@@ -133,6 +161,10 @@ export default function InventoryPage() {
     load();
     if (result.equipped_skin) setEquippedSkin(result.equipped_skin);
   };
+
+  // null when the cosmetic has no model yet; the card falls back to an
+  // emoji rather than mounting an empty canvas.
+  const artifactUrl = artifact ? cosmeticModelUrl(artifact.cosmetic) : null;
 
   // Green is always owned implicitly -- no skin_items row needed for it
   // (docs/MONETIZATION_PLAN.md §3.1).
@@ -312,9 +344,97 @@ export default function InventoryPage() {
                 })}
               </div>
             </div>
+
+            {/* Artifacts. Below Skins deliberately: it is the rarest thing a
+                player can own and the last thing they scroll to, not a
+                headline slot that is empty for almost everyone. */}
+            <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mt-6">
+              {/* No "who has found one" link here. The ledger is readable
+                  only by someone who has discovered an artifact, so the way
+                  in is clicking your own artifact below -- which only
+                  exists if you are entitled to look. Offering a link to
+                  everyone would advertise a door most people cannot open. */}
+              <h2 className="text-lg font-semibold mb-4">Artifacts</h2>
+
+              {artifact ? (
+                <div className="flex flex-col sm:flex-row items-center gap-5">
+                  {/* The real model, not a drawing of it -- the card and the
+                      thing floating beside your frog in a lobby have to be
+                      the same object. A second WebGL context on this page
+                      (the equipped-skin preview is the first) is affordable
+                      because this only mounts for an account that actually
+                      owns an artifact, which is almost none of them. */}
+                  <button
+                    type="button"
+                    onClick={() => setShowLedger(true)}
+                    aria-label={`Artifact number ${artifact.ordinal}, open the discovery ledger`}
+                    className="w-28 h-28 shrink-0 bg-transparent border-0 p-0 cursor-pointer"
+                  >
+                    {artifactUrl ? (
+                      <SpinningModelViewer
+                        url={artifactUrl}
+                        targetSize={1.8}
+                        spinSpeed={0.6}
+                      />
+                    ) : (
+                      <span className="text-5xl" aria-hidden>📜</span>
+                    )}
+                  </button>
+                  <div className="flex-1 text-center sm:text-left">
+                    {/* The item's own name, catalogue number included. The
+                        finder's discovery ordinal is deliberately not shown
+                        here -- it belongs to the ledger, not to the item. */}
+                    <p className="text-sm font-semibold">
+                      {cosmeticLabel(artifact.cosmetic)}
+                    </p>
+                    <p className="text-xs text-white/50 mt-1">
+                      {cosmeticDescription(artifact.cosmetic)}
+                    </p>
+                    <div className="mt-3 flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                      {equippedCosmetic === artifact.cosmetic ? (
+                        <>
+                          <span className="text-xs font-bold text-green-400">EQUIPPED</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCosmetic(artifact.cosmetic)}
+                            disabled={equippingCosmetic}
+                            className="text-xs px-3 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            {equippingCosmetic ? 'Working…' : 'Unequip'}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleCosmetic(artifact.cosmetic)}
+                          disabled={equippingCosmetic}
+                          className="text-xs px-3 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          {equippingCosmetic ? 'Working…' : 'Equip'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-2">
+                  <p className="text-white/60 text-sm mb-1">You have no artifacts</p>
+                  <p className="text-white/40 text-xs">
+                    They turn up here when you find/make one.
+                  </p>
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
+
+      {showLedger && (
+        <ArtifactLedgerModal
+          highlightOrdinal={artifact?.ordinal ?? null}
+          onClose={() => setShowLedger(false)}
+        />
+      )}
 
       {spinningWheel !== null && (
         <WheelSpinModal

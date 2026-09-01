@@ -24,6 +24,8 @@ import {
   ResolveAccountSessionResponseSchema,
   LogOutResponseSchema,
   ClaimPendingWheelResponseSchema,
+  ArtifactLedgerResponseSchema,
+  EquipCosmeticResponseSchema,
   InventoryResponseSchema,
   EquipSkinResponseSchema,
   SpinWheelResponseSchema,
@@ -297,12 +299,69 @@ export async function claimPendingWheel(
   });
 }
 
+/** Claim an artifact discovered without a verified account. Same shape as
+ *  claimPendingWheel, because wom-be reuses the same claim flow for both. */
+export async function claimPendingArtifact(
+  lobbyId: string,
+  name: string,
+  email: string
+): Promise<{ success: boolean; pending_verification?: boolean }> {
+  return request('/claim_pending_artifact', ClaimPendingWheelResponseSchema, {
+    body: { lobby_id: lobbyId, name, email },
+    defaultErrorMessage: 'Failed to claim artifact',
+  });
+}
+
 export async function getInventory(
   token: string
-): Promise<{ equipped_skin: string; skins: { skin: string; count: number }[]; wheels: { id: number; kind: string }[] }> {
+): Promise<{
+  equipped_skin: string;
+  skins: { skin: string; count: number }[];
+  wheels: { id: number; kind: string }[];
+  equipped_cosmetic?: string | null;
+  artifact?: { ordinal: number; discovered_at: string | null; cosmetic: string } | null;
+}> {
   return request('/inventory', InventoryResponseSchema, {
     body: { token },
     defaultErrorMessage: 'Failed to load inventory.',
+  });
+}
+
+/** Equip a cosmetic, or unequip by passing an empty string. Unequipping is
+ *  always allowed -- taking something off needs no ownership check. */
+export async function equipCosmetic(
+  token: string,
+  cosmetic: string
+): Promise<{ success: boolean; equipped_cosmetic: string | null }> {
+  try {
+    return await request('/inventory/equip_cosmetic', EquipCosmeticResponseSchema, {
+      body: { token, cosmetic },
+      defaultErrorMessage: 'Failed to equip cosmetic.',
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) throw new Error('You do not own this cosmetic.');
+    throw e;
+  }
+}
+
+/** The discovery ledger: every artifact ever found, oldest first.
+ *
+ *  Readable only by someone who has discovered one themselves -- the server
+ *  answers 403 otherwise, which callers should treat as "sealed" rather than
+ *  as a failure. Keyset-paginated on ordinal: pass the last ordinal seen as
+ *  `after`. */
+export async function getArtifactLedger(
+  token: string,
+  after = 0,
+  limit = 100
+): Promise<{
+  artifacts: { ordinal: number; finder_name: string; discovered_at: string | null }[];
+  total: number;
+  current_chance: number;
+}> {
+  return request('/artifacts/ledger', ArtifactLedgerResponseSchema, {
+    body: { token, after, limit },
+    defaultErrorMessage: 'Failed to load the artifact ledger.',
   });
 }
 
@@ -342,7 +401,12 @@ export async function claimName(
 
 export async function confirmEmailVerification(
   token: string
-): Promise<{ success: boolean; purpose: 'claim_name' | 'claim_relic' | 'claim_wheel'; relic_name?: string | null }> {
+  // `purpose` is a plain string, not a union of the purposes this build
+  // knows: wom-be can add one (it added 'claim_artifact') and a caller that
+  // cannot name it should still be able to report success, since by this
+  // point the backend has already done the work. See
+  // ConfirmEmailVerificationResponseSchema.
+): Promise<{ success: boolean; purpose: string; relic_name?: string | null }> {
   try {
     const data = await request('/confirm_email_verification', ConfirmEmailVerificationResponseSchema, {
       body: { token },
