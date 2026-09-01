@@ -344,9 +344,14 @@ export async function equipCosmetic(
   }
 }
 
-/** The public discovery ledger: every artifact ever found, oldest first.
- *  Keyset-paginated on ordinal -- pass the last ordinal seen as `after`. */
+/** The discovery ledger: every artifact ever found, oldest first.
+ *
+ *  Readable only by someone who has discovered one themselves -- the server
+ *  answers 403 otherwise, which callers should treat as "sealed" rather than
+ *  as a failure. Keyset-paginated on ordinal: pass the last ordinal seen as
+ *  `after`. */
 export async function getArtifactLedger(
+  token: string,
   after = 0,
   limit = 100
 ): Promise<{
@@ -354,11 +359,10 @@ export async function getArtifactLedger(
   total: number;
   current_chance: number;
 }> {
-  return request(
-    `/artifacts/ledger?after=${after}&limit=${limit}`,
-    ArtifactLedgerResponseSchema,
-    { defaultErrorMessage: 'Failed to load the artifact ledger.' }
-  );
+  return request('/artifacts/ledger', ArtifactLedgerResponseSchema, {
+    body: { token, after, limit },
+    defaultErrorMessage: 'Failed to load the artifact ledger.',
+  });
 }
 
 export async function equipSkin(token: string, skin: string): Promise<{ success: boolean; equipped_skin: string }> {

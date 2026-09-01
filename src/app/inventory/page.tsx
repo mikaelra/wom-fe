@@ -349,16 +349,12 @@ export default function InventoryPage() {
                 player can own and the last thing they scroll to, not a
                 headline slot that is empty for almost everyone. */}
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Artifacts</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowLedger(true)}
-                  className="text-xs text-amber-300 hover:text-amber-200 transition-colors cursor-pointer bg-transparent border-0 p-0"
-                >
-                  Who has found one? →
-                </button>
-              </div>
+              {/* No "who has found one" link here. The ledger is readable
+                  only by someone who has discovered an artifact, so the way
+                  in is clicking your own Parchment below -- which only
+                  exists if you are entitled to look. Offering a link to
+                  everyone would advertise a door most people cannot open. */}
+              <h2 className="text-lg font-semibold mb-4">Artifacts</h2>
 
               {artifact ? (
                 <div className="flex flex-col sm:flex-row items-center gap-5">

@@ -753,7 +753,7 @@ describe('equipCosmetic', () => {
 });
 
 describe('getArtifactLedger', () => {
-  it('GETs the ledger with a keyset cursor and no body', async () => {
+  it('POSTs the session token with a keyset cursor', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
         artifacts: [{ ordinal: 1, finder_name: 'Alice', discovered_at: '2026-09-01T00:00:00+00:00' }],
@@ -762,25 +762,35 @@ describe('getArtifactLedger', () => {
       }),
     );
 
-    const result = await getArtifactLedger(0, 100);
+    const result = await getArtifactLedger('tok', 0, 100);
 
     expect(result.artifacts[0].finder_name).toBe('Alice');
     expect(result.total).toBe(1);
-    expect(fetchMock).toHaveBeenCalledWith(
-      `${BACKEND_URL}/artifacts/ledger?after=0&limit=100`,
-      { method: 'GET', headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) }, body: undefined },
-    );
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/artifacts/ledger`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'tok', after: 0, limit: 100 }),
+    });
   });
 
   it('passes the cursor through so pages continue from the last ordinal', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ artifacts: [], total: 5, current_chance: 1 }));
 
-    await getArtifactLedger(3, 50);
+    await getArtifactLedger('tok', 3, 50);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${BACKEND_URL}/artifacts/ledger?after=3&limit=50`,
-      expect.anything(),
+      `${BACKEND_URL}/artifacts/ledger`,
+      expect.objectContaining({ body: JSON.stringify({ token: 'tok', after: 3, limit: 50 }) }),
     );
+  });
+
+  it('surfaces a 403 as an ApiError so callers can show "sealed", not an error', async () => {
+    // The ledger is readable only by someone who has discovered an artifact.
+    // That is a state, not a fault, and the component distinguishes them by
+    // status -- so the status has to survive.
+    fetchMock.mockResolvedValue(failingJsonResponse(403));
+
+    await expect(getArtifactLedger('tok')).rejects.toMatchObject({ status: 403 });
   });
 
   it('accepts a null discovery date', async () => {
@@ -792,7 +802,7 @@ describe('getArtifactLedger', () => {
       }),
     );
 
-    await expect(getArtifactLedger()).resolves.toMatchObject({
+    await expect(getArtifactLedger('tok')).resolves.toMatchObject({
       artifacts: [{ discovered_at: null }],
     });
   });

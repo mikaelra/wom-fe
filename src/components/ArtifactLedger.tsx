@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { getArtifactLedger } from '@/lib/api';
+import { ApiError, getStoredAccountToken } from '@/lib/http';
 
 type Entry = { ordinal: number; finder_name: string; discovered_at: string | null };
 
@@ -21,8 +22,14 @@ function oneIn(chance: number): string {
 }
 
 /**
- * The public discovery ledger: every artifact ever found, oldest first, with
- * who found it and when.
+ * The discovery ledger: every artifact ever found, oldest first, with who
+ * found it and when.
+ *
+ * Readable only by someone who has discovered an artifact themselves. The
+ * ledger is part of the reward -- who came before you, and where you stand
+ * among them -- so anyone else gets the sealed state below rather than an
+ * error. The real gate is the server's (403); this component only decides
+ * how that reads.
  *
  * Used in two places -- the inventory's Artifacts card (in a modal) and the
  * Vault, which is now this list in a room rather than a password prompt.
@@ -47,9 +54,17 @@ export default function ArtifactLedger({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  // Not an error: the caller has no artifact (or no session), so the records
+  // are simply not theirs to read.
+  const [sealed, setSealed] = useState(false);
 
   const loadPage = useCallback(async (after: number) => {
-    const data = await getArtifactLedger(after, PAGE);
+    const token = getStoredAccountToken();
+    if (!token) {
+      setSealed(true);
+      return;
+    }
+    const data = await getArtifactLedger(token, after, PAGE);
     setEntries((prev) => (after === 0 ? data.artifacts : [...prev, ...data.artifacts]));
     setTotal(data.total);
     setChance(data.current_chance);
@@ -61,7 +76,14 @@ export default function ArtifactLedger({
       try {
         await loadPage(0);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load the ledger.');
+        if (cancelled) return;
+        // 401 (no valid session) and 403 (no artifact) are both "not yours
+        // to read" -- neither is a fault worth showing as red text.
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+          setSealed(true);
+        } else {
+          setError(e instanceof Error ? e.message : 'Failed to load the ledger.');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -86,6 +108,17 @@ export default function ArtifactLedger({
 
   if (loading) return <p className={`text-white/60 text-sm ${className}`}>Loading the ledger…</p>;
   if (error) return <p className={`text-red-400 text-sm ${className}`}>{error}</p>;
+
+  if (sealed) {
+    return (
+      <div className={className}>
+        <p className="text-white/70 text-sm">
+          These records are sealed. Only those who have discovered an artifact
+          may read who came before them.
+        </p>
+      </div>
+    );
+  }
 
   if (entries.length === 0) {
     return (

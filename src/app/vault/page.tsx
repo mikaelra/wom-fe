@@ -22,6 +22,11 @@ const VaultScene = dynamic(() => import('@/components/vault/VaultScene'), { ssr:
  * hole in the world map to delete a form. Filling it with the ledger costs
  * no new art and finally makes the old line -- "in this vault lies ancient
  * artifacts" -- true rather than aspirational.
+ *
+ * It is still gated, just on a different thing: the old passkey is gone, and
+ * the records are now readable only by someone who has discovered an
+ * artifact. ArtifactLedger renders its own sealed state for everyone else,
+ * so this page needs no check of its own.
  */
 export default function VaultPage() {
   return (
@@ -38,8 +43,9 @@ export default function VaultPage() {
         <h1 className="font-semibold text-2xl mb-1">The Vault of Artifacts</h1>
         <p className="text-white/60 text-sm mb-6">
           In this vault lies every artifact ever found, and the name of whoever
-          found it. Artifacts turn up at The Well — and each one discovered
-          makes the next a little easier to find.
+          found it — readable only by those who have found one themselves.
+          Artifacts turn up at The Well, and each one discovered makes the next
+          a little easier to find.
         </p>
 
         <ArtifactLedger />
