@@ -1,193 +1,238 @@
 # Steam Store Page & Key Art Plan
 
-Status: **draft · nothing started · no Steamworks account yet** ·
-Scope: `wom-fe` (art, copy, captures) · Last updated: 2026-09-01
+Status: **active · Steam Direct fee paid, 30-day clock running · art direction
+decided: no custom art, in-game captures only** ·
+Scope: `wom-fe` (captures, capsules, copy) · Last updated: 2026-09-01
 
 Expands `MOBILE_AND_STEAM_PLAN.md` §10 (Phase 6 — Steam), which scopes the
 *shell* and the *logistics* but treats the store page as one line: "Store page
 assets: capsule art in several sizes, trailer, description. This is real design
 work, not a checkbox." This document is that checkbox opened up.
 
-All dimensions below were verified against Valve's live documentation on
-2026-09-01, not recalled — Valve doubled the capsule sizes some years ago and
-the old numbers are still all over the internet.
+All dimensions and requirements below were verified against Valve's live
+documentation on 2026-09-01, not recalled — Valve doubled the capsule sizes some
+years ago and the old numbers are still all over the internet.
 
 ---
 
-## 1. The one scheduling fact
+## 1. The clocks
 
-The store page is **not** gated on the Electron shell. Capsules, screenshots,
-trailer and copy can all be produced from the web build that runs today, because
-the Steam build is the same renderer in a wrapper (`MOBILE_AND_STEAM_PLAN.md`
-§1). That matters because of three clocks that run on Valve's calendar, not on
-development time:
+The Steam Direct fee is **paid**, so the 30-day waiting period is already
+running. That is the good case: it is the one clock that costs nothing to run in
+the background, and it is now running for free while the assets get made.
 
-| Clock | Length | Starts when |
+| Clock | Length | State |
 |---|---|---|
-| Steam Direct waiting period | **30 days** | The $100 app fee is paid |
-| Store page must sit as "Coming Soon" | **≥ 2 weeks** | The page is approved and set live |
-| Store page review, per submission | 3–5 business days (submit **7 days** early) | Each submission |
+| Steam Direct waiting period | 30 days | ⏳ **Running** — started on the fee payment date. *Record the exact date here; it sets the earliest possible release day.* |
+| Store page as "Coming Soon" | ≥ 2 weeks | Not started — begins when the page is approved and set live |
+| Store page review, per submission | 3–5 business days (submit **7 days** early) | Not started |
 
-These overlap rather than stack, so the realistic floor from "paid the fee" to
-"allowed to press release" is **~30 days**, and only if the page clears review
-first time. It is not additive with the shell work — it runs alongside it.
+These overlap rather than stack. The practical reading: **the store page should
+be submitted for review within the next two weeks**, so that its 2-week Coming
+Soon period finishes at roughly the same time as the 30-day Direct hold, rather
+than starting after it.
 
-The build must also be reviewed before release, and *that* does need the Electron
-shell to exist. So the honest sequencing is: **store page work can start now and
-should, the release cannot happen until the shell lands** (`MOBILE_AND_STEAM_PLAN.md`
-§15 lists Electron shell / SteamPipe / Steam Direct all as Not started).
-
----
-
-## 2. 🔴 The sequencing trap: screenshots vs. the art pass
-
-This is the one thing in this document that can waste real work.
-
-Valve requires screenshots to be **actual gameplay** — no concept art, no
-pre-rendered stills — and they are the single most load-bearing asset on the
-page. But `ART_STYLE_PLAN.md` is a pending, whole-game restyle: the wheel has no
-art at all, rank badges are text chips, every modal and HUD icon is still an
-emoji glyph, and §6 flags the world-map planet textures as the recognizable free
-three.js texture set.
-
-Screenshots shot today would show the pre-restyle game, and would have to be
-reshot after the pass. Worse, capsule art drawn to match today's look would be
-drawn to a style that is being deliberately replaced.
-
-**Therefore: §4 of `ART_STYLE_PLAN.md` (modal frame + core icons) and the HUD
-work should land before store screenshots are shot.** The store page cannot be
-finished ahead of the art pass — only started.
-
-Two further couplings to the art plan:
-
-- 🔴 **Hades must not appear in any store asset until v4 exists.**
-  `ART_STYLE_PLAN.md` §3 flags the current `hades_v3-ld.glb` as too close to
-  Disney's portrayal. That is a tolerable-but-real risk on a personal site; on a
-  Steam capsule or a trailer thumbnail — a commercial, permanently archived,
-  scraped-by-everyone surface — it is a materially worse exposure, and the boss
-  is exactly the thing key art wants to feature. Draw the capsule around
-  something else, or do Hades v4 first.
-- **The extreme asset tier is the Steam tier** (`MOBILE_AND_STEAM_PLAN.md` §6.4),
-  and the prettiest captures would come from it. But the tier resolver is Not
-  started and the 10k earth maps do not exist yet (§15). Captures today would be
-  from the low tier — i.e. not the version Steam players will see.
+The build must also be reviewed before release, and *that* needs the Electron
+shell, which is Not started (`MOBILE_AND_STEAM_PLAN.md` §15). So the clocks are
+no longer the binding constraint — **the shell is**. Getting the page up early is
+still right, because it is cheap and it front-loads Valve's review latency, but
+it will not be what determines the release date.
 
 ---
 
-## 3. Decisions to make before drawing anything
+## 2. The art decision, and what it costs
 
-None of these are art questions, but every one of them changes the art or the
-copy. They are cheap to answer now and expensive to answer after the page is
-drawn.
+**Decided: no custom art for this pass. Store assets are built from in-game
+captures of the game as it stands today.**
+
+That is a defensible call — it gets a page live while the clocks run, and Steam
+store assets can be replaced at any time after publish, with no re-review of the
+page as a whole. This is explicitly a first pass, not the final storefront.
+
+What it costs, stated plainly so it is a known trade and not a surprise:
+
+- **Screenshots will show the pre-restyle game.** `ART_STYLE_PLAN.md` is a
+  pending whole-game restyle — the wheel has no art at all, rank badges are text
+  chips, and every modal and HUD icon is still an emoji glyph. All of that will
+  be visible in the captures. Plan to reshoot after the art pass lands.
+- **The HD assets cannot be shown.** The 470 MB high/extreme tier exists on disk
+  but only one asset in the tree actually branches on quality
+  (`MOBILE_AND_STEAM_PLAN.md` §3, §6). Captures will show the low tier — i.e. not
+  what Steam players will eventually get. Nothing to do about it now; it lands
+  with §6 of that plan.
+- **Capsules still have to be made.** "No custom art" does not mean "no
+  capsules" — all six are *required* to publish (§4). They will be composited
+  from captures plus the wordmark rather than illustrated (§5).
+- **A trailer is required.** Valve: *"you will be required to upload a trailer
+  for your product."* It is not optional and cannot be deferred past release.
+  With no custom art it is a gameplay capture cut, which is also what Valve
+  recommends anyway (§4.4).
+
+### 2.1 🔴 Hades must stay off the store page
+
+This is the one consequence of "screenshots as-is" that needs an active decision
+rather than acceptance.
+
+`ART_STYLE_PLAN.md` §3 flags the live boss model (`hades_v3-ld.glb`) as too close
+to Disney's portrayal — the blue-flame-hair / grey-skin / dark-robe combination is
+the recognizable part. The bossfight is a headline feature, so it is exactly what
+a screenshot set would want to show.
+
+A personal site and a commercial storefront are not the same exposure. The Steam
+page is permanently archived, scraped, mirrored to dozens of aggregator sites,
+and is the surface a rights-holder complaint would actually attach to.
+
+**Recommendation: shoot the PvP and world-map scenes, and keep Hades out of the
+captures entirely for this pass.** The bossfight can be *described* in the copy
+(§6) without being pictured. There are more than five good scenes without him
+(§4.4), so this costs nothing. Revisit once Hades v4 exists.
+
+Secondary, much lower risk, worth knowing: the world-map planet textures are the
+widely-used free three.js texture set (`ART_STYLE_PLAN.md` §6.1). On a store page
+they are recognizable as stock. Not a legal problem — a distinctiveness one.
+
+---
+
+## 3. Decisions still open
+
+The art-direction question is closed. These are not, and two of them block the
+page's text rather than its images.
 
 | # | Decision | Notes |
 |---|---|---|
-| 1 | **Premium or free-to-play** | `MOBILE_AND_STEAM_PLAN.md` §10.3 recommends premium with `SHOP_ENABLED` off for Steam. This changes the store page type, whether a price is set, and whether the loot-box/odds disclosure applies on this platform at all. Decide first — it is the root of the others. |
-| 2 | **Price and currency** | Only if premium. Valve applies its own regional pricing matrix from the USD anchor. |
-| 3 | **The tagline** | `src/app/layout.tsx:19` currently has `description: "World of Mythos"` — the game has no positioning sentence anywhere in the codebase. The store page cannot be written without one, and the short description is the most-read text on Steam. |
-| 4 | **Genre + tags** | Valve allows up to 20 tags; the first few drive discovery queues far more than the rest. |
-| 5 | **Early Access or 1.0** | An online-only game with a solo dev and a pending art pass is a textbook Early Access case. It also lowers the bar the screenshots have to clear. |
-| 6 | **Norwegian ENK tax position** | Valve becomes merchant of record, which is a different VAT position from selling via Stripe (`MOBILE_AND_STEAM_PLAN.md` §10.2, `MONETIZATION_PLAN.md` §6.6). Worth checking before the tax interview, not after. |
+| 1 | **Premium or free-to-play** | `MOBILE_AND_STEAM_PLAN.md` §10.3 recommends premium with `SHOP_ENABLED` off for Steam. Determines whether a price is set, and whether the loot-box/odds disclosure applies on this platform at all. Blocks the page. |
+| 2 | **Price** | Only if premium. Valve derives regional pricing from the USD anchor. |
+| 3 | **The tagline** | `src/app/layout.tsx:19` is still `description: "World of Mythos"` — a placeholder. The short description is the most-read text on a Steam page and cannot be written without a positioning sentence. Blocks the page. |
+| 4 | **Genre + tags** | Up to 20; the first few drive the discovery queues far more than the rest. |
+| 5 | **Early Access or 1.0** | An online-only game, solo dev, pending art pass — a textbook Early Access case, and it lowers the bar the screenshots have to clear, which matters more than usual given §2. |
+| 6 | **Norwegian ENK tax position** | Valve becomes merchant of record — a different VAT position from selling via Stripe (`MOBILE_AND_STEAM_PLAN.md` §10.2, `MONETIZATION_PLAN.md` §6.6). The tax interview is part of onboarding; worth checking before completing it. |
 
 ---
 
 ## 4. The asset spec
 
 Verified against Valve's docs, 2026-09-01. "Auto" means Valve generates the
-smaller variant itself — do not draw it.
+smaller variant itself — do not make it.
 
-### 4.1 Store capsules (required)
+### 4.1 Store capsules (all required)
 
 | Asset | Size | Format | Notes |
 |---|---|---|---|
-| Small capsule | 462 × 174 | PNG | Logo should **nearly fill** it. Auto-generates 184×69 and 120×45 — it must survive being read at 120px wide. This is the hardest one and the one most often botched. |
+| Small capsule | 462 × 174 | PNG | Logo should **nearly fill** it. Auto-generates 184×69 and 120×45 — it must survive being read at 120px wide. The hardest one, and the one most often botched. |
 | Header capsule | 920 × 430 | JPG | The default face of the game across the store. |
-| Main capsule | 1232 × 706 | JPG | Front-page features, sales, and the top of the store page carousel. |
-| Vertical capsule | 748 × 896 | JPG | Used in seasonal-sale and some discovery layouts. |
-| Page background | 1438 × 810 | — | Optional; auto-derived from a screenshot if omitted. Should be ambient and must not compete with page content. |
+| Main capsule | 1232 × 706 | JPG | Front-page features, sales, top of the store page. |
+| Vertical capsule | 748 × 896 | JPG | Seasonal-sale and some discovery layouts. |
+| Page background | 1438 × 810 | — | Optional; auto-derived from a screenshot if omitted. **Leave it to Valve this pass** — it should be ambient and not compete with page content, which is exactly what an auto-derived one does. |
 
-### 4.2 Library assets (required — these are what an owner sees, forever)
+### 4.2 Library assets (required — this is what an owner sees, forever)
 
 | Asset | Size | Format | Notes |
 |---|---|---|---|
-| Library capsule | 600 × 900 | PNG | Auto-generates 300×450. Key art + logo. |
+| Library capsule | 600 × 900 | PNG | Auto-generates 300×450. |
 | Library header | 920 × 430 | PNG | Branding-focused. |
-| Library hero | 3840 × 1240 | PNG | Auto-generates 1920×620. **No text permitted.** Safe area is the centre **860 × 380** — anything outside it can be cropped away. |
-| Library logo | 1280 wide and/or 720 tall | PNG, **transparent** | Logotype (+ optional logomark) only. Placement over the hero is chosen in Valve's preview tool: left-bottom, centred-top, centred-middle, centred-bottom. |
+| Library hero | 3840 × 1240 | PNG | Auto-generates 1920×620. **No text permitted.** Safe area is the centre **860 × 380** — anything outside it can be cropped. |
+| Library logo | 1280 wide and/or 720 tall | PNG, **transparent** | Logotype (+ optional logomark) only. Placement over the hero is chosen in Valve's preview tool. |
 
-### 4.3 Rules that apply to all capsule art
+### 4.3 Rules that apply to every capsule
 
 - The **logo must be clearly legible** at every size.
 - **No marketing copy beyond the game title** — no review quotes, no scores, no
   "award-winning", no feature bullets baked into the image. Valve rejects for this.
-- Art should be graphically-centric and convey the experience, not be a
-  screenshot with a logo pasted on.
-- Capsules should feel like one family. The small capsule is allowed to differ
-  in composition (it has to, at that aspect ratio) but not in identity.
+- Art should be graphically-centric and convey the experience, not read as a
+  screenshot with a logo pasted on. See §5 for how to satisfy this without an
+  illustrator.
+- The capsules should feel like one family. The small capsule is allowed to
+  differ in composition — it has to, at that aspect ratio — but not in identity.
 
 ### 4.4 Screenshots and trailer
 
 | Asset | Spec | Notes |
 |---|---|---|
-| Screenshots | ≥ 1920 × 1080, 16:9, **minimum 5** | Actual gameplay only. At least 4 must be marked suitable for all ages. No overlaid marketing text or awards. |
-| Trailer | 1920 × 1080 | Gameplay in the first few seconds. Steam autoplays it muted at the top of the page — it must read with no sound. |
+| Screenshots | ≥ 1920 × 1080, 16:9, **minimum 5** | Actual gameplay only — no concept art or pre-rendered stills. At least 4 marked suitable for all ages. No overlaid marketing text or awards. |
+| Trailer | ≤ 1920 × 1080, 30/60 fps, 5,000+ Kbps, .mp4 (H.264 / AAC) | **Required.** Gameplay-first; Valve notes viewers may give it under 10 seconds and often watch muted, so it must read with no sound. |
 
-For WoM specifically, the screenshots write themselves once the art pass lands:
-the lobby battle around the table, the bossfight, the world map with the
-planetary aspects lit, the vault, the inventory grid of frog skins. That is five
-without straining, and they are all capturable from the browser at 1920×1080 —
-no shell required.
+Candidate scenes, all capturable from the browser today and all Hades-free (§2.1):
+
+1. The lobby battle around the table, mid-round, both players committed.
+2. The world map with planetary aspects lit.
+3. The moment of a resolved hit — the floating combat numbers landing.
+4. The vault scene.
+5. The inventory grid of frog skins.
+6. A full lobby with several players and the crown marker visible.
 
 ### 4.5 Other
 
 | Asset | Size | Format | Notes |
 |---|---|---|---|
 | App icon | 184 × 184 | JPG | The game's icon across the Steam client and community. |
-| Shortcut icon | 256 × 256 | ICO or PNG | Used for the desktop shortcut Steam creates on install. |
-| Event cover | 800 × 450 | — | Only if Steam events/announcements are used later (patch notes, sales). |
+| Shortcut icon | 256 × 256 | ICO or PNG | Desktop shortcut Steam creates on install. |
+| Event cover | 800 × 450 | — | Only if Steam events/announcements are used later. |
 | Event header | 1920 × 622 | — | Optional, same. |
 
 ---
 
-## 5. What to draw, given the existing style
+## 5. Building the capsules without custom art
 
-`ART_STYLE_PLAN.md` locks the identity: hand-drawn, homemade, anchored on the
-rope frame (`public/models/buttons/rope_button-ld-v2.png`) and parchment
-(`public/images/parchment.png`), and it states the rule plainly — *all art is
-drawn by hand (no generated/stock assets), uniqueness is the point.*
+The constraint is real but not unusual — a large share of indie capsules are
+composited from in-game renders. The trick is to stop thinking of it as
+"screenshot with a logo on it" and treat the 3D scenes as a render source.
 
-That rule was written about in-game art. **Whether it extends to store key art is
-an open decision and should be made explicitly**, because key art is a different
-job from UI art: it is one large illustration, seen once, at high resolution,
-competing against professionally-illustrated capsules in the same row. It is also
-the single highest-leverage image the game will ever have.
+### 5.1 🔴 The wordmark is now the critical path
 
-Two coherent positions:
+Every one of the six required capsules needs a legible logo, and the library logo
+must ship as transparent PNG. With illustration off the table, **the wordmark is
+the only piece of custom art the page cannot avoid.**
 
-1. **Extend the rule.** Hand-draw the key art too. The homemade rope/parchment
-   look becomes the pitch — it reads as authored, and on a store page full of
-   competent generic 3D that is a genuine differentiator, not a compromise.
-2. **Commission the key art only.** Keep every in-game pixel hand-drawn, but treat
-   the capsule as marketing rather than game art and pay an illustrator for the
-   one image that has to out-punch everything next to it. Roughly $200–800 for a
-   capsule set from a freelance illustrator.
+`ART_STYLE_PLAN.md` §6.4 flags `public/wom.svg` and `src/app/icon.svg` as needing
+confirmation that they are even original. That confirmation is now blocking, not
+housekeeping. If the current mark is original and usable, everything else is
+compositing. If it is not, a wordmark is the one thing to commission or draw.
 
-There is a third option — generate it — which is worth naming only to note that
-it conflicts directly with the locked "no generated assets, uniqueness is the
-point" decision, and that Valve requires disclosure of AI-generated content in
-the store page's AI disclosure field. Given the whole art plan is built on
-uniqueness, generated key art would undercut the thing it is meant to sell.
+### 5.2 Capture at native resolution, do not upscale
 
-A pragmatic split: **one drawn illustration** composed once, then cropped and
-re-laid-out for all six capsule aspect ratios. Draw it wide and generously
-overscanned so the 748×896 vertical and the 462×174 small capsule can both be
-pulled from it, and draw the logo as a separate transparent layer — the library
-logo has to ship transparent anyway (§4.2), so building it separately is free.
+The game is a real-time three.js renderer, which means it can render at any
+resolution — there is no need to upscale a 1080p screenshot to fill a 3840 × 1240
+library hero. Render it at 3840 directly and it is genuinely sharp.
 
-**The logo is the prerequisite for all of it.** `ART_STYLE_PLAN.md` §6.4 flags
-`public/wom.svg` / `src/app/icon.svg` as needing confirmation that they are even
-original, and every single capsule requires a legible logo. The wordmark is the
-first thing to settle.
+`wom-e2e` already has Playwright wired against a configurable `baseURL`, which
+makes this automatable rather than manual:
+
+- Playwright's `deviceScaleFactor` and an explicit `viewport` give exact output
+  dimensions — set `viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 2`
+  for a 3840 × 2160 frame to crop the hero from.
+- Deterministic captures mean the whole set can be regenerated after the art pass
+  with one command, instead of being re-shot by hand — which matters, because §2
+  guarantees a reshoot.
+- A capture spec can drive the game into a specific state (lobby joined, round
+  committed, aspects visible) rather than hoping to catch the moment live.
+
+This is worth building once as a `scenarios/capture/` project rather than a
+throwaway, precisely because the assets are known to be temporary.
+
+### 5.3 Per-capsule approach
+
+| Capsule | Approach |
+|---|---|
+| Small 462 × 174 | **Wordmark only**, on a flat or simple gradient ground. Valve's own guidance is that the logo should nearly fill it, and at the 120 × 45 auto-variant any scene content is mush. Not using a screenshot here is the correct answer, not a compromise. |
+| Header 920 × 430 | Wide scene crop (the lobby table reads best at this ratio) with the wordmark to one side. Keep the mark clear of scene clutter. |
+| Main 1232 × 706 | The strongest single scene, most generous crop. This is the one people actually look at. |
+| Vertical 748 × 896 | Portrait is the awkward ratio for a landscape 3D game. A tight crop on a single character/frog with the world behind, wordmark at the bottom, works better than squeezing a wide scene. |
+| Library capsule 600 × 900 | Same portrait treatment as the vertical; they can share a source render. |
+| Library header 920 × 430 | Can reuse the store header. |
+| Library hero 3840 × 1240 | Ambient wide render, **no text at all**, key content inside the centre 860 × 380. A world-map or sea-and-sky render suits this better than a HUD-heavy scene. |
+| Library logo | Transparent wordmark export. Falls out of §5.1 for free. |
+
+### 5.4 Hide the HUD
+
+The single highest-leverage thing available without an illustrator: capture the
+3D scenes **with the DOM overlay hidden**. `SceneOverlay.tsx`, `LobbyOverlay.tsx`
+and the HUD cards are React components layered over the canvas — suppressing them
+for a capture yields a clean render of the actual 3D world, which composites into
+a capsule far better than a UI-covered screenshot, and neatly sidesteps the fact
+that the HUD is the least-finished part of the art (§2).
+
+Screenshots proper should still show the HUD — Valve wants real gameplay there.
+This applies to capsules only.
 
 ---
 
@@ -196,12 +241,11 @@ first thing to settle.
 Not final, and deliberately written to be argued with. The voice should be the
 game's, and the game does not have a stated voice yet (§3, decision 3).
 
-**Short description** (Valve shows ~300 chars, and it is the most-read text on
-the page):
+**Short description** (~300 chars, the most-read text on the page):
 
 > A turn-based multiplayer duel in a hand-drawn mythological world. Read your
 > opponent, commit to an action, and live with it. Fight other players for the
-> crown, or band together against Hades in the underworld.
+> crown, or band together against the underworld.
 
 **About This Game** (draft skeleton):
 
@@ -210,57 +254,50 @@ the page):
   no initiative to win and no stat check to hide behind — you are guessing what
   the other player is about to do, and they are guessing about you.
 - **Take the crown, or take the boss.** PvP lobbies run until one player is left
-  standing. Bossfight lobbies put everyone on the same side against Hades, and
-  everyone who survives walks away with a relic.
+  standing. Bossfight lobbies put everyone on the same side, and everyone who
+  survives walks away with a relic.
 - **A sky that is actually the sky.** The world map is driven by real planetary
   positions — conjunctions light the planets in each other's colours as they
   actually happen overhead.
-- **Drawn by hand.** Every frame of it.
 - **Bring people, or find them.** Share a lobby link, or fill the seats with bots.
 
-**Required disclosures** (not optional, and Valve enforces them):
+**Required disclosures** (Valve enforces these):
 
 - **Online-only.** The game cannot be played without the backend. Valve requires
-  disclosing that, and — per `MOBILE_AND_STEAM_PLAN.md` §10.4 — Steam reviews
-  punish an undisclosed server dependency brutally the first time the Hetzner box
-  hiccups. Say it plainly on the page rather than in the fine print.
+  disclosing it, and per `MOBILE_AND_STEAM_PLAN.md` §10.4, Steam reviews punish an
+  undisclosed server dependency brutally the first time the box hiccups. Say it
+  plainly on the page, not in the fine print.
 - **A third-party account is required.** WoM accounts are separate from Steam
-  accounts; Valve has a dedicated field for this and requires it to be filled in.
-- **Privacy policy.** Required, and currently 🔴 Not started
-  (`LEGAL_COMPLIANCE_PLAN.md` §2.1, `MOBILE_AND_STEAM_PLAN.md` §15 Phase 5).
-- **EULA.** Valve's default is offered; a custom one is optional.
-- **AI disclosure.** A store-page field. Answerable "no" today, and worth keeping
-  answerable "no" (§5).
+  accounts; Valve has a dedicated field for this.
+- **Privacy policy.** Required, currently 🔴 Not started
+  (`LEGAL_COMPLIANCE_PLAN.md` §2.1).
+- **EULA.** Valve's default is offered; custom is optional.
+- **AI disclosure.** A store-page field. Answerable "no" — and with §2's decision
+  to use in-game captures only, it stays answerable "no".
 
 ---
 
 ## 7. Ordering
 
-The first three items need no art, no shell, and no decisions from anyone else,
-and one of them starts a 30-day clock. They are the whole point of doing this now.
+The clock is running, so the ordering is now "what gets the page submitted
+soonest", not "what is most polished".
 
-1. **Answer §3.** Premium vs. F2P first; the rest follow from it.
-2. **Settle the wordmark** (§5). Everything visual is blocked on it.
-3. **Pay Steam Direct, start the 30-day clock, do the tax interview.** $100,
-   recoupable. Only worth doing once §3.1 is answered and Steam is actually
-   committed to — see the caution below.
-4. **Write the privacy policy** (`LEGAL_COMPLIANCE_PLAN.md` §2.1) — blocks the
-   store page, and mobile, and is a few hours of work.
-5. **Land `ART_STYLE_PLAN.md` §4** (modal frame + core icons + HUD) so the game
-   photographs as the game that will ship (§2).
-6. **Hades v4** (`ART_STYLE_PLAN.md` §3) — before he appears in any store asset.
-7. **Shoot screenshots** at 1920×1080 from the browser.
-8. **Draw the key art**, then cut the six capsule sizes from it (§4, §5).
-9. **Cut the trailer** — must read muted.
-10. **Submit the page for review**, 7 days before it should go live. Set Coming
-    Soon, and let the 2-week clock run alongside the Electron shell work
-    (`MOBILE_AND_STEAM_PLAN.md` §10.1).
-
-**Caution on step 3:** the fee is per-app and non-refundable (recoupable only
-against $1,000 of revenue). The 30-day clock is a strong argument for paying
-early, but it is only 30 days — and the art pass, the shell, and the legal pages
-in front of it are measured in more than that. Paying on day one buys nothing if
-step 5 takes two months. Pay it when the art pass is underway, not before.
+1. **Confirm the wordmark** (§5.1) — blocks all six capsules. Highest priority.
+2. **Answer §3.1 (premium vs F2P) and §3.3 (tagline)** — block the page's text.
+3. **Write the privacy policy** (`LEGAL_COMPLIANCE_PLAN.md` §2.1) — blocks the
+   page, and mobile, and is a few hours of work.
+4. **Build the capture harness** (§5.2) in `wom-e2e` — pays for itself given the
+   guaranteed reshoot.
+5. **Capture screenshots** (5+, HUD visible, no Hades) and **capsule source
+   renders** (HUD hidden, high resolution).
+6. **Composite the six capsules** (§5.3).
+7. **Cut the trailer** from captured gameplay — required, gameplay-first, must
+   read muted.
+8. **Complete the tax interview** (§3.6) if not already done as part of onboarding.
+9. **Submit the page for review**, allowing 7 days. Set Coming Soon and let the
+   2-week clock run alongside the Electron shell work.
+10. **After the art pass lands:** re-run the capture harness, replace screenshots
+    and capsules, add Hades once v4 exists.
 
 ---
 
@@ -268,16 +305,17 @@ step 5 takes two months. Pay it when the art pass is underway, not before.
 
 | Item | Status |
 |---|---|
-| Premium vs. F2P decision (§3.1) | Not started |
-| Tagline / positioning (§3.3) | Not started — `layout.tsx:19` is a placeholder |
-| Wordmark / logo confirmed original (§5) | Not started — `ART_STYLE_PLAN.md` §6.4 |
-| Steamworks partner account | Not started |
-| Steam Direct fee paid (starts 30-day clock) | Not started |
+| Steam Direct fee paid (30-day clock) | ✅ **Paid — clock running** (record exact date, §1) |
+| Steamworks partner account | Assumed done with the fee — confirm |
 | Tax interview / ENK position checked | Not started |
+| Art direction for store assets | ✅ **Decided — in-game captures, no custom art** |
+| Wordmark confirmed original + usable | 🔴 Not started — **blocks all capsules** (§5.1) |
+| Premium vs. F2P decision (§3.1) | Not started — blocks page |
+| Tagline / positioning (§3.3) | Not started — `layout.tsx:19` is a placeholder |
 | Privacy policy page | 🔴 Not started — `LEGAL_COMPLIANCE_PLAN.md` §2.1 |
-| Hades v4 (blocks key art) | Not started — `ART_STYLE_PLAN.md` §3 |
-| Art pass §4 landed (blocks screenshots) | Not started |
-| Key art illustration | Not started |
+| Capture harness in `wom-e2e` (§5.2) | Not started |
+| 5+ gameplay screenshots @1920×1080, Hades-free | Not started |
+| Capsule source renders (HUD hidden) | Not started |
 | Small capsule 462×174 | Not started |
 | Header capsule 920×430 | Not started |
 | Main capsule 1232×706 | Not started |
@@ -286,8 +324,9 @@ step 5 takes two months. Pay it when the art pass is underway, not before.
 | Library header 920×430 | Not started |
 | Library hero 3840×1240 | Not started |
 | Library logo (transparent) | Not started |
-| 5+ gameplay screenshots @1920×1080 | Not started |
-| Trailer | Not started |
+| App icon 184×184 | Not started |
+| Trailer (required) | Not started |
 | Store copy final | Draft only (§6) |
 | Online-only + third-party-account disclosures | Not started |
 | Page submitted for review | Not started |
+| Electron shell (blocks release, not the page) | Not started — `MOBILE_AND_STEAM_PLAN.md` §15 |
