@@ -163,37 +163,32 @@ export default function ArtifactLedger({
             return (
               <li
                 key={e.ordinal}
-                className={`rounded-lg px-3 py-2 border ${
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 border ${
                   isMine
                     ? 'bg-amber-500/15 border-amber-400/50'
                     : 'bg-white/5 border-white/10'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`shrink-0 tabular-nums text-sm font-bold ${
-                      e.ordinal === 1 ? 'text-amber-300' : 'text-white/50'
-                    }`}
-                    aria-label={`Artifact number ${e.ordinal}`}
-                  >
-                    #{e.ordinal}
-                  </span>
-                  <span className="flex-1 min-w-0 truncate text-sm font-semibold">
-                    {e.finder_name}
-                    {isMine && <span className="ml-2 text-xs text-amber-300">(you)</span>}
-                  </span>
-                  <span className="shrink-0 text-xs text-white/50 tabular-nums">
-                    {formatDate(e.discovered_at)}
-                  </span>
-                </div>
+                <span
+                  className={`shrink-0 tabular-nums text-sm font-bold ${
+                    e.ordinal === 1 ? 'text-amber-300' : 'text-white/50'
+                  }`}
+                  aria-label={`Artifact number ${e.ordinal}`}
+                >
+                  #{e.ordinal}
+                </span>
+                <span className="flex-1 min-w-0 truncate text-sm font-semibold">
+                  {e.finder_name}
+                  {isMine && <span className="ml-2 text-xs text-amber-300">(you)</span>}
+                </span>
 
                 {/* How long the world waited after the discovery above this
-                    one. Its own line, hard left, so the column of gaps reads
-                    down the list as a rhythm -- which is the interesting
-                    thing about it. #1 has nothing above it and gets none. */}
+                    one. Sits immediately left of the date, so the two time
+                    facts about a row read together. #1 has nothing above it
+                    and gets none. */}
                 {gap !== null && (
-                  <div
-                    className="mt-0.5 text-[11px] font-semibold tabular-nums"
+                  <span
+                    className="shrink-0 text-[11px] font-semibold tabular-nums"
                     style={{
                       color: '#6bff9e',
                       textShadow: '0 0 6px rgba(107, 255, 158, 0.55)',
@@ -201,8 +196,12 @@ export default function ArtifactLedger({
                     title="Time since the previous discovery"
                   >
                     + {formatDiscoveryGap(gap)}
-                  </div>
+                  </span>
                 )}
+
+                <span className="shrink-0 text-xs text-white/50 tabular-nums">
+                  {formatDate(e.discovered_at)}
+                </span>
               </li>
             );
           })}
