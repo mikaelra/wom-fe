@@ -401,7 +401,12 @@ export async function claimName(
 
 export async function confirmEmailVerification(
   token: string
-): Promise<{ success: boolean; purpose: 'claim_name' | 'claim_relic' | 'claim_wheel'; relic_name?: string | null }> {
+  // `purpose` is a plain string, not a union of the purposes this build
+  // knows: wom-be can add one (it added 'claim_artifact') and a caller that
+  // cannot name it should still be able to report success, since by this
+  // point the backend has already done the work. See
+  // ConfirmEmailVerificationResponseSchema.
+): Promise<{ success: boolean; purpose: string; relic_name?: string | null }> {
   try {
     const data = await request('/confirm_email_verification', ConfirmEmailVerificationResponseSchema, {
       body: { token },

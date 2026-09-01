@@ -674,6 +674,31 @@ describe('tradeUp', () => {
   });
 });
 
+describe('confirmEmailVerification', () => {
+  it('accepts a purpose this build does not know about', async () => {
+    // The schema used to pin `purpose` to a closed enum, which turned a new
+    // backend purpose into a hard failure of work the backend had already
+    // done. Kept loose on purpose.
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, purpose: 'claim_artifact', session_token: 'sess' }),
+    );
+
+    await expect(confirmEmailVerification('tok')).resolves.toMatchObject({
+      purpose: 'claim_artifact',
+    });
+  });
+
+  it('stores the session token the link returns', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, purpose: 'claim_artifact', session_token: 'sess-art' }),
+    );
+
+    await confirmEmailVerification('tok');
+
+    expect(getStoredAccountToken()).toBe('sess-art');
+  });
+});
+
 describe('getInventory (artifact fields)', () => {
   it('carries the equipped cosmetic and the caller\'s artifact through', async () => {
     fetchMock.mockResolvedValue(

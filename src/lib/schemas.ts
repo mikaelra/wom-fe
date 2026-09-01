@@ -127,7 +127,17 @@ export const ClaimPendingRelicResponseSchema = z.object({
 
 export const ConfirmEmailVerificationResponseSchema = z.object({
   success: z.boolean(),
-  purpose: z.enum(['claim_name', 'claim_relic', 'claim_wheel']),
+  // Deliberately not z.enum. This was pinned to
+  // ['claim_name', 'claim_relic', 'claim_wheel'] and the day wom-be added a
+  // fourth purpose ('claim_artifact') every verification link of that kind
+  // died on this line -- the backend had already verified the email, issued
+  // the session and granted the item, and the only thing that failed was
+  // this page's ability to describe it. A closed enum here turns "wom-be
+  // knows a word we don't" into a hard failure of work that already
+  // succeeded, which is exactly the deploy-independence problem the wire
+  // schema in types/game.ts documents. The page falls back to a generic
+  // confirmation for a purpose it does not recognise.
+  purpose: z.string(),
   relic_name: z.string().nullable().optional(),
   session_token: z.string().optional(),
 });
