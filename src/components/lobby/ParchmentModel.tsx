@@ -39,14 +39,13 @@ import { PARCHMENT, cosmeticModelUrl } from '@/lib/cosmetics';
 // the frog's height (which is ~1.14 at its own 0.6 scale) -- a carried
 // object rather than a second character.
 //
-// Offset keeps the scroll on the avatar's own axis rather than beside it, so
-// it overlaps the frog by design. Raised to 0.25 it spans roughly y 0.0 to
-// 0.5 -- from mid-body up past the head, which starts around 0.29 at the
-// frog's 0.6 scale. Nudge x outward if it should stand clear instead: the
-// frog's radius is ~0.22 here and ~0.53 at its widest (the haunches, well
-// below).
+// Offset keeps the scroll on the avatar's own axis rather than beside it.
+// At 0.4 it spans roughly y 0.15 to 0.65, so it clears the top of the frog
+// (~0.57 at the 0.6 scale) and reads as floating over the head rather than
+// carried at the side. Nudge x outward if it should stand clear of the body
+// instead: the frog's radius is ~0.53 at its widest, down at the haunches.
 const SCALE = 0.5;
-const OFFSET: [number, number, number] = [0, 0.25, 0];
+const OFFSET: [number, number, number] = [0, 0.4, 0];
 
 function ParchmentModelImpl({
   isDead = false,
