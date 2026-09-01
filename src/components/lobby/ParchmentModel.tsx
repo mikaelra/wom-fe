@@ -39,17 +39,18 @@ import { PARCHMENT, cosmeticModelUrl } from '@/lib/cosmetics';
 // the frog's height (which is ~1.14 at its own 0.6 scale) -- a carried
 // object rather than a second character.
 //
-// Offset puts the scroll on +z -- the same "in front of the player" axis the
-// deny prompt ([0, 0.1, 0.4]) and the equipped-coin cue ([0, -0.05, 0.55])
-// use, but further out at 1.0, so nothing intersects. Note they do line up
-// front-to-back: a player with a deny pending or Hades' Coin selected will
-// have all three on one line from the camera.
+// Offset puts the scroll just in front of the player's chest. At 0.3 it sits
+// inside the frog's own depth (~0.37 at the 0.6 scale), so it grazes the
+// body rather than standing clear -- intended, it reads as held rather than
+// hovering. It is also nearer than the deny prompt ([0, 0.1, 0.4]) and the
+// equipped-coin cue ([0, -0.05, 0.55]), so it renders in front of both when
+// either is showing.
 //
 // The offset is in the avatar group's space, which PlayerWithName rotates
 // with the player, so this stays put relative to them wherever they stand
 // in the ring.
 const SCALE = 0.5;
-const OFFSET: [number, number, number] = [0, 0, 1];
+const OFFSET: [number, number, number] = [0, 0, 0.3];
 
 function ParchmentModelImpl({
   isDead = false,
