@@ -24,17 +24,21 @@ export function isCosmetic(id: string | null | undefined): id is Cosmetic {
 }
 
 /**
- * Where a cosmetic's model lives, or null when it has no `.glb` and is drawn
- * procedurally instead (`components/lobby/ParchmentModel.tsx`).
+ * Where a cosmetic's model lives. Same role `SKIN_MODEL_URLS` plays in
+ * `frogSkins.ts` for Cherub -- one exception map rather than a filename
+ * convention every call site has to know.
  *
- * This is the swap point. Drop a real `/models/cosmetics/parchment_v1.glb`
- * in here and the renderer picks it up with no other change -- the same role
- * `SKIN_MODEL_URLS` plays in `frogSkins.ts` for Cherub. Keep the Draco
- * convention (`crown_hd_v1_draco.glb`) when that happens: `next build`
- * copies all of `public/` regardless of what imports it, and the frog skins
- * are already ~1 MB each.
+ * The Parchment's asset lives under `public/skins/items/`, where it was
+ * added (PR #329), not under `public/models/` with everything else. Left
+ * where the artist put it rather than moved: `next build` copies all of
+ * `public/` regardless, so relocating it would churn the asset for nothing.
+ *
+ * Returns null for a cosmetic with no model yet, which is a real state --
+ * `ParchmentModel` renders nothing rather than guessing a path.
  */
-const COSMETIC_MODEL_URLS: Record<string, string> = {};
+const COSMETIC_MODEL_URLS: Record<string, string> = {
+  [PARCHMENT]: '/skins/items/pergament_v1.glb',
+};
 
 export function cosmeticModelUrl(id: string): string | null {
   return COSMETIC_MODEL_URLS[id] ?? null;
@@ -56,8 +60,8 @@ export function cosmeticDescription(id: string): string {
   return COSMETIC_DESCRIPTIONS[id] ?? '';
 }
 
-/** Parchment colours, shared by the 3D model and its inventory card so the
- *  two read as the same object. */
+/** Parchment colours. The 3D model brings its own textures; these are for
+ *  2D chrome that has to sit beside it without clashing. */
 export const PARCHMENT_COLORS = {
   paper: '#e8dcc0',
   paperShade: '#cbbb95',

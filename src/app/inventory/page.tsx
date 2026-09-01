@@ -5,14 +5,13 @@ import Link from 'next/link';
 import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel, skinThumbnailUrl, skinUrl } from '@/lib/frogSkins';
-import { cosmeticDescription, cosmeticLabel } from '@/lib/cosmetics';
+import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import WheelSpinModal from '@/components/WheelSpinModal';
 import TradeUpModal from '@/components/TradeUpModal';
 import RelicCoin from '@/components/RelicCoin';
 import ArtifactLedgerModal from '@/components/ArtifactLedgerModal';
-import ParchmentCard from '@/components/ParchmentCard';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
@@ -162,6 +161,10 @@ export default function InventoryPage() {
     load();
     if (result.equipped_skin) setEquippedSkin(result.equipped_skin);
   };
+
+  // null when the cosmetic has no model yet; the card falls back to an
+  // emoji rather than mounting an empty canvas.
+  const parchmentUrl = artifact ? cosmeticModelUrl(artifact.cosmetic) : null;
 
   // Green is always owned implicitly -- no skin_items row needed for it
   // (docs/MONETIZATION_PLAN.md §3.1).
@@ -359,13 +362,27 @@ export default function InventoryPage() {
 
               {artifact ? (
                 <div className="flex flex-col sm:flex-row items-center gap-5">
+                  {/* The real model, not a drawing of it -- the card and the
+                      thing floating beside your frog in a lobby have to be
+                      the same object. A second WebGL context on this page
+                      (the equipped-skin preview is the first) is affordable
+                      because this only mounts for an account that actually
+                      owns an artifact, which is almost none of them. */}
                   <button
                     type="button"
                     onClick={() => setShowLedger(true)}
                     aria-label={`Artifact number ${artifact.ordinal}, open the discovery ledger`}
                     className="w-28 h-28 shrink-0 bg-transparent border-0 p-0 cursor-pointer"
                   >
-                    <ParchmentCard />
+                    {parchmentUrl ? (
+                      <SpinningModelViewer
+                        url={parchmentUrl}
+                        targetSize={1.8}
+                        spinSpeed={0.6}
+                      />
+                    ) : (
+                      <span className="text-5xl" aria-hidden>📜</span>
+                    )}
                   </button>
                   <div className="flex-1 text-center sm:text-left">
                     <p className="text-sm font-semibold">

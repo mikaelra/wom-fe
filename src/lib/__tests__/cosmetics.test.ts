@@ -30,14 +30,16 @@ describe('isCosmetic', () => {
 });
 
 describe('cosmeticModelUrl', () => {
-  it('returns null for the Parchment, which is drawn procedurally', () => {
-    // ParchmentModel renders geometry directly; this returning null is what
-    // tells a caller there is no .glb to load. Dropping a real asset into
-    // COSMETIC_MODEL_URLS is the only change needed to switch it over.
-    expect(cosmeticModelUrl(PARCHMENT)).toBeNull();
+  it('points at the pergament asset', () => {
+    // Lives under public/skins/items/ where it was added (wom-fe PR #329),
+    // not under public/models/ with everything else -- which is exactly why
+    // this map exists instead of a filename convention.
+    expect(cosmeticModelUrl(PARCHMENT)).toBe('/skins/items/pergament_v1.glb');
   });
 
   it('returns null for an unknown id rather than guessing a path', () => {
+    // A null here is a real state, not a failure: it means "no model yet",
+    // and ParchmentModel renders nothing rather than requesting a 404.
     expect(cosmeticModelUrl('nope_v1')).toBeNull();
   });
 });
@@ -67,9 +69,9 @@ describe('catalogue', () => {
     expect(COSMETICS).toContain(PARCHMENT);
   });
 
-  it('exposes colours shared by the 3D model and the inventory card', () => {
-    // The card and the model must read as one object; a divergence here is
-    // exactly the drift these constants exist to prevent.
+  it('exposes parchment colours for 2D chrome sitting beside the model', () => {
+    // The model brings its own textures; these are for anything 2D that has
+    // to sit next to it without clashing.
     for (const value of Object.values(PARCHMENT_COLORS)) {
       expect(value).toMatch(/^#[0-9a-f]{6}$/i);
     }

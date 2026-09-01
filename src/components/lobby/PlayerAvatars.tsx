@@ -449,9 +449,13 @@ export const PlayerWithName = memo(function PlayerWithName({
       {/* Equipped cosmetic. A sibling of the avatar, not a child of it, so
           it inherits this group's position/rotation and the click handling
           above without PlayerV1 needing to know cosmetics exist. Bots and
-          the boss never wear one -- the wire field is null for them. */}
+          the boss never wear one -- the wire field is null for them.
+          Its own Suspense: the model is ~6 MB and is not preloaded, so it
+          arrives well after the frog and must not hold the avatar back. */}
       {cosmetic === PARCHMENT && !isBoss && !isBot && (
-        <ParchmentModel isDead={isDead} isGhost={!!isSpectator} phase={position[0]} />
+        <Suspense fallback={null}>
+          <ParchmentModel isDead={isDead} isGhost={!!isSpectator} phase={position[0]} />
+        </Suspense>
       )}
 
       {/* Deny prompt -- a ghosted copy of the Well's deny reward model,
