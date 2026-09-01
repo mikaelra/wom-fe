@@ -193,8 +193,11 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
       {myPlayer?.artifact_awarded && (
         <p className="text-amber-300 font-semibold mb-2">
           📜 You discovered an artifact!{' '}
+          {/* Points at the inventory rather than naming the action: equipping
+              and unequipping both live there, so the link should promise the
+              place, not one of the two things you can do in it. */}
           <Link href="/inventory" className="underline hover:text-amber-200">
-            Equip your Parchment
+            Your Inventory
           </Link>
         </p>
       )}
