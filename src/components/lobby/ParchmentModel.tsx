@@ -46,16 +46,15 @@ import { PARCHMENT, cosmeticModelUrl } from '@/lib/cosmetics';
 // y = 0.21, with the belly bulging forward to z = 0.37 at that height.
 //
 // The scroll is 1.0 long in its own space, so SCALE 0.5 makes it 0.5 --
-// almost exactly the hand span -- once ROTATION lays it horizontal. OFFSET
-// sits it just clear of the belly.
+// almost exactly the hand span.
 //
-// ROTATION is [x, y, z] in radians. z = PI/2 turns the scroll from upright
-// to lying across the body; x tilts the outer edge away from the chest,
-// which is the "tilted outwards" part. Tune x first -- it is the only one
-// doing anything subtle.
+// ROTATION is [x, y, z] in radians. The scroll's long axis is its own Y, so
+// it stands upright at zero; x pitches its top away from the chest (the
+// "tilted outwards" part), and z would lay it flat across the body instead.
+// At PI/3 it leans back 60 degrees from vertical.
 const SCALE = 0.5;
-const OFFSET: [number, number, number] = [0, 0.21, 0.4];
-const ROTATION: [number, number, number] = [-0.3, 0, Math.PI / 2];
+const OFFSET: [number, number, number] = [0, 0.17, 0.2];
+const ROTATION: [number, number, number] = [Math.PI / 3, 0, 0];
 
 // PlayerV1 tips a dead player 90 degrees about its own origin and drops it
 // 0.5 on Y. A held object has to take the same transform or it detaches and
