@@ -44,8 +44,17 @@ export function cosmeticModelUrl(id: string): string | null {
   return COSMETIC_MODEL_URLS[id] ?? null;
 }
 
+// The number here is the item's own catalogue number -- this is the first
+// artifact in the game, so it is "Artifact #1" for everyone who owns one,
+// whether they found it first or four hundredth. It is NOT the finder's
+// discovery ordinal; that lives in the ledger, which is where being early
+// actually means something. A second artifact item would be "Artifact #2"
+// for all of its owners in turn.
+//
+// "Parchment" survives as the internal id and in the claim flow's prose,
+// not as the item's displayed name.
 const COSMETIC_LABELS: Record<string, string> = {
-  [PARCHMENT]: 'Parchment',
+  [PARCHMENT]: 'Artifact #1',
 };
 
 export function cosmeticLabel(id: string): string {
@@ -53,7 +62,7 @@ export function cosmeticLabel(id: string): string {
 }
 
 const COSMETIC_DESCRIPTIONS: Record<string, string> = {
-  [PARCHMENT]: 'Proof that you found an artifact. It cannot be bought, traded, or found twice.',
+  [PARCHMENT]: 'A piece of paper found in a well one time.',
 };
 
 export function cosmeticDescription(id: string): string {

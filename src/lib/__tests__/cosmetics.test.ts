@@ -45,8 +45,11 @@ describe('cosmeticModelUrl', () => {
 });
 
 describe('labels', () => {
-  it('names the Parchment', () => {
-    expect(cosmeticLabel(PARCHMENT)).toBe('Parchment');
+  it('names the item "Artifact #1" for every owner, not just the first finder', () => {
+    // The number is the item's catalogue number, not the finder's discovery
+    // ordinal -- the four hundredth finder owns "Artifact #1" too. Being
+    // early is recorded in the ledger, not in the item's name.
+    expect(cosmeticLabel(PARCHMENT)).toBe('Artifact #1');
   });
 
   it('falls back to the raw id for an unknown cosmetic', () => {
@@ -55,8 +58,8 @@ describe('labels', () => {
     expect(cosmeticLabel('mystery_v1')).toBe('mystery_v1');
   });
 
-  it('describes the Parchment as unbuyable and unrepeatable', () => {
-    expect(cosmeticDescription(PARCHMENT)).toMatch(/cannot be bought/i);
+  it('describes the Parchment', () => {
+    expect(cosmeticDescription(PARCHMENT)).toBe('A piece of paper found in a well one time.');
   });
 
   it('returns an empty description rather than undefined for unknowns', () => {

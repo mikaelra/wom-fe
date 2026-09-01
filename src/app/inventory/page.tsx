@@ -381,9 +381,11 @@ export default function InventoryPage() {
                     )}
                   </button>
                   <div className="flex-1 text-center sm:text-left">
+                    {/* The item's own name, catalogue number included. The
+                        finder's discovery ordinal is deliberately not shown
+                        here -- it belongs to the ledger, not to the item. */}
                     <p className="text-sm font-semibold">
                       {cosmeticLabel(artifact.cosmetic)}
-                      <span className="ml-2 text-amber-300 tabular-nums">#{artifact.ordinal}</span>
                     </p>
                     <p className="text-xs text-white/50 mt-1">
                       {cosmeticDescription(artifact.cosmetic)}
