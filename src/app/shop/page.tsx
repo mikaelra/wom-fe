@@ -243,6 +243,17 @@ export default function ShopPage() {
               </span>
             </label>
 
+            {/* Deliberately outside the agreement checkbox above: a privacy
+                policy informs, it isn't something a player consents to, and
+                bundling it into the same tick box muddies what was agreed. */}
+            <p className="text-xs text-white/40 -mt-4 mb-6">
+              How we handle your data:{' '}
+              <Link href="/privacy" target="_blank" className="text-amber-300 underline hover:text-amber-200">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+
             <div className="flex flex-col gap-6">
               {products.map((product) => (
                 <div
