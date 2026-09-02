@@ -215,32 +215,39 @@ export default function MarketPage() {
     <div className="min-h-screen w-full bg-[#0a0f1a] text-white flex flex-col">
       <RmtDisclaimerBanner text={catalog?.terms_text} />
 
-      <header className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Market</h1>
-          <p className="text-xs text-white/50">Item-for-item trades between players.</p>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          {token && (
-            <span className="text-white/60 text-xs">
-              🪙 {coinsAvailable} Hades&apos; Coin{coinsAvailable === 1 ? '' : 's'}
-            </span>
-          )}
-          {token && (
-            <Link
-              href="/inventory"
-              className="px-3 py-1.5 rounded-lg border border-white/20 text-sm no-underline hover:bg-white/10 transition-colors"
-            >
-              Inventory
-            </Link>
-          )}
+      <header className="px-4 py-3 border-b border-white/10 flex items-center justify-end gap-3 text-sm">
+        {token && (
+          <span className="text-white/60 text-xs">
+            🪙 {coinsAvailable} Hades&apos; Coin{coinsAvailable === 1 ? '' : 's'}
+          </span>
+        )}
+        {token && (
           <Link
-            href={CITY_PATH}
+            href="/inventory"
             className="px-3 py-1.5 rounded-lg border border-white/20 text-sm no-underline hover:bg-white/10 transition-colors"
           >
-            ← City
+            Inventory
           </Link>
-        </div>
+        )}
+        {/* Home + city, the same emoji pair the inventory/shop/stats headers
+            use. Kept as one inline group so justify-end can't split them. */}
+        <span className="inline-flex items-center gap-2">
+          <Link
+            href="/"
+            aria-label="Back to Home"
+            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+          >
+            🌍
+          </Link>
+          <Link
+            href={CITY_PATH}
+            aria-label="Go to the city"
+            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+          >
+            🏛️
+          </Link>
+        </span>
+        <h1 className="text-lg font-semibold">Market</h1>
       </header>
 
       {!token && (
