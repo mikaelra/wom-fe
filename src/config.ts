@@ -39,3 +39,16 @@ export const BUILD_NUMBER = process.env.NEXT_PUBLIC_BUILD_NUMBER || "0";
 // the backend can recognize and reject a client it no longer supports (see
 // lib/http.ts and lib/socket.ts) instead of failing in some less legible way.
 export const PROTOCOL_VERSION = 2;
+
+// --- Data controller identity (docs/LEGAL_COMPLIANCE_PLAN.md §2.1) ---
+
+// GDPR Art. 13(1)(a) requires the Privacy Policy to name the controller and
+// give contact details. "World of Mythos" is the trading name and is always
+// true, so it's a safe default; the registered entity name/org number and a
+// postal address are set per-deployment via env rather than hardcoded,
+// because they aren't known to the repo. LEGAL_ENTITY_ADDRESS is
+// deliberately empty by default -- the privacy page omits the line entirely
+// when it's unset rather than rendering a placeholder that reads as real.
+export const LEGAL_ENTITY_NAME =
+  process.env.NEXT_PUBLIC_LEGAL_ENTITY_NAME || "World of Mythos";
+export const LEGAL_ENTITY_ADDRESS = process.env.NEXT_PUBLIC_LEGAL_ENTITY_ADDRESS || "";
