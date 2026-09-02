@@ -715,7 +715,7 @@ recorded decision, not an oversight).
 | Marker colour / `swordColor` red-vs-blue | **function** — which city is the bossfight | text label on the row |
 | `WorldMapOverlay` (top bar, create/join lobby, code input) | **function** | **reused verbatim** — already DOM |
 | `Starfield`, `PlanetSprites`, `Sun/Moon/PlanetBody`, `AuraLayers`, `BodyAspect` | ambience | dropped |
-| `SkyLabels` gaze naming | **function** — identifies bodies | see §5.2's note; the sky is not part of the text world map |
+| `SkyLabels` gaze naming | ambience | **dropped — there is no sky in text mode** (§5.2) |
 | `GlobeCrackleEffect` | ambience — a bossfight is live | folded into the city row's caption instead |
 | `OrbitControls`, `CameraRig`, ranked zoom | ambience — camera | dropped (no camera) |
 | `CityLoadingScreen` curtain | ambience | dropped — text navigation is instant |
@@ -739,13 +739,36 @@ links. The layout is right; the handlers behind it are §1.7's left column.
 | `BuildingTarget` Temple / Senate / Market clicks | **function** — navigation | the same three rows |
 | `TempleTableau` — live bossfight roster as figures | **function** — who is fighting | roster names from `useBossfightRoster()`, with §7's text avatars |
 | `Temple`, `Senate`, `Market`, `Terrain`, `Mountain`, `Campfire` | ambience | dropped |
-| `CitySky`, `CityMoon`, day/night `nightness` | ambience | dropped (optionally one line: "night over Athens") |
-| `SkyLabels` gaze naming (`CITY_SCENE_PLAN.md` §7) | **function** — identifies bodies | **open, §11.1** — gaze has no text analogue; a static list contradicts §7's "no always-on legend". Recommendation: omit for v1 and record it. |
+| `CitySky`, `CityMoon`, day/night `nightness` | ambience | **dropped** |
+| `SkyLabels` gaze naming (`CITY_SCENE_PLAN.md` §7) | ambience | **dropped — settled** (see below) |
 | `CompassMarks` | ambience | dropped |
 | `?t=` sky override | ambience — a 3D tuning instrument | dropped; `astrology.ts`/`skyLocal.ts` must not be imported (§0.4) |
 | `OrbitControls` | ambience | dropped |
 | Back to Earth | **function** | a link |
 | `CityOverlay`, both `AuthGatePopup`s, `playMusic(CITY_MUSIC)` | **function** | reused as-is |
+
+**There is no sky in the text version.** Settled — this was the one city
+function with no obvious text counterpart, and it is now not a function at all.
+The sky, the moon, day/night, the compass marks and the gaze labels are all
+ambience and all dropped. Nothing renders what is overhead and nothing names it.
+
+That also settles a design tension rather than dodging it.
+`CITY_SCENE_PLAN.md` §7 is explicit that there is **no always-on legend** — a
+body is named only while it drifts near the centre of the view, so that
+"identification becomes an act of attention". A static list of what is overhead
+would have been the obvious text analogue and would have contradicted that
+decision directly. Dropping the sky honours it: the gaze mechanic stays
+exclusive to the scene it was designed for.
+
+Consequences, all of them simplifications:
+
+- `astrology.ts`, `skyLocal.ts`, `citySkyGeometry.ts`, `gazeFocus.ts`,
+  `milkyWay.ts` and `skyLabelText.ts` are never imported by text mode — which
+  §0.4 already required, since most of them pull in Three.js.
+- The `?t=` sky-time override (`CITY_SCENE_PLAN.md` §6.6) has nothing to act on
+  in text mode and is simply inert there. It keeps working in 3D mode.
+- `resolveCityTime()`/`formatAthensClock()` are only needed for the 3D branch of
+  `/city`, so the text branch does not call them.
 
 **The signpost is drawn, not listed.** "Text mode" does not mean the city has to
 degrade to a bulleted menu. The signpost is the city's navigation
@@ -1358,25 +1381,16 @@ Existing page tests render the 3D branch, so they need the mode mocked. Default
 
 ## 11. Open questions
 
-**11.1 — Does the city's gaze-naming have a text form?** (The drawn signpost of
-§5.2 does not settle this — that is the navigation; this is the sky.) `CITY_SCENE_PLAN.md` §7
-is explicit that there is *no always-on legend*: a body is named only while it
-drifts near the centre of the view, so that "identification becomes an act of
-attention". A static list of what is overhead is the obvious text analogue and
-is also exactly what that decision rejects. **Recommendation: omit for v1**,
-record it as the one city function with no text counterpart, and revisit with
-whoever owns that design.
-
-**11.2 — Does `SceneOverlay` take a `layout` flag cleanly, or does text mode get
+**11.1 — Does `SceneOverlay` take a `layout` flag cleanly, or does text mode get
 its own view component?** §4.2 flags this as an assumption. **Decide at step 4,
 on the code.**
 
-**11.3 — Is text mode in the native build?** `MOBILE_AND_STEAM_PLAN.md` §5.3's
+**11.2 — Is text mode in the native build?** `MOBILE_AND_STEAM_PLAN.md` §5.3's
 `output: "export"`. Nothing here obviously conflicts, but the branch is inside
 statically-exported pages and should be built and smoke-tested under
 `npm run build:native` before that is asserted.
 
-**11.4 — Does the market's socket room behave with no 3D city around it?**
+**11.3 — Does the market's socket room behave with no 3D city around it?**
 `/market` is already DOM, so this should be free — but `useMarketConnection`
 joins from a page the city normally hands you to, and text mode changes that
 path. Worth one deliberate check.
@@ -1387,7 +1401,8 @@ inventory thumbnail, locked decision 6 / §7.3. "How does the wheel reveal
 land?" — it does not need to; the wheel is kept as-is (§7.6). "What do
 cosmetics look like in game?" — the
 artifact is not shown in game yet. "How does rarity read without shimmer?" — a
-coloured border, in both modes, §7.4.*
+coloured border, in both modes, §7.4. "Does the city's gaze-naming have a text
+form?" — it needs none; there is no sky in the text version, §5.2.*
 
 ---
 
@@ -1403,7 +1418,7 @@ unverified assumption.
    point the setting is inert and provably persists.
 3. **`/vault` first** (§5.4). One conditional, smallest possible end-to-end
    proof that the seam works.
-4. **`SceneOverlay` layout flag** (§4.2 Tier 2) — resolve §11.2 here, in the
+4. **`SceneOverlay` layout flag** (§4.2 Tier 2) — resolve §11.1 here, in the
    code. If it fights back, fall back to a dedicated view and say so in this
    document.
 5. **`skinRarity()` + `skinBorderColor()` in `lib/frogSkins.ts`, and the
@@ -1437,7 +1452,7 @@ unverified assumption.
     `ErrorBoundary` button. No suggestions anywhere (locked decision 10).
 13. **Sweep** — music calls on every text route (§8.2), the §8.3 effect verdicts
     written down, guide suppressed (§8.4), `npm run build:native` smoke test
-    (§11.3), market check (§11.4), and a pass over borrowed copy for the
+    (§11.2), market check (§11.3), and a pass over borrowed copy for the
     `raid` → `bossfight`/`well` vocabulary (§1.4).
 
 Steps 1–3 are a day's work and de-risk the rest. Step 7 is where the real design
