@@ -353,7 +353,7 @@ introduce a parse-free path around it.
 | `name`, `hp`, `coins`, `attackDamage`, `alive`, `admin`, `spectator`, `idle_rounds`, `title`, `boss` | ✅ | ✅ | `title`/`boss` now explicitly nullable/required |
 | `messages` | ✅ | ❌ | never sent on `state_update` |
 | `submittedAction`, `submittedResource`, `target` | ✅ | ❌ | **removed by the backend's hidden-info fix** |
-| `bot`, `bot_type` | ❌ | ✅ | picks the bot's model — §7.4c |
+| `bot`, `bot_type` | ❌ | ✅ | picks the bot's model — §7.3's glyph map |
 | `lost_soul` | ❌ | ✅ | |
 | `skin`, `cosmetic` | ❌ | ✅ (optional) | **the whole basis of §7** |
 | `selected_relic_ids` | ❌ | ✅ (optional) | |
@@ -469,12 +469,17 @@ consumer — see §5.3.4.
    shop, the wheel reveal or the trade-up modal (§0.6). A **pre-rendered PNG of
    a model is not 3D rendering**; it is committed art, and it is how skins
    survive (§7.2).
-6. **Skins still read as skins.** A player's identity — their skin, its rarity,
-   their cosmetic — must remain visible to them and to other players in text
-   mode. The economy (wheel, trade-up, market, shop) sells these; a mode that
-   renders every player identically would quietly devalue everything anyone has
-   bought or won. **How** is the open wrinkle: §7 sets out what already exists,
-   what is missing, and a proposal.
+6. **Skins still read as skins, and the inventory thumbnail is how.** A
+   player's skin must remain visible to them and to other players in text mode
+   — the economy (wheel, trade-up, market, shop) sells these, and a mode that
+   rendered every player identically would quietly devalue everything anyone
+   has bought or won. Settled (§7.3): **the PNG already shown on the inventory
+   skin grid is the skin's representation in text mode**, everywhere a player
+   appears. Rainbow and bling are their thumbnails too — no gradient or
+   sparkle special-casing. **Bots, the boss, ghosts and lost souls get a glyph
+   vocabulary** rather than art. **The artifact cosmetic is not shown in game
+   yet** — `Player.cosmetic` goes unrendered in the text lobby and city, and
+   no cosmetic thumbnail is needed.
 7. **The setting is device-local**, in `localStorage`, following
    `lib/soundSettings.ts` exactly. Which renderer suits you depends on the
    machine you are on, not on who you are logged in as — the same reasoning
@@ -490,6 +495,13 @@ consumer — see §5.3.4.
 11. **Text mode must actually avoid downloading Three.js.** A "text mode" that
     still ships a 3.5 MB engine to a machine that cannot run it has missed the
     point. This is not free today — see §4.3.
+13. **The wheel is redesigned for text, not ported and not degraded.** The
+    spin is the moment the skin economy is actually sold, and the canvas
+    wheel's motion is hard-won and product-tuned. Text mode gets its own
+    design that does the same three jobs — show the odds, build anticipation,
+    reveal the result — without a wheel. §7.6. Note this is a *design*
+    decision, not a technical one: `WheelCanvas` is a 2D canvas and would run
+    fine in text mode (§7.6).
 12. **The three-scene shape survives** (`docs/CITY_SCENE_PLAN.md` §1): world map →
     city → lobby. Text mode renders the same three places and the same
     navigation, not a flattened menu. Locked decisions 3 and 4 of that plan
@@ -829,11 +841,12 @@ the whole scene is ambience.
 | Surface | 3D today | Text counterpart |
 |---|---|---|
 | Inventory equipped hero | `SpinningModelViewer` | §7.3 text avatar, large |
-| Inventory skin grid | already 2D (`skinThumbnailUrl` + `skinColor`) | **unchanged** |
+| Inventory skin grid | already 2D (`skinThumbnailUrl` + `skinColor`) | **unchanged — and it is now the model for everything else** |
+| Inventory Artifacts card | `SpinningModelViewer` (`cosmeticModelUrl`) | §7.5 — an ownership record, not an in-game avatar |
 | Inventory relic card | `RelicCoin` | relic name + icon |
 | Shop product | `SpinningModelViewer` | §7.3 text avatar |
-| Wheel spin animation | `WheelCanvas` (already 2D) | **unchanged** |
-| Wheel result reveal | `SpinningModelViewer` | §7.5 — the reveal still has to land |
+| Wheel spin animation | `WheelCanvas` (2D, not WebGL) | **replaced by the text wheel** (§7.6) |
+| Wheel result reveal | `SpinningModelViewer` | §7.6 |
 | Trade-up inputs/output | `SpinningModelViewer` ×3 | §7.3 text avatars |
 | Relic picker | `RelicCoin` | relic name + icon |
 
@@ -957,106 +970,193 @@ as art, not as geometry.** The frog you own is still visibly your frog; it has
 simply been photographed once, at build time, instead of being rebuilt on every
 viewer's GPU.
 
-### 7.3 Proposal: one `TextAvatar`
+### 7.3 `TextAvatar` — the inventory thumbnail, everywhere
 
-`src/components/text/TextAvatar.tsx` — the single skin-rendering primitive for
-text mode, used by the player list (§6), the city's temple roster (§5.2), the
-inventory hero, the shop, trade-up and the wheel reveal (§5.5).
+**Settled.** The PNG already shown on the inventory skin grid *is* the skin's
+representation in text mode — not a stand-in for one, not a placeholder until
+something better exists. `src/components/text/TextAvatar.tsx` is the single
+skin-rendering primitive, used by the player list (§6), the city's temple roster
+(§5.2), the inventory hero, the shop, trade-up and the wheel (§7.6).
 
 ```
-[ swatch ring in skinColor(skin) ]  ← rarity-weighted border
-[ <img src={skinThumbnailUrl(skin)}> ]  ← the frog, as art
-   Kari · Zonked Red · ✦ rare
-   Artifact #1                        ← cosmetic, when present
+[ <img src={skinThumbnailUrl(skin)}> ]   ← the skin, exactly as the inventory shows it
+   Kari · Zonked Red
 ```
 
-- Sizes: `sm` (list row), `md` (roster), `lg` (inventory/shop hero).
-- The `<img>` fails soft to the bare `skinColor` swatch — `SceneTopBar` and
-  `MarketItemChip` already layer exactly this way (swatch behind, image over),
-  so an unknown or unrendered skin degrades to a coloured chip rather than a
-  broken image.
-- `skinLabel()` names it; rarity comes from `COMMON_SKINS`/`RARE_SKINS`
-  membership, which is already ordered least→most rare.
+- Sizes: `sm` (list row), `md` (roster), `lg` (inventory/shop/wheel hero).
+- `skinLabel()` names it.
+- **`skinColor()` survives in exactly one role**: the background tint behind the
+  image, so a missing, still-loading or unrecognised skin degrades to a coloured
+  chip rather than a broken image. `SceneTopBar` and `MarketItemChip` already
+  layer precisely this way — swatch behind, thumbnail over — so this is the
+  established idiom, not a new one.
 
-This one component is what makes locked decision 6 true across every screen at
-once, and it is ~60 lines.
+**Rainbow and bling need no special case.** They are their thumbnails, like
+every other skin. The `skinSwatchStyle` gradient/sparkle helper an earlier draft
+proposed is **dropped**: the reason it existed was that a flat hex cannot look
+like a rainbow, and a photograph of the model does not have that problem.
+`WheelCanvas`'s own gradient and sparkle handling stays exactly where it is,
+serving the canvas wheel — which text mode does not use anyway (§7.6).
 
-### 7.4 The four gaps — the part that is genuinely not ironed out
+**Bots, the boss, ghosts and lost souls get glyphs, not thumbnails:**
 
-**a. Rainbow and bling cannot be a flat hex.** `frogSkins.ts` says so itself:
-`frog_rainbow_v2`'s `#e879f9` is a *"flat fallback only … a single hex can't
-actually look like a rainbow"*, and `frog_bling_v1`'s `#86efac` is a base that
-*"WheelCanvas layers many silver sparkle glints on top of"*. These are the two
-rarest-but-one skins — the ones most worth owning — so flattening them is
-exactly the wrong place to compromise.
-**Good news:** `WheelCanvas` already solves both **in 2D**, with a multi-hue
-horizontal gradient and drawn sparkles. **Proposal:** lift that into a shared
-`skinSwatchStyle(skin)` returning a CSS background (a `linear-gradient` for
-rainbow, a base + sparkle overlay for bling, a flat colour otherwise), consumed
-by `TextAvatar` and by `WheelCanvas`'s existing special-casing. One source of
-truth for "what does this skin look like as a flat shape".
+| Wire value | Glyph |
+|---|---|
+| `bot_type: 'TURTLE'` | 🐢 |
+| `bot_type: 'SHEEP'` | 🐑 |
+| `bot_type: 'OWL'` | 🦉 |
+| `bot_type: 'WOLF'` | 🐺 |
+| `boss: true` (Hades) | 💀 |
+| `lost_soul: true`, ghosts | 👻 |
 
-**b. Cosmetics have no 2D representation at all.** `lib/cosmetics.ts` exposes
-`cosmeticModelUrl()` (a `.glb`), `cosmeticLabel()` and `cosmeticDescription()` —
-there is no `cosmeticThumbnailUrl()`, and `public/skins/items/` holds only
-`pergament_v1.glb`. `Player.cosmetic` is on the wire, so other players' artifacts
-are visible in 3D and would silently vanish in text.
-**Options:** (i) extend `scripts/renderSkinThumbnails.mjs` to cover cosmetics and
-commit `artifact_v1.png` — most faithful, matches §7.2's rule, and there is
-exactly one cosmetic so the cost is one render; (ii) a text badge ("Artifact #1")
-using the existing `cosmeticLabel()`; (iii) both — badge now, thumbnail later.
-**Recommendation: (iii)**, since (ii) is free and unblocks the player list
-immediately.
+Cheap, needs no new assets, and degrades for an unrecognised `bot_type` the way
+`BOT_MODEL_URLS` already falls back to turtle. This is the one place text mode
+deliberately does not mirror 3D's art, and it is a decision rather than a gap.
 
-**c. Bots, the boss, ghosts and lost souls have no thumbnails.** The thumbnail
-set covers frog skins only. But the player list has to render `TURTLE`, `SHEEP`,
-`OWL` and `WOLF` bots (`Player.bot_type`, `BOT_MODEL_URLS` in `PlayerAvatars`),
-Hades (`Player.boss`), ghosts, and lost souls (`Player.lost_soul`) — all of
-which are `.glb`s with no PNG.
-**Options:** (i) render thumbnails for them too — same script, and `bot_type`
-already keys a model map, so the extension is mechanical; (ii) an emoji/glyph
-vocabulary (🐢 🐑 🦉 🐺 💀 👻), which is cheap, needs no assets, degrades
-gracefully for an unrecognised `bot_type` the way `BOT_MODEL_URLS` already falls
-back to turtle, and honestly suits a text mode.
-**Recommendation: (ii) for v1**, (i) if it looks thin in practice. Note this is
-the one place where text mode deliberately does *not* mirror 3D's art, and it
-should be a conscious choice rather than a gap.
+**The artifact cosmetic is not shown in game yet.** `Player.cosmetic` is on the
+wire and 3D renders it beside the avatar; text mode does not render it in the
+lobby or the city roster. No `cosmeticThumbnailUrl` is needed and
+`scripts/renderSkinThumbnails.mjs` needs no extension. `/inventory`'s own
+Artifacts section is a different thing — an ownership record, not an avatar —
+and is handled as a viewer in §7.5.
 
-**d. Rarity has to read without shimmer.** In 3D, rare skins announce themselves
-by looking expensive. A PNG on a list row does not. `RARE_SKINS` is ordered, so
-the data is there; the question is presentation — border weight, a `✦` count, a
-tier word next to `skinLabel()`. Unresolved, and worth a design pass rather than
-a guess, because this is what protects the perceived value of everything the
-wheel and the shop sell (`MONETIZATION_PLAN.md` §3.4/§8.3).
+**[correction, carried from §7.1]** Fix `frogSkins.ts`'s stale comment claiming
+no pre-rendered thumbnails exist. It is now not merely inaccurate but actively
+misleading: those thumbnails are the entire basis of this section.
+
+### 7.4 What is still open
+
+Only rarity presentation. The thumbnails carry a great deal — a gold frog looks
+like a gold frog — but a list row has none of the 3D shimmer, and `RARE_SKINS`
+is an ordered list whose ordering currently reaches the player only through how
+the model looks. Border weight, a `✦` count, or a tier word beside
+`skinLabel()` are the candidates. Worth a design pass rather than a guess,
+because this is what protects the perceived value of everything the wheel and
+the shop sell (`MONETIZATION_PLAN.md` §3.4/§8.3). Tracked at §11.2.
+
+Everything else in this section is settled: representation (§7.3), non-frog
+avatars (§7.3), cosmetics (§7.3), the wheel (§7.6).
 
 ### 7.5 The wardrobe viewers
 
-`SpinningModelViewer` gets a text-mode branch — but at the *component* level,
-not the page level (§4.1), so `/inventory`, `/shop`, `WheelSpinModal` and
-`TradeUpModal` need no branching of their own:
+`SpinningModelViewer` gets a text-mode branch at the *component* level, not the
+page level (§4.1), so `/inventory`, `/shop`, `WheelSpinModal` and `TradeUpModal`
+need no branching of their own:
 
 ```tsx
 // SpinningModelViewer.tsx
 if (useRenderMode() === 'text') return <TextAvatar … size="lg" />;
 ```
 
-Two wrinkles:
-
-- **The static import still costs the bundle.** Per §4.3, the branch must sit
+- **The static import still costs the bundle.** Per §4.3 the branch must sit
   behind a dynamic boundary, or `/inventory` and `/shop` keep shipping `three`
   to text-mode users. The cleanest shape is a thin `SkinViewer` that branches
   and only then `dynamic()`-imports the spinning 3D one.
-- **The wheel reveal is a product moment, not a preview.** The spin
-  (`WheelCanvas`) is already 2D and stays; it is the *result* that is a
-  spinning model. A static thumbnail is a flat ending to a paid moment.
-  Text mode should still give it a beat — the existing 2D reveal animation in
-  `WheelSpinModal` (it already cycles `NORMAL_WHEEL_SKINS` tiles with
-  `skinColor` before the result) is the right raw material. **Flagged, §11.2.**
+- **`RelicCoin`** takes the same treatment with the relic's own name and icon,
+  which unblocks `RelicSelectionPopover` and therefore §6's relic column.
+- **The inventory Artifacts card** also calls `SpinningModelViewer`, via
+  `cosmeticModelUrl()`. This is the one artifact surface text mode still has to
+  render something for — it is how an owner opens the discovery ledger. It is
+  not an in-game avatar, so §7.3's "not shown in game yet" does not cover it:
+  render the card with `cosmeticLabel()` / `cosmeticDescription()` text and keep
+  it clickable. No new art needed.
 
-`RelicCoin` takes the same treatment with the relic's own icon, which unblocks
-`RelicSelectionPopover` and therefore §6's relic column.
+### 7.6 The text wheel — a redesign, not a fallback
 
----
+**First, an honesty note that shapes the whole section.** `WheelCanvas` is a 2D
+canvas (`getContext('2d')`), not WebGL. It would run perfectly well in text
+mode, and only the *result viewer* beside it is 3D. So replacing the wheel is a
+**product decision** (locked decision 13), not a technical necessity — and that
+means the replacement has to be judged as a design, not excused as a fallback.
+
+#### What the physical wheel actually does
+
+Three jobs, and a text version needs all three:
+
+1. **Shows the odds** — slice area *is* probability (`oddsTable(kind)` →
+   `buildSlices`).
+2. **Builds anticipation** — it is already spinning when the modal opens and
+   keeps spinning for as long as you take to press Roll; Roll commits; then it
+   slows and lands.
+3. **Reveals the result**, then offers Equip.
+
+#### The tuning is hard-won — do not throw the lesson out with the geometry
+
+`useWheelAnimation.ts` records three rounds of product feedback in its constants:
+
+- Cruise speed was scaled down **three times** (`* 0.5 * 0.33 * 0.5`) because it
+  read as too fast.
+- There is deliberately **no speed jump when Roll commits** — *"tried a faster
+  'snap up at Roll' speed, product feedback was that the jump itself was the
+  problem."*
+- Forced landing revolutions were cut to a floor because the stop was taking
+  30–60s; it now lands in ~8–11s. The reasoning matters: *"the idle cruise
+  already runs for however long the player takes to press Roll, so the stop
+  itself doesn't need extra forced revolutions to sell 'this has been
+  spinning'."*
+
+The text wheel keeps all three lessons even though it keeps none of the physics.
+
+#### The design
+
+**Odds as a table, not an area.** `/wheel/tables` already returns
+`{ skin, weight, probability }` plus `odds_denominator`, and `oddsTable(kind)`
+computes the same client-side. Render it as rows — thumbnail · `skinLabel()` ·
+"1 in 6". The canvas encodes this in slice widths; text states it outright,
+which for odds is arguably the clearer medium. Same data either way.
+
+**Anticipation as a decelerating cycle.** One large `TextAvatar` cycling the
+wheel's own pool, driven by a phase machine mirroring the shape of
+`useWheelAnimation`'s (`spin-up → cruise → stopping → settle → result`):
+
+| Phase | Behaviour |
+|---|---|
+| `cruise` | steady ~120ms cycle from the moment the modal opens, running as long as the player takes to press Roll — same intent as the canvas idle cruise |
+| Roll | `spinWheel()` commits. **No change of pace on commit** — the recorded feedback above |
+| `stopping` | begins **only once the result is back**; the interval lengthens on an ease until it rests on the result |
+| `settle` → `result` | a beat, then the result state |
+
+Target the landing at ~4–6s rather than the canvas's 8–11: a cycling nameplate
+has less to look at than a spinning wheel, so the same duration reads as
+waiting rather than anticipation. Tune on feedback, not on this document.
+
+**🔴 Deceleration must not begin before the result is known.** The canvas wheel
+gets this right via `commitTarget`; a text version that starts easing on Roll
+would let the *timing itself* telegraph the outcome. The cycle stays at cruise
+pace until `spinWheel()` resolves, however long that takes.
+
+**Result state**: large `TextAvatar` + `skinLabel()` + Equip / Close, the same
+affordances the modal has today.
+
+**Accessibility is inherited, not invented.** `MONETIZATION_PLAN.md` §3.5.10
+already specifies it for the canvas wheel, and every line carries over:
+`prefers-reduced-motion` renders the result immediately with no cycling
+(`usePrefersReducedMotion` is already imported by the modal), the result is
+announced through an `aria-live="polite"` region, Roll is a real focusable
+`<button>`, and `Esc` closes once the result is in.
+
+**The grant is not the reveal.** §3.5.10 again: *"the player already owns the
+skin regardless of what renders."* `onSpun` fires when the server responds, not
+when the animation ends. Closing the modal mid-cycle must not lose the skin —
+keep that ordering exactly as it is.
+
+#### What text mode does not use, and what it still does
+
+Untouched, still serving 3D mode: `WheelCanvas`, `WheelFlapper`,
+`useWheelAnimation`, `wheelGeometry`'s slice building, `wheelPhysics` — roughly
+1,100 lines that text mode simply never imports.
+
+Still reused: `oddsTable()`, `wheelKindFromString()`, `wheelKindLabel()` (pure
+data, no canvas), `SpecialWheelEmblem` (inline SVG, Tier 1), and the modal's
+existing `spinWheel`/`equipSkin` calls, `rollingRef` double-fire guard and error
+states — none of which are rendering concerns.
+
+**A free win alongside.** The modal already has a canvas-unsupported fallback:
+a `skinColor` swatch strobing at a fixed 120ms with no odds, no deceleration and
+no result thumbnail. It is a degradation, not a design, and the text wheel
+supersedes it in text mode. Since the text wheel is strictly better and needs no
+canvas, **point the 3D mode's fallback at it too** — one implementation, and
+`prefers-reduced-motion` in 3D mode gets a better ending than a flat colour disc.
 
 ## 8. Things that will break quietly if not planned for
 
@@ -1160,9 +1260,14 @@ State it as hypotheses to verify (§12 step 10), not as claims:
   admin at `round === 0`; assert lost souls collapse to one row emitting the
   shared name; **assert another player's HP/coins/ATK render only under an
   active info reveal, and disappear after the stale round** (§6.1).
-- `src/components/text/__tests__/TextAvatar.test.tsx` — thumbnail URL, swatch
-  fallback, rarity treatment, rainbow/bling special cases (§7.4a), cosmetic
-  badge (§7.4b), bot/boss glyphs (§7.4c).
+- `src/components/text/__tests__/TextAvatar.test.tsx` — thumbnail URL, the
+  `skinColor` tint showing through when the image is missing, the bot/boss/
+  ghost glyph map including an unrecognised `bot_type`, and that
+  `Player.cosmetic` renders nothing in game (§7.3).
+- `src/components/text/__tests__/TextWheel.test.tsx` — the odds table matches
+  `oddsTable(kind)`; deceleration does not begin before `spinWheel()` resolves
+  (§7.6's timing leak); `prefers-reduced-motion` shows the result with no
+  cycling; the skin is kept when the modal is closed mid-cycle.
 - `src/components/text/__tests__/TextLobby.test.tsx` — phase transitions, and
   that the nudge components still render (§8.5).
 - A regression test that text mode passes `stageCombatDamage: false` (§8.1).
@@ -1192,31 +1297,29 @@ is also exactly what that decision rejects. **Recommendation: omit for v1**,
 record it as the one city function with no text counterpart, and revisit with
 whoever owns that design.
 
-**11.2 — How does the wheel reveal land in text?** §7.5. The spin is 2D already;
-the result is a spinning model. Needs a beat that still feels like a reward.
-`WheelSpinModal`'s existing 2D tile-cycling is the raw material. **Blocking for
-step 8.**
+**11.2 — Rarity presentation.** §7.4. Border weight, glyph count, tier word —
+needs a design pass, because it is what protects the perceived value of the skin
+economy. The only part of the skin question left open.
 
-**11.3 — Rarity presentation.** §7.4d. Border, glyph count, tier word — needs a
-design pass, because it is what protects the perceived value of the skin
-economy.
-
-**11.4 — Does `SceneOverlay` take a `layout` flag cleanly, or does text mode get
+**11.3 — Does `SceneOverlay` take a `layout` flag cleanly, or does text mode get
 its own view component?** §4.2 flags this as an assumption. **Decide at step 4,
 on the code.**
 
-**11.5 — Is text mode in the native build?** `MOBILE_AND_STEAM_PLAN.md` §5.3's
+**11.4 — Is text mode in the native build?** `MOBILE_AND_STEAM_PLAN.md` §5.3's
 `output: "export"`. Nothing here obviously conflicts, but the branch is inside
 statically-exported pages and should be built and smoke-tested under
 `npm run build:native` before that is asserted.
 
-**11.6 — Does the market's socket room behave with no 3D city around it?**
+**11.5 — Does the market's socket room behave with no 3D city around it?**
 `/market` is already DOM, so this should be free — but `useMarketConnection`
 joins from a page the city normally hands you to, and text mode changes that
 path. Worth one deliberate check.
 
-*(The earlier draft's "should low-end devices auto-suggest text mode?" is
-closed: no. It is locked decision 10.)*
+*Closed since the earlier drafts: "should low-end devices auto-suggest text
+mode?" — no, locked decision 10. "How do skins survive without models?" — the
+inventory thumbnail, locked decision 6 / §7.3. "How does the wheel reveal
+land?" — §7.6 is the design. "What do cosmetics look like in game?" — the
+artifact is not shown in game yet.*
 
 ---
 
@@ -1232,37 +1335,41 @@ unverified assumption.
    point the setting is inert and provably persists.
 3. **`/vault` first** (§5.4). One conditional, smallest possible end-to-end
    proof that the seam works.
-4. **`SceneOverlay` layout flag** (§4.2 Tier 2) — resolve §11.4 here, in the
+4. **`SceneOverlay` layout flag** (§4.2 Tier 2) — resolve §11.3 here, in the
    code. If it fights back, fall back to a dedicated view and say so in this
    document.
-5. **`TextAvatar` + `skinSwatchStyle`** (§7.3, §7.4a–c) — including the stale
-   comment fix in `frogSkins.ts` (§7.1) and the cosmetic badge. Everything
+5. **`TextAvatar`** (§7.3) — inventory thumbnail with the `skinColor` tint
+   behind it, plus the bot/boss/ghost glyph map. No cosmetic, no swatch-gradient
+   helper. Include the stale-comment fix in `frogSkins.ts` (§7.1). Everything
    downstream renders players, so this comes before they do.
 6. **`useInfoReveal` lifted out of `LobbyScene`** (§6.1) — shared by both
    renderers, so the fresh/stale/gone rule has one implementation.
 7. **`TextPlayerList`** (§6) — all controls, all guard rails, the info-reveal
    badge, full test suite. **The critical step.**
 8. **`SkinViewer` / `SpinningModelViewer` text branch + `RelicCoin`** (§7.5) —
-   unblocks `RelicSelectionPopover`, `WheelSpinModal`, `TradeUpModal`,
-   `/inventory`, `/shop`. Resolve §11.2 here.
-9. **`TextLobby`** (§5.3) — phases, combat log, resource cards, chat, nudges,
+   unblocks `RelicSelectionPopover`, `TradeUpModal`, `/inventory` (including its
+   Artifacts card) and `/shop`.
+9. **The text wheel** (§7.6) — odds table, decelerating cycle, the
+   result-before-deceleration guard, the §3.5.10 accessibility rules, and
+   repointing the 3D mode's own canvas-unsupported fallback at it.
+10. **`TextLobby`** (§5.3) — phases, combat log, resource cards, chat, nudges,
    `stageCombatDamage: false` (§8.1), `instakill` from `useGameEvents` (§8.6).
    Walk §5.3's table row by row and account for every one.
-10. **Text `/city`** (§5.2) and **text `/`** (§5.1) — same row-by-row audit
+11. **Text `/city`** (§5.2) and **text `/`** (§5.1) — same row-by-row audit
     against their tables.
-11. **The bundle refactor + proof** (§4.3) — push `<Canvas>` (and
+12. **The bundle refactor + proof** (§4.3) — push `<Canvas>` (and
     `CITY_CAMERA`/`CITY_FOV`, and `SpinningModelViewer`) down into dynamic
     chunks, carrying the `isolation: 'isolate'` comments with them; then
     *measure* that a text page load requests no `three` chunk, on a game page
     and on `/inventory`. Add the import-graph guard test (§10). Locked
     decisions 5 and 11 are not met until these numbers exist.
-12. **The escape hatches** (§3.4) — `SceneTopBar` menu entry and the
+13. **The escape hatches** (§3.4) — `SceneTopBar` menu entry and the
     `ErrorBoundary` button. No suggestions anywhere (locked decision 10).
-13. **Sweep** — music calls on every text route (§8.2), the §8.3 effect verdicts
+14. **Sweep** — music calls on every text route (§8.2), the §8.3 effect verdicts
     written down, guide suppressed (§8.4), `npm run build:native` smoke test
-    (§11.5), market check (§11.6), and a pass over borrowed copy for the
+    (§11.4), market check (§11.5), and a pass over borrowed copy for the
     `raid` → `bossfight`/`well` vocabulary (§1.4).
 
-Steps 1–3 are a day's work and de-risk the rest. Steps 5–8 are where the skin
-wrinkle actually gets ironed. Step 7 is where the real design happens. Step 11 is
-where the claim in the title gets earned.
+Steps 1–3 are a day's work and de-risk the rest. Step 7 is where the game's own
+design happens and step 9 is where the economy's does. Step 12 is where the
+claim in the title gets earned.
