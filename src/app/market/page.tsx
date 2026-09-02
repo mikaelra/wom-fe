@@ -245,6 +245,15 @@ export default function MarketPage() {
         </span>
         <div className="flex items-center gap-3">
           {token && (
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              className="px-3 py-1.5 rounded-lg border border-white/20 text-sm hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              History
+            </button>
+          )}
+          {token && (
             <Link
               href="/inventory"
               className="px-3 py-1.5 rounded-lg border border-white/20 text-sm no-underline hover:bg-white/10 transition-colors"
@@ -306,13 +315,16 @@ export default function MarketPage() {
             canChat={canChat}
             onSend={sendChat}
             onSlashCommand={(kind) => beginAction({ type: 'craft', kind })}
-            onOpenHistory={() => setHistoryOpen(true)}
           />
         </aside>
       </main>
 
-      {historyOpen && (
-        <MarketHistoryModal catalog={catalog} onClose={() => setHistoryOpen(false)} />
+      {historyOpen && token && (
+        <MarketHistoryModal
+          token={token}
+          catalog={catalog}
+          onClose={() => setHistoryOpen(false)}
+        />
       )}
 
       {gate && (

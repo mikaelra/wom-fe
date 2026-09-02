@@ -564,18 +564,16 @@ export async function getMarketListings(): Promise<{
   });
 }
 
-/** Completed-trade history, newest first -- the market chat's "History"
- *  button. Public read. Keyset-paginated: pass the previous page's
- *  `next_before` to fetch the page below it. */
+/** The caller's own completed trades, newest first -- the market's
+ *  History button. Session-gated. Keyset-paginated: pass the previous
+ *  page's `next_before` to fetch the page below it. */
 export async function getMarketTrades(
+  token: string,
   opts: { before?: number; limit?: number } = {},
 ): Promise<{ trades: MarketTrade[]; has_more: boolean; next_before: number | null }> {
-  const qs = new URLSearchParams();
-  if (opts.before != null) qs.set('before', String(opts.before));
-  if (opts.limit != null) qs.set('limit', String(opts.limit));
-  const suffix = qs.toString() ? `?${qs.toString()}` : '';
-  return request(`/market/trades${suffix}`, MarketTradesResponseSchema, {
-    defaultErrorMessage: 'Failed to load trade history.',
+  return request('/market/trades', MarketTradesResponseSchema, {
+    body: { token, ...(opts.before != null ? { before: opts.before } : {}), ...(opts.limit != null ? { limit: opts.limit } : {}) },
+    defaultErrorMessage: 'Failed to load your trade history.',
   });
 }
 

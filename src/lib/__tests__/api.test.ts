@@ -856,36 +856,37 @@ describe('getMarketTrades', () => {
         id: 5,
         listing_id: 50,
         kind: 'quick',
-        seller_name: 'Alice',
-        buyer_name: 'Bo',
+        role: 'seller',
+        counterparty_name: 'Bo',
         completed_at: '2026-09-02T12:00:00+00:00',
-        give: [{ item_type: 'skin', skin: 'frog_gold_v1', relic_id: null, wheel_kind: null, quantity: 1 }],
-        want: [],
+        gave: [{ item_type: 'skin', skin: 'frog_gold_v1', relic_id: null, wheel_kind: null, quantity: 1 }],
+        got: [],
       },
     ],
     has_more: true,
     next_before: 5,
   };
 
-  it('GETs /market/trades with no query on the first page', async () => {
+  it('POSTs the token to /market/trades with no cursor on the first page', async () => {
     fetchMock.mockResolvedValue(jsonResponse(page));
 
-    await expect(getMarketTrades()).resolves.toEqual(page);
+    await expect(getMarketTrades('sess-1')).resolves.toEqual(page);
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/market/trades`, {
-      method: 'GET',
-      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) },
-      body: undefined,
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'sess-1' }),
     });
   });
 
-  it('passes the keyset cursor through as ?before=', async () => {
+  it('passes the keyset cursor and limit in the body', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ trades: [], has_more: false, next_before: null }));
 
-    await getMarketTrades({ before: 5, limit: 10 });
+    await getMarketTrades('sess-1', { before: 5, limit: 10 });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      `${BACKEND_URL}/market/trades?before=5&limit=10`,
-      expect.objectContaining({ method: 'GET' }),
-    );
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/market/trades`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'sess-1', before: 5, limit: 10 }),
+    });
   });
 });

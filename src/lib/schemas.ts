@@ -405,19 +405,19 @@ export const MarketCatalogResponseSchema = z.object({
   terms_text: z.string(),
 });
 
-// GET /market/trades -- completed-swap history, newest first, keyset-
-// paginated on ?before=<id>. Backs the market chat's "History" button.
-// `give` is what the seller handed over, `want` what the buyer did --
-// same keys and POV the live board uses.
+// POST /market/trades -- the caller's OWN completed swaps, newest first,
+// keyset-paginated on `before`. Each row is told from the caller's side:
+// `role` ('seller' = they posted it, 'buyer' = they accepted it),
+// `counterparty_name`, and what they `gave` / `got`.
 export const MarketTradeSchema = z.object({
   id: z.number().int(),
   listing_id: z.number().int(),
   kind: z.enum(['quick', 'long']),
-  seller_name: z.string(),
-  buyer_name: z.string(),
+  role: z.enum(['seller', 'buyer']),
+  counterparty_name: z.string(),
   completed_at: z.string(),
-  give: z.array(MarketItemSchema),
-  want: z.array(MarketItemSchema),
+  gave: z.array(MarketItemSchema),
+  got: z.array(MarketItemSchema),
 });
 
 export const MarketTradesResponseSchema = z.object({

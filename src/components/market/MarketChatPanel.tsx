@@ -17,9 +17,9 @@ function formatClock(iso: string): string {
  * lobby chat, enforced server-side.
  *
  * Only the last hour shows here -- it's ambient "who's around" presence,
- * not a log. Older chatter, and every completed trade, is behind the
- * History button. The window is re-applied on a timer so a message sent
- * while the tab stayed open still drops off once it ages out.
+ * not a log. The window is re-applied on a timer so a message sent while
+ * the tab stayed open still drops off once it ages out. Your own past
+ * trades are behind the History button in the page header.
  *
  * The input doubles as the trade launcher: typing `/offer` or `/longoffer`
  * (alone, or as the whole message) opens the craft window instead of
@@ -30,13 +30,11 @@ export default function MarketChatPanel({
   canChat,
   onSend,
   onSlashCommand,
-  onOpenHistory,
 }: {
   messages: MarketChatEntry[];
   canChat: boolean;
   onSend: (message: string) => void;
   onSlashCommand: (cmd: 'quick' | 'long') => void;
-  onOpenHistory: () => void;
 }) {
   const [draft, setDraft] = useState('');
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -76,22 +74,14 @@ export default function MarketChatPanel({
 
   return (
     <div className="flex flex-col h-full rounded-xl bg-gray-900/80 border border-white/10 overflow-hidden">
-      <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-white/60">Market chat · last hour</span>
-        <button
-          type="button"
-          onClick={onOpenHistory}
-          className="px-2 py-1 rounded-md bg-white/10 hover:bg-white/20 text-[11px] font-semibold transition-colors cursor-pointer"
-        >
-          History
-        </button>
+      <div className="px-3 py-2 border-b border-white/10 text-xs font-semibold text-white/60">
+        Market chat · last hour
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-1 text-sm min-h-0">
         {visible.length === 0 && (
           <p className="text-xs text-white/40">
             Nothing in the last hour. Type <code className="text-white/60">/offer</code> or{' '}
-            <code className="text-white/60">/longoffer</code> to craft a trade, or open{' '}
-            <span className="text-white/60">History</span> for past trades.
+            <code className="text-white/60">/longoffer</code> to craft a trade.
           </p>
         )}
         {visible.map((m, i) => (

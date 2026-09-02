@@ -19,16 +19,9 @@ afterEach(() => {
 
 const noop = vi.fn();
 
-const renderPanel = (messages: MarketChatEntry[], over: Partial<Parameters<typeof MarketChatPanel>[0]> = {}) =>
+const renderPanel = (messages: MarketChatEntry[]) =>
   render(
-    <MarketChatPanel
-      messages={messages}
-      canChat
-      onSend={noop}
-      onSlashCommand={noop}
-      onOpenHistory={noop}
-      {...over}
-    />,
+    <MarketChatPanel messages={messages} canChat onSend={noop} onSlashCommand={noop} />,
   );
 
 describe('MarketChatPanel', () => {
@@ -51,16 +44,7 @@ describe('MarketChatPanel', () => {
     expect(screen.queryByText('about to expire')).not.toBeInTheDocument();
   });
 
-  it('the History button calls onOpenHistory', () => {
-    const onOpenHistory = vi.fn();
-    renderPanel([], { onOpenHistory });
-
-    screen.getByRole('button', { name: 'History' }).click();
-
-    expect(onOpenHistory).toHaveBeenCalledOnce();
-  });
-
-  it('an empty last hour still points at History and the slash commands', () => {
+  it('an empty last hour still points at the slash commands', () => {
     renderPanel([msg(120, 'old')]);
 
     expect(screen.getByText(/Nothing in the last hour/)).toBeInTheDocument();
