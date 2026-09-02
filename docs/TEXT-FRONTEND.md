@@ -497,13 +497,11 @@ consumer — see §5.3.4.
 11. **Text mode must actually avoid downloading Three.js.** A "text mode" that
     still ships a 3.5 MB engine to a machine that cannot run it has missed the
     point. This is not free today — see §4.3.
-13. **The wheel is redesigned for text, not ported and not degraded.** The
-    spin is the moment the skin economy is actually sold, and the canvas
-    wheel's motion is hard-won and product-tuned. Text mode gets its own
-    design that does the same three jobs — show the odds, build anticipation,
-    reveal the result — without a wheel. §7.6. Note this is a *design*
-    decision, not a technical one: `WheelCanvas` is a 2D canvas and would run
-    fine in text mode (§7.6).
+13. **The wheel is kept exactly as it is.** `WheelCanvas` is a 2D canvas, not
+    WebGL, so the whole spin — geometry, physics, flapper, motion blur, the
+    product-tuned timing — runs unchanged in text mode. Only the *result
+    viewer* beside it is 3D, and §7.5's generic `SpinningModelViewer` branch
+    already covers that. **No wheel-specific work.** §7.6.
 12. **The three-scene shape survives** (`docs/CITY_SCENE_PLAN.md` §1): world map →
     city → lobby. Text mode renders the same three places and the same
     navigation, not a flattened menu. Locked decisions 3 and 4 of that plan
@@ -847,8 +845,8 @@ the whole scene is ambience.
 | Inventory Artifacts card | `SpinningModelViewer` (`cosmeticModelUrl`) | §7.5 — an ownership record, not an in-game avatar |
 | Inventory relic card | `RelicCoin` | relic name + icon |
 | Shop product | `SpinningModelViewer` | §7.3 text avatar |
-| Wheel spin animation | `WheelCanvas` (2D, not WebGL) | **replaced by the text wheel** (§7.6) |
-| Wheel result reveal | `SpinningModelViewer` | §7.6 |
+| Wheel spin animation | `WheelCanvas` (2D, not WebGL) | **unchanged** (§7.6) |
+| Wheel result reveal | `SpinningModelViewer` | §7.5's generic branch — nothing wheel-specific |
 | Trade-up inputs/output | `SpinningModelViewer` ×3 | §7.3 text avatars |
 | Relic picker | `RelicCoin` | relic name + icon |
 
@@ -1130,102 +1128,53 @@ if (useRenderMode() === 'text') return <TextAvatar … size="lg" />;
   render the card with `cosmeticLabel()` / `cosmeticDescription()` text and keep
   it clickable. No new art needed.
 
-### 7.6 The text wheel — a redesign, not a fallback
+### 7.6 The wheel — kept as it is
 
-**First, an honesty note that shapes the whole section.** `WheelCanvas` is a 2D
-canvas (`getContext('2d')`), not WebGL. It would run perfectly well in text
-mode, and only the *result viewer* beside it is 3D. So replacing the wheel is a
-**product decision** (locked decision 13), not a technical necessity — and that
-means the replacement has to be judged as a design, not excused as a fallback.
+**Decided: no redesign.** An earlier draft proposed rebuilding the spin for text
+mode. That is dropped. The wheel stays exactly as it is, and the reasoning is
+the same fact that made the redesign optional in the first place:
 
-#### What the physical wheel actually does
+**`WheelCanvas` is a 2D canvas (`getContext('2d')`), not WebGL.** It needs no
+GPU, no `three`, no WebGL context. So the entire spin runs in text mode
+untouched — `WheelCanvas`, `WheelFlapper`, `useWheelAnimation`,
+`wheelGeometry`'s slice building, `wheelPhysics`, the motion-blur
+supersampling, and the timing constants that carry three rounds of recorded
+product feedback. None of it is a 3D dependency, and none of it changes.
 
-Three jobs, and a text version needs all three:
+That timing is worth not disturbing. `useWheelAnimation.ts` records cruise speed
+scaled down three times for reading too fast, a deliberate absence of any speed
+jump at Roll (*"tried a faster 'snap up at Roll' speed, product feedback was
+that the jump itself was the problem"*), and forced landing revolutions cut to a
+floor to bring the stop from 30–60s down to ~8–11s. Keeping the wheel keeps all
+of that for free.
 
-1. **Shows the odds** — slice area *is* probability (`oddsTable(kind)` →
-   `buildSlices`).
-2. **Builds anticipation** — it is already spinning when the modal opens and
-   keeps spinning for as long as you take to press Roll; Roll commits; then it
-   slows and lands.
-3. **Reveals the result**, then offers Equip.
+**The one thing that does change is not wheel-specific.** `WheelSpinModal`'s
+*result reveal* calls `SpinningModelViewer` (§0.6) to spin the won skin's
+`.glb` — the only 3D in the flow. §7.5 branches that component itself, so the
+modal needs no branch of its own and this section needs no implementation step:
+in text mode the reveal lands on the skin's thumbnail via `TextAvatar` instead
+of a spinning model, and everything around it — Roll, the odds encoded as slice
+area, the landing, Equip, Close — is identical to 3D mode.
 
-#### The tuning is hard-won — do not throw the lesson out with the geometry
+Left alone as a consequence:
 
-`useWheelAnimation.ts` records three rounds of product feedback in its constants:
+- The canvas-unsupported fallback (the cycling `skinColor` swatch) keeps its
+  current behaviour in both modes. The earlier draft's "free win" of repointing
+  it at a text wheel goes with the redesign.
+- `WheelCanvas`'s rainbow gradient and bling sparkle handling stays exactly
+  where it is and keeps serving the wheel's slices — consistent with §7.3,
+  which only says `TextAvatar` needs no such special-casing.
+- `SpecialWheelEmblem` is inline SVG and was already fine.
+- The wheel modal's own `getQualityTier()` and `usePrefersReducedMotion()` gates,
+  and `MONETIZATION_PLAN.md` §3.5.10's accessibility rules, all continue to
+  apply unchanged — they were never 3D-conditional.
 
-- Cruise speed was scaled down **three times** (`* 0.5 * 0.33 * 0.5`) because it
-  read as too fast.
-- There is deliberately **no speed jump when Roll commits** — *"tried a faster
-  'snap up at Roll' speed, product feedback was that the jump itself was the
-  problem."*
-- Forced landing revolutions were cut to a floor because the stop was taking
-  30–60s; it now lands in ~8–11s. The reasoning matters: *"the idle cruise
-  already runs for however long the player takes to press Roll, so the stop
-  itself doesn't need extra forced revolutions to sell 'this has been
-  spinning'."*
-
-The text wheel keeps all three lessons even though it keeps none of the physics.
-
-#### The design
-
-**Odds as a table, not an area.** `/wheel/tables` already returns
-`{ skin, weight, probability }` plus `odds_denominator`, and `oddsTable(kind)`
-computes the same client-side. Render it as rows — thumbnail · `skinLabel()` ·
-"1 in 6". The canvas encodes this in slice widths; text states it outright,
-which for odds is arguably the clearer medium. Same data either way.
-
-**Anticipation as a decelerating cycle.** One large `TextAvatar` cycling the
-wheel's own pool, driven by a phase machine mirroring the shape of
-`useWheelAnimation`'s (`spin-up → cruise → stopping → settle → result`):
-
-| Phase | Behaviour |
-|---|---|
-| `cruise` | steady ~120ms cycle from the moment the modal opens, running as long as the player takes to press Roll — same intent as the canvas idle cruise |
-| Roll | `spinWheel()` commits. **No change of pace on commit** — the recorded feedback above |
-| `stopping` | begins **only once the result is back**; the interval lengthens on an ease until it rests on the result |
-| `settle` → `result` | a beat, then the result state |
-
-Target the landing at ~4–6s rather than the canvas's 8–11: a cycling nameplate
-has less to look at than a spinning wheel, so the same duration reads as
-waiting rather than anticipation. Tune on feedback, not on this document.
-
-**🔴 Deceleration must not begin before the result is known.** The canvas wheel
-gets this right via `commitTarget`; a text version that starts easing on Roll
-would let the *timing itself* telegraph the outcome. The cycle stays at cruise
-pace until `spinWheel()` resolves, however long that takes.
-
-**Result state**: large `TextAvatar` + `skinLabel()` + Equip / Close, the same
-affordances the modal has today.
-
-**Accessibility is inherited, not invented.** `MONETIZATION_PLAN.md` §3.5.10
-already specifies it for the canvas wheel, and every line carries over:
-`prefers-reduced-motion` renders the result immediately with no cycling
-(`usePrefersReducedMotion` is already imported by the modal), the result is
-announced through an `aria-live="polite"` region, Roll is a real focusable
-`<button>`, and `Esc` closes once the result is in.
-
-**The grant is not the reveal.** §3.5.10 again: *"the player already owns the
-skin regardless of what renders."* `onSpun` fires when the server responds, not
-when the animation ends. Closing the modal mid-cycle must not lose the skin —
-keep that ordering exactly as it is.
-
-#### What text mode does not use, and what it still does
-
-Untouched, still serving 3D mode: `WheelCanvas`, `WheelFlapper`,
-`useWheelAnimation`, `wheelGeometry`'s slice building, `wheelPhysics` — roughly
-1,100 lines that text mode simply never imports.
-
-Still reused: `oddsTable()`, `wheelKindFromString()`, `wheelKindLabel()` (pure
-data, no canvas), `SpecialWheelEmblem` (inline SVG, Tier 1), and the modal's
-existing `spinWheel`/`equipSkin` calls, `rollingRef` double-fire guard and error
-states — none of which are rendering concerns.
-
-**A free win alongside.** The modal already has a canvas-unsupported fallback:
-a `skinColor` swatch strobing at a fixed 120ms with no odds, no deceleration and
-no result thumbnail. It is a degradation, not a design, and the text wheel
-supersedes it in text mode. Since the text wheel is strictly better and needs no
-canvas, **point the 3D mode's fallback at it too** — one implementation, and
-`prefers-reduced-motion` in 3D mode gets a better ending than a flat colour disc.
+**Accuracy note.** Because the wheel is kept, text mode *does* load
+`wheelGeometry`, `wheelPhysics`, `useWheelAnimation` and `WheelCanvas` —
+roughly 1,100 lines an earlier draft claimed text mode "never imports". They
+cost nothing that matters (no WebGL, no models, pure 2D canvas on a modal the
+player opened deliberately), but §9's bundle claims are about `three` and the
+`.glb` assets, not about this.
 
 ## 8. Things that will break quietly if not planned for
 
@@ -1337,10 +1286,11 @@ State it as hypotheses to verify (§12 step 10), not as claims:
   the tier in the `aria-label`, the bot/boss/ghost glyph map including an
   unrecognised `bot_type`, and that `Player.cosmetic` renders nothing in game
   (§7.3).
-- `src/components/text/__tests__/TextWheel.test.tsx` — the odds table matches
-  `oddsTable(kind)`; deceleration does not begin before `spinWheel()` resolves
-  (§7.6's timing leak); `prefers-reduced-motion` shows the result with no
-  cycling; the skin is kept when the modal is closed mid-cycle.
+- No wheel suite: the wheel is unchanged (§7.6). Its existing tests keep
+  covering it. The one text-mode assertion worth adding is that
+  `WheelSpinModal`'s result reveal renders the thumbnail rather than a
+  `<Canvas>` — which belongs with §7.5's `SkinViewer` branch, not with the
+  wheel.
 - `src/components/text/__tests__/TextLobby.test.tsx` — phase transitions, and
   that the nudge components still render (§8.5).
 - A regression test that text mode passes `stageCombatDamage: false` (§8.1).
@@ -1387,7 +1337,8 @@ path. Worth one deliberate check.
 *Closed since the earlier drafts: "should low-end devices auto-suggest text
 mode?" — no, locked decision 10. "How do skins survive without models?" — the
 inventory thumbnail, locked decision 6 / §7.3. "How does the wheel reveal
-land?" — §7.6 is the design. "What do cosmetics look like in game?" — the
+land?" — it does not need to; the wheel is kept as-is (§7.6). "What do
+cosmetics look like in game?" — the
 artifact is not shown in game yet. "How does rarity read without shimmer?" — a
 coloured border, in both modes, §7.4.*
 
@@ -1422,28 +1373,25 @@ unverified assumption.
    badge, full test suite. **The critical step.**
 8. **`SkinViewer` / `SpinningModelViewer` text branch + `RelicCoin`** (§7.5) —
    unblocks `RelicSelectionPopover`, `TradeUpModal`, `/inventory` (including its
-   Artifacts card) and `/shop`.
-9. **The text wheel** (§7.6) — odds table, decelerating cycle, the
-   result-before-deceleration guard, the §3.5.10 accessibility rules, and
-   repointing the 3D mode's own canvas-unsupported fallback at it.
-10. **`TextLobby`** (§5.3) — phases, combat log, resource cards, chat, nudges,
+   Artifacts card), `/shop`, and `WheelSpinModal`'s result reveal. The wheel
+   itself needs no step (§7.6).
+9. **`TextLobby`** (§5.3) — phases, combat log, resource cards, chat, nudges,
    `stageCombatDamage: false` (§8.1), `instakill` from `useGameEvents` (§8.6).
    Walk §5.3's table row by row and account for every one.
-11. **Text `/city`** (§5.2) and **text `/`** (§5.1) — same row-by-row audit
+10. **Text `/city`** (§5.2) and **text `/`** (§5.1) — same row-by-row audit
     against their tables.
-12. **The bundle refactor + proof** (§4.3) — push `<Canvas>` (and
+11. **The bundle refactor + proof** (§4.3) — push `<Canvas>` (and
     `CITY_CAMERA`/`CITY_FOV`, and `SpinningModelViewer`) down into dynamic
     chunks, carrying the `isolation: 'isolate'` comments with them; then
     *measure* that a text page load requests no `three` chunk, on a game page
     and on `/inventory`. Add the import-graph guard test (§10). Locked
     decisions 5 and 11 are not met until these numbers exist.
-13. **The escape hatches** (§3.4) — `SceneTopBar` menu entry and the
+12. **The escape hatches** (§3.4) — `SceneTopBar` menu entry and the
     `ErrorBoundary` button. No suggestions anywhere (locked decision 10).
-14. **Sweep** — music calls on every text route (§8.2), the §8.3 effect verdicts
+13. **Sweep** — music calls on every text route (§8.2), the §8.3 effect verdicts
     written down, guide suppressed (§8.4), `npm run build:native` smoke test
     (§11.3), market check (§11.4), and a pass over borrowed copy for the
     `raid` → `bossfight`/`well` vocabulary (§1.4).
 
-Steps 1–3 are a day's work and de-risk the rest. Step 7 is where the game's own
-design happens and step 9 is where the economy's does. Step 12 is where the
-claim in the title gets earned.
+Steps 1–3 are a day's work and de-risk the rest. Step 7 is where the real design
+happens. Step 11 is where the claim in the title gets earned.
