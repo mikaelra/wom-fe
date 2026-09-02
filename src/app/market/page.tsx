@@ -215,22 +215,9 @@ export default function MarketPage() {
     <div className="min-h-screen w-full bg-[#0a0f1a] text-white flex flex-col">
       <RmtDisclaimerBanner text={catalog?.terms_text} />
 
-      <header className="px-4 py-3 border-b border-white/10 flex items-center justify-end gap-3 text-sm">
-        {token && (
-          <span className="text-white/60 text-xs">
-            🪙 {coinsAvailable} Hades&apos; Coin{coinsAvailable === 1 ? '' : 's'}
-          </span>
-        )}
-        {token && (
-          <Link
-            href="/inventory"
-            className="px-3 py-1.5 rounded-lg border border-white/20 text-sm no-underline hover:bg-white/10 transition-colors"
-          >
-            Inventory
-          </Link>
-        )}
+      <header className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-3 text-sm">
         {/* Home + city, the same emoji pair the inventory/shop/stats headers
-            use. Kept as one inline group so justify-end can't split them. */}
+            use. Kept as one inline group so justify-between can't split them. */}
         <span className="inline-flex items-center gap-2">
           <Link
             href="/"
@@ -247,7 +234,22 @@ export default function MarketPage() {
             🏛️
           </Link>
         </span>
-        <h1 className="text-lg font-semibold">Market</h1>
+        <div className="flex items-center gap-3">
+          {token && (
+            <span className="text-white/60 text-xs">
+              🪙 {coinsAvailable} Hades&apos; Coin{coinsAvailable === 1 ? '' : 's'}
+            </span>
+          )}
+          {token && (
+            <Link
+              href="/inventory"
+              className="px-3 py-1.5 rounded-lg border border-white/20 text-sm no-underline hover:bg-white/10 transition-colors"
+            >
+              Inventory
+            </Link>
+          )}
+          <h1 className="text-lg font-semibold">Market</h1>
+        </div>
       </header>
 
       {!token && (
