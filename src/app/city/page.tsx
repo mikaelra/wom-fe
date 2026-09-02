@@ -15,6 +15,7 @@ import { useEnterRanked } from '@/lib/useEnterRanked';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useBossfightRoster } from '@/lib/useBossfightRoster';
 import { bossfightSignSublabel } from '@/lib/bossfightSign';
+import { playMusic, CITY_MUSIC } from '@/lib/music';
 
 const CityScene = dynamic(() => import('@/components/city/CityScene'), { ssr: false });
 
@@ -38,6 +39,14 @@ function CityPageContent() {
   // ?t= lets you look at a sky that is not the one currently overhead --
   // "02:00" is 2am Athens tonight (docs/CITY_SCENE_PLAN.md §6.6).
   const { date: skyDate, overridden: skyOverridden } = resolveCityTime(searchParams.get('t'));
+
+  // The city had no music call of its own -- WorldMapOverlay and
+  // LobbyOverlay were the only two screens that ever started a track -- so
+  // the toggle in the top bar was muting silence, and looked broken because
+  // it was working perfectly on nothing.
+  useEffect(() => {
+    playMusic(CITY_MUSIC);
+  }, []);
 
   // The loading curtain lifts on the scene's own signal, never on a timer --
   // except as a last resort, below.
