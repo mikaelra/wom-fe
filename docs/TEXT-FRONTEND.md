@@ -1,12 +1,15 @@
 # Text-Only Frontend Plan — World of Mythos Without the 3D
 
 Status: **plan only — nothing built** · Scope: `wom-fe` only (**no backend change, no
-protocol change, no `PROTOCOL_VERSION` bump**) · Written: 2026-09-02
+protocol change, no `PROTOCOL_VERSION` bump**) · Written: 2026-09-02 · Last
+updated: 2026-09-02
 
 Depends on / amends: `docs/CITY_SCENE_PLAN.md` (the three-scene shape this has to
 mirror in text), `docs/CODEBASE_HARDENING_PLAN.md` (the `lib/` split this plan is
 entirely parasitic on — see §0.4), `docs/MOBILE_AND_STEAM_PLAN.md` §5.3 (route
-shapes and `output: "export"`, which constrain §4.3).
+shapes and `output: "export"`, which constrain §4.3),
+`docs/MONETIZATION_PLAN.md` §3.4/§3.5/§8.3 (the skin and wheel economy §7 has to
+keep intact).
 
 Reference repository: **`tjuvpakk-frontend`** (`mikaelra/tjuvpakk-frontend`,
 `main` @ `48b4d1b`). This is the game's ancestor: a Vite + React SPA that rendered
@@ -25,16 +28,21 @@ Mythos "based on re-use of tjuvpakk-frontend".
 > to be the exact shape of the five controls this codebase has lost to 3D (§0.3,
 > §6).
 
+> **The bar.** This is not a fallback and not a degraded mode. **Every 3D scene
+> is replicated as a 2D text scene, and every function reachable in 3D is
+> reachable in text.** §5 is a scene-by-scene functional inventory built for
+> exactly that audit, and §2's locked decision 4 is the rule it enforces.
+
 ---
 
 ## 0. What exists today — read this first
 
-Five facts shape this plan. Two of them are much better news than expected, and
-one of them is the whole difficulty.
+Six facts shape this plan. Two are much better news than expected, two are the
+real work, and one is a correction to the obvious first impression.
 
-### 0.1 — Only four shipped routes mount a `<Canvas>`. Everything else is already text.
+### 0.1 — Only four shipped routes mount a scene `<Canvas>`.
 
-The app is far less 3D than it looks. Exhaustively, the routes that render WebGL:
+The app is less 3D than it looks. Exhaustively, the routes that mount a *scene*:
 
 | Route | Scene component | File |
 |---|---|---|
@@ -46,18 +54,18 @@ The app is far less 3D than it looks. Exhaustively, the routes that render WebGL
 (`/modelling` is a fifth, but `next.config.ts`'s `pageExtensions` trick keeps it
 out of every build — it is not a route that ships, and this plan ignores it.)
 
-Every other route is already plain DOM with no Three.js anywhere in its import
-graph: `/market`, `/shop` (+ `/cancel`, `/success`), `/inventory`, `/stats`,
-`/settings`, `/rules`, `/rules/[page]`, `/login`, `/signup`, `/terms`,
-`/privacy`, `/refunds`, `/forgot_username`, `/verify_email`, `/email_verified`,
-and the `/lobby/[lobbyId]` legacy redirect.
+Every other route is plain DOM as far as *scenes* go: `/market`, `/shop`,
+`/inventory`, `/stats`, `/settings`, `/rules`, `/rules/[page]`, `/login`,
+`/signup`, `/terms`, `/privacy`, `/refunds`, `/forgot_username`,
+`/verify_email`, `/email_verified`, and the `/lobby/[lobbyId]` redirect.
 
-**So "text-only mode" is a four-route problem, not an app-wide one.** Three of
-those four are load-bearing (`/`, `/city`, `/lobby`); `/vault` is a text page
-with a decorative scene behind it and is nearly free (§5.4).
+**But see §0.6** — "no scene" is not the same as "no WebGL", and the difference
+matters a great deal to this plan.
 
 `src/components/wheel/WheelCanvas.tsx` is a `<canvas>`, but a 2D one
-(`getContext('2d')`) — it is not 3D and stays exactly as it is in text mode.
+(`getContext('2d')`) — not 3D, and it stays exactly as it is in text mode. It is
+also, per §7.4, the codebase's best existing proof that a skin can be rendered
+convincingly without an engine.
 
 ### 0.2 — The game HUD is already a DOM component, and it already has a no-3D branch.
 
@@ -120,7 +128,7 @@ The code says why, in a comment worth quoting because it is also the fix:
 
 **That deleted 2D list is precisely what `tjuvpakk-frontend` still has.** Its
 `Lobby()` renders `state.players.map(...)` as an `<li>` per player carrying
-status glyphs and an inline ❌ kick. Rebuilding it — one list, five affordances
+status glyphs and an inline ❌ kick. Rebuilding it — one list, every affordance
 — is the spine of this plan (§6), and is the sharpest sense in which this is
 "re-use of tjuvpakk-frontend".
 
@@ -144,10 +152,12 @@ text mode:
   `wellWinner`.
 - `lib/gameEvents.ts`, `lib/useGameEvents.ts`, `lib/useRoundTimer.ts`,
   `lib/useCountdown.ts`, `lib/useBossfightCountdown.ts`,
+  `lib/useBossfightRoster.ts`, `lib/useCityPresence.ts`,
   `lib/useEnterBossfight.ts`, `lib/useEnterRanked.ts`, `lib/useRankedQueue.ts`,
   `lib/useAuthFlow.ts`, `lib/useMarketConnection.ts`, `lib/market.ts`,
-  `lib/sounds.ts`, `lib/music.ts`, `lib/soundSettings.ts`, `lib/cities.ts`,
-  `lib/lobbyErrors.ts`, `lib/tradeUps.ts`, `lib/cosmetics.ts`.
+  `lib/bossfightSign.ts`, `lib/sounds.ts`, `lib/music.ts`,
+  `lib/soundSettings.ts`, `lib/cities.ts`, `lib/lobbyErrors.ts`,
+  `lib/tradeUps.ts`, `lib/cosmetics.ts`, **`lib/frogSkins.ts`** (§7).
 
 `eligibleDenyTargets` is worth pausing on: `useLobbyGame` computes it, it is
 unit-tested, and **nothing currently renders it** — `LobbyScene` derives its own
@@ -169,6 +179,39 @@ objects next to Tailwind classes and Norwegian `console.error` strings.
 It is a genuinely useful reference for *what a screen of this game looks like as
 text*. It is a genuinely dangerous reference for *how to talk to the backend*.
 §1 is the itemised proof.
+
+### 0.6 — 🔴 A fifth 3D surface: the wardrobe viewers. This is where the frogs actually are.
+
+§0.1's table is about *scenes*. It is not the full WebGL inventory, and the
+difference is the single most load-bearing correction in this document.
+
+`src/components/SpinningModelViewer.tsx` mounts **its own `<Canvas>`** and
+`useGLTF`s a model. It is used on pages that otherwise look like plain DOM:
+
+| Surface | File | What it renders in 3D |
+|---|---|---|
+| Inventory hero | `app/inventory/page.tsx:295` | your equipped skin's `.glb` |
+| Inventory relic card | `app/inventory/page.tsx:236` | `RelicCoin` → coin `.glb` |
+| Shop product | `app/shop/page.tsx:311` | the product skin's `.glb` |
+| Wheel reveal | `WheelSpinModal.tsx:259` | the won skin's `.glb` |
+| Trade-up preview/result | `TradeUpModal.tsx:150, 205, 220` | input + output skins |
+| Relic picker | `RelicSelectionPopover.tsx:178` | `RelicCoin` → coin `.glb` |
+
+The existing test suites already know this — `app/inventory/__tests__/page.test.tsx`
+and `app/shop/__tests__/page.test.tsx` both carry a
+`vi.mock('@/components/SpinningModelViewer', …)` with the comment *"Real
+SpinningModelViewer renders a react-three-fiber `<Canvas>`, which needs a WebGL
+context jsdom can't provide"*.
+
+Two consequences:
+
+1. **`RelicSelectionPopover` is not a free "reuse as-is" component.** §4.2's
+   Tier 1 list must exclude it, and every component that reaches `RelicCoin`,
+   until §7.5 gives it a text-mode viewer.
+2. **"3D rendering of frogs shouldn't happen anywhere" lands squarely here.**
+   The lobby is not where most frog models are drawn — the wardrobe is.
+
+§7 is the section that deals with it.
 
 ---
 
@@ -310,9 +353,9 @@ introduce a parse-free path around it.
 | `name`, `hp`, `coins`, `attackDamage`, `alive`, `admin`, `spectator`, `idle_rounds`, `title`, `boss` | ✅ | ✅ | `title`/`boss` now explicitly nullable/required |
 | `messages` | ✅ | ❌ | never sent on `state_update` |
 | `submittedAction`, `submittedResource`, `target` | ✅ | ❌ | **removed by the backend's hidden-info fix** |
-| `bot`, `bot_type` | ❌ | ✅ | |
+| `bot`, `bot_type` | ❌ | ✅ | picks the bot's model — §7.4c |
 | `lost_soul` | ❌ | ✅ | |
-| `skin`, `cosmetic` | ❌ | ✅ (optional) | |
+| `skin`, `cosmetic` | ❌ | ✅ (optional) | **the whole basis of §7** |
 | `selected_relic_ids` | ❌ | ✅ (optional) | |
 | `wheel_awarded`, `artifact_awarded`, `pending_relic_nudge`, `pending_wheel_nudge`, `pending_artifact_nudge` | ❌ | ✅ | post-match claim flows |
 
@@ -329,7 +372,7 @@ A hardcoded name unlocking every other player's *submitted choices for the
 current round* — a god view over hidden information, gated on a string. The
 fields behind it were deliberately removed from the wire, and the pattern must
 not come back in any form. When copying that `<li>`, copy the glyph row and drop
-this block.
+this block. §6.1 sets out what text mode shows instead, and why.
 
 ### 1.7 Endpoint-by-endpoint
 
@@ -354,8 +397,9 @@ this block.
 
 ### 1.8 Whole subsystems with no `tjuvpakk` ancestor
 
-None of these existed. All are already pure DOM (§0.1) and so are **already
-"text mode"** — they need nothing but a check that no 3D chrome wraps them:
+None of these existed. All are already DOM-first (modulo §0.6's viewers) and so
+are **already most of the way to text mode** — they need the wardrobe treatment
+of §7.5 and a check that no 3D chrome wraps them:
 
 - **Market** — `/market/catalog`, `/listings`, `/trades`, `/enter`,
   `/accept_terms`, `/listings/{id}/accept`, `/listings/{id}/cancel`, plus a
@@ -374,7 +418,7 @@ None of these existed. All are already pure DOM (§0.1) and so are **already
   `/forgot_username`, `/check_claim_verified`.
 - **City ambience** — `watch_city_presence` → `city_presence`,
   `watch_bossfight` → `bossfight_roster`, `online_count`. These feed 3D signage
-  today; §5.2 reuses the data as text.
+  today; §5.2 reuses the same data as text.
 
 ### 1.9 `get_player_messages` — same URL, different contract
 
@@ -414,21 +458,43 @@ consumer — see §5.3.4.
    **player list with per-row affordances** (§0.3, §6). Its data layer is not
    ported (§1). Its Norwegian log strings, `alert()` error handling, inline
    `style={{}}` and god-view block (§1.6) are not ported either.
-4. **Text mode is a real mode, not a degraded one.** Every action available in
-   3D is available in text. A mode that cannot attack a player is not shippable.
-5. **The setting is device-local**, in `localStorage`, following
+4. **Full parity: every 3D scene is replicated in 2D text, and every function
+   reachable in 3D is reachable in text.** Not a subset, not a fallback. §5 is
+   the scene-by-scene inventory that makes this auditable rather than
+   aspirational, and no step is done until its scene's inventory is fully
+   accounted for — each row either implemented, or explicitly recorded as
+   ambience with no function attached.
+5. **No 3D rendering of frogs anywhere in text mode.** No `<Canvas>`, no
+   `useGLTF`, no runtime WebGL — in the lobby, the city, the inventory, the
+   shop, the wheel reveal or the trade-up modal (§0.6). A **pre-rendered PNG of
+   a model is not 3D rendering**; it is committed art, and it is how skins
+   survive (§7.2).
+6. **Skins still read as skins.** A player's identity — their skin, its rarity,
+   their cosmetic — must remain visible to them and to other players in text
+   mode. The economy (wheel, trade-up, market, shop) sells these; a mode that
+   renders every player identically would quietly devalue everything anyone has
+   bought or won. **How** is the open wrinkle: §7 sets out what already exists,
+   what is missing, and a proposal.
+7. **The setting is device-local**, in `localStorage`, following
    `lib/soundSettings.ts` exactly. Which renderer suits you depends on the
    machine you are on, not on who you are logged in as — the same reasoning
    already written down for audio.
-6. **Default stays 3D.** Text mode is opt-in.
-7. **Text mode must actually avoid downloading Three.js.** A "text mode" that
-   still ships a 3.5 MB engine to a machine that cannot run it has missed the
-   point. This is not free today — see §4.3.
-8. **The three-scene shape survives** (`docs/CITY_SCENE_PLAN.md` §1): world map →
-   city → lobby. Text mode renders the same three places and the same
-   navigation, not a flattened menu. Locked decisions 3 and 4 of that plan
-   (lobby controls on the world map; Rules and the user menu in a continuous
-   top bar) hold in text too.
+8. **Default stays 3D.** Text mode is opt-in.
+9. **The toggle lives in `/settings`.** That is its canonical, discoverable
+   home, alongside `AudioSettingsPanel` (§3.4).
+10. **No auto-suggestion. No nudge, no prompt, no "we noticed your device is
+    slow" banner** — not from `deviceQuality.isLowQuality()`, not from a
+    dropped-frame heuristic, not from anything. The setting is discovered in
+    Settings, and the only other places it appears are *recovery* affordances,
+    never *suggestions* (§3.4).
+11. **Text mode must actually avoid downloading Three.js.** A "text mode" that
+    still ships a 3.5 MB engine to a machine that cannot run it has missed the
+    point. This is not free today — see §4.3.
+12. **The three-scene shape survives** (`docs/CITY_SCENE_PLAN.md` §1): world map →
+    city → lobby. Text mode renders the same three places and the same
+    navigation, not a flattened menu. Locked decisions 3 and 4 of that plan
+    (lobby controls on the world map; Rules and the user menu in a continuous
+    top bar) hold in text too.
 
 ---
 
@@ -458,6 +524,9 @@ for support ("open this link and tell me if it loads") and for E2E, and it is
 worth having before the first bug report from a machine nobody on the team owns.
 Unparseable values fall back to the stored preference rather than erroring.
 
+This is not a suggestion mechanism and does not violate locked decision 10 — it
+writes nothing and is never surfaced to a player who did not ask for it.
+
 ### 3.3 The hydration hazard — call it out now
 
 `localStorage` read during render ⇒ server HTML and first client render
@@ -482,22 +551,26 @@ the stored value, and every route branching on it must tolerate one frame of
 
 ### 3.4 Where the toggle lives
 
-Three surfaces, one setting:
+**One toggle, in Settings** (locked decision 9). A new **Display** block in
+`src/app/settings/page.tsx`, beside the existing `AudioSettingsPanel`, with a
+sentence of copy saying what it does: turns off 3D rendering; the game plays
+exactly the same; helps on low-end machines and slow connections; takes effect
+on reload (§4.4).
 
-1. **`/settings`** — the canonical home, in a new "Display" block beside
-   `AudioSettingsPanel`, with a sentence of copy saying what it does (turns off
-   3D rendering; the game plays the same; helps on low-end machines and slow
-   connections; takes effect on reload — see §4.4).
-2. **The user menu in `SceneTopBar`** — a one-tap escape hatch. Somebody whose
-   GPU is choking needs to leave 3D from the screen that is choking, not
-   navigate three pages through it. This is the same top bar the world map and
-   city share (`CITY_SCENE_PLAN.md` locked decision 4), so one edit covers both.
-3. **The `ErrorBoundary` fallback** — if a WebGL scene has just crashed, "switch
-   to text mode" is the single most useful button that can be on that screen.
-   `src/components/ErrorBoundary.tsx` already exists and is already DOM.
+Two other places may *change* the setting, and neither is a suggestion:
 
-**[open question — §10.1]** Whether the toggle should also auto-suggest itself
-when `lib/deviceQuality.ts`'s `isLowQuality()` is true.
+- **The user menu in `SceneTopBar`** — an escape hatch. Somebody whose GPU is
+  choking needs to be able to leave 3D from the screen that is choking, not
+  navigate three pages through it. This is the same top bar the world map and
+  city share (`CITY_SCENE_PLAN.md` locked decision 4), so one edit covers both.
+- **The `ErrorBoundary` fallback** — if a WebGL scene has just crashed, "switch
+  to text mode" is the single most useful button that can be on that screen.
+  `src/components/ErrorBoundary.tsx` already exists and is already DOM.
+
+Both are reached only after the player has hit a problem and gone looking. Per
+locked decision 10, **nothing proposes text mode to anyone unprompted** — in
+particular `lib/deviceQuality.ts`'s `isLowQuality()` keeps doing only what it
+does today (lowering 3D quality) and is never wired to a banner or a modal.
 
 ---
 
@@ -511,8 +584,7 @@ src/lib/useRenderMode.ts     # hook: mounted-gated, honours ?text= (§3.2–3.3)
 src/components/text/         # the text render layer (new)
 ```
 
-Each of the four 3D routes becomes a two-line branch at the top of its
-component:
+Each 3D route becomes a two-line branch at the top of its component:
 
 ```tsx
 const mode = useRenderMode();
@@ -526,20 +598,28 @@ are shared and must not be duplicated; and `output: "export"` (§4.3 /
 `MOBILE_AND_STEAM_PLAN.md` §5.3) makes a parallel `/text/...` route tree a
 second set of statically-exported pages to keep in sync forever.
 
+For the §0.6 wardrobe viewers the seam is different and smaller: those are one
+component deep inside otherwise-shared pages, so the branch goes **inside the
+viewer** (§7.5), not at the page.
+
 ### 4.2 What the text layer is made of
 
 Three tiers, cheapest first:
 
-**Tier 1 — reuse as-is.** Components that are already DOM and already
-mode-agnostic: `ResourceCard`, `Toast`, `RulesModal`, `StartGameButton`,
-`RelicSelectionPopover`, `RelicCooldownOverlay`, `BossSignupNudge`,
-`WheelClaimNudge`, `ArtifactClaimNudge`, `ArtifactLedger`, `AuthGatePopup`,
-`MarketBoard`, `WheelSpinModal`, `TradeUpModal`, `RankBadge`,
-`MusicToggleButton`, `SfxToggleButton`, `ErrorBoundary`.
+**Tier 1 — reuse as-is.** Already DOM, no WebGL anywhere in their import graph:
+`ResourceCard`, `Toast`, `RulesModal`, `StartGameButton`,
+`RelicCooldownOverlay`, `BossSignupNudge`, `WheelClaimNudge`,
+`ArtifactClaimNudge`, `ArtifactLedger`, `AuthGatePopup`, `MarketBoard`,
+`MarketItemChip`, `MarketChatPanel`, `RankBadge`, `WheelCanvas`,
+`SpecialWheelEmblem`, `MusicToggleButton`, `SfxToggleButton`, `ErrorBoundary`.
+
+**⚠ Not Tier 1**, contrary to first appearances (§0.6): `RelicSelectionPopover`
+(→ `RelicCoin` → `<Canvas>`), `WheelSpinModal` and `TradeUpModal` (→
+`SpinningModelViewer`). These are Tier 3 until §7.5 lands.
 
 **Tier 2 — reuse behind a config flag.** `SceneOverlay` with
 `hidePlayerActionButtons: false`, `suppressEnemyPanel: false`,
-`stageCombatDamage: false` (§7.1), plus a new `layout: 'scene' | 'document'`
+`stageCombatDamage: false` (§8.1), plus a new `layout: 'scene' | 'document'`
 config field. `'document'` is the fix for §0.2's caveat: it swaps the
 percentage-positioned absolute wrappers for ordinary flow layout and the
 `ActionImageButton` PNGs for text buttons, without touching any of the 900 lines
@@ -549,12 +629,12 @@ owns these") is a different question from "how are they laid out".
 
 **[assumption, flagged]** That `layout` cleaves cleanly. `SceneOverlay` is 976
 lines and the positioning is scattered through the JSX rather than centralised.
-If it turns out to fight back, the fallback is a `TextGameView` that consumes the
-same hooks directly and leaves `SceneOverlay` untouched — more duplication, less
-risk. Decide at step 4 of §11, on the code, not now.
+If it fights back, the fallback is a `TextGameView` that consumes the same hooks
+directly and leaves `SceneOverlay` untouched — more duplication, less risk.
+Decide at step 4 of §12, on the code, not now.
 
-**Tier 3 — build new.** The five lost controls, as one component (§6), plus the
-text city and text world map (§5.1–5.2).
+**Tier 3 — build new.** The lost controls (§6), the text avatar and skin viewer
+(§7), the text city and text world map (§5.1–5.2).
 
 ### 4.3 Actually shedding the bundle — a real refactor, not a flag
 
@@ -568,9 +648,11 @@ import { Canvas } from '@react-three/fiber';
 The *scenes* are `dynamic(..., { ssr:false })` and so are split out — but the
 static `Canvas` import pulls `@react-three/fiber` (and transitively `three`)
 into each route's own chunk. **A text-mode branch below that import saves
-nothing.** Locked decision 7 therefore requires a mechanical refactor: push
+nothing.** Locked decision 11 therefore requires a mechanical refactor: push
 `<Canvas>` down inside each dynamically-imported scene wrapper so that
-`@react-three/fiber` appears only in the lazily-loaded chunk.
+`@react-three/fiber` appears only in the lazily-loaded chunk. The same applies
+to `SpinningModelViewer`, which is statically imported by `/inventory`, `/shop`,
+`WheelSpinModal`, `TradeUpModal` and `RelicCoin` (§7.5).
 
 Care needed, because the `<Canvas>` props are load-bearing and documented:
 
@@ -582,15 +664,14 @@ Care needed, because the `<Canvas>` props are load-bearing and documented:
   stacking context on the container those escape into the root context and
   strike through the user menu. Same on `/`. This must move with the `Canvas`,
   and the comments explaining it must move with it.
-- `BASE_FOV`, `CITY_CAMERA`, `CITY_FOV` are imported from modules that
-  themselves import Three (`sceneConstants.ts` is clean; `CityScene.tsx` is not
-  — `/city` imports `CITY_CAMERA`/`CITY_FOV` **from `CityScene.tsx` itself**,
-  which is a second static edge into the engine and must move too).
+- `BASE_FOV` comes from `sceneConstants.ts` (clean), but `/city` imports
+  `CITY_CAMERA`/`CITY_FOV` **from `CityScene.tsx` itself** — a second static
+  edge into the engine that must move too.
 
-**Verify, don't assume.** Step 9 of §11 is an actual bundle check
+**Verify, don't assume.** Step 10 of §12 is an actual bundle check
 (`next build` output, or `@next/bundle-analyzer`) proving no `three` chunk is
-requested on a text-mode page load. Without that check this decision is a
-wish.
+requested on a text-mode page load, on a game page *and* on `/inventory`.
+Without that check this decision is a wish.
 
 ### 4.4 Reload semantics
 
@@ -606,61 +687,93 @@ Say so in the toggle's copy.
 
 ---
 
-## 5. Route by route
+## 5. Scene-by-scene parity
 
-### 5.1 `/` — the world map as text
+Locked decision 4 is the bar: **every 3D scene replicated, every function
+carried over.** These tables are the audit. Each row is either a *function* (must
+have a text counterpart) or *ambience* (may be dropped, but the drop is a
+recorded decision, not an oversight).
 
-3D today: a globe with clickable city markers; `WorldMapOverlay` (already DOM)
-carries the top bar and the create/join lobby controls.
+### 5.1 `/` — the world map
 
-Text: keep `WorldMapOverlay` verbatim, replace the globe with a list of places
-from `lib/cities.ts` (`CITIES`, `findCity`, `CITY_PATH`), one row per city with
-its `actionLabel`/`name`. The marker's data-driven design
-(`CITY_SCENE_PLAN.md` §4.2 — no `city.name === 'Athens'` checks) means the list
-is a `.map()` over the same source, and `handleCityClick`'s vault/rules/city
-branching is reused unchanged.
+| 3D element | Kind | Text counterpart |
+|---|---|---|
+| `Globe` + Earth textures | ambience | dropped (a place list needs no globe) |
+| `CityMarker` sword pins, hover, labels | **function** — navigation | a row per city from `CITIES`, name + `actionLabel`, activates `handleCityClick` |
+| Marker colour / `swordColor` red-vs-blue | **function** — which city is the bossfight | text label on the row |
+| `WorldMapOverlay` (top bar, create/join lobby, code input) | **function** | **reused verbatim** — already DOM |
+| `Starfield`, `PlanetSprites`, `Sun/Moon/PlanetBody`, `AuraLayers`, `BodyAspect` | ambience | dropped |
+| `SkyLabels` gaze naming | **function** — identifies bodies | see §5.2's note; the sky is not part of the text world map |
+| `GlobeCrackleEffect` | ambience — a bossfight is live | folded into the city row's caption instead |
+| `OrbitControls`, `CameraRig`, ranked zoom | ambience — camera | dropped (no camera) |
+| `CityLoadingScreen` curtain | ambience | dropped — text navigation is instant |
 
-`CityLoadingScreen` (the entry curtain) is a 3D component — text mode navigates
-without it.
+`handleCityClick`'s vault/rules/city branching is reused unchanged, and the
+marker's data-driven design (`CITY_SCENE_PLAN.md` §4.2 — no
+`city.name === 'Athens'` checks) means the list is a `.map()` over the same
+source.
 
 Precedent worth stealing: `tjuvpakk`'s `Home()` is exactly this screen — name
 field, join-code field, Create Lobby, an "Enter Boss-fight" line, and a stack of
 links. The layout is right; the handlers behind it are §1.7's left column.
 
-### 5.2 `/city` — the city as text
+### 5.2 `/city` — Athens
 
-3D today: Athens under a real sky, with a signpost (Bossfight / Ranked arms),
-a Temple, a Senate, a Market, and occupancy signs.
+| 3D element | Kind | Text counterpart |
+|---|---|---|
+| `Signpost` arms (Bossfight / Ranked) | **function** — the two entries | rows calling `useEnterBossfight` / `useEnterRanked` |
+| Arm labels + sublabels | **function** — status | `bossfightSignSublabel(roster, mins, secs)` and `ranked.label`/`.sublabel`, **reused as strings** |
+| `BuildingSign` ×3 occupancy | **function** — how busy | `useCityPresence()` counts, rendered as text |
+| `BuildingTarget` Temple / Senate / Market clicks | **function** — navigation | the same three rows |
+| `TempleTableau` — live bossfight roster as figures | **function** — who is fighting | roster names from `useBossfightRoster()`, with §7's text avatars |
+| `Temple`, `Senate`, `Market`, `Terrain`, `Mountain`, `Campfire` | ambience | dropped |
+| `CitySky`, `CityMoon`, day/night `nightness` | ambience | dropped (optionally one line: "night over Athens") |
+| `SkyLabels` gaze naming (`CITY_SCENE_PLAN.md` §7) | **function** — identifies bodies | **open, §11.1** — gaze has no text analogue; a static list contradicts §7's "no always-on legend". Recommendation: omit for v1 and record it. |
+| `CompassMarks` | ambience | dropped |
+| `?t=` sky override | ambience — a 3D tuning instrument | dropped; `astrology.ts`/`skyLocal.ts` must not be imported (§0.4) |
+| `OrbitControls` | ambience | dropped |
+| Back to Earth | **function** | a link |
+| `CityOverlay`, both `AuthGatePopup`s, `playMusic(CITY_MUSIC)` | **function** | reused as-is |
 
-Text: a place with exits. Reuse the same hooks the 3D page already calls —
-`useEnterBossfight`, `useEnterRanked`, `useBossfightCountdown`,
-`useBossfightRoster`, `bossfightSignSublabel`, `useCityPresence` — and render
-their output as lines instead of signage:
+Sketch:
 
 ```
 Athens
   The Temple    Bossfight — WAITING · starts in 12m 04s     [Enter]
+                In the temple now: Kari, Ola, Nils
   The Senate    Ranked — 3 in queue                         [Play Ranked]
   The Market    7 in market                                 [Enter]
   ← Back to Earth
 ```
 
-`bossfightSignSublabel()` already produces that caption string, and
-`useCityPresence` already yields the counts. `CityOverlay` and both
-`AuthGatePopup`s are already DOM and are reused as-is. The sky, the ephemeris
-(`astrology.ts`, `skyLocal.ts`, `citySkyGeometry.ts`) and `?t=` are 3D-only and
-simply absent — text mode must not import them (§0.4).
-
 ### 5.3 `/lobby` — the game
 
 The one that matters. Four phases from `useLobbyGame`'s `phase`.
+
+| 3D element | Kind | Text counterpart |
+|---|---|---|
+| Player avatars (skin `.glb`, cosmetic, bot/boss/ghost models) | **function** — identity | §7's text avatar in the player list |
+| Nametags | **function** | the list row |
+| Chat bubbles over players | **function** — who said what | chat panel (already in `SceneOverlay`), sender-attributed |
+| Anchored ATTACK / DEFEND / WELL buttons | **function** | §6's row Attack; WELL/DEFEND in the action row |
+| `DenyModelButton` | **function** | §6's row Deny |
+| Kick ❌ beside nametag | **function** | §6's row Kick |
+| `RelicSelectionPopover` off a nametag | **function** | §6's own row, text viewer per §7.5 |
+| `InfoRevealContent` badge (❤/💰/⚔, fresh + `stale` "last round") | **function** — a Well reward | §6.1 — **must be carried over exactly** |
+| `WinnerCrown` / `WellCrown` | **function** — who won | 👑 glyph in the row (tjuvpakk's own idiom) |
+| Lost souls (N meshes, one shared name) | **function** — attackable | one collapsed row (§6) |
+| Boss (Hades) + boss HP card | **function** | enemy panel, `suppressEnemyPanel: false` |
+| `Sword`/`Shield`/`KillFire`/`Explosion`/`DamageNumber`/`WellSplash`/`WellGlow`/`WellReward`/`InstakillBurst`/`DenyRing`/`ResourceGain`/`SelectionGlow` | **function-bearing ambience** — each communicates an outcome | §5.3.4's combat log; §8.3 |
+| `CameraFlyIn`, spin toggle, Reset Camera, `usePanOffset` | ambience — camera | dropped, and their buttons must not render (§8.6) |
+| Instakill (Poisoned Dagger) cue on the ATK card | **function** | `useGameEvents().instakill` (§8.6) |
+| `SeaAndSky`, `BossfightScenery`, `Table` | ambience | dropped |
 
 #### 5.3.1 `loading`
 `state === null`. A line of text. No curtain.
 
 #### 5.3.2 `lobby` (pre-game, `round === 0`)
 - Lobby code + `InviteSection` (copy link / QR — already DOM, reused).
-- **The player list** (§6), carrying kick and relic selection.
+- **The player list** (§6): kick, relic selection, ready ✅, bot markers.
 - `StartGameButton` for the admin (reused; keeps its 5s grace window).
 - Add Bot → `add_dummy { bot_type }`.
 - Bossfight countdown when `boss_fight`.
@@ -668,8 +781,8 @@ The one that matters. Four phases from `useLobbyGame`'s `phase`.
 
 #### 5.3.3 `playing`
 - Round number, round timer (`useRoundTimer` off `round_end_time`).
-- Enemy panel when there is a boss (`suppressEnemyPanel: false`).
-- **The player list** (§6), now carrying Attack and Deny.
+- Enemy panel when there is a boss.
+- **The player list** (§6): Attack, Deny, info-reveal badges (§6.1).
 - Action row: Well / Defend (Attack lives per-row, where its target is).
 - Resource cards (`ResourceCard`, reused) — HP / coins / ATK.
 - The combat log (§5.3.4).
@@ -685,13 +798,14 @@ Round 7
   You attacked Kari — blocked.
   Someone attacked you — 2 damage.        (attacker: null → "Someone", §1.9)
   Ola eliminated Nils.
-  You won The Well: +2 ❤, +1 ⚔
+  You won The Well: +2 ❤, +1 ⚔  (blue)
 ```
 
-Every one of those lines is a direct read of an `OutgoingEvent` /
-`IncomingEvent` / `WitnessEvent` / `WellRewardGrantEvent` — no regex, no
-parsing, no new endpoint. Keep `messages` as the fallback for anything the
-structured events do not cover, exactly as they are "display-only now".
+Every line is a direct read of an `OutgoingEvent` / `IncomingEvent` /
+`WitnessEvent` / `WellRewardGrantEvent` — no regex, no parsing, no new endpoint.
+`glowForReward()` already maps a reward to a rarity tier and can name it in
+words instead of colouring a glow. Keep `messages` as the fallback for anything
+the structured events do not cover, exactly as they are "display-only now".
 
 `tjuvpakk` had a `FloatingMessage` component for this and polled the strings; the
 *idea* (a per-round readout of what happened to you) is the reusable part.
@@ -702,21 +816,35 @@ structured events do not cover, exactly as they are "display-only now".
 promoted) renders as text with the existing `RankBadge`. The claim nudges
 (`BossSignupNudge`, `WheelClaimNudge`, `ArtifactClaimNudge`) are already DOM and
 must keep working — they gate real rewards and are the most expensive thing to
-silently break.
+silently break (§8.5).
 
-### 5.4 `/vault` — nearly free
+### 5.4 `/vault`
 
-The page is already a DOM card (`ArtifactLedger`) with `VaultScene` as a
-backdrop. Text mode: skip `<VaultScene/>`, keep the card. One conditional.
+The page is already a DOM card (`ArtifactLedger`) with `VaultScene` as pure
+backdrop. Text mode: skip `<VaultScene/>`, keep the card. One conditional, and
+the whole scene is ambience.
 
-### 5.5 Everything else
+### 5.5 The wardrobe viewers (§0.6)
+
+| Surface | 3D today | Text counterpart |
+|---|---|---|
+| Inventory equipped hero | `SpinningModelViewer` | §7.3 text avatar, large |
+| Inventory skin grid | already 2D (`skinThumbnailUrl` + `skinColor`) | **unchanged** |
+| Inventory relic card | `RelicCoin` | relic name + icon |
+| Shop product | `SpinningModelViewer` | §7.3 text avatar |
+| Wheel spin animation | `WheelCanvas` (already 2D) | **unchanged** |
+| Wheel result reveal | `SpinningModelViewer` | §7.5 — the reveal still has to land |
+| Trade-up inputs/output | `SpinningModelViewer` ×3 | §7.3 text avatars |
+| Relic picker | `RelicCoin` | relic name + icon |
+
+### 5.6 Everything else
 
 No change (§0.1). Worth one pass to confirm nothing pulls in 3D chrome
-indirectly.
+indirectly — that pass is what found §0.6.
 
 ---
 
-## 6. The five lost controls — one list
+## 6. The lost controls — one list
 
 `src/components/text/TextPlayerList.tsx`. This is the plan's centre of gravity
 and the thing `tjuvpakk` is actually being reused for.
@@ -725,20 +853,14 @@ Per row, from `LobbyState.players` plus `useLobbyGame`:
 
 | Column | Source | Notes |
 |---|---|---|
-| status glyphs | `hp<=0` ☠️, `spectator` 👁, `readyPlayers` ✅, `idle_rounds>=2` 👻, winner 👑 | **`tjuvpakk`'s glyph vocabulary, ported directly** |
-| name + title | `p.name`, `p.title` | bots marked from `p.bot` |
-| HP | `p.hp` | **own row only** unless boss — see the warning below |
+| avatar | `p.skin`, `p.cosmetic` | §7.3 — a swatch + thumbnail, never a `<Canvas>` |
+| status glyphs | `hp<=0` ☠️, `spectator` 👁, `readyPlayers` ✅, `idle_rounds>=2` 👻, winner/well 👑 | **`tjuvpakk`'s glyph vocabulary, ported directly** |
+| name + title | `p.name`, `p.title` | bots marked from `p.bot`/`p.bot_type` |
+| own HP/coins/ATK | `myPlayer` | own row always; others only per §6.1 |
 | **Attack** | `canAct && p.name !== me && p.hp > 0` | `submit_choice {action:'attack', target: p.name}` |
 | **Deny** | `isPendingDenyChooser && p ∈ eligibleDenyTargets` | `submit_deny_target {target: p.name}` |
 | **Kick** ❌ | `isAdmin && round === 0 && p.name !== me` | `kick_player {target: p.name}` |
-| **Relic** | own row, `round === 0` | `RelicSelectionPopover` (already DOM) → `toggle_relic_selection` |
-
-**🔴 Hidden information.** Other players' `coins`/`attackDamage` are on the wire
-because the 3D scene shows some of it contextually. Text mode is a fresh
-rendering decision and must match what the 3D scene actually reveals, not dump
-every field it can reach. §1.6's `"Verden"` block is the anti-pattern. Settle
-this against `LobbyScene`/`PlayerAvatars` at implementation time (§10.2) and
-default to showing less.
+| **Relic** | own row, `round === 0` | `RelicSelectionPopover` → `toggle_relic_selection` (needs §7.5 first — §0.6) |
 
 Guard rails to carry over from `LobbyScene`, which learned them the hard way:
 
@@ -753,11 +875,192 @@ Guard rails to carry over from `LobbyScene`, which learned them the hard way:
   row ("Lost Souls ×3") with one Attack emitting the shared name. That is a
   deliberate simplification and behaviourally identical on the wire.
 
+### 6.1 Other players' stats — the info reveal, and nothing else
+
+**This settles what the text list may show, and it is not a judgement call — 3D
+already answers it.**
+
+`PlayerAvatars.tsx` has an `InfoRevealBadge`:
+
+```ts
+/** A player's stats as revealed by an opponent's "info" Well reward. `stale`
+ *  marks the one extra round it's shown greyed-out with a "last round" label
+ *  before disappearing. */
+export interface InfoRevealBadge { hp: number; coins: number; attackDamage: number; stale: boolean; }
+```
+
+rendered as `❤ {hp}  💰 {coins}  ⚔ {attackDamage}`, greyed with a "last round"
+caption in its stale round. It is driven by `LobbyScene`'s `infoReveal` state,
+which records the round the `reveal_info` Well reward was won in and derives
+fresh/stale/gone from `state.round`.
+
+So: **another player's HP, coins and ATK are shown only while an info reveal is
+active, with the same fresh → stale → gone lifecycle.** Text mode replicates
+that badge exactly and shows nothing otherwise. This is both the parity
+requirement (locked decision 4 — it is a purchased game mechanic, not
+decoration) and the hidden-information rule (§1.6's anti-pattern), and they
+happen to agree.
+
+The `infoReveal` round-tracking currently lives in `LobbyScene`. Text mode needs
+the same derivation, so it should be **lifted into a shared hook**
+(`lib/useInfoReveal.ts`) consumed by both renderers, rather than reimplemented —
+two copies of a fresh/stale/gone rule will drift, and a drift here leaks
+information.
+
 ---
 
-## 7. Things that will break quietly if not planned for
+## 7. Skins, cosmetics and avatars without 3D
 
-### 7.1 Staged resources — `stageCombatDamage` must be `false`
+Locked decisions 5 and 6 pull against each other: no runtime 3D frogs anywhere,
+but a player's skin must still read as theirs. **This is the wrinkle that is not
+ironed out.** What follows is what already exists, what is genuinely missing,
+and a proposal — the gaps in §7.4 are the part still to settle.
+
+### 7.1 Most of a 2D skin vocabulary already exists and already ships
+
+`src/lib/frogSkins.ts` is not a 3D module. It exports, alongside `skinUrl()`:
+
+```ts
+skinThumbnailUrl(skin) // → /skins/thumbnails/<skin>.png
+skinColor(skin)        // → a hex swatch, per skin
+skinLabel(skin)        // → 'OG Green', 'Cursed Orange', 'Ponder Purple', …
+COMMON_SKINS, RARE_SKINS  // rarity, ordered least→most rare
+```
+
+**All 13 thumbnails exist and are committed today** — `public/skins/thumbnails/`
+holds a PNG for each of the 12 frog skins plus `cherub_v1`. They are
+head-and-shoulders renders of the real `.glb` models, produced by
+`scripts/renderSkinThumbnails.mjs`, which renders *through the app's own R3F
+setup* precisely so "the thumbnail matches how the model actually looks
+elsewhere in the app".
+
+And the 2D presentation is already in production in six places:
+`SceneTopBar` (the user-menu avatar: swatch + thumbnail), the inventory **skin
+grid**, `MarketItemChip`, `WheelSpinModal`'s cycling tiles, `WheelCanvas`'s
+slice fills, and `SpecialWheelEmblem`.
+
+**[correction]** `frogSkins.ts`'s comment above `SKIN_COLORS` still reads *"No
+pre-rendered 2D thumbnails exist for these models yet (only .glb) — a flat color
+swatch stands in"*. That is stale; the thumbnails landed afterwards. Fix the
+comment as part of this work so the next reader does not conclude, as a first
+pass of this plan nearly did, that text mode has no artwork to work with.
+
+### 7.2 The rule that makes this tractable
+
+**A pre-rendered PNG of a model is not 3D rendering.** No WebGL context, no
+`three` in the bundle, no GPU, no `.glb` download — a committed image, no
+different in kind from `/images/buttons/well-ld.png`. It is *3D-derived art*,
+and the pipeline that produces it is offline, documented and re-runnable.
+
+That is the whole reconciliation of locked decisions 5 and 6: **skins transfer
+as art, not as geometry.** The frog you own is still visibly your frog; it has
+simply been photographed once, at build time, instead of being rebuilt on every
+viewer's GPU.
+
+### 7.3 Proposal: one `TextAvatar`
+
+`src/components/text/TextAvatar.tsx` — the single skin-rendering primitive for
+text mode, used by the player list (§6), the city's temple roster (§5.2), the
+inventory hero, the shop, trade-up and the wheel reveal (§5.5).
+
+```
+[ swatch ring in skinColor(skin) ]  ← rarity-weighted border
+[ <img src={skinThumbnailUrl(skin)}> ]  ← the frog, as art
+   Kari · Zonked Red · ✦ rare
+   Artifact #1                        ← cosmetic, when present
+```
+
+- Sizes: `sm` (list row), `md` (roster), `lg` (inventory/shop hero).
+- The `<img>` fails soft to the bare `skinColor` swatch — `SceneTopBar` and
+  `MarketItemChip` already layer exactly this way (swatch behind, image over),
+  so an unknown or unrendered skin degrades to a coloured chip rather than a
+  broken image.
+- `skinLabel()` names it; rarity comes from `COMMON_SKINS`/`RARE_SKINS`
+  membership, which is already ordered least→most rare.
+
+This one component is what makes locked decision 6 true across every screen at
+once, and it is ~60 lines.
+
+### 7.4 The four gaps — the part that is genuinely not ironed out
+
+**a. Rainbow and bling cannot be a flat hex.** `frogSkins.ts` says so itself:
+`frog_rainbow_v2`'s `#e879f9` is a *"flat fallback only … a single hex can't
+actually look like a rainbow"*, and `frog_bling_v1`'s `#86efac` is a base that
+*"WheelCanvas layers many silver sparkle glints on top of"*. These are the two
+rarest-but-one skins — the ones most worth owning — so flattening them is
+exactly the wrong place to compromise.
+**Good news:** `WheelCanvas` already solves both **in 2D**, with a multi-hue
+horizontal gradient and drawn sparkles. **Proposal:** lift that into a shared
+`skinSwatchStyle(skin)` returning a CSS background (a `linear-gradient` for
+rainbow, a base + sparkle overlay for bling, a flat colour otherwise), consumed
+by `TextAvatar` and by `WheelCanvas`'s existing special-casing. One source of
+truth for "what does this skin look like as a flat shape".
+
+**b. Cosmetics have no 2D representation at all.** `lib/cosmetics.ts` exposes
+`cosmeticModelUrl()` (a `.glb`), `cosmeticLabel()` and `cosmeticDescription()` —
+there is no `cosmeticThumbnailUrl()`, and `public/skins/items/` holds only
+`pergament_v1.glb`. `Player.cosmetic` is on the wire, so other players' artifacts
+are visible in 3D and would silently vanish in text.
+**Options:** (i) extend `scripts/renderSkinThumbnails.mjs` to cover cosmetics and
+commit `artifact_v1.png` — most faithful, matches §7.2's rule, and there is
+exactly one cosmetic so the cost is one render; (ii) a text badge ("Artifact #1")
+using the existing `cosmeticLabel()`; (iii) both — badge now, thumbnail later.
+**Recommendation: (iii)**, since (ii) is free and unblocks the player list
+immediately.
+
+**c. Bots, the boss, ghosts and lost souls have no thumbnails.** The thumbnail
+set covers frog skins only. But the player list has to render `TURTLE`, `SHEEP`,
+`OWL` and `WOLF` bots (`Player.bot_type`, `BOT_MODEL_URLS` in `PlayerAvatars`),
+Hades (`Player.boss`), ghosts, and lost souls (`Player.lost_soul`) — all of
+which are `.glb`s with no PNG.
+**Options:** (i) render thumbnails for them too — same script, and `bot_type`
+already keys a model map, so the extension is mechanical; (ii) an emoji/glyph
+vocabulary (🐢 🐑 🦉 🐺 💀 👻), which is cheap, needs no assets, degrades
+gracefully for an unrecognised `bot_type` the way `BOT_MODEL_URLS` already falls
+back to turtle, and honestly suits a text mode.
+**Recommendation: (ii) for v1**, (i) if it looks thin in practice. Note this is
+the one place where text mode deliberately does *not* mirror 3D's art, and it
+should be a conscious choice rather than a gap.
+
+**d. Rarity has to read without shimmer.** In 3D, rare skins announce themselves
+by looking expensive. A PNG on a list row does not. `RARE_SKINS` is ordered, so
+the data is there; the question is presentation — border weight, a `✦` count, a
+tier word next to `skinLabel()`. Unresolved, and worth a design pass rather than
+a guess, because this is what protects the perceived value of everything the
+wheel and the shop sell (`MONETIZATION_PLAN.md` §3.4/§8.3).
+
+### 7.5 The wardrobe viewers
+
+`SpinningModelViewer` gets a text-mode branch — but at the *component* level,
+not the page level (§4.1), so `/inventory`, `/shop`, `WheelSpinModal` and
+`TradeUpModal` need no branching of their own:
+
+```tsx
+// SpinningModelViewer.tsx
+if (useRenderMode() === 'text') return <TextAvatar … size="lg" />;
+```
+
+Two wrinkles:
+
+- **The static import still costs the bundle.** Per §4.3, the branch must sit
+  behind a dynamic boundary, or `/inventory` and `/shop` keep shipping `three`
+  to text-mode users. The cleanest shape is a thin `SkinViewer` that branches
+  and only then `dynamic()`-imports the spinning 3D one.
+- **The wheel reveal is a product moment, not a preview.** The spin
+  (`WheelCanvas`) is already 2D and stays; it is the *result* that is a
+  spinning model. A static thumbnail is a flat ending to a paid moment.
+  Text mode should still give it a beat — the existing 2D reveal animation in
+  `WheelSpinModal` (it already cycles `NORMAL_WHEEL_SKINS` tiles with
+  `skinColor` before the result) is the right raw material. **Flagged, §11.2.**
+
+`RelicCoin` takes the same treatment with the relic's own icon, which unblocks
+`RelicSelectionPopover` and therefore §6's relic column.
+
+---
+
+## 8. Things that will break quietly if not planned for
+
+### 8.1 Staged resources — `stageCombatDamage` must be `false`
 `useStagedResources` peels combat damage off the HP card one attack at a time,
 and the *timing* comes from the `resourceFx` bus, which **only `LobbyScene`
 emits into**. Set `stageCombat: true` with no 3D scene and the cards freeze at
@@ -772,75 +1075,79 @@ frozen for a beat with nothing on screen explaining why. Either pass a "no
 staging" flag through to `useStagedResources` for text mode, or accept the
 delay knowingly. Decide with the numbers in front of you.
 
-### 7.2 Sound
+### 8.2 Sound
 Independent of 3D (`lib/sounds.ts`, `lib/music.ts`, `lib/soundSettings.ts`) and
 **should keep working** — text mode is about rendering, not audio. But music is
-currently started by `WorldMapOverlay`, `LobbyOverlay` and `city/page.tsx`'s
+started by `WorldMapOverlay`, `LobbyOverlay` and `city/page.tsx`'s
 `playMusic(CITY_MUSIC)` effect; the `/city` comment records that the toggle
-"was muting silence, and looked broken because it was working perfectly on
-nothing" when that call was missing. Every text route needs its `playMusic` call
+*"was muting silence, and looked broken because it was working perfectly on
+nothing"* when that call was missing. Every text route needs its `playMusic` call
 kept, or the same bug returns.
 
-### 7.3 Effects that vanish
+### 8.3 Effects that vanish carry information
 `SwordEffect`, `ShieldEffect`, `KillFireEffect`, `ExplosionEffect`,
 `DamageNumberEffect`, `WellSplashEffect`, `WellGlowEffect`, `WellRewardEffect`,
 `InstakillBurstEffect`, `DenyRingEffect`, `ResourceGainEffect`,
-`SelectionGlow` — all 3D, all gone. Each one currently communicates something
-(a hit landed, a block held, a rarity tier). §5.3.4's log is where that
-information has to reappear; `glowForReward()` already maps a reward to a rarity
-tier and can name it in words instead of colouring a glow.
+`SelectionGlow` — all 3D, all gone. Each currently communicates something (a hit
+landed, a block held, a rarity tier, whose deny it was). §5.3.4's log is where
+that information has to reappear; per locked decision 4, each one needs an
+explicit "carried over as X" or "ambience, dropped" verdict, not silence.
 
-### 7.4 The in-game guide
+### 8.4 The in-game guide
 `lib/guideSteps.ts` / `lib/guideHighlights.ts` highlight UI elements for
 first-time players. Whether the highlight targets exist in text mode needs a
 check; a guide pointing at nothing is worse than no guide. Simplest correct
 answer for v1: suppress the guide in text mode and note it as follow-up work.
 
-### 7.5 Nudges and claim flows
+### 8.5 Nudges and claim flows
 `BossSignupNudge`, `WheelClaimNudge`, `ArtifactClaimNudge`, `WheelSpinModal`,
-`TradeUpModal` are DOM but are rendered *by* `LobbyOverlay`. Text mode must
-render them too — they gate real rewards, and silently dropping them costs
-players things they earned. Explicit test coverage, not a manual check (§9).
+`TradeUpModal` are rendered *by* `LobbyOverlay`. Text mode must render them too —
+they gate real rewards, and silently dropping them costs players things they
+earned. Two of them additionally depend on §7.5. Explicit test coverage, not a
+manual check (§10).
 
-### 7.6 Camera-shaped UI
-`spinEnabled`, `cameraMoved`, `onResetCamera`, `resetCameraSignal`,
-`instakillActive` are props threaded from `/lobby` through `LobbyOverlay` into
-`SceneOverlay` purely to bridge the camera and the overlay. In text mode the
-first four are meaningless and their buttons must not render (`resetCameraButton`
-is emitted inside `SceneOverlay`'s resource-card block). `instakillActive` is
-*not* in that group — it is a real game state (the player holds a Poisoned
-Dagger charge) that today happens to be computed by `LobbyScene`. Text mode
-needs it from somewhere else: `useGameEvents` already returns `instakill` on
-its result, which is the honest source.
+### 8.6 Camera-shaped UI
+`spinEnabled`, `cameraMoved`, `onResetCamera`, `resetCameraSignal` are props
+threaded from `/lobby` through `LobbyOverlay` into `SceneOverlay` purely to
+bridge the camera and the overlay. In text mode they are meaningless and their
+buttons must not render (`resetCameraButton` is emitted inside `SceneOverlay`'s
+resource-card block).
 
-### 7.7 `ErrorBoundary`
-Already exists and is DOM. In text mode it is the last line of defence and
-should carry the "switch back to 3D" affordance mirroring §3.4's third surface.
+`instakillActive` is **not** in that group — it is real game state (the player
+holds a Poisoned Dagger charge) that today happens to be computed by
+`LobbyScene`. Text mode needs it from elsewhere: `useGameEvents()` already
+returns `instakill` on its result, which is the honest source.
+
+### 8.7 `ErrorBoundary`
+Already DOM. In text mode it is the last line of defence and should carry the
+"switch back to 3D" affordance mirroring §3.4.
 
 ---
 
-## 8. What this actually buys
+## 9. What this actually buys
 
-State it as hypotheses to verify (§11 step 9), not as claims:
+State it as hypotheses to verify (§12 step 10), not as claims:
 
-- **No WebGL context.** Runs where 3D cannot: old phones, locked-down machines,
-  software rendering, headless CI.
+- **No WebGL context anywhere.** Runs where 3D cannot: old phones, locked-down
+  machines, software rendering, headless CI. Note this only becomes true once
+  §0.6's viewers are handled — until then `/inventory` still needs a GPU.
 - **No engine download.** `three` + `@react-three/fiber` + `@react-three/drei` +
   `three-stdlib` dominate the JS payload — *if and only if* §4.3's refactor
-  lands.
-- **No model/texture download.** `public/models/*.glb` (per-skin frogs, boss
+  lands on both the scenes and the viewers.
+- **No model download.** `public/models/*.glb` (per-skin frogs, bot and boss
   models, reward models) and the world-map Earth textures are the bulk of the
-  network cost and are never requested.
+  network cost and are never requested. The thumbnails that replace them are
+  kilobytes.
 - **Testable.** The whole game loop becomes assertable in jsdom without mocking
-  `@react-three/fiber` (§9).
+  `@react-three/fiber` (§10).
 - **Accessible.** Not in scope here, but `docs/LEGAL_COMPLIANCE_PLAN.md` §5
-  (EAA) and `MOBILE_AND_STEAM_PLAN.md`'s accessibility row both have an
-  unstarted obligation that a real DOM rendering of the game is a
-  precondition for. Worth noting; not worth claiming as delivered.
+  (EAA) and `MOBILE_AND_STEAM_PLAN.md`'s accessibility row both carry an
+  unstarted obligation that a real DOM rendering of the game is a precondition
+  for. Worth noting; not worth claiming as delivered.
 
 ---
 
-## 9. Testing
+## 10. Testing
 
 `vitest.config.ts` already runs two projects — `node` for `src/**/*.test.ts`,
 `jsdom` (RTL, `vitest.setup.ts`) for `src/**/*.test.tsx`.
@@ -848,56 +1155,72 @@ State it as hypotheses to verify (§11 step 9), not as claims:
 - `src/lib/__tests__/renderMode.test.ts` — default, persistence, subscribe,
   malformed stored value, `?text=` precedence, SSR-safety.
 - `src/components/text/__tests__/TextPlayerList.test.tsx` — **the important
-  one.** Assert each of the five controls emits the right event with the right
-  payload; assert Attack is suppressed while a deny is pending; assert kick only
-  for admin at `round === 0`; assert lost souls collapse to one row emitting the
-  shared name; **assert no other player's hidden fields are rendered** (§6).
+  one.** Assert each control emits the right event with the right payload;
+  assert Attack is suppressed while a deny is pending; assert kick only for
+  admin at `round === 0`; assert lost souls collapse to one row emitting the
+  shared name; **assert another player's HP/coins/ATK render only under an
+  active info reveal, and disappear after the stale round** (§6.1).
+- `src/components/text/__tests__/TextAvatar.test.tsx` — thumbnail URL, swatch
+  fallback, rarity treatment, rainbow/bling special cases (§7.4a), cosmetic
+  badge (§7.4b), bot/boss glyphs (§7.4c).
 - `src/components/text/__tests__/TextLobby.test.tsx` — phase transitions, and
-  that the nudge components still render (§7.5).
-- A regression test that text mode passes `stageCombatDamage: false` (§7.1).
+  that the nudge components still render (§8.5).
+- A regression test that text mode passes `stageCombatDamage: false` (§8.1).
+- **A guard test that no text-mode component imports `@react-three/*` or
+  `three`** — a static import-graph assertion is the only thing that will keep
+  locked decisions 5 and 11 true a year from now, and §0.6 is the proof that
+  reviewing by eye does not.
 
-Note what these tests do *not* need: the `vi.mock('@react-three/fiber', ...)`
-`Canvas` stub that `src/app/lobby/__tests__/page.test.tsx` and the other page
-suites all carry. Text-mode components have no 3D in their import graph at all,
-which is the point.
+Note what these tests do *not* need: the `vi.mock('@react-three/fiber', …)`
+`Canvas` stub and the `vi.mock('@/components/SpinningModelViewer', …)` /
+`vi.mock('@/components/RelicCoin', …)` stubs that the lobby, inventory, shop and
+relic-popover suites all carry today. Text-mode components have no 3D in their
+import graph at all, which is the point.
 
-Existing page tests will need their mode mocked, since they render the 3D
-branch. Default `'3d'` keeps them green without edits — but assert that rather
-than assume it.
+Existing page tests render the 3D branch, so they need the mode mocked. Default
+`'3d'` should keep them green without edits — assert that rather than assume it.
 
 ---
 
-## 10. Open questions
+## 11. Open questions
 
-**10.1 — Auto-suggest on low-end devices?** `lib/deviceQuality.ts` already
-detects a low tier (`mem <= 4 && dpr >= 2`) and currently only lowers 3D
-quality. Should it prompt "try text mode"? A one-time dismissible nudge is
-attractive; it is also the kind of thing that annoys people on perfectly good
-hardware, since the heuristic is deliberately crude. **Recommendation: no for
-v1.** Ship the toggle, see who finds it.
+**11.1 — Does the city's gaze-naming have a text form?** `CITY_SCENE_PLAN.md` §7
+is explicit that there is *no always-on legend*: a body is named only while it
+drifts near the centre of the view, so that "identification becomes an act of
+attention". A static list of what is overhead is the obvious text analogue and
+is also exactly what that decision rejects. **Recommendation: omit for v1**,
+record it as the one city function with no text counterpart, and revisit with
+whoever owns that design.
 
-**10.2 — Exactly which fields does the text player list show?** §6 flags this.
-Needs a read of what `PlayerAvatars`/`LobbyScene` actually reveal in 3D, so text
-mode matches rather than exceeds it. **Blocking for step 5** — get it right the
-first time; a hidden-information leak is not a thing to patch later.
+**11.2 — How does the wheel reveal land in text?** §7.5. The spin is 2D already;
+the result is a spinning model. Needs a beat that still feels like a reward.
+`WheelSpinModal`'s existing 2D tile-cycling is the raw material. **Blocking for
+step 8.**
 
-**10.3 — Does `SceneOverlay` take a `layout` flag cleanly, or does text mode get
+**11.3 — Rarity presentation.** §7.4d. Border, glyph count, tier word — needs a
+design pass, because it is what protects the perceived value of the skin
+economy.
+
+**11.4 — Does `SceneOverlay` take a `layout` flag cleanly, or does text mode get
 its own view component?** §4.2 flags this as an assumption. **Decide at step 4,
 on the code.**
 
-**10.4 — Is text mode in the native build?** `MOBILE_AND_STEAM_PLAN.md` §5.3's
+**11.5 — Is text mode in the native build?** `MOBILE_AND_STEAM_PLAN.md` §5.3's
 `output: "export"`. Nothing here obviously conflicts, but the branch is inside
 statically-exported pages and should be built and smoke-tested under
 `npm run build:native` before that is asserted.
 
-**10.5 — Does the market's socket room behave with no 3D city around it?**
+**11.6 — Does the market's socket room behave with no 3D city around it?**
 `/market` is already DOM, so this should be free — but `useMarketConnection`
 joins from a page the city normally hands you to, and text mode changes that
 path. Worth one deliberate check.
 
+*(The earlier draft's "should low-end devices auto-suggest text mode?" is
+closed: no. It is locked decision 10.)*
+
 ---
 
-## 11. Implementation steps
+## 12. Implementation steps
 
 Ordered so each step is independently reviewable and nothing is built on an
 unverified assumption.
@@ -909,24 +1232,37 @@ unverified assumption.
    point the setting is inert and provably persists.
 3. **`/vault` first** (§5.4). One conditional, smallest possible end-to-end
    proof that the seam works.
-4. **`SceneOverlay` layout flag** (§4.2 Tier 2) — resolve §10.3 here, in the
+4. **`SceneOverlay` layout flag** (§4.2 Tier 2) — resolve §11.4 here, in the
    code. If it fights back, fall back to a dedicated view and say so in this
    document.
-5. **`TextPlayerList`** (§6) — resolve §10.2 *before* writing the row. All five
-   controls, all guard rails, full test suite. **The critical step.**
-6. **`TextLobby`** (§5.3) — phases, combat log, resource cards, chat, nudges,
-   `stageCombatDamage: false` (§7.1), `instakill` from `useGameEvents` (§7.6).
-7. **Text `/city`** (§5.2) — reusing the entry hooks and `bossfightSignSublabel`.
-8. **Text `/` (world map)** (§5.1) — `CITIES` as a list, `WorldMapOverlay` kept.
-9. **The bundle refactor + proof** (§4.3) — push `<Canvas>` (and `CITY_CAMERA`/
-   `CITY_FOV`) down into the dynamic chunks, carrying the `isolation: 'isolate'`
-   comments with them; then *measure* that a text page load requests no `three`
-   chunk. Locked decision 7 is not met until this number exists.
-10. **The escape hatches** (§3.4) — `SceneTopBar` menu entry and the
-    `ErrorBoundary` button.
-11. **Sweep** — music calls on every text route (§7.2), guide suppressed (§7.4),
-    `npm run build:native` smoke test (§10.4), market check (§10.5), and a pass
-    over borrowed copy for the `raid` → `bossfight`/`well` vocabulary (§1.4).
+5. **`TextAvatar` + `skinSwatchStyle`** (§7.3, §7.4a–c) — including the stale
+   comment fix in `frogSkins.ts` (§7.1) and the cosmetic badge. Everything
+   downstream renders players, so this comes before they do.
+6. **`useInfoReveal` lifted out of `LobbyScene`** (§6.1) — shared by both
+   renderers, so the fresh/stale/gone rule has one implementation.
+7. **`TextPlayerList`** (§6) — all controls, all guard rails, the info-reveal
+   badge, full test suite. **The critical step.**
+8. **`SkinViewer` / `SpinningModelViewer` text branch + `RelicCoin`** (§7.5) —
+   unblocks `RelicSelectionPopover`, `WheelSpinModal`, `TradeUpModal`,
+   `/inventory`, `/shop`. Resolve §11.2 here.
+9. **`TextLobby`** (§5.3) — phases, combat log, resource cards, chat, nudges,
+   `stageCombatDamage: false` (§8.1), `instakill` from `useGameEvents` (§8.6).
+   Walk §5.3's table row by row and account for every one.
+10. **Text `/city`** (§5.2) and **text `/`** (§5.1) — same row-by-row audit
+    against their tables.
+11. **The bundle refactor + proof** (§4.3) — push `<Canvas>` (and
+    `CITY_CAMERA`/`CITY_FOV`, and `SpinningModelViewer`) down into dynamic
+    chunks, carrying the `isolation: 'isolate'` comments with them; then
+    *measure* that a text page load requests no `three` chunk, on a game page
+    and on `/inventory`. Add the import-graph guard test (§10). Locked
+    decisions 5 and 11 are not met until these numbers exist.
+12. **The escape hatches** (§3.4) — `SceneTopBar` menu entry and the
+    `ErrorBoundary` button. No suggestions anywhere (locked decision 10).
+13. **Sweep** — music calls on every text route (§8.2), the §8.3 effect verdicts
+    written down, guide suppressed (§8.4), `npm run build:native` smoke test
+    (§11.5), market check (§11.6), and a pass over borrowed copy for the
+    `raid` → `bossfight`/`well` vocabulary (§1.4).
 
-Steps 1–3 are a day's work and de-risk the rest. Step 5 is where the real design
-happens. Step 9 is where the claim in the title gets earned.
+Steps 1–3 are a day's work and de-risk the rest. Steps 5–8 are where the skin
+wrinkle actually gets ironed. Step 7 is where the real design happens. Step 11 is
+where the claim in the title gets earned.
