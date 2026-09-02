@@ -103,10 +103,49 @@ page's text rather than its images.
 |---|---|---|
 | 1 | ✅ **Premium** | Decided. Matches `MOBILE_AND_STEAM_PLAN.md` §10.3's recommendation: sell the game outright with `SHOP_ENABLED` off for Steam, which also keeps the loot-box/odds disclosure off this platform entirely (§6). |
 | 2 | ✅ **$2 USD** | Decided; Valve derives regional pricing from this anchor. Two consequences worth having in view rather than discovering later: Valve's cut is 30%, so this nets roughly $1.40 a copy; and the $100 Direct fee is recoupable only once the app reaches $1,000 **Adjusted Gross Revenue**, which at $2 is about 500 copies. Neither changes the decision — a low, honest price for a small multiplayer game is coherent — but it does mean the fee should be treated as spent, not as an advance. |
-| 3 | **The tagline** | `src/app/layout.tsx:19` is still `description: "World of Mythos"` — a placeholder. The short description is the most-read text on a Steam page and cannot be written without a positioning sentence. Blocks the page. |
-| 4 | **Genre + tags** | Up to 20; the first few drive the discovery queues far more than the rest. |
+| 3 | ✅ **Tagline drafted** | Options and a recommendation in §3a; the recommended line is now live in `src/app/layout.tsx` (it replaced the `description: "World of Mythos"` placeholder, which was worthless as SEO regardless of what we pick). One string to swap if you want a different one. |
+| 4 | **Genre + tags** | Up to 20; the first few drive the discovery queues far more than the rest. Shortlist drafted in §3b — still needs picking against Steam's actual tag list, which is fixed and not free text. |
 | 5 | **Early Access or 1.0** | An online-only game, solo dev, pending art pass — a textbook Early Access case, and it lowers the bar the screenshots have to clear, which matters more than usual given §2. |
 | 6 | **Norwegian ENK tax position** | Valve becomes merchant of record — a different VAT position from selling via Stripe (`MOBILE_AND_STEAM_PLAN.md` §10.2, `MONETIZATION_PLAN.md` §6.6). The tax interview is part of onboarding; worth checking before completing it. |
+
+### 3a. Tagline options
+
+The game's hook is the simultaneous commit: both players choose at the same time,
+so you are reading a person, not a stat block. Every option below leads with that
+rather than with the setting, because "mythology game" is a crowded shelf and
+"you are guessing what they will do" is not.
+
+| # | Line | Reads as |
+|---|---|---|
+| 1 ⭐ | **Read your opponent. Commit. Live with it.** | The mechanic as a rhythm. Short enough for a capsule, and the third beat is what makes it a game rather than a menu. |
+| 2 | **Both players choose at once. One of you is wrong.** | Sharper, more combative. Better for a trailer end-card than for a store header. |
+| 3 | **A duel is a conversation you both speak at the same time.** | The most distinctive, the least scannable. Good "About This Game" opener, weak capsule line. |
+| 4 | **Turn-based duels where the turn happens to you both.** | Most descriptive of the genre for someone filtering; the least memorable. |
+
+**Recommendation: #1.** It survives being set small on a capsule, it says what the
+game asks of you, and it does not promise production value the screenshots will not
+back up — which matters given §2's decision to ship un-restyled captures.
+
+Live meta description (`src/app/layout.tsx`), deliberately without a price so it
+does not collide with the $2 Steam anchor while the browser build stays free:
+
+> A turn-based multiplayer duel in a hand-drawn mythological world. Both players
+> commit at once — read your opponent, or be read.
+
+### 3b. Genre and tag shortlist
+
+Steam's tags are a fixed vocabulary picked in the Steamworks tag picker, not free
+text, so treat the names below as intent to be matched rather than as final
+strings. Order matters: the first handful feed the discovery queues.
+
+**Genre:** Strategy (primary), Indie, Casual.
+
+**Tags, ranked:** Multiplayer · PvP · Turn-Based Combat · Online Co-Op · Mythology ·
+Competitive · Strategy · Indie · Fantasy · 3D · Casual · Singleplayer (bots fill
+empty seats, so this is honest — but rank it low, it is not what the game is for).
+
+Two to be careful with: do **not** tag Free to Play (§3 decision 1 is premium), and
+do not tag Early Access as a tag — it is a separate store setting (§3 decision 5).
 
 ---
 
@@ -188,6 +227,45 @@ the only piece of custom art the page cannot avoid.**
 confirmation that they are even original. That confirmation is now blocking, not
 housekeeping. If the current mark is original and usable, everything else is
 compositing. If it is not, a wordmark is the one thing to commission or draw.
+
+**Inspected 2026-09-02. The finding is worse than "unconfirmed": there is no
+wordmark in the repo at all.**
+
+`public/wom.svg` and `src/app/icon.svg` are byte-identical — one file, referenced
+twice. It is a 512×512 circular emblem: 12 paths, four flat fills, a circular
+clip, and **zero `<text>`, `<tspan>`, or `font-family` elements**. It contains no
+lettering of any kind.
+
+That matters because a capsule is not an icon. Valve's capsule guidance requires
+the game's *title* legible at small sizes, and the library logo asset is
+specifically the game's name as transparent art. So the icon does not satisfy the
+capsule requirement even if its provenance turns out to be spotless — **the words
+"World of Mythos" still have to be set as type, and that work has not started.**
+The good news is that this is the cheapest kind of custom art there is: type
+selection and spacing, not illustration.
+
+**Provenance is still open, and there are two flags.** Git history is
+`5665762 "added svg of icon"` (18 Mar 2026, a single file, no source art, no
+license note) then `676fd48 "recolor icon"` 22 minutes later. There is no `.ai`,
+`.fig`, `.afdesign`, `.sketch`, or `.psd` anywhere in the repo, so nothing records
+where it came from. Two things are worth a straight answer before it ships on a
+commercial storefront:
+
+1. **The SVG has a converter fingerprint, not an editor one.** Random 10-hex-digit
+   `clipPath` ids, an explicit `zoomAndPan="magnify"`, `version="1.0"`, an empty
+   `<defs><g/>` — and critically, *no* `inkscape:`/`sodipodi:` namespace, no
+   Illustrator generator comment, no Figma metadata. Files drawn by hand in an
+   editor almost always carry that editor's traces. This one carries none.
+2. **The original fills were `#ff3131` and `#1800ad`.** `#ff3131` is a stock Canva
+   swatch. If the mark came out of Canva's element library, that is a licensing
+   problem specifically here: Canva's Content License permits using elements in
+   designs but **prohibits using them in a logo or trademark**, which is exactly
+   what a Steam app icon and library logo are.
+
+Neither is proof — the repo cannot answer where the file came from, only Mikael
+can. But "drew it myself from scratch" and "picked it in Canva and recoloured it"
+lead to opposite decisions, and the second one needs the icon replaced, not just
+the wordmark added.
 
 ### 5.2 Capture at native resolution, do not upscale
 
@@ -305,8 +383,10 @@ game's, and the game does not have a stated voice yet (§3, decision 3).
   plainly on the page, not in the fine print.
 - **A third-party account is required.** WoM accounts are separate from Steam
   accounts; Valve has a dedicated field for this.
-- **Privacy policy.** Required, currently 🔴 Not started
-  (`LEGAL_COMPLIANCE_PLAN.md` §2.1).
+- **Privacy policy.** Required. ✅ Live at `/privacy` — the URL to give Valve is
+  `https://worldofmythos.net/privacy`. One caveat before it is submitted: the
+  controller's registered legal identity is still unset (`LEGAL_ENTITY_NAME` /
+  `LEGAL_ENTITY_ADDRESS`, see `LEGAL_COMPLIANCE_PLAN.md` §2.1).
 - **EULA.** Valve's default is offered; custom is optional.
 - **AI disclosure.** A store-page field. Answerable "no" — and with §2's decision
   to use in-game captures only, it stays answerable "no".
@@ -318,10 +398,15 @@ game's, and the game does not have a stated voice yet (§3, decision 3).
 The clock is running, so the ordering is now "what gets the page submitted
 soonest", not "what is most polished".
 
-1. **Confirm the wordmark** (§5.1) — blocks all six capsules. Highest priority.
-2. **Answer §3.1 (premium vs F2P) and §3.3 (tagline)** — block the page's text.
-3. **Write the privacy policy** (`LEGAL_COMPLIANCE_PLAN.md` §2.1) — blocks the
-   page, and mobile, and is a few hours of work.
+1. **Make the wordmark** (§5.1) — blocks all six capsules. Highest priority, and
+   now known to be *creation* work rather than a confirmation: the repo has no
+   wordmark, only a circular icon. Answer the icon's provenance question in the
+   same pass, since a Canva-sourced mark would need replacing too.
+2. ~~**Answer §3.1 (premium vs F2P) and §3.3 (tagline)**~~ — ✅ both decided;
+   tagline drafted in §3a and live in `layout.tsx`, tags shortlisted in §3b.
+3. ~~**Write the privacy policy**~~ — ✅ done, live at `/privacy`, merged to
+   master. Set the two legal-entity env vars before submitting
+   (`LEGAL_COMPLIANCE_PLAN.md` §2.1).
 4. ~~**Build the capture harness** (§5.2) in `wom-e2e`~~ — ✅ done, branch
    `capture-harness`.
 5. **Capture screenshots** (5+, HUD visible, no Hades) and **capsule source
@@ -346,10 +431,10 @@ soonest", not "what is most polished".
 | Price set ($2 USD anchor) | ✅ Decided — not yet entered in Steamworks |
 | Tax interview / ENK position checked | Not started |
 | Art direction for store assets | ✅ **Decided — in-game captures, no custom art** |
-| Wordmark confirmed original + usable | 🔴 Not started — **blocks all capsules** (§5.1) |
+| Wordmark confirmed original + usable | 🔴 **No wordmark exists** — `wom.svg` is a lettering-free icon; must be created (§5.1) |
 | Premium vs. F2P decision (§3.1) | ✅ **Premium** |
-| Tagline / positioning (§3.3) | Not started — `layout.tsx:19` is a placeholder |
-| Privacy policy page | 🔴 Not started — `LEGAL_COMPLIANCE_PLAN.md` §2.1 |
+| Tagline / positioning | ✅ **Drafted (§3a) and live in `layout.tsx`** — swap the string if you prefer another |
+| Privacy policy page | ✅ **Live at `/privacy`, merged** — legal-entity env vars still unset (§2.1) |
 | Capture harness in `wom-e2e` (§5.2) | ✅ Built — branch `capture-harness`, `npm run capture` |
 | 5+ gameplay screenshots @1920×1080, Hades-free | Not started — **needs a GPU machine** (§5.2) |
 | Capsule source renders (HUD hidden) | Not started — **needs a GPU machine** (§5.2) |
@@ -362,8 +447,9 @@ soonest", not "what is most polished".
 | Library hero 3840×1240 | Not started |
 | Library logo (transparent) | Not started |
 | App icon 184×184 | Not started |
+| Icon provenance answered (Canva-license risk, §5.1) | 🔴 Open — needs Mikael |
 | Trailer (required) | Not started |
-| Store copy final | Draft only (§6) |
-| Online-only + third-party-account disclosures | Not started |
+| Store copy final | Draft (§6) + tagline (§3a) + tag shortlist (§3b) |
+| Online-only + third-party-account disclosures | Drafted in §6 — privacy policy URL now available |
 | Page submitted for review | Not started |
 | Electron shell (blocks release, not the page) | Not started — `MOBILE_AND_STEAM_PLAN.md` §15 |
