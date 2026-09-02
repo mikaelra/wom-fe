@@ -9,6 +9,7 @@ import { skinColor, skinThumbnailUrl } from '@/lib/frogSkins';
 import RopedButton from '@/components/hud/RopedButton';
 import RulesModal from '@/components/lobby/RulesModal';
 import MusicToggleButton from '@/components/audio/MusicToggleButton';
+import SfxToggleButton from '@/components/audio/SfxToggleButton';
 
 /**
  * The chrome that is the same in every scene: Rules and the music toggle on
@@ -136,6 +137,11 @@ export default function SceneTopBar() {
             Rules
           </RopedButton>
           <MusicToggleButton />
+          {/* The sound-effects toggle was only ever rendered in the lobby
+              (LobbyOverlay), so every screen carrying this bar -- the city
+              included -- offered a music button and no way at all to mute
+              the effects. */}
+          <SfxToggleButton />
         </div>
       </div>
       <div
