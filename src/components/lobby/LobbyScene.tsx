@@ -1339,6 +1339,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               bossHp={isBoss ? player.hp : undefined}
               bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
               frogSkinUrl={skinMap.get(player.name)}
+              cosmetic={player.cosmetic}
               showAttackButton={showActionButtonsLook && !pendingDenyActive && isOpponent && !isDead && (!isBossFight || isBoss)}
               onAttack={handleAttack}
               showDenyButton={showDenyForThisPlayer}

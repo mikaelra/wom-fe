@@ -24,6 +24,8 @@ import {
   ResolveAccountSessionResponseSchema,
   LogOutResponseSchema,
   ClaimPendingWheelResponseSchema,
+  ArtifactLedgerResponseSchema,
+  EquipCosmeticResponseSchema,
   InventoryResponseSchema,
   EquipSkinResponseSchema,
   SpinWheelResponseSchema,
@@ -39,8 +41,14 @@ import {
   WheelTablesResponseSchema,
   TradeUpRulesResponseSchema,
   TradeUpResponseSchema,
+  MarketCatalogResponseSchema,
+  MarketListingsResponseSchema,
+  MarketEnterResponseSchema,
+  MarketAcceptTermsResponseSchema,
+  MarketMutationResponseSchema,
 } from '@/lib/schemas';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
+import type { MarketCatalog, MarketItemInput, MarketListing } from '@/lib/market';
 
 export type ShopProduct = {
   id: string;
@@ -297,12 +305,69 @@ export async function claimPendingWheel(
   });
 }
 
+/** Claim an artifact discovered without a verified account. Same shape as
+ *  claimPendingWheel, because wom-be reuses the same claim flow for both. */
+export async function claimPendingArtifact(
+  lobbyId: string,
+  name: string,
+  email: string
+): Promise<{ success: boolean; pending_verification?: boolean }> {
+  return request('/claim_pending_artifact', ClaimPendingWheelResponseSchema, {
+    body: { lobby_id: lobbyId, name, email },
+    defaultErrorMessage: 'Failed to claim artifact',
+  });
+}
+
 export async function getInventory(
   token: string
-): Promise<{ equipped_skin: string; skins: { skin: string; count: number }[]; wheels: { id: number; kind: string }[] }> {
+): Promise<{
+  equipped_skin: string;
+  skins: { skin: string; count: number }[];
+  wheels: { id: number; kind: string }[];
+  equipped_cosmetic?: string | null;
+  artifact?: { ordinal: number; discovered_at: string | null; cosmetic: string } | null;
+}> {
   return request('/inventory', InventoryResponseSchema, {
     body: { token },
     defaultErrorMessage: 'Failed to load inventory.',
+  });
+}
+
+/** Equip a cosmetic, or unequip by passing an empty string. Unequipping is
+ *  always allowed -- taking something off needs no ownership check. */
+export async function equipCosmetic(
+  token: string,
+  cosmetic: string
+): Promise<{ success: boolean; equipped_cosmetic: string | null }> {
+  try {
+    return await request('/inventory/equip_cosmetic', EquipCosmeticResponseSchema, {
+      body: { token, cosmetic },
+      defaultErrorMessage: 'Failed to equip cosmetic.',
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) throw new Error('You do not own this cosmetic.');
+    throw e;
+  }
+}
+
+/** The discovery ledger: every artifact ever found, oldest first.
+ *
+ *  Readable only by someone who has discovered one themselves -- the server
+ *  answers 403 otherwise, which callers should treat as "sealed" rather than
+ *  as a failure. Keyset-paginated on ordinal: pass the last ordinal seen as
+ *  `after`. */
+export async function getArtifactLedger(
+  token: string,
+  after = 0,
+  limit = 100
+): Promise<{
+  artifacts: { ordinal: number; finder_name: string; discovered_at: string | null }[];
+  total: number;
+  current_chance: number;
+}> {
+  return request('/artifacts/ledger', ArtifactLedgerResponseSchema, {
+    body: { token, after, limit },
+    defaultErrorMessage: 'Failed to load the artifact ledger.',
   });
 }
 
@@ -342,7 +407,12 @@ export async function claimName(
 
 export async function confirmEmailVerification(
   token: string
-): Promise<{ success: boolean; purpose: 'claim_name' | 'claim_relic' | 'claim_wheel'; relic_name?: string | null }> {
+  // `purpose` is a plain string, not a union of the purposes this build
+  // knows: wom-be can add one (it added 'claim_artifact') and a caller that
+  // cannot name it should still be able to report success, since by this
+  // point the backend has already done the work. See
+  // ConfirmEmailVerificationResponseSchema.
+): Promise<{ success: boolean; purpose: string; relic_name?: string | null }> {
   try {
     const data = await request('/confirm_email_verification', ConfirmEmailVerificationResponseSchema, {
       body: { token },
@@ -468,5 +538,118 @@ export async function logOut(token: string | null): Promise<{ success: boolean }
     });
   } catch {
     return { success: true };
+  }
+}
+
+// ── Market -- the player-to-player trading post (wom-be docs/MARKET_PLAN.md,
+//    direct-swap model §1A) ──────────────────────────────────────────────────
+
+/** The "want" picker's item catalog + the RMT disclaimer text/version.
+ *  Public, cacheable -- no token. */
+export async function getMarketCatalog(): Promise<MarketCatalog> {
+  return request('/market/catalog', MarketCatalogResponseSchema, {
+    defaultErrorMessage: 'Failed to load the market catalog.',
+  });
+}
+
+/** Every open, unexpired listing plus the server clock (so "time remaining"
+ *  is measured against the server, not a skewed local clock). Public read. */
+export async function getMarketListings(): Promise<{
+  listings: MarketListing[];
+  server_time: string;
+}> {
+  return request('/market/listings', MarketListingsResponseSchema, {
+    defaultErrorMessage: 'Failed to load the market.',
+  });
+}
+
+/** Per-player page bootstrap: has this player accepted the current terms,
+ *  and how many Hades' Coins do they hold (the /longoffer cost). */
+export async function enterMarket(token: string): Promise<{
+  player_id: number;
+  player_name: string;
+  terms_accepted: boolean;
+  terms_version: string;
+  coins: number;
+  email_verified: boolean;
+}> {
+  return request('/market/enter', MarketEnterResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Failed to enter the market.',
+  });
+}
+
+/** Record acceptance of the current RMT disclaimer version -- what the
+ *  "I understand" gate calls before retrying the action it blocked. */
+export async function acceptMarketTerms(token: string): Promise<{
+  terms_accepted: boolean;
+  terms_version: string;
+}> {
+  return request('/market/accept_terms', MarketAcceptTermsResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Failed to record acceptance.',
+  });
+}
+
+function mapMarketError(e: unknown): never {
+  if (e instanceof ApiError) {
+    if (e.code === 'email_unverified') throw new Error('Verify your email to trade.');
+    if (e.code === 'terms_not_accepted') throw new Error('Acknowledge the trading rules first.');
+    if (e.code === 'give_not_owned') throw new Error("You don't own everything you're offering.");
+    if (e.code === 'insufficient_coins') throw new Error("You don't have that many Hades' Coins.");
+    if (e.code === 'seller_item_gone') throw new Error('The other player no longer owns everything in this trade.');
+    if (e.code === 'your_item_gone') throw new Error("You no longer own everything this trade asks for.");
+    if (e.code === 'own_listing') throw new Error("You can't accept your own trade.");
+    if (e.code === 'not_open') throw new Error('That trade is no longer open.');
+    if (e.code === 'expired') throw new Error('That trade has expired.');
+    if (e.code === 'not_found') throw new Error('That trade is gone.');
+  }
+  throw e;
+}
+
+/** Craft-and-post a trade. `kind` 'quick' (free, 60s) or 'long' (1-4 coins,
+ *  6h each). Both sides need >= 1 item and may be uneven. */
+export async function createMarketListing(
+  token: string,
+  input: { kind: 'quick' | 'long'; coins: number; give: MarketItemInput[]; want: MarketItemInput[] },
+): Promise<{ listing: MarketListing }> {
+  try {
+    return await request('/market/listings', MarketMutationResponseSchema, {
+      body: { token, ...input },
+      defaultErrorMessage: 'Failed to post the trade.',
+    });
+  } catch (e) {
+    mapMarketError(e);
+  }
+}
+
+/** Accept someone else's listing -- the atomic swap. Caller is the accepter
+ *  and must own every requested item. */
+export async function acceptMarketListing(
+  token: string,
+  listingId: number,
+): Promise<{ listing: MarketListing }> {
+  try {
+    return await request(`/market/listings/${listingId}/accept`, MarketMutationResponseSchema, {
+      body: { token },
+      defaultErrorMessage: 'Failed to accept the trade.',
+    });
+  } catch (e) {
+    mapMarketError(e);
+  }
+}
+
+/** Cancel your own open listing. /longoffer coins are not refunded. */
+export async function cancelMarketListing(
+  token: string,
+  listingId: number,
+): Promise<{ listing: MarketListing }> {
+  try {
+    return await request(`/market/listings/${listingId}/cancel`, MarketMutationResponseSchema, {
+      body: { token },
+      defaultErrorMessage: 'Failed to cancel the trade.',
+    });
+  } catch (e) {
+    mapMarketError(e);
   }
 }

@@ -127,7 +127,17 @@ export const ClaimPendingRelicResponseSchema = z.object({
 
 export const ConfirmEmailVerificationResponseSchema = z.object({
   success: z.boolean(),
-  purpose: z.enum(['claim_name', 'claim_relic', 'claim_wheel']),
+  // Deliberately not z.enum. This was pinned to
+  // ['claim_name', 'claim_relic', 'claim_wheel'] and the day wom-be added a
+  // fourth purpose ('claim_artifact') every verification link of that kind
+  // died on this line -- the backend had already verified the email, issued
+  // the session and granted the item, and the only thing that failed was
+  // this page's ability to describe it. A closed enum here turns "wom-be
+  // knows a word we don't" into a hard failure of work that already
+  // succeeded, which is exactly the deploy-independence problem the wire
+  // schema in types/game.ts documents. The page falls back to a generic
+  // confirmation for a purpose it does not recognise.
+  purpose: z.string(),
   relic_name: z.string().nullable().optional(),
   session_token: z.string().optional(),
 });
@@ -150,6 +160,39 @@ export const InventoryResponseSchema = z.object({
   equipped_skin: z.string(),
   skins: z.array(z.object({ skin: z.string(), count: z.number().int() })),
   wheels: z.array(z.object({ id: z.number().int(), kind: z.string() })),
+  // Optional for the same deploy-independence reasoning as the wire schema's
+  // player fields (types/game.ts): a wom-be deployed before the artifact
+  // system simply omits these, and every consumer here treats absent the
+  // same as null.
+  equipped_cosmetic: z.string().nullable().optional(),
+  artifact: z
+    .object({
+      ordinal: z.number().int(),
+      discovered_at: z.string().nullable(),
+      cosmetic: z.string(),
+    })
+    .nullable()
+    .optional(),
+});
+
+export const EquipCosmeticResponseSchema = z.object({
+  success: z.boolean(),
+  equipped_cosmetic: z.string().nullable(),
+});
+
+// GET /artifacts/ledger -- public, no auth. current_chance is what one
+// eligible Well win is worth right now; it rises as the world discovers more
+// (wom-be docs/ARTIFACT_PLAN.md §4.2), so nothing should hardcode "1 in 1000".
+export const ArtifactLedgerResponseSchema = z.object({
+  artifacts: z.array(
+    z.object({
+      ordinal: z.number().int(),
+      finder_name: z.string(),
+      discovered_at: z.string().nullable(),
+    }),
+  ),
+  total: z.number().int(),
+  current_chance: z.number(),
 });
 
 export const EquipSkinResponseSchema = z.object({
@@ -318,4 +361,85 @@ export const RankedMatchFoundPayloadSchema = z.object({
 
 export const OnlineCountPayloadSchema = z.object({
   count: z.number().int(),
+});
+
+// ── Market -- the player-to-player trading post (wom-be docs/MARKET_PLAN.md,
+//    direct-swap model §1A) ──────────────────────────────────────────────────
+
+// One item on either side of a trade -- a catalog descriptor, not an owned
+// row. Exactly one of skin / relic_id / wheel_kind is set, matching
+// item_type.
+export const MarketItemSchema = z.object({
+  item_type: z.enum(['skin', 'relic', 'wheel']),
+  skin: z.string().nullable(),
+  relic_id: z.number().int().nullable(),
+  wheel_kind: z.string().nullable(),
+  quantity: z.number().int(),
+});
+
+export const MarketListingSchema = z.object({
+  id: z.number().int(),
+  kind: z.enum(['quick', 'long']),
+  status: z.enum(['open', 'fulfilled', 'cancelled', 'expired']),
+  seller_player_id: z.number().int(),
+  seller_name: z.string(),
+  created_at: z.string(),
+  expires_at: z.string(),
+  give: z.array(MarketItemSchema),
+  want: z.array(MarketItemSchema),
+});
+
+// GET /market/listings
+export const MarketListingsResponseSchema = z.object({
+  listings: z.array(MarketListingSchema),
+  server_time: z.string(),
+});
+
+// GET /market/catalog
+export const MarketCatalogResponseSchema = z.object({
+  skins: z.array(z.string()),
+  relics: z.array(z.object({ id: z.number().int(), name: z.string() })),
+  wheel_kinds: z.array(z.string()),
+  coin_relic_id: z.number().int(),
+  terms_version: z.string(),
+  terms_text: z.string(),
+});
+
+// POST /market/enter
+export const MarketEnterResponseSchema = z.object({
+  player_id: z.number().int(),
+  player_name: z.string(),
+  terms_accepted: z.boolean(),
+  terms_version: z.string(),
+  coins: z.number().int(),
+  email_verified: z.boolean(),
+});
+
+// POST /market/accept_terms
+export const MarketAcceptTermsResponseSchema = z.object({
+  terms_accepted: z.boolean(),
+  terms_version: z.string(),
+});
+
+// POST /market/listings, .../accept, .../cancel -- all return the affected
+// listing. Error shapes ({error, code}) go through ApiError.code.
+export const MarketMutationResponseSchema = z.object({
+  success: z.boolean(),
+  listing: MarketListingSchema,
+});
+
+// Socket payloads (wom-be sockets/market.py). A market chat message reuses
+// the {sender, message, timestamp} shape lobby chat uses.
+export const MarketChatMessageSchema = z.object({
+  sender: z.string(),
+  message: z.string(),
+  timestamp: z.string(),
+});
+
+export const MarketChatBacklogSchema = z.object({
+  messages: z.array(MarketChatMessageSchema),
+});
+
+export const MarketListingExpiredSchema = z.object({
+  id: z.number().int(),
 });

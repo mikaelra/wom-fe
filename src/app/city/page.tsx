@@ -99,6 +99,7 @@ function CityPageContent() {
           rankedLabel={ranked.label}
           rankedSublabel={ranked.sublabel}
           onBackToEarth={() => router.push('/')}
+          onMarket={() => router.push('/market')}
           onReady={handleReady}
         />
       </Canvas>
