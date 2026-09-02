@@ -10,6 +10,7 @@ import {
   type ModellingModelId,
 } from '@/lib/modelling';
 import { MODELLING_FOV, type MeasuredModel } from '@/components/modelling/ModellingScene';
+import PromptBox from '@/components/modelling/PromptBox';
 
 const ModellingScene = dynamic(() => import('@/components/modelling/ModellingScene'), { ssr: false });
 
@@ -43,6 +44,10 @@ function ModellingPageContent() {
   const [spin, setSpin] = useState(true);
   const [wireframe, setWireframe] = useState(false);
   const [measured, setMeasured] = useState<MeasuredModel | null>(null);
+  // Bumped to re-frame the camera. The scene never re-frames itself on a
+  // size change -- an edit that makes the building taller should look
+  // taller, not be silently backed away from until it isn't.
+  const [refitSignal, setRefitSignal] = useState(0);
   // Stable, so the scene's measuring layout effect does not re-run on every
   // render of this page (it depends on the callback).
   const handleMeasure = useCallback((m: MeasuredModel) => setMeasured(m), []);
@@ -67,6 +72,7 @@ function ModellingPageContent() {
           modelId={model.id}
           spin={spin}
           wireframe={wireframe}
+          refitSignal={refitSignal}
           onMeasure={handleMeasure}
         />
       </Canvas>
@@ -123,6 +129,13 @@ function ModellingPageContent() {
           </button>
           <button
             type="button"
+            onClick={() => setRefitSignal((n) => n + 1)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/20 bg-black/50 text-white/80 cursor-pointer hover:bg-black/70 transition-colors"
+          >
+            Refit camera
+          </button>
+          <button
+            type="button"
             onClick={() => router.push('/')}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/20 bg-black/50 text-white/80 cursor-pointer hover:bg-black/70 transition-colors"
           >
@@ -130,6 +143,11 @@ function ModellingPageContent() {
           </button>
         </div>
       </div>
+
+      {/* The prompt box: type a change, whoever is editing the models is
+          tailing the file it writes to, and their edit comes back through
+          Fast Refresh without a page change. */}
+      <PromptBox />
 
       {/* Measured off the real geometry, so it stays honest as the buildings
           are re-sculpted -- and so the arena's footprint can be checked

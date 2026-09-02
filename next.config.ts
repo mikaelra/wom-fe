@@ -8,6 +8,16 @@ import { withSentryConfig } from "@sentry/nextjs";
 const isNative = process.env.BUILD_TARGET === "native";
 
 const nextConfig: NextConfig = {
+  // /modelling's prompt-box endpoint is a `route.dev.ts`, and this line is
+  // what makes it a route at all: Next only routes a file named
+  // `route.<one of these>`. The web build gets "dev.ts" in the list, the
+  // native build does not, so `src/app/api/modelling-prompt/route.dev.ts`
+  // is an inert file there rather than a POST handler -- which `output:
+  // "export"` rejects outright. Temporary, with /modelling itself.
+  pageExtensions: isNative
+    ? ["tsx", "ts", "jsx", "js"]
+    : ["dev.ts", "tsx", "ts", "jsx", "js"],
+
   // Mirrors BUILD_TARGET into the client bundle as NEXT_PUBLIC_BUILD_TARGET
   // -- see src/lib/buildTarget.ts. BUILD_TARGET itself is a plain server/
   // build-time var, so client components can't read it directly; Next only

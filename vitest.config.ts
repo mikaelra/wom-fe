@@ -127,6 +127,15 @@ export default defineConfig({
       // with renderHook + a mocked @/lib/socket the way useLobbyConnection
       // is), both new and both in the src/lib glob, pushed the suite to
       // ~82.23/73.72/78.2/83.77 (stable across repeated runs).
+      // Raised nothing for /modelling (the temporary model sandbox): its
+      // two new lib files, modelling.ts (the framing maths) and
+      // modellingPrompts.ts (the prompt box's transcript parsing/merging),
+      // are both inside the src/lib glob and both well covered by their own
+      // tests, pushing the suite to ~82.65/74.55/78.92/84.17. Left at the
+      // existing numbers deliberately rather than ratcheted up: this page
+      // is built to be DELETED whole once the real models land, and a
+      // threshold resting on coverage that leaves with it would fail the
+      // commit that removes it.
       thresholds: {
         statements: 80,
         branches: 72,

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useThree } from '@react-three/fiber';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
@@ -32,6 +32,22 @@ import {
 /** Narrow, so the building fills the frame without wide-angle bulge. */
 export const MODELLING_FOV = 45;
 
+/**
+ * How often the model is re-measured, seconds.
+ *
+ * There IS a reason this is polled rather than done once on mount. The
+ * whole loop this page exists for is: edit Senate.tsx, Fast Refresh swaps
+ * the geometry in, look at the result. Fast Refresh re-renders the edited
+ * component but does not re-run an unrelated parent's effects, so a
+ * measure-on-mount would leave the dimension readout describing the
+ * building as it was before the edit -- wrong exactly when it is being
+ * read most carefully. Re-measuring a few dozen primitives at 2.5Hz costs
+ * nothing next to that.
+ */
+const REMEASURE_INTERVAL = 0.4;
+/** Below this, a size change is float noise rather than an edit. */
+const SIZE_EPSILON = 1e-3;
+
 export interface MeasuredModel {
   width: number;
   height: number;
@@ -42,6 +58,8 @@ interface Props {
   modelId: ModellingModelId;
   spin: boolean;
   wireframe: boolean;
+  /** Bumped by the page's Refit button to re-frame the camera on demand. */
+  refitSignal: number;
   /** Reports the model's measured bounding box up to the HUD. */
   onMeasure?: (m: MeasuredModel) => void;
 }
@@ -69,56 +87,44 @@ function ModelBody({ modelId }: { modelId: ModellingModelId }) {
   }
 }
 
-export default function ModellingScene({ modelId, spin, wireframe, onMeasure }: Props) {
+interface Measurement {
+  size: THREE.Vector3;
+  centerY: number;
+}
+
+export default function ModellingScene({
+  modelId, spin, wireframe, refitSignal, onMeasure,
+}: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const camera = useThree((s) => s.camera);
   const viewport = useThree((s) => s.viewport);
-  const [box, setBox] = useState<{ size: THREE.Vector3; centerY: number } | null>(null);
 
-  // Measure the real geometry rather than reading dimensions off the props:
-  // the whole point of this page is that these buildings are about to
-  // change shape, and a hard-coded height would quietly mis-frame the first
-  // time somebody raises a dome.
-  //
-  // useLayoutEffect, not useEffect: these are procedural primitives built
-  // in the same render pass, so the meshes exist by the time layout effects
-  // run, and framing before paint means no visible camera snap.
-  useLayoutEffect(() => {
-    if (!groupRef.current) return;
+  // The live measurement is held in a ref as well as state: the camera
+  // refit needs the CURRENT box at the moment it fires, and reading it from
+  // state would make the refit effect depend on the box -- which would yank
+  // the camera every time an edit changed the model's size, mid-look.
+  const boxRef = useRef<Measurement | null>(null);
+  const [box, setBox] = useState<Measurement | null>(null);
+
+  const measure = useCallback((): Measurement | null => {
+    if (!groupRef.current) return null;
     const measured = new THREE.Box3().setFromObject(groupRef.current);
-    const size = measured.getSize(new THREE.Vector3());
-    const centerY = measured.getCenter(new THREE.Vector3()).y;
-    setBox({ size, centerY });
-    onMeasure?.({ width: size.x, height: size.y, depth: size.z });
-  }, [modelId, onMeasure]);
+    if (measured.isEmpty()) return null;
+    return {
+      size: measured.getSize(new THREE.Vector3()),
+      centerY: measured.getCenter(new THREE.Vector3()).y,
+    };
+  }, []);
 
-  // Re-stand the camera whenever the model changes. Only on the model, not
-  // on the viewport: re-framing mid-resize would yank the camera out from
-  // under someone who had just lined up a view they wanted to look at.
-  useEffect(() => {
-    if (!box) return;
-    const { distance } = orbitFraming(box.size, {
-      fov: MODELLING_FOV,
-      aspect: viewport.aspect,
-    });
-    camera.position.set(...orbitCameraPosition(distance, box.centerY));
-    const controls = controlsRef.current;
-    if (controls) {
-      controls.target.set(0, box.centerY, 0);
-      controls.update();
-    }
-    camera.lookAt(0, box.centerY, 0);
-    // viewport.aspect intentionally read but not depended on -- see above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [box, camera]);
-
-  // Wireframe and shadow flags are pushed onto the meshes from out here
-  // instead of being threaded through Senate/Market as props. Those two are
-  // the components being sculpted; a sandbox has no business adding
+  // Wireframe and shadow flags are pushed onto the meshes by traversing the
+  // group instead of being threaded through Senate/Market as props. Those
+  // two are the components being sculpted; a sandbox has no business adding
   // parameters to them that the city and the lobby would then carry
-  // forever.
-  useEffect(() => {
+  // forever. Re-applied on every measure tick rather than once, because an
+  // edit that adds a mesh would otherwise leave the new one solid while
+  // everything around it stayed wireframe.
+  const applyMaterialFlags = useCallback(() => {
     const group = groupRef.current;
     if (!group) return;
     group.traverse((obj) => {
@@ -133,7 +139,76 @@ export default function ModellingScene({ modelId, spin, wireframe, onMeasure }: 
         }
       }
     });
-  }, [modelId, wireframe]);
+  }, [wireframe]);
+
+  /** Stand the camera back off at the framed distance for the current box. */
+  const refit = useCallback(() => {
+    const current = boxRef.current;
+    if (!current) return;
+    const { distance } = orbitFraming(current.size, {
+      fov: MODELLING_FOV,
+      aspect: viewport.aspect,
+    });
+    camera.position.set(...orbitCameraPosition(distance, current.centerY));
+    const controls = controlsRef.current;
+    if (controls) {
+      controls.target.set(0, current.centerY, 0);
+      controls.update();
+    }
+    camera.lookAt(0, current.centerY, 0);
+  }, [camera, viewport.aspect]);
+
+  // First measurement before paint, so the opening frame is already framed
+  // rather than snapping into place a tick later.
+  useLayoutEffect(() => {
+    const first = measure();
+    if (!first) return;
+    boxRef.current = first;
+    setBox(first);
+    onMeasure?.({ width: first.size.x, height: first.size.y, depth: first.size.z });
+    applyMaterialFlags();
+    refit();
+    // Only on a model change: refit/applyMaterialFlags identities change
+    // with the wireframe toggle and the viewport, and re-framing the camera
+    // on either would move a view someone had just lined up.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelId]);
+
+  useEffect(() => {
+    applyMaterialFlags();
+  }, [applyMaterialFlags]);
+
+  // Refit on demand only -- never automatically on a size change. An edit
+  // that makes the building taller should show it getting taller, not
+  // silently back the camera off to keep it the same size on screen.
+  useEffect(() => {
+    if (refitSignal > 0) refit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refitSignal]);
+
+  const sinceMeasure = useRef(0);
+  useFrame((_, delta) => {
+    sinceMeasure.current += delta;
+    if (sinceMeasure.current < REMEASURE_INTERVAL) return;
+    sinceMeasure.current = 0;
+
+    const next = measure();
+    if (!next) return;
+    const prev = boxRef.current;
+    const changed =
+      !prev ||
+      Math.abs(prev.size.x - next.size.x) > SIZE_EPSILON ||
+      Math.abs(prev.size.y - next.size.y) > SIZE_EPSILON ||
+      Math.abs(prev.size.z - next.size.z) > SIZE_EPSILON ||
+      Math.abs(prev.centerY - next.centerY) > SIZE_EPSILON;
+    if (!changed) return;
+
+    boxRef.current = next;
+    setBox(next);
+    onMeasure?.({ width: next.size.x, height: next.size.y, depth: next.size.z });
+    // A hot-swapped mesh arrives with its own fresh material.
+    applyMaterialFlags();
+  });
 
   const framing = box
     ? orbitFraming(box.size, { fov: MODELLING_FOV, aspect: viewport.aspect })
@@ -161,7 +236,11 @@ export default function ModellingScene({ modelId, spin, wireframe, onMeasure }: 
         shadow-camera-far={gridSize * 4}
         shadow-bias={-0.0006}
       />
-      <directionalLight position={[-gridSize * 0.7, gridSize * 0.4, -gridSize * 0.4]} intensity={0.5} color="#9fc4ff" />
+      <directionalLight
+        position={[-gridSize * 0.7, gridSize * 0.4, -gridSize * 0.4]}
+        intensity={0.5}
+        color="#9fc4ff"
+      />
 
       <group ref={groupRef}>
         <ModelBody modelId={modelId} />
