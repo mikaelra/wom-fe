@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useRankedQueue } from '@/lib/useRankedQueue';
-import { joinRankedQueue, leaveRankedQueue } from '@/lib/api';
+import { getActiveRankedLobby, joinRankedQueue, leaveRankedQueue } from '@/lib/api';
 import { setStoredToken } from '@/lib/http';
 import * as socketModule from '@/lib/socket';
 
@@ -13,15 +13,18 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/api', () => ({
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
+  getActiveRankedLobby: vi.fn(),
 }));
 
 vi.mock('@/lib/http', () => ({
   setStoredToken: vi.fn(),
 }));
 
-// Same fake-subscribe pattern as useLobbyConnection.test.tsx.
+// Same fake-subscribe pattern as useLobbyConnection.test.tsx, extended with
+// subscribeConnect so a reconnect can be simulated.
 vi.mock('@/lib/socket', () => {
   const subscribeListeners = new Map<string, Set<(...args: unknown[]) => void>>();
+  const connectListeners = new Set<() => void>();
   const emit = vi.fn();
 
   return {
@@ -31,12 +34,21 @@ vi.mock('@/lib/socket', () => {
       subscribeListeners.get(event)!.add(handler);
       return () => subscribeListeners.get(event)?.delete(handler);
     },
+    subscribeConnect: (handler: () => void) => {
+      connectListeners.add(handler);
+      return () => connectListeners.delete(handler);
+    },
     __fireSubscribeEvent: (event: string, payload: unknown) => {
       subscribeListeners.get(event)?.forEach((h) => h(payload));
     },
+    __fireConnect: () => {
+      connectListeners.forEach((h) => h());
+    },
+    __connectListenerCount: () => connectListeners.size,
     __emit: emit,
     __reset: () => {
       subscribeListeners.clear();
+      connectListeners.clear();
       emit.mockClear();
     },
   };
@@ -44,20 +56,39 @@ vi.mock('@/lib/socket', () => {
 
 const socket = socketModule as unknown as {
   __fireSubscribeEvent: (event: string, payload: unknown) => void;
+  __fireConnect: () => void;
+  __connectListenerCount: () => number;
   __emit: ReturnType<typeof vi.fn>;
   __reset: () => void;
 };
 
 const mockedJoin = vi.mocked(joinRankedQueue);
 const mockedLeave = vi.mocked(leaveRankedQueue);
+const mockedActive = vi.mocked(getActiveRankedLobby);
 const mockedSetStoredToken = vi.mocked(setStoredToken);
+
+/** Matches ACTIVE_MATCH_POLL_MS in the hook. */
+const POLL_MS = 4000;
+
+const noActiveMatch = {
+  lobby_id: null,
+  token: null,
+  ranked_countdown_deadline: null,
+  started: false,
+};
 
 beforeEach(() => {
   socket.__reset();
   mockedJoin.mockReset();
   mockedLeave.mockReset();
+  mockedActive.mockReset();
   mockedSetStoredToken.mockReset();
   push.mockReset();
+  mockedActive.mockResolvedValue(noActiveMatch);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('useRankedQueue', () => {
@@ -143,5 +174,210 @@ describe('useRankedQueue', () => {
 
     expect(push).not.toHaveBeenCalled();
     await waitFor(() => expect(result.current.status).toBe('idle'));
+  });
+
+  // Socket.IO rooms are keyed by connection, so a reconnect silently drops
+  // the queue room the match-found push is addressed to. Without this
+  // re-join the player stays queued but unreachable, and only finds out
+  // they were matched by reloading the page.
+  describe('surviving a reconnect', () => {
+    it('re-emits join_ranked_queue on reconnect while searching', async () => {
+      mockedJoin.mockResolvedValue({ status: 'queued' });
+      const { result } = renderHook(() => useRankedQueue());
+
+      await act(async () => {
+        await result.current.startQueue('Alice');
+      });
+      socket.__emit.mockClear();
+
+      act(() => {
+        socket.__fireConnect();
+      });
+
+      expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+    });
+
+    it('does not re-join the queue room after cancelling', async () => {
+      mockedJoin.mockResolvedValue({ status: 'queued' });
+      mockedLeave.mockResolvedValue({ status: 'left', was_queued: true });
+      const { result } = renderHook(() => useRankedQueue());
+
+      await act(async () => {
+        await result.current.startQueue('Alice');
+      });
+      await act(async () => {
+        await result.current.cancelQueue();
+      });
+      socket.__emit.mockClear();
+
+      act(() => {
+        socket.__fireConnect();
+      });
+
+      expect(socket.__emit).not.toHaveBeenCalled();
+    });
+
+    it('does not re-join once the match has been entered', async () => {
+      mockedJoin.mockResolvedValue({ status: 'queued' });
+      const { result } = renderHook(() => useRankedQueue());
+
+      await act(async () => {
+        await result.current.startQueue('Alice');
+      });
+      act(() => {
+        socket.__fireSubscribeEvent('ranked_match_found', { lobby_id: 'ABCD', token: 'tok-123' });
+      });
+      socket.__emit.mockClear();
+
+      act(() => {
+        socket.__fireConnect();
+      });
+
+      expect(socket.__emit).not.toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+    });
+  });
+
+  // The backup path: if the push is lost anyway, polling /ranked/active is
+  // what still gets the player into the match they are already in.
+  describe('active-match poll fallback', () => {
+    it('enters a match the push never delivered', async () => {
+      vi.useFakeTimers();
+      mockedJoin.mockResolvedValue({ status: 'queued' });
+      const { result } = renderHook(() => useRankedQueue());
+
+      await act(async () => {
+        await result.current.startQueue('Alice');
+      });
+
+      mockedActive.mockResolvedValue({
+        lobby_id: 'WXYZ',
+        token: 'tok-poll',
+        ranked_countdown_deadline: null,
+        started: false,
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+      });
+
+      expect(mockedActive).toHaveBeenCalledWith('Alice');
+      expect(mockedSetStoredToken).toHaveBeenCalledWith('WXYZ', 'tok-poll');
+      expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'WXYZ', token: 'tok-poll' });
+      expect(push).toHaveBeenCalledWith('/lobby?id=WXYZ');
+    });
+
+    it('keeps waiting while no match is active yet', async () => {
+      vi.useFakeTimers();
+      mockedJoin.mockResolvedValue({ status: 'queued' });
+      const { result } = renderHook(() => useRankedQueue());
+
+      await act(async () => {
+        await result.current.startQueue('Alice');
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(POLL_MS * 2);
+      });
+
+      expect(mockedActive).toHaveBeenCalled();
+      expect(push).not.toHaveBeenCalled();
+      expect(result.current.status).toBe('searching');
+    });
+
+    it('navigates only once when the push and the poll both land', async () => {
+      vi.useFakeTimers();
+      mockedJoin.mockResolvedValue({ status: 'queued' });
+      const { result } = renderHook(() => useRankedQueue());
+
+      await act(async () => {
+        await result.current.startQueue('Alice');
+      });
+
+      mockedActive.mockResolvedValue({
+        lobby_id: 'ABCD',
+        token: 'tok-123',
+        ranked_countdown_deadline: null,
+        started: false,
+      });
+
+      act(() => {
+        socket.__fireSubscribeEvent('ranked_match_found', { lobby_id: 'ABCD', token: 'tok-123' });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(POLL_MS * 2);
+      });
+
+      expect(push).toHaveBeenCalledTimes(1);
+    });
+
+    it('survives a failing poll and enters on a later tick', async () => {
+      vi.useFakeTimers();
+      mockedJoin.mockResolvedValue({ status: 'queued' });
+      const { result } = renderHook(() => useRankedQueue());
+
+      await act(async () => {
+        await result.current.startQueue('Alice');
+      });
+
+      mockedActive.mockRejectedValueOnce(new Error('network'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+      });
+      expect(push).not.toHaveBeenCalled();
+
+      mockedActive.mockResolvedValue({
+        lobby_id: 'WXYZ',
+        token: 'tok-poll',
+        ranked_countdown_deadline: null,
+        started: false,
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+      });
+
+      expect(push).toHaveBeenCalledWith('/lobby?id=WXYZ');
+    });
+
+    it('stops polling after cancelQueue', async () => {
+      vi.useFakeTimers();
+      mockedJoin.mockResolvedValue({ status: 'queued' });
+      mockedLeave.mockResolvedValue({ status: 'left', was_queued: true });
+      const { result } = renderHook(() => useRankedQueue());
+
+      await act(async () => {
+        await result.current.startQueue('Alice');
+      });
+      await act(async () => {
+        await result.current.cancelQueue();
+      });
+      mockedActive.mockClear();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(POLL_MS * 2);
+      });
+
+      expect(mockedActive).not.toHaveBeenCalled();
+    });
+  });
+
+  it('tears down its socket and poll subscriptions on unmount', async () => {
+    vi.useFakeTimers();
+    mockedJoin.mockResolvedValue({ status: 'queued' });
+    const { result, unmount } = renderHook(() => useRankedQueue());
+
+    await act(async () => {
+      await result.current.startQueue('Alice');
+    });
+    expect(socket.__connectListenerCount()).toBe(1);
+
+    unmount();
+    mockedActive.mockClear();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS * 2);
+    });
+
+    expect(socket.__connectListenerCount()).toBe(0);
+    expect(mockedActive).not.toHaveBeenCalled();
   });
 });
