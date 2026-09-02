@@ -105,9 +105,9 @@ export default function AudioSettingsPanel() {
           <span className="text-base font-semibold">Keep music playing in the background</span>
         </label>
         <p className="text-sm text-white/70 mt-2 pl-8 leading-relaxed">
-          Off by default: music stops when you lock your phone or switch to
-          another app, the way the rest of the page does. Turn this on to let
-          it keep playing.
+          Off by default: music stops whenever you leave — switching tabs or
+          apps, minimising the window, or locking your phone — the way the
+          rest of the page does. Turn this on to let it keep playing.
         </p>
       </div>
     </div>
