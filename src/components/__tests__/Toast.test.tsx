@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ToastProvider, useToast } from '@/components/Toast';
 
 function Trigger({ message }: { message: string }) {
@@ -60,6 +60,36 @@ describe('Toast', () => {
 
     const toast = screen.getByText('Account verified').closest('[role="alert"]');
     expect(toast).toHaveStyle({ background: '#16a34a' });
+  });
+
+  it('keeps a stable context value across re-renders, so a `toast` dep does not loop', () => {
+    // Regression: an unmemoized `{ showError, showSuccess }` handed a fresh
+    // object to every consumer on each toast, re-firing any effect with
+    // `toast` in its deps -- a failing request then loops flat out.
+    const seen: unknown[] = [];
+
+    function Watcher() {
+      const toast = useToast();
+      const renders = useRef(0);
+      renders.current += 1;
+      seen.push(toast);
+      useEffect(() => {
+        // Raise a couple of toasts -> ToastProvider re-renders each time.
+        toast.showError('one');
+        toast.showError('two');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      return null;
+    }
+
+    render(
+      <ToastProvider>
+        <Watcher />
+      </ToastProvider>,
+    );
+
+    // Every render saw the exact same context object.
+    expect(new Set(seen).size).toBe(1);
   });
 
   it('logs to console.error instead of throwing when no provider is mounted', () => {
