@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ARENA, arenaInteriorHalfExtents, arenaPosition } from '@/lib/rankedArena';
+// LobbyScene's own sea height. Duplicated here rather than imported because
+// it is a module-private constant in a component this suite does not touch.
+const SEA_LEVEL = 2;
 import {
   getCameraTargetPosition, getPlayerPositions, radiusGrowthFactor,
-  MAX_PLAYERS, PLAYER_Y,
+  MAX_PLAYERS, PLAYER_Y, LOBBY_FLOOR_Y, TABLE_POSITION,
 } from '@/lib/sceneConstants';
 
 const interior = arenaInteriorHalfExtents();
@@ -52,19 +55,42 @@ describe('the players fit in it', () => {
 });
 
 describe('where it stands', () => {
-  it('puts its floor at the height the players stand on', () => {
-    // The stepped base is built upward from the component's own origin, so
-    // the origin has to sit a base's height below PLAYER_Y or the players
-    // hover above the floor -- or sink into it.
+  it('puts its floor exactly where the temple puts its floor', () => {
+    // The one thing that must hold: swapping the building a match is played
+    // in must not move the ground under the players. LOBBY_FLOOR_Y is the
+    // temple's own floor, derived from the GLB rather than copied.
     const [, y] = arenaPosition();
-    expect(y + ARENA.stepHeight * 3).toBeCloseTo(PLAYER_Y, 6);
+    expect(y + ARENA.stepHeight * 3).toBeCloseTo(LOBBY_FLOOR_Y, 6);
   });
 
-  it('rests its bottom step on the lobby waterline rather than under it', () => {
-    // LobbyScene's sea sits at y = 2. A base starting below that is the
-    // half-drowned look the city scene had to be dug out of.
+  it('does not build the floor up to PLAYER_Y, which is a player\'s WAIST', () => {
+    // The regression this replaces. A player model's origin is at its
+    // middle, not under its feet, so a floor at PLAYER_Y came through
+    // everyone at the waist. It read as an obvious bug and had stood since
+    // the arena was written, because nothing here had ever been looked at
+    // in a real ranked match.
     const [, y] = arenaPosition();
-    expect(y).toBeGreaterThanOrEqual(2);
+    expect(y + ARENA.stepHeight * 3).toBeLessThan(PLAYER_Y);
+  });
+
+  it('leaves the well standing on the floor rather than buried in the base', () => {
+    // The other half of the same fault: the base is solid, so a floor above
+    // the well swallows it whole and the ranked lobby has no visible well
+    // at all. The well's own model is 0.36 tall from TABLE_POSITION up.
+    const [, y] = arenaPosition();
+    const floor = y + ARENA.stepHeight * 3;
+    expect(TABLE_POSITION[1]).toBeGreaterThanOrEqual(floor);
+  });
+
+  it('keeps the floor itself above the waterline, so nobody stands in water', () => {
+    // Note what this does NOT say. The bottom of the base is below the sea
+    // plane at y = 2 and that is correct -- the temple's slabs run far
+    // deeper, and a building standing in water is the look. What matters is
+    // that the surface players are on is dry. The test that used to sit
+    // here asserted the whole base cleared the water, which could only be
+    // met by a floor at the wrong height or by steps 0.14 high.
+    const [, y] = arenaPosition();
+    expect(y + ARENA.stepHeight * 3).toBeGreaterThan(SEA_LEVEL);
   });
 
   it('is centred on the table, not offset from it', () => {

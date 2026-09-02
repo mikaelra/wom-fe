@@ -61,7 +61,7 @@ import {
   getSpectatorPositions,
   getSpectatorCameraPosition,
   radiusGrowthFactor,
-  BOSS_Y_LIFT,
+  BOSS_Y_LIFT, TEMPLE_LOBBY_Y,
 } from '@/lib/sceneConstants';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
@@ -1289,7 +1289,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             sideColumnCount={ARENA.sideColumnCount}
           />
         ) : (
-          <Temple scale={1} position={[0, 4, 0]} />
+          <Temple scale={1} position={[0, TEMPLE_LOBBY_Y, 0]} />
         )}
       </Suspense>
 
