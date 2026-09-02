@@ -8,6 +8,7 @@ import {
   MarketListingSchema,
   MarketCatalogResponseSchema,
   MarketChatMessageSchema,
+  MarketTradeSchema,
 } from '@/lib/schemas';
 import { skinLabel } from '@/lib/frogSkins';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
@@ -31,6 +32,28 @@ export type MarketItem = z.infer<typeof MarketItemSchema>;
 export type MarketListing = z.infer<typeof MarketListingSchema>;
 export type MarketCatalog = z.infer<typeof MarketCatalogResponseSchema>;
 export type MarketChatEntry = z.infer<typeof MarketChatMessageSchema>;
+export type MarketTrade = z.infer<typeof MarketTradeSchema>;
+
+/** The market chat pane is ambient presence, not a scrollback log: it
+ *  shows only the last hour. wom-be caps the join backlog to the same
+ *  window (sockets/market.py CHAT_BACKLOG_WINDOW); the client re-applies
+ *  it so a message posted while the tab was open still drops off once it
+ *  ages out. Everything older lives in the History view instead. */
+export const MARKET_CHAT_WINDOW_MS = 60 * 60 * 1000;
+
+/** The subset of `messages` posted within the last hour of `nowMs`, order
+ *  preserved. An entry whose timestamp doesn't parse is kept -- a bad
+ *  clock on one line shouldn't silently eat it. */
+export function recentChat(
+  messages: MarketChatEntry[],
+  nowMs: number = Date.now(),
+): MarketChatEntry[] {
+  const cutoff = nowMs - MARKET_CHAT_WINDOW_MS;
+  return messages.filter((m) => {
+    const t = new Date(m.timestamp).getTime();
+    return Number.isNaN(t) || t >= cutoff;
+  });
+}
 
 /** What the craft modal sends per item. Only the field matching item_type
  *  is set. */

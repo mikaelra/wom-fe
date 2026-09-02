@@ -26,6 +26,7 @@ import {
 } from '@/lib/market';
 import MarketBoard from '@/components/market/MarketBoard';
 import MarketChatPanel from '@/components/market/MarketChatPanel';
+import MarketHistoryModal from '@/components/market/MarketHistoryModal';
 import CraftOfferModal, { type OwnedItem } from '@/components/market/CraftOfferModal';
 import ConfirmModal from '@/components/market/ConfirmModal';
 import RmtDisclaimerBanner from '@/components/market/RmtDisclaimerBanner';
@@ -68,6 +69,7 @@ export default function MarketPage() {
   const [gate, setGate] = useState<PendingAction | null>(null);
   const [craft, setCraft] = useState<{ kind: 'quick' | 'long' } | null>(null);
   const [acceptTarget, setAcceptTarget] = useState<MarketListing | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // --- data loads --------------------------------------------------------
 
@@ -304,9 +306,14 @@ export default function MarketPage() {
             canChat={canChat}
             onSend={sendChat}
             onSlashCommand={(kind) => beginAction({ type: 'craft', kind })}
+            onOpenHistory={() => setHistoryOpen(true)}
           />
         </aside>
       </main>
+
+      {historyOpen && (
+        <MarketHistoryModal catalog={catalog} onClose={() => setHistoryOpen(false)} />
+      )}
 
       {gate && (
         <RmtDisclaimerGateModal onAccepted={onGateAccepted} onClose={() => setGate(null)} />

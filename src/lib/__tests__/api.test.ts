@@ -16,6 +16,7 @@ import {
   getPlayerProfile,
   getPlayerRelics,
   getRankedProfile,
+  getMarketTrades,
   getShopProducts,
   getWellProfile,
   getWheelTables,
@@ -845,5 +846,46 @@ describe('claimPendingArtifact', () => {
       headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
       body: JSON.stringify({ lobby_id: 'lobby1', name: 'Alice', email: 'a@b.c' }),
     });
+  });
+});
+
+describe('getMarketTrades', () => {
+  const page = {
+    trades: [
+      {
+        id: 5,
+        listing_id: 50,
+        kind: 'quick',
+        seller_name: 'Alice',
+        buyer_name: 'Bo',
+        completed_at: '2026-09-02T12:00:00+00:00',
+        give: [{ item_type: 'skin', skin: 'frog_gold_v1', relic_id: null, wheel_kind: null, quantity: 1 }],
+        want: [],
+      },
+    ],
+    has_more: true,
+    next_before: 5,
+  };
+
+  it('GETs /market/trades with no query on the first page', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(page));
+
+    await expect(getMarketTrades()).resolves.toEqual(page);
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/market/trades`, {
+      method: 'GET',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) },
+      body: undefined,
+    });
+  });
+
+  it('passes the keyset cursor through as ?before=', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ trades: [], has_more: false, next_before: null }));
+
+    await getMarketTrades({ before: 5, limit: 10 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/market/trades?before=5&limit=10`,
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
 });
