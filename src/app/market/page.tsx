@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   acceptMarketListing,
@@ -132,6 +132,20 @@ export default function MarketPage() {
   const myPlayerId = enterData?.playerId ?? null;
   const canChat = !!token && !!enterData?.emailVerified;
 
+  // When one of my own listings leaves the board -- it expired, or someone
+  // accepted it -- the items it was holding in escrow are back (or gone to
+  // the buyer), so the craft picker's counts are stale. Refetch the
+  // profile. Posting/cancelling already refetch inline; this covers the
+  // changes that happen while I'm just watching.
+  const myOpenListingCount = listings.filter(
+    (l) => myPlayerId != null && l.seller_player_id === myPlayerId,
+  ).length;
+  const prevMyOpenListingCount = useRef(myOpenListingCount);
+  useEffect(() => {
+    if (myOpenListingCount < prevMyOpenListingCount.current) void reloadPlayer();
+    prevMyOpenListingCount.current = myOpenListingCount;
+  }, [myOpenListingCount, reloadPlayer]);
+
   const canAccept = useCallback(
     (listing: MarketListing) => {
       if (!token || !enterData?.emailVerified) return false;
@@ -204,11 +218,12 @@ export default function MarketPage() {
         await cancelMarketListing(token, listing.id);
         toast.showSuccess('Trade cancelled.');
         refetch();
+        void reloadPlayer();  // the items it held are back in the picker
       } catch (e) {
         toast.showError(e instanceof Error ? e.message : 'Failed to cancel.');
       }
     },
-    [token, toast, refetch],
+    [token, toast, refetch, reloadPlayer],
   );
 
   const coinsAvailable = enterData?.coins ?? 0;
