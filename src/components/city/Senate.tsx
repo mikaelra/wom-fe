@@ -82,8 +82,13 @@ export interface SenateProps {
   stepHeight?: number;
   /** Columns along the long faces. */
   columnCount?: number;
-  /** Along the shorter sides. Fewer, so the long views into the open middle
-   *  stay open and the building does not read as a cage. */
+  /**
+   * Along the depth axis. Equal to columnCount by default, because the
+   * building is square by default and equal sides want equal spacing --
+   * matching counts on unequal sides is what makes one colonnade read
+   * denser than the other. Set them apart only along with a footprint
+   * that is actually rectangular.
+   */
   sideColumnCount?: number;
   /**
    * Roofed (dome + the corner plate that fills what the dome leaves) or
@@ -111,12 +116,12 @@ export default function Senate({
   position = [0, 0, 0],
   color = '#D6D6D6',
   width = 8.4,
-  depth = 5.0,
+  depth = 8.4,
   columnHeight = 4.2,
   columnRadius = 0.32,
   stepHeight = 0.34,
   columnCount = 6,
-  sideColumnCount = 4,
+  sideColumnCount = 6,
   roof = true,
   accentLight = OCULUS_LIGHT_COLOR,
 }: SenateProps) {

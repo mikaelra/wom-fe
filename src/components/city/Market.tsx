@@ -20,6 +20,11 @@ import Senate from '@/components/city/Senate';
  * than being kept behind a flag; it was a placeholder of a different
  * building, not a variant of this one.
  *
+ * Square in plan, like the Senate and the ranked arena: equal sides with
+ * equal column counts, so no face reads as a denser colonnade than
+ * another. The depth grew to meet the width rather than the width
+ * shrinking to meet the depth, which is the same choice the arena made.
+ *
  * `color` tints the stonework the same way the Senate is tinted on hover;
  * CityScene passes it and nothing else. The accent light stays green to
  * match MARKET_COLOR on the signpost's arm, the way the Senate's stays red
@@ -40,7 +45,7 @@ export default function Market({
   position = [0, 0, 0],
   color = '#D6D6D6',
   width = 7.5,
-  depth = 4.2,
+  depth = 7.5,
 }: MarketProps) {
   return (
     <Senate
@@ -57,7 +62,7 @@ export default function Market({
       columnRadius={0.26}
       stepHeight={0.3}
       columnCount={6}
-      sideColumnCount={4}
+      sideColumnCount={6}
     />
   );
 }
