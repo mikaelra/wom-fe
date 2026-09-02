@@ -106,9 +106,15 @@ export default function Senate({
    * Pantheon's own -- its oculus is 8.2m across in a 43.3m dome, a ratio of
    * 0.19 -- so the hole reads as an oculus rather than as missing geometry.
    *
-   * Unit-sized and scaled by the caller, so it stretches to whatever
-   * rectangle the building is: the city's Senate and the ranked arena have
-   * quite different footprints and a true hemisphere would only fit one.
+   * Unit-sized, and scaled by ONE radius on both horizontal axes (see
+   * domeRadius) rather than stretched to the building's rectangle: this is
+   * a circular dome sitting on a rectangular ring, touching the middle of
+   * the nearest pair of sides. The corners that leaves over are filled
+   * flat -- see the spandrel plate below.
+   *
+   * It was briefly a square-plan cloister vault instead, which sprang from
+   * the whole ring and needed no corner fill. That was wrong: a circle on
+   * a square, with the leftovers flattened, is the shape being sculpted.
    */
   const dome = useMemo(() => {
     const thetaStart = Math.asin(OCULUS_RATIO / 2);
@@ -129,23 +135,28 @@ export default function Senate({
   // stands over. Scaling the intensity by this is what lets the same
   // building read the same at the city's size and the arena's.
   const oculusReach = Math.hypot(halfW, halfD);
+  /**
+   * The dome's plan radius -- ONE number, not one per axis, which is what
+   * makes it a circle rather than an ellipse stretched to the footprint.
+   *
+   * The smaller half-extent, so the circle is the largest one that still
+   * sits within the architrave ring: it then touches the middle of the two
+   * nearest sides exactly. On a square plan -- which the ranked arena now
+   * has -- that is all four sides at once.
+   */
+  const domeRadius = Math.min(halfW, halfD) + ARCHITRAVE_THICK;
 
   /**
-   * The four corners between the architrave's rectangle and the dome's
-   * circle, filled flat.
+   * The corners between the architrave's rectangle and the dome's circle,
+   * filled flat.
    *
-   * The dome is an ellipse whose radii are exactly the architrave frame's
-   * outer half-extents, so it touches the frame at the middle of each side
-   * and leaves the four corners open -- you could see straight down into
-   * the building through them. This is that leftover area and nothing
-   * else: one rectangle with an elliptical hole punched in it, which comes
-   * out as the four corner pieces in a single geometry rather than four
-   * meshes to keep in sync.
+   * One plate -- the ring's rectangle with the dome's own circle punched
+   * out of it -- rather than four corner pieces. Four would be four things
+   * to keep in register with a dome whose proportions are still being
+   * tuned; one hole driven by the same domeRadius cannot drift out of
+   * register with the dome above it.
    *
-   * Flat, at the springing level, in the position a masonry building would
-   * use pendentives to solve. Built in the shape's own XY plane and laid
-   * down by the mesh's rotation, so the ellipse can never drift out of
-   * register with the dome above it -- both are driven by halfW/halfD.
+   * Built in the shape's own XY plane and laid down by the mesh's rotation.
    */
   const spandrels = useMemo(() => {
     const ox = halfW + ARCHITRAVE_THICK;
@@ -159,10 +170,11 @@ export default function Senate({
     const opening = new THREE.Path();
     // Wound the opposite way from the outline, which is how three.js tells
     // a hole from a second solid island.
-    opening.absellipse(0, 0, ox, oz, 0, Math.PI * 2, true);
+    opening.absarc(0, 0, domeRadius, 0, Math.PI * 2, true);
     plate.holes.push(opening);
     return new THREE.ShapeGeometry(plate, 64);
-  }, [halfW, halfD]);
+  }, [halfW, halfD, domeRadius]);
+
 
   return (
     <group position={position}>
@@ -244,7 +256,7 @@ export default function Senate({
       <mesh
         geometry={dome}
         position={[0, baseTop + COLUMN_HEIGHT + 0.6, 0]}
-        scale={[halfW + ARCHITRAVE_THICK, domeHeight, halfD + ARCHITRAVE_THICK]}
+        scale={[domeRadius, domeHeight, domeRadius]}
       >
         <meshStandardMaterial color={color} side={THREE.DoubleSide} />
       </mesh>

@@ -19,14 +19,29 @@ import { PLAYER_Y } from '@/lib/sceneConstants';
  * and column thickness with it and read as a toy.
  */
 
+/**
+ * Square, as of the /modelling pass: 8 columns on all four sides.
+ *
+ * It was 28 x 22 with 8 columns on the long faces and 6 on the short ones.
+ * Note that simply raising sideColumnCount to 8 would NOT have made the
+ * sides equal -- it would have put 8 columns along a 22-unit face and 8
+ * along a 28-unit one, so the short sides would read as a tighter, denser
+ * colonnade than the long ones. Equal sides means an equal FOOTPRINT, so
+ * the depth grew to meet the width instead.
+ *
+ * Grown rather than shrunk, deliberately. Every constraint in this module
+ * is a floor -- the camera must stay inside the colonnade, the players must
+ * fit within it -- so 28 x 28 clears them all by more than 28 x 22 did,
+ * while 22 x 22 would have eaten into the margin the tests below hold.
+ */
 export const ARENA = {
   width: 28,
-  depth: 22,
+  depth: 28,
   columnHeight: 7,
   columnRadius: 0.55,
   stepHeight: 0.4,
   columnCount: 8,
-  sideColumnCount: 6,
+  sideColumnCount: 8,
 } as const;
 
 /** Half the clear span inside the colonnade, along each axis. */
