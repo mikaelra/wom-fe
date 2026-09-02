@@ -85,6 +85,26 @@ export interface SenateProps {
   /** Along the shorter sides. Fewer, so the long views into the open middle
    *  stay open and the building does not read as a cage. */
   sideColumnCount?: number;
+  /**
+   * Roofed (dome + the corner plate that fills what the dome leaves) or
+   * open to the sky.
+   *
+   * The Market is this same building with the roof taken off -- an open
+   * colonnade around a square, which is what an agora is. Both roof pieces
+   * go together on purpose: the corner plate exists only to fill the
+   * corners the dome leaves over, so keeping it without the dome would be
+   * a rectangular collar around nothing.
+   */
+  roof?: boolean;
+  /**
+   * The colour of the light the building carries, matching the signpost arm
+   * that sends you to it -- red for the Senate, green for the Market.
+   *
+   * Under a dome it hangs in the oculus; with the roof off there is no
+   * oculus to hang it in, so it sits at the springing level and washes down
+   * the colonnade instead.
+   */
+  accentLight?: THREE.ColorRepresentation;
 }
 
 export default function Senate({
@@ -97,6 +117,8 @@ export default function Senate({
   stepHeight = 0.34,
   columnCount = 6,
   sideColumnCount = 4,
+  roof = true,
+  accentLight = OCULUS_LIGHT_COLOR,
 }: SenateProps) {
   const WIDTH = width;
   const DEPTH = depth;
@@ -257,34 +279,42 @@ export default function Senate({
           inner shell, which is the surface anyone under the dome is looking
           at. */}
       <pointLight
-        position={[0, baseTop + COLUMN_HEIGHT + 0.6 + domeHeight, 0]}
-        color={OCULUS_LIGHT_COLOR}
+        position={[0, baseTop + COLUMN_HEIGHT + 0.6 + (roof ? domeHeight : 0), 0]}
+        color={accentLight}
         intensity={OCULUS_LIGHT_STRENGTH * Math.pow(oculusReach, OCULUS_LIGHT_DECAY)}
         distance={oculusReach * 6}
         decay={OCULUS_LIGHT_DECAY}
       />
 
-      {/* The corner fill, at the dome's springing level -- the same height
-          the architrave's top face reaches. DoubleSide because it is a
-          zero-thickness plate and is looked up at from inside the building
-          as often as down at from outside. */}
-      <mesh
-        geometry={spandrels}
-        position={[0, baseTop + COLUMN_HEIGHT + 0.6, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-      >
-        <meshStandardMaterial color={color} side={THREE.DoubleSide} />
-      </mesh>
+      {/* The roof, both pieces together: the dome and the plate that fills
+          the corners it leaves over. Absent on the Market, which is this
+          building open to the sky. */}
+      {roof && (
+        <>
+        {/* The corner fill, at the dome's springing level -- the same height
+            the architrave's top face reaches. DoubleSide because it is a
+            zero-thickness plate and is looked up at from inside the building
+            as often as down at from outside. */}
+        <mesh
+          geometry={spandrels}
+          position={[0, baseTop + COLUMN_HEIGHT + 0.6, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <meshStandardMaterial color={color} side={THREE.DoubleSide} />
+        </mesh>
 
-      {/* The dome. DoubleSide because you stand under it as often as you
-          look at it -- a ranked match is played beneath this thing. */}
-      <mesh
-        geometry={dome}
-        position={[0, baseTop + COLUMN_HEIGHT + 0.6, 0]}
-        scale={[domeRadius, domeHeight, domeRadius]}
-      >
-        <meshStandardMaterial color={color} side={THREE.DoubleSide} />
-      </mesh>
+        {/* The dome. DoubleSide because you stand under it as often as you
+            look at it -- a ranked match is played beneath this thing. */}
+        <mesh
+          geometry={dome}
+          position={[0, baseTop + COLUMN_HEIGHT + 0.6, 0]}
+          scale={[domeRadius, domeHeight, domeRadius]}
+        >
+          <meshStandardMaterial color={color} side={THREE.DoubleSide} />
+        </mesh>
+        </>
+      )}
+
     </group>
   );
 }
