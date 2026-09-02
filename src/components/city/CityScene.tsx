@@ -24,8 +24,10 @@ import {
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
 import TempleTableau from '@/components/city/TempleTableau';
+import BuildingSign, { playingLabel, inMarketLabel } from '@/components/city/BuildingSign';
 import { TEMPLE_TABLEAU_LIFT } from '@/lib/templeTableau';
 import type { BossfightRoster } from '@/lib/api';
+import type { CityPresence } from '@/lib/schemas';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
 
 /**
@@ -158,6 +160,9 @@ export interface CitySceneProps {
   /** Open the player-to-player trading post (wom-be docs/MARKET_PLAN.md).
    *  The Market building and the signpost's fourth arm both call this. */
   onMarket: () => void;
+  /** Live occupancy of the three buildings (wom-be `city_presence`), for
+   *  the "N playing" / "N in market" signs floating over them. */
+  presence: CityPresence;
   /** Fired once the scene is genuinely on screen, so the loading curtain
    *  knows when to lift. */
   onReady?: () => void;
@@ -227,6 +232,7 @@ export default function CityScene({
   rankedSublabel,
   onBackToEarth,
   onMarket,
+  presence,
   onReady,
 }: CitySceneProps) {
   // Same hook CitySky uses, so the lighting below and the sky itself are
@@ -363,6 +369,29 @@ export default function CityScene({
           radius and scale as the gaze labels, so the two families of text
           sit at one size. */}
       <CompassMarks eye={EYE} radius={SKY_R} distanceFactor={LABEL_DISTANCE_FACTOR} />
+
+      {/* Building signs. Outside the <Suspense> for the same reason the sky
+          labels are: they're DOM, not models, and must not wait on a
+          texture. distanceFactor 14 matches the signpost arms so every
+          floating word in the scene reads at one size. The Y offsets are
+          provisional -- roughly a storey above each roofline. */}
+      <BuildingSign
+        position={[TEMPLE_POSITION[0], TEMPLE_POSITION[1] + 15, TEMPLE_POSITION[2]]}
+        distanceFactor={14}
+        occupancy={playingLabel(roster.players.filter((p) => !p.bot).length)}
+      />
+      <BuildingSign
+        position={[SENATE_POSITION[0], SENATE_POSITION[1] + 12, SENATE_POSITION[2]]}
+        distanceFactor={14}
+        occupancy={playingLabel(presence.ranked)}
+      />
+      <BuildingSign
+        position={[MARKET_POSITION[0], MARKET_POSITION[1] + 9, MARKET_POSITION[2]]}
+        distanceFactor={14}
+        name="MARKET"
+        nameColor={MARKET_COLOR}
+        occupancy={inMarketLabel(presence.market)}
+      />
 
       {/* Scene lighting follows the same nightness the sky does, so the
           marble goes down with the sun instead of staying lit under stars.

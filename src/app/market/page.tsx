@@ -54,7 +54,7 @@ type PendingAction =
 
 export default function MarketPage() {
   const toast = useToast();
-  const { listings, chat, clockOffsetMs, refetch, sendChat } = useMarketConnection();
+  const { listings, chat, clockOffsetMs, refetch, sendChat, frogs } = useMarketConnection();
 
   const [token] = useState<string | null>(() => getStoredAccountToken());
   const [playerName] = useState<string>(() =>
@@ -315,6 +315,7 @@ export default function MarketPage() {
             canChat={canChat}
             onSend={sendChat}
             onSlashCommand={(kind) => beginAction({ type: 'craft', kind })}
+            frogs={frogs}
           />
         </aside>
       </main>

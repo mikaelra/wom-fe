@@ -5,6 +5,7 @@ import { getMarketListings } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { getSocket, subscribe } from '@/lib/socket';
 import type { MarketChatEntry, MarketListing } from '@/lib/market';
+import type { MarketFrogs } from '@/lib/schemas';
 
 /**
  * The market's live board + common chat (wom-be sockets/market.py).
@@ -36,7 +37,12 @@ export type MarketConnection = {
   /** Force a board refetch (e.g. right after this client posts/accepts). */
   refetch: () => void;
   sendChat: (message: string) => void;
+  /** Everyone in the market right now -- `count` (incl. tokenless
+   *  browsers) and `names` (signed-in only), for the chat's "Frogs" list. */
+  frogs: MarketFrogs;
 };
+
+const NO_FROGS: MarketFrogs = { count: 0, names: [] };
 
 function sortByNewest(a: MarketListing, b: MarketListing): number {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -46,6 +52,7 @@ export function useMarketConnection(pollMs: number = MARKET_POLL_MS): MarketConn
   const [listings, setListings] = useState<MarketListing[]>([]);
   const [chat, setChat] = useState<MarketChatEntry[]>([]);
   const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  const [frogs, setFrogs] = useState<MarketFrogs>(NO_FROGS);
   const refetchRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -107,6 +114,7 @@ export function useMarketConnection(pollMs: number = MARKET_POLL_MS): MarketConn
       subscribe('listing_expired', (p) => removeById(p.id)),
       subscribe('market_chat_backlog', (p) => setChat(p.messages)),
       subscribe('market_chat_message', (entry) => setChat((prev) => [...prev, entry].slice(-200))),
+      subscribe('market_frogs', (p) => { if (!cancelled) setFrogs(p); }),
     ];
 
     const sock = getSocket();
@@ -133,5 +141,5 @@ export function useMarketConnection(pollMs: number = MARKET_POLL_MS): MarketConn
     getSocket().emit('send_market_message', { token: getStoredAccountToken(), message: trimmed });
   }, []);
 
-  return { listings, chat, clockOffsetMs, refetch, sendChat };
+  return { listings, chat, clockOffsetMs, refetch, sendChat, frogs };
 }

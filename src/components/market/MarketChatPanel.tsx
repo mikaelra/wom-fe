@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { recentChat, type MarketChatEntry } from '@/lib/market';
+import type { MarketFrogs } from '@/lib/schemas';
 
 /** Local wall-clock "HH:MM" for a chat line, or "" if the timestamp
  *  doesn't parse. */
@@ -30,14 +31,18 @@ export default function MarketChatPanel({
   canChat,
   onSend,
   onSlashCommand,
+  frogs,
 }: {
   messages: MarketChatEntry[];
   canChat: boolean;
   onSend: (message: string) => void;
   onSlashCommand: (cmd: 'quick' | 'long') => void;
+  /** Everyone in the market now, for the "Frogs" list. */
+  frogs: MarketFrogs;
 }) {
   const [draft, setDraft] = useState('');
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [showFrogs, setShowFrogs] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Re-tick every minute so a line that was fresh when it arrived leaves
@@ -74,9 +79,38 @@ export default function MarketChatPanel({
 
   return (
     <div className="flex flex-col h-full rounded-xl bg-gray-900/80 border border-white/10 overflow-hidden">
-      <div className="px-3 py-2 border-b border-white/10 text-xs font-semibold text-white/60">
-        Market chat · last hour
+      <div className="px-3 py-2 border-b border-white/10 flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-white/60">Market chat · last hour</span>
+        <button
+          type="button"
+          onClick={() => setShowFrogs((v) => !v)}
+          aria-expanded={showFrogs}
+          className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
+            showFrogs ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-white/10 hover:bg-white/20'
+          }`}
+        >
+          🐸 Frogs{frogs.count > 0 ? ` · ${frogs.count}` : ''}
+        </button>
       </div>
+
+      {showFrogs && (
+        <div className="border-b border-white/10 bg-black/30 px-3 py-2 text-sm max-h-40 overflow-y-auto">
+          {frogs.names.length === 0 && frogs.count === 0 && (
+            <p className="text-xs text-white/40">Nobody in the market right now.</p>
+          )}
+          {frogs.names.map((name) => (
+            <div key={name} className="text-white/85 leading-snug">
+              <span className="text-emerald-400/80">🐸</span> {name}
+            </div>
+          ))}
+          {frogs.count > frogs.names.length && (
+            <div className="text-xs text-white/40 mt-1">
+              +{frogs.count - frogs.names.length} browsing
+            </div>
+          )}
+        </div>
+      )}
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-1 text-sm min-h-0">
         {visible.length === 0 && (
           <p className="text-xs text-white/40">
