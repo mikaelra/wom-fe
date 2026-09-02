@@ -56,6 +56,20 @@ const OCULUS_LIGHT_STRENGTH = 8;
 const OCULUS_LIGHT_DECAY = 1.6;
 /** Dome height as a fraction of the building's SHORT half-axis. */
 const DOME_RISE = 0.9;
+/**
+ * Radial segments in the dome. Named rather than inlined because the
+ * corner plate's hole has to be sized against it -- see SPANDREL_TUCK.
+ */
+const DOME_RADIAL_SEGMENTS = 48;
+/**
+ * How far the corner plate's hole is pulled inside the dome's radius, as a
+ * fraction of it: twice the sagitta of one of the dome's chords. A polygon
+ * of N sides inscribed in a circle of radius r falls r*(1-cos(pi/N)) short
+ * of it at the middle of each side, so tucking the plate twice that far
+ * under guarantees an overlap rather than a seam, however big the building
+ * is.
+ */
+const SPANDREL_TUCK = 2 * (1 - Math.cos(Math.PI / DOME_RADIAL_SEGMENTS));
 const ARCHITRAVE_THICK = 0.5;
 
 export interface SenateProps {
@@ -119,7 +133,7 @@ export default function Senate({
   const dome = useMemo(() => {
     const thetaStart = Math.asin(OCULUS_RATIO / 2);
     return new THREE.SphereGeometry(
-      1, 48, 24,
+      1, DOME_RADIAL_SEGMENTS, 24,
       0, Math.PI * 2,
       thetaStart, Math.PI / 2 - thetaStart,
     );
@@ -170,7 +184,18 @@ export default function Senate({
     const opening = new THREE.Path();
     // Wound the opposite way from the outline, which is how three.js tells
     // a hole from a second solid island.
-    opening.absarc(0, 0, domeRadius, 0, Math.PI * 2, true);
+    //
+    // Cut SMALLER than the dome, so the plate runs on under it. Punching it
+    // at exactly domeRadius is the obvious thing and it leaves a hairline
+    // gap you can see as a dark seam all the way round: both curves are
+    // tessellated, and the dome's base is a 48-gon inscribed in the circle
+    // while the hole is a 64-gon, so between their chords the dome's edge
+    // sits further in than the plate's does and daylight shows between the
+    // two. SPANDREL_TUCK is twice the dome's own chord sag, which covers
+    // that difference with margin at any size the building is built at --
+    // it is derived from the segment count rather than being a number that
+    // happened to look right on the ranked arena.
+    opening.absarc(0, 0, domeRadius - domeRadius * SPANDREL_TUCK, 0, Math.PI * 2, true);
     plate.holes.push(opening);
     return new THREE.ShapeGeometry(plate, 64);
   }, [halfW, halfD, domeRadius]);
