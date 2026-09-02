@@ -38,4 +38,4 @@ export const BUILD_NUMBER = process.env.NEXT_PUBLIC_BUILD_NUMBER || "0";
 // convention, not by any shared source. Sent on every request/connection so
 // the backend can recognize and reject a client it no longer supports (see
 // lib/http.ts and lib/socket.ts) instead of failing in some less legible way.
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;

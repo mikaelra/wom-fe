@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Temple from '@/components/temple';
 import Senate from '@/components/city/Senate';
+import Market from '@/components/city/Market';
 import CitySky, { useCitySky } from '@/components/city/CitySky';
 import Signpost, { type SignpostArm } from '@/components/city/Signpost';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
@@ -18,7 +19,7 @@ import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
 // Temple left, Senate right, signpost between (§1.1). In lib/ so the
 // left/right pairing with the signpost's arms can be tested.
 import {
-  TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION,
+  TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION, MARKET_POSITION,
   SEA_LEVEL, LAND_LEVEL, EYE_HEIGHT,
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
@@ -88,6 +89,10 @@ const MAX_POLAR = Math.PI * 0.86;     // well below the horizon, short of invert
 
 const BOSSFIGHT_COLOR = '#4da6ff';
 const RANKED_COLOR = '#ff6666';
+/** Green, matching Market.tsx's awning: the right arm and the building it
+ *  pairs with read as one colour from a distance, like the temple/Senate. */
+const MARKET_COLOR = '#5fd88a';
+const LIT_MARKET = '#eafff2';
 /** Parchment rather than a third saturated hue: the way out is not a third
  *  destination competing with the two fights. */
 const BACK_COLOR = '#e8d9a0';
@@ -150,6 +155,9 @@ export interface CitySceneProps {
   /** Back to the world map. A sign on the post rather than a button over the
    *  scene, so leaving the city is a thing in the world. */
   onBackToEarth: () => void;
+  /** Open the player-to-player trading post (wom-be docs/MARKET_PLAN.md).
+   *  The Market building and the signpost's fourth arm both call this. */
+  onMarket: () => void;
   /** Fired once the scene is genuinely on screen, so the loading curtain
    *  knows when to lift. */
   onReady?: () => void;
@@ -218,6 +226,7 @@ export default function CityScene({
   rankedLabel,
   rankedSublabel,
   onBackToEarth,
+  onMarket,
   onReady,
 }: CitySceneProps) {
   // Same hook CitySky uses, so the lighting below and the sky itself are
@@ -244,6 +253,7 @@ export default function CityScene({
   // what teaches which building is which without a tutorial.
   const [templeHot, setTempleHot] = useState(false);
   const [senateHot, setSenateHot] = useState(false);
+  const [marketHot, setMarketHot] = useState(false);
 
   /**
    * Gaze labels, step 11 (§7.2, §7.4). The world map's component unchanged;
@@ -316,13 +326,25 @@ export default function CityScene({
       onHoverChange: setSenateHot,
     },
     {
-      // Under the Bossfight arm, shorter and quieter than the two
-      // destinations it hangs beneath: the same shape as a real signpost,
-      // where the way you came from is the small plank at the bottom.
+      // A third full-size destination, hanging below RANKED on the right the
+      // way EARTH hangs below BOSSFIGHT on the left. Full size (no
+      // `secondary`/`lengthScale`): it is a destination, not an aside.
+      // Half a tier below EARTH's row rather than level with it -- EARTH is
+      // the small "way back" plank at the bottom left and MARKET reading at
+      // the same height looked like its pair. right-1.5 can't collide with
+      // RANKED's right-0.5 key.
+      side: 'right',
+      tier: 1.5,
+      label: 'MARKET',
+      color: MARKET_COLOR,
+      onActivate: onMarket,
+      onHoverChange: setMarketHot,
+    },
+    {
+      // Under the Bossfight arm, a full-size destination like the others --
+      // the way back to the world map is no lesser a place to go.
       side: 'left',
       tier: 1,
-      secondary: true,
-      lengthScale: 0.62,
       label: '\u{1F30D} EARTH',
       color: BACK_COLOR,
       onActivate: onBackToEarth,
@@ -403,6 +425,16 @@ export default function CityScene({
           onHoverChange={setSenateHot}
         >
           <Senate color={senateHot ? LIT_RANKED : PLAIN} />
+        </BuildingTarget>
+
+        {/* The trading post, back-right of the default view (§3.2). Same
+            arm/building hover pairing as Temple and Senate. */}
+        <BuildingTarget
+          position={MARKET_POSITION}
+          onActivate={onMarket}
+          onHoverChange={setMarketHot}
+        >
+          <Market color={marketHot ? LIT_MARKET : PLAIN} />
         </BuildingTarget>
 
         <Signpost position={SIGNPOST_POSITION} arms={arms} />

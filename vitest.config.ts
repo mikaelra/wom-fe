@@ -121,11 +121,17 @@ export default defineConfig({
       // window.location-reading functions, which a node-environment test
       // can't exercise (same category as every other window-gated
       // function already excluded from this ratchet's 100% elsewhere).
+      // Raised for the Market (wom-be docs/MARKET_PLAN.md, direct-swap
+      // §1A): src/lib/market.ts (pure helpers) and
+      // src/lib/useMarketConnection.ts (the board+chat socket hook, tested
+      // with renderHook + a mocked @/lib/socket the way useLobbyConnection
+      // is), both new and both in the src/lib glob, pushed the suite to
+      // ~82.23/73.72/78.2/83.77 (stable across repeated runs).
       thresholds: {
-        statements: 77,
-        branches: 70,
-        functions: 74,
-        lines: 78,
+        statements: 80,
+        branches: 72,
+        functions: 76,
+        lines: 82,
       },
     },
   },
