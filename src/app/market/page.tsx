@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   acceptMarketListing,
@@ -123,7 +123,14 @@ export default function MarketPage() {
     }
   }, [token, playerName, toast]);
 
+  // Load the profile once on mount. Guarded by a ref, not left to depend
+  // on reloadPlayer's identity: if that ever churned (an unstable dep) a
+  // failing enterMarket() would re-fire this in a tight loop. Explicit
+  // reloads after a craft/accept still go straight through reloadPlayer().
+  const didLoadProfile = useRef(false);
   useEffect(() => {
+    if (didLoadProfile.current) return;
+    didLoadProfile.current = true;
     void reloadPlayer();
   }, [reloadPlayer]);
 
