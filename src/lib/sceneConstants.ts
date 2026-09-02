@@ -6,6 +6,30 @@ export const MAX_PLAYERS = 24;
 const BASE_PLAYER_RADIUS = 2.1;
 export const PLAYER_Y = 3.2;
 
+/**
+ * Where the temple's origin stands in a lobby, and where the floor you
+ * actually walk on ends up.
+ *
+ * PLAYER_Y is NOT that floor. A player model's origin sits at its MIDDLE,
+ * not under its feet -- frog_green_v1.glb runs from y -0.949 to 0.953 about
+ * its own origin -- so a building whose floor is built up to PLAYER_Y cuts
+ * every player off at the waist. The temple never showed this because its
+ * floor is nowhere near PLAYER_Y: the slab players stand on (Cube.002 in
+ * temple.glb) has its top face at local y -1.58, so standing the model at
+ * TEMPLE_LOBBY_Y puts that floor at 2.42, a little under the players' feet
+ * at 2.251. Everything else in the lobby was authored against that number
+ * -- the well sits on it at TABLE_POSITION's 2.55, and the well's splash
+ * and glow effects are pinned at 2.4 and 2.3.
+ *
+ * Any other building staged in a lobby has to put its floor here too, or
+ * the ground moves under the players when the building changes. Derived
+ * rather than copied so that moving the temple moves the floor with it.
+ */
+export const TEMPLE_LOBBY_Y = 4;
+/** Top face of temple.glb's floor slab, in the model's own coordinates. */
+export const TEMPLE_FLOOR_LOCAL_Y = -1.58;
+export const LOBBY_FLOOR_Y = TEMPLE_LOBBY_Y + TEMPLE_FLOOR_LOCAL_Y;
+
 // Hades' seat sits this much higher than a regular player's -- composition
 // for its much larger model (PlayerAvatars.tsx scales the boss 1.44x vs a
 // frog's 0.6x). Exported (not just inlined into getBossPosition below) so
