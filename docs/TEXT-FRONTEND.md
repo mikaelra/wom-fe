@@ -479,7 +479,9 @@ consumer — see §5.3.4.
    sparkle special-casing. **Bots, the boss, ghosts and lost souls get a glyph
    vocabulary** rather than art. **The artifact cosmetic is not shown in game
    yet** — `Player.cosmetic` goes unrendered in the text lobby and city, and
-   no cosmetic thumbnail is needed.
+   no cosmetic thumbnail is needed. **Rarity reads as a coloured border**
+   around the thumbnail (§7.4) — and that border is not text-mode-only: it
+   ships in the ordinary 3D inventory too.
 7. **The setting is device-local**, in `localStorage`, following
    `lib/soundSettings.ts` exactly. Which renderer suits you depends on the
    machine you are on, not on who you are logged in as — the same reasoning
@@ -984,7 +986,7 @@ skin-rendering primitive, used by the player list (§6), the city's temple roste
 ```
 
 - Sizes: `sm` (list row), `md` (roster), `lg` (inventory/shop/wheel hero).
-- `skinLabel()` names it.
+- `skinLabel()` names it; `skinBorderColor()` rings it (§7.4).
 - **`skinColor()` survives in exactly one role**: the background tint behind the
   image, so a missing, still-loading or unrecognised skin degrades to a coloured
   chip rather than a broken image. `SceneTopBar` and `MarketItemChip` already
@@ -1024,18 +1026,85 @@ and is handled as a viewer in §7.5.
 no pre-rendered thumbnails exist. It is now not merely inaccurate but actively
 misleading: those thumbnails are the entire basis of this section.
 
-### 7.4 What is still open
+### 7.4 Rarity — a coloured border, in both modes
 
-Only rarity presentation. The thumbnails carry a great deal — a gold frog looks
-like a gold frog — but a list row has none of the 3D shimmer, and `RARE_SKINS`
-is an ordered list whose ordering currently reaches the player only through how
-the model looks. Border weight, a `✦` count, or a tier word beside
-`skinLabel()` are the candidates. Worth a design pass rather than a guess,
-because this is what protects the perceived value of everything the wheel and
-the shop sell (`MONETIZATION_PLAN.md` §3.4/§8.3). Tracked at §11.2.
+**Settled.** Rarity reads as a coloured ring around the thumbnail. This is the
+last piece of the skin question, and it is deliberately **not** text-mode-only:
+the same border ships in the ordinary 3D inventory, which has exactly the same
+problem (a grid of thumbnails where the rarest thing you own looks like the
+commonest).
 
-Everything else in this section is settled: representation (§7.3), non-frog
-avatars (§7.3), cosmetics (§7.3), the wheel (§7.6).
+| Tier | Skins | Border |
+|---|---|---|
+| common | the 7 `COMMON_SKINS` | grey |
+| silver | `frog_silver_v1` | purple |
+| gold | `frog_gold_v1` | gold |
+| rainbow | `frog_rainbow_v2` | pink |
+| bling | `frog_bling_v1` | white |
+| cherub | `cherub_v1` | yellow/orange |
+
+Proposed hexes, drawn from the palette already in `SKIN_COLORS` so nothing looks
+imported from another app:
+
+```ts
+common  #6b7280   // already skinColor()'s own unknown-skin fallback
+silver  #a855f7   // = frog_purple_v1
+gold    #f5c542   // = frog_gold_v1
+rainbow #ec4899   // = frog_pink_v1
+bling   #ffffff
+cherub  #fb923c   // orange-leaning, see the caution below
+```
+
+**🔴 The border colour is deliberately not the skin's own colour.** Silver's ring
+is purple; bling's is white. This is a rarity ladder — dim grey → purple → gold
+→ pink → brightest white — not a colour echo of the model. Someone will
+eventually read `skinColor('frog_silver_v1') === '#d9dde3'` next to a purple
+border and "fix" it; the code needs a comment saying so, and this table is why.
+
+**Caution: gold and cherub must stay tellable apart.** Cherub's own swatch is
+`#fef08a` (soft halo-gold) and gold's is `#f5c542`, which are already close.
+Pushing the cherub *border* orange (`#fb923c` rather than an amber) is what
+keeps a $500 direct purchase from reading as a wheel drop. Check the two side by
+side before committing to a value.
+
+**Not colour-only.** A ring is a colour-only signal, which the accessibility
+posture elsewhere in this repo (`MONETIZATION_PLAN.md` §3.5.10) would not
+accept on its own. The tier name should also reach a screen reader — an
+`aria-label` on the swatch ("Bling frog, bling tier") is enough, and it costs a
+line.
+
+**Implementation.** Two new pure exports in `lib/frogSkins.ts`, beside
+`skinColor`/`skinLabel`, node-testable like the rest of that module:
+
+```ts
+export type SkinRarity = 'common' | 'silver' | 'gold' | 'rainbow' | 'bling' | 'cherub';
+export function skinRarity(skin: string): SkinRarity;      // unknown -> 'common'
+export function skinBorderColor(skin: string): string;
+```
+
+`skinRarity()` earns its place separately from the colour: it is what the
+`aria-label` and any future tier word read from, and it keeps the ladder's
+ordering in one place rather than implied by a hex map.
+
+**Where it lands.** Four call sites already render a thumbnail inside a
+*hardcoded neutral* ring, and all four become rarity-coloured:
+
+| File | Today |
+|---|---|
+| `app/inventory/page.tsx:305` (skin grid) | `border-2 border-white/20` |
+| `components/hud/SceneTopBar.tsx:197` (user-menu avatar) | `border border-white/20` |
+| `components/market/MarketItemChip.tsx:22` | `border border-white/15` |
+| `components/text/TextAvatar.tsx` (new, §7.3) | — |
+
+`WheelSpinModal`'s fallback swatch (`border-4 border-amber-500/60`) is
+deliberately left alone: that amber is the wheel's own chrome, not a rarity
+signal, and §7.6 replaces that path anyway.
+
+**This is the one place this plan deliberately changes the 3D UI.** Everything
+else here is additive or behind the text-mode branch. Worth flagging in review
+so it is a decision rather than a surprise — and worth doing in the same step,
+since one shared `skinBorderColor()` used by both modes is the only way the two
+cannot drift.
 
 ### 7.5 The wardrobe viewers
 
@@ -1260,10 +1329,14 @@ State it as hypotheses to verify (§12 step 10), not as claims:
   admin at `round === 0`; assert lost souls collapse to one row emitting the
   shared name; **assert another player's HP/coins/ATK render only under an
   active info reveal, and disappear after the stale round** (§6.1).
+- `src/lib/__tests__/frogSkins.test.ts` (extend the existing suite) —
+  `skinRarity()` and `skinBorderColor()` for all 13 skins plus an unknown one
+  falling back to `common`/grey (§7.4).
 - `src/components/text/__tests__/TextAvatar.test.tsx` — thumbnail URL, the
-  `skinColor` tint showing through when the image is missing, the bot/boss/
-  ghost glyph map including an unrecognised `bot_type`, and that
-  `Player.cosmetic` renders nothing in game (§7.3).
+  `skinColor` tint showing through when the image is missing, the rarity ring,
+  the tier in the `aria-label`, the bot/boss/ghost glyph map including an
+  unrecognised `bot_type`, and that `Player.cosmetic` renders nothing in game
+  (§7.3).
 - `src/components/text/__tests__/TextWheel.test.tsx` — the odds table matches
   `oddsTable(kind)`; deceleration does not begin before `spinWheel()` resolves
   (§7.6's timing leak); `prefers-reduced-motion` shows the result with no
@@ -1297,20 +1370,16 @@ is also exactly what that decision rejects. **Recommendation: omit for v1**,
 record it as the one city function with no text counterpart, and revisit with
 whoever owns that design.
 
-**11.2 — Rarity presentation.** §7.4. Border weight, glyph count, tier word —
-needs a design pass, because it is what protects the perceived value of the skin
-economy. The only part of the skin question left open.
-
-**11.3 — Does `SceneOverlay` take a `layout` flag cleanly, or does text mode get
+**11.2 — Does `SceneOverlay` take a `layout` flag cleanly, or does text mode get
 its own view component?** §4.2 flags this as an assumption. **Decide at step 4,
 on the code.**
 
-**11.4 — Is text mode in the native build?** `MOBILE_AND_STEAM_PLAN.md` §5.3's
+**11.3 — Is text mode in the native build?** `MOBILE_AND_STEAM_PLAN.md` §5.3's
 `output: "export"`. Nothing here obviously conflicts, but the branch is inside
 statically-exported pages and should be built and smoke-tested under
 `npm run build:native` before that is asserted.
 
-**11.5 — Does the market's socket room behave with no 3D city around it?**
+**11.4 — Does the market's socket room behave with no 3D city around it?**
 `/market` is already DOM, so this should be free — but `useMarketConnection`
 joins from a page the city normally hands you to, and text mode changes that
 path. Worth one deliberate check.
@@ -1319,7 +1388,8 @@ path. Worth one deliberate check.
 mode?" — no, locked decision 10. "How do skins survive without models?" — the
 inventory thumbnail, locked decision 6 / §7.3. "How does the wheel reveal
 land?" — §7.6 is the design. "What do cosmetics look like in game?" — the
-artifact is not shown in game yet.*
+artifact is not shown in game yet. "How does rarity read without shimmer?" — a
+coloured border, in both modes, §7.4.*
 
 ---
 
@@ -1335,13 +1405,17 @@ unverified assumption.
    point the setting is inert and provably persists.
 3. **`/vault` first** (§5.4). One conditional, smallest possible end-to-end
    proof that the seam works.
-4. **`SceneOverlay` layout flag** (§4.2 Tier 2) — resolve §11.3 here, in the
+4. **`SceneOverlay` layout flag** (§4.2 Tier 2) — resolve §11.2 here, in the
    code. If it fights back, fall back to a dedicated view and say so in this
    document.
-5. **`TextAvatar`** (§7.3) — inventory thumbnail with the `skinColor` tint
-   behind it, plus the bot/boss/ghost glyph map. No cosmetic, no swatch-gradient
-   helper. Include the stale-comment fix in `frogSkins.ts` (§7.1). Everything
-   downstream renders players, so this comes before they do.
+5. **`skinRarity()` + `skinBorderColor()` in `lib/frogSkins.ts`, and the
+   rarity ring rolled out to the three existing 3D-mode call sites** (§7.4).
+   Pure functions first, with the stale-comment fix (§7.1) in the same pass.
+   **Note this step ships a visible change to 3D mode** — call it out in review.
+5b. **`TextAvatar`** (§7.3) — inventory thumbnail, the `skinColor` tint behind
+   it, the rarity ring, the bot/boss/ghost glyph map. No cosmetic, no
+   swatch-gradient helper. Everything downstream renders players, so this comes
+   before they do.
 6. **`useInfoReveal` lifted out of `LobbyScene`** (§6.1) — shared by both
    renderers, so the fresh/stale/gone rule has one implementation.
 7. **`TextPlayerList`** (§6) — all controls, all guard rails, the info-reveal
@@ -1367,7 +1441,7 @@ unverified assumption.
     `ErrorBoundary` button. No suggestions anywhere (locked decision 10).
 14. **Sweep** — music calls on every text route (§8.2), the §8.3 effect verdicts
     written down, guide suppressed (§8.4), `npm run build:native` smoke test
-    (§11.4), market check (§11.5), and a pass over borrowed copy for the
+    (§11.3), market check (§11.4), and a pass over borrowed copy for the
     `raid` → `bossfight`/`well` vocabulary (§1.4).
 
 Steps 1–3 are a day's work and de-risk the rest. Step 7 is where the game's own
