@@ -326,13 +326,15 @@ export default function CityScene({
       onHoverChange: setSenateHot,
     },
     {
-      // Mirrors EARTH's tier on the opposite side -- a third full-size
-      // destination, hanging one full drop below RANKED on the right, the
+      // A third full-size destination, hanging below RANKED on the right the
       // way EARTH hangs below BOSSFIGHT on the left. Full size (no
       // `secondary`/`lengthScale`): it is a destination, not an aside.
-      // tier 1 on the right can't collide with RANKED's right-0.5 key.
+      // Half a tier below EARTH's row rather than level with it -- EARTH is
+      // the small "way back" plank at the bottom left and MARKET reading at
+      // the same height looked like its pair. right-1.5 can't collide with
+      // RANKED's right-0.5 key.
       side: 'right',
-      tier: 1,
+      tier: 1.5,
       label: 'MARKET',
       color: MARKET_COLOR,
       onActivate: onMarket,
