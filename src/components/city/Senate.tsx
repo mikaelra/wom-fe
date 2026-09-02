@@ -56,6 +56,20 @@ const OCULUS_LIGHT_STRENGTH = 8;
 const OCULUS_LIGHT_DECAY = 1.6;
 /** Dome height as a fraction of the building's SHORT half-axis. */
 const DOME_RISE = 0.9;
+/**
+ * Radial segments in the dome. Named rather than inlined because the
+ * corner plate's hole has to be sized against it -- see SPANDREL_TUCK.
+ */
+const DOME_RADIAL_SEGMENTS = 48;
+/**
+ * How far the corner plate's hole is pulled inside the dome's radius, as a
+ * fraction of it: twice the sagitta of one of the dome's chords. A polygon
+ * of N sides inscribed in a circle of radius r falls r*(1-cos(pi/N)) short
+ * of it at the middle of each side, so tucking the plate twice that far
+ * under guarantees an overlap rather than a seam, however big the building
+ * is.
+ */
+const SPANDREL_TUCK = 2 * (1 - Math.cos(Math.PI / DOME_RADIAL_SEGMENTS));
 const ARCHITRAVE_THICK = 0.5;
 
 export interface SenateProps {
@@ -68,21 +82,48 @@ export interface SenateProps {
   stepHeight?: number;
   /** Columns along the long faces. */
   columnCount?: number;
-  /** Along the shorter sides. Fewer, so the long views into the open middle
-   *  stay open and the building does not read as a cage. */
+  /**
+   * Along the depth axis. Equal to columnCount by default, because the
+   * building is square by default and equal sides want equal spacing --
+   * matching counts on unequal sides is what makes one colonnade read
+   * denser than the other. Set them apart only along with a footprint
+   * that is actually rectangular.
+   */
   sideColumnCount?: number;
+  /**
+   * Roofed (dome + the corner plate that fills what the dome leaves) or
+   * open to the sky.
+   *
+   * The Market is this same building with the roof taken off -- an open
+   * colonnade around a square, which is what an agora is. Both roof pieces
+   * go together on purpose: the corner plate exists only to fill the
+   * corners the dome leaves over, so keeping it without the dome would be
+   * a rectangular collar around nothing.
+   */
+  roof?: boolean;
+  /**
+   * The colour of the light the building carries, matching the signpost arm
+   * that sends you to it -- red for the Senate, green for the Market.
+   *
+   * Under a dome it hangs in the oculus; with the roof off there is no
+   * oculus to hang it in, so it sits at the springing level and washes down
+   * the colonnade instead.
+   */
+  accentLight?: THREE.ColorRepresentation;
 }
 
 export default function Senate({
   position = [0, 0, 0],
   color = '#D6D6D6',
   width = 8.4,
-  depth = 5.0,
+  depth = 8.4,
   columnHeight = 4.2,
   columnRadius = 0.32,
   stepHeight = 0.34,
   columnCount = 6,
-  sideColumnCount = 4,
+  sideColumnCount = 6,
+  roof = true,
+  accentLight = OCULUS_LIGHT_COLOR,
 }: SenateProps) {
   const WIDTH = width;
   const DEPTH = depth;
@@ -106,14 +147,20 @@ export default function Senate({
    * Pantheon's own -- its oculus is 8.2m across in a 43.3m dome, a ratio of
    * 0.19 -- so the hole reads as an oculus rather than as missing geometry.
    *
-   * Unit-sized and scaled by the caller, so it stretches to whatever
-   * rectangle the building is: the city's Senate and the ranked arena have
-   * quite different footprints and a true hemisphere would only fit one.
+   * Unit-sized, and scaled by ONE radius on both horizontal axes (see
+   * domeRadius) rather than stretched to the building's rectangle: this is
+   * a circular dome sitting on a rectangular ring, touching the middle of
+   * the nearest pair of sides. The corners that leaves over are filled
+   * flat -- see the spandrel plate below.
+   *
+   * It was briefly a square-plan cloister vault instead, which sprang from
+   * the whole ring and needed no corner fill. That was wrong: a circle on
+   * a square, with the leftovers flattened, is the shape being sculpted.
    */
   const dome = useMemo(() => {
     const thetaStart = Math.asin(OCULUS_RATIO / 2);
     return new THREE.SphereGeometry(
-      1, 48, 24,
+      1, DOME_RADIAL_SEGMENTS, 24,
       0, Math.PI * 2,
       thetaStart, Math.PI / 2 - thetaStart,
     );
@@ -129,6 +176,57 @@ export default function Senate({
   // stands over. Scaling the intensity by this is what lets the same
   // building read the same at the city's size and the arena's.
   const oculusReach = Math.hypot(halfW, halfD);
+  /**
+   * The dome's plan radius -- ONE number, not one per axis, which is what
+   * makes it a circle rather than an ellipse stretched to the footprint.
+   *
+   * The smaller half-extent, so the circle is the largest one that still
+   * sits within the architrave ring: it then touches the middle of the two
+   * nearest sides exactly. On a square plan -- which the ranked arena now
+   * has -- that is all four sides at once.
+   */
+  const domeRadius = Math.min(halfW, halfD) + ARCHITRAVE_THICK;
+
+  /**
+   * The corners between the architrave's rectangle and the dome's circle,
+   * filled flat.
+   *
+   * One plate -- the ring's rectangle with the dome's own circle punched
+   * out of it -- rather than four corner pieces. Four would be four things
+   * to keep in register with a dome whose proportions are still being
+   * tuned; one hole driven by the same domeRadius cannot drift out of
+   * register with the dome above it.
+   *
+   * Built in the shape's own XY plane and laid down by the mesh's rotation.
+   */
+  const spandrels = useMemo(() => {
+    const ox = halfW + ARCHITRAVE_THICK;
+    const oz = halfD + ARCHITRAVE_THICK;
+    const plate = new THREE.Shape();
+    plate.moveTo(-ox, -oz);
+    plate.lineTo(ox, -oz);
+    plate.lineTo(ox, oz);
+    plate.lineTo(-ox, oz);
+    plate.closePath();
+    const opening = new THREE.Path();
+    // Wound the opposite way from the outline, which is how three.js tells
+    // a hole from a second solid island.
+    //
+    // Cut SMALLER than the dome, so the plate runs on under it. Punching it
+    // at exactly domeRadius is the obvious thing and it leaves a hairline
+    // gap you can see as a dark seam all the way round: both curves are
+    // tessellated, and the dome's base is a 48-gon inscribed in the circle
+    // while the hole is a 64-gon, so between their chords the dome's edge
+    // sits further in than the plate's does and daylight shows between the
+    // two. SPANDREL_TUCK is twice the dome's own chord sag, which covers
+    // that difference with margin at any size the building is built at --
+    // it is derived from the segment count rather than being a number that
+    // happened to look right on the ranked arena.
+    opening.absarc(0, 0, domeRadius - domeRadius * SPANDREL_TUCK, 0, Math.PI * 2, true);
+    plate.holes.push(opening);
+    return new THREE.ShapeGeometry(plate, 64);
+  }, [halfW, halfD, domeRadius]);
+
 
   return (
     <group position={position}>
@@ -152,10 +250,21 @@ export default function Senate({
       {/* Architrave: a RING the columns carry and the dome springs from, not
           the solid slab that used to sit here. The slab would cap the
           interior, and an oculus opening onto a closed ceiling is just a
-          hole in a dome nobody can see through. */}
+          hole in a dome nobody can see through.
+
+          All four beams are measured off halfW/halfD -- the COLUMN RING's
+          half-extents -- rather than off WIDTH/DEPTH, so the ring closes as
+          a flush rectangle. The east-west pair used to span WIDTH + 2T, and
+          WIDTH is not that span: halfW is (WIDTH - 4R)/2, so WIDTH + 2T
+          overshot the north-south beams' outer faces by 2R at each end and
+          the corners visibly spilled past the frame (1.1 units each side at
+          the ranked arena's column radius). The north-south pair was always
+          written in the halfD form below and never had the fault, which is
+          why only one axis overhung. The dome is scaled to halfW/halfD + T
+          as well, so it now springs exactly from the frame's outer edge. */}
       {([
-        [0, halfD + ARCHITRAVE_THICK / 2, WIDTH + ARCHITRAVE_THICK * 2, ARCHITRAVE_THICK],
-        [0, -halfD - ARCHITRAVE_THICK / 2, WIDTH + ARCHITRAVE_THICK * 2, ARCHITRAVE_THICK],
+        [0, halfD + ARCHITRAVE_THICK / 2, halfW * 2 + ARCHITRAVE_THICK * 2, ARCHITRAVE_THICK],
+        [0, -halfD - ARCHITRAVE_THICK / 2, halfW * 2 + ARCHITRAVE_THICK * 2, ARCHITRAVE_THICK],
       ] as const).map(([x, z, w, d], i) => (
         <mesh key={`ew${i}`} position={[x, baseTop + COLUMN_HEIGHT + 0.3, z]}>
           <boxGeometry args={[w, 0.6, d]} />
@@ -175,22 +284,42 @@ export default function Senate({
           inner shell, which is the surface anyone under the dome is looking
           at. */}
       <pointLight
-        position={[0, baseTop + COLUMN_HEIGHT + 0.6 + domeHeight, 0]}
-        color={OCULUS_LIGHT_COLOR}
+        position={[0, baseTop + COLUMN_HEIGHT + 0.6 + (roof ? domeHeight : 0), 0]}
+        color={accentLight}
         intensity={OCULUS_LIGHT_STRENGTH * Math.pow(oculusReach, OCULUS_LIGHT_DECAY)}
         distance={oculusReach * 6}
         decay={OCULUS_LIGHT_DECAY}
       />
 
-      {/* The dome. DoubleSide because you stand under it as often as you
-          look at it -- a ranked match is played beneath this thing. */}
-      <mesh
-        geometry={dome}
-        position={[0, baseTop + COLUMN_HEIGHT + 0.6, 0]}
-        scale={[halfW + ARCHITRAVE_THICK, domeHeight, halfD + ARCHITRAVE_THICK]}
-      >
-        <meshStandardMaterial color={color} side={THREE.DoubleSide} />
-      </mesh>
+      {/* The roof, both pieces together: the dome and the plate that fills
+          the corners it leaves over. Absent on the Market, which is this
+          building open to the sky. */}
+      {roof && (
+        <>
+        {/* The corner fill, at the dome's springing level -- the same height
+            the architrave's top face reaches. DoubleSide because it is a
+            zero-thickness plate and is looked up at from inside the building
+            as often as down at from outside. */}
+        <mesh
+          geometry={spandrels}
+          position={[0, baseTop + COLUMN_HEIGHT + 0.6, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <meshStandardMaterial color={color} side={THREE.DoubleSide} />
+        </mesh>
+
+        {/* The dome. DoubleSide because you stand under it as often as you
+            look at it -- a ranked match is played beneath this thing. */}
+        <mesh
+          geometry={dome}
+          position={[0, baseTop + COLUMN_HEIGHT + 0.6, 0]}
+          scale={[domeRadius, domeHeight, domeRadius]}
+        >
+          <meshStandardMaterial color={color} side={THREE.DoubleSide} />
+        </mesh>
+        </>
+      )}
+
     </group>
   );
 }
