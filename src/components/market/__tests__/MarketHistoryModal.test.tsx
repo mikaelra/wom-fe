@@ -33,13 +33,13 @@ describe('MarketHistoryModal', () => {
     render(<MarketHistoryModal token="sess-1" catalog={null} onClose={vi.fn()} />);
 
     expect(await screen.findByText('Bo')).toBeInTheDocument();
-    expect(screen.getByText(/sold to/)).toBeInTheDocument();
+    expect(screen.getByText(/traded with/)).toBeInTheDocument();
     expect(screen.getByText('Gold')).toBeInTheDocument();
     expect(screen.getByText('Special Wheel ×2')).toBeInTheDocument();
     expect(mockedGet).toHaveBeenCalledExactlyOnceWith('sess-1', {});
   });
 
-  it('labels a trade I accepted as bought from the counterparty', async () => {
+  it('names the counterparty the same way whichever side I was on', async () => {
     mockedGet.mockResolvedValue({
       trades: [trade({ role: 'buyer', counterparty_name: 'Cy' })],
       has_more: false,
@@ -48,7 +48,7 @@ describe('MarketHistoryModal', () => {
 
     render(<MarketHistoryModal token="sess-1" catalog={null} onClose={vi.fn()} />);
 
-    expect(await screen.findByText(/bought from/)).toBeInTheDocument();
+    expect(await screen.findByText(/traded with/)).toBeInTheDocument();
     expect(screen.getByText('Cy')).toBeInTheDocument();
   });
 
