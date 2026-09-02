@@ -33,6 +33,22 @@ export type OwnedItem = {
 
 type Line = { input: MarketItemInput; label: string; max: number | null };
 
+/** Same sections, same order, same wording as the inventory page
+ *  (src/app/inventory/page.tsx): Relics, Wheels, Skins. */
+const CATEGORIES: ReadonlyArray<{ type: MarketItemInput['item_type']; label: string }> = [
+  { type: 'relic', label: 'Relics' },
+  { type: 'wheel', label: 'Wheels' },
+  { type: 'skin', label: 'Skins' },
+];
+
+function CategoryHeader({ label }: { label: string }) {
+  return (
+    <p className="w-full text-[10px] uppercase tracking-wide text-white/40 mt-2 first:mt-0 mb-1">
+      {label}
+    </p>
+  );
+}
+
 export default function CraftOfferModal({
   kind,
   catalog,
@@ -171,18 +187,27 @@ export default function CraftOfferModal({
                   {owned.length === 0 && (
                     <span className="text-xs text-white/40">Nothing tradeable yet.</span>
                   )}
-                  {owned.map((o) => (
-                    <button
-                      key={itemKey(o.input)}
-                      type="button"
-                      onClick={() =>
-                        addTo('give', { input: o.input, label: o.label, max: o.count })
-                      }
-                      className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs hover:bg-white/10 transition-colors cursor-pointer"
-                    >
-                      {o.label} <span className="text-white/40">×{o.count}</span>
-                    </button>
-                  ))}
+                  {CATEGORIES.map(({ type, label }) => {
+                    const rows = owned.filter((o) => o.input.item_type === type);
+                    if (rows.length === 0) return null;
+                    return (
+                      <div key={type} className="w-full flex flex-wrap gap-1">
+                        <CategoryHeader label={label} />
+                        {rows.map((o) => (
+                          <button
+                            key={itemKey(o.input)}
+                            type="button"
+                            onClick={() =>
+                              addTo('give', { input: o.input, label: o.label, max: o.count })
+                            }
+                            className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs hover:bg-white/10 transition-colors cursor-pointer"
+                          >
+                            {o.label} <span className="text-white/40">×{o.count}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
 
@@ -201,16 +226,25 @@ export default function CraftOfferModal({
                   className="w-full mt-2 mb-1 bg-white/5 border border-white/10 rounded-md px-2 py-1 text-xs outline-none focus:border-white/30"
                 />
                 <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
-                  {wantMatches.map((l) => (
-                    <button
-                      key={itemKey(l.input)}
-                      type="button"
-                      onClick={() => addTo('want', l)}
-                      className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs hover:bg-white/10 transition-colors cursor-pointer"
-                    >
-                      {l.label}
-                    </button>
-                  ))}
+                  {CATEGORIES.map(({ type, label }) => {
+                    const rows = wantMatches.filter((l) => l.input.item_type === type);
+                    if (rows.length === 0) return null;
+                    return (
+                      <div key={type} className="w-full flex flex-wrap gap-1">
+                        <CategoryHeader label={label} />
+                        {rows.map((l) => (
+                          <button
+                            key={itemKey(l.input)}
+                            type="button"
+                            onClick={() => addTo('want', l)}
+                            className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs hover:bg-white/10 transition-colors cursor-pointer"
+                          >
+                            {l.label}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             </div>
