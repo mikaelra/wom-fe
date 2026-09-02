@@ -45,6 +45,9 @@ vi.mock('@/lib/socket', () => {
       listeners.get(event)!.add(handler);
       return () => listeners.get(event)?.delete(handler);
     },
+    // Same reason as on/off above, for the ranked queue's own room: see
+    // useRankedQueue, which re-joins it on every reconnect.
+    subscribeConnect: () => () => {},
     __fireSubscribeEvent: (event: string, payload: unknown) => {
       listeners.get(event)?.forEach((h) => h(payload));
     },

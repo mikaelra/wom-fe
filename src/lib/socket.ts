@@ -160,3 +160,30 @@ export function subscribe<E extends keyof ServerToClientEvents>(
     looseSock.off(event, wrapped);
   };
 }
+
+/**
+ * Subscribe to socket.io's own `connect` event, which fires on the initial
+ * connection *and* on every automatic reconnect.
+ *
+ * Lives here rather than in the calling hook so that `getSocket()`'s raw
+ * socket stays confined to this module, same as subscribe() above. It is
+ * deliberately not part of `subscribe`: `connect` is a socket.io lifecycle
+ * event, not one of wom-be's protocol events, so it has no payload and no
+ * entry in EVENT_SCHEMAS to validate against.
+ *
+ * The reason anything needs this: Socket.IO rooms are keyed by connection
+ * (sid), not by player, so every room a client joined is silently lost on a
+ * reconnect and must be re-joined by the client. See useRankedQueue, where
+ * losing the queue room meant losing the match-found push entirely.
+ */
+export function subscribeConnect(handler: () => void): () => void {
+  const sock = getSocket();
+  const looseSock = sock as unknown as {
+    on(event: string, listener: () => void): void;
+    off(event: string, listener: () => void): void;
+  };
+  looseSock.on('connect', handler);
+  return () => {
+    looseSock.off('connect', handler);
+  };
+}
