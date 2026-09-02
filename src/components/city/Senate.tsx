@@ -130,6 +130,40 @@ export default function Senate({
   // building read the same at the city's size and the arena's.
   const oculusReach = Math.hypot(halfW, halfD);
 
+  /**
+   * The four corners between the architrave's rectangle and the dome's
+   * circle, filled flat.
+   *
+   * The dome is an ellipse whose radii are exactly the architrave frame's
+   * outer half-extents, so it touches the frame at the middle of each side
+   * and leaves the four corners open -- you could see straight down into
+   * the building through them. This is that leftover area and nothing
+   * else: one rectangle with an elliptical hole punched in it, which comes
+   * out as the four corner pieces in a single geometry rather than four
+   * meshes to keep in sync.
+   *
+   * Flat, at the springing level, in the position a masonry building would
+   * use pendentives to solve. Built in the shape's own XY plane and laid
+   * down by the mesh's rotation, so the ellipse can never drift out of
+   * register with the dome above it -- both are driven by halfW/halfD.
+   */
+  const spandrels = useMemo(() => {
+    const ox = halfW + ARCHITRAVE_THICK;
+    const oz = halfD + ARCHITRAVE_THICK;
+    const plate = new THREE.Shape();
+    plate.moveTo(-ox, -oz);
+    plate.lineTo(ox, -oz);
+    plate.lineTo(ox, oz);
+    plate.lineTo(-ox, oz);
+    plate.closePath();
+    const opening = new THREE.Path();
+    // Wound the opposite way from the outline, which is how three.js tells
+    // a hole from a second solid island.
+    opening.absellipse(0, 0, ox, oz, 0, Math.PI * 2, true);
+    plate.holes.push(opening);
+    return new THREE.ShapeGeometry(plate, 64);
+  }, [halfW, halfD]);
+
   return (
     <group position={position}>
       {/* Stepped base */}
@@ -152,10 +186,21 @@ export default function Senate({
       {/* Architrave: a RING the columns carry and the dome springs from, not
           the solid slab that used to sit here. The slab would cap the
           interior, and an oculus opening onto a closed ceiling is just a
-          hole in a dome nobody can see through. */}
+          hole in a dome nobody can see through.
+
+          All four beams are measured off halfW/halfD -- the COLUMN RING's
+          half-extents -- rather than off WIDTH/DEPTH, so the ring closes as
+          a flush rectangle. The east-west pair used to span WIDTH + 2T, and
+          WIDTH is not that span: halfW is (WIDTH - 4R)/2, so WIDTH + 2T
+          overshot the north-south beams' outer faces by 2R at each end and
+          the corners visibly spilled past the frame (1.1 units each side at
+          the ranked arena's column radius). The north-south pair was always
+          written in the halfD form below and never had the fault, which is
+          why only one axis overhung. The dome is scaled to halfW/halfD + T
+          as well, so it now springs exactly from the frame's outer edge. */}
       {([
-        [0, halfD + ARCHITRAVE_THICK / 2, WIDTH + ARCHITRAVE_THICK * 2, ARCHITRAVE_THICK],
-        [0, -halfD - ARCHITRAVE_THICK / 2, WIDTH + ARCHITRAVE_THICK * 2, ARCHITRAVE_THICK],
+        [0, halfD + ARCHITRAVE_THICK / 2, halfW * 2 + ARCHITRAVE_THICK * 2, ARCHITRAVE_THICK],
+        [0, -halfD - ARCHITRAVE_THICK / 2, halfW * 2 + ARCHITRAVE_THICK * 2, ARCHITRAVE_THICK],
       ] as const).map(([x, z, w, d], i) => (
         <mesh key={`ew${i}`} position={[x, baseTop + COLUMN_HEIGHT + 0.3, z]}>
           <boxGeometry args={[w, 0.6, d]} />
@@ -181,6 +226,18 @@ export default function Senate({
         distance={oculusReach * 6}
         decay={OCULUS_LIGHT_DECAY}
       />
+
+      {/* The corner fill, at the dome's springing level -- the same height
+          the architrave's top face reaches. DoubleSide because it is a
+          zero-thickness plate and is looked up at from inside the building
+          as often as down at from outside. */}
+      <mesh
+        geometry={spandrels}
+        position={[0, baseTop + COLUMN_HEIGHT + 0.6, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <meshStandardMaterial color={color} side={THREE.DoubleSide} />
+      </mesh>
 
       {/* The dome. DoubleSide because you stand under it as often as you
           look at it -- a ranked match is played beneath this thing. */}
