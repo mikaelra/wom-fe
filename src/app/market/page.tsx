@@ -236,11 +236,6 @@ export default function MarketPage() {
         </span>
         <div className="flex items-center gap-3">
           {token && (
-            <span className="text-white/60 text-xs">
-              🪙 {coinsAvailable} Hades&apos; Coin{coinsAvailable === 1 ? '' : 's'}
-            </span>
-          )}
-          {token && (
             <Link
               href="/inventory"
               className="px-3 py-1.5 rounded-lg border border-white/20 text-sm no-underline hover:bg-white/10 transition-colors"
