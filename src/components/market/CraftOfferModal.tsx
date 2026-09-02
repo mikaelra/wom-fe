@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   clampCoins,
   itemKey,
@@ -367,13 +367,10 @@ function SideList({
             className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-md px-2 py-1 text-xs"
           >
             <span className="flex-1 truncate">{l.label}</span>
-            <input
-              type="number"
-              min={1}
-              max={l.max ?? 99}
+            <QtyInput
               value={l.input.quantity}
-              onChange={(e) => onQty(key, Number(e.target.value))}
-              className="w-12 bg-white/10 rounded px-1 py-0.5 text-center outline-none"
+              max={l.max ?? 99}
+              onCommit={(n) => onQty(key, n)}
             />
             <button
               type="button"
@@ -387,5 +384,62 @@ function SideList({
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * A quantity box you can actually edit. A plain controlled
+ * `<input type="number" value={n}>` with an onChange that clamps to >= 1
+ * snaps back to "1" the instant you delete the digit, so you can never
+ * type a fresh number. This keeps its own string draft: type anything
+ * (including empty) while focused; a valid whole number >= 1 commits
+ * live; on blur an invalid or empty box reverts to the last good value.
+ */
+export function QtyInput({
+  value,
+  max,
+  onCommit,
+}: {
+  value: number;
+  max: number;
+  onCommit: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  // Follow the committed value when it changes from outside (picking the
+  // same item again bumps its quantity) -- but don't fight the user while
+  // they're mid-edit on a draft that already parses to the same number.
+  useEffect(() => {
+    setDraft((d) => (Number(d) === value ? d : String(value)));
+  }, [value]);
+
+  const parse = (s: string): number | null => {
+    if (s.trim() === '') return null;
+    const n = Number(s);
+    return Number.isInteger(n) && n >= 1 ? Math.min(n, max) : null;
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      aria-label="Quantity"
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        const n = parse(e.target.value);
+        if (n !== null && n !== value) onCommit(n);
+      }}
+      onBlur={() => {
+        const n = parse(draft);
+        setDraft(String(n ?? value));
+        if (n !== null && n !== value) onCommit(n);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+      }}
+      className="w-12 bg-white/10 rounded px-1 py-0.5 text-center outline-none"
+    />
   );
 }

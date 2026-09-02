@@ -84,9 +84,7 @@ export default function MarketHistoryModal({
               >
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-white/90">
-                    <span className="text-white/40">
-                      {t.role === 'seller' ? 'sold to ' : 'bought from '}
-                    </span>
+                    <span className="text-white/40">traded with </span>
                     <span className="font-semibold text-sky-400/90">{t.counterparty_name}</span>
                   </span>
                   <time
