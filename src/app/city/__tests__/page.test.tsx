@@ -76,15 +76,17 @@ let lastRankedLabel: string | undefined;
 let lastRankedSublabel: string | null | undefined;
 let readyHandler: (() => void) | undefined;
 let backHandler: (() => void) | undefined;
+let marketHandler: (() => void) | undefined;
 let lastCoords: { realLat: number; realLng: number } | undefined;
 vi.mock('@/components/city/CityScene', () => ({
   default: ({
     onBossfight, bossfightSublabel, onRanked, rankedLabel, rankedSublabel,
-    onBackToEarth, onReady, realLat, realLng,
+    onBackToEarth, onMarket, onReady, realLat, realLng,
   }: {
     onBossfight: () => void; bossfightSublabel?: string | null;
     onRanked: () => void; rankedLabel: string; rankedSublabel?: string | null;
     onBackToEarth: () => void;
+    onMarket: () => void;
     onReady?: () => void;
     realLat: number; realLng: number;
   }) => {
@@ -97,6 +99,7 @@ vi.mock('@/components/city/CityScene', () => ({
     // resolved AND the canvas has drawn; here the test decides when.
     readyHandler = onReady;
     backHandler = onBackToEarth;
+    marketHandler = onMarket;
     lastCoords = { realLat, realLng };
     return <div data-testid="city-scene" />;
   },
@@ -152,6 +155,7 @@ beforeEach(() => {
   lastRankedSublabel = undefined;
   readyHandler = undefined;
   backHandler = undefined;
+  marketHandler = undefined;
   lastCoords = undefined;
   socket.__reset();
   mockedCheckName.mockReset();
@@ -228,6 +232,13 @@ describe('CityPage (routing)', () => {
     renderCity();
     await waitForScene();
     expect(screen.queryByLabelText('Back to Earth')).not.toBeInTheDocument();
+  });
+
+  it('routes the signpost\'s MARKET arm to the trading post', async () => {
+    renderCity();
+    await waitFor(() => expect(marketHandler).toBeDefined());
+    act(() => { marketHandler!(); });
+    expect(push).toHaveBeenCalledWith('/market');
   });
 });
 

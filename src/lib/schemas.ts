@@ -362,3 +362,84 @@ export const RankedMatchFoundPayloadSchema = z.object({
 export const OnlineCountPayloadSchema = z.object({
   count: z.number().int(),
 });
+
+// ── Market -- the player-to-player trading post (wom-be docs/MARKET_PLAN.md,
+//    direct-swap model §1A) ──────────────────────────────────────────────────
+
+// One item on either side of a trade -- a catalog descriptor, not an owned
+// row. Exactly one of skin / relic_id / wheel_kind is set, matching
+// item_type.
+export const MarketItemSchema = z.object({
+  item_type: z.enum(['skin', 'relic', 'wheel']),
+  skin: z.string().nullable(),
+  relic_id: z.number().int().nullable(),
+  wheel_kind: z.string().nullable(),
+  quantity: z.number().int(),
+});
+
+export const MarketListingSchema = z.object({
+  id: z.number().int(),
+  kind: z.enum(['quick', 'long']),
+  status: z.enum(['open', 'fulfilled', 'cancelled', 'expired']),
+  seller_player_id: z.number().int(),
+  seller_name: z.string(),
+  created_at: z.string(),
+  expires_at: z.string(),
+  give: z.array(MarketItemSchema),
+  want: z.array(MarketItemSchema),
+});
+
+// GET /market/listings
+export const MarketListingsResponseSchema = z.object({
+  listings: z.array(MarketListingSchema),
+  server_time: z.string(),
+});
+
+// GET /market/catalog
+export const MarketCatalogResponseSchema = z.object({
+  skins: z.array(z.string()),
+  relics: z.array(z.object({ id: z.number().int(), name: z.string() })),
+  wheel_kinds: z.array(z.string()),
+  coin_relic_id: z.number().int(),
+  terms_version: z.string(),
+  terms_text: z.string(),
+});
+
+// POST /market/enter
+export const MarketEnterResponseSchema = z.object({
+  player_id: z.number().int(),
+  player_name: z.string(),
+  terms_accepted: z.boolean(),
+  terms_version: z.string(),
+  coins: z.number().int(),
+  email_verified: z.boolean(),
+});
+
+// POST /market/accept_terms
+export const MarketAcceptTermsResponseSchema = z.object({
+  terms_accepted: z.boolean(),
+  terms_version: z.string(),
+});
+
+// POST /market/listings, .../accept, .../cancel -- all return the affected
+// listing. Error shapes ({error, code}) go through ApiError.code.
+export const MarketMutationResponseSchema = z.object({
+  success: z.boolean(),
+  listing: MarketListingSchema,
+});
+
+// Socket payloads (wom-be sockets/market.py). A market chat message reuses
+// the {sender, message, timestamp} shape lobby chat uses.
+export const MarketChatMessageSchema = z.object({
+  sender: z.string(),
+  message: z.string(),
+  timestamp: z.string(),
+});
+
+export const MarketChatBacklogSchema = z.object({
+  messages: z.array(MarketChatMessageSchema),
+});
+
+export const MarketListingExpiredSchema = z.object({
+  id: z.number().int(),
+});

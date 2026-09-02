@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, TEMPLE_EXTENT, groundDistance,
-  CAMPFIRE_POSITION, SEA_LEVEL, LAND_LEVEL, TEMPLE_BASE_DROP,
+  CAMPFIRE_POSITION, SEA_LEVEL, LAND_LEVEL, TEMPLE_BASE_DROP, MARKET_POSITION,
 } from '@/lib/cityLayout';
 
 // Scene compass (lib/citySkyGeometry.ts): -Z is north, +X is east, and the
@@ -21,6 +21,29 @@ describe('which building is on which side', () => {
   it('keeps them on opposite sides of the signpost, not merely both off-centre', () => {
     expect(Math.sign(TEMPLE_POSITION[0])).not.toBe(Math.sign(SENATE_POSITION[0]));
     expect(SIGNPOST_POSITION[0]).toBe(0);
+  });
+});
+
+describe('the Market (wom-be docs/MARKET_PLAN.md §3.2)', () => {
+  it('sits in the back-right quadrant: right of centre, behind the viewer', () => {
+    // "south-east" -- right is +X, "back" (away from a viewer looking
+    // north / down -Z) is +Z. Pairs with the signpost's right-side MARKET
+    // arm, same as Senate on the right.
+    expect(MARKET_POSITION[0]).toBeGreaterThan(0);
+    expect(MARKET_POSITION[2]).toBeGreaterThan(0);
+  });
+
+  it('leaves the back-left (south-west) quadrant clear for a later building', () => {
+    // §3.2 reserves -X / +Z. The Market must not stray into it.
+    expect(MARKET_POSITION[0]).toBeGreaterThan(0);
+  });
+
+  it('stands on the land like the rest of the city', () => {
+    expect(MARKET_POSITION[1]).toBe(LAND_LEVEL);
+  });
+
+  it('is a doorway you walk to, not a far backdrop like the temple', () => {
+    expect(groundDistance(MARKET_POSITION)).toBeLessThan(groundDistance(TEMPLE_POSITION));
   });
 });
 

@@ -103,6 +103,22 @@ export const SENATE_POSITION: [number, number, number] = [15, LAND_LEVEL, -22];
 export const SIGNPOST_POSITION: [number, number, number] = [0, LAND_LEVEL, -11];
 
 /**
+ * Market (right arm) -> the trading post (wom-be docs/MARKET_PLAN.md §3.2).
+ *
+ * The doc fixes only the bearing: **south-east, the back-right quadrant**
+ * relative to the default camera. The scene compass has -Z north and +X
+ * east and the camera looks north, so "back" is +Z and "right" is +X --
+ * this sits behind the viewer's right shoulder, reached by turning the
+ * orbit camera around. The **south-west / back-left** quadrant (-X, +Z) is
+ * left deliberately clear: §3.2 reserves it for a later building.
+ *
+ * Distance and exact offset are by eye, matching the Senate's ~26-unit
+ * remove rather than the temple's far backdrop -- it is a doorway you walk
+ * to, not scenery across the bay.
+ */
+export const MARKET_POSITION: [number, number, number] = [17, LAND_LEVEL, 13];
+
+/**
  * The campfire, between the viewer and the signpost.
  *
  * Close enough to the post to light its arms (3 units), far enough forward
