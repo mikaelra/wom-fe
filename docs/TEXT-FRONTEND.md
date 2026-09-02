@@ -733,8 +733,8 @@ links. The layout is right; the handlers behind it are §1.7's left column.
 
 | 3D element | Kind | Text counterpart |
 |---|---|---|
-| `Signpost` arms (Bossfight / Ranked) | **function** — the two entries | rows calling `useEnterBossfight` / `useEnterRanked` |
-| Arm labels + sublabels | **function** — status | `bossfightSignSublabel(roster, mins, secs)` and `ranked.label`/`.sublabel`, **reused as strings** |
+| `Signpost` arms (Bossfight / Ranked / Market / Back) | **function** — the entries | **drawn as a 2D signpost** with each arm a real button — see below |
+| Arm labels + sublabels | **function** — status | `bossfightSignSublabel(roster, mins, secs)` and `ranked.label`/`.sublabel`, **reused as strings**, painted onto the arms |
 | `BuildingSign` ×3 occupancy | **function** — how busy | `useCityPresence()` counts, rendered as text |
 | `BuildingTarget` Temple / Senate / Market clicks | **function** — navigation | the same three rows |
 | `TempleTableau` — live bossfight roster as figures | **function** — who is fighting | roster names from `useBossfightRoster()`, with §7's text avatars |
@@ -747,16 +747,62 @@ links. The layout is right; the handlers behind it are §1.7's left column.
 | Back to Earth | **function** | a link |
 | `CityOverlay`, both `AuthGatePopup`s, `playMusic(CITY_MUSIC)` | **function** | reused as-is |
 
-Sketch:
+**The signpost is drawn, not listed.** "Text mode" does not mean the city has to
+degrade to a bulleted menu. The signpost is the city's navigation
+(`CITY_SCENE_PLAN.md` locked decision 2 — the entries are *pointers on a
+signpost*), and a signpost is a flat, sign-shaped thing: a post, arms pointing
+left and right, words painted on them. That draws perfectly well in 2D — inline
+SVG or plain CSS boxes — with **each arm a real `<button>`** carrying the same
+`onClick` the 3D `BuildingTarget` fires.
+
+This keeps the scene's identity rather than just its function, and it costs
+almost nothing: no models, no textures, no canvas, no engine. The arms' captions
+are already strings from `bossfightSignSublabel()` and `ranked.label`/
+`.sublabel`, and the occupancy counts from `useCityPresence()` — the same data
+the 3D `BuildingSign`s paint.
+
+Requirements for the drawn version:
+
+- Each arm is a focusable `<button>` (or `<a>` for Back to Earth), not a
+  clickable `<div>` or an SVG `<path>` with a handler — keyboard and screen
+  reader reach it the same as any other control.
+- The arm's text is real text (SVG `<text>` or DOM over the shape), not baked
+  into an image, so it scales, translates and reads aloud.
+- It must survive a narrow viewport. A signpost is wide; on a phone the arms
+  stack rather than overflow, which is a layout decision to make deliberately
+  rather than discover.
+- Disabled and busy states are visible on the arm itself (`ranked.label` already
+  carries "3 in queue" / a countdown), matching what the 3D sign shows.
+
+Sketch of the whole screen:
 
 ```
-Athens
-  The Temple    Bossfight — WAITING · starts in 12m 04s     [Enter]
-                In the temple now: Kari, Ola, Nils
-  The Senate    Ranked — 3 in queue                         [Play Ranked]
-  The Market    7 in market                                 [Enter]
-  ← Back to Earth
+                 Athens
+
+           ┌──────────────────────────┐
+     ◀ ────┤  THE TEMPLE — BOSSFIGHT  │
+           │  WAITING · 12m 04s       │      In the temple now:
+           └──────────────────────────┘      Kari · Ola · Nils
+                      │
+           ┌──────────────────────────┐
+           │  THE SENATE — RANKED     ├──── ▶
+           │  3 in queue              │
+           └──────────────────────────┘
+                      │
+           ┌──────────────────────────┐
+     ◀ ────┤  THE MARKET              │
+           │  7 in market             │
+           └──────────────────────────┘
+                      │
+                     ═╧═        ← Back to Earth
 ```
+
+The same principle is available to the other scenes if it earns its place — the
+world map's city rows could be drawn as sword pins, the lobby's table as a
+seating diagram. **Not planned here**, and deliberately not: the signpost is
+worth drawing because it *is* the navigation, and a plan that promises drawn
+versions of everything is a plan that ships nothing. Revisit per scene, on
+evidence.
 
 ### 5.3 `/lobby` — the game
 
@@ -1312,7 +1358,8 @@ Existing page tests render the 3D branch, so they need the mode mocked. Default
 
 ## 11. Open questions
 
-**11.1 — Does the city's gaze-naming have a text form?** `CITY_SCENE_PLAN.md` §7
+**11.1 — Does the city's gaze-naming have a text form?** (The drawn signpost of
+§5.2 does not settle this — that is the navigation; this is the sky.) `CITY_SCENE_PLAN.md` §7
 is explicit that there is *no always-on legend*: a body is named only while it
 drifts near the centre of the view, so that "identification becomes an act of
 attention". A static list of what is overhead is the obvious text analogue and
