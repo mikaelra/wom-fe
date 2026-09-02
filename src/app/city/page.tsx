@@ -95,7 +95,19 @@ function CityPageContent() {
         // the pixel count for no visible gain.
         dpr={[1, 2]}
         gl={{ powerPreference: 'high-performance' }}
-        style={{ position: 'absolute', inset: 0 }}
+        // `isolation: isolate` is load-bearing, not decoration. FreshHtml
+        // appends each 3D-anchored label into the canvas's own container and
+        // gives it a z-index off drei's default range, which tops out at
+        // 16777271 -- a number picked to beat everything. This container is
+        // positioned but has no z-index of its own, so it was NOT a stacking
+        // context, and those z-indices escaped into the page's root context
+        // and competed with the DOM chrome directly. The signpost's labels
+        // won, and struck through the text of the user menu (Stats /
+        // Inventory / Shop / Settings) whenever it was open over the city.
+        // Isolating the container traps them: they still sort correctly
+        // against each other and still draw over the canvas, but the whole
+        // group now sits below later siblings like <CityOverlay/>.
+        style={{ position: 'absolute', inset: 0, isolation: 'isolate' }}
       >
         <CityScene
           date={skyDate}

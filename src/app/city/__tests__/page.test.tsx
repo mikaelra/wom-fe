@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import CityPage from '@/app/city/page';
 import {
   checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime,
@@ -64,8 +64,15 @@ const socket = socketModule as unknown as {
 
 // R3F's real Canvas needs a WebGL context jsdom cannot provide; render
 // children directly, same approach as app/__tests__/page.test.tsx.
+// Renders the wrapper div R3F would, carrying the style through, so the
+// canvas container's stacking behaviour is assertable -- the labels
+// FreshHtml appends live in exactly this element.
 vi.mock('@react-three/fiber', () => ({
-  Canvas: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  Canvas: ({ children, style }: { children?: ReactNode; style?: CSSProperties }) => (
+    <div data-testid="canvas-container" style={style}>
+      {children}
+    </div>
+  ),
 }));
 
 // Stand in for the 3D scene and capture what the page hands it, so the
@@ -569,5 +576,23 @@ describe('CityPage (ranked)', () => {
     await waitForScene();
     await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
     expect(lastRankedSublabel).toBe('GAME STARTED!');
+  });
+});
+
+// The signpost's labels are DOM, not WebGL: FreshHtml appends them into the
+// canvas's container with a z-index off drei's default range (up to
+// 16777271, chosen to beat everything). The container is positioned but
+// carries no z-index of its own, so it was not a stacking context and those
+// values escaped into the page's root context -- where they struck through
+// the text of the user menu whenever it was open over the city.
+describe('CityPage canvas stacking', () => {
+  it('isolates the canvas container so 3D labels cannot paint over the HUD', () => {
+    renderCity();
+    expect(screen.getByTestId('canvas-container')).toHaveStyle({ isolation: 'isolate' });
+  });
+
+  it('still lets the canvas fill the scene', () => {
+    renderCity();
+    expect(screen.getByTestId('canvas-container')).toHaveStyle({ position: 'absolute' });
   });
 });

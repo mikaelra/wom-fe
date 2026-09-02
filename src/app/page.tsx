@@ -67,7 +67,18 @@ export default function Page() {
     <div style={{ width: '100%', height: '100dvh', position: 'relative', overflow: 'hidden', background: '#070b15' }}>
       <WorldMapOverlay />
       {sceneReady && (
-        <Canvas camera={{ position: [0, 3, 10.5], fov: 50 }}>
+        <Canvas
+          camera={{ position: [0, 3, 10.5], fov: 50 }}
+          // Same containment as the city's canvas, for the same reason: the
+          // city markers' labels are DOM appended here by FreshHtml, carrying
+          // a z-index off drei's default range (up to 16777271). Without a
+          // stacking context on this container those values escape into the
+          // page's root context and beat the top bar's own z-20 -- so a
+          // marker label struck through the user menu's text. <WorldMapOverlay/>
+          // sitting EARLIER in the DOM than this canvas is not what saves it;
+          // its z-20 against this container's auto is.
+          style={{ isolation: 'isolate' }}
+        >
           <WorldMap onCityClick={handleCityClick} />
         </Canvas>
       )}
