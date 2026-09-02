@@ -464,3 +464,20 @@ export const MarketChatBacklogSchema = z.object({
 export const MarketListingExpiredSchema = z.object({
   id: z.number().int(),
 });
+
+// Who is in the market right now (wom-be sockets/market.py) -- backs the
+// chat's "Frogs" button and, via `count`, the city's "N in market" sign.
+export const MarketFrogsSchema = z.object({
+  count: z.number().int(),
+  names: z.array(z.string()),
+});
+
+// Building-occupancy counts over the three city buildings (wom-be
+// sockets/city.py). Pushed to watch_city_presence on a slow tick.
+export const CityPresenceSchema = z.object({
+  bossfight: z.number().int(),
+  ranked: z.number().int(),
+  market: z.number().int(),
+});
+export type CityPresence = z.infer<typeof CityPresenceSchema>;
+export type MarketFrogs = z.infer<typeof MarketFrogsSchema>;

@@ -14,6 +14,7 @@ import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useBossfightRoster } from '@/lib/useBossfightRoster';
+import { useCityPresence } from '@/lib/useCityPresence';
 import { bossfightSignSublabel } from '@/lib/bossfightSign';
 import { playMusic, CITY_MUSIC } from '@/lib/music';
 
@@ -71,6 +72,9 @@ function CityPageContent() {
   // building is the only way the two can never disagree.
   const roster = useBossfightRoster();
   const bossfightSublabel = bossfightSignSublabel(roster, bossfightMins, bossfightSecs);
+  // How busy each of the three buildings is right now, for the "N playing"
+  // / "N in market" signs floating over them (wom-be `city_presence`).
+  const presence = useCityPresence();
 
   if (!city) {
     return (
@@ -121,6 +125,7 @@ function CityPageContent() {
           rankedSublabel={ranked.sublabel}
           onBackToEarth={() => router.push('/')}
           onMarket={() => router.push('/market')}
+          presence={presence}
           onReady={handleReady}
         />
       </Canvas>

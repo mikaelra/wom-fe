@@ -130,6 +130,17 @@ describe('useMarketConnection', () => {
     expect(result.current.chat.map((m) => m.sender)).toEqual(['Ada', 'Bo']);
   });
 
+  it('starts with an empty frog list and takes a pushed one', () => {
+    const { result } = renderHook(() => useMarketConnection());
+    expect(result.current.frogs).toEqual({ count: 0, names: [] });
+
+    act(() => {
+      socket.__push('market_frogs', { count: 3, names: ['Ada', 'Bo'] });
+    });
+
+    expect(result.current.frogs).toEqual({ count: 3, names: ['Ada', 'Bo'] });
+  });
+
   it('sendChat emits nothing for a blank message and the trimmed text otherwise', () => {
     const { result } = renderHook(() => useMarketConnection());
     socket.__emit.mockClear();

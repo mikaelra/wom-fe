@@ -15,6 +15,8 @@ import {
   MarketChatMessageSchema,
   MarketChatBacklogSchema,
   MarketListingExpiredSchema,
+  MarketFrogsSchema,
+  CityPresenceSchema,
 } from '@/lib/schemas';
 
 // Typed event maps, built directly against wom-be's docs/PROTOCOL.md.
@@ -37,6 +39,9 @@ export interface ServerToClientEvents {
   // the signpost's "WAITING" flips to "PLAYING" on the round, not on a
   // timer.
   bossfight_roster: (payload: z.infer<typeof BossfightRosterResponseSchema>) => void;
+  // Building-occupancy counts over the temple / arena / market, pushed to
+  // the city on a slow tick (wom-be sockets/city.py).
+  city_presence: (payload: z.infer<typeof CityPresenceSchema>) => void;
   // The market's shared room (wom-be sockets/market.py / routes/market.py).
   // Board pushes so a client never has to poll, plus the common chat.
   listing_created: (payload: z.infer<typeof MarketListingSchema>) => void;
@@ -44,6 +49,8 @@ export interface ServerToClientEvents {
   listing_expired: (payload: z.infer<typeof MarketListingExpiredSchema>) => void;
   market_chat_message: (payload: z.infer<typeof MarketChatMessageSchema>) => void;
   market_chat_backlog: (payload: z.infer<typeof MarketChatBacklogSchema>) => void;
+  // Who is in the market now (for the chat's "Frogs" list).
+  market_frogs: (payload: z.infer<typeof MarketFrogsSchema>) => void;
 }
 
 export interface ClientToServerEvents {
@@ -71,6 +78,10 @@ export interface ClientToServerEvents {
   // and asking must never put them in it.
   watch_bossfight: () => void;
   stop_watching_bossfight: () => void;
+  // The city's building-occupancy counts -- a separate, smaller subscription
+  // than the full bossfight roster.
+  watch_city_presence: () => void;
+  stop_watching_city_presence: () => void;
   // Market room. join/send require an account session token (unlike the
   // anonymous bossfight watch); leave needs nothing.
   join_market: (payload: { token: string | null }) => void;
@@ -104,11 +115,13 @@ const EVENT_SCHEMAS = {
   ranked_match_found: RankedMatchFoundPayloadSchema,
   online_count: OnlineCountPayloadSchema,
   bossfight_roster: BossfightRosterResponseSchema,
+  city_presence: CityPresenceSchema,
   listing_created: MarketListingSchema,
   listing_updated: MarketListingSchema,
   listing_expired: MarketListingExpiredSchema,
   market_chat_message: MarketChatMessageSchema,
   market_chat_backlog: MarketChatBacklogSchema,
+  market_frogs: MarketFrogsSchema,
 } satisfies { [K in keyof ServerToClientEvents]: z.ZodTypeAny };
 
 /**
