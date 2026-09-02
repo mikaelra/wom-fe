@@ -405,6 +405,27 @@ export const MarketCatalogResponseSchema = z.object({
   terms_text: z.string(),
 });
 
+// POST /market/trades -- the caller's OWN completed swaps, newest first,
+// keyset-paginated on `before`. Each row is told from the caller's side:
+// `role` ('seller' = they posted it, 'buyer' = they accepted it),
+// `counterparty_name`, and what they `gave` / `got`.
+export const MarketTradeSchema = z.object({
+  id: z.number().int(),
+  listing_id: z.number().int(),
+  kind: z.enum(['quick', 'long']),
+  role: z.enum(['seller', 'buyer']),
+  counterparty_name: z.string(),
+  completed_at: z.string(),
+  gave: z.array(MarketItemSchema),
+  got: z.array(MarketItemSchema),
+});
+
+export const MarketTradesResponseSchema = z.object({
+  trades: z.array(MarketTradeSchema),
+  has_more: z.boolean(),
+  next_before: z.number().int().nullable(),
+});
+
 // POST /market/enter
 export const MarketEnterResponseSchema = z.object({
   player_id: z.number().int(),

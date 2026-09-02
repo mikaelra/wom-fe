@@ -26,6 +26,7 @@ import {
 } from '@/lib/market';
 import MarketBoard from '@/components/market/MarketBoard';
 import MarketChatPanel from '@/components/market/MarketChatPanel';
+import MarketHistoryModal from '@/components/market/MarketHistoryModal';
 import CraftOfferModal, { type OwnedItem } from '@/components/market/CraftOfferModal';
 import ConfirmModal from '@/components/market/ConfirmModal';
 import RmtDisclaimerBanner from '@/components/market/RmtDisclaimerBanner';
@@ -68,6 +69,7 @@ export default function MarketPage() {
   const [gate, setGate] = useState<PendingAction | null>(null);
   const [craft, setCraft] = useState<{ kind: 'quick' | 'long' } | null>(null);
   const [acceptTarget, setAcceptTarget] = useState<MarketListing | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // --- data loads --------------------------------------------------------
 
@@ -243,6 +245,15 @@ export default function MarketPage() {
         </span>
         <div className="flex items-center gap-3">
           {token && (
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              className="px-3 py-1.5 rounded-lg border border-white/20 text-sm hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              History
+            </button>
+          )}
+          {token && (
             <Link
               href="/inventory"
               className="px-3 py-1.5 rounded-lg border border-white/20 text-sm no-underline hover:bg-white/10 transition-colors"
@@ -307,6 +318,14 @@ export default function MarketPage() {
           />
         </aside>
       </main>
+
+      {historyOpen && token && (
+        <MarketHistoryModal
+          token={token}
+          catalog={catalog}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
 
       {gate && (
         <RmtDisclaimerGateModal onAccepted={onGateAccepted} onClose={() => setGate(null)} />

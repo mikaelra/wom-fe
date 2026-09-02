@@ -46,9 +46,10 @@ import {
   MarketEnterResponseSchema,
   MarketAcceptTermsResponseSchema,
   MarketMutationResponseSchema,
+  MarketTradesResponseSchema,
 } from '@/lib/schemas';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
-import type { MarketCatalog, MarketItemInput, MarketListing } from '@/lib/market';
+import type { MarketCatalog, MarketItemInput, MarketListing, MarketTrade } from '@/lib/market';
 
 export type ShopProduct = {
   id: string;
@@ -560,6 +561,19 @@ export async function getMarketListings(): Promise<{
 }> {
   return request('/market/listings', MarketListingsResponseSchema, {
     defaultErrorMessage: 'Failed to load the market.',
+  });
+}
+
+/** The caller's own completed trades, newest first -- the market's
+ *  History button. Session-gated. Keyset-paginated: pass the previous
+ *  page's `next_before` to fetch the page below it. */
+export async function getMarketTrades(
+  token: string,
+  opts: { before?: number; limit?: number } = {},
+): Promise<{ trades: MarketTrade[]; has_more: boolean; next_before: number | null }> {
+  return request('/market/trades', MarketTradesResponseSchema, {
+    body: { token, ...(opts.before != null ? { before: opts.before } : {}), ...(opts.limit != null ? { limit: opts.limit } : {}) },
+    defaultErrorMessage: 'Failed to load your trade history.',
   });
 }
 

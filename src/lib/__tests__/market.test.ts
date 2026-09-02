@@ -9,9 +9,12 @@ import {
   longOfferHours,
   mergeItemInputs,
   NON_TRADEABLE_SKIN,
+  recentChat,
   secondsRemaining,
   LONG_HOURS_PER_COIN,
+  MARKET_CHAT_WINDOW_MS,
   MAX_LONG_COINS,
+  type MarketChatEntry,
   type MarketItem,
   type MarketItemInput,
   type MarketListing,
@@ -131,5 +134,44 @@ describe('listingIsMine', () => {
 describe('NON_TRADEABLE_SKIN', () => {
   it('is the starter green frog', () => {
     expect(NON_TRADEABLE_SKIN).toBe('frog_green_v1');
+  });
+});
+
+describe('recentChat', () => {
+  const now = Date.parse('2026-09-02T12:00:00Z');
+  const msg = (minsAgo: number, message: string): MarketChatEntry => ({
+    sender: 'Bo',
+    message,
+    timestamp: new Date(now - minsAgo * 60_000).toISOString(),
+  });
+
+  it('is a one-hour window', () => {
+    expect(MARKET_CHAT_WINDOW_MS).toBe(60 * 60 * 1000);
+  });
+
+  it('keeps only messages from the last hour, order preserved', () => {
+    const kept = recentChat(
+      [msg(180, 'ancient'), msg(59, 'recent'), msg(1, 'newest')],
+      now,
+    );
+    expect(kept.map((m) => m.message)).toEqual(['recent', 'newest']);
+  });
+
+  it('treats exactly one hour old as still inside the window', () => {
+    expect(recentChat([msg(60, 'edge')], now)).toHaveLength(1);
+  });
+
+  it('keeps a line whose timestamp does not parse rather than eating it', () => {
+    const bad: MarketChatEntry = { sender: 'Bo', message: 'weird clock', timestamp: 'not-a-date' };
+    expect(recentChat([bad], now)).toEqual([bad]);
+  });
+
+  it('defaults to the real clock when no now is given', () => {
+    const fresh: MarketChatEntry = {
+      sender: 'Bo',
+      message: 'hi',
+      timestamp: new Date().toISOString(),
+    };
+    expect(recentChat([fresh])).toEqual([fresh]);
   });
 });
