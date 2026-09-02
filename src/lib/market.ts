@@ -21,6 +21,12 @@ export const MAX_LONG_COINS = 4;
 /** A free /offer lives on the board for this long (§1A.1). */
 export const QUICK_TTL_SECONDS = 60;
 
+/** The starter green frog every account already owns -- it has no trade
+ *  value, so it never appears in the craft picker. Mirrors wom-be
+ *  domain/market.py, which drops it from MARKET_SKIN_CATALOG and rejects
+ *  it in normalize_item on both sides. */
+export const NON_TRADEABLE_SKIN = 'frog_green_v1';
+
 export type MarketItem = z.infer<typeof MarketItemSchema>;
 export type MarketListing = z.infer<typeof MarketListingSchema>;
 export type MarketCatalog = z.infer<typeof MarketCatalogResponseSchema>;

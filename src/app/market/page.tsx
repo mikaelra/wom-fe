@@ -17,7 +17,13 @@ import { skinLabel } from '@/lib/frogSkins';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
 import { useToast } from '@/components/Toast';
 import { useMarketConnection } from '@/lib/useMarketConnection';
-import { itemKey, type MarketCatalog, type MarketItemInput, type MarketListing } from '@/lib/market';
+import {
+  itemKey,
+  NON_TRADEABLE_SKIN,
+  type MarketCatalog,
+  type MarketItemInput,
+  type MarketListing,
+} from '@/lib/market';
 import MarketBoard from '@/components/market/MarketBoard';
 import MarketChatPanel from '@/components/market/MarketChatPanel';
 import CraftOfferModal, { type OwnedItem } from '@/components/market/CraftOfferModal';
@@ -88,6 +94,7 @@ export default function MarketPage() {
       const counts: Record<string, number> = {};
       if (inv) {
         for (const s of inv.skins) {
+          if (s.skin === NON_TRADEABLE_SKIN) continue;
           const input: MarketItemInput = { item_type: 'skin', skin: s.skin, quantity: 1 };
           list.push({ input, label: cap(skinLabel(s.skin)), count: s.count });
           counts[itemKey(input)] = s.count;
