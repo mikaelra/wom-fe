@@ -341,13 +341,10 @@ export default function CityScene({
       onHoverChange: setMarketHot,
     },
     {
-      // Under the Bossfight arm, shorter and quieter than the two
-      // destinations it hangs beneath: the same shape as a real signpost,
-      // where the way you came from is the small plank at the bottom.
+      // Under the Bossfight arm, a full-size destination like the others --
+      // the way back to the world map is no lesser a place to go.
       side: 'left',
       tier: 1,
-      secondary: true,
-      lengthScale: 0.62,
       label: '\u{1F30D} EARTH',
       color: BACK_COLOR,
       onActivate: onBackToEarth,
