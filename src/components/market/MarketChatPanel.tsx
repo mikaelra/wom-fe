@@ -3,6 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MarketChatEntry } from '@/lib/market';
 
+/** Local wall-clock "HH:MM" for a chat line, or "" if the timestamp
+ *  doesn't parse. */
+function formatClock(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 /**
  * The market's common chat (wom-be docs/MARKET_PLAN.md §1A / §7) -- one
  * room, everyone present sees it. Same message-length / rate limits as
@@ -62,10 +70,18 @@ export default function MarketChatPanel({
           </p>
         )}
         {messages.map((m, i) => (
-          <div key={`${m.timestamp}-${i}`} className="leading-snug">
-            <span className="text-emerald-400/90 font-semibold">{m.sender}</span>
-            <span className="text-white/40"> · </span>
-            <span className="text-white/85 break-words">{m.message}</span>
+          <div key={`${m.timestamp}-${i}`} className="flex gap-2 leading-snug">
+            <div className="min-w-0 flex-1">
+              <span className="text-emerald-400/90 font-semibold">{m.sender}</span>
+              <span className="text-white/40"> · </span>
+              <span className="text-white/85 break-words">{m.message}</span>
+            </div>
+            <time
+              dateTime={m.timestamp}
+              className="shrink-0 text-[11px] tabular-nums text-white/30 pt-0.5"
+            >
+              {formatClock(m.timestamp)}
+            </time>
           </div>
         ))}
       </div>
