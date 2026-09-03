@@ -39,10 +39,10 @@ const RULE_RESOURCES = ['gain_hp', 'gain_coin', 'gain_attack', 'idle'] as const;
 function reasonText(reason: string): string {
   return (
     {
-      queued: 'Your AI is in the bot-ranked queue.',
-      no_credits: "No credits — your AI can't queue. Play a ranked game or buy some.",
-      owner_idle: 'Your AI queues in the gaps between your own games — play a ranked game to wake it.',
-      already_queued: 'Your AI is already queued.',
+      queued: 'Your AI is on. It plays bot-ranked games while you\'re away.',
+      no_credits: "No credits — your AI can't play. Win a ranked game or buy a pack.",
+      owner_idle: 'Your AI plays in the gaps between your own games.',
+      already_queued: 'Your AI is already on.',
       toggled_off: 'Your AI is off.',
     }[reason] ?? reason
   );
@@ -163,7 +163,11 @@ export default function MyAiPage() {
           {toggleNote && <p className="text-white/70 text-sm -mt-4">{toggleNote}</p>}
           {status.enabled && status.queue.queued && (
             <p className="text-white/60 text-sm -mt-6">
-              In queue · position {status.queue.position} of {status.queue.queue_size}
+              {status.queue.playing
+                ? `Playing while you're away · ${status.queue.games_played ?? 0} game${
+                    (status.queue.games_played ?? 0) === 1 ? '' : 's'
+                  } this session`
+                : 'Standing by — starts when you go idle'}
             </p>
           )}
 
@@ -178,7 +182,7 @@ export default function MyAiPage() {
           <section>
             <h2 className="text-white font-semibold mb-2">Pace</h2>
             <label className="text-sm text-white/80 flex items-center gap-3">
-              Re-queue every
+              While you&apos;re away, play a game every
               <input
                 type="number"
                 min={1}

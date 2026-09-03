@@ -519,6 +519,11 @@ export const MyAiStatusSchema = z.object({
     queue_size: z.number().int(),
     position: z.number().int().optional(),
     waited_seconds: z.number().optional(),
+    // true once the owner is idle and the bot's autonomous drip has taken
+    // over; false while the owner is around and the bot is standing by.
+    playing: z.boolean().optional(),
+    // Autonomous games the bot has played this queue session.
+    games_played: z.number().int().optional(),
   }),
 });
 export const MyAiToggleResponseSchema = z.object({
