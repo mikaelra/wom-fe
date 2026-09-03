@@ -10,6 +10,7 @@ import {
   MyAiSettingsResponseSchema,
   MyAiPersonalitySchema,
   MyAiMatchesSchema,
+  MyAiPracticeResponseSchema,
   type MyAiStatus,
   type MyAiKnobs,
   type MyAiOverrideRule,
@@ -724,4 +725,20 @@ export async function getMyAiMatches(token: string): Promise<MyAiMatches> {
     body: { token },
     defaultErrorMessage: 'Failed to load match history.',
   });
+}
+
+/**
+ * Start a bot-ranked practice game against your trained AI (docs/MY_AI.md
+ * §4). Returns the lobby id + a session token; join it via join_room like
+ * any match. The lobby auto-starts the instant you arrive.
+ */
+export async function startBotRankedPractice(
+  accountToken: string,
+): Promise<{ lobby_id: string; token: string }> {
+  const data = await request('/my_ai/practice', MyAiPracticeResponseSchema, {
+    body: { token: accountToken },
+    defaultErrorMessage: 'Failed to start a practice game.',
+  });
+  setStoredToken(data.lobby_id, data.token);
+  return data;
 }

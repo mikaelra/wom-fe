@@ -99,6 +99,25 @@ export const TEMPLE_EXTENT = { x: 17.8, y: 9.3, z: 31.6 } as const;
 export const TEMPLE_POSITION: [number, number, number] = [-29.3, LAND_LEVEL + TEMPLE_BASE_DROP, -34.6];
 export const SENATE_POSITION: [number, number, number] = [15, LAND_LEVEL, -22];
 
+/**
+ * The bot-ranked Senate (docs/MY_AI.md §9.1) -- a second civic hall touching
+ * the first at a corner, its own arm of the ranked fork. Offset diagonally
+ * back-and-right from SENATE_POSITION by roughly one building width, so the
+ * two read as an L that shares a corner rather than two separate doorways.
+ * PROVISIONAL placement -- Mikael's visual pass owns the final pose and the
+ * real /modelling building.
+ */
+export const SENATE_BOT_POSITION: [number, number, number] = [22.5, LAND_LEVEL, -29.5];
+
+/**
+ * The signpost that stands in the shared-corner gap between the two Senates
+ * and forks: RL RANKED (the human ladder) vs BOT RANKED (your trained AI's).
+ * Reached only after the city's primary RANKED arm pans the camera here
+ * (CityScene's rankedFocus). Pulled a little toward the viewer from the
+ * midpoint of the two buildings so its arms face you.
+ */
+export const RANKED_FORK_SIGNPOST_POSITION: [number, number, number] = [18, LAND_LEVEL, -24];
+
 /** Between them and nearer the viewer, so it is read first. */
 export const SIGNPOST_POSITION: [number, number, number] = [0, LAND_LEVEL, -11];
 

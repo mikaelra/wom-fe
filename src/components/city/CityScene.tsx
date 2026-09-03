@@ -2,7 +2,7 @@
 
 import { Suspense, useMemo, useRef, useState, type ReactNode } from 'react';
 import { OrbitControls } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Temple from '@/components/temple';
@@ -20,6 +20,7 @@ import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
 // left/right pairing with the signpost's arms can be tested.
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION, MARKET_POSITION,
+  SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION,
   SEA_LEVEL, LAND_LEVEL, EYE_HEIGHT,
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
@@ -149,9 +150,12 @@ export interface CitySceneProps {
    *  the signpost's caption, and two polls could show a caption that does
    *  not match the figures in the building. */
   roster: BossfightRoster;
-  /** Join, cancel, or return to a ranked match -- the Senate and the right
-   *  arm, same arrangement. */
+  /** Enter the human ranked queue -- the RL RANKED arm of the fork
+   *  signpost, which the city's primary RANKED arm pans the camera to. */
   onRanked: () => void;
+  /** Enter a bot-ranked practice game against your trained AI
+   *  (docs/MY_AI.md §4) -- the BOT RANKED arm of the fork signpost. */
+  onBotRanked: () => void;
   rankedLabel: string;
   rankedSublabel?: string | null;
   /** Back to the world map. A sign on the post rather than a button over the
@@ -178,6 +182,46 @@ export interface CitySceneProps {
  * models are parsed, not that the canvas has painted them, and lifting the
  * curtain on that first frame shows a visibly empty scene for a beat.
  */
+/**
+ * Turns the pinned camera to face a world point, once, over ~1 second
+ * (docs/CITY_SCENE_PLAN.md §5.2b -- "a one-time guided camera pivot").
+ *
+ * OrbitControls orbits the camera around EYE, so "look at P" means putting
+ * the camera on the far side of EYE from P. We convert (P - EYE) into the
+ * orbit's own azimuth/polar and ease the controls' current angles toward
+ * them; the user can still drag away at any point.
+ */
+function RankedFocusRig({ target }: { target: readonly [number, number, number] }) {
+  const controls = useThree((s) => s.controls) as
+    | { getAzimuthalAngle: () => number; getPolarAngle: () => number;
+        setAzimuthalAngle: (a: number) => void; setPolarAngle: (a: number) => void;
+        update: () => void }
+    | null;
+  const goal = useMemo(() => {
+    const dir = new THREE.Vector3(target[0] - EYE[0], target[1] - EYE[1], target[2] - EYE[2]).normalize();
+    // Camera offset from the target sits opposite the look direction.
+    const off = dir.clone().multiplyScalar(-1);
+    const polar = THREE.MathUtils.clamp(Math.acos(off.y), MIN_POLAR, MAX_POLAR);
+    const azimuth = Math.atan2(off.x, off.z);
+    return { polar, azimuth };
+  }, [target]);
+  const done = useRef(false);
+
+  useFrame((_, delta) => {
+    if (!controls || done.current) return;
+    const t = 1 - Math.pow(0.001, delta); // frame-rate-independent ease, ~1s to close
+    const az = controls.getAzimuthalAngle();
+    let dAz = goal.azimuth - az;
+    dAz = Math.atan2(Math.sin(dAz), Math.cos(dAz)); // shortest way round
+    const pol = controls.getPolarAngle();
+    controls.setAzimuthalAngle(az + dAz * t);
+    controls.setPolarAngle(pol + (goal.polar - pol) * t);
+    controls.update();
+    if (Math.abs(dAz) < 0.01 && Math.abs(goal.polar - pol) < 0.01) done.current = true;
+  });
+  return null;
+}
+
 function SceneReady({ onReady }: { onReady?: () => void }) {
   const frames = useRef(0);
   const fired = useRef(false);
@@ -228,6 +272,7 @@ export default function CityScene({
   bossfightSublabel,
   roster,
   onRanked,
+  onBotRanked,
   rankedLabel,
   rankedSublabel,
   onBackToEarth,
@@ -235,6 +280,11 @@ export default function CityScene({
   presence,
   onReady,
 }: CitySceneProps) {
+  // The city's primary RANKED arm doesn't queue -- it turns the camera to
+  // the fork signpost between the two Senates, where you pick RL RANKED or
+  // BOT RANKED (docs/CITY_SCENE_PLAN.md §5.2b).
+  const [rankedFocus, setRankedFocus] = useState(false);
+  const focusRanked = () => setRankedFocus(true);
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
   const { placements, sky, nightness, sunAltitude } = useCitySky(date, realLat, realLng, EYE);
@@ -328,7 +378,7 @@ export default function CityScene({
       label: rankedLabel,
       sublabel: rankedSublabel,
       color: RANKED_COLOR,
-      onActivate: onRanked,
+      onActivate: focusRanked,
       onHoverChange: setSenateHot,
     },
     {
@@ -450,11 +500,45 @@ export default function CityScene({
 
         <BuildingTarget
           position={SENATE_POSITION}
-          onActivate={onRanked}
+          onActivate={focusRanked}
           onHoverChange={setSenateHot}
         >
           <Senate color={senateHot ? LIT_RANKED : PLAIN} />
         </BuildingTarget>
+
+        {/* The bot-ranked Senate, touching the first at a corner
+            (docs/MY_AI.md §9.1). A plain second Senate until the /modelling
+            building exists; the fork signpost between the two is what
+            actually sends you to the two ladders. */}
+        <BuildingTarget
+          position={SENATE_BOT_POSITION}
+          onActivate={focusRanked}
+          onHoverChange={setSenateHot}
+        >
+          <Senate color={senateHot ? LIT_RANKED : PLAIN} />
+        </BuildingTarget>
+
+        <Signpost
+          position={RANKED_FORK_SIGNPOST_POSITION}
+          arms={[
+            {
+              side: 'left',
+              label: 'RL RANKED',
+              sublabel: rankedSublabel,
+              color: RANKED_COLOR,
+              onActivate: onRanked,
+            },
+            {
+              side: 'right',
+              label: 'BOT RANKED',
+              sublabel: 'fight your AI',
+              color: RANKED_COLOR,
+              onActivate: onBotRanked,
+            },
+          ]}
+        />
+
+        {rankedFocus && <RankedFocusRig target={RANKED_FORK_SIGNPOST_POSITION} />}
 
         {/* The trading post, back-right of the default view (§3.2). Same
             arm/building hover pairing as Temple and Senate. */}

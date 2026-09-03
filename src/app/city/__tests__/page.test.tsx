@@ -5,8 +5,10 @@ import CityPage from '@/app/city/page';
 import {
   checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime,
   getActiveRankedLobby, joinRankedQueue, leaveRankedQueue, getBossfightRoster,
+  startBotRankedPractice,
 } from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
+import { setStoredAccountToken } from '@/lib/http';
 import * as socketModule from '@/lib/socket';
 import { findCity } from '@/lib/cities';
 
@@ -27,6 +29,17 @@ vi.mock('@/lib/api', () => ({
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
   getBossfightRoster: vi.fn(),
+  startBotRankedPractice: vi.fn(),
+  // SceneTopBar (via CityOverlay) loads these once an account token is
+  // present -- which the bot-ranked tests set.
+  getInventory: vi.fn().mockResolvedValue({
+    equipped_skin: 'frog_green_v1', equipped_cosmetic: null,
+    skins: [], relics: [], wheels: [], artifacts: [], pending: {},
+  }),
+  logOut: vi.fn(),
+  resolveAccountSession: vi.fn().mockResolvedValue({
+    name: 'Alice', email: 'a@x.com', always_verify_email: false, email_verified: true,
+  }),
 }));
 
 // Same fake-subscribe pattern the world-map tests used before ranked moved
@@ -87,14 +100,16 @@ let lastRankedSublabel: string | null | undefined;
 let readyHandler: (() => void) | undefined;
 let backHandler: (() => void) | undefined;
 let marketHandler: (() => void) | undefined;
+let botRankedHandler: (() => void) | undefined;
 let lastCoords: { realLat: number; realLng: number } | undefined;
 vi.mock('@/components/city/CityScene', () => ({
   default: ({
-    onBossfight, bossfightSublabel, onRanked, rankedLabel, rankedSublabel,
+    onBossfight, bossfightSublabel, onRanked, onBotRanked, rankedLabel, rankedSublabel,
     onBackToEarth, onMarket, onReady, realLat, realLng,
   }: {
     onBossfight: () => void; bossfightSublabel?: string | null;
-    onRanked: () => void; rankedLabel: string; rankedSublabel?: string | null;
+    onRanked: () => void; onBotRanked: () => void;
+    rankedLabel: string; rankedSublabel?: string | null;
     onBackToEarth: () => void;
     onMarket: () => void;
     onReady?: () => void;
@@ -103,6 +118,7 @@ vi.mock('@/components/city/CityScene', () => ({
     bossfightHandler = onBossfight;
     lastSublabel = bossfightSublabel;
     rankedHandler = onRanked;
+    botRankedHandler = onBotRanked;
     lastRankedLabel = rankedLabel;
     lastRankedSublabel = rankedSublabel;
     // The real scene fires this from a useFrame once its models have
@@ -188,7 +204,10 @@ beforeEach(() => {
   });
   mockedJoinRankedQueue.mockReset();
   mockedLeaveRankedQueue.mockReset();
+  vi.mocked(startBotRankedPractice).mockReset();
+  botRankedHandler = undefined;
   localStorage.clear();
+  setStoredAccountToken(null);
 });
 
 describe('CityPage (routing)', () => {
@@ -576,6 +595,36 @@ describe('CityPage (ranked)', () => {
     await waitForScene();
     await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
     expect(lastRankedSublabel).toBe('GAME STARTED!');
+  });
+});
+
+describe('CityPage (bot ranked)', () => {
+  it('starts a practice game and routes into the lobby', async () => {
+    setStoredAccountToken('acct-tok');
+    vi.mocked(startBotRankedPractice).mockResolvedValue({ lobby_id: 'BOTP', token: 't' });
+    renderCity();
+    await waitForScene();
+
+    await act(async () => {
+      botRankedHandler?.();
+      await flush();
+    });
+
+    expect(startBotRankedPractice).toHaveBeenCalledWith('acct-tok');
+    expect(push).toHaveBeenCalledWith('/lobby?id=BOTP');
+  });
+
+  it('does nothing but warn when not logged in with an account', async () => {
+    vi.mocked(startBotRankedPractice).mockResolvedValue({ lobby_id: 'X', token: 't' });
+    renderCity();
+    await waitForScene();
+
+    await act(async () => {
+      botRankedHandler?.();
+      await flush();
+    });
+
+    expect(startBotRankedPractice).not.toHaveBeenCalled();
   });
 });
 

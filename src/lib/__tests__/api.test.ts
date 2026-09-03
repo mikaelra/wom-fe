@@ -951,6 +951,19 @@ describe('My AI endpoints', () => {
     expect((await getMyAiPersonality('sess')).trained).toBe(false);
   });
 
+  it('startBotRankedPractice posts the account token and stores the lobby token', async () => {
+    const { startBotRankedPractice } = await import('@/lib/api');
+    fetchMock.mockResolvedValue(jsonResponse({ lobby_id: 'BOTP', token: 'lobby-tok' }));
+
+    const res = await startBotRankedPractice('acct');
+
+    expect(res).toEqual({ lobby_id: 'BOTP', token: 'lobby-tok' });
+    expect(getStoredToken('BOTP')).toBe('lobby-tok');
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'acct',
+    });
+  });
+
   it('getMyAiMatches parses the history', async () => {
     fetchMock.mockResolvedValue(jsonResponse({
       matches: [{

@@ -12,6 +12,9 @@ import { findCity } from '@/lib/cities';
 import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
+import { startBotRankedPractice } from '@/lib/api';
+import { getStoredAccountToken } from '@/lib/http';
+import { useToast } from '@/components/Toast';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useBossfightRoster } from '@/lib/useBossfightRoster';
 import { useCityPresence } from '@/lib/useCityPresence';
@@ -63,6 +66,23 @@ function CityPageContent() {
 
   const { enterBossfight, loading, gateOpen, closeGate, authFlow } = useEnterBossfight();
   const ranked = useEnterRanked();
+  const { showError } = useToast();
+
+  // BOT RANKED arm of the fork signpost: spin up a practice game against
+  // your trained AI and drop into the lobby (docs/MY_AI.md §4).
+  const enterBotRanked = useCallback(async () => {
+    const token = getStoredAccountToken();
+    if (!token) {
+      showError('Log in with your account to fight your AI.');
+      return;
+    }
+    try {
+      const { lobby_id } = await startBotRankedPractice(token);
+      router.push(`/lobby?id=${lobby_id}`);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : 'Failed to start a practice game.');
+    }
+  }, [router, showError]);
   // Same countdown the world map used to show under the Athens sword; it now
   // reads under the signpost's Bossfight arm.
   const { bossfightMins, bossfightSecs } = useBossfightCountdown(true);
@@ -121,6 +141,7 @@ function CityPageContent() {
           bossfightSublabel={bossfightSublabel}
           roster={roster}
           onRanked={ranked.enterRanked}
+          onBotRanked={enterBotRanked}
           rankedLabel={ranked.label}
           rankedSublabel={ranked.sublabel}
           onBackToEarth={() => router.push('/')}
