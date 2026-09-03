@@ -5,7 +5,7 @@ import CityPage from '@/app/city/page';
 import {
   checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime,
   getActiveRankedLobby, joinRankedQueue, leaveRankedQueue, getBossfightRoster,
-  startBotRanked, NoAiCreditsError,
+  startBotRanked,
 } from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
 import { setStoredAccountToken } from '@/lib/http';
@@ -30,9 +30,6 @@ vi.mock('@/lib/api', () => ({
   leaveRankedQueue: vi.fn(),
   getBossfightRoster: vi.fn(),
   startBotRanked: vi.fn(),
-  NoAiCreditsError: class NoAiCreditsError extends Error {
-    constructor() { super('no_credits'); this.name = 'NoAiCreditsError'; }
-  },
   // SceneTopBar (via CityOverlay) loads these once an account token is
   // present -- which the bot-ranked tests set.
   getInventory: vi.fn().mockResolvedValue({
@@ -630,9 +627,9 @@ describe('CityPage (bot ranked)', () => {
     expect(startBotRanked).not.toHaveBeenCalled();
   });
 
-  it('warns and stays put when the owner is out of credits', async () => {
+  it('surfaces a generic failure without routing', async () => {
     setStoredAccountToken('acct-tok');
-    vi.mocked(startBotRanked).mockRejectedValue(new NoAiCreditsError());
+    vi.mocked(startBotRanked).mockRejectedValue(new Error('boom'));
     renderCity();
     await waitForScene();
 
@@ -643,7 +640,7 @@ describe('CityPage (bot ranked)', () => {
 
     expect(startBotRanked).toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
-    expect(await screen.findByText(/out of my ai credits/i)).toBeInTheDocument();
+    expect(await screen.findByText(/boom/i)).toBeInTheDocument();
   });
 });
 

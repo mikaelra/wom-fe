@@ -12,7 +12,7 @@ import { findCity } from '@/lib/cities';
 import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
-import { startBotRanked, NoAiCreditsError } from '@/lib/api';
+import { startBotRanked } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { useToast } from '@/components/Toast';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
@@ -82,10 +82,6 @@ function CityPageContent() {
       const { lobby_id } = await startBotRanked(token);
       router.push(`/lobby?id=${lobby_id}`);
     } catch (e) {
-      if (e instanceof NoAiCreditsError) {
-        showError('Out of My AI credits — win a ranked game to earn one, or buy a pack in the shop.');
-        return;
-      }
       showError(e instanceof Error ? e.message : 'Failed to start a bot-ranked game.');
     }
   }, [router, showError]);

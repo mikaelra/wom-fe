@@ -965,12 +965,6 @@ describe('My AI endpoints', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('/my_ai/bot_ranked');
   });
 
-  it('startBotRanked throws NoAiCreditsError on 402', async () => {
-    const { startBotRanked, NoAiCreditsError } = await import('@/lib/api');
-    fetchMock.mockResolvedValue(jsonResponse({ error: 'no_credits' }, 402));
-
-    await expect(startBotRanked('acct')).rejects.toBeInstanceOf(NoAiCreditsError);
-  });
 
   it('getMyAiMatches parses the history', async () => {
     fetchMock.mockResolvedValue(jsonResponse({
