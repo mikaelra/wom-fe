@@ -737,10 +737,11 @@ export class NoAiCreditsError extends Error {
 }
 
 /**
- * Start a solo bot-ranked game against your trained AI plus filler bots
- * (docs/MY_AI.md §4). Costs one My AI credit. Returns the lobby id + a
- * session token; join it via join_room like any match -- it auto-starts
- * the instant you arrive. Throws {@link NoAiCreditsError} on 402.
+ * Send your trained AI into a bot-ranked game against the field -- other
+ * players' queued AIs, padded with filler bots (docs/MY_AI.md §4). Costs
+ * one My AI credit. Returns the lobby id + a session token; join it via
+ * join_room like any match -- it auto-starts the instant you arrive.
+ * Throws {@link NoAiCreditsError} on 402.
  */
 export async function startBotRanked(
   accountToken: string,
