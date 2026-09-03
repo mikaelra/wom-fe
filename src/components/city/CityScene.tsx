@@ -20,7 +20,8 @@ import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
 // left/right pairing with the signpost's arms can be tested.
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION, MARKET_POSITION,
-  SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION, RANKED_FORK_VIEW_PIN,
+  SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION, RANKED_FORK_SIGNPOST_ROTATION_Y,
+  RANKED_FORK_VIEW_PIN, RANKED_FORK_VIEW_OFFSET,
   SEA_LEVEL, LAND_LEVEL, EYE_HEIGHT,
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
@@ -68,6 +69,9 @@ const EYE_RADIUS = 0.01;
 /** Start pose: offset along +Z of the pin, so the default view looks toward
  *  -Z -- where the signpost and both buildings stand. */
 export const CITY_CAMERA: [number, number, number] = [EYE[0], EYE[1], EYE[2] + EYE_RADIUS];
+/** The entry pose as a unit offset direction, for GuidedView: a hair south
+ *  of the pin, looking north. The fork's is this turned onto its face. */
+const CITY_VIEW_OFFSET: readonly [number, number, number] = [0, 0, 1];
 /** Wider than the lobby's 75: standing among buildings and looking up wants
  *  more sky in frame than a table-top scene does. */
 export const CITY_FOV = 70;
@@ -188,36 +192,62 @@ export interface CitySceneProps {
  *
  * The scene pins the viewer to one spot and lets them only turn on it, so
  * "go and stand in front of the fork" is a bodily move of that pin, not an
- * orbit. Each frame we ease OrbitControls' `target` toward the goal pin and
- * park the camera a hair south of it (+Z by EYE_RADIUS), which points the
- * look dead level down -Z -- the exact pose the scene opens in over the city
- * signpost. `minDistance == maxDistance == EYE_RADIUS` on the controls keeps
- * that offset from being stretched into a fling while the target moves.
+ * orbit. Each frame we ease OrbitControls' `target` toward the goal pin and,
+ * separately, ease the camera's tiny offset from that target (radius
+ * EYE_RADIUS) toward `offsetDir` -- so the look swings from due north to
+ * whatever the destination faces as the viewpoint travels. The fork's face
+ * is 45 off north, so the two eases together read as one turn-and-walk.
+ * `minDistance == maxDistance == EYE_RADIUS` on the controls keeps the
+ * offset from being stretched into a fling while the target moves.
  *
- * `pin` changing (RANKED -> fork, BACK -> city) re-arms the ease in both
- * directions. Once settled the rig stops touching the camera and free look
- * resumes from wherever it came to rest.
+ * `pin` / `offsetDir` changing (RANKED -> fork, BACK -> city) re-arms the
+ * ease in both directions. The offset is held in a ref that survives the
+ * re-arm, so BACK eases from the fork's facing rather than snapping. Once
+ * settled the rig stops touching the camera and free look resumes.
  */
-function GuidedView({ pin }: { pin: readonly [number, number, number] }) {
+function GuidedView({
+  pin,
+  offsetDir,
+}: {
+  pin: readonly [number, number, number];
+  offsetDir: readonly [number, number, number];
+}) {
   const controls = useThree((s) => s.controls) as
     | { target: THREE.Vector3; update: () => void }
     | null;
   const camera = useThree((s) => s.camera);
   const goal = useMemo(() => new THREE.Vector3(pin[0], pin[1], pin[2]), [pin]);
+  const offGoal = useMemo(
+    () => new THREE.Vector3(offsetDir[0], offsetDir[1], offsetDir[2]).setLength(EYE_RADIUS),
+    [offsetDir],
+  );
+  const off = useRef(new THREE.Vector3(0, 0, EYE_RADIUS));
   const settled = useRef(false);
+  const seed = useRef(true);
 
-  useEffect(() => { settled.current = false; }, [goal]);
+  useEffect(() => { settled.current = false; seed.current = true; }, [goal, offGoal]);
 
   useFrame((_, delta) => {
     if (!controls || settled.current) return;
     const t = 1 - Math.pow(0.001, delta); // frame-rate-independent ease, ~1s to close
     const target = controls.target;
+    if (seed.current) {
+      // Start the swing from wherever the camera is actually looking now, so
+      // a user who had turned away doesn't see it snap to north first.
+      off.current.copy(camera.position).sub(target);
+      if (off.current.lengthSq() < 1e-8) off.current.set(0, 0, EYE_RADIUS);
+      seed.current = false;
+    }
     target.lerp(goal, t);
-    camera.position.set(target.x, target.y, target.z + EYE_RADIUS);
+    off.current.lerp(offGoal, t);
+    if (off.current.lengthSq() < 1e-8) off.current.copy(offGoal);
+    off.current.setLength(EYE_RADIUS);
+    camera.position.copy(target).add(off.current);
     controls.update();
-    if (target.distanceTo(goal) < 0.015) {
+    if (target.distanceTo(goal) < 0.015 && off.current.angleTo(offGoal) < 0.01) {
       target.copy(goal);
-      camera.position.set(goal.x, goal.y, goal.z + EYE_RADIUS);
+      off.current.copy(offGoal);
+      camera.position.copy(target).add(off.current);
       controls.update();
       settled.current = true;
     }
@@ -523,6 +553,7 @@ export default function CityScene({
 
         <Signpost
           position={RANKED_FORK_SIGNPOST_POSITION}
+          rotationY={RANKED_FORK_SIGNPOST_ROTATION_Y}
           arms={[
             {
               side: 'left',
@@ -554,7 +585,10 @@ export default function CityScene({
         {/* Always mounted: it has to be able to ease the pin BACK to the city
             as well as out to the fork, so it can't unmount when `view` flips.
             Settled, it costs one ref check a frame. */}
-        <GuidedView pin={view === 'fork' ? RANKED_FORK_VIEW_PIN : EYE} />
+        <GuidedView
+          pin={view === 'fork' ? RANKED_FORK_VIEW_PIN : EYE}
+          offsetDir={view === 'fork' ? RANKED_FORK_VIEW_OFFSET : CITY_VIEW_OFFSET}
+        />
 
         {/* The trading post, back-right of the default view (§3.2). Same
             arm/building hover pairing as Temple and Senate. */}

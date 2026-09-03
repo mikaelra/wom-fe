@@ -1,6 +1,6 @@
 import {
   SEA_LEVEL, LAND_LEVEL, SIGNPOST_POSITION, CAMPFIRE_POSITION,
-  TEMPLE_POSITION, SENATE_POSITION,
+  TEMPLE_POSITION, SENATE_POSITION, RANKED_FORK_SIGNPOST_POSITION,
 } from '@/lib/cityLayout';
 import { TEMPLE_TABLEAU_LIFT } from '@/lib/templeTableau';
 
@@ -55,6 +55,9 @@ const PADS: { x: number; z: number; radius: number }[] = [
   // temple.glb is 35.6 by 63.2, so its clearing is a field rather than a pad.
   { x: TEMPLE_POSITION[0], z: TEMPLE_POSITION[2], radius: 38 },
   { x: SENATE_POSITION[0], z: SENATE_POSITION[2], radius: 11 },
+  // The ranked fork and the spot the guided camera stands to read it -- so
+  // the post does not float and the viewpoint is not pitched on a hillock.
+  { x: RANKED_FORK_SIGNPOST_POSITION[0], z: RANKED_FORK_SIGNPOST_POSITION[2], radius: 13 },
 ];
 
 function smoothstep(edge0: number, edge1: number, x: number): number {

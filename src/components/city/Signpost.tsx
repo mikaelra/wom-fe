@@ -147,13 +147,18 @@ function Arm({ arm }: { arm: SignpostArm }) {
 
 export default function Signpost({
   position,
+  rotationY = 0,
   arms,
 }: {
   position: [number, number, number];
+  /** Yaw of the whole post about its own axis, radians. The arms turn with
+   *  it, so a turned post points its arms at buildings that are not on the
+   *  scene's x-axis (the ranked fork, at 45 between the two Senates). */
+  rotationY?: number;
   arms: SignpostArm[];
 }) {
   return (
-    <group position={position}>
+    <group position={position} rotation={[0, rotationY, 0]}>
       <mesh position={[0, POST_HEIGHT / 2, 0]}>
         <cylinderGeometry args={[POST_RADIUS, POST_RADIUS * 1.3, POST_HEIGHT, 10]} />
         <meshStandardMaterial color={WOOD} />
