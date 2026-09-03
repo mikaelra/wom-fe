@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { OrbitControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -20,7 +20,7 @@ import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
 // left/right pairing with the signpost's arms can be tested.
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION, MARKET_POSITION,
-  SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION,
+  SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION, RANKED_FORK_VIEW_PIN,
   SEA_LEVEL, LAND_LEVEL, EYE_HEIGHT,
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
@@ -183,41 +183,44 @@ export interface CitySceneProps {
  * curtain on that first frame shows a visibly empty scene for a beat.
  */
 /**
- * Turns the pinned camera to face a world point, once, over ~1 second
- * (docs/CITY_SCENE_PLAN.md §5.2b -- "a one-time guided camera pivot").
+ * Slides the pinned viewpoint between two spots, over ~1 second
+ * (docs/CITY_SCENE_PLAN.md §5.2b -- "a one-time guided camera move").
  *
- * OrbitControls orbits the camera around EYE, so "look at P" means putting
- * the camera on the far side of EYE from P. We convert (P - EYE) into the
- * orbit's own azimuth/polar and ease the controls' current angles toward
- * them; the user can still drag away at any point.
+ * The scene pins the viewer to one spot and lets them only turn on it, so
+ * "go and stand in front of the fork" is a bodily move of that pin, not an
+ * orbit. Each frame we ease OrbitControls' `target` toward the goal pin and
+ * park the camera a hair south of it (+Z by EYE_RADIUS), which points the
+ * look dead level down -Z -- the exact pose the scene opens in over the city
+ * signpost. `minDistance == maxDistance == EYE_RADIUS` on the controls keeps
+ * that offset from being stretched into a fling while the target moves.
+ *
+ * `pin` changing (RANKED -> fork, BACK -> city) re-arms the ease in both
+ * directions. Once settled the rig stops touching the camera and free look
+ * resumes from wherever it came to rest.
  */
-function RankedFocusRig({ target }: { target: readonly [number, number, number] }) {
+function GuidedView({ pin }: { pin: readonly [number, number, number] }) {
   const controls = useThree((s) => s.controls) as
-    | { getAzimuthalAngle: () => number; getPolarAngle: () => number;
-        setAzimuthalAngle: (a: number) => void; setPolarAngle: (a: number) => void;
-        update: () => void }
+    | { target: THREE.Vector3; update: () => void }
     | null;
-  const goal = useMemo(() => {
-    const dir = new THREE.Vector3(target[0] - EYE[0], target[1] - EYE[1], target[2] - EYE[2]).normalize();
-    // Camera offset from the target sits opposite the look direction.
-    const off = dir.clone().multiplyScalar(-1);
-    const polar = THREE.MathUtils.clamp(Math.acos(off.y), MIN_POLAR, MAX_POLAR);
-    const azimuth = Math.atan2(off.x, off.z);
-    return { polar, azimuth };
-  }, [target]);
-  const done = useRef(false);
+  const camera = useThree((s) => s.camera);
+  const goal = useMemo(() => new THREE.Vector3(pin[0], pin[1], pin[2]), [pin]);
+  const settled = useRef(false);
+
+  useEffect(() => { settled.current = false; }, [goal]);
 
   useFrame((_, delta) => {
-    if (!controls || done.current) return;
+    if (!controls || settled.current) return;
     const t = 1 - Math.pow(0.001, delta); // frame-rate-independent ease, ~1s to close
-    const az = controls.getAzimuthalAngle();
-    let dAz = goal.azimuth - az;
-    dAz = Math.atan2(Math.sin(dAz), Math.cos(dAz)); // shortest way round
-    const pol = controls.getPolarAngle();
-    controls.setAzimuthalAngle(az + dAz * t);
-    controls.setPolarAngle(pol + (goal.polar - pol) * t);
+    const target = controls.target;
+    target.lerp(goal, t);
+    camera.position.set(target.x, target.y, target.z + EYE_RADIUS);
     controls.update();
-    if (Math.abs(dAz) < 0.01 && Math.abs(goal.polar - pol) < 0.01) done.current = true;
+    if (target.distanceTo(goal) < 0.015) {
+      target.copy(goal);
+      camera.position.set(goal.x, goal.y, goal.z + EYE_RADIUS);
+      controls.update();
+      settled.current = true;
+    }
   });
   return null;
 }
@@ -280,11 +283,11 @@ export default function CityScene({
   presence,
   onReady,
 }: CitySceneProps) {
-  // The city's primary RANKED arm doesn't queue -- it turns the camera to
-  // the fork signpost between the two Senates, where you pick RL RANKED or
-  // BOT RANKED (docs/CITY_SCENE_PLAN.md §5.2b).
-  const [rankedFocus, setRankedFocus] = useState(false);
-  const focusRanked = () => setRankedFocus(true);
+  // The city's primary RANKED arm doesn't queue -- it walks the camera over
+  // to the fork signpost between the two Senates, where you pick RL RANKED or
+  // BOT RANKED. The fork's BACK arm walks it home again (§5.2b).
+  const [view, setView] = useState<'city' | 'fork'>('city');
+  const focusRanked = () => setView('fork');
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
   const { placements, sky, nightness, sunAltitude } = useCitySky(date, realLat, realLng, EYE);
@@ -535,10 +538,23 @@ export default function CityScene({
               color: RANKED_COLOR,
               onActivate: onBotRanked,
             },
+            {
+              // The way back to the city signpost -- parchment, not a third
+              // fight, the same as EARTH on the main post. Hangs under RL
+              // RANKED on the left.
+              side: 'left',
+              tier: 1,
+              label: 'BACK',
+              color: BACK_COLOR,
+              onActivate: () => setView('city'),
+            },
           ]}
         />
 
-        {rankedFocus && <RankedFocusRig target={RANKED_FORK_SIGNPOST_POSITION} />}
+        {/* Always mounted: it has to be able to ease the pin BACK to the city
+            as well as out to the fork, so it can't unmount when `view` flips.
+            Settled, it costs one ref check a frame. */}
+        <GuidedView pin={view === 'fork' ? RANKED_FORK_VIEW_PIN : EYE} />
 
         {/* The trading post, back-right of the default view (§3.2). Same
             arm/building hover pairing as Temple and Senate. */}
@@ -588,6 +604,12 @@ export default function CityScene({
         dampingFactor={0.08}
         minPolarAngle={MIN_POLAR}
         maxPolarAngle={MAX_POLAR}
+        // Lock the orbit radius at the pin distance. Zoom is already off for
+        // the user; pinning both ends means GuidedView can slide the target
+        // across the scene without OrbitControls stretching the camera offset
+        // into a fling on the way.
+        minDistance={EYE_RADIUS}
+        maxDistance={EYE_RADIUS}
       />
     </>
   );

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, TEMPLE_EXTENT, groundDistance,
   CAMPFIRE_POSITION, SEA_LEVEL, LAND_LEVEL, TEMPLE_BASE_DROP, MARKET_POSITION,
+  SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION, RANKED_FORK_VIEW_PIN,
+  RANKED_FORK_VIEW_DISTANCE, EYE_HEIGHT,
 } from '@/lib/cityLayout';
 
 // Scene compass (lib/citySkyGeometry.ts): -Z is north, +X is east, and the
@@ -77,6 +79,36 @@ describe('the temple has the room its size needs', () => {
 
   it('does not reach across into the Senate', () => {
     expect(TEMPLE_POSITION[0] + TEMPLE_EXTENT.x).toBeLessThan(SENATE_POSITION[0]);
+  });
+});
+
+describe('the ranked fork', () => {
+  it('stands the fork signpost squarely between the two Senates', () => {
+    // "between the two senates" -- the midpoint of the shared-corner gap, not
+    // pulled off toward one hall or the viewer.
+    const midX = (SENATE_POSITION[0] + SENATE_BOT_POSITION[0]) / 2;
+    const midZ = (SENATE_POSITION[2] + SENATE_BOT_POSITION[2]) / 2;
+    expect(RANKED_FORK_SIGNPOST_POSITION[0]).toBeCloseTo(midX, 6);
+    expect(RANKED_FORK_SIGNPOST_POSITION[2]).toBeCloseTo(midZ, 6);
+    expect(RANKED_FORK_SIGNPOST_POSITION[1]).toBe(LAND_LEVEL);
+  });
+
+  it('frames the fork exactly like the scene frames the city signpost on entry', () => {
+    // Same distance the viewer stands from the city signpost at the origin,
+    // so the two posts land on screen at the same size and pitch.
+    expect(RANKED_FORK_VIEW_DISTANCE).toBeCloseTo(groundDistance(SIGNPOST_POSITION), 6);
+  });
+
+  it('parks the guided camera due south of the fork at eye height', () => {
+    // Due south (+Z) and dead level: the camera looks down -Z, the scene's
+    // entry pose, carried bodily to the fork.
+    expect(RANKED_FORK_VIEW_PIN[0]).toBeCloseTo(RANKED_FORK_SIGNPOST_POSITION[0], 6);
+    expect(RANKED_FORK_VIEW_PIN[1]).toBeCloseTo(LAND_LEVEL + EYE_HEIGHT, 6);
+    expect(RANKED_FORK_VIEW_PIN[2]).toBeCloseTo(
+      RANKED_FORK_SIGNPOST_POSITION[2] + RANKED_FORK_VIEW_DISTANCE, 6);
+    // In front of the sign (nearer the viewer's homeland), and the sign is
+    // in front of both Senates from there.
+    expect(RANKED_FORK_VIEW_PIN[2]).toBeGreaterThan(RANKED_FORK_SIGNPOST_POSITION[2]);
   });
 });
 

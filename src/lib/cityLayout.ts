@@ -109,16 +109,8 @@ export const SENATE_POSITION: [number, number, number] = [15, LAND_LEVEL, -22];
  */
 export const SENATE_BOT_POSITION: [number, number, number] = [22.5, LAND_LEVEL, -29.5];
 
-/**
- * The signpost that stands in the shared-corner gap between the two Senates
- * and forks: RL RANKED (the human ladder) vs BOT RANKED (your trained AI's).
- * Reached only after the city's primary RANKED arm pans the camera here
- * (CityScene's rankedFocus). Pulled a little toward the viewer from the
- * midpoint of the two buildings so its arms face you.
- */
-export const RANKED_FORK_SIGNPOST_POSITION: [number, number, number] = [18, LAND_LEVEL, -24];
-
-/** Between them and nearer the viewer, so it is read first. */
+/** Between the temple and the Senate and nearer the viewer, so it is read
+ *  first. */
 export const SIGNPOST_POSITION: [number, number, number] = [0, LAND_LEVEL, -11];
 
 /**
@@ -149,3 +141,39 @@ export const CAMPFIRE_POSITION: [number, number, number] = [0, LAND_LEVEL, -8];
 export function groundDistance(position: readonly [number, number, number]): number {
   return Math.hypot(position[0], position[2]);
 }
+
+/**
+ * The signpost that forks the ranked ladder: RL RANKED (the human ladder) vs
+ * BOT RANKED (your trained AI's -- docs/MY_AI.md §4).
+ *
+ * It stands at the exact midpoint of the two Senates, in the shared-corner
+ * gap between them, so the fork reads as belonging to both halls at once.
+ * You never see it on entry: the city signpost's primary RANKED arm guides
+ * the camera here (CityScene's `view` state), and this post's own BACK arm
+ * guides it back to the city signpost.
+ */
+export const RANKED_FORK_SIGNPOST_POSITION: [number, number, number] = [
+  (SENATE_POSITION[0] + SENATE_BOT_POSITION[0]) / 2,
+  LAND_LEVEL,
+  (SENATE_POSITION[2] + SENATE_BOT_POSITION[2]) / 2,
+];
+
+/**
+ * How far in front of the fork signpost the guided camera comes to rest --
+ * equal to the city signpost's own distance from the viewer on entry. Framed
+ * this way the fork lands on screen *exactly* as the city signpost does when
+ * the scene opens: same distance, same eye height, sign dead ahead.
+ */
+export const RANKED_FORK_VIEW_DISTANCE = groundDistance(SIGNPOST_POSITION);
+
+/**
+ * Where the pinned camera sits while you read the fork: due south (+Z) of the
+ * signpost, at eye height, `RANKED_FORK_VIEW_DISTANCE` away, looking level
+ * down -Z. The scene's entry pose over the city signpost, carried bodily to
+ * the fork.
+ */
+export const RANKED_FORK_VIEW_PIN: [number, number, number] = [
+  RANKED_FORK_SIGNPOST_POSITION[0],
+  LAND_LEVEL + EYE_HEIGHT,
+  RANKED_FORK_SIGNPOST_POSITION[2] + RANKED_FORK_VIEW_DISTANCE,
+];
