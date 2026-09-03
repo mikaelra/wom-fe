@@ -157,8 +157,9 @@ export interface CitySceneProps {
   /** Enter the human ranked queue -- the RL RANKED arm of the fork
    *  signpost, which the city's primary RANKED arm pans the camera to. */
   onRanked: () => void;
-  /** Send your trained AI into a bot-ranked game against the field
-   *  (docs/MY_AI.md §4) -- the BOT RANKED arm of the fork signpost. */
+  /** Enter a bot-ranked game against the field of other players' trained
+   *  AIs (docs/MY_AI.md §4) -- the BOT RANKED arm of the fork signpost.
+   *  Your own AI isn't in it; it competes on its own in the queue. */
   onBotRanked: () => void;
   rankedLabel: string;
   rankedSublabel?: string | null;
@@ -565,7 +566,7 @@ export default function CityScene({
             {
               side: 'right',
               label: 'BOT RANKED',
-              sublabel: 'your AI vs the field',
+              sublabel: 'you vs trained AIs',
               color: RANKED_COLOR,
               onActivate: onBotRanked,
             },

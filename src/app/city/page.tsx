@@ -68,9 +68,10 @@ function CityPageContent() {
   const ranked = useEnterRanked();
   const { showError } = useToast();
 
-  // BOT RANKED arm of the fork signpost: spend a My AI credit to send your
-  // trained AI into a bot-ranked game against other players' queued AIs
-  // (padded with filler bots), and drop into the lobby (docs/MY_AI.md §4).
+  // BOT RANKED arm of the fork signpost: spend a My AI credit to enter a
+  // bot-ranked game against other players' queued AIs (padded with filler
+  // bots) and drop into the lobby (docs/MY_AI.md §4). Your own AI stays in
+  // the queue competing on its own.
   const enterBotRanked = useCallback(async () => {
     const token = getStoredAccountToken();
     if (!token) {
