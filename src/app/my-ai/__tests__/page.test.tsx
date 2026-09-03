@@ -100,6 +100,18 @@ describe('MyAiPage', () => {
     expect(screen.queryByRole('button', { name: '✕' })).not.toBeInTheDocument();
   });
 
+  it('shows a target picker only when the rule action is attack', async () => {
+    render(<MyAiPage />);
+    fireEvent.click(await screen.findByText('+ add rule'));
+    // default rule is "defend" -> no target picker
+    expect(screen.queryByRole('option', { name: 'the weakest' })).not.toBeInTheDocument();
+
+    const actionSelect = screen.getAllByRole('combobox')
+      .find((s) => (s as HTMLSelectElement).value === 'defend')!;
+    fireEvent.change(actionSelect, { target: { value: 'attack' } });
+    expect(screen.getByRole('option', { name: 'whoever hit me' })).toBeInTheDocument();
+  });
+
   it('renders match history rows with rank-after and end time', async () => {
     vi.mocked(getMyAiMatches).mockResolvedValue({
       matches: [{

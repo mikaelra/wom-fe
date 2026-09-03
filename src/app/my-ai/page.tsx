@@ -32,9 +32,16 @@ const KNOBS: { key: keyof MyAiKnobs; label: string; low: string; high: string }[
   { key: 'vengeance', label: 'Vengeance', low: 'off', high: 'hits back' },
 ];
 
-const RULE_CONDITIONS = ['hp_lte', 'hp_gte', 'round_lte', 'round_gte', 'coins_gte'] as const;
+const RULE_CONDITIONS = ['hp_lte', 'hp_gte', 'round_lte', 'round_gte'] as const;
 const RULE_ACTIONS = ['attack', 'defend', 'well', 'idle'] as const;
 const RULE_RESOURCES = ['gain_hp', 'gain_coin', 'gain_attack', 'idle'] as const;
+// Wire value -> label. `other` resolves to a random opponent.
+const RULE_TARGETS: { v: string; l: string }[] = [
+  { v: 'weakest', l: 'the weakest' },
+  { v: 'strongest', l: 'the strongest' },
+  { v: 'revenge', l: 'whoever hit me' },
+  { v: 'other', l: 'a random player' },
+];
 
 /** "14:03" for a game that ended today, "Sep 1, 14:03" otherwise -- local
  *  clock. "—" if it doesn't parse. */
@@ -368,15 +375,35 @@ function RuleRow({
       <span className="text-white/50">do</span>
       <select
         value={rule.do.action}
-        onChange={(e) =>
-          onChange({ ...rule, do: { ...rule.do, action: e.target.value as MyAiOverrideRule['do']['action'] } })
-        }
+        onChange={(e) => {
+          const action = e.target.value as MyAiOverrideRule['do']['action'];
+          onChange({
+            ...rule,
+            do: {
+              ...rule.do,
+              action,
+              // a target only means anything for an attack rule
+              target: action === 'attack' ? (rule.do.target ?? 'weakest') : null,
+            },
+          });
+        }}
         className="bg-gray-800 border border-white/20 rounded px-1 py-0.5"
       >
         {RULE_ACTIONS.map((a) => (
           <option key={a} value={a}>{a}</option>
         ))}
       </select>
+      {rule.do.action === 'attack' && (
+        <select
+          value={rule.do.target ?? 'weakest'}
+          onChange={(e) => onChange({ ...rule, do: { ...rule.do, target: e.target.value } })}
+          className="bg-gray-800 border border-white/20 rounded px-1 py-0.5"
+        >
+          {RULE_TARGETS.map((t) => (
+            <option key={t.v} value={t.v}>{t.l}</option>
+          ))}
+        </select>
+      )}
       <select
         value={rule.do.resource}
         onChange={(e) => onChange({ ...rule, do: { ...rule.do, resource: e.target.value } })}
