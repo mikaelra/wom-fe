@@ -555,7 +555,9 @@ export const MyAiMatchesSchema = z.object({
   matches: z.array(z.object({
     match_id: z.string(),
     placement: z.number().int(),
-    mu_delta: z.number(),
+    // The bot's visible rank tier at the end of this game; null while it
+    // was still in its 10-game placement run.
+    rank: z.string().nullable(),
     opponents: z.array(z.object({
       name: z.string(),
       owner: z.string(),

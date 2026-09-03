@@ -975,11 +975,13 @@ describe('My AI endpoints', () => {
   it('getMyAiMatches parses the history', async () => {
     fetchMock.mockResolvedValue(jsonResponse({
       matches: [{
-        match_id: 'm1', placement: 1, mu_delta: 1.2,
-        opponents: [{ name: "Ben's AI", owner: 'Ben', place: 2 }], at: null,
+        match_id: 'm1', placement: 1, rank: 'Warlock II',
+        opponents: [{ name: "Ben's AI", owner: 'Ben', place: 2 }],
+        at: '2026-09-03T14:03:00Z',
       }],
     }));
     const res = await getMyAiMatches('sess');
-    expect(res.matches[0].mu_delta).toBe(1.2);
+    expect(res.matches[0].rank).toBe('Warlock II');
+    expect(res.matches[0].at).toBe('2026-09-03T14:03:00Z');
   });
 });

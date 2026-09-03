@@ -100,16 +100,31 @@ describe('MyAiPage', () => {
     expect(screen.queryByRole('button', { name: '✕' })).not.toBeInTheDocument();
   });
 
-  it('renders match history rows', async () => {
+  it('renders match history rows with rank-after and end time', async () => {
     vi.mocked(getMyAiMatches).mockResolvedValue({
       matches: [{
-        match_id: 'm1', placement: 2, mu_delta: -1.4,
-        opponents: [{ name: "Ben's AI", owner: 'Ben', place: 1 }], at: null,
+        match_id: 'm1', placement: 2, rank: 'Djinn I',
+        opponents: [{ name: "Ben's AI", owner: 'Ben', place: 1 }],
+        at: '2026-09-03T14:03:00Z',
       }],
     });
     render(<MyAiPage />);
     expect(await screen.findByText('#2')).toBeInTheDocument();
-    expect(screen.getByText('-1.4')).toBeInTheDocument();
+    expect(screen.getByText('Djinn I')).toBeInTheDocument();
     expect(screen.getByText('Ben')).toBeInTheDocument();
+    expect(screen.getByText(/\d{2}:\d{2}/)).toBeInTheDocument();   // the end time
+  });
+
+  it('shows a dash for the rank while the AI is still in placement', async () => {
+    vi.mocked(getMyAiMatches).mockResolvedValue({
+      matches: [{
+        match_id: 'm1', placement: 1, rank: null,
+        opponents: [], at: null,
+      }],
+    });
+    render(<MyAiPage />);
+    expect(await screen.findByText('#1')).toBeInTheDocument();
+    const cells = screen.getAllByText('—');
+    expect(cells.length).toBeGreaterThanOrEqual(1);
   });
 });

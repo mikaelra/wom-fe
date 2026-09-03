@@ -36,6 +36,16 @@ const RULE_CONDITIONS = ['hp_lte', 'hp_gte', 'round_lte', 'round_gte', 'coins_gt
 const RULE_ACTIONS = ['attack', 'defend', 'well', 'idle'] as const;
 const RULE_RESOURCES = ['gain_hp', 'gain_coin', 'gain_attack', 'idle'] as const;
 
+/** "14:03" for a game that ended today, "Sep 1, 14:03" otherwise -- local
+ *  clock. "—" if it doesn't parse. */
+function formatEnded(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (new Date().toDateString() === d.toDateString()) return time;
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+}
+
 function reasonText(reason: string): string {
   return (
     {
@@ -286,18 +296,20 @@ export default function MyAiPage() {
                 <thead className="text-white/50 text-xs">
                   <tr>
                     <th className="text-left">Placed</th>
-                    <th className="text-left">Δ rating</th>
+                    <th className="text-left">Rank after</th>
                     <th className="text-left">Opponents</th>
+                    <th className="text-right">Ended</th>
                   </tr>
                 </thead>
                 <tbody>
                   {matches.matches.map((m) => (
                     <tr key={m.match_id} className="border-t border-white/10">
                       <td>#{m.placement}</td>
-                      <td className={m.mu_delta >= 0 ? 'text-green-400' : 'text-red-400'}>
-                        {m.mu_delta >= 0 ? '+' : ''}{m.mu_delta}
-                      </td>
+                      <td>{m.rank ?? '—'}</td>
                       <td>{m.opponents.map((o) => o.owner).join(', ')}</td>
+                      <td className="text-right text-white/50 whitespace-nowrap">
+                        {m.at ? formatEnded(m.at) : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
