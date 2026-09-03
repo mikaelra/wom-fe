@@ -5,6 +5,16 @@ import type { z } from 'zod';
 import type { Relic } from '@/types/game';
 import type { GameEvent } from '@/lib/gameEvents';
 import {
+  MyAiStatusSchema,
+  MyAiToggleResponseSchema,
+  MyAiSettingsResponseSchema,
+  MyAiPersonalitySchema,
+  MyAiMatchesSchema,
+  type MyAiStatus,
+  type MyAiKnobs,
+  type MyAiOverrideRule,
+  type MyAiPersonality,
+  type MyAiMatches,
   CreateLobbyResponseSchema,
   GetBossfightLobbyResponseSchema,
   GetNextBossfightTimeResponseSchema,
@@ -56,10 +66,12 @@ export type ShopProduct = {
   name: string;
   price_cents: number;
   currency: string;
-  kind: 'wheel' | 'skin';
+  kind: 'wheel' | 'skin' | 'ai_credits';
   odds_denominator?: number;
   odds?: { skin: string; weight: number; probability: number }[];
   skin?: string;
+  credits_per_pack?: number;
+  max_quantity?: number;
 };
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
@@ -666,4 +678,50 @@ export async function cancelMarketListing(
   } catch (e) {
     mapMarketError(e);
   }
+}
+
+// ---------------------------------------------------------------------------
+// "My AI" -- the personal AI that competes in bot ranked
+// (wom-be docs/MY_AI.md §9.2)
+// ---------------------------------------------------------------------------
+
+export async function getMyAiStatus(token: string): Promise<MyAiStatus> {
+  return request('/my_ai/status', MyAiStatusSchema, {
+    body: { token },
+    defaultErrorMessage: 'Failed to load your AI.',
+  });
+}
+
+export async function toggleMyAi(
+  token: string,
+  enabled: boolean,
+): Promise<{ enabled: boolean; queued: boolean; reason: string }> {
+  return request('/my_ai/toggle', MyAiToggleResponseSchema, {
+    body: { token, enabled },
+    defaultErrorMessage: 'Failed to toggle your AI.',
+  });
+}
+
+export async function saveMyAiSettings(
+  token: string,
+  settings: { minute_counter?: number; knobs?: MyAiKnobs; override_rules?: MyAiOverrideRule[] },
+): Promise<z.infer<typeof MyAiSettingsResponseSchema>> {
+  return request('/my_ai/settings', MyAiSettingsResponseSchema, {
+    body: { token, ...settings },
+    defaultErrorMessage: 'Failed to save settings.',
+  });
+}
+
+export async function getMyAiPersonality(token: string): Promise<MyAiPersonality> {
+  return request('/my_ai/personality', MyAiPersonalitySchema, {
+    body: { token },
+    defaultErrorMessage: 'Failed to load the personality readout.',
+  });
+}
+
+export async function getMyAiMatches(token: string): Promise<MyAiMatches> {
+  return request('/my_ai/matches', MyAiMatchesSchema, {
+    body: { token },
+    defaultErrorMessage: 'Failed to load match history.',
+  });
 }

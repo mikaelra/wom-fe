@@ -18,6 +18,11 @@ import {
   getRankedProfile,
   getMarketTrades,
   getShopProducts,
+  getMyAiStatus,
+  toggleMyAi,
+  saveMyAiSettings,
+  getMyAiPersonality,
+  getMyAiMatches,
   getWellProfile,
   getWheelTables,
   getTradeUpRules,
@@ -888,5 +893,72 @@ describe('getMarketTrades', () => {
       headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: 'sess-1', before: 5, limit: 10 }),
     });
+  });
+});
+
+describe('My AI endpoints', () => {
+  const fullStatus = {
+    enabled: false,
+    minute_counter: 10,
+    knobs: {},
+    override_rules: [],
+    credits: 3,
+    trainable: true,
+    logged_rows: 50,
+    min_rows: 40,
+    bot_rank: { tier: null, games_played: 0 },
+    queue: { queued: false, queue_size: 0 },
+  };
+
+  it('getMyAiStatus posts the token and parses the status', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(fullStatus));
+
+    const res = await getMyAiStatus('sess');
+
+    expect(res.credits).toBe(3);
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/my_ai/status`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'sess' }),
+    });
+  });
+
+  it('toggleMyAi posts the desired state', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ enabled: true, queued: true, reason: 'queued' }));
+
+    const res = await toggleMyAi('sess', true);
+
+    expect(res).toEqual({ enabled: true, queued: true, reason: 'queued' });
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'sess', enabled: true,
+    });
+  });
+
+  it('saveMyAiSettings spreads the settings into the body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      saved: true, enabled: false, minute_counter: 20, knobs: {}, override_rules: [],
+    }));
+
+    await saveMyAiSettings('sess', { minute_counter: 20, knobs: { aggression: 0.5 } });
+
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'sess', minute_counter: 20, knobs: { aggression: 0.5 },
+    });
+  });
+
+  it('getMyAiPersonality parses the readout', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ trained: false, deviations: [] }));
+    expect((await getMyAiPersonality('sess')).trained).toBe(false);
+  });
+
+  it('getMyAiMatches parses the history', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      matches: [{
+        match_id: 'm1', placement: 1, mu_delta: 1.2,
+        opponents: [{ name: "Ben's AI", owner: 'Ben', place: 2 }], at: null,
+      }],
+    }));
+    const res = await getMyAiMatches('sess');
+    expect(res.matches[0].mu_delta).toBe(1.2);
   });
 });

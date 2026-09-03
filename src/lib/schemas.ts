@@ -283,10 +283,13 @@ export const ShopProductSchema = z.object({
   name: z.string(),
   price_cents: z.number().int(),
   currency: z.string(),
-  kind: z.enum(['wheel', 'skin']),
+  kind: z.enum(['wheel', 'skin', 'ai_credits']),
   odds_denominator: z.number().int().optional(),
   odds: z.array(WheelOddsEntrySchema).optional(),
   skin: z.string().optional(),
+  // kind: 'ai_credits' -- docs/MY_AI.md §5
+  credits_per_pack: z.number().int().optional(),
+  max_quantity: z.number().int().optional(),
 });
 
 export const ShopProductsResponseSchema = z.object({
@@ -481,3 +484,83 @@ export const CityPresenceSchema = z.object({
 });
 export type CityPresence = z.infer<typeof CityPresenceSchema>;
 export type MarketFrogs = z.infer<typeof MarketFrogsSchema>;
+
+// "My AI" -- the personal AI that competes in bot ranked
+// (wom-be docs/MY_AI.md §9.2, routes/my_ai.py).
+export const MyAiKnobsSchema = z.object({
+  aggression: z.number().optional(),
+  greed: z.number().optional(),
+  turtle: z.number().optional(),
+  vengeance: z.number().optional(),
+});
+export const MyAiOverrideRuleSchema = z.object({
+  when: z.record(z.string(), z.union([z.number(), z.boolean()])),
+  do: z.object({
+    action: z.enum(['attack', 'defend', 'well', 'idle']),
+    resource: z.string(),
+    target: z.string().nullable().optional(),
+  }),
+});
+export const MyAiStatusSchema = z.object({
+  enabled: z.boolean(),
+  minute_counter: z.number().int(),
+  knobs: MyAiKnobsSchema,
+  override_rules: z.array(MyAiOverrideRuleSchema),
+  credits: z.number().int(),
+  trainable: z.boolean(),
+  logged_rows: z.number().int(),
+  min_rows: z.number().int(),
+  bot_rank: z.object({
+    tier: z.string().nullable(),
+    games_played: z.number().int(),
+  }),
+  queue: z.object({
+    queued: z.boolean(),
+    queue_size: z.number().int(),
+    position: z.number().int().optional(),
+    waited_seconds: z.number().optional(),
+  }),
+});
+export const MyAiToggleResponseSchema = z.object({
+  enabled: z.boolean(),
+  queued: z.boolean(),
+  reason: z.string(),
+});
+export const MyAiSettingsResponseSchema = z.object({
+  saved: z.boolean(),
+  enabled: z.boolean(),
+  minute_counter: z.number().int(),
+  knobs: MyAiKnobsSchema,
+  override_rules: z.array(MyAiOverrideRuleSchema),
+});
+export const MyAiPersonalitySchema = z.object({
+  trained: z.boolean(),
+  games_rows: z.number().int().optional(),
+  min_rows: z.number().int().optional(),
+  deviations: z.array(z.object({
+    move: z.string(),
+    action: z.string(),
+    resource: z.string(),
+    feature: z.string(),
+    direction: z.enum(['more', 'less']),
+    magnitude: z.number(),
+  })),
+});
+export const MyAiMatchesSchema = z.object({
+  matches: z.array(z.object({
+    match_id: z.string(),
+    placement: z.number().int(),
+    mu_delta: z.number(),
+    opponents: z.array(z.object({
+      name: z.string(),
+      owner: z.string(),
+      place: z.number().int(),
+    })),
+    at: z.string().nullable(),
+  })),
+});
+export type MyAiStatus = z.infer<typeof MyAiStatusSchema>;
+export type MyAiKnobs = z.infer<typeof MyAiKnobsSchema>;
+export type MyAiOverrideRule = z.infer<typeof MyAiOverrideRuleSchema>;
+export type MyAiPersonality = z.infer<typeof MyAiPersonalitySchema>;
+export type MyAiMatches = z.infer<typeof MyAiMatchesSchema>;
