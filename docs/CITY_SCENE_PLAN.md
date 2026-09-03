@@ -88,6 +88,15 @@ Settled in the design session that produced this document:
    implementation. Nothing is displayed otherwise. This requires the city camera
    to be freely lookable while the signpost and buildings stay reliably
    clickable (§5.3, §7).
+7. **[added 2026-09-03] Ranked forks into Standard and Bot Ranked.** Clicking the
+   signpost's Ranked arm does not queue — it reveals a **secondary signpost
+   beside the Senate** with two arms, **STANDARD RANKED** and **BOT RANKED**, and
+   a **second building** rises next to the Senate for the bot ladder (built with
+   the `/modelling` tool). The **"My AI" management page** — the AI toggle, its
+   re-queue counter, credits, personality readout, personality knobs / override
+   rules, and match history — lives in the **profile dropdown** next to Settings
+   and Inventory, **not** in the city scene. Feature owner and rationale:
+   `backend/docs/MY_AI.md` §9 (and §3.6 for the knobs). See §5.2b.
 
 ### 1.1 Terminology
 
@@ -321,6 +330,53 @@ silently break can be asserted: **the building on the left is the one the
 signpost's left arm points at.** Swap them and the scene still renders perfectly,
 the hover pairing still works, and every player is sent to the wrong fight.
 
+### 5.2b The ranked fork — Standard vs Bot Ranked — **[added 2026-09-03]**
+
+`backend/docs/MY_AI.md` (the bot-ranked design) adds a second competitive track:
+your trained AI — your *eidolon* — competes on its own bot ladder, and you can
+queue into its games for practice. Where that lives in this scene:
+
+- The signpost's **RANKED arm no longer queues on click.** It performs a
+  one-time guided camera pivot toward the Senate and reveals a **secondary
+  signpost** standing beside it, with two arms:
+  - **STANDARD RANKED** → today's `useRankedQueue` → `/ranked/queue/join` flow,
+    unchanged.
+  - **BOT RANKED** → the human-enters-bot-ranked practice queue (matched near
+    your *real* rank, rated as if you were never there — MY_AI.md §4).
+- The secondary signpost is **hidden until RANKED is chosen**, so arrival never
+  shows four arms at once. A back gesture — or re-selecting a primary arm —
+  returns to the default framing. This is a *focus state*, not a route change:
+  the camera stays pinned (§5.3), it only pivots once.
+- **A second building rises next to the Senate**, the bot ladder's counterpart to
+  the Senate — built with the new `/modelling` tool (§9). Thematic lean: an
+  **eidolon shrine / hall of shades** — a bot-ranked game is your spectral double
+  fighting in your place, the figure MY_AI.md §4's mixed-game rule already
+  invokes. Placement mirrors the Senate's on the right, slightly further out.
+  Hovering the BOT RANKED arm lights this building, exactly as the primary arms
+  light the Temple and Senate (§5.2).
+- The BOT RANKED arm carries live state like the others:
+  `BOT RANKED` → `SEARCHING…` → `MATCH FOUND · 12s`, plus feature states from
+  MY_AI.md — `NO CREDITS`, `NEEDS N MORE GAMES` (the §5 minimum-data gate),
+  `AI NOT TRAINED`.
+
+**The `cityLayout.ts` invariant extends to it:** the arm labelled BOT RANKED must
+point at the bot-ranked building, not the Senate — same failure mode as §5.2's
+left/right swap, same assertion needed.
+
+**Open:** whether "guided pivot + reveal" is enough or the fork wants a fuller
+sub-view. Leaning pivot — it's the lightest thing consistent with the pinned
+camera, and the secondary signpost is a small object beside a building already in
+frame.
+
+**Scope note:** unlike the rest of this plan, the fork is **not** frontend-only —
+it consumes MY_AI.md's bot-ranked queue and credit/AI-status reads. This plan
+owns only the placement and interaction; the feature is MY_AI.md's, and lands
+with its Phase 3.
+
+**Not in this scene:** the My AI management page (toggle, minute counter,
+credits, personality readout, knobs, override rules, match history). That is a
+profile-dropdown entry — see §5.4a.
+
 ### 5.3 Ground, camera, and the click-vs-look problem
 
 Reuse `mountainv1.glb` for the backdrop as the dead `TempleScene` did. The camera
@@ -520,6 +576,17 @@ One consequence worth recording, because it will happen again: the popup gate's 
 "Log in" button and the top bar's now share an accessible name on the city page, so
 tests touching the gate must scope to it. The world map's suite already carried
 that note; the city's needed it the moment it adopted the same bar.
+
+**[added 2026-09-03] "My AI" joins the user menu.** `MY_AI.md` §9.2 puts all
+bot-ranked *management* — the AI on/off toggle, its re-queue minute counter (1–60,
+default 10), credit balance and top-up, the personality readout, the personality
+knobs and hard-override rules (`MY_AI.md` §3.6), and the per-AI match history — on
+a **My AI page reached from the profile dropdown**, between Inventory and Settings.
+Deliberately not in the city scene: the scene is for entering fights, the profile
+menu is for config — the same line this plan already draws between the world map
+and the menu. `SceneTopBar` owns the menu, so the entry shows in both scenes for
+free. The page is gated: hidden or disabled until decision logging has accrued the
+`MY_AI.md` §5 minimum (~10 logged ranked games) and the AI is trainable.
 
 ### 5.4b The way out is a sign, not a button — **[corrected]**
 
@@ -1033,6 +1100,8 @@ LD models.
 | Temple building | **exists** — `public/models/temple.glb` | `ART_STYLE_PLAN.md` §5 lists it as a keeper |
 | Senate building | **placeholder built** | `components/city/Senate.tsx` — procedural stepped base, colonnade, entablature and pediment. Deliberately plain so it reads as provisional. Still wants a real GLB; the interaction wrapper does not care what is inside |
 | Signpost + arms | **placeholder built** | `components/city/Signpost.tsx` — post, arms and pointed tips from primitives. Same reasoning as the Senate: a stock model would quietly become permanent |
+| Bot-ranked building (beside Senate) | **not started** — [added 2026-09-03] | The bot ladder's counterpart to the Senate (§5.2b). Build with the `/modelling` tool. Thematic lean: eidolon shrine / hall of shades (`MY_AI.md` §9.1). Placement mirrors the Senate's, right side, slightly further out. Placeholder from `Signpost.tsx`/`Senate.tsx` primitives until the model lands |
+| Secondary signpost (Standard / Bot Ranked) | **not started** — [added 2026-09-03] | Reuse `Signpost.tsx`; two arms, hidden until the primary Ranked arm is chosen (§5.2b) |
 | Sky gradient | procedural | Drive from `nightness` (§6.4); no asset needed |
 | Body glyphs (☉☾♀♂♃♄☿) | text | Unicode is fine to start; hand-drawn later per `ART_STYLE_PLAN.md` |
 | Gaze label styling | CSS | No frame art needed — a label over the sky should be light; `RopedFrame` would be too heavy here |
@@ -1132,6 +1201,12 @@ coordination and no deploy ordering.
 13. `page.tsx` is under 200 lines and contains no auth-popup JSX.
 14. `npm run test` and `npm run lint` pass; `BUILD_TARGET=native npm run build`
     still exports (proving the route shape, §3).
+15. **[added 2026-09-03]** Clicking the Ranked arm pivots to the Senate and
+    reveals a secondary signpost with STANDARD RANKED and BOT RANKED arms, hidden
+    until then; a back gesture restores the default framing. STANDARD RANKED runs
+    the unchanged queue; BOT RANKED runs the practice queue. Hovering BOT RANKED
+    lights the bot-ranked building, which points-pair correctly (`cityLayout.ts`
+    assertion). My AI management appears in the profile dropdown, not the scene.
 
 ---
 
@@ -1201,3 +1276,9 @@ Each step is independently reviewable and leaves the app working.
 14. **Arcs + ecliptic band**, toggle off by default. (§6.5)
 15. **First-visit hint** for the gaze mechanic via `guideHighlights`. (§11.5)
 16. **Amend `ART_STYLE_PLAN.md` §0**; add a `CHANGELOG.md` entry.
+17. **[added 2026-09-03] The ranked fork** (§5.2b) — the Ranked arm's pivot +
+    reveal, the secondary signpost, the STANDARD/BOT RANKED arms, the Bot Ranked
+    practice queue, the bot-ranked building placeholder, and the profile-menu
+    My AI page. Not frontend-only and not in this plan's original scope — it
+    lands with `MY_AI.md` Phase 3, and the `/modelling` model replaces the
+    building placeholder whenever it is ready.
