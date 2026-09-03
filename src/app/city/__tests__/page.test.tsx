@@ -5,7 +5,7 @@ import CityPage from '@/app/city/page';
 import {
   checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime,
   getActiveRankedLobby, joinRankedQueue, leaveRankedQueue, getBossfightRoster,
-  startBotRankedPractice,
+  startBotRanked, NoAiCreditsError,
 } from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
 import { setStoredAccountToken } from '@/lib/http';
@@ -29,7 +29,10 @@ vi.mock('@/lib/api', () => ({
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
   getBossfightRoster: vi.fn(),
-  startBotRankedPractice: vi.fn(),
+  startBotRanked: vi.fn(),
+  NoAiCreditsError: class NoAiCreditsError extends Error {
+    constructor() { super('no_credits'); this.name = 'NoAiCreditsError'; }
+  },
   // SceneTopBar (via CityOverlay) loads these once an account token is
   // present -- which the bot-ranked tests set.
   getInventory: vi.fn().mockResolvedValue({
@@ -204,7 +207,7 @@ beforeEach(() => {
   });
   mockedJoinRankedQueue.mockReset();
   mockedLeaveRankedQueue.mockReset();
-  vi.mocked(startBotRankedPractice).mockReset();
+  vi.mocked(startBotRanked).mockReset();
   botRankedHandler = undefined;
   localStorage.clear();
   setStoredAccountToken(null);
@@ -599,9 +602,9 @@ describe('CityPage (ranked)', () => {
 });
 
 describe('CityPage (bot ranked)', () => {
-  it('starts a practice game and routes into the lobby', async () => {
+  it('starts a bot-ranked game and routes into the lobby', async () => {
     setStoredAccountToken('acct-tok');
-    vi.mocked(startBotRankedPractice).mockResolvedValue({ lobby_id: 'BOTP', token: 't' });
+    vi.mocked(startBotRanked).mockResolvedValue({ lobby_id: 'BOTP', token: 't' });
     renderCity();
     await waitForScene();
 
@@ -610,12 +613,12 @@ describe('CityPage (bot ranked)', () => {
       await flush();
     });
 
-    expect(startBotRankedPractice).toHaveBeenCalledWith('acct-tok');
+    expect(startBotRanked).toHaveBeenCalledWith('acct-tok');
     expect(push).toHaveBeenCalledWith('/lobby?id=BOTP');
   });
 
   it('does nothing but warn when not logged in with an account', async () => {
-    vi.mocked(startBotRankedPractice).mockResolvedValue({ lobby_id: 'X', token: 't' });
+    vi.mocked(startBotRanked).mockResolvedValue({ lobby_id: 'X', token: 't' });
     renderCity();
     await waitForScene();
 
@@ -624,7 +627,23 @@ describe('CityPage (bot ranked)', () => {
       await flush();
     });
 
-    expect(startBotRankedPractice).not.toHaveBeenCalled();
+    expect(startBotRanked).not.toHaveBeenCalled();
+  });
+
+  it('warns and stays put when the owner is out of credits', async () => {
+    setStoredAccountToken('acct-tok');
+    vi.mocked(startBotRanked).mockRejectedValue(new NoAiCreditsError());
+    renderCity();
+    await waitForScene();
+
+    await act(async () => {
+      botRankedHandler?.();
+      await flush();
+    });
+
+    expect(startBotRanked).toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(await screen.findByText(/out of my ai credits/i)).toBeInTheDocument();
   });
 });
 

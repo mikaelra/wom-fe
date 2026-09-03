@@ -12,7 +12,7 @@ import { findCity } from '@/lib/cities';
 import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
-import { startBotRankedPractice } from '@/lib/api';
+import { startBotRanked, NoAiCreditsError } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { useToast } from '@/components/Toast';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
@@ -68,8 +68,9 @@ function CityPageContent() {
   const ranked = useEnterRanked();
   const { showError } = useToast();
 
-  // BOT RANKED arm of the fork signpost: spin up a practice game against
-  // your trained AI and drop into the lobby (docs/MY_AI.md §4).
+  // BOT RANKED arm of the fork signpost: spend a My AI credit to spin up a
+  // solo bot-ranked game against your trained AI + filler bots, and drop
+  // into the lobby (docs/MY_AI.md §4).
   const enterBotRanked = useCallback(async () => {
     const token = getStoredAccountToken();
     if (!token) {
@@ -77,10 +78,14 @@ function CityPageContent() {
       return;
     }
     try {
-      const { lobby_id } = await startBotRankedPractice(token);
+      const { lobby_id } = await startBotRanked(token);
       router.push(`/lobby?id=${lobby_id}`);
     } catch (e) {
-      showError(e instanceof Error ? e.message : 'Failed to start a practice game.');
+      if (e instanceof NoAiCreditsError) {
+        showError('Out of My AI credits — win a ranked game to earn one, or buy a pack in the shop.');
+        return;
+      }
+      showError(e instanceof Error ? e.message : 'Failed to start a bot-ranked game.');
     }
   }, [router, showError]);
   // Same countdown the world map used to show under the Athens sword; it now

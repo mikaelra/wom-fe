@@ -10,7 +10,7 @@ import {
   MyAiSettingsResponseSchema,
   MyAiPersonalitySchema,
   MyAiMatchesSchema,
-  MyAiPracticeResponseSchema,
+  MyAiBotRankedResponseSchema,
   type MyAiStatus,
   type MyAiKnobs,
   type MyAiOverrideRule,
@@ -727,18 +727,34 @@ export async function getMyAiMatches(token: string): Promise<MyAiMatches> {
   });
 }
 
+/** Thrown by {@link startBotRanked} when the owner is out of My AI
+ *  credits (HTTP 402). The city page catches it to steer them to ranked. */
+export class NoAiCreditsError extends Error {
+  constructor() {
+    super('no_credits');
+    this.name = 'NoAiCreditsError';
+  }
+}
+
 /**
- * Start a bot-ranked practice game against your trained AI (docs/MY_AI.md
- * §4). Returns the lobby id + a session token; join it via join_room like
- * any match. The lobby auto-starts the instant you arrive.
+ * Start a solo bot-ranked game against your trained AI plus filler bots
+ * (docs/MY_AI.md §4). Costs one My AI credit. Returns the lobby id + a
+ * session token; join it via join_room like any match -- it auto-starts
+ * the instant you arrive. Throws {@link NoAiCreditsError} on 402.
  */
-export async function startBotRankedPractice(
+export async function startBotRanked(
   accountToken: string,
 ): Promise<{ lobby_id: string; token: string }> {
-  const data = await request('/my_ai/practice', MyAiPracticeResponseSchema, {
-    body: { token: accountToken },
-    defaultErrorMessage: 'Failed to start a practice game.',
-  });
+  let data;
+  try {
+    data = await request('/my_ai/bot_ranked', MyAiBotRankedResponseSchema, {
+      body: { token: accountToken },
+      defaultErrorMessage: 'Failed to start a bot-ranked game.',
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 402) throw new NoAiCreditsError();
+    throw e;
+  }
   setStoredToken(data.lobby_id, data.token);
   return data;
 }

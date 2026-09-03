@@ -951,17 +951,25 @@ describe('My AI endpoints', () => {
     expect((await getMyAiPersonality('sess')).trained).toBe(false);
   });
 
-  it('startBotRankedPractice posts the account token and stores the lobby token', async () => {
-    const { startBotRankedPractice } = await import('@/lib/api');
+  it('startBotRanked posts the account token and stores the lobby token', async () => {
+    const { startBotRanked } = await import('@/lib/api');
     fetchMock.mockResolvedValue(jsonResponse({ lobby_id: 'BOTP', token: 'lobby-tok' }));
 
-    const res = await startBotRankedPractice('acct');
+    const res = await startBotRanked('acct');
 
     expect(res).toEqual({ lobby_id: 'BOTP', token: 'lobby-tok' });
     expect(getStoredToken('BOTP')).toBe('lobby-tok');
     expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
       token: 'acct',
     });
+    expect(fetchMock.mock.calls[0][0]).toContain('/my_ai/bot_ranked');
+  });
+
+  it('startBotRanked throws NoAiCreditsError on 402', async () => {
+    const { startBotRanked, NoAiCreditsError } = await import('@/lib/api');
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'no_credits' }, 402));
+
+    await expect(startBotRanked('acct')).rejects.toBeInstanceOf(NoAiCreditsError);
   });
 
   it('getMyAiMatches parses the history', async () => {

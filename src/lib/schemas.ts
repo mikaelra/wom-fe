@@ -564,7 +564,7 @@ export type MyAiKnobs = z.infer<typeof MyAiKnobsSchema>;
 export type MyAiOverrideRule = z.infer<typeof MyAiOverrideRuleSchema>;
 export type MyAiPersonality = z.infer<typeof MyAiPersonalitySchema>;
 export type MyAiMatches = z.infer<typeof MyAiMatchesSchema>;
-export const MyAiPracticeResponseSchema = z.object({
+export const MyAiBotRankedResponseSchema = z.object({
   lobby_id: z.string(),
   token: z.string(),
 });
