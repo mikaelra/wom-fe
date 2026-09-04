@@ -40,6 +40,8 @@ const RULE_TARGETS: { v: string; l: string }[] = [
   { v: 'weakest', l: 'the weakest' },
   { v: 'strongest', l: 'the strongest' },
   { v: 'revenge', l: 'whoever hit me' },
+  { v: 'most_aggressive', l: 'whoever attacks me most' },
+  { v: 'least_aggressive', l: 'whoever attacks me least' },
   { v: 'other', l: 'a random player' },
 ];
 
