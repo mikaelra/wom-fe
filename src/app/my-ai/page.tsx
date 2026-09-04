@@ -6,7 +6,7 @@
  * played. Reached from the profile dropdown (SceneTopBar), next to
  * Inventory and Settings.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { getStoredAccountToken } from '@/lib/http';
 import {
@@ -19,18 +19,22 @@ import {
 import type {
   MyAiStatus,
   MyAiKnobs,
+  MyAiActionSplit,
   MyAiOverrideRule,
   MyAiPersonality,
   MyAiMatches,
 } from '@/lib/schemas';
 import { CITY_PATH } from '@/lib/cities';
 
-const KNOBS: { key: keyof MyAiKnobs; label: string; low: string; high: string }[] = [
-  { key: 'aggression', label: 'Aggression', low: 'passive', high: 'attacks' },
-  { key: 'turtle', label: 'Turtle', low: 'off', high: 'defends' },
+const KNOBS: { key: Exclude<keyof MyAiKnobs, 'action_split'>; label: string; low: string; high: string }[] = [
   { key: 'greed', label: 'Greed', low: 'heals', high: 'hoards coin' },
   { key: 'vengeance', label: 'Vengeance', low: 'off', high: 'hits back' },
 ];
+
+const ACTION_SPLIT_KEYS = ['attack', 'defend', 'well'] as const;
+// As close to even as three ints summing to 100 get -- shown until the
+// owner has ever touched a slider (nothing is saved until then).
+const DEFAULT_ACTION_SPLIT: MyAiActionSplit = { attack: 34, defend: 33, well: 33 };
 
 const RULE_CONDITIONS = ['hp_lte', 'hp_gte', 'round_lte', 'round_gte'] as const;
 const RULE_ACTIONS = ['attack', 'defend', 'well', 'idle'] as const;
@@ -237,6 +241,13 @@ export default function MyAiPage() {
                 </div>
               ))}
             </div>
+            <div className="max-w-md mt-5">
+              <h3 className="text-white/90 font-medium text-sm mb-2">Action split</h3>
+              <ActionSplitSliders
+                value={knobs.action_split}
+                onChange={(next) => setKnobs((prev) => ({ ...prev, action_split: next }))}
+              />
+            </div>
           </section>
 
           {/* --- override rules --- */}
@@ -416,6 +427,76 @@ function RuleRow({
         ))}
       </select>
       <button type="button" onClick={onRemove} className="text-red-400 ml-auto">✕</button>
+    </div>
+  );
+}
+
+/**
+ * A 3-way percentage split (attack/defend/well) that always sums to 100 --
+ * "spend X% of rounds attacking, Y% defending, Z% at the well" (per
+ * Mikael: "you distribute 1-100 on each of those and then they have to
+ * add up to 100 ... whenever you alter a new one, the last one you
+ * altered ... gets lowered/highered according to the new adjustment").
+ *
+ * Dragging one slider takes its whole delta from whichever OTHER slider
+ * was most recently touched (clamped to 0..100); if that one can't
+ * absorb it all, the remainder spills to the third, least-recently-
+ * touched slider. The touch order itself is UI-only (never saved) --
+ * `recency` just remembers which of the two others "goes first".
+ */
+function ActionSplitSliders({
+  value, onChange,
+}: {
+  value: MyAiActionSplit | undefined;
+  onChange: (next: MyAiActionSplit) => void;
+}) {
+  const split = value ?? DEFAULT_ACTION_SPLIT;
+  const recency = useRef<(typeof ACTION_SPLIT_KEYS)[number][]>([...ACTION_SPLIT_KEYS]);
+
+  const handleChange = (key: (typeof ACTION_SPLIT_KEYS)[number], raw: number) => {
+    const clampedKey = Math.max(0, Math.min(100, Math.round(raw)));
+    const delta = clampedKey - split[key];
+    if (delta === 0) return;
+
+    const others = ACTION_SPLIT_KEYS.filter((k) => k !== key);
+    const partner = recency.current.find((k) => (others as readonly string[]).includes(k)) ?? others[0];
+    const third = others.find((k) => k !== partner) ?? others[1];
+
+    // partner absorbs as much of the delta as it can (clamped)...
+    const partnerNew = Math.max(0, Math.min(100, split[partner] - delta));
+    const usedByPartner = split[partner] - partnerNew;
+    // ...third takes whatever's left (also clamped)...
+    const remainder = delta - usedByPartner;
+    const thirdNew = Math.max(0, Math.min(100, split[third] - remainder));
+    const usedByThird = split[third] - thirdNew;
+    // ...and on the rare double-clamp, the key itself gives back the
+    // sliver neither could absorb, so the total always stays exactly 100.
+    const keyNew = clampedKey - (remainder - usedByThird);
+
+    recency.current = [key, partner, third];
+    onChange({ ...split, [key]: keyNew, [partner]: partnerNew, [third]: thirdNew });
+  };
+
+  return (
+    <div className="space-y-3">
+      {ACTION_SPLIT_KEYS.map((k) => (
+        <div key={k}>
+          <div className="flex justify-between text-xs text-white/60">
+            <span className="text-white/90 font-medium capitalize">{k}</span>
+            <span>{split[k]}%</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={split[k]}
+            onChange={(e) => handleChange(k, Number(e.target.value))}
+            className="w-full"
+          />
+        </div>
+      ))}
+      <p className="text-white/40 text-xs">Always adds up to 100%.</p>
     </div>
   );
 }

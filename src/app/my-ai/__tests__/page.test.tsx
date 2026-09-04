@@ -112,6 +112,66 @@ describe('MyAiPage', () => {
     expect(screen.getByRole('option', { name: 'whoever hit me' })).toBeInTheDocument();
   });
 
+  describe('action split sliders', () => {
+    // Rendered after the two -1..1 personality sliders (greed, vengeance),
+    // in attack/defend/well order.
+    function splitSliders() {
+      return screen.getAllByRole('slider').filter((s) => (s as HTMLInputElement).max === '100');
+    }
+
+    it('defaults to a near-even 34/33/33 split', async () => {
+      render(<MyAiPage />);
+      await screen.findByText('Action split');
+      const [attack, defend, well] = splitSliders();
+      expect(attack).toHaveValue('34');
+      expect(defend).toHaveValue('33');
+      expect(well).toHaveValue('33');
+    });
+
+    it('takes the delta from the most recently touched other slider first', async () => {
+      render(<MyAiPage />);
+      await screen.findByText('Action split');
+      const [attack, defend, well] = splitSliders();
+
+      // Nothing touched yet -- dragging attack up by 26 takes it all from
+      // defend (the untouched pair's default order), leaving well alone.
+      fireEvent.change(attack, { target: { value: '60' } });
+      expect(attack).toHaveValue('60');
+      expect(defend).toHaveValue('7');
+      expect(well).toHaveValue('33');
+
+      // Now drag well up by 17 -- attack (just touched, so "most recently
+      // altered of the other two") gives it up, not defend.
+      fireEvent.change(well, { target: { value: '50' } });
+      expect(well).toHaveValue('50');
+      expect(attack).toHaveValue('43');
+      expect(defend).toHaveValue('7');   // untouched by this drag
+    });
+
+    it('always sums to 100, spilling into the third slider when the partner clamps', async () => {
+      render(<MyAiPage />);
+      await screen.findByText('Action split');
+      const [attack, defend, well] = splitSliders();
+
+      // Drag defend down to 5 -- its partner (attack, untouched-pair's
+      // default order) absorbs the full +28, well is untouched: 62/5/33.
+      fireEvent.change(defend, { target: { value: '5' } });
+      expect(attack).toHaveValue('62');
+      expect(well).toHaveValue('33');
+
+      // Drag attack up to 95 (+33). Its partner is now defend (just
+      // touched), but defend only has 5 to give before it clamps at 0 --
+      // the remaining 28 spills onto well, the least-recently-touched.
+      fireEvent.change(attack, { target: { value: '95' } });
+      expect(defend).toHaveValue('0');
+      expect(well).toHaveValue('5');
+      expect(attack).toHaveValue('95');
+      const total = [attack, defend, well]
+        .reduce((sum, el) => sum + Number((el as HTMLInputElement).value), 0);
+      expect(total).toBe(100);
+    });
+  });
+
   it('renders match history rows with rank-after and end time', async () => {
     vi.mocked(getMyAiMatches).mockResolvedValue({
       matches: [{

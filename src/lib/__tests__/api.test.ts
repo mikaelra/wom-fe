@@ -939,10 +939,10 @@ describe('My AI endpoints', () => {
       saved: true, enabled: false, minute_counter: 20, knobs: {}, override_rules: [],
     }));
 
-    await saveMyAiSettings('sess', { minute_counter: 20, knobs: { aggression: 0.5 } });
+    await saveMyAiSettings('sess', { minute_counter: 20, knobs: { vengeance: 0.5 } });
 
     expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
-      token: 'sess', minute_counter: 20, knobs: { aggression: 0.5 },
+      token: 'sess', minute_counter: 20, knobs: { vengeance: 0.5 },
     });
   });
 

@@ -487,11 +487,19 @@ export type MarketFrogs = z.infer<typeof MarketFrogsSchema>;
 
 // "My AI" -- the personal AI that competes in bot ranked
 // (wom-be docs/MY_AI.md §9.2, routes/my_ai.py).
+export const MyAiActionSplitSchema = z.object({
+  attack: z.number().int().min(0).max(100),
+  defend: z.number().int().min(0).max(100),
+  well: z.number().int().min(0).max(100),
+});
 export const MyAiKnobsSchema = z.object({
-  aggression: z.number().optional(),
   greed: z.number().optional(),
-  turtle: z.number().optional(),
   vengeance: z.number().optional(),
+  // Replaces the old separate aggression/turtle sliders (2026-09-04):
+  // a direct "spend X% of rounds attacking, Y% defending, Z% at the
+  // well" split, always summing to 100 -- see the my-ai page's
+  // ActionSplitSliders and wom-be's engine/my_ai/knobs.py.
+  action_split: MyAiActionSplitSchema.optional(),
 });
 export const MyAiOverrideRuleSchema = z.object({
   when: z.record(z.string(), z.union([z.number(), z.boolean()])),
@@ -568,6 +576,7 @@ export const MyAiMatchesSchema = z.object({
 });
 export type MyAiStatus = z.infer<typeof MyAiStatusSchema>;
 export type MyAiKnobs = z.infer<typeof MyAiKnobsSchema>;
+export type MyAiActionSplit = z.infer<typeof MyAiActionSplitSchema>;
 export type MyAiOverrideRule = z.infer<typeof MyAiOverrideRuleSchema>;
 export type MyAiPersonality = z.infer<typeof MyAiPersonalitySchema>;
 export type MyAiMatches = z.infer<typeof MyAiMatchesSchema>;
