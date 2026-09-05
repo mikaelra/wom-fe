@@ -500,6 +500,12 @@ export const MyAiKnobsSchema = z.object({
   // well" split, always summing to 100 -- see the my-ai page's
   // ActionSplitSliders and wom-be's engine/my_ai/knobs.py.
   action_split: MyAiActionSplitSchema.optional(),
+  // 0..100, how much of the whole knob layer above (greed/vengeance/
+  // action_split combined) reaches the trained policy's own logits --
+  // 0 mutes every knob and it plays exactly as trained, 100 (the
+  // default when unset, so old configs don't go quiet) is today's full
+  // strength. Never touches hard-override rules, which stay absolute.
+  influence: z.number().int().min(0).max(100).optional(),
 });
 export const MyAiOverrideRuleSchema = z.object({
   when: z.record(z.string(), z.union([z.number(), z.boolean()])),

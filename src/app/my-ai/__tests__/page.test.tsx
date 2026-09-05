@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import MyAiPage from '@/app/my-ai/page';
 import { setStoredAccountToken } from '@/lib/http';
 import {
@@ -92,6 +92,20 @@ describe('MyAiPage', () => {
     expect(saveMyAiSettings).toHaveBeenCalledWith('tok', expect.objectContaining({ minute_counter: 25 }));
   });
 
+  it('defaults the influence slider to 100 and saves an edited value', async () => {
+    render(<MyAiPage />);
+    const influence = (await screen.findByText('Influence'))
+      .closest('div')!.parentElement!.querySelector('input[type="range"]') as HTMLInputElement;
+    expect(influence).toHaveValue('100');
+
+    fireEvent.change(influence, { target: { value: '40' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Saved.');
+    expect(saveMyAiSettings).toHaveBeenCalledWith(
+      'tok', expect.objectContaining({ knobs: expect.objectContaining({ influence: 40 }) }),
+    );
+  });
+
   it('adds and removes a hard rule', async () => {
     render(<MyAiPage />);
     fireEvent.click(await screen.findByText('+ add rule'));
@@ -113,10 +127,12 @@ describe('MyAiPage', () => {
   });
 
   describe('action split sliders', () => {
-    // Rendered after the two -1..1 personality sliders (greed, vengeance),
-    // in attack/defend/well order.
+    // Scoped to the "Action split" block -- the page also has a 0..100
+    // Influence slider now, which would otherwise match the same
+    // min/max/step and get pulled into this list.
     function splitSliders() {
-      return screen.getAllByRole('slider').filter((s) => (s as HTMLInputElement).max === '100');
+      const container = screen.getByText('Action split').closest('div')!;
+      return within(container).getAllByRole('slider');
     }
 
     it('defaults to a near-even 34/33/33 split', async () => {

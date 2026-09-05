@@ -221,6 +221,26 @@ export default function MyAiPage() {
           {/* --- knobs --- */}
           <section>
             <h2 className="text-white font-semibold mb-3">Personality</h2>
+            <div className="max-w-md mb-5 pb-5 border-b border-white/10">
+              <div className="flex justify-between text-xs text-white/60">
+                <span>trained AI</span>
+                <span className="text-white/90 font-medium">Influence</span>
+                <span>full tuning</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={knobs.influence ?? 100}
+                onChange={(e) => setKnobs((prev) => ({ ...prev, influence: Number(e.target.value) }))}
+                className="w-full"
+              />
+              <p className="text-white/40 text-xs mt-1">
+                How much of the sliders below actually reach your AI&apos;s decisions —
+                0 plays exactly as trained, ignoring every slider; 100 is full strength.
+              </p>
+            </div>
             <div className="space-y-4 max-w-md">
               {KNOBS.map((k) => (
                 <div key={k.key}>
