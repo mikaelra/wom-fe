@@ -77,7 +77,18 @@ describe('MyAiPage', () => {
   it('warns while the AI is still below the training threshold', async () => {
     vi.mocked(getMyAiStatus).mockResolvedValue(status({ trainable: false, logged_rows: 12 }));
     render(<MyAiPage />);
-    expect(await screen.findByText((t) => t.includes('12 of ~40 logged'))).toBeInTheDocument();
+    expect(await screen.findByText((t) => t.includes('12 of ~40 rounds logged'))).toBeInTheDocument();
+    expect(
+      screen.getByText((t) => t.includes('ranked and bot-ranked games you play yourself')),
+    ).toBeInTheDocument();
+  });
+
+  it('explains where credits come from behind the ⓘ button', async () => {
+    render(<MyAiPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /how credits work/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent(/one every time you finish a ranked or bot-ranked game/i);
+    expect(dialog).toHaveTextContent(/buy a pack of 10 in the shop/i);
   });
 
   it('saves settings with the edited minute counter', async () => {
