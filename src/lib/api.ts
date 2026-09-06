@@ -5,6 +5,17 @@ import type { z } from 'zod';
 import type { Relic } from '@/types/game';
 import type { GameEvent } from '@/lib/gameEvents';
 import {
+  MyAiStatusSchema,
+  MyAiToggleResponseSchema,
+  MyAiSettingsResponseSchema,
+  MyAiMatchesSchema,
+  MyAiBotRankedResponseSchema,
+  MyAiBotRankedLeaveResponseSchema,
+  MyAiBotRankedActiveResponseSchema,
+  type MyAiStatus,
+  type MyAiKnobs,
+  type MyAiOverrideRule,
+  type MyAiMatches,
   CreateLobbyResponseSchema,
   GetBossfightLobbyResponseSchema,
   GetNextBossfightTimeResponseSchema,
@@ -38,6 +49,7 @@ import {
   WellProfileResponseSchema,
   ShopProductsResponseSchema,
   CheckoutResponseSchema,
+  OrderStatusResponseSchema,
   WheelTablesResponseSchema,
   TradeUpRulesResponseSchema,
   TradeUpResponseSchema,
@@ -56,10 +68,12 @@ export type ShopProduct = {
   name: string;
   price_cents: number;
   currency: string;
-  kind: 'wheel' | 'skin';
+  kind: 'wheel' | 'skin' | 'ai_credits';
   odds_denominator?: number;
   odds?: { skin: string; weight: number; probability: number }[];
   skin?: string;
+  credits_per_pack?: number;
+  max_quantity?: number;
 };
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
@@ -327,6 +341,7 @@ export async function getInventory(
   wheels: { id: number; kind: string }[];
   equipped_cosmetic?: string | null;
   artifact?: { ordinal: number; discovered_at: string | null; cosmetic: string } | null;
+  ai_credits?: number;
 }> {
   return request('/inventory', InventoryResponseSchema, {
     body: { token },
@@ -486,6 +501,16 @@ export async function postCheckout(
   });
 }
 
+export async function getOrderStatus(
+  token: string,
+  orderId: string | number,
+): Promise<{ status: string; product: string; fulfilled: boolean }> {
+  return request('/shop/order', OrderStatusResponseSchema, {
+    body: { token, order_id: orderId },
+    defaultErrorMessage: 'Failed to check the order.',
+  });
+}
+
 // GET /wheel/tables -- public, unauthenticated. Not currently used by
 // WheelSpinModal (still its own local table, docs/MONETIZATION_PLAN.md
 // §2.3 item 3's remaining tail -- both copies are hand-verified identical
@@ -585,6 +610,7 @@ export async function enterMarket(token: string): Promise<{
   terms_accepted: boolean;
   terms_version: string;
   coins: number;
+  ai_credits: number;
   email_verified: boolean;
 }> {
   return request('/market/enter', MarketEnterResponseSchema, {
@@ -666,4 +692,86 @@ export async function cancelMarketListing(
   } catch (e) {
     mapMarketError(e);
   }
+}
+
+// ---------------------------------------------------------------------------
+// "My AI" -- the personal AI that competes in bot ranked
+// (wom-be docs/MY_AI.md §9.2)
+// ---------------------------------------------------------------------------
+
+export async function getMyAiStatus(token: string): Promise<MyAiStatus> {
+  return request('/my_ai/status', MyAiStatusSchema, {
+    body: { token },
+    defaultErrorMessage: 'Failed to load your AI.',
+  });
+}
+
+export async function toggleMyAi(
+  token: string,
+  enabled: boolean,
+): Promise<{ enabled: boolean; queued: boolean; reason: string }> {
+  return request('/my_ai/toggle', MyAiToggleResponseSchema, {
+    body: { token, enabled },
+    defaultErrorMessage: 'Failed to toggle your AI.',
+  });
+}
+
+export async function saveMyAiSettings(
+  token: string,
+  settings: { minute_counter?: number; knobs?: MyAiKnobs; override_rules?: MyAiOverrideRule[] },
+): Promise<z.infer<typeof MyAiSettingsResponseSchema>> {
+  return request('/my_ai/settings', MyAiSettingsResponseSchema, {
+    body: { token, ...settings },
+    defaultErrorMessage: 'Failed to save settings.',
+  });
+}
+
+export async function getMyAiMatches(token: string): Promise<MyAiMatches> {
+  return request('/my_ai/matches', MyAiMatchesSchema, {
+    body: { token },
+    defaultErrorMessage: 'Failed to load match history.',
+  });
+}
+
+/**
+ * Join the bot-ranked matchmaking queue (docs/MY_AI.md §4). Real players
+ * queue and are grouped into ONE shared lobby (30s countdown), padded
+ * with Wolf/Owl/Turtle in the last few seconds so even a lone queuer
+ * plays a full table. Always free -- My AI credits gate only the
+ * autonomous queue, never a player practising here.
+ *
+ * This call just enters the queue; the {lobby_id, token} arrives over the
+ * ai_ranked_match_found socket push (see useBotRankedQueue), same shape
+ * as human ranked.
+ */
+export async function joinBotRankedQueue(
+  accountToken: string,
+): Promise<{ queued: boolean; queue_size?: number }> {
+  return request('/my_ai/bot_ranked', MyAiBotRankedResponseSchema, {
+    body: { token: accountToken },
+    defaultErrorMessage: 'Failed to join the bot-ranked queue.',
+  });
+}
+
+export async function leaveBotRankedQueue(
+  accountToken: string,
+): Promise<{ left: boolean; was_queued: boolean }> {
+  return request('/my_ai/bot_ranked/leave', MyAiBotRankedLeaveResponseSchema, {
+    body: { token: accountToken },
+    defaultErrorMessage: 'Failed to leave the bot-ranked queue.',
+  });
+}
+
+export async function getActiveBotRankedLobby(
+  accountToken: string,
+): Promise<{
+  lobby_id: string | null;
+  token: string | null;
+  ai_ranked_countdown_deadline: string | null;
+  started: boolean;
+}> {
+  return request('/my_ai/bot_ranked/active', MyAiBotRankedActiveResponseSchema, {
+    body: { token: accountToken },
+    defaultErrorMessage: 'Failed to check for an active bot-ranked match.',
+  });
 }

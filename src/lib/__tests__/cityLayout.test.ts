@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, TEMPLE_EXTENT, groundDistance,
   CAMPFIRE_POSITION, SEA_LEVEL, LAND_LEVEL, TEMPLE_BASE_DROP, MARKET_POSITION,
+  SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION, RANKED_FORK_SIGNPOST_ROTATION_Y,
+  RANKED_FORK_VIEW_PIN, RANKED_FORK_VIEW_DISTANCE, RANKED_FORK_VIEW_OFFSET, EYE_HEIGHT,
 } from '@/lib/cityLayout';
 
 // Scene compass (lib/citySkyGeometry.ts): -Z is north, +X is east, and the
@@ -77,6 +79,58 @@ describe('the temple has the room its size needs', () => {
 
   it('does not reach across into the Senate', () => {
     expect(TEMPLE_POSITION[0] + TEMPLE_EXTENT.x).toBeLessThan(SENATE_POSITION[0]);
+  });
+});
+
+describe('the ranked fork', () => {
+  // Readable face normal after the quarter-turn, in [x, z]. The scene compass
+  // has -Z north / +X east, and a +Y turn takes local +z (the label face)
+  // to (sin, cos).
+  const rot = RANKED_FORK_SIGNPOST_ROTATION_Y;
+  const face: [number, number] = [Math.sin(rot), Math.cos(rot)];
+  const midX = (SENATE_POSITION[0] + SENATE_BOT_POSITION[0]) / 2;
+  const midZ = (SENATE_POSITION[2] + SENATE_BOT_POSITION[2]) / 2;
+
+  it('turns the post a clean quarter, along the Senate diagonal', () => {
+    expect(rot).toBeCloseTo(Math.PI / 4, 6);
+    // The two Senate origins really are on a 45 line -- the turn follows it.
+    expect(SENATE_BOT_POSITION[0] - SENATE_POSITION[0])
+      .toBeCloseTo(-(SENATE_BOT_POSITION[2] - SENATE_POSITION[2]), 6);
+  });
+
+  it('pushes the post out of the colonnade, along its face, onto open ground', () => {
+    // Off the midpoint of the two Senate origins, in the direction the labels
+    // face -- into the open notch of the L, not buried in the merged columns.
+    const outX = RANKED_FORK_SIGNPOST_POSITION[0] - midX;
+    const outZ = RANKED_FORK_SIGNPOST_POSITION[2] - midZ;
+    expect(Math.hypot(outX, outZ)).toBeGreaterThan(3);
+    expect(outX / Math.hypot(outX, outZ)).toBeCloseTo(face[0], 6);
+    expect(outZ / Math.hypot(outX, outZ)).toBeCloseTo(face[1], 6);
+    expect(RANKED_FORK_SIGNPOST_POSITION[1]).toBe(LAND_LEVEL);
+    // Clear of both halls: east of the original Senate, south of the bot one.
+    expect(RANKED_FORK_SIGNPOST_POSITION[0]).toBeGreaterThan(SENATE_POSITION[0]);
+    expect(RANKED_FORK_SIGNPOST_POSITION[2]).toBeGreaterThan(SENATE_BOT_POSITION[2]);
+  });
+
+  it('frames the fork exactly like the scene frames the city signpost on entry', () => {
+    // Same distance the viewer stands from the city signpost at the origin,
+    // so the two posts land on screen at the same size and pitch.
+    expect(RANKED_FORK_VIEW_DISTANCE).toBeCloseTo(groundDistance(SIGNPOST_POSITION), 6);
+  });
+
+  it('stands the guided camera out along the post face at eye height', () => {
+    expect(RANKED_FORK_VIEW_PIN[1]).toBeCloseTo(LAND_LEVEL + EYE_HEIGHT, 6);
+    const dx = RANKED_FORK_VIEW_PIN[0] - RANKED_FORK_SIGNPOST_POSITION[0];
+    const dz = RANKED_FORK_VIEW_PIN[2] - RANKED_FORK_SIGNPOST_POSITION[2];
+    expect(Math.hypot(dx, dz)).toBeCloseTo(RANKED_FORK_VIEW_DISTANCE, 6);
+    expect(dx / RANKED_FORK_VIEW_DISTANCE).toBeCloseTo(face[0], 6);
+    expect(dz / RANKED_FORK_VIEW_DISTANCE).toBeCloseTo(face[1], 6);
+  });
+
+  it('carries the entry look direction onto the fork face, turned with the post', () => {
+    // City entry looks north: offset [0, 0, 1] behind the pin. The fork's is
+    // that same offset put through the post's own quarter-turn.
+    expect([...RANKED_FORK_VIEW_OFFSET]).toEqual([face[0], 0, face[1]]);
   });
 });
 

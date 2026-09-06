@@ -1,8 +1,8 @@
 'use client';
 
-import { Suspense, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { OrbitControls } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import Mountain from '@/components/mountain';
 import Temple from '@/components/temple';
@@ -20,6 +20,8 @@ import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
 // left/right pairing with the signpost's arms can be tested.
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION, MARKET_POSITION,
+  SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION, RANKED_FORK_SIGNPOST_ROTATION_Y,
+  RANKED_FORK_VIEW_PIN, RANKED_FORK_VIEW_OFFSET,
   SEA_LEVEL, LAND_LEVEL, EYE_HEIGHT,
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
@@ -67,6 +69,9 @@ const EYE_RADIUS = 0.01;
 /** Start pose: offset along +Z of the pin, so the default view looks toward
  *  -Z -- where the signpost and both buildings stand. */
 export const CITY_CAMERA: [number, number, number] = [EYE[0], EYE[1], EYE[2] + EYE_RADIUS];
+/** The entry pose as a unit offset direction, for GuidedView: a hair south
+ *  of the pin, looking north. The fork's is this turned onto its face. */
+const CITY_VIEW_OFFSET: readonly [number, number, number] = [0, 0, 1];
 /** Wider than the lobby's 75: standing among buildings and looking up wants
  *  more sky in frame than a table-top scene does. */
 export const CITY_FOV = 70;
@@ -149,11 +154,20 @@ export interface CitySceneProps {
    *  the signpost's caption, and two polls could show a caption that does
    *  not match the figures in the building. */
   roster: BossfightRoster;
-  /** Join, cancel, or return to a ranked match -- the Senate and the right
-   *  arm, same arrangement. */
+  /** Enter the human ranked queue -- the PLAYERS arm of the fork
+   *  signpost, which the city's primary RANKED arm pans the camera to. */
   onRanked: () => void;
+  /** Enter a bot-ranked game against the field of other players' trained
+   *  AIs (docs/MY_AI.md §4) -- the BOTS arm of the fork signpost.
+   *  Your own AI isn't in it; it competes on its own in the queue. */
+  onBotRanked: () => void;
   rankedLabel: string;
   rankedSublabel?: string | null;
+  /** The BOTS arm's own top line + live second line -- 'BOTS' / null when
+   *  idle, 'SEARCHING…' while queued, 'RETURN TO MATCH' / 'STARTS IN Xs'
+   *  when already matched (docs/MY_AI.md §4). */
+  botRankedLabel: string;
+  botRankedSublabel?: string | null;
   /** Back to the world map. A sign on the post rather than a button over the
    *  scene, so leaving the city is a thing in the world. */
   onBackToEarth: () => void;
@@ -178,6 +192,75 @@ export interface CitySceneProps {
  * models are parsed, not that the canvas has painted them, and lifting the
  * curtain on that first frame shows a visibly empty scene for a beat.
  */
+/**
+ * Slides the pinned viewpoint between two spots, over ~1 second
+ * (docs/CITY_SCENE_PLAN.md §5.2b -- "a one-time guided camera move").
+ *
+ * The scene pins the viewer to one spot and lets them only turn on it, so
+ * "go and stand in front of the fork" is a bodily move of that pin, not an
+ * orbit. Each frame we ease OrbitControls' `target` toward the goal pin and,
+ * separately, ease the camera's tiny offset from that target (radius
+ * EYE_RADIUS) toward `offsetDir` -- so the look swings from due north to
+ * whatever the destination faces as the viewpoint travels. The fork's face
+ * is 45 off north, so the two eases together read as one turn-and-walk.
+ * `minDistance == maxDistance == EYE_RADIUS` on the controls keeps the
+ * offset from being stretched into a fling while the target moves.
+ *
+ * `pin` / `offsetDir` changing (RANKED -> fork, BACK -> city) re-arms the
+ * ease in both directions. The offset is held in a ref that survives the
+ * re-arm, so BACK eases from the fork's facing rather than snapping. Once
+ * settled the rig stops touching the camera and free look resumes.
+ */
+function GuidedView({
+  pin,
+  offsetDir,
+}: {
+  pin: readonly [number, number, number];
+  offsetDir: readonly [number, number, number];
+}) {
+  const controls = useThree((s) => s.controls) as
+    | { target: THREE.Vector3; update: () => void }
+    | null;
+  const camera = useThree((s) => s.camera);
+  const goal = useMemo(() => new THREE.Vector3(pin[0], pin[1], pin[2]), [pin]);
+  const offGoal = useMemo(
+    () => new THREE.Vector3(offsetDir[0], offsetDir[1], offsetDir[2]).setLength(EYE_RADIUS),
+    [offsetDir],
+  );
+  const off = useRef(new THREE.Vector3(0, 0, EYE_RADIUS));
+  const settled = useRef(false);
+  const seed = useRef(true);
+
+  useEffect(() => { settled.current = false; seed.current = true; }, [goal, offGoal]);
+
+  useFrame((_, delta) => {
+    if (!controls || settled.current) return;
+    const t = 1 - Math.pow(0.001, delta); // frame-rate-independent ease, ~1s to close
+    const target = controls.target;
+    if (seed.current) {
+      // Start the swing from wherever the camera is actually looking now, so
+      // a user who had turned away doesn't see it snap to north first.
+      off.current.copy(camera.position).sub(target);
+      if (off.current.lengthSq() < 1e-8) off.current.set(0, 0, EYE_RADIUS);
+      seed.current = false;
+    }
+    target.lerp(goal, t);
+    off.current.lerp(offGoal, t);
+    if (off.current.lengthSq() < 1e-8) off.current.copy(offGoal);
+    off.current.setLength(EYE_RADIUS);
+    camera.position.copy(target).add(off.current);
+    controls.update();
+    if (target.distanceTo(goal) < 0.015 && off.current.angleTo(offGoal) < 0.01) {
+      target.copy(goal);
+      off.current.copy(offGoal);
+      camera.position.copy(target).add(off.current);
+      controls.update();
+      settled.current = true;
+    }
+  });
+  return null;
+}
+
 function SceneReady({ onReady }: { onReady?: () => void }) {
   const frames = useRef(0);
   const fired = useRef(false);
@@ -228,13 +311,21 @@ export default function CityScene({
   bossfightSublabel,
   roster,
   onRanked,
+  onBotRanked,
   rankedLabel,
   rankedSublabel,
+  botRankedLabel,
+  botRankedSublabel,
   onBackToEarth,
   onMarket,
   presence,
   onReady,
 }: CitySceneProps) {
+  // The city's primary RANKED arm doesn't queue -- it walks the camera over
+  // to the fork signpost between the two Senates, where you pick PLAYERS or
+  // BOTS. The fork's BACK arm walks it home again (§5.2b).
+  const [view, setView] = useState<'city' | 'fork'>('city');
+  const focusRanked = () => setView('fork');
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
   const { placements, sky, nightness, sunAltitude } = useCitySky(date, realLat, realLng, EYE);
@@ -256,9 +347,13 @@ export default function CityScene({
     );
   }, [placements]);
   // Hovering either an arm or its building lights both -- that pairing is
-  // what teaches which building is which without a tutorial.
+  // what teaches which building is which without a tutorial. The two
+  // Senates each own their own light: the left one is the human ladder
+  // (PLAYERS), the right one is the bot ladder (BOTS), and hovering one
+  // never lights the other.
   const [templeHot, setTempleHot] = useState(false);
-  const [senateHot, setSenateHot] = useState(false);
+  const [playersHot, setPlayersHot] = useState(false);
+  const [botsHot, setBotsHot] = useState(false);
   const [marketHot, setMarketHot] = useState(false);
 
   /**
@@ -328,8 +423,9 @@ export default function CityScene({
       label: rankedLabel,
       sublabel: rankedSublabel,
       color: RANKED_COLOR,
-      onActivate: onRanked,
-      onHoverChange: setSenateHot,
+      // Walks the camera to the fork -- it stands for both ladders, so
+      // it pairs with no single building.
+      onActivate: focusRanked,
     },
     {
       // A third full-size destination, hanging below RANKED on the right the
@@ -380,10 +476,18 @@ export default function CityScene({
         distanceFactor={14}
         occupancy={playingLabel(roster.players.filter((p) => !p.bot).length)}
       />
+      {/* Left Senate: humans in the ranked flow. Right Senate: "bots live
+          plus players" -- every bot on the AI ladder plus anyone in a
+          bot-ranked game (wom-be city_presence.bot_ranked). */}
       <BuildingSign
         position={[SENATE_POSITION[0], SENATE_POSITION[1] + 12, SENATE_POSITION[2]]}
         distanceFactor={14}
         occupancy={playingLabel(presence.ranked)}
+      />
+      <BuildingSign
+        position={[SENATE_BOT_POSITION[0], SENATE_BOT_POSITION[1] + 12, SENATE_BOT_POSITION[2]]}
+        distanceFactor={14}
+        occupancy={playingLabel(presence.bot_ranked)}
       />
       <BuildingSign
         position={[MARKET_POSITION[0], MARKET_POSITION[1] + 9, MARKET_POSITION[2]]}
@@ -448,13 +552,69 @@ export default function CityScene({
           decay={TEMPLE_GLOW_DECAY}
         />
 
+        {/* The human ladder. Clicking it enters ranked directly, the same
+            as the PLAYERS arm it pairs with -- exactly how the Temple and
+            Market buildings work. */}
         <BuildingTarget
           position={SENATE_POSITION}
           onActivate={onRanked}
-          onHoverChange={setSenateHot}
+          onHoverChange={setPlayersHot}
         >
-          <Senate color={senateHot ? LIT_RANKED : PLAIN} />
+          <Senate color={playersHot ? LIT_RANKED : PLAIN} />
         </BuildingTarget>
+
+        {/* The bot ladder, touching the first at a corner (docs/MY_AI.md
+            §9.1). A plain second Senate until the /modelling building
+            exists. Clicking it starts a bot-ranked game, the same as the
+            BOTS arm it pairs with. */}
+        <BuildingTarget
+          position={SENATE_BOT_POSITION}
+          onActivate={onBotRanked}
+          onHoverChange={setBotsHot}
+        >
+          <Senate color={botsHot ? LIT_RANKED : PLAIN} />
+        </BuildingTarget>
+
+        <Signpost
+          position={RANKED_FORK_SIGNPOST_POSITION}
+          rotationY={RANKED_FORK_SIGNPOST_ROTATION_Y}
+          arms={[
+            {
+              side: 'left',
+              label: 'PLAYERS',
+              sublabel: rankedSublabel,
+              color: RANKED_COLOR,
+              onActivate: onRanked,
+              onHoverChange: setPlayersHot,
+            },
+            {
+              side: 'right',
+              label: botRankedLabel,
+              sublabel: botRankedSublabel,
+              color: RANKED_COLOR,
+              onActivate: onBotRanked,
+              onHoverChange: setBotsHot,
+            },
+            {
+              // The way back to the city signpost -- parchment, not a third
+              // fight, the same as EARTH on the main post. Hangs under RL
+              // RANKED on the left.
+              side: 'left',
+              tier: 1,
+              label: 'BACK',
+              color: BACK_COLOR,
+              onActivate: () => setView('city'),
+            },
+          ]}
+        />
+
+        {/* Always mounted: it has to be able to ease the pin BACK to the city
+            as well as out to the fork, so it can't unmount when `view` flips.
+            Settled, it costs one ref check a frame. */}
+        <GuidedView
+          pin={view === 'fork' ? RANKED_FORK_VIEW_PIN : EYE}
+          offsetDir={view === 'fork' ? RANKED_FORK_VIEW_OFFSET : CITY_VIEW_OFFSET}
+        />
 
         {/* The trading post, back-right of the default view (§3.2). Same
             arm/building hover pairing as Temple and Senate. */}
@@ -504,6 +664,12 @@ export default function CityScene({
         dampingFactor={0.08}
         minPolarAngle={MIN_POLAR}
         maxPolarAngle={MAX_POLAR}
+        // Lock the orbit radius at the pin distance. Zoom is already off for
+        // the user; pinning both ends means GuidedView can slide the target
+        // across the scene without OrbitControls stretching the camera offset
+        // into a fling on the way.
+        minDistance={EYE_RADIUS}
+        maxDistance={EYE_RADIUS}
       />
     </>
   );

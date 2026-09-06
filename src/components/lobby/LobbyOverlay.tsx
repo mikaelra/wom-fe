@@ -369,6 +369,18 @@ export function renderPreGame({
               <p className="text-white/70 text-xs">Match starts in {rankedSecondsLeft}s</p>
             )}
           </div>
+        ) : state.ai_ranked ? (
+          <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
+            <p className="font-bold text-amber-300">Bot-Ranked Match</p>
+            <p className="text-white/70 text-sm">
+              {rankedSecondsLeft != null
+                ? 'Waiting for players… bots fill in the last few seconds'
+                : 'Match in progress'}
+            </p>
+            {rankedSecondsLeft != null && (
+              <p className="text-white/70 text-xs">Match starts in {rankedSecondsLeft}s</p>
+            )}
+          </div>
         ) : (
           <RopedFrame width={220} height={54} textClassName="font-bold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
             Lobby ID: {lobbyId}

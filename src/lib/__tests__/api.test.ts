@@ -18,6 +18,10 @@ import {
   getRankedProfile,
   getMarketTrades,
   getShopProducts,
+  getMyAiStatus,
+  toggleMyAi,
+  saveMyAiSettings,
+  getMyAiMatches,
   getWellProfile,
   getWheelTables,
   getTradeUpRules,
@@ -888,5 +892,98 @@ describe('getMarketTrades', () => {
       headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: 'sess-1', before: 5, limit: 10 }),
     });
+  });
+});
+
+describe('My AI endpoints', () => {
+  const fullStatus = {
+    enabled: false,
+    minute_counter: 10,
+    knobs: {},
+    override_rules: [],
+    credits: 3,
+    trainable: true,
+    logged_rows: 50,
+    min_rows: 40,
+    bot_rank: { tier: null, games_played: 0 },
+    queue: { queued: false, queue_size: 0 },
+  };
+
+  it('getMyAiStatus posts the token and parses the status', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(fullStatus));
+
+    const res = await getMyAiStatus('sess');
+
+    expect(res.credits).toBe(3);
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/my_ai/status`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'sess' }),
+    });
+  });
+
+  it('toggleMyAi posts the desired state', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ enabled: true, queued: true, reason: 'queued' }));
+
+    const res = await toggleMyAi('sess', true);
+
+    expect(res).toEqual({ enabled: true, queued: true, reason: 'queued' });
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'sess', enabled: true,
+    });
+  });
+
+  it('saveMyAiSettings spreads the settings into the body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      saved: true, enabled: false, minute_counter: 20, knobs: {}, override_rules: [],
+    }));
+
+    await saveMyAiSettings('sess', { minute_counter: 20, knobs: { revenge: 0.5 } });
+
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'sess', minute_counter: 20, knobs: { revenge: 0.5 },
+    });
+  });
+
+  it('joinBotRankedQueue posts the account token to the queue endpoint', async () => {
+    const { joinBotRankedQueue } = await import('@/lib/api');
+    fetchMock.mockResolvedValue(jsonResponse({ queued: true, queue_size: 2 }));
+
+    const res = await joinBotRankedQueue('acct');
+
+    expect(res).toEqual({ queued: true, queue_size: 2 });
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'acct',
+    });
+    expect(fetchMock.mock.calls[0][0]).toContain('/my_ai/bot_ranked');
+  });
+
+  it('getActiveBotRankedLobby posts the account token to the /active endpoint', async () => {
+    const { getActiveBotRankedLobby } = await import('@/lib/api');
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        lobby_id: 'BOTP', token: 'lobby-tok',
+        ai_ranked_countdown_deadline: null, started: false,
+      }),
+    );
+
+    const res = await getActiveBotRankedLobby('acct');
+
+    expect(res.lobby_id).toBe('BOTP');
+    expect(fetchMock.mock.calls[0][0]).toContain('/my_ai/bot_ranked/active');
+  });
+
+
+  it('getMyAiMatches parses the history', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      matches: [{
+        match_id: 'm1', placement: 1, rank: 'Warlock II',
+        opponents: [{ name: "Ben's AI", owner: 'Ben', place: 2 }],
+        at: '2026-09-03T14:03:00Z',
+      }],
+    }));
+    const res = await getMyAiMatches('sess');
+    expect(res.matches[0].rank).toBe('Warlock II');
+    expect(res.matches[0].at).toBe('2026-09-03T14:03:00Z');
   });
 });

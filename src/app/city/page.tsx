@@ -12,6 +12,7 @@ import { findCity } from '@/lib/cities';
 import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
+import { useEnterBotRanked } from '@/lib/useEnterBotRanked';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useBossfightRoster } from '@/lib/useBossfightRoster';
 import { useCityPresence } from '@/lib/useCityPresence';
@@ -63,6 +64,11 @@ function CityPageContent() {
 
   const { enterBossfight, loading, gateOpen, closeGate, authFlow } = useEnterBossfight();
   const ranked = useEnterRanked();
+  // BOTS arm of the fork signpost: join the bot-ranked matchmaking queue
+  // (docs/MY_AI.md §4). Real players are grouped into one shared lobby
+  // (30s countdown), padded with Wolf/Owl/Turtle in the last few seconds.
+  // Your own AI stays in the autonomous queue competing on its own.
+  const botRanked = useEnterBotRanked();
   // Same countdown the world map used to show under the Athens sword; it now
   // reads under the signpost's Bossfight arm.
   const { bossfightMins, bossfightSecs } = useBossfightCountdown(true);
@@ -121,8 +127,11 @@ function CityPageContent() {
           bossfightSublabel={bossfightSublabel}
           roster={roster}
           onRanked={ranked.enterRanked}
+          onBotRanked={botRanked.enterBotRanked}
           rankedLabel={ranked.label}
           rankedSublabel={ranked.sublabel}
+          botRankedLabel={botRanked.label}
+          botRankedSublabel={botRanked.sublabel}
           onBackToEarth={() => router.push('/')}
           onMarket={() => router.push('/market')}
           presence={presence}

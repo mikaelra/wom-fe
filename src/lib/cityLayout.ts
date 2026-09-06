@@ -99,7 +99,18 @@ export const TEMPLE_EXTENT = { x: 17.8, y: 9.3, z: 31.6 } as const;
 export const TEMPLE_POSITION: [number, number, number] = [-29.3, LAND_LEVEL + TEMPLE_BASE_DROP, -34.6];
 export const SENATE_POSITION: [number, number, number] = [15, LAND_LEVEL, -22];
 
-/** Between them and nearer the viewer, so it is read first. */
+/**
+ * The bot-ranked Senate (docs/MY_AI.md §9.1) -- a second civic hall touching
+ * the first at a corner, its own arm of the ranked fork. Offset diagonally
+ * back-and-right from SENATE_POSITION by roughly one building width, so the
+ * two read as an L that shares a corner rather than two separate doorways.
+ * PROVISIONAL placement -- Mikael's visual pass owns the final pose and the
+ * real /modelling building.
+ */
+export const SENATE_BOT_POSITION: [number, number, number] = [22.5, LAND_LEVEL, -29.5];
+
+/** Between the temple and the Senate and nearer the viewer, so it is read
+ *  first. */
 export const SIGNPOST_POSITION: [number, number, number] = [0, LAND_LEVEL, -11];
 
 /**
@@ -130,3 +141,77 @@ export const CAMPFIRE_POSITION: [number, number, number] = [0, LAND_LEVEL, -8];
 export function groundDistance(position: readonly [number, number, number]): number {
   return Math.hypot(position[0], position[2]);
 }
+
+/**
+ * The signpost that forks the ranked ladder: PLAYERS (the human ladder) vs
+ * BOTS (your trained AI's -- docs/MY_AI.md §4).
+ *
+ * ## Placement
+ *
+ * It belongs in the notch of the L the two Senates make, but the exact
+ * midpoint of their origins put it *inside* the merged colonnade -- the
+ * guided camera came to rest nose-to-a-column and the arms speared through
+ * marble. So it is pushed out of that notch, along its own readable face, to
+ * stand on the open ground in front of both halls (RANKED_FORK_STANDOFF).
+ *
+ * ## The quarter-turn
+ *
+ * The two Senate origins lie on a clean NE/SW diagonal -- the offset between
+ * them is [+7.5, -7.5], exactly 45 degrees. Turning the post a quarter-turn
+ * sets its arms along that diagonal (PLAYERS down-left toward the original
+ * Senate, BOTS up-right toward the bot-ranked hall) and, once it is
+ * pushed out onto the open ground, presents a flat face to the guided camera
+ * that is canted against the colonnade behind it rather than square to it.
+ *
+ * You never see it on entry: the city signpost's primary RANKED arm guides
+ * the camera to RANKED_FORK_VIEW_PIN, and this post's own BACK arm guides it
+ * home to the city signpost.
+ */
+export const RANKED_FORK_SIGNPOST_ROTATION_Y = Math.PI / 4;
+
+/** Outward normal of the post's readable face after the turn, as [x, z]: the
+ *  way the labels look, and the side the guided camera watches from. */
+const RANKED_FORK_FACE: readonly [number, number] = [
+  Math.sin(RANKED_FORK_SIGNPOST_ROTATION_Y),
+  Math.cos(RANKED_FORK_SIGNPOST_ROTATION_Y),
+];
+
+/** How far the post is pushed out of the Senates' shared-corner notch, along
+ *  its readable face, to clear the colonnade and stand on open ground. */
+export const RANKED_FORK_STANDOFF = 6;
+
+export const RANKED_FORK_SIGNPOST_POSITION: [number, number, number] = [
+  (SENATE_POSITION[0] + SENATE_BOT_POSITION[0]) / 2 + RANKED_FORK_FACE[0] * RANKED_FORK_STANDOFF,
+  LAND_LEVEL,
+  (SENATE_POSITION[2] + SENATE_BOT_POSITION[2]) / 2 + RANKED_FORK_FACE[1] * RANKED_FORK_STANDOFF,
+];
+
+/**
+ * How far in front of the fork signpost the guided camera comes to rest --
+ * equal to the city signpost's own distance from the viewer on entry, so the
+ * fork lands on screen *exactly* as the city signpost does when the scene
+ * opens: same distance, same eye height, sign dead ahead.
+ */
+export const RANKED_FORK_VIEW_DISTANCE = groundDistance(SIGNPOST_POSITION);
+
+/**
+ * Where the pinned camera sits while you read the fork: out along the post's
+ * readable face by RANKED_FORK_VIEW_DISTANCE, at eye height, looking level
+ * back at the sign. The scene's entry pose over the city signpost, carried
+ * to the fork and turned with it.
+ */
+export const RANKED_FORK_VIEW_PIN: [number, number, number] = [
+  RANKED_FORK_SIGNPOST_POSITION[0] + RANKED_FORK_FACE[0] * RANKED_FORK_VIEW_DISTANCE,
+  LAND_LEVEL + EYE_HEIGHT,
+  RANKED_FORK_SIGNPOST_POSITION[2] + RANKED_FORK_FACE[1] * RANKED_FORK_VIEW_DISTANCE,
+];
+
+/**
+ * Unit direction from the view pin to where the camera floats -- a hair off
+ * the pin, opposite the look. `[0, 0, 1]` (a hair south, looking north) is
+ * the city-signpost entry pose; this is that, rotated onto the fork's face.
+ * CityScene scales it by the orbit radius.
+ */
+export const RANKED_FORK_VIEW_OFFSET: readonly [number, number, number] = [
+  RANKED_FORK_FACE[0], 0, RANKED_FORK_FACE[1],
+];

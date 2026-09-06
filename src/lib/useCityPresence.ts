@@ -5,9 +5,9 @@ import { getSocket, subscribe } from '@/lib/socket';
 import type { CityPresence } from '@/lib/schemas';
 
 /**
- * How many people are in each of the city's three buildings right now --
- * the boss-fight temple, the ranked arena, the market (wom-be
- * sockets/city.py's `city_presence`).
+ * How many are in each of the city's flows right now -- the boss-fight
+ * temple, the two ranked arenas (human `ranked`, `bot_ranked`), the
+ * market (wom-be sockets/city.py's `city_presence`).
  *
  * Pushed over the same kind of public, token-less watch room the bossfight
  * roster uses, but a much smaller payload (three ints) on a slower tick, so
@@ -19,7 +19,7 @@ import type { CityPresence } from '@/lib/schemas';
  * Stops when the component unmounts (leaving the city).
  */
 
-const EMPTY: CityPresence = { bossfight: 0, ranked: 0, market: 0 };
+const EMPTY: CityPresence = { bossfight: 0, ranked: 0, bot_ranked: 0, market: 0 };
 
 export function useCityPresence(): CityPresence {
   const [presence, setPresence] = useState<CityPresence>(EMPTY);

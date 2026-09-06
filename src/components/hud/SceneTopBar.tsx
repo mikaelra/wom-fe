@@ -226,6 +226,13 @@ export default function SceneTopBar() {
                     Inventory
                   </Link>
                   <Link
+                    href="/my-ai"
+                    onClick={() => setShowUserMenu(false)}
+                    className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors cursor-pointer no-underline"
+                  >
+                    My AI
+                  </Link>
+                  <Link
                     href="/shop"
                     onClick={() => setShowUserMenu(false)}
                     className="block w-full text-left px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors cursor-pointer no-underline"

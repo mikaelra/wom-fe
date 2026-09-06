@@ -585,8 +585,27 @@ a **My AI page reached from the profile dropdown**, between Inventory and Settin
 Deliberately not in the city scene: the scene is for entering fights, the profile
 menu is for config — the same line this plan already draws between the world map
 and the menu. `SceneTopBar` owns the menu, so the entry shows in both scenes for
-free. The page is gated: hidden or disabled until decision logging has accrued the
-`MY_AI.md` §5 minimum (~10 logged ranked games) and the AI is trainable.
+free. The page shows a "still learning" banner until decision logging has accrued
+the `MY_AI.md` §5 minimum (~40 logged non-timeout ranked rounds); below that the AI
+still plays, it just plays like the average player.
+
+**[built 2026-09-03] The My AI page ships.** `src/app/my-ai/page.tsx` +
+`SceneTopBar` menu entry + `src/lib/api.ts`'s `getMyAiStatus` / `toggleMyAi` /
+`saveMyAiSettings` / `getMyAiPersonality` / `getMyAiMatches` against
+`MY_AI.md` §9.2's endpoints. Toggle on/off joins/leaves the bot-ranked queue and
+surfaces why it can't queue (no credits / owner idle). Knobs are −1..1 sliders;
+hard rules are a `when → do` row editor. Deliberately plain Tailwind, matching the
+other menu pages — not a designed scene.
+**[built 2026-09-03, placeholder] The ranked fork.** The primary RANKED arm now
+pans the camera (`RankedFocusRig` in `CityScene.tsx` — eases the OrbitControls
+azimuth/polar toward the fork over ~1s) to a **fork signpost**
+(`RANKED_FORK_SIGNPOST_POSITION`) standing in the corner gap between the Senate and
+a **second Senate** touching it (`SENATE_BOT_POSITION`, a bare re-use of
+`<Senate>`). Its arms: **RL RANKED** → the human queue (`onRanked`), **BOT RANKED**
+→ `startBotRankedPractice` → `/lobby` (docs/MY_AI.md 2c-live-2). **Still Mikael's:**
+the real `/modelling` building for the bot-ranked hall, the two Senates' final
+poses, and hiding the fork signpost until RANKED is chosen (it is always visible
+for now).
 
 ### 5.4b The way out is a sign, not a button — **[corrected]**
 

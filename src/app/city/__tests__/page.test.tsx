@@ -5,8 +5,10 @@ import CityPage from '@/app/city/page';
 import {
   checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime,
   getActiveRankedLobby, joinRankedQueue, leaveRankedQueue, getBossfightRoster,
+  joinBotRankedQueue, leaveBotRankedQueue, getActiveBotRankedLobby,
 } from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
+import { setStoredAccountToken } from '@/lib/http';
 import * as socketModule from '@/lib/socket';
 import { findCity } from '@/lib/cities';
 
@@ -27,6 +29,21 @@ vi.mock('@/lib/api', () => ({
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
   getBossfightRoster: vi.fn(),
+  joinBotRankedQueue: vi.fn(),
+  leaveBotRankedQueue: vi.fn(),
+  getActiveBotRankedLobby: vi.fn().mockResolvedValue({
+    lobby_id: null, token: null, ai_ranked_countdown_deadline: null, started: false,
+  }),
+  // SceneTopBar (via CityOverlay) loads these once an account token is
+  // present -- which the bot-ranked tests set.
+  getInventory: vi.fn().mockResolvedValue({
+    equipped_skin: 'frog_green_v1', equipped_cosmetic: null,
+    skins: [], relics: [], wheels: [], artifacts: [], pending: {},
+  }),
+  logOut: vi.fn(),
+  resolveAccountSession: vi.fn().mockResolvedValue({
+    name: 'Alice', email: 'a@x.com', always_verify_email: false, email_verified: true,
+  }),
 }));
 
 // Same fake-subscribe pattern the world-map tests used before ranked moved
@@ -84,17 +101,23 @@ let rankedHandler: (() => void) | undefined;
 let lastSublabel: string | null | undefined;
 let lastRankedLabel: string | undefined;
 let lastRankedSublabel: string | null | undefined;
+let lastBotRankedLabel: string | undefined;
+let lastBotRankedSublabel: string | null | undefined;
 let readyHandler: (() => void) | undefined;
 let backHandler: (() => void) | undefined;
 let marketHandler: (() => void) | undefined;
+let botRankedHandler: (() => void) | undefined;
 let lastCoords: { realLat: number; realLng: number } | undefined;
 vi.mock('@/components/city/CityScene', () => ({
   default: ({
-    onBossfight, bossfightSublabel, onRanked, rankedLabel, rankedSublabel,
+    onBossfight, bossfightSublabel, onRanked, onBotRanked, rankedLabel, rankedSublabel,
+    botRankedLabel, botRankedSublabel,
     onBackToEarth, onMarket, onReady, realLat, realLng,
   }: {
     onBossfight: () => void; bossfightSublabel?: string | null;
-    onRanked: () => void; rankedLabel: string; rankedSublabel?: string | null;
+    onRanked: () => void; onBotRanked: () => void;
+    rankedLabel: string; rankedSublabel?: string | null;
+    botRankedLabel: string; botRankedSublabel?: string | null;
     onBackToEarth: () => void;
     onMarket: () => void;
     onReady?: () => void;
@@ -103,8 +126,11 @@ vi.mock('@/components/city/CityScene', () => ({
     bossfightHandler = onBossfight;
     lastSublabel = bossfightSublabel;
     rankedHandler = onRanked;
+    botRankedHandler = onBotRanked;
     lastRankedLabel = rankedLabel;
     lastRankedSublabel = rankedSublabel;
+    lastBotRankedLabel = botRankedLabel;
+    lastBotRankedSublabel = botRankedSublabel;
     // The real scene fires this from a useFrame once its models have
     // resolved AND the canvas has drawn; here the test decides when.
     readyHandler = onReady;
@@ -188,7 +214,14 @@ beforeEach(() => {
   });
   mockedJoinRankedQueue.mockReset();
   mockedLeaveRankedQueue.mockReset();
+  vi.mocked(joinBotRankedQueue).mockReset();
+  vi.mocked(leaveBotRankedQueue).mockReset();
+  vi.mocked(getActiveBotRankedLobby).mockReset().mockResolvedValue({
+    lobby_id: null, token: null, ai_ranked_countdown_deadline: null, started: false,
+  });
+  botRankedHandler = undefined;
   localStorage.clear();
+  setStoredAccountToken(null);
 });
 
 describe('CityPage (routing)', () => {
@@ -576,6 +609,80 @@ describe('CityPage (ranked)', () => {
     await waitForScene();
     await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
     expect(lastRankedSublabel).toBe('GAME STARTED!');
+  });
+});
+
+describe('CityPage (bot ranked)', () => {
+  it('joins the matchmaking queue, then routes in on the match-found push', async () => {
+    setStoredAccountToken('acct-tok');
+    localStorage.setItem('playerName', 'Alice');
+    vi.mocked(joinBotRankedQueue).mockResolvedValue({ queued: true });
+    renderCity();
+    await waitForScene();
+
+    await act(async () => {
+      botRankedHandler?.();
+      await flush();
+    });
+
+    expect(socket.__emit).toHaveBeenCalledWith('join_ai_ranked_queue', { name: 'Alice' });
+    expect(joinBotRankedQueue).toHaveBeenCalledWith('acct-tok');
+    expect(lastBotRankedLabel).toBe('BOTS');
+    expect(lastBotRankedSublabel).toMatch(/^SEARCHING/);
+    expect(push).not.toHaveBeenCalled();
+
+    act(() => {
+      socket.__fireSubscribeEvent('ai_ranked_match_found', { lobby_id: 'BOTQ', token: 'tok-9' });
+    });
+
+    expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'BOTQ', token: 'tok-9' });
+    expect(push).toHaveBeenCalledWith('/lobby?id=BOTQ');
+  });
+
+  it('warns and does not queue when not logged in with an account', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    renderCity();
+    await waitForScene();
+
+    await act(async () => {
+      botRankedHandler?.();
+      await flush();
+    });
+
+    expect(joinBotRankedQueue).not.toHaveBeenCalled();
+    expect(await screen.findByText(/log in with your account/i)).toBeInTheDocument();
+  });
+
+  it('cancels the queue on a second click while searching', async () => {
+    setStoredAccountToken('acct-tok');
+    localStorage.setItem('playerName', 'Alice');
+    vi.mocked(joinBotRankedQueue).mockResolvedValue({ queued: true });
+    vi.mocked(leaveBotRankedQueue).mockResolvedValue({ left: true, was_queued: true });
+    renderCity();
+    await waitForScene();
+
+    await act(async () => { botRankedHandler?.(); await flush(); });
+    expect(lastBotRankedSublabel).toMatch(/^SEARCHING/);
+
+    await act(async () => { botRankedHandler?.(); await flush(); });
+    expect(leaveBotRankedQueue).toHaveBeenCalledWith('acct-tok');
+    expect(lastBotRankedSublabel).toBeNull();
+  });
+
+  it('surfaces a queue-join failure', async () => {
+    setStoredAccountToken('acct-tok');
+    localStorage.setItem('playerName', 'Alice');
+    vi.mocked(joinBotRankedQueue).mockRejectedValue(new Error('boom'));
+    renderCity();
+    await waitForScene();
+
+    await act(async () => {
+      botRankedHandler?.();
+      await flush();
+    });
+
+    expect(push).not.toHaveBeenCalled();
+    expect(await screen.findByText(/boom/i)).toBeInTheDocument();
   });
 });
 

@@ -328,7 +328,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const stagedResources = useStagedResources(state, playerName, gameEvents, { stageCombat: stageCombatDamage });
 
   const { bossfightMins, bossfightSecs } = useBossfightCountdown(enableBossfightTimer && isAlive);
-  const rankedSecondsLeft = useCountdown(state?.ranked_countdown_deadline);
+  // One countdown feeds the pre-game pill for both ladders -- a lobby is
+  // only ever one of ranked / bot-ranked, so at most one deadline is set.
+  const rankedSecondsLeft = useCountdown(
+    state?.ranked_countdown_deadline ?? state?.ai_ranked_countdown_deadline,
+  );
 
   // Detect if messages overflow the collapsed container. We compare the
   // list's natural height against the fixed collapsed limit (the max-h-[4.5rem]

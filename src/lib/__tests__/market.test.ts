@@ -61,6 +61,14 @@ describe('itemName / itemLabel', () => {
     expect(itemLabel(item({ quantity: 1 }), null)).not.toMatch(/×/);
     expect(itemLabel(item({ quantity: 3 }), null)).toMatch(/×3$/);
   });
+
+  it('shows ai_credits as a count-prefixed currency, never with ×', () => {
+    const credits = item({ item_type: 'ai_credits', skin: null, quantity: 50 });
+    expect(itemKey(credits)).toBe('ai_credits');
+    expect(itemName(credits, null)).toBe('AI credits');
+    expect(itemLabel(credits, null)).toBe('50 AI credits');
+    expect(itemLabel(item({ item_type: 'ai_credits', skin: null, quantity: 1 }), null)).toBe('1 AI credits');
+  });
 });
 
 describe('secondsRemaining', () => {

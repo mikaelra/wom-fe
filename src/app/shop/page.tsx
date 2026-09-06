@@ -29,6 +29,21 @@ function formatOddsPercent(probability: number): string {
 
 type VerifyState = 'idle' | 'sending' | 'awaiting' | 'error';
 
+// Wheels are a stackable inventory item; the FE cap mirrors routes/shop.py's
+// _MAX_WHEEL_QUANTITY. AI-credit packs carry their own `max_quantity` from
+// the API (docs/MY_AI.md §5). A direct skin purchase has no quantity concept.
+const MAX_WHEEL_QUANTITY = 100;
+
+function maxQuantityFor(product: ShopProduct): number {
+  if (product.kind === 'wheel') return MAX_WHEEL_QUANTITY;
+  if (product.kind === 'ai_credits') return product.max_quantity ?? 1;
+  return 1;
+}
+
+function hasQuantityPicker(product: ShopProduct): boolean {
+  return maxQuantityFor(product) > 1;
+}
+
 export default function ShopPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -42,15 +57,14 @@ export default function ShopPage() {
   const [productErrors, setProductErrors] = useState<Record<string, string>>({});
   const [duplicateConfirm, setDuplicateConfirm] = useState<Set<string>>(new Set());
   const [oddsInfoOpen, setOddsInfoOpen] = useState<Set<string>>(new Set());
-  // Multi-packs are wheel-only (§3.3) -- matches routes/shop.py's
-  // _MAX_WHEEL_QUANTITY; a direct skin purchase has no quantity concept.
+  // Wheels and AI-credit packs can both be bought several at a time; the
+  // per-product cap comes from maxQuantityFor.
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const MAX_WHEEL_QUANTITY = 100;
 
-  const adjustQuantity = (productId: string, delta: number) => {
+  const adjustQuantity = (productId: string, delta: number, max: number) => {
     setQuantities((prev) => {
       const current = prev[productId] ?? 1;
-      const next = Math.min(MAX_WHEEL_QUANTITY, Math.max(1, current + delta));
+      const next = Math.min(max, Math.max(1, current + delta));
       return { ...prev, [productId]: next };
     });
   };
@@ -58,13 +72,13 @@ export default function ShopPage() {
   // Typing "10" one keystroke at a time passes through "1" first -- clamping
   // per-keystroke only ever narrows toward valid range, never blocks the
   // next digit, so this stays smooth to type into.
-  const setQuantityFromInput = (productId: string, raw: string) => {
+  const setQuantityFromInput = (productId: string, raw: string, max: number) => {
     const digitsOnly = raw.replace(/\D/g, '');
     if (digitsOnly === '') {
       setQuantities((prev) => ({ ...prev, [productId]: 1 }));
       return;
     }
-    const clamped = Math.min(MAX_WHEEL_QUANTITY, Math.max(1, parseInt(digitsOnly, 10)));
+    const clamped = Math.min(max, Math.max(1, parseInt(digitsOnly, 10)));
     setQuantities((prev) => ({ ...prev, [productId]: clamped }));
   };
 
@@ -145,7 +159,7 @@ export default function ShopPage() {
     setProductErrors((prev) => ({ ...prev, [product.id]: '' }));
     setBuying(product.id);
     try {
-      const quantity = product.kind === 'wheel' ? (quantities[product.id] ?? 1) : undefined;
+      const quantity = hasQuantityPicker(product) ? (quantities[product.id] ?? 1) : undefined;
       const { checkout_url } = await postCheckout(token, product.id, confirmDuplicate, quantity);
       window.location.href = checkout_url;
       // No finally-reset of `buying` on this path -- the page is navigating
@@ -266,7 +280,7 @@ export default function ShopPage() {
                     </h2>
                     <span className="text-amber-300 font-bold text-lg">
                       {formatPrice(
-                        product.price_cents * (product.kind === 'wheel' ? (quantities[product.id] ?? 1) : 1),
+                        product.price_cents * (hasQuantityPicker(product) ? (quantities[product.id] ?? 1) : 1),
                         product.currency
                       )}
                     </span>
@@ -312,6 +326,18 @@ export default function ShopPage() {
                     </div>
                   )}
 
+                  {product.kind === 'ai_credits' && (
+                    <div className="mb-4">
+                      <div className="flex justify-center py-4" aria-hidden="true">
+                        <span className="text-5xl">🪙</span>
+                      </div>
+                      <p className="text-xs text-white/50">
+                        {(product.credits_per_pack ?? 0) * (quantities[product.id] ?? 1)} bot-game credits — your AI
+                        spends one each time it plays a ranked game on its own.
+                      </p>
+                    </div>
+                  )}
+
                   {productErrors[product.id] && (
                     <p className="text-red-400 text-sm mb-2">{productErrors[product.id]}</p>
                   )}
@@ -352,11 +378,11 @@ export default function ShopPage() {
                     </Link>
                   ) : (
                     <div className="flex items-center gap-3">
-                      {product.kind === 'wheel' && (
+                      {hasQuantityPicker(product) && (
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
-                            onClick={() => adjustQuantity(product.id, -1)}
+                            onClick={() => adjustQuantity(product.id, -1, maxQuantityFor(product))}
                             disabled={(quantities[product.id] ?? 1) <= 1}
                             aria-label="Decrease quantity"
                             className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
@@ -368,14 +394,14 @@ export default function ShopPage() {
                             inputMode="numeric"
                             pattern="[0-9]*"
                             value={quantities[product.id] ?? 1}
-                            onChange={(e) => setQuantityFromInput(product.id, e.target.value)}
+                            onChange={(e) => setQuantityFromInput(product.id, e.target.value, maxQuantityFor(product))}
                             aria-label="Quantity"
                             className="w-10 text-center font-semibold bg-white/5 border border-white/20 rounded-lg py-1"
                           />
                           <button
                             type="button"
-                            onClick={() => adjustQuantity(product.id, 1)}
-                            disabled={(quantities[product.id] ?? 1) >= MAX_WHEEL_QUANTITY}
+                            onClick={() => adjustQuantity(product.id, 1, maxQuantityFor(product))}
+                            disabled={(quantities[product.id] ?? 1) >= maxQuantityFor(product)}
                             aria-label="Increase quantity"
                             className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                           >

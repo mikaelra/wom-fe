@@ -33,6 +33,10 @@ export interface ServerToClientEvents {
   // Ranked matchmaking (docs/RANK_SYSTEM_PLAN.md §6/§10).
   joined_ranked_queue: (payload: { name: string }) => void;
   ranked_match_found: (payload: { lobby_id: string; token: string }) => void;
+  // Bot-ranked HUMAN matchmaking (docs/MY_AI.md §4) -- same shapes as the
+  // human ranked pair above.
+  joined_ai_ranked_queue: (payload: { name: string }) => void;
+  ai_ranked_match_found: (payload: { lobby_id: string; token: string }) => void;
   online_count: (payload: { count: number }) => void;
   // The city watching a boss fight it is not in (wom-be sockets/city.py).
   // Same payload as GET /get_bossfight_roster, pushed instead of polled so
@@ -74,6 +78,7 @@ export interface ClientToServerEvents {
   submit_deny_target: (payload: { lobby_id: string; target: string }) => void;
   send_message: (payload: { lobby_id: string; message: string }) => void;
   join_ranked_queue: (payload: { name: string }) => void;
+  join_ai_ranked_queue: (payload: { name: string }) => void;
   // No payload and no token: a watcher is deliberately NOT in the lobby,
   // and asking must never put them in it.
   watch_bossfight: () => void;
@@ -113,6 +118,8 @@ const EVENT_SCHEMAS = {
   chat_message: ChatMessageSchema,
   joined_ranked_queue: JoinedRankedQueuePayloadSchema,
   ranked_match_found: RankedMatchFoundPayloadSchema,
+  joined_ai_ranked_queue: JoinedRankedQueuePayloadSchema,
+  ai_ranked_match_found: RankedMatchFoundPayloadSchema,
   online_count: OnlineCountPayloadSchema,
   bossfight_roster: BossfightRosterResponseSchema,
   city_presence: CityPresenceSchema,

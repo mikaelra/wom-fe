@@ -58,7 +58,9 @@ export function recentChat(
 /** What the craft modal sends per item. Only the field matching item_type
  *  is set. */
 export type MarketItemInput = {
-  item_type: 'skin' | 'relic' | 'wheel';
+  // 'ai_credits' is a fungible balance -- `quantity` is the credit count,
+  // no skin/relic_id/wheel_kind.
+  item_type: 'skin' | 'relic' | 'wheel' | 'ai_credits';
   skin?: string;
   relic_id?: number;
   wheel_kind?: string;
@@ -76,6 +78,7 @@ export function itemKey(item: {
 }): string {
   if (item.item_type === 'skin') return `skin:${item.skin}`;
   if (item.item_type === 'relic') return `relic:${item.relic_id}`;
+  if (item.item_type === 'ai_credits') return 'ai_credits';
   return `wheel:${item.wheel_kind}`;
 }
 
@@ -86,13 +89,16 @@ export function itemName(
 ): string {
   if (item.item_type === 'skin') return capitalize(skinLabel(item.skin ?? ''));
   if (item.item_type === 'wheel') return wheelKindLabel(item.wheel_kind ?? '');
+  if (item.item_type === 'ai_credits') return 'AI credits';
   const relic = catalog?.relics.find((r) => r.id === item.relic_id);
   return relic?.name ?? `Relic #${item.relic_id}`;
 }
 
-/** Human name plus " ×N" when quantity > 1. */
+/** Human name plus " ×N" when quantity > 1. AI credits always show the
+ *  count -- "×1" is meaningless for a currency, "50 AI credits" isn't. */
 export function itemLabel(item: MarketItem, catalog: Pick<MarketCatalog, 'relics'> | null): string {
   const base = itemName(item, catalog);
+  if (item.item_type === 'ai_credits') return `${item.quantity} ${base}`;
   return item.quantity > 1 ? `${base} ×${item.quantity}` : base;
 }
 
