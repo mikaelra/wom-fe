@@ -62,7 +62,7 @@ function reasonText(reason: string): string {
   return (
     {
       queued: 'Your AI is on. It plays bot-ranked games while you\'re away.',
-      no_credits: "No credits — your AI can't play. Win a ranked game or buy a pack.",
+      no_credits: "No credits — your AI can't play. Finish a ranked or bot-ranked game, or buy a pack.",
       owner_idle: 'Your AI plays in the gaps between your own games.',
       already_queued: 'Your AI is already on.',
       toggled_off: 'Your AI is off.',
@@ -170,8 +170,10 @@ export default function MyAiPage() {
               {status.enabled ? 'AI is ON' : 'AI is OFF'}
             </button>
             <div className="text-sm text-white/80">
-              <div>
-                <b>{status.credits}</b> credits ·{' '}
+              <div className="flex items-center gap-1.5">
+                <span><b>{status.credits}</b> credits</span>
+                <CreditInfo />
+                <span aria-hidden>·</span>
                 <Link href="/shop" className="underline text-blue-300">buy more</Link>
               </div>
               <div>
@@ -193,8 +195,9 @@ export default function MyAiPage() {
 
           {!status.trainable && (
             <p className="text-amber-300 text-sm bg-amber-950/40 rounded-lg p-3">
-              Your AI trains on your ranked games. {status.logged_rows} of ~{status.min_rows} logged
-              so far — until then it plays like the average player.
+              Your AI trains on the ranked and bot-ranked games you play yourself.{' '}
+              {status.logged_rows} of ~{status.min_rows} rounds logged so far — until then it
+              plays like the average player.
             </p>
           )}
 
@@ -342,6 +345,62 @@ export default function MyAiPage() {
         </div>
       )}
     </Shell>
+  );
+}
+
+/** The little ⓘ next to the credit count: a click opens a plain-language
+ *  note on where credits come from. Closes on outside-click or Escape. */
+function CreditInfo() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative inline-flex">
+      <button
+        type="button"
+        aria-label="How credits work"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="w-4 h-4 rounded-full border border-white/40 text-white/70 text-[10px] leading-none flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
+      >
+        i
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          className="absolute left-0 top-6 z-20 w-64 rounded-lg border border-white/15 bg-gray-900 p-3 text-xs text-white/80 shadow-xl"
+        >
+          <p className="font-semibold text-white mb-1">Bot-game credits</p>
+          <p className="mb-1.5">Your AI spends one credit per game it plays on its own.</p>
+          <ul className="list-disc pl-4 space-y-1">
+            <li>
+              <b>Earn</b> one every time you finish a <b>ranked</b> or{' '}
+              <b>bot-ranked</b> game yourself — those games also train your AI.
+            </li>
+            <li>
+              <b>Buy</b> a pack of 10 in the{' '}
+              <Link href="/shop" className="underline text-blue-300">shop</Link>.
+            </li>
+          </ul>
+        </div>
+      )}
+    </span>
   );
 }
 
