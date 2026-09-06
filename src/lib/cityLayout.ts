@@ -143,8 +143,8 @@ export function groundDistance(position: readonly [number, number, number]): num
 }
 
 /**
- * The signpost that forks the ranked ladder: RL RANKED (the human ladder) vs
- * BOT RANKED (your trained AI's -- docs/MY_AI.md §4).
+ * The signpost that forks the ranked ladder: PLAYERS (the human ladder) vs
+ * BOTS (your trained AI's -- docs/MY_AI.md §4).
  *
  * ## Placement
  *
@@ -158,8 +158,8 @@ export function groundDistance(position: readonly [number, number, number]): num
  *
  * The two Senate origins lie on a clean NE/SW diagonal -- the offset between
  * them is [+7.5, -7.5], exactly 45 degrees. Turning the post a quarter-turn
- * sets its arms along that diagonal (RL RANKED down-left toward the original
- * Senate, BOT RANKED up-right toward the bot-ranked hall) and, once it is
+ * sets its arms along that diagonal (PLAYERS down-left toward the original
+ * Senate, BOTS up-right toward the bot-ranked hall) and, once it is
  * pushed out onto the open ground, presents a flat face to the guided camera
  * that is canted against the colonnade behind it rather than square to it.
  *

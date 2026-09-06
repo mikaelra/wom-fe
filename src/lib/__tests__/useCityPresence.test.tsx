@@ -45,18 +45,18 @@ beforeEach(() => {
 describe('useCityPresence', () => {
   it('starts at all-zero and asks to watch on mount', () => {
     const { result } = renderHook(() => useCityPresence());
-    expect(result.current).toEqual({ bossfight: 0, ranked: 0, market: 0 });
+    expect(result.current).toEqual({ bossfight: 0, ranked: 0, bot_ranked: 0, market: 0 });
     expect(socket.__emit).toHaveBeenCalledWith('watch_city_presence');
   });
 
-  it('takes a pushed count triple', () => {
+  it('takes a pushed count set', () => {
     const { result } = renderHook(() => useCityPresence());
 
     act(() => {
-      socket.__push('city_presence', { bossfight: 3, ranked: 1, market: 2 });
+      socket.__push('city_presence', { bossfight: 3, ranked: 1, bot_ranked: 6, market: 2 });
     });
 
-    expect(result.current).toEqual({ bossfight: 3, ranked: 1, market: 2 });
+    expect(result.current).toEqual({ bossfight: 3, ranked: 1, bot_ranked: 6, market: 2 });
   });
 
   it('re-asks to watch after a reconnect', () => {

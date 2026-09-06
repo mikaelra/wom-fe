@@ -12,9 +12,7 @@ import { findCity } from '@/lib/cities';
 import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
-import { startBotRanked } from '@/lib/api';
-import { getStoredAccountToken } from '@/lib/http';
-import { useToast } from '@/components/Toast';
+import { useEnterBotRanked } from '@/lib/useEnterBotRanked';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useBossfightRoster } from '@/lib/useBossfightRoster';
 import { useCityPresence } from '@/lib/useCityPresence';
@@ -66,25 +64,11 @@ function CityPageContent() {
 
   const { enterBossfight, loading, gateOpen, closeGate, authFlow } = useEnterBossfight();
   const ranked = useEnterRanked();
-  const { showError } = useToast();
-
-  // BOT RANKED arm of the fork signpost: spend a My AI credit to enter a
-  // bot-ranked game against other players' queued AIs (padded with filler
-  // bots) and drop into the lobby (docs/MY_AI.md §4). Your own AI stays in
-  // the queue competing on its own.
-  const enterBotRanked = useCallback(async () => {
-    const token = getStoredAccountToken();
-    if (!token) {
-      showError('Log in with your account to enter bot ranked.');
-      return;
-    }
-    try {
-      const { lobby_id } = await startBotRanked(token);
-      router.push(`/lobby?id=${lobby_id}`);
-    } catch (e) {
-      showError(e instanceof Error ? e.message : 'Failed to start a bot-ranked game.');
-    }
-  }, [router, showError]);
+  // BOTS arm of the fork signpost: join the bot-ranked matchmaking queue
+  // (docs/MY_AI.md §4). Real players are grouped into one shared lobby
+  // (30s countdown), padded with Wolf/Owl/Turtle in the last few seconds.
+  // Your own AI stays in the autonomous queue competing on its own.
+  const botRanked = useEnterBotRanked();
   // Same countdown the world map used to show under the Athens sword; it now
   // reads under the signpost's Bossfight arm.
   const { bossfightMins, bossfightSecs } = useBossfightCountdown(true);
@@ -143,9 +127,11 @@ function CityPageContent() {
           bossfightSublabel={bossfightSublabel}
           roster={roster}
           onRanked={ranked.enterRanked}
-          onBotRanked={enterBotRanked}
+          onBotRanked={botRanked.enterBotRanked}
           rankedLabel={ranked.label}
           rankedSublabel={ranked.sublabel}
+          botRankedLabel={botRanked.label}
+          botRankedSublabel={botRanked.sublabel}
           onBackToEarth={() => router.push('/')}
           onMarket={() => router.push('/market')}
           presence={presence}

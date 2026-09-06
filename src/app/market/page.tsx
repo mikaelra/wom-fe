@@ -45,6 +45,7 @@ type EnterData = {
   playerId: number;
   termsAccepted: boolean;
   coins: number;
+  aiCredits: number;
   emailVerified: boolean;
 };
 
@@ -89,6 +90,7 @@ export default function MarketPage() {
         playerId: entered.player_id,
         termsAccepted: entered.terms_accepted,
         coins: entered.coins,
+        aiCredits: entered.ai_credits,
         emailVerified: entered.email_verified,
       });
 
@@ -115,6 +117,12 @@ export default function MarketPage() {
         const input: MarketItemInput = { item_type: 'relic', relic_id: relicId, quantity: 1 };
         list.push({ input, label: r.name, count: r.count });
         counts[itemKey(input)] = r.count;
+      }
+      // Bot-game credits -- a spendable balance, offered like an item.
+      const aiCreditInput: MarketItemInput = { item_type: 'ai_credits', quantity: 1 };
+      counts[itemKey(aiCreditInput)] = entered.ai_credits;
+      if (entered.ai_credits > 0) {
+        list.push({ input: aiCreditInput, label: 'AI credits', count: entered.ai_credits });
       }
       setOwned(list);
       setOwnedCounts(counts);

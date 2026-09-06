@@ -112,6 +112,11 @@ export const LobbyStateSchema = z.object({
   ranked: z.boolean().optional(),
   ranked_countdown_deadline: z.string().nullable().optional(),
   ranked_results: z.record(z.string(), RankedResultSchema).nullable().optional(),
+  // Bot-ranked HUMAN matchmaking (docs/MY_AI.md §4) -- a forming lobby of
+  // queued real players, same optional/absent reasoning as `ranked`.
+  ai_ranked: z.boolean().optional(),
+  ai_ranked_countdown_deadline: z.string().nullable().optional(),
+  ai_ranked_results: z.record(z.string(), RankedResultSchema).nullable().optional(),
 });
 export type LobbyState = z.infer<typeof LobbyStateSchema>;
 

@@ -36,10 +36,14 @@ type Line = { input: MarketItemInput; label: string; max: number | null };
 /** Same sections, same order, same wording as the inventory page
  *  (src/app/inventory/page.tsx): Relics, Wheels, Skins. */
 const CATEGORIES: ReadonlyArray<{ type: MarketItemInput['item_type']; label: string }> = [
+  { type: 'ai_credits', label: 'AI credits' },
   { type: 'relic', label: 'Relics' },
   { type: 'wheel', label: 'Wheels' },
   { type: 'skin', label: 'Skins' },
 ];
+
+//: ai_credits per line -- matches domain/market.py's MAX_AI_CREDITS_PER_ITEM.
+const MAX_AI_CREDITS_PER_ITEM = 1000;
 
 function CategoryHeader({ label }: { label: string }) {
   return (
@@ -94,7 +98,13 @@ export default function CraftOfferModal({
       label: itemName({ item_type: 'wheel', skin: null, relic_id: null, wheel_kind: k }, catalog),
       max: null,
     }));
-    return [...skins, ...relics, ...wheels];
+    // ai_credits isn't a catalog row -- it's always askable, any amount.
+    const aiCredits: Line = {
+      input: { item_type: 'ai_credits', quantity: 1 },
+      label: 'AI credits',
+      max: MAX_AI_CREDITS_PER_ITEM,
+    };
+    return [aiCredits, ...skins, ...relics, ...wheels];
   }, [catalog]);
 
   const wantMatches = catalogLines.filter((l) =>
@@ -202,7 +212,10 @@ export default function CraftOfferModal({
                             }
                             className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs hover:bg-white/10 transition-colors cursor-pointer"
                           >
-                            {o.label} <span className="text-white/40">×{o.count}</span>
+                            {o.label}{' '}
+                            <span className="text-white/40">
+                              {o.input.item_type === 'ai_credits' ? `(${o.count})` : `×${o.count}`}
+                            </span>
                           </button>
                         ))}
                       </div>

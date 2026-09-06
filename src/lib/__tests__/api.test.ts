@@ -21,7 +21,6 @@ import {
   getMyAiStatus,
   toggleMyAi,
   saveMyAiSettings,
-  getMyAiPersonality,
   getMyAiMatches,
   getWellProfile,
   getWheelTables,
@@ -939,30 +938,39 @@ describe('My AI endpoints', () => {
       saved: true, enabled: false, minute_counter: 20, knobs: {}, override_rules: [],
     }));
 
-    await saveMyAiSettings('sess', { minute_counter: 20, knobs: { vengeance: 0.5 } });
+    await saveMyAiSettings('sess', { minute_counter: 20, knobs: { revenge: 0.5 } });
 
     expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
-      token: 'sess', minute_counter: 20, knobs: { vengeance: 0.5 },
+      token: 'sess', minute_counter: 20, knobs: { revenge: 0.5 },
     });
   });
 
-  it('getMyAiPersonality parses the readout', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ trained: false, deviations: [] }));
-    expect((await getMyAiPersonality('sess')).trained).toBe(false);
-  });
+  it('joinBotRankedQueue posts the account token to the queue endpoint', async () => {
+    const { joinBotRankedQueue } = await import('@/lib/api');
+    fetchMock.mockResolvedValue(jsonResponse({ queued: true, queue_size: 2 }));
 
-  it('startBotRanked posts the account token and stores the lobby token', async () => {
-    const { startBotRanked } = await import('@/lib/api');
-    fetchMock.mockResolvedValue(jsonResponse({ lobby_id: 'BOTP', token: 'lobby-tok' }));
+    const res = await joinBotRankedQueue('acct');
 
-    const res = await startBotRanked('acct');
-
-    expect(res).toEqual({ lobby_id: 'BOTP', token: 'lobby-tok' });
-    expect(getStoredToken('BOTP')).toBe('lobby-tok');
+    expect(res).toEqual({ queued: true, queue_size: 2 });
     expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
       token: 'acct',
     });
     expect(fetchMock.mock.calls[0][0]).toContain('/my_ai/bot_ranked');
+  });
+
+  it('getActiveBotRankedLobby posts the account token to the /active endpoint', async () => {
+    const { getActiveBotRankedLobby } = await import('@/lib/api');
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        lobby_id: 'BOTP', token: 'lobby-tok',
+        ai_ranked_countdown_deadline: null, started: false,
+      }),
+    );
+
+    const res = await getActiveBotRankedLobby('acct');
+
+    expect(res.lobby_id).toBe('BOTP');
+    expect(fetchMock.mock.calls[0][0]).toContain('/my_ai/bot_ranked/active');
   });
 
 

@@ -13,7 +13,6 @@ import {
   getMyAiStatus,
   toggleMyAi,
   saveMyAiSettings,
-  getMyAiPersonality,
   getMyAiMatches,
 } from '@/lib/api';
 import type {
@@ -21,14 +20,14 @@ import type {
   MyAiKnobs,
   MyAiActionSplit,
   MyAiOverrideRule,
-  MyAiPersonality,
   MyAiMatches,
 } from '@/lib/schemas';
 import { CITY_PATH } from '@/lib/cities';
 
 const KNOBS: { key: Exclude<keyof MyAiKnobs, 'action_split'>; label: string; low: string; high: string }[] = [
   { key: 'greed', label: 'Greed', low: 'heals', high: 'hoards coin' },
-  { key: 'vengeance', label: 'Vengeance', low: 'off', high: 'hits back' },
+  { key: 'revenge', label: 'Revenge', low: 'off', high: 'hits back' },
+  { key: 'grudge', label: 'Grudge', low: 'off', high: 'Hit who hit me most' },
 ];
 
 const ACTION_SPLIT_KEYS = ['attack', 'defend', 'well'] as const;
@@ -75,7 +74,6 @@ export default function MyAiPage() {
   const [mounted, setMounted] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<MyAiStatus | null>(null);
-  const [personality, setPersonality] = useState<MyAiPersonality | null>(null);
   const [matches, setMatches] = useState<MyAiMatches | null>(null);
   const [loadError, setLoadError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -96,7 +94,6 @@ export default function MyAiPage() {
         setRules(s.override_rules);
       })
       .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : 'Failed to load your AI.'));
-    getMyAiPersonality(t).then(setPersonality).catch(() => {});
     getMyAiMatches(t).then(setMatches).catch(() => {});
   }, []);
 
@@ -312,20 +309,6 @@ export default function MyAiPage() {
             {savedNote && <span className="text-white/60 text-sm">{savedNote}</span>}
           </div>
 
-          {/* --- personality readout --- */}
-          {personality?.trained && personality.deviations.length > 0 && (
-            <section>
-              <h2 className="text-white font-semibold mb-2">Where your AI differs</h2>
-              <ul className="text-sm text-white/80 space-y-1">
-                {personality.deviations.map((d, i) => (
-                  <li key={i}>
-                    {d.direction === 'more' ? '↑' : '↓'} {d.action} / {d.resource} — {d.feature}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
           {/* --- match history --- */}
           <section>
             <h2 className="text-white font-semibold mb-2">Recent bot-ranked games</h2>
@@ -346,7 +329,7 @@ export default function MyAiPage() {
                     <tr key={m.match_id} className="border-t border-white/10">
                       <td>#{m.placement}</td>
                       <td>{m.rank ?? '—'}</td>
-                      <td>{m.opponents.map((o) => o.owner).join(', ')}</td>
+                      <td>{m.opponents.map((o) => o.name).join(', ')}</td>
                       <td className="text-right text-white/50 whitespace-nowrap">
                         {m.at ? formatEnded(m.at) : '—'}
                       </td>
@@ -367,8 +350,24 @@ function Shell({ children }: { children: React.ReactNode }) {
     <main className="min-h-screen bg-gray-950 text-white p-6 sm:p-10">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-6">
+          {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+          <span className="emoji-pair inline-flex items-center gap-2">
+            <Link
+              href="/"
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+              aria-label="Back to Home"
+            >
+              🌍
+            </Link>
+            <Link
+              href={CITY_PATH}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+              aria-label="Go to the city"
+            >
+              🏛️
+            </Link>
+          </span>
           <h1 className="text-2xl font-bold">My AI</h1>
-          <Link href={CITY_PATH} className="text-sm text-white/60 underline">← City</Link>
         </div>
         {children}
       </div>

@@ -154,15 +154,20 @@ export interface CitySceneProps {
    *  the signpost's caption, and two polls could show a caption that does
    *  not match the figures in the building. */
   roster: BossfightRoster;
-  /** Enter the human ranked queue -- the RL RANKED arm of the fork
+  /** Enter the human ranked queue -- the PLAYERS arm of the fork
    *  signpost, which the city's primary RANKED arm pans the camera to. */
   onRanked: () => void;
   /** Enter a bot-ranked game against the field of other players' trained
-   *  AIs (docs/MY_AI.md §4) -- the BOT RANKED arm of the fork signpost.
+   *  AIs (docs/MY_AI.md §4) -- the BOTS arm of the fork signpost.
    *  Your own AI isn't in it; it competes on its own in the queue. */
   onBotRanked: () => void;
   rankedLabel: string;
   rankedSublabel?: string | null;
+  /** The BOTS arm's own top line + live second line -- 'BOTS' / null when
+   *  idle, 'SEARCHING…' while queued, 'RETURN TO MATCH' / 'STARTS IN Xs'
+   *  when already matched (docs/MY_AI.md §4). */
+  botRankedLabel: string;
+  botRankedSublabel?: string | null;
   /** Back to the world map. A sign on the post rather than a button over the
    *  scene, so leaving the city is a thing in the world. */
   onBackToEarth: () => void;
@@ -309,14 +314,16 @@ export default function CityScene({
   onBotRanked,
   rankedLabel,
   rankedSublabel,
+  botRankedLabel,
+  botRankedSublabel,
   onBackToEarth,
   onMarket,
   presence,
   onReady,
 }: CitySceneProps) {
   // The city's primary RANKED arm doesn't queue -- it walks the camera over
-  // to the fork signpost between the two Senates, where you pick RL RANKED or
-  // BOT RANKED. The fork's BACK arm walks it home again (§5.2b).
+  // to the fork signpost between the two Senates, where you pick PLAYERS or
+  // BOTS. The fork's BACK arm walks it home again (§5.2b).
   const [view, setView] = useState<'city' | 'fork'>('city');
   const focusRanked = () => setView('fork');
   // Same hook CitySky uses, so the lighting below and the sky itself are
@@ -340,9 +347,13 @@ export default function CityScene({
     );
   }, [placements]);
   // Hovering either an arm or its building lights both -- that pairing is
-  // what teaches which building is which without a tutorial.
+  // what teaches which building is which without a tutorial. The two
+  // Senates each own their own light: the left one is the human ladder
+  // (PLAYERS), the right one is the bot ladder (BOTS), and hovering one
+  // never lights the other.
   const [templeHot, setTempleHot] = useState(false);
-  const [senateHot, setSenateHot] = useState(false);
+  const [playersHot, setPlayersHot] = useState(false);
+  const [botsHot, setBotsHot] = useState(false);
   const [marketHot, setMarketHot] = useState(false);
 
   /**
@@ -412,8 +423,9 @@ export default function CityScene({
       label: rankedLabel,
       sublabel: rankedSublabel,
       color: RANKED_COLOR,
+      // Walks the camera to the fork -- it stands for both ladders, so
+      // it pairs with no single building.
       onActivate: focusRanked,
-      onHoverChange: setSenateHot,
     },
     {
       // A third full-size destination, hanging below RANKED on the right the
@@ -464,10 +476,18 @@ export default function CityScene({
         distanceFactor={14}
         occupancy={playingLabel(roster.players.filter((p) => !p.bot).length)}
       />
+      {/* Left Senate: humans in the ranked flow. Right Senate: "bots live
+          plus players" -- every bot on the AI ladder plus anyone in a
+          bot-ranked game (wom-be city_presence.bot_ranked). */}
       <BuildingSign
         position={[SENATE_POSITION[0], SENATE_POSITION[1] + 12, SENATE_POSITION[2]]}
         distanceFactor={14}
         occupancy={playingLabel(presence.ranked)}
+      />
+      <BuildingSign
+        position={[SENATE_BOT_POSITION[0], SENATE_BOT_POSITION[1] + 12, SENATE_BOT_POSITION[2]]}
+        distanceFactor={14}
+        occupancy={playingLabel(presence.bot_ranked)}
       />
       <BuildingSign
         position={[MARKET_POSITION[0], MARKET_POSITION[1] + 9, MARKET_POSITION[2]]}
@@ -532,24 +552,27 @@ export default function CityScene({
           decay={TEMPLE_GLOW_DECAY}
         />
 
+        {/* The human ladder. Clicking it enters ranked directly, the same
+            as the PLAYERS arm it pairs with -- exactly how the Temple and
+            Market buildings work. */}
         <BuildingTarget
           position={SENATE_POSITION}
-          onActivate={focusRanked}
-          onHoverChange={setSenateHot}
+          onActivate={onRanked}
+          onHoverChange={setPlayersHot}
         >
-          <Senate color={senateHot ? LIT_RANKED : PLAIN} />
+          <Senate color={playersHot ? LIT_RANKED : PLAIN} />
         </BuildingTarget>
 
-        {/* The bot-ranked Senate, touching the first at a corner
-            (docs/MY_AI.md §9.1). A plain second Senate until the /modelling
-            building exists; the fork signpost between the two is what
-            actually sends you to the two ladders. */}
+        {/* The bot ladder, touching the first at a corner (docs/MY_AI.md
+            §9.1). A plain second Senate until the /modelling building
+            exists. Clicking it starts a bot-ranked game, the same as the
+            BOTS arm it pairs with. */}
         <BuildingTarget
           position={SENATE_BOT_POSITION}
-          onActivate={focusRanked}
-          onHoverChange={setSenateHot}
+          onActivate={onBotRanked}
+          onHoverChange={setBotsHot}
         >
-          <Senate color={senateHot ? LIT_RANKED : PLAIN} />
+          <Senate color={botsHot ? LIT_RANKED : PLAIN} />
         </BuildingTarget>
 
         <Signpost
@@ -558,17 +581,19 @@ export default function CityScene({
           arms={[
             {
               side: 'left',
-              label: 'RL RANKED',
+              label: 'PLAYERS',
               sublabel: rankedSublabel,
               color: RANKED_COLOR,
               onActivate: onRanked,
+              onHoverChange: setPlayersHot,
             },
             {
               side: 'right',
-              label: 'BOT RANKED',
-              sublabel: 'you vs trained AIs',
+              label: botRankedLabel,
+              sublabel: botRankedSublabel,
               color: RANKED_COLOR,
               onActivate: onBotRanked,
+              onHoverChange: setBotsHot,
             },
             {
               // The way back to the city signpost -- parchment, not a third

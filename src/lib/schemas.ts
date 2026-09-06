@@ -173,6 +173,9 @@ export const InventoryResponseSchema = z.object({
     })
     .nullable()
     .optional(),
+  // My AI bot-game credit balance -- same number as the My AI page.
+  // Optional for deploy-independence, treated as 0 when absent.
+  ai_credits: z.number().int().optional(),
 });
 
 export const EquipCosmeticResponseSchema = z.object({
@@ -305,6 +308,15 @@ export const CheckoutResponseSchema = z.object({
   order_id: z.number().int(),
 });
 
+// POST /shop/order -- one order's fulfillment status, polled by
+// /shop/success. `fulfilled` is the only "done" state; anything else
+// means keep waiting.
+export const OrderStatusResponseSchema = z.object({
+  status: z.string(),
+  product: z.string(),
+  fulfilled: z.boolean(),
+});
+
 // docs/TRADE_UP_PLAN.md §5/§6 -- the ladder table and the trade-up result.
 
 export const TradeUpRuleSchema = z.object({
@@ -373,7 +385,9 @@ export const OnlineCountPayloadSchema = z.object({
 // row. Exactly one of skin / relic_id / wheel_kind is set, matching
 // item_type.
 export const MarketItemSchema = z.object({
-  item_type: z.enum(['skin', 'relic', 'wheel']),
+  // 'ai_credits' is a fungible balance -- quantity is the credit count,
+  // skin/relic_id/wheel_kind all null.
+  item_type: z.enum(['skin', 'relic', 'wheel', 'ai_credits']),
   skin: z.string().nullable(),
   relic_id: z.number().int().nullable(),
   wheel_kind: z.string().nullable(),
@@ -436,6 +450,7 @@ export const MarketEnterResponseSchema = z.object({
   terms_accepted: z.boolean(),
   terms_version: z.string(),
   coins: z.number().int(),
+  ai_credits: z.number().int(),
   email_verified: z.boolean(),
 });
 
@@ -475,11 +490,14 @@ export const MarketFrogsSchema = z.object({
   names: z.array(z.string()),
 });
 
-// Building-occupancy counts over the three city buildings (wom-be
+// Building-occupancy counts over the city's buildings (wom-be
 // sockets/city.py). Pushed to watch_city_presence on a slow tick.
+// `bot_ranked` is "bots live plus players": every bot on the AI ladder
+// plus any humans currently in a bot-ranked game.
 export const CityPresenceSchema = z.object({
   bossfight: z.number().int(),
   ranked: z.number().int(),
+  bot_ranked: z.number().int(),
   market: z.number().int(),
 });
 export type CityPresence = z.infer<typeof CityPresenceSchema>;
@@ -494,14 +512,18 @@ export const MyAiActionSplitSchema = z.object({
 });
 export const MyAiKnobsSchema = z.object({
   greed: z.number().optional(),
-  vengeance: z.number().optional(),
+  // Both bias one target-head relation (wom-be engine/my_ai/knobs.py):
+  // revenge -> "revenge" (hit whoever hit me last round), grudge ->
+  // "most_aggressive" (hit whoever has hit me most this match).
+  revenge: z.number().optional(),
+  grudge: z.number().optional(),
   // Replaces the old separate aggression/turtle sliders (2026-09-04):
   // a direct "spend X% of rounds attacking, Y% defending, Z% at the
   // well" split, always summing to 100 -- see the my-ai page's
   // ActionSplitSliders and wom-be's engine/my_ai/knobs.py.
   action_split: MyAiActionSplitSchema.optional(),
-  // 0..100, how much of the whole knob layer above (greed/vengeance/
-  // action_split combined) reaches the trained policy's own logits --
+  // 0..100, how much of the whole knob layer above (greed/revenge/
+  // grudge/action_split combined) reaches the trained policy's own logits --
   // 0 mutes every knob and it plays exactly as trained, 100 (the
   // default when unset, so old configs don't go quiet) is today's full
   // strength. Never touches hard-override rules, which stay absolute.
@@ -552,19 +574,6 @@ export const MyAiSettingsResponseSchema = z.object({
   knobs: MyAiKnobsSchema,
   override_rules: z.array(MyAiOverrideRuleSchema),
 });
-export const MyAiPersonalitySchema = z.object({
-  trained: z.boolean(),
-  games_rows: z.number().int().optional(),
-  min_rows: z.number().int().optional(),
-  deviations: z.array(z.object({
-    move: z.string(),
-    action: z.string(),
-    resource: z.string(),
-    feature: z.string(),
-    direction: z.enum(['more', 'less']),
-    magnitude: z.number(),
-  })),
-});
 export const MyAiMatchesSchema = z.object({
   matches: z.array(z.object({
     match_id: z.string(),
@@ -584,9 +593,27 @@ export type MyAiStatus = z.infer<typeof MyAiStatusSchema>;
 export type MyAiKnobs = z.infer<typeof MyAiKnobsSchema>;
 export type MyAiActionSplit = z.infer<typeof MyAiActionSplitSchema>;
 export type MyAiOverrideRule = z.infer<typeof MyAiOverrideRuleSchema>;
-export type MyAiPersonality = z.infer<typeof MyAiPersonalitySchema>;
 export type MyAiMatches = z.infer<typeof MyAiMatchesSchema>;
+// POST /my_ai/bot_ranked -- join the bot-ranked matchmaking queue
+// (docs/MY_AI.md §4). Real players queue and are grouped into one shared
+// lobby; the {lobby_id, token} arrives later over the
+// ai_ranked_match_found socket push, not in this response.
 export const MyAiBotRankedResponseSchema = z.object({
-  lobby_id: z.string(),
-  token: z.string(),
+  queued: z.boolean(),
+  queue_size: z.number().int().optional(),
+  waited_seconds: z.number().optional(),
+});
+
+export const MyAiBotRankedLeaveResponseSchema = z.object({
+  left: z.boolean(),
+  was_queued: z.boolean(),
+});
+
+// POST /my_ai/bot_ranked/active -- mirror of RankedActiveResponseSchema
+// for the bot ladder.
+export const MyAiBotRankedActiveResponseSchema = z.object({
+  lobby_id: z.string().nullable(),
+  token: z.string().nullable(),
+  ai_ranked_countdown_deadline: z.string().nullable(),
+  started: z.boolean(),
 });

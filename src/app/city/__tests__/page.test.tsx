@@ -5,7 +5,7 @@ import CityPage from '@/app/city/page';
 import {
   checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime,
   getActiveRankedLobby, joinRankedQueue, leaveRankedQueue, getBossfightRoster,
-  startBotRanked,
+  joinBotRankedQueue, leaveBotRankedQueue, getActiveBotRankedLobby,
 } from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
 import { setStoredAccountToken } from '@/lib/http';
@@ -29,7 +29,11 @@ vi.mock('@/lib/api', () => ({
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
   getBossfightRoster: vi.fn(),
-  startBotRanked: vi.fn(),
+  joinBotRankedQueue: vi.fn(),
+  leaveBotRankedQueue: vi.fn(),
+  getActiveBotRankedLobby: vi.fn().mockResolvedValue({
+    lobby_id: null, token: null, ai_ranked_countdown_deadline: null, started: false,
+  }),
   // SceneTopBar (via CityOverlay) loads these once an account token is
   // present -- which the bot-ranked tests set.
   getInventory: vi.fn().mockResolvedValue({
@@ -97,6 +101,8 @@ let rankedHandler: (() => void) | undefined;
 let lastSublabel: string | null | undefined;
 let lastRankedLabel: string | undefined;
 let lastRankedSublabel: string | null | undefined;
+let lastBotRankedLabel: string | undefined;
+let lastBotRankedSublabel: string | null | undefined;
 let readyHandler: (() => void) | undefined;
 let backHandler: (() => void) | undefined;
 let marketHandler: (() => void) | undefined;
@@ -105,11 +111,13 @@ let lastCoords: { realLat: number; realLng: number } | undefined;
 vi.mock('@/components/city/CityScene', () => ({
   default: ({
     onBossfight, bossfightSublabel, onRanked, onBotRanked, rankedLabel, rankedSublabel,
+    botRankedLabel, botRankedSublabel,
     onBackToEarth, onMarket, onReady, realLat, realLng,
   }: {
     onBossfight: () => void; bossfightSublabel?: string | null;
     onRanked: () => void; onBotRanked: () => void;
     rankedLabel: string; rankedSublabel?: string | null;
+    botRankedLabel: string; botRankedSublabel?: string | null;
     onBackToEarth: () => void;
     onMarket: () => void;
     onReady?: () => void;
@@ -121,6 +129,8 @@ vi.mock('@/components/city/CityScene', () => ({
     botRankedHandler = onBotRanked;
     lastRankedLabel = rankedLabel;
     lastRankedSublabel = rankedSublabel;
+    lastBotRankedLabel = botRankedLabel;
+    lastBotRankedSublabel = botRankedSublabel;
     // The real scene fires this from a useFrame once its models have
     // resolved AND the canvas has drawn; here the test decides when.
     readyHandler = onReady;
@@ -204,7 +214,11 @@ beforeEach(() => {
   });
   mockedJoinRankedQueue.mockReset();
   mockedLeaveRankedQueue.mockReset();
-  vi.mocked(startBotRanked).mockReset();
+  vi.mocked(joinBotRankedQueue).mockReset();
+  vi.mocked(leaveBotRankedQueue).mockReset();
+  vi.mocked(getActiveBotRankedLobby).mockReset().mockResolvedValue({
+    lobby_id: null, token: null, ai_ranked_countdown_deadline: null, started: false,
+  });
   botRankedHandler = undefined;
   localStorage.clear();
   setStoredAccountToken(null);
@@ -599,9 +613,10 @@ describe('CityPage (ranked)', () => {
 });
 
 describe('CityPage (bot ranked)', () => {
-  it('starts a bot-ranked game and routes into the lobby', async () => {
+  it('joins the matchmaking queue, then routes in on the match-found push', async () => {
     setStoredAccountToken('acct-tok');
-    vi.mocked(startBotRanked).mockResolvedValue({ lobby_id: 'BOTP', token: 't' });
+    localStorage.setItem('playerName', 'Alice');
+    vi.mocked(joinBotRankedQueue).mockResolvedValue({ queued: true });
     renderCity();
     await waitForScene();
 
@@ -610,12 +625,22 @@ describe('CityPage (bot ranked)', () => {
       await flush();
     });
 
-    expect(startBotRanked).toHaveBeenCalledWith('acct-tok');
-    expect(push).toHaveBeenCalledWith('/lobby?id=BOTP');
+    expect(socket.__emit).toHaveBeenCalledWith('join_ai_ranked_queue', { name: 'Alice' });
+    expect(joinBotRankedQueue).toHaveBeenCalledWith('acct-tok');
+    expect(lastBotRankedLabel).toBe('BOTS');
+    expect(lastBotRankedSublabel).toMatch(/^SEARCHING/);
+    expect(push).not.toHaveBeenCalled();
+
+    act(() => {
+      socket.__fireSubscribeEvent('ai_ranked_match_found', { lobby_id: 'BOTQ', token: 'tok-9' });
+    });
+
+    expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'BOTQ', token: 'tok-9' });
+    expect(push).toHaveBeenCalledWith('/lobby?id=BOTQ');
   });
 
-  it('does nothing but warn when not logged in with an account', async () => {
-    vi.mocked(startBotRanked).mockResolvedValue({ lobby_id: 'X', token: 't' });
+  it('warns and does not queue when not logged in with an account', async () => {
+    localStorage.setItem('playerName', 'Alice');
     renderCity();
     await waitForScene();
 
@@ -624,12 +649,30 @@ describe('CityPage (bot ranked)', () => {
       await flush();
     });
 
-    expect(startBotRanked).not.toHaveBeenCalled();
+    expect(joinBotRankedQueue).not.toHaveBeenCalled();
+    expect(await screen.findByText(/log in with your account/i)).toBeInTheDocument();
   });
 
-  it('surfaces a generic failure without routing', async () => {
+  it('cancels the queue on a second click while searching', async () => {
     setStoredAccountToken('acct-tok');
-    vi.mocked(startBotRanked).mockRejectedValue(new Error('boom'));
+    localStorage.setItem('playerName', 'Alice');
+    vi.mocked(joinBotRankedQueue).mockResolvedValue({ queued: true });
+    vi.mocked(leaveBotRankedQueue).mockResolvedValue({ left: true, was_queued: true });
+    renderCity();
+    await waitForScene();
+
+    await act(async () => { botRankedHandler?.(); await flush(); });
+    expect(lastBotRankedSublabel).toMatch(/^SEARCHING/);
+
+    await act(async () => { botRankedHandler?.(); await flush(); });
+    expect(leaveBotRankedQueue).toHaveBeenCalledWith('acct-tok');
+    expect(lastBotRankedSublabel).toBeNull();
+  });
+
+  it('surfaces a queue-join failure', async () => {
+    setStoredAccountToken('acct-tok');
+    localStorage.setItem('playerName', 'Alice');
+    vi.mocked(joinBotRankedQueue).mockRejectedValue(new Error('boom'));
     renderCity();
     await waitForScene();
 
@@ -638,7 +681,6 @@ describe('CityPage (bot ranked)', () => {
       await flush();
     });
 
-    expect(startBotRanked).toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
     expect(await screen.findByText(/boom/i)).toBeInTheDocument();
   });

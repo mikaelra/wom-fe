@@ -45,6 +45,7 @@ export default function InventoryPage() {
   const [skins, setSkins] = useState<SkinEntry[]>([]);
   const [wheels, setWheels] = useState<WheelEntry[]>([]);
   const [relics, setRelics] = useState<Relic[]>([]);
+  const [aiCredits, setAiCredits] = useState(0);
   const [equipping, setEquipping] = useState<string | null>(null);
   // The Artifacts category. `artifact` is null for almost every account --
   // that is the point of it, and the empty state carries the weight.
@@ -89,6 +90,7 @@ export default function InventoryPage() {
         setWheels(inventoryData.wheels);
         setEquippedCosmetic(inventoryData.equipped_cosmetic ?? null);
         setArtifact(inventoryData.artifact ?? null);
+        setAiCredits(inventoryData.ai_credits ?? 0);
         setRelics(relicsData.relics);
         setLoadError('');
       })
@@ -223,6 +225,30 @@ export default function InventoryPage() {
           </div>
         ) : (
           <>
+            {/* Bot-game credits -- the same balance shown on the My AI page
+                (wom-be /inventory's ai_credits). A small box above Relics. */}
+            <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl px-5 py-4 mb-6 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">My AI credits</p>
+                <p className="text-2xl font-bold text-amber-300 leading-tight">{aiCredits}</p>
+              </div>
+              {aiCredits === 0 ? (
+                <Link
+                  href="/shop"
+                  className="text-xs font-semibold text-amber-300 hover:text-amber-200 transition-colors no-underline shrink-0"
+                >
+                  Buy in the shop &rarr;
+                </Link>
+              ) : (
+                <Link
+                  href="/my-ai"
+                  className="text-xs text-white/50 hover:text-white/80 transition-colors no-underline shrink-0"
+                >
+                  My AI &rarr;
+                </Link>
+              )}
+            </div>
+
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
               <h2 className="text-lg font-semibold mb-4">Relics</h2>
               {relics.length > 0 ? (

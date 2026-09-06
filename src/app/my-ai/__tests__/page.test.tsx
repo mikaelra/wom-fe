@@ -6,7 +6,6 @@ import {
   getMyAiStatus,
   toggleMyAi,
   saveMyAiSettings,
-  getMyAiPersonality,
   getMyAiMatches,
 } from '@/lib/api';
 
@@ -14,7 +13,6 @@ vi.mock('@/lib/api', () => ({
   getMyAiStatus: vi.fn(),
   toggleMyAi: vi.fn(),
   saveMyAiSettings: vi.fn(),
-  getMyAiPersonality: vi.fn(),
   getMyAiMatches: vi.fn(),
 }));
 
@@ -34,7 +32,6 @@ const status = (over = {}) => ({
 
 beforeEach(() => {
   vi.mocked(getMyAiStatus).mockResolvedValue(status());
-  vi.mocked(getMyAiPersonality).mockResolvedValue({ trained: false, deviations: [] });
   vi.mocked(getMyAiMatches).mockResolvedValue({ matches: [] });
   vi.mocked(toggleMyAi).mockResolvedValue({ enabled: true, queued: true, reason: 'queued' });
   vi.mocked(saveMyAiSettings).mockResolvedValue({
@@ -199,7 +196,7 @@ describe('MyAiPage', () => {
     render(<MyAiPage />);
     expect(await screen.findByText('#2')).toBeInTheDocument();
     expect(screen.getByText('Djinn I')).toBeInTheDocument();
-    expect(screen.getByText('Ben')).toBeInTheDocument();
+    expect(screen.getByText("Ben's AI")).toBeInTheDocument();   // the agent name, not the owner
     expect(screen.getByText(/\d{2}:\d{2}/)).toBeInTheDocument();   // the end time
   });
 
