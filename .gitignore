@@ -24,6 +24,12 @@
 # production
 /build
 
+# electron
+/dist-electron/
+# Steam SDK dev-only file: written at runtime by electron/steam.js, and a
+# stray copy actively breaks launch detection in a shipped build.
+/steam_appid.txt
+
 # misc
 .DS_Store
 *.pem
