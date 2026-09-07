@@ -90,11 +90,23 @@ export const WellRewardGrantEventSchema = z.object({
 });
 export type WellRewardGrantEvent = z.infer<typeof WellRewardGrantEventSchema>;
 
+/** Sent to a steal-all *victim* (not the winner -- see WellRewardGrantEvent
+ *  above for that side), so their own client can animate their coins flying
+ *  away to the winner even though they never received a well_reward event
+ *  themselves. */
+export const WellStealVictimEventSchema = z.object({
+  kind: z.literal('well_steal_victim'),
+  winner: z.string(),
+  amount: z.number(),
+});
+export type WellStealVictimEvent = z.infer<typeof WellStealVictimEventSchema>;
+
 export const GameEventSchema = z.union([
   OutgoingEventSchema,
   IncomingEventSchema,
   WitnessEventSchema,
   WellRewardGrantEventSchema,
+  WellStealVictimEventSchema,
 ]);
 export type GameEvent = z.infer<typeof GameEventSchema>;
 
@@ -145,6 +157,15 @@ export function wellRewardFromEvents(events: GameEvent[] | null | undefined): We
     if (e.kind === 'well_reward') return e.components;
   }
   return [];
+}
+
+/** This round's steal-all victim event, if the local player was robbed this
+ *  round (null otherwise, including for the winner themself). */
+export function wellStealVictimFromEvents(events: GameEvent[] | null | undefined): WellStealVictimEvent | null {
+  for (const e of events ?? []) {
+    if (e.kind === 'well_steal_victim') return e;
+  }
+  return null;
 }
 
 // ── Rarity glow ──────────────────────────────────────────────────────────────

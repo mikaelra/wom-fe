@@ -1,5 +1,5 @@
 import type { GameEvent, WellRewardComponent } from '@/lib/gameEvents';
-import { combatFromEvents, wellRewardFromEvents, glowForReward } from '@/lib/gameEvents';
+import { combatFromEvents, wellRewardFromEvents, wellStealVictimFromEvents, glowForReward } from '@/lib/gameEvents';
 import type { HpFxEvent } from '@/lib/resourceFx';
 import type { DamageNumberColor } from '@/components/lobby/DamageNumberEffect';
 import { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
@@ -414,6 +414,33 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       if (rewardEvents.length) batches.push({ delayMs: 0, actions: [{ type: 'addWellRewardEvents', events: rewardEvents }] });
       // Hold combat strikes until both the splash/glow and any reward
       // models have finished.
+      wellDelayMs = Math.max(rewardDurMs, WELL_FX_DURATION);
+    }
+  }
+
+  // ── Well reward: the *victim* side of a steal-all -- purple rarity glow
+  // plus my own coins flying away to the winner, the mirror image of the
+  // block above (which only ever runs on the winner's own client, since
+  // wellRewardFromEvents reads an event that's never attached to a victim).
+  // Driven instead by well_steal_victim, which IS attached to each victim
+  // (see backend/engine/rewards.py's _steal_gold). No splash -- that's the
+  // water erupting for whoever actually interacted with the well, same
+  // reasoning as the "chose well but lost" red glow above.
+  if (myPos && !wonWell) {
+    const stolen = wellStealVictimFromEvents(events);
+    const winnerPos = stolen ? posMap.get(stolen.winner) : undefined;
+    if (stolen && winnerPos) {
+      const fxId = `wellfx-steal-victim-${Date.now()}`;
+      const fx: WellWinFx = { id: fxId, splash: false, glow: 'purple', glowStartMs: performance.now() };
+      batches.push({ delayMs: 0, actions: [{ type: 'addWellWinFx', fx }] });
+      batches.push({ delayMs: WELL_FX_DURATION, actions: [{ type: 'removeWellWinFx', id: fxId }] });
+
+      const stealSources: StealSource[] = [{ pos: myPos, count: stolen.amount }];
+      const rewardEvents = buildWellRewardEvents([{ type: 'steal', count: 1 }], winnerPos, stealSources);
+      const rewardDurMs = rewardEvents.length
+        ? (Math.max(...rewardEvents.map((e) => e.delay)) + WELL_REWARD_FLIGHT_DUR) * 1000
+        : 0;
+      if (rewardEvents.length) batches.push({ delayMs: 0, actions: [{ type: 'addWellRewardEvents', events: rewardEvents }] });
       wellDelayMs = Math.max(rewardDurMs, WELL_FX_DURATION);
     }
   }
