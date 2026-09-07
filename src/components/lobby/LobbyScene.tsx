@@ -895,9 +895,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     // goes fully idle in (submits nothing at all) replays their last actual
     // choice's animation rather than showing none -- a harmless cosmetic
     // edge case, not worth the added complexity to close.
+    // A dead player can never submit a new choice (the backend excludes
+    // eliminated players from the resource phase entirely, see
+    // run_resource_phase), so chosenResourceRef simply freezes at whatever
+    // was last picked while alive -- without the myNowHp guard below, that
+    // stale value kept replaying the gain animation on the dead player's own
+    // client every round after they died.
     const myPosForGain = posMapRef.current.get(playerName);
     const chosen = chosenResourceRef.current;
-    const playingResourceGain = !!(myPosForGain && chosen && isGainedResource(chosen));
+    const playingResourceGain = !!(myNowHp > 0 && myPosForGain && chosen && isGainedResource(chosen));
     if (playingResourceGain) {
       const gainId = `resgain-${chosen}-${state.round}`;
       setResourceGainEvents((ev) => [...ev, { id: gainId, resource: chosen as GainedResource, pos: myPosForGain! }]);
