@@ -28,6 +28,15 @@ export default defineConfig({
           setupFiles: ['./vitest.setup.ts'],
         },
       },
+      {
+        // The Electron/Steam shell (docs/MOBILE_AND_STEAM_PLAN.md §10) --
+        // plain Node CommonJS, no electron import in what's tested.
+        test: {
+          name: 'electron',
+          environment: 'node',
+          include: ['electron/**/*.test.js'],
+        },
+      },
     ],
     coverage: {
       provider: 'v8',
