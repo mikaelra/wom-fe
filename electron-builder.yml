@@ -1,0 +1,50 @@
+# Packaging for the Steam build -- docs/MOBILE_AND_STEAM_PLAN.md §10.
+# Run `npm run dist:steam` (builds the static export first, then this).
+# Output lands in dist-electron/ (gitignored). SteamPipe uploads from there.
+appId: net.worldofmythos.game
+productName: World of Mythos
+copyright: © World of Mythos
+
+directories:
+  output: dist-electron
+  buildResources: electron/resources
+
+# The app is the static export in out/ plus this thin shell. Everything else
+# in the repo (src/, scripts/, docs/, the Next toolchain) is build-time only.
+files:
+  - electron/**/*
+  - out/**/*
+  - package.json
+  - '!**/steam_appid.txt'
+
+# steamworks.js ships prebuilt .node addons and the steam_api shared lib;
+# native code cannot be loaded from inside the asar archive.
+asarUnpack:
+  - node_modules/steamworks.js/**
+
+# No auto-update: on Steam, SteamPipe delivers new builds. electron-updater
+# would fight it.
+publish: null
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # Steam distributes the binary itself, so an unsigned exe is acceptable for
+  # a first release (§10.1). Add a signing cert here when doing direct downloads.
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  category: public.app-category.games
+
+linux:
+  # tar.gz is what SteamPipe wants for the Linux depot; AppImage is handy for
+  # local testing and Steam Deck sideloading.
+  target:
+    - target: tar.gz
+      arch: [x64]
+    - target: AppImage
+      arch: [x64]
+  category: Game
