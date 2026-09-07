@@ -296,13 +296,22 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, isGhost, show
 // exactly (Player.bot_type on the wire, see types/game.ts). Falls back to
 // turtle for a bot_type this frontend doesn't recognize yet (e.g. an older
 // wom-fe deploy talking to a newer wom-be that's added a type), same
-// deploy-independence reasoning as the wire schema's optional fields.
+// deploy-independence reasoning as the wire schema's optional fields. Not
+// used for a My AI agent -- that's bot=True with no bot_type at all, not an
+// unrecognized one; see MY_AI_MODEL_URL below.
 const BOT_MODEL_URLS: Record<string, string> = {
   TURTLE: '/models/turtlev01.glb',
   SHEEP: '/models/sheepv01.glb',
   WOLF: '/models/wolfv01.glb',
   OWL: '/models/owlv01.glb',
 };
+
+// A My AI agent (backend/game_state.py's create_ai_agent) is bot=True with
+// no bot_type -- it's not one of the house archetypes above, so it gets its
+// own dedicated look instead of falling into BOT_MODEL_URLS' turtle
+// fallback (that fallback is for a genuinely unrecognized bot_type string,
+// a different case -- see the comment above).
+const MY_AI_MODEL_URL = '/models/frog_robot_v1.glb';
 
 export const PlayerWithName = memo(function PlayerWithName({
   name,
@@ -394,10 +403,17 @@ export const PlayerWithName = memo(function PlayerWithName({
   // isBoss checked first: create_boss (game_state.py) sets bot=True on every
   // boss too (Hades included), so checking isBot first accidentally matched
   // it before isBoss ever got a look, rendering Hades with the turtle model.
+  // Within isBot, botType tells a house archetype (SHEEP/WOLF/OWL/TURTLE)
+  // apart from a My AI agent, which never gets a bot_type at all -- that
+  // used to fall into the turtle fallback below by accident (the "temporary"
+  // skin from early development), not because it was ever meant to look
+  // like one of the house bots.
   const modelUrl = isBoss
     ? '/models/hades/hades_v4.glb'
     : isBot
-      ? (botType && BOT_MODEL_URLS[botType]) || BOT_MODEL_URLS.TURTLE
+      ? botType
+        ? (BOT_MODEL_URLS[botType] || BOT_MODEL_URLS.TURTLE)
+        : MY_AI_MODEL_URL
       : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   const isCherub = modelUrl === skinUrl('cherub_v1');
   // Clicking the model itself selects the same action as its button --
@@ -813,5 +829,6 @@ useGLTF.preload('/models/turtlev01.glb');
 useGLTF.preload('/models/sheepv01.glb');
 useGLTF.preload('/models/wolfv01.glb');
 useGLTF.preload('/models/owlv01.glb');
+useGLTF.preload(MY_AI_MODEL_URL);
 useGLTF.preload('/models/crowns/crown_ld_v1.glb');
 useGLTF.preload('/models/crowns/well_crown_v1.glb');
