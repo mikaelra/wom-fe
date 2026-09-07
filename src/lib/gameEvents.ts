@@ -52,6 +52,11 @@ export const IncomingEventSchema = z.object({
   reflectDamage: z.number().optional(),
   /** Coins received when a reflected attack eliminated the attacker (kill by me). */
   coinsReceived: z.number().optional(),
+  /** Coins I lost when this hit eliminated ME (the mirror of OutgoingEvent's
+   *  own coinsReceived on the killer's side of the same kill) -- absent when
+   *  this hit wasn't fatal, or when a fatal hit was anonymised (no revealed
+   *  killer position to fly them toward). */
+  coinsLost: z.number().optional(),
 });
 export type IncomingEvent = z.infer<typeof IncomingEventSchema>;
 
@@ -143,6 +148,7 @@ export function combatFromEvents(events: GameEvent[] | null | undefined): Parsed
         damage: e.damage,
         reflectDamage: e.reflectDamage,
         coinsReceived: e.coinsReceived,
+        coinsLost: e.coinsLost,
       });
     } else if (e.kind === 'witness') {
       result.witnessedEliminations.push({ attacker: e.attacker, victim: e.victim });

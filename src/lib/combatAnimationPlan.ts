@@ -348,6 +348,38 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     batches.push({ delayMs: offMs, actions: [{ type: 'removeBlockGlow', id }] });
   };
 
+  // Shared by both sides of a kill's coin handoff: the killer's own view
+  // (scheduleKillLoot below, which also reveals their +1 ATK/coin-card
+  // tick-up) and the victim's (scheduleKillLoss below, coins-only -- the
+  // reward is the killer's gain, not theirs).
+  const spawnCoinFlight = (
+    fromPos: [number, number, number],
+    toPos: [number, number, number],
+    coins: number,
+    atMs: number,
+  ) => {
+    if (coins <= 0) return;
+    const delayMs = Math.max(0, atMs);
+    const from: [number, number, number] = [fromPos[0], fromPos[1] + 0.3, fromPos[2]];
+    const evs: WellRewardEvent[] = [];
+    for (let c = 0; c < coins; c++) {
+      // Spread coins at the source seat so they don't perfectly overlap
+      // leaving, but converge on the actual destination -- else a big kill
+      // (e.g. looting a coin-heavy Owl) reads as a scattered line beside the
+      // target instead of a pile landing on them.
+      const jitter = coins > 1 ? (c - (coins - 1) / 2) * 0.15 : 0;
+      evs.push({
+        id:   `kill-coin-${killStamp}-${killSeq++}`,
+        type: 'steal',
+        fromPos: [from[0] + jitter, from[1], from[2]],
+        toPos,
+        orbit: true,
+        delay:   c * WELL_REWARD_STAGGER,
+      });
+    }
+    batches.push({ delayMs, actions: [{ type: 'addWellRewardEvents', events: evs }] });
+  };
+
   // Killer only: fling the victim's coins over and tick up the ATK/coin cards.
   const scheduleKillLoot = (
     fromPos: [number, number, number],
@@ -356,26 +388,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     atMs: number,
   ) => {
     const delayMs = Math.max(0, atMs);
-    if (coins > 0) {
-      const from: [number, number, number] = [fromPos[0], fromPos[1] + 0.3, fromPos[2]];
-      const evs: WellRewardEvent[] = [];
-      for (let c = 0; c < coins; c++) {
-        // Spread coins at the victim's seat so they don't perfectly overlap
-        // leaving, but converge on the killer's actual position -- else a
-        // big kill (e.g. looting a coin-heavy Owl) reads as a scattered
-        // line beside the killer instead of a pile landing on them.
-        const jitter = coins > 1 ? (c - (coins - 1) / 2) * 0.15 : 0;
-        evs.push({
-          id:   `kill-coin-${killStamp}-${killSeq++}`,
-          type: 'steal',
-          fromPos: [from[0] + jitter, from[1], from[2]],
-          toPos,
-          orbit: true,
-          delay:   c * WELL_REWARD_STAGGER,
-        });
-      }
-      batches.push({ delayMs, actions: [{ type: 'addWellRewardEvents', events: evs }] });
-    }
+    spawnCoinFlight(fromPos, toPos, coins, atMs);
     // Reveal the gained coins (+ the +1 ATK) on the resource cards once the
     // coins have arrived — staged like the Well reward (see useStagedResources).
     batches.push({
@@ -387,6 +400,16 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       actions: [{ type: 'playResourceSound', resource: 'gain_attack' }],
     });
   };
+
+  // Victim only: my own coins fly away to whoever just eliminated me -- no
+  // reward-card feedback here, that's the killer's gain (scheduleKillLoot
+  // above), not mine.
+  const scheduleKillLoss = (
+    fromPos: [number, number, number],
+    toPos: [number, number, number],
+    coins: number,
+    atMs: number,
+  ) => spawnCoinFlight(fromPos, toPos, coins, atMs);
 
   // ── Well reward: only for the player who actually won the well ──────────
   // (steal *victims* also receive a "Steal-all!" line, so gate on wellwinner.)
@@ -589,13 +612,21 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           scheduleKillFire(myPos, delay + ONE_DEF_MS, inc.attacker ?? undefined);
           scheduleKillLoot(atkPos, myPos, inc.coinsReceived, delay + ONE_DEF_MS);
         }
-        // I was killed this round: I see the fiery glow erupt under my killer
-        // (no coins — those go to them, not me). Only the last fatal-looking
-        // blow reveals my dead pose (see lastFatalIdx above); earlier attacks
-        // in the same round still play out their own strike/flash normally,
-        // they just don't flip me into the dead pose themselves.
+        // I was killed this round: I see the fiery glow erupt under my killer,
+        // plus my own coins flying away to them (coinsLost -- the mirror of
+        // coinsReceived above, set on my incoming event instead of their
+        // outgoing one; see backend/engine/phases/attacks.py). Only the last
+        // fatal-looking blow reveals my dead pose (see lastFatalIdx above);
+        // earlier attacks in the same round still play out their own
+        // strike/flash normally, they just don't flip me into the dead pose
+        // themselves. coinsLost/atkPos are both absent when the kill was
+        // anonymised -- nowhere to fly the coins toward without a revealed
+        // killer position, same constraint the kill-fire glow is already
+        // under.
         if (iDied && i === lastFatalIdx) {
-          scheduleKillFire(atkPos, delay + killDelayMs(isInstakill), playerName);
+          const atMs = delay + killDelayMs(isInstakill);
+          scheduleKillFire(atkPos, atMs, playerName);
+          if (atkPos && inc.coinsLost) scheduleKillLoss(myPos, atkPos, inc.coinsLost, atMs);
         }
 
         const strikeActions: CombatAnimationAction[] = [{ type: 'addStrike', strike }];
