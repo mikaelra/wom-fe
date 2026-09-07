@@ -78,6 +78,32 @@ describe('InventoryPage', () => {
     expect(screen.getByTestId('skin-preview')).toHaveAttribute('data-url', '/models/frogs/frog_green_v1.glb');
   });
 
+  it('shows the My AI credit balance with a link to My AI when you have some', async () => {
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({
+      equipped_skin: 'frog_green_v1', skins: [], wheels: [], ai_credits: 42,
+    });
+    render(<InventoryPage />);
+    await flush();
+
+    expect(screen.getByText('My AI credits')).toBeInTheDocument();
+    expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.getByText('My AI →')).toHaveAttribute('href', '/my-ai');
+    expect(screen.queryByText('Buy in the shop →')).not.toBeInTheDocument();
+  });
+
+  it('links to the shop from the credits box when you have none', async () => {
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({
+      equipped_skin: 'frog_green_v1', skins: [], wheels: [], ai_credits: 0,
+    });
+    render(<InventoryPage />);
+    await flush();
+
+    expect(screen.getByText('My AI credits')).toBeInTheDocument();
+    expect(screen.getByText('Buy in the shop →')).toHaveAttribute('href', '/shop');
+  });
+
   it('shows a static head thumbnail on each skin card, not the old flat color swatch', async () => {
     setStoredAccountToken('sess-1');
     mockedGetInventory.mockResolvedValue({

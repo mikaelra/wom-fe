@@ -12,6 +12,8 @@ import EquippedCoinModel from '@/components/lobby/EquippedCoinModel';
 import { FreshHtml } from '@/components/hud/FreshHtml';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { skinUrl } from '@/lib/frogSkins';
+import { ARTIFACT } from '@/lib/cosmetics';
+import ArtifactModel from './ArtifactModel';
 import { COIN_RELIC_ID } from '@/types/game';
 
 // ── Per-player HTML stack ───────────────────────────────────────────────────
@@ -323,6 +325,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   bossHp,
   bossMaxHp,
   frogSkinUrl,
+  cosmetic,
   // own-player action UI
   showOwnActions,
   currentAction,
@@ -367,6 +370,9 @@ export const PlayerWithName = memo(function PlayerWithName({
   bossHp?: number;
   bossMaxHp?: number;
   frogSkinUrl?: string;
+  /** The cosmetic worn beside the skin (players.equipped_cosmetic, frozen
+   *  at join). Null for the overwhelming majority of players. */
+  cosmetic?: string | null;
   showOwnActions?: boolean;
   currentAction?: string;
   onDefend?: () => void;
@@ -439,6 +445,20 @@ export const PlayerWithName = memo(function PlayerWithName({
           hoverPhase={position[0]}
         />
       </Suspense>
+
+      {/* Equipped cosmetic. A sibling of the avatar, not a child of it, so
+          it inherits this group's position/rotation and the click handling
+          above without PlayerV1 needing to know cosmetics exist. Bots and
+          the boss never wear one -- the wire field is null for them.
+          Its own Suspense: the model is ~6 MB and is not preloaded, so it
+          arrives well after the frog and must not hold the avatar back.
+          Static, not floating -- it is held in the frog's hands, so it takes
+          the body's death transform rather than bobbing on its own. */}
+      {cosmetic === ARTIFACT && !isBoss && !isBot && (
+        <Suspense fallback={null}>
+          <ArtifactModel isDead={isDead} isGhost={!!isSpectator} />
+        </Suspense>
+      )}
 
       {/* Deny prompt -- a ghosted copy of the Well's deny reward model,
           floating in front of this player. Inside the same group as the

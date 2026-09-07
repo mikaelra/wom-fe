@@ -284,7 +284,7 @@ describe('WorldMapOverlay', () => {
     expect(screen.getByRole('button', { name: 'Log in' })).toBeInTheDocument();
   });
 
-  it('lists Stats, Inventory, Shop, Settings, Sign out in the user menu, with no separate relics entry', () => {
+  it('lists Stats, Inventory, My AI, Shop, Settings, Sign out in the user menu, with no separate relics entry', () => {
     localStorage.setItem('playerName', 'Alice');
     localStorage.setItem('playerEmail', 'alice@example.com');
     render(<WorldMapOverlay />);
@@ -293,8 +293,9 @@ describe('WorldMapOverlay', () => {
 
     const menu = screen.getByText('Sign out').parentElement;
     const itemOrder = Array.from(menu?.children ?? []).map((el) => el.textContent);
-    expect(itemOrder).toEqual(['Stats', 'Inventory', 'Shop', 'Settings', 'Sign out']);
+    expect(itemOrder).toEqual(['Stats', 'Inventory', 'My AI', 'Shop', 'Settings', 'Sign out']);
     expect(screen.getByText('Inventory')).toHaveAttribute('href', '/inventory');
+    expect(screen.getByText('My AI')).toHaveAttribute('href', '/my-ai');
     expect(screen.getByText('Stats')).toHaveAttribute('href', '/stats');
     expect(screen.getByText('Shop')).toHaveAttribute('href', '/shop');
   });

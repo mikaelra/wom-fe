@@ -6,8 +6,34 @@ import { withSentryConfig } from "@sentry/nextjs";
 // deploy is untouched: BUILD_TARGET is unset there, so every branch below
 // falls back to today's behavior.
 const isNative = process.env.BUILD_TARGET === "native";
+// True only under `next dev`. Gates the /modelling sandbox's routes into
+// the dev server and out of every build -- see pageExtensions below.
+const isDevServer = process.env.NODE_ENV !== "production";
 
 const nextConfig: NextConfig = {
+  // The /modelling sandbox is a DEV-ONLY route, and this line is the whole
+  // mechanism: Next routes a file only if it is named
+  // `page.<one of these>` / `route.<one of these>`, so the ".dev." pair is
+  // added to the list under `next dev` and left off every build. That makes
+  // `src/app/modelling/page.dev.tsx` and its
+  // `src/app/api/modelling-prompt/route.dev.ts` unroutable files -- present
+  // in the repo, absent from the deployed site -- rather than something
+  // guarded at runtime and shipped anyway.
+  //
+  // Two reasons it is a build-time exclusion and not a NODE_ENV check
+  // inside the page. The POST handler is a hard error under
+  // `output: "export"` (the Capacitor/Electron build --
+  // docs/MOBILE_AND_STEAM_PLAN.md §5.3), so the native build must not see
+  // the file at all. And a sandbox that writes prompts to disk has no
+  // business being reachable on the public site even behind a guard.
+  //
+  // `next dev` sets NODE_ENV to development; `next build` sets it to
+  // production. Keep the sandbox usable by running the dev server -- which
+  // is exactly how it is used.
+  pageExtensions: isDevServer
+    ? ["dev.tsx", "dev.ts", "tsx", "ts", "jsx", "js"]
+    : ["tsx", "ts", "jsx", "js"],
+
   // Mirrors BUILD_TARGET into the client bundle as NEXT_PUBLIC_BUILD_TARGET
   // -- see src/lib/buildTarget.ts. BUILD_TARGET itself is a plain server/
   // build-time var, so client components can't read it directly; Next only

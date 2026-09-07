@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import CityPage from '@/app/city/page';
 import {
   checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime,
   getActiveRankedLobby, joinRankedQueue, leaveRankedQueue, getBossfightRoster,
+  joinBotRankedQueue, leaveBotRankedQueue, getActiveBotRankedLobby,
 } from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
+import { setStoredAccountToken } from '@/lib/http';
 import * as socketModule from '@/lib/socket';
 import { findCity } from '@/lib/cities';
 
@@ -27,6 +29,21 @@ vi.mock('@/lib/api', () => ({
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
   getBossfightRoster: vi.fn(),
+  joinBotRankedQueue: vi.fn(),
+  leaveBotRankedQueue: vi.fn(),
+  getActiveBotRankedLobby: vi.fn().mockResolvedValue({
+    lobby_id: null, token: null, ai_ranked_countdown_deadline: null, started: false,
+  }),
+  // SceneTopBar (via CityOverlay) loads these once an account token is
+  // present -- which the bot-ranked tests set.
+  getInventory: vi.fn().mockResolvedValue({
+    equipped_skin: 'frog_green_v1', equipped_cosmetic: null,
+    skins: [], relics: [], wheels: [], artifacts: [], pending: {},
+  }),
+  logOut: vi.fn(),
+  resolveAccountSession: vi.fn().mockResolvedValue({
+    name: 'Alice', email: 'a@x.com', always_verify_email: false, email_verified: true,
+  }),
 }));
 
 // Same fake-subscribe pattern the world-map tests used before ranked moved
@@ -45,6 +62,9 @@ vi.mock('@/lib/socket', () => {
       listeners.get(event)!.add(handler);
       return () => listeners.get(event)?.delete(handler);
     },
+    // Same reason as on/off above, for the ranked queue's own room: see
+    // useRankedQueue, which re-joins it on every reconnect.
+    subscribeConnect: () => () => {},
     __fireSubscribeEvent: (event: string, payload: unknown) => {
       listeners.get(event)?.forEach((h) => h(payload));
     },
@@ -61,8 +81,15 @@ const socket = socketModule as unknown as {
 
 // R3F's real Canvas needs a WebGL context jsdom cannot provide; render
 // children directly, same approach as app/__tests__/page.test.tsx.
+// Renders the wrapper div R3F would, carrying the style through, so the
+// canvas container's stacking behaviour is assertable -- the labels
+// FreshHtml appends live in exactly this element.
 vi.mock('@react-three/fiber', () => ({
-  Canvas: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  Canvas: ({ children, style }: { children?: ReactNode; style?: CSSProperties }) => (
+    <div data-testid="canvas-container" style={style}>
+      {children}
+    </div>
+  ),
 }));
 
 // Stand in for the 3D scene and capture what the page hands it, so the
@@ -74,29 +101,41 @@ let rankedHandler: (() => void) | undefined;
 let lastSublabel: string | null | undefined;
 let lastRankedLabel: string | undefined;
 let lastRankedSublabel: string | null | undefined;
+let lastBotRankedLabel: string | undefined;
+let lastBotRankedSublabel: string | null | undefined;
 let readyHandler: (() => void) | undefined;
 let backHandler: (() => void) | undefined;
+let marketHandler: (() => void) | undefined;
+let botRankedHandler: (() => void) | undefined;
 let lastCoords: { realLat: number; realLng: number } | undefined;
 vi.mock('@/components/city/CityScene', () => ({
   default: ({
-    onBossfight, bossfightSublabel, onRanked, rankedLabel, rankedSublabel,
-    onBackToEarth, onReady, realLat, realLng,
+    onBossfight, bossfightSublabel, onRanked, onBotRanked, rankedLabel, rankedSublabel,
+    botRankedLabel, botRankedSublabel,
+    onBackToEarth, onMarket, onReady, realLat, realLng,
   }: {
     onBossfight: () => void; bossfightSublabel?: string | null;
-    onRanked: () => void; rankedLabel: string; rankedSublabel?: string | null;
+    onRanked: () => void; onBotRanked: () => void;
+    rankedLabel: string; rankedSublabel?: string | null;
+    botRankedLabel: string; botRankedSublabel?: string | null;
     onBackToEarth: () => void;
+    onMarket: () => void;
     onReady?: () => void;
     realLat: number; realLng: number;
   }) => {
     bossfightHandler = onBossfight;
     lastSublabel = bossfightSublabel;
     rankedHandler = onRanked;
+    botRankedHandler = onBotRanked;
     lastRankedLabel = rankedLabel;
     lastRankedSublabel = rankedSublabel;
+    lastBotRankedLabel = botRankedLabel;
+    lastBotRankedSublabel = botRankedSublabel;
     // The real scene fires this from a useFrame once its models have
     // resolved AND the canvas has drawn; here the test decides when.
     readyHandler = onReady;
     backHandler = onBackToEarth;
+    marketHandler = onMarket;
     lastCoords = { realLat, realLng };
     return <div data-testid="city-scene" />;
   },
@@ -152,6 +191,7 @@ beforeEach(() => {
   lastRankedSublabel = undefined;
   readyHandler = undefined;
   backHandler = undefined;
+  marketHandler = undefined;
   lastCoords = undefined;
   socket.__reset();
   mockedCheckName.mockReset();
@@ -174,7 +214,14 @@ beforeEach(() => {
   });
   mockedJoinRankedQueue.mockReset();
   mockedLeaveRankedQueue.mockReset();
+  vi.mocked(joinBotRankedQueue).mockReset();
+  vi.mocked(leaveBotRankedQueue).mockReset();
+  vi.mocked(getActiveBotRankedLobby).mockReset().mockResolvedValue({
+    lobby_id: null, token: null, ai_ranked_countdown_deadline: null, started: false,
+  });
+  botRankedHandler = undefined;
   localStorage.clear();
+  setStoredAccountToken(null);
 });
 
 describe('CityPage (routing)', () => {
@@ -228,6 +275,13 @@ describe('CityPage (routing)', () => {
     renderCity();
     await waitForScene();
     expect(screen.queryByLabelText('Back to Earth')).not.toBeInTheDocument();
+  });
+
+  it('routes the signpost\'s MARKET arm to the trading post', async () => {
+    renderCity();
+    await waitFor(() => expect(marketHandler).toBeDefined());
+    act(() => { marketHandler!(); });
+    expect(push).toHaveBeenCalledWith('/market');
   });
 });
 
@@ -555,5 +609,97 @@ describe('CityPage (ranked)', () => {
     await waitForScene();
     await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
     expect(lastRankedSublabel).toBe('GAME STARTED!');
+  });
+});
+
+describe('CityPage (bot ranked)', () => {
+  it('joins the matchmaking queue, then routes in on the match-found push', async () => {
+    setStoredAccountToken('acct-tok');
+    localStorage.setItem('playerName', 'Alice');
+    vi.mocked(joinBotRankedQueue).mockResolvedValue({ queued: true });
+    renderCity();
+    await waitForScene();
+
+    await act(async () => {
+      botRankedHandler?.();
+      await flush();
+    });
+
+    expect(socket.__emit).toHaveBeenCalledWith('join_ai_ranked_queue', { name: 'Alice' });
+    expect(joinBotRankedQueue).toHaveBeenCalledWith('acct-tok');
+    expect(lastBotRankedLabel).toBe('BOTS');
+    expect(lastBotRankedSublabel).toMatch(/^SEARCHING/);
+    expect(push).not.toHaveBeenCalled();
+
+    act(() => {
+      socket.__fireSubscribeEvent('ai_ranked_match_found', { lobby_id: 'BOTQ', token: 'tok-9' });
+    });
+
+    expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'BOTQ', token: 'tok-9' });
+    expect(push).toHaveBeenCalledWith('/lobby?id=BOTQ');
+  });
+
+  it('warns and does not queue when not logged in with an account', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    renderCity();
+    await waitForScene();
+
+    await act(async () => {
+      botRankedHandler?.();
+      await flush();
+    });
+
+    expect(joinBotRankedQueue).not.toHaveBeenCalled();
+    expect(await screen.findByText(/log in with your account/i)).toBeInTheDocument();
+  });
+
+  it('cancels the queue on a second click while searching', async () => {
+    setStoredAccountToken('acct-tok');
+    localStorage.setItem('playerName', 'Alice');
+    vi.mocked(joinBotRankedQueue).mockResolvedValue({ queued: true });
+    vi.mocked(leaveBotRankedQueue).mockResolvedValue({ left: true, was_queued: true });
+    renderCity();
+    await waitForScene();
+
+    await act(async () => { botRankedHandler?.(); await flush(); });
+    expect(lastBotRankedSublabel).toMatch(/^SEARCHING/);
+
+    await act(async () => { botRankedHandler?.(); await flush(); });
+    expect(leaveBotRankedQueue).toHaveBeenCalledWith('acct-tok');
+    expect(lastBotRankedSublabel).toBeNull();
+  });
+
+  it('surfaces a queue-join failure', async () => {
+    setStoredAccountToken('acct-tok');
+    localStorage.setItem('playerName', 'Alice');
+    vi.mocked(joinBotRankedQueue).mockRejectedValue(new Error('boom'));
+    renderCity();
+    await waitForScene();
+
+    await act(async () => {
+      botRankedHandler?.();
+      await flush();
+    });
+
+    expect(push).not.toHaveBeenCalled();
+    expect(await screen.findByText(/boom/i)).toBeInTheDocument();
+  });
+});
+
+// The signpost's labels are DOM, not WebGL: FreshHtml appends them into the
+// canvas's container with a z-index off drei's default range (up to
+// 16777271, chosen to beat everything). The container is positioned but
+// carries no z-index of its own, so it was not a stacking context and those
+// values escaped into the page's root context -- where they struck through
+// the text of the user menu whenever it was open over the city.
+describe('CityPage canvas stacking', () => {
+  it('isolates the canvas container so 3D labels cannot paint over the HUD', () => {
+    renderCity();
+    expect(screen.getByTestId('canvas-container')).toHaveStyle({ isolation: 'isolate' });
+  });
+
+  it('still lets the canvas fill the scene', () => {
+    renderCity();
+    expect(screen.getByTestId('canvas-container')).toHaveStyle({ position: 'absolute' });
   });
 });

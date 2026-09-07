@@ -90,6 +90,16 @@ export default function SignupPage() {
             >
               {sending ? 'Sending…' : 'Create User'}
             </button>
+            {/* Art. 13 wants the player told what happens to their data at
+                the moment it's handed over, not only once they reach the
+                shop -- this is the screen that actually collects the email. */}
+            <p className="text-xs text-white/40 mt-4 text-center">
+              We use your email to verify your account and log you in. See our{' '}
+              <Link href="/privacy" className="text-amber-300 underline hover:text-amber-200">
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </>
         )}
 

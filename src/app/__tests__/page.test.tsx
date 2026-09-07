@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import Page from '@/app/page';
 import {
   checkName,
@@ -70,7 +70,14 @@ const socket = socketModule as unknown as {
 // at render time. Step 12 deleted that whole branch, so Canvas is now the
 // only thing the page takes from R3F.
 vi.mock('@react-three/fiber', () => ({
-  Canvas: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  // Renders the wrapper R3F would, style included: the city markers' labels
+  // are appended into exactly this element, so its stacking behaviour is
+  // what keeps them off the top bar.
+  Canvas: ({ children, style }: { children?: ReactNode; style?: CSSProperties }) => (
+    <div data-testid="canvas-container" style={style}>
+      {children}
+    </div>
+  ),
 }));
 
 const ATHENS: City = { id: 1, name: 'Athens', country: 'Greece', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '' };
@@ -184,5 +191,20 @@ describe('Page (world map view, city routing)', () => {
     await clickCity(RULES);
     expect(push).toHaveBeenCalledWith('/rules');
     expect(screen.queryByText('Enter the Hades Bossfight')).not.toBeInTheDocument();
+  });
+});
+
+// The city markers' labels are DOM, not WebGL: FreshHtml appends them into
+// the canvas's container with a z-index off drei's default range (up to
+// 16777271). The container carries no z-index of its own, so without a
+// stacking context those values escaped into the page's root context and
+// beat the top bar's z-20 -- a marker label struck through the text of the
+// user menu whenever it was open.
+describe('Page canvas stacking', () => {
+  it('isolates the canvas container so 3D labels cannot paint over the HUD', async () => {
+    render(<Page />);
+    await waitFor(() =>
+      expect(screen.getByTestId('canvas-container')).toHaveStyle({ isolation: 'isolate' })
+    );
   });
 });

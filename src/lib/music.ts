@@ -1,8 +1,17 @@
-import { isMusicEnabled, subscribeSoundSettings } from './soundSettings';
+import {
+  getMusicVolume,
+  isMusicEnabled,
+  isMusicInBackgroundEnabled,
+  subscribeSoundSettings,
+} from './soundSettings';
 
 export const HOME_MUSIC = '/audio/music/Broken by Water.mp3';
 export const PRE_LOBBY_MUSIC = '/audio/music/Quiet Ascent.mp3';
 export const BATTLE_MUSIC = '/audio/music/Chamber.mp3';
+/** The city. Main Theme.mp3 shipped in public/audio/music/ from the start
+ *  but was never wired to anything -- the city scene had no music call at
+ *  all, so its toggle sat over silence and looked broken. */
+export const CITY_MUSIC = '/audio/music/Main Theme.mp3';
 
 // A single shared <audio> element rather than one per screen -- screens
 // mount/unmount their music via plain useEffects as the player navigates
@@ -43,10 +52,16 @@ function resumeOnFirstGesture(): void {
 // useWheelAnimation.ts's own visibilitychange handling): pause on hide,
 // resume on show -- gated on isMusicEnabled() so returning to the tab
 // doesn't override a mute the player set while away.
+// ...and gated on the player's own preference: someone who deliberately
+// turned on "keep playing in the background" wants exactly the behaviour
+// the pause was written to suppress, so leave their music alone.
 function onVisibilityChange(): void {
   if (!audio || !currentTrack) return;
-  if (document.hidden) audio.pause();
-  else if (isMusicEnabled()) safePlay(audio);
+  if (document.hidden) {
+    if (!isMusicInBackgroundEnabled()) audio.pause();
+  } else if (isMusicEnabled()) {
+    safePlay(audio);
+  }
 }
 
 function ensureAudio(): HTMLAudioElement | null {
@@ -54,9 +69,13 @@ function ensureAudio(): HTMLAudioElement | null {
   if (!audio) {
     audio = new Audio();
     audio.loop = true;
-    audio.volume = 0.4;
+    audio.volume = getMusicVolume();
     subscribeSoundSettings(() => {
-      if (!audio || !currentTrack) return;
+      if (!audio) return;
+      // Volume tracks the slider even with no track loaded, so a level set
+      // on a silent screen is already right when one starts.
+      audio.volume = getMusicVolume();
+      if (!currentTrack) return;
       if (isMusicEnabled()) safePlay(audio);
       else audio.pause();
     });

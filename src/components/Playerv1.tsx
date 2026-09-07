@@ -5,6 +5,8 @@ import { useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
+import { AVATAR_RENDER_ORDER, applyFade } from '@/lib/avatarFade';
+
 // hades_v4.glb (the bossfight model) is Draco-compressed; other models loaded
 // through this component are not, but GLTFLoader only invokes DRACOLoader when
 // a file actually carries the KHR_draco_mesh_compression extension.
@@ -82,60 +84,18 @@ function PlayerV1Impl({
     // maps, so the flags were dead weight.
     sceneClone.traverse((obj: THREE.Object3D) => {
       if (obj instanceof THREE.Mesh) {
-        obj.renderOrder = 10;
+        obj.renderOrder = AVATAR_RENDER_ORDER;
       }
     });
   }, [sceneClone, isAnimating, initialPosition]);
 
-  // Death look: keep the character's texture but blend 50% gray into it and make
-  // it 30% opaque, so a dead player reads as a faded ghost of themselves rather
-  // than a flat gray statue. Materials are shared across scene.clone() instances,
-  // so we clone before altering or every player on the same skin would fade too.
-  // The original material is stashed per-mesh so the model restores if the player
-  // comes back (e.g. a new round).
+  // Death/spectator look. The actual material treatment lives in
+  // lib/avatarFade.ts rather than here: anything else parented into the
+  // avatar's group -- a cosmetic, notably -- is not in this component's
+  // traversal and would otherwise stay fully opaque beside a ghosted frog
+  // (docs/ARTIFACT_PLAN.md §5.5).
   useEffect(() => {
-    sceneClone.traverse((obj: THREE.Object3D) => {
-      if (!(obj instanceof THREE.Mesh)) return;
-      const orig = (obj.userData.origMaterial ?? obj.material) as
-        | THREE.Material
-        | THREE.Material[];
-      obj.userData.origMaterial = orig;
-
-      if (isGhost) {
-        // A spectator is not dead, so it does not take the death treatment:
-        // no gray wash, no toppled pose. Just the player's own skin, thinner
-        // than a corpse -- 0.18 against the dead's 0.3 -- so a watcher above
-        // the ring reads as present but not playing.
-        const haunt = (m: THREE.Material) => {
-          const c = m.clone();
-          c.transparent = true;
-          c.opacity = 0.18;
-          c.depthWrite = false;
-          c.needsUpdate = true;
-          return c;
-        };
-        obj.material = Array.isArray(orig) ? orig.map(haunt) : haunt(orig);
-      } else if (isDead) {
-        const fade = (m: THREE.Material) => {
-          const c = m.clone();
-          c.transparent = true;
-          c.opacity = 0.3;        // 30% opaque
-          c.depthWrite = false;
-          // Mix 50% mid-gray into the final shaded colour (keeps the texture).
-          c.onBeforeCompile = (shader) => {
-            shader.fragmentShader = shader.fragmentShader.replace(
-              '#include <dithering_fragment>',
-              '#include <dithering_fragment>\n\tgl_FragColor.rgb = mix( gl_FragColor.rgb, vec3( 0.5 ), 0.5 );',
-            );
-          };
-          c.needsUpdate = true;
-          return c;
-        };
-        obj.material = Array.isArray(orig) ? orig.map(fade) : fade(orig);
-      } else {
-        obj.material = orig;
-      }
-    });
+    applyFade(sceneClone, { isDead, isGhost });
   }, [sceneClone, isDead, isGhost]);
 
   return (

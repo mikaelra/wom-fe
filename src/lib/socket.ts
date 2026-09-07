@@ -11,6 +11,12 @@ import {
   RankedMatchFoundPayloadSchema,
   OnlineCountPayloadSchema,
   BossfightRosterResponseSchema,
+  MarketListingSchema,
+  MarketChatMessageSchema,
+  MarketChatBacklogSchema,
+  MarketListingExpiredSchema,
+  MarketFrogsSchema,
+  CityPresenceSchema,
 } from '@/lib/schemas';
 
 // Typed event maps, built directly against wom-be's docs/PROTOCOL.md.
@@ -27,12 +33,28 @@ export interface ServerToClientEvents {
   // Ranked matchmaking (docs/RANK_SYSTEM_PLAN.md §6/§10).
   joined_ranked_queue: (payload: { name: string }) => void;
   ranked_match_found: (payload: { lobby_id: string; token: string }) => void;
+  // Bot-ranked HUMAN matchmaking (docs/MY_AI.md §4) -- same shapes as the
+  // human ranked pair above.
+  joined_ai_ranked_queue: (payload: { name: string }) => void;
+  ai_ranked_match_found: (payload: { lobby_id: string; token: string }) => void;
   online_count: (payload: { count: number }) => void;
   // The city watching a boss fight it is not in (wom-be sockets/city.py).
   // Same payload as GET /get_bossfight_roster, pushed instead of polled so
   // the signpost's "WAITING" flips to "PLAYING" on the round, not on a
   // timer.
   bossfight_roster: (payload: z.infer<typeof BossfightRosterResponseSchema>) => void;
+  // Building-occupancy counts over the temple / arena / market, pushed to
+  // the city on a slow tick (wom-be sockets/city.py).
+  city_presence: (payload: z.infer<typeof CityPresenceSchema>) => void;
+  // The market's shared room (wom-be sockets/market.py / routes/market.py).
+  // Board pushes so a client never has to poll, plus the common chat.
+  listing_created: (payload: z.infer<typeof MarketListingSchema>) => void;
+  listing_updated: (payload: z.infer<typeof MarketListingSchema>) => void;
+  listing_expired: (payload: z.infer<typeof MarketListingExpiredSchema>) => void;
+  market_chat_message: (payload: z.infer<typeof MarketChatMessageSchema>) => void;
+  market_chat_backlog: (payload: z.infer<typeof MarketChatBacklogSchema>) => void;
+  // Who is in the market now (for the chat's "Frogs" list).
+  market_frogs: (payload: z.infer<typeof MarketFrogsSchema>) => void;
 }
 
 export interface ClientToServerEvents {
@@ -56,10 +78,20 @@ export interface ClientToServerEvents {
   submit_deny_target: (payload: { lobby_id: string; target: string }) => void;
   send_message: (payload: { lobby_id: string; message: string }) => void;
   join_ranked_queue: (payload: { name: string }) => void;
+  join_ai_ranked_queue: (payload: { name: string }) => void;
   // No payload and no token: a watcher is deliberately NOT in the lobby,
   // and asking must never put them in it.
   watch_bossfight: () => void;
   stop_watching_bossfight: () => void;
+  // The city's building-occupancy counts -- a separate, smaller subscription
+  // than the full bossfight roster.
+  watch_city_presence: () => void;
+  stop_watching_city_presence: () => void;
+  // Market room. join/send require an account session token (unlike the
+  // anonymous bossfight watch); leave needs nothing.
+  join_market: (payload: { token: string | null }) => void;
+  leave_market: () => void;
+  send_market_message: (payload: { token: string | null; message: string }) => void;
 }
 
 type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -86,8 +118,17 @@ const EVENT_SCHEMAS = {
   chat_message: ChatMessageSchema,
   joined_ranked_queue: JoinedRankedQueuePayloadSchema,
   ranked_match_found: RankedMatchFoundPayloadSchema,
+  joined_ai_ranked_queue: JoinedRankedQueuePayloadSchema,
+  ai_ranked_match_found: RankedMatchFoundPayloadSchema,
   online_count: OnlineCountPayloadSchema,
   bossfight_roster: BossfightRosterResponseSchema,
+  city_presence: CityPresenceSchema,
+  listing_created: MarketListingSchema,
+  listing_updated: MarketListingSchema,
+  listing_expired: MarketListingExpiredSchema,
+  market_chat_message: MarketChatMessageSchema,
+  market_chat_backlog: MarketChatBacklogSchema,
+  market_frogs: MarketFrogsSchema,
 } satisfies { [K in keyof ServerToClientEvents]: z.ZodTypeAny };
 
 /**
@@ -137,5 +178,32 @@ export function subscribe<E extends keyof ServerToClientEvents>(
   looseSock.on(event, wrapped);
   return () => {
     looseSock.off(event, wrapped);
+  };
+}
+
+/**
+ * Subscribe to socket.io's own `connect` event, which fires on the initial
+ * connection *and* on every automatic reconnect.
+ *
+ * Lives here rather than in the calling hook so that `getSocket()`'s raw
+ * socket stays confined to this module, same as subscribe() above. It is
+ * deliberately not part of `subscribe`: `connect` is a socket.io lifecycle
+ * event, not one of wom-be's protocol events, so it has no payload and no
+ * entry in EVENT_SCHEMAS to validate against.
+ *
+ * The reason anything needs this: Socket.IO rooms are keyed by connection
+ * (sid), not by player, so every room a client joined is silently lost on a
+ * reconnect and must be re-joined by the client. See useRankedQueue, where
+ * losing the queue room meant losing the match-found push entirely.
+ */
+export function subscribeConnect(handler: () => void): () => void {
+  const sock = getSocket();
+  const looseSock = sock as unknown as {
+    on(event: string, listener: () => void): void;
+    off(event: string, listener: () => void): void;
+  };
+  looseSock.on('connect', handler);
+  return () => {
+    looseSock.off('connect', handler);
   };
 }

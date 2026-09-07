@@ -53,6 +53,16 @@ const SKIN_PRODUCT = {
   skin: 'cherub_v1',
 };
 
+const AI_CREDITS_PRODUCT = {
+  id: 'ai_credits',
+  name: '10 Bot-Game Credits',
+  price_cents: 100,
+  currency: 'usd',
+  kind: 'ai_credits' as const,
+  credits_per_pack: 10,
+  max_quantity: 50,
+};
+
 const flush = () => act(async () => Promise.resolve());
 
 function loginAs() {
@@ -212,6 +222,38 @@ describe('ShopPage', () => {
     await flush();
 
     expect(screen.queryByLabelText('Increase quantity')).not.toBeInTheDocument();
+  });
+
+  it('lets bot-game credits be bought in multiples, clamped to max_quantity, total price and credit count following', async () => {
+    loginAs();
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [AI_CREDITS_PRODUCT],
+    });
+    mockedPostCheckout.mockResolvedValue({ checkout_url: 'https://checkout.stripe.com/pay/cs_9', order_id: 9 });
+
+    render(<ShopPage />);
+    await flush();
+
+    const increase = screen.getByLabelText('Increase quantity');
+    expect(screen.getByLabelText('Quantity')).toHaveValue('1');
+    expect(screen.getByText('$1.00')).toBeInTheDocument();
+    expect(screen.getByText(/^10 bot-game credits/)).toBeInTheDocument();
+
+    fireEvent.click(increase);
+    fireEvent.click(increase);   // -> 3 packs
+    expect(screen.getByText('$3.00')).toBeInTheDocument();
+    expect(screen.getByText(/^30 bot-game credits/)).toBeInTheDocument();
+
+    for (let i = 0; i < 60; i++) fireEvent.click(increase);
+    expect(screen.getByLabelText('Quantity')).toHaveValue('50');   // clamped to max_quantity
+    expect(increase).toBeDisabled();
+    expect(screen.getByText('$50.00')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Buy' }));
+    await flush();
+
+    expect(mockedPostCheckout).toHaveBeenCalledWith('sess-1', 'ai_credits', false, 50);
   });
 
   it('redirects to the Stripe checkout url on success', async () => {

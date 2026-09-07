@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
 import { APP_VERSION, BUILD_NUMBER } from '@/config';
 import { CITY_PATH } from '@/lib/cities';
+import AudioSettingsPanel from '@/components/audio/AudioSettingsPanel';
 
 const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
@@ -184,6 +185,12 @@ export default function SettingsPage() {
             )}
           </div>
         )}
+
+        {/* Deliberately outside the loading/login gate above: audio levels
+            live in localStorage on this device, so there is nothing to load
+            and no reason a logged-out player should be unable to turn the
+            music down. */}
+        <AudioSettingsPanel />
 
         {/* First question in any store support ticket is "which build are
             you on" (docs/MOBILE_AND_STEAM_PLAN.md §4.2). */}

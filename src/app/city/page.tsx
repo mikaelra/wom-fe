@@ -12,9 +12,12 @@ import { findCity } from '@/lib/cities';
 import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
+import { useEnterBotRanked } from '@/lib/useEnterBotRanked';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useBossfightRoster } from '@/lib/useBossfightRoster';
+import { useCityPresence } from '@/lib/useCityPresence';
 import { bossfightSignSublabel } from '@/lib/bossfightSign';
+import { playMusic, CITY_MUSIC } from '@/lib/music';
 
 const CityScene = dynamic(() => import('@/components/city/CityScene'), { ssr: false });
 
@@ -39,6 +42,14 @@ function CityPageContent() {
   // "02:00" is 2am Athens tonight (docs/CITY_SCENE_PLAN.md §6.6).
   const { date: skyDate, overridden: skyOverridden } = resolveCityTime(searchParams.get('t'));
 
+  // The city had no music call of its own -- WorldMapOverlay and
+  // LobbyOverlay were the only two screens that ever started a track -- so
+  // the toggle in the top bar was muting silence, and looked broken because
+  // it was working perfectly on nothing.
+  useEffect(() => {
+    playMusic(CITY_MUSIC);
+  }, []);
+
   // The loading curtain lifts on the scene's own signal, never on a timer --
   // except as a last resort, below.
   const [sceneReady, setSceneReady] = useState(false);
@@ -53,6 +64,11 @@ function CityPageContent() {
 
   const { enterBossfight, loading, gateOpen, closeGate, authFlow } = useEnterBossfight();
   const ranked = useEnterRanked();
+  // BOTS arm of the fork signpost: join the bot-ranked matchmaking queue
+  // (docs/MY_AI.md §4). Real players are grouped into one shared lobby
+  // (30s countdown), padded with Wolf/Owl/Turtle in the last few seconds.
+  // Your own AI stays in the autonomous queue competing on its own.
+  const botRanked = useEnterBotRanked();
   // Same countdown the world map used to show under the Athens sword; it now
   // reads under the signpost's Bossfight arm.
   const { bossfightMins, bossfightSecs } = useBossfightCountdown(true);
@@ -62,6 +78,9 @@ function CityPageContent() {
   // building is the only way the two can never disagree.
   const roster = useBossfightRoster();
   const bossfightSublabel = bossfightSignSublabel(roster, bossfightMins, bossfightSecs);
+  // How busy each of the three buildings is right now, for the "N playing"
+  // / "N in market" signs floating over them (wom-be `city_presence`).
+  const presence = useCityPresence();
 
   if (!city) {
     return (
@@ -86,7 +105,19 @@ function CityPageContent() {
         // the pixel count for no visible gain.
         dpr={[1, 2]}
         gl={{ powerPreference: 'high-performance' }}
-        style={{ position: 'absolute', inset: 0 }}
+        // `isolation: isolate` is load-bearing, not decoration. FreshHtml
+        // appends each 3D-anchored label into the canvas's own container and
+        // gives it a z-index off drei's default range, which tops out at
+        // 16777271 -- a number picked to beat everything. This container is
+        // positioned but has no z-index of its own, so it was NOT a stacking
+        // context, and those z-indices escaped into the page's root context
+        // and competed with the DOM chrome directly. The signpost's labels
+        // won, and struck through the text of the user menu (Stats /
+        // Inventory / Shop / Settings) whenever it was open over the city.
+        // Isolating the container traps them: they still sort correctly
+        // against each other and still draw over the canvas, but the whole
+        // group now sits below later siblings like <CityOverlay/>.
+        style={{ position: 'absolute', inset: 0, isolation: 'isolate' }}
       >
         <CityScene
           date={skyDate}
@@ -96,9 +127,14 @@ function CityPageContent() {
           bossfightSublabel={bossfightSublabel}
           roster={roster}
           onRanked={ranked.enterRanked}
+          onBotRanked={botRanked.enterBotRanked}
           rankedLabel={ranked.label}
           rankedSublabel={ranked.sublabel}
+          botRankedLabel={botRanked.label}
+          botRankedSublabel={botRanked.sublabel}
           onBackToEarth={() => router.push('/')}
+          onMarket={() => router.push('/market')}
+          presence={presence}
           onReady={handleReady}
         />
       </Canvas>

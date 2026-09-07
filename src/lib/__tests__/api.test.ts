@@ -3,7 +3,10 @@ import { BACKEND_URL, PROTOCOL_VERSION } from '@/config';
 import {
   checkClaimVerified,
   checkName,
+  claimPendingArtifact,
   claimPendingWheel,
+  equipCosmetic,
+  getArtifactLedger,
   confirmEmailVerification,
   createLobby,
   equipSkin,
@@ -13,7 +16,12 @@ import {
   getPlayerProfile,
   getPlayerRelics,
   getRankedProfile,
+  getMarketTrades,
   getShopProducts,
+  getMyAiStatus,
+  toggleMyAi,
+  saveMyAiSettings,
+  getMyAiMatches,
   getWellProfile,
   getWheelTables,
   getTradeUpRules,
@@ -668,5 +676,314 @@ describe('tradeUp', () => {
   it('passes through an unmapped error code unchanged', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: 'Invalid or expired session.', code: 'invalid_session' }, 401));
     await expect(tradeUp('bad', 'frog_blue_v1')).rejects.toThrow('Invalid or expired session.');
+  });
+});
+
+describe('confirmEmailVerification', () => {
+  it('accepts a purpose this build does not know about', async () => {
+    // The schema used to pin `purpose` to a closed enum, which turned a new
+    // backend purpose into a hard failure of work the backend had already
+    // done. Kept loose on purpose.
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, purpose: 'claim_artifact', session_token: 'sess' }),
+    );
+
+    await expect(confirmEmailVerification('tok')).resolves.toMatchObject({
+      purpose: 'claim_artifact',
+    });
+  });
+
+  it('stores the session token the link returns', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, purpose: 'claim_artifact', session_token: 'sess-art' }),
+    );
+
+    await confirmEmailVerification('tok');
+
+    expect(getStoredAccountToken()).toBe('sess-art');
+  });
+});
+
+describe('getInventory (artifact fields)', () => {
+  it('carries the equipped cosmetic and the caller\'s artifact through', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        equipped_skin: 'frog_green_v1',
+        skins: [],
+        wheels: [],
+        equipped_cosmetic: 'artifact_v1',
+        artifact: { ordinal: 4, discovered_at: '2026-09-01T00:00:00+00:00', cosmetic: 'artifact_v1' },
+      }),
+    );
+
+    const result = await getInventory('sess-1');
+
+    expect(result.equipped_cosmetic).toBe('artifact_v1');
+    expect(result.artifact?.ordinal).toBe(4);
+  });
+
+  it('accepts a response with no artifact fields at all', async () => {
+    // Deploy independence: a wom-be built before the artifact system omits
+    // these entirely, and the inventory page must still render.
+    fetchMock.mockResolvedValue(
+      jsonResponse({ equipped_skin: 'frog_green_v1', skins: [], wheels: [] }),
+    );
+
+    const result = await getInventory('sess-1');
+
+    expect(result.equipped_cosmetic).toBeUndefined();
+    expect(result.artifact).toBeUndefined();
+  });
+
+  it('accepts a null artifact for an account that has never found one', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        equipped_skin: 'frog_green_v1',
+        skins: [],
+        wheels: [],
+        equipped_cosmetic: null,
+        artifact: null,
+      }),
+    );
+
+    await expect(getInventory('sess-1')).resolves.toMatchObject({ artifact: null });
+  });
+});
+
+describe('equipCosmetic', () => {
+  it('posts the cosmetic and returns what is now equipped', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, equipped_cosmetic: 'artifact_v1' }));
+
+    const result = await equipCosmetic('tok', 'artifact_v1');
+
+    expect(result.equipped_cosmetic).toBe('artifact_v1');
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/inventory/equip_cosmetic`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'tok', cosmetic: 'artifact_v1' }),
+    });
+  });
+
+  it('unequips by sending an empty string, and accepts a null result', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, equipped_cosmetic: null }));
+
+    await expect(equipCosmetic('tok', '')).resolves.toEqual({
+      success: true,
+      equipped_cosmetic: null,
+    });
+  });
+
+  it('turns a 403 into an ownership message', async () => {
+    fetchMock.mockResolvedValue(failingJsonResponse(403));
+
+    await expect(equipCosmetic('tok', 'artifact_v1')).rejects.toThrow(
+      'You do not own this cosmetic.',
+    );
+  });
+});
+
+describe('getArtifactLedger', () => {
+  it('POSTs the session token with a keyset cursor', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        artifacts: [{ ordinal: 1, finder_name: 'Alice', discovered_at: '2026-09-01T00:00:00+00:00' }],
+        total: 1,
+        current_chance: 0.001,
+      }),
+    );
+
+    const result = await getArtifactLedger('tok', 0, 100);
+
+    expect(result.artifacts[0].finder_name).toBe('Alice');
+    expect(result.total).toBe(1);
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/artifacts/ledger`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'tok', after: 0, limit: 100 }),
+    });
+  });
+
+  it('passes the cursor through so pages continue from the last ordinal', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ artifacts: [], total: 5, current_chance: 1 }));
+
+    await getArtifactLedger('tok', 3, 50);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/artifacts/ledger`,
+      expect.objectContaining({ body: JSON.stringify({ token: 'tok', after: 3, limit: 50 }) }),
+    );
+  });
+
+  it('surfaces a 403 as an ApiError so callers can show "sealed", not an error', async () => {
+    // The ledger is readable only by someone who has discovered an artifact.
+    // That is a state, not a fault, and the component distinguishes them by
+    // status -- so the status has to survive.
+    fetchMock.mockResolvedValue(failingJsonResponse(403));
+
+    await expect(getArtifactLedger('tok')).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('accepts a null discovery date', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        artifacts: [{ ordinal: 1, finder_name: 'Alice', discovered_at: null }],
+        total: 1,
+        current_chance: 0.001,
+      }),
+    );
+
+    await expect(getArtifactLedger('tok')).resolves.toMatchObject({
+      artifacts: [{ discovered_at: null }],
+    });
+  });
+});
+
+describe('claimPendingArtifact', () => {
+  it('posts the lobby, name and email', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, pending_verification: true }));
+
+    const result = await claimPendingArtifact('lobby1', 'Alice', 'a@b.c');
+
+    expect(result).toEqual({ success: true, pending_verification: true });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/claim_pending_artifact`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lobby_id: 'lobby1', name: 'Alice', email: 'a@b.c' }),
+    });
+  });
+});
+
+describe('getMarketTrades', () => {
+  const page = {
+    trades: [
+      {
+        id: 5,
+        listing_id: 50,
+        kind: 'quick',
+        role: 'seller',
+        counterparty_name: 'Bo',
+        completed_at: '2026-09-02T12:00:00+00:00',
+        gave: [{ item_type: 'skin', skin: 'frog_gold_v1', relic_id: null, wheel_kind: null, quantity: 1 }],
+        got: [],
+      },
+    ],
+    has_more: true,
+    next_before: 5,
+  };
+
+  it('POSTs the token to /market/trades with no cursor on the first page', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(page));
+
+    await expect(getMarketTrades('sess-1')).resolves.toEqual(page);
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/market/trades`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'sess-1' }),
+    });
+  });
+
+  it('passes the keyset cursor and limit in the body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ trades: [], has_more: false, next_before: null }));
+
+    await getMarketTrades('sess-1', { before: 5, limit: 10 });
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/market/trades`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'sess-1', before: 5, limit: 10 }),
+    });
+  });
+});
+
+describe('My AI endpoints', () => {
+  const fullStatus = {
+    enabled: false,
+    minute_counter: 10,
+    knobs: {},
+    override_rules: [],
+    credits: 3,
+    trainable: true,
+    logged_rows: 50,
+    min_rows: 40,
+    bot_rank: { tier: null, games_played: 0 },
+    queue: { queued: false, queue_size: 0 },
+  };
+
+  it('getMyAiStatus posts the token and parses the status', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(fullStatus));
+
+    const res = await getMyAiStatus('sess');
+
+    expect(res.credits).toBe(3);
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/my_ai/status`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'sess' }),
+    });
+  });
+
+  it('toggleMyAi posts the desired state', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ enabled: true, queued: true, reason: 'queued' }));
+
+    const res = await toggleMyAi('sess', true);
+
+    expect(res).toEqual({ enabled: true, queued: true, reason: 'queued' });
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'sess', enabled: true,
+    });
+  });
+
+  it('saveMyAiSettings spreads the settings into the body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      saved: true, enabled: false, minute_counter: 20, knobs: {}, override_rules: [],
+    }));
+
+    await saveMyAiSettings('sess', { minute_counter: 20, knobs: { revenge: 0.5 } });
+
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'sess', minute_counter: 20, knobs: { revenge: 0.5 },
+    });
+  });
+
+  it('joinBotRankedQueue posts the account token to the queue endpoint', async () => {
+    const { joinBotRankedQueue } = await import('@/lib/api');
+    fetchMock.mockResolvedValue(jsonResponse({ queued: true, queue_size: 2 }));
+
+    const res = await joinBotRankedQueue('acct');
+
+    expect(res).toEqual({ queued: true, queue_size: 2 });
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'acct',
+    });
+    expect(fetchMock.mock.calls[0][0]).toContain('/my_ai/bot_ranked');
+  });
+
+  it('getActiveBotRankedLobby posts the account token to the /active endpoint', async () => {
+    const { getActiveBotRankedLobby } = await import('@/lib/api');
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        lobby_id: 'BOTP', token: 'lobby-tok',
+        ai_ranked_countdown_deadline: null, started: false,
+      }),
+    );
+
+    const res = await getActiveBotRankedLobby('acct');
+
+    expect(res.lobby_id).toBe('BOTP');
+    expect(fetchMock.mock.calls[0][0]).toContain('/my_ai/bot_ranked/active');
+  });
+
+
+  it('getMyAiMatches parses the history', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      matches: [{
+        match_id: 'm1', placement: 1, rank: 'Warlock II',
+        opponents: [{ name: "Ben's AI", owner: 'Ben', place: 2 }],
+        at: '2026-09-03T14:03:00Z',
+      }],
+    }));
+    const res = await getMyAiMatches('sess');
+    expect(res.matches[0].rank).toBe('Warlock II');
+    expect(res.matches[0].at).toBe('2026-09-03T14:03:00Z');
   });
 });

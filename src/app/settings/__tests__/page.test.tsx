@@ -40,11 +40,15 @@ describe('SettingsPage', () => {
 
     expect(screen.getByText('You must be logged in to view settings.')).toBeInTheDocument();
     expect(screen.getByText('Go to log in')).toBeInTheDocument();
-    // The verify-email toggle is gated behind login, and it's the only
-    // setting on this page now -- nothing renders here.
+    // The verify-email toggle is account state, so it stays behind the
+    // login gate.
     expect(screen.queryByText('Toggle always e-mail verificiation.')).not.toBeInTheDocument();
-    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     expect(mockedGetFlag).not.toHaveBeenCalled();
+    // The audio settings deliberately are not: they live in localStorage on
+    // this device, so gating them would leave a logged-out player with no
+    // way to turn the music down.
+    expect(screen.getByLabelText('Music volume')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sound effects volume')).toBeInTheDocument();
   });
 
   it('reflects the server flag when it is on', async () => {

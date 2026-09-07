@@ -11,6 +11,7 @@ import SceneOverlay, {
 } from '@/components/SceneOverlay';
 import BossSignupNudge from '@/components/BossSignupNudge';
 import WheelClaimNudge from '@/components/WheelClaimNudge';
+import ArtifactClaimNudge from '@/components/ArtifactClaimNudge';
 import StartGameButton from '@/components/StartGameButton';
 import RulesModal from '@/components/lobby/RulesModal';
 import RankBadge from '@/components/hud/RankBadge';
@@ -189,6 +190,17 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
           </Link>
         </p>
       )}
+      {myPlayer?.artifact_awarded && (
+        <p className="text-amber-300 font-semibold mb-2">
+          📜 You discovered an artifact!{' '}
+          {/* Points at the inventory rather than naming the action: equipping
+              and unequipping both live there, so the link should promise the
+              place, not one of the two things you can do in it. */}
+          <Link href="/inventory" className="underline hover:text-amber-200">
+            Your Inventory
+          </Link>
+        </p>
+      )}
       {/* No raw rating number shown -- only the derived tier, once there is
           one (rankedResult.tier_after is null while still hidden during
           placements, docs/RANK_SYSTEM_PLAN.md §4/§5). */}
@@ -357,6 +369,18 @@ export function renderPreGame({
               <p className="text-white/70 text-xs">Match starts in {rankedSecondsLeft}s</p>
             )}
           </div>
+        ) : state.ai_ranked ? (
+          <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
+            <p className="font-bold text-amber-300">Bot-Ranked Match</p>
+            <p className="text-white/70 text-sm">
+              {rankedSecondsLeft != null
+                ? 'Waiting for players… bots fill in the last few seconds'
+                : 'Match in progress'}
+            </p>
+            {rankedSecondsLeft != null && (
+              <p className="text-white/70 text-xs">Match starts in {rankedSecondsLeft}s</p>
+            )}
+          </div>
         ) : (
           <RopedFrame width={220} height={54} textClassName="font-bold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
             Lobby ID: {lobbyId}
@@ -447,6 +471,7 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [wheelNudgeDismissed, setWheelNudgeDismissed] = useState(false);
+  const [artifactNudgeDismissed, setArtifactNudgeDismissed] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [playerName, setPlayerName] = useState('');
   // Mirrors SceneOverlay's own gate for when the Game Over text actually
@@ -489,6 +514,11 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
     !wheelNudgeDismissed &&
     gameOverRevealed &&
     (myPlayer?.pending_wheel_nudge ?? false);
+  // Same gating as the Wheel nudge: any match end, PvP or boss fight.
+  const showArtifactNudge =
+    !artifactNudgeDismissed &&
+    gameOverRevealed &&
+    (myPlayer?.pending_artifact_nudge ?? false);
 
   return (
     <>
@@ -530,6 +560,13 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
           lobbyId={lobbyId}
           playerName={playerName}
           onDismiss={() => setWheelNudgeDismissed(true)}
+        />
+      )}
+      {showArtifactNudge && (
+        <ArtifactClaimNudge
+          lobbyId={lobbyId}
+          playerName={playerName}
+          onDismiss={() => setArtifactNudgeDismissed(true)}
         />
       )}
     </>
