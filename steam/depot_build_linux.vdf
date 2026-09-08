@@ -1,0 +1,15 @@
+// SteamPipe depot build script -- Linux x64 (also covers Steam Deck). Template.
+"DepotBuild"
+{
+	"DepotID"     "${STEAM_DEPOT_LINUX}"
+
+	// electron-builder --linux dir output, mounted into the container.
+	"ContentRoot" "${STEAM_CONTENT_LINUX}"
+
+	"FileMapping"
+	{
+		"LocalPath"  "*"
+		"DepotPath"  "."
+		"Recursive"  "1"
+	}
+}

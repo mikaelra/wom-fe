@@ -1,0 +1,26 @@
+// SteamPipe app build script -- template, filled in by scripts/steam-upload.sh
+// via envsubst. Docs: https://partner.steamgames.com/doc/sdk/uploading
+//
+// The concrete file is written to steam/output/app_build.vdf (gitignored) with
+// real IDs and absolute container paths; this template holds no secrets.
+"AppBuild"
+{
+	"AppID"       "${STEAM_APP_ID}"
+	"Desc"        "${STEAM_BUILD_DESC}"
+
+	// Absolute paths inside the steamcmd container (see steam-upload.sh, which
+	// mounts the repo at /data).
+	"ContentRoot" "${STEAM_CONTENT_ROOT}"
+	"BuildOutput" "${STEAM_BUILD_OUTPUT}"
+
+	// Deliberately not set: this pipeline uploads only. Review and set the
+	// build live from https://partner.steamgames.com/apps/builds/${STEAM_APP_ID}
+	// -- steamcmd's SetLive can't touch the default branch anyway.
+	// "SetLive" "beta"
+
+	"Depots"
+	{
+		"${STEAM_DEPOT_WIN}"   "depot_build_win.vdf"
+		"${STEAM_DEPOT_LINUX}" "depot_build_linux.vdf"
+	}
+}
