@@ -29,6 +29,8 @@
 # Steam SDK dev-only file: written at runtime by electron/steam.js, and a
 # stray copy actively breaks launch detection in a shipped build.
 /steam_appid.txt
+# SteamPipe: rendered VDFs (real IDs, absolute paths) + build logs/cache
+/steam/output/
 
 # misc
 .DS_Store

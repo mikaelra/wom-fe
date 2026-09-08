@@ -2,6 +2,8 @@
   "name": "wom-fe",
   "version": "0.1.0",
   "private": true,
+  "description": "World of Mythos",
+  "author": "World of Mythos",
   "main": "electron/main.js",
   "scripts": {
     "dev": "next dev --turbopack",
@@ -12,7 +14,8 @@
     "test": "vitest run",
     "electron": "electron .",
     "electron:dev": "npm run build:native && electron .",
-    "dist:steam": "npm run build:native && electron-builder"
+    "dist:steam": "npm run build:native && electron-builder",
+    "steam:upload": "scripts/steam-upload.sh"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
