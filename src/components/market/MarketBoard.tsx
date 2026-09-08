@@ -1,13 +1,18 @@
 'use client';
 
-import { useState } from 'react';
 import MarketListingCard from '@/components/market/MarketListingCard';
 import { listingIsMine, type MarketCatalog, type MarketListing } from '@/lib/market';
 
 /**
  * The live board -- every open trade (wom-be docs/MARKET_PLAN.md §1A.8).
- * "Remove" hides a card from *this viewer's* board only, client-side, no
- * server state (§1A.1 step 5) -- just clutter control.
+ *
+ * Used to also carry a client-only "Hide" (a local Set of dismissed ids,
+ * reset on refresh) shown on every card including ones you don't own --
+ * removed entirely per feedback: it read as "remove someone else's trade"
+ * sitting next to the poster's own action, and didn't even give the poster
+ * a durable way to take their own listing down (it reappeared on refresh,
+ * since it was never anything but local component state). The poster's
+ * `onCancel` below is the one real removal path now, server-enforced.
  */
 export default function MarketBoard({
   listings,
@@ -26,11 +31,7 @@ export default function MarketBoard({
   onAccept: (listing: MarketListing) => void;
   onCancel: (listing: MarketListing) => void;
 }) {
-  const [removed, setRemoved] = useState<Set<number>>(new Set());
-
-  const visible = listings.filter((l) => !removed.has(l.id));
-
-  if (visible.length === 0) {
+  if (listings.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-white/15 p-10 text-center text-white/40 text-sm">
         No open trades right now. Type <code className="text-white/60">/offer</code> in the
@@ -41,7 +42,7 @@ export default function MarketBoard({
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {visible.map((listing) => (
+      {listings.map((listing) => (
         <MarketListingCard
           key={listing.id}
           listing={listing}
@@ -51,7 +52,6 @@ export default function MarketBoard({
           canAccept={canAccept(listing)}
           onAccept={() => onAccept(listing)}
           onCancel={() => onCancel(listing)}
-          onRemove={() => setRemoved((prev) => new Set(prev).add(listing.id))}
         />
       ))}
     </div>
