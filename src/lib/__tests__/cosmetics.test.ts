@@ -58,7 +58,7 @@ describe('labels', () => {
   });
 
   it('describes the artifact cosmetic', () => {
-    expect(cosmeticDescription(ARTIFACT)).toBe('A piece of paper found in a well one time.');
+    expect(cosmeticDescription(ARTIFACT)).toBe('A single piece of paper, once pulled from a well.');
   });
 
   it('returns an empty description rather than undefined for unknowns', () => {

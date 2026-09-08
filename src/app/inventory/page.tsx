@@ -446,7 +446,7 @@ export default function InventoryPage() {
                 <div className="text-center py-2">
                   <p className="text-white/60 text-sm mb-1">You have no artifacts</p>
                   <p className="text-white/40 text-xs">
-                    They turn up here when you find/make one.
+                    You have a 1 in 1000 chance of finding one when winning the well.
                   </p>
                 </div>
               )}
