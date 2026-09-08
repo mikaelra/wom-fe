@@ -13,6 +13,9 @@ electron/
   resources/    electron-builder buildResources (icons, entitlements) — TODO
 ```
 
+Uploading to Steam: see [`../steam/README.md`](../steam/README.md) and
+`npm run steam:upload`.
+
 ## Running it locally
 
 ```bash
@@ -55,15 +58,8 @@ Steam release.
 - **Real Steam app id.** `480` is a placeholder until Steam Direct is paid and
   Valve assigns one (§10.2). Set it in `steam.js`'s `APP_ID` default;
   `electron-builder.yml`'s `appId` stays `net.worldofmythos.game`.
-- **Backend CORS.** `wom-be`'s `CORS_ALLOWED_ORIGINS` must include `app://wom`
-  (the shell's origin) for REST *and* the Socket.IO handshake — mirrors the
-  `capacitor://localhost` / `https://localhost` additions in §5.4. Until then
-  the window loads but every API call fails CORS.
-- **A first real run.** The shell has only been built and unit-tested (the
-  `app://` path resolver, `electron/serveFromExport.test.js`) plus lint/
-  typecheck — never opened. The dev VM has no display or working GPU
-  (`electron` SIGSEGVs headless here), so `npm run electron:dev` needs to be
-  run on a real machine to confirm the scene renders and a match plays.
+- **Real Steam app id.** `480` is a placeholder — set `steam.js`'s `APP_ID`
+  default (and `WOM_STEAM_APPID` / the `steam:upload` env) to the assigned one.
 - **Content-Security-Policy.** No CSP is set on the renderer yet; it needs to
   allow the backend origin + `wss:` and the app's blob/wasm workers (Draco),
   which is easiest to tune against the app actually running.
@@ -72,4 +68,8 @@ Steam release.
   §6.4 wants Steam on the `extreme` tier once the resolver exists.
 - **Fullscreen / gamepad / pause** wiring (§11 "Steam-only").
 - **Server-status screen** instead of a hang when the backend is down (§10.4).
-- **SteamPipe upload from CI** (§10.2).
+- **SteamPipe upload from CI** (§10.2) — `steam:upload` runs locally for now.
+
+Done: first real run (2026-09-07, renders + plays on Wayland); `app://wom`
+CORS live on the backend (wom-be #208); Sentry tagged per shell (#360);
+SteamPipe pipeline (`steam/`, `npm run steam:upload`).

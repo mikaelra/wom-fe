@@ -1,21 +1,39 @@
-# Packaging for the Steam build -- docs/MOBILE_AND_STEAM_PLAN.md §10.
-# Run `npm run dist:steam` (builds the static export first, then this).
-# Output lands in dist-electron/ (gitignored). SteamPipe uploads from there.
+# Packaging for the Electron shell -- docs/MOBILE_AND_STEAM_PLAN.md §10.
+# Output lands in dist-electron/ (gitignored).
+#
+#   npm run dist:steam     installers (nsis / dmg / AppImage) -- for direct
+#                          downloads, NOT Steam.
+#   npm run steam:upload   the Steam path: builds `--dir` (unpacked) win + linux
+#                          trees and hands them to SteamPipe. See
+#                          scripts/steam-upload.sh + steam/README.md.
+#
+# SteamPipe chunks and deltas the raw unpacked files, so an installer or a
+# tar.gz would be uploaded as one opaque blob -- the `dir` target is the input
+# it wants.
 appId: net.worldofmythos.game
 productName: World of Mythos
+# Pinned so the Steam launch option is stable: world-of-mythos (Linux),
+# world-of-mythos.exe (Windows). Without this the Linux `dir` binary stays
+# named `electron`.
+executableName: world-of-mythos
 copyright: © World of Mythos
 
 directories:
   output: dist-electron
   buildResources: electron/resources
 
-# The app is the static export in out/ plus this thin shell. Everything else
-# in the repo (src/, scripts/, docs/, the Next toolchain) is build-time only.
+# The app is the static export in out/ plus this thin shell. The whole Next /
+# React / Three / Sentry tree is build-time only -- it's already compiled into
+# out/_next -- so the one node module that ships is steamworks.js. Without the
+# node_modules exclusion electron-builder bundles every production dependency
+# (~800 MB of webpack/babel/sentry/sharp the shell never loads).
 files:
   - electron/**/*
   - out/**/*
   - package.json
   - '!**/steam_appid.txt'
+  - '!node_modules/**/*'
+  - 'node_modules/steamworks.js/**/*'
 
 # steamworks.js ships prebuilt .node addons and the steam_api shared lib;
 # native code cannot be loaded from inside the asar archive.
@@ -40,11 +58,9 @@ mac:
   category: public.app-category.games
 
 linux:
-  # tar.gz is what SteamPipe wants for the Linux depot; AppImage is handy for
-  # local testing and Steam Deck sideloading.
+  # AppImage for local testing / Steam Deck sideloading. The Steam Linux depot
+  # is uploaded from the `dir` output by scripts/steam-upload.sh, not from these.
   target:
-    - target: tar.gz
-      arch: [x64]
     - target: AppImage
       arch: [x64]
   category: Game
