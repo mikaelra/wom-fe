@@ -18,9 +18,10 @@
 	// -- steamcmd's SetLive can't touch the default branch anyway.
 	// "SetLive" "beta"
 
+	// One `"<depot id>" "depot_build_*.vdf"` line per platform, assembled by
+	// steam-upload.sh. Windows always; Linux only when STEAM_DEPOT_LINUX is set.
 	"Depots"
 	{
-		"${STEAM_DEPOT_WIN}"   "depot_build_win.vdf"
-		"${STEAM_DEPOT_LINUX}" "depot_build_linux.vdf"
+${STEAM_DEPOTS}
 	}
 }
