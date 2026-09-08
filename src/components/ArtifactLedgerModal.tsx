@@ -82,8 +82,7 @@ export default function ArtifactLedgerModal({
           ref={panelRef}
           className="bg-gray-900 border-t border-amber-500/40 p-6"
         >
-          <h2 className="text-lg font-semibold mb-1">Artifacts discovered</h2>
-          <p className="text-white/50 text-xs mb-4">Every artifact ever found, oldest first.</p>
+          <h2 className="text-lg font-semibold mb-4">Discoverers of Artifact#1</h2>
           <ArtifactLedger highlightOrdinal={highlightOrdinal} />
         </div>
       )}
