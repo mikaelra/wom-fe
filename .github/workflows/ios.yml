@@ -52,7 +52,12 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "16.2"
+          # The newest stable Xcode on the runner image -- its iOS platform SDK
+          # is provisioned, whereas pinning an older Xcode (e.g. "16.2") hits
+          # "iOS <n> Platform Not Installed" on macos-15. Pin to an exact
+          # version here once a deterministic store build matters, adding an
+          # `xcodebuild -downloadPlatform iOS` step alongside it.
+          xcode-version: "latest-stable"
 
       - uses: actions/setup-node@v7
         with:
