@@ -1,0 +1,129 @@
+name: iOS build
+
+# The Capacitor iOS shell (docs/MOBILE_AND_STEAM_PLAN.md §7). Xcode only runs on
+# macOS, so this is the one wom-fe job on a macOS runner. It is deliberately
+# separate from deploy.yml -- the web deploy must not wait on (or be blocked by)
+# an iOS build.
+#
+# Two modes:
+#   * Any run with no signing configured -> `fastlane build_unsigned`: proves the
+#     web build + `cap sync` + Xcode project still compile. Needs no secrets.
+#   * Tag push / manual dispatch WITH `vars.IOS_TESTFLIGHT_ENABLED == 'true'` and
+#     the secrets from ios/README.md -> `fastlane beta`: signs via `match` and
+#     uploads to TestFlight. Store artifacts are cut from tags only (§4.5).
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "capacitor.config.ts"
+      - "ios/**"
+      - "fastlane/**"
+      - "Gemfile*"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.ts"
+      - "src/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+    inputs:
+      bootstrap_certs:
+        description: "One-time: create + push signing assets into the match repo, then stop"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # `git describe` needs full history + tags to derive the version,
+          # same as deploy.yml's build-and-deploy job.
+          fetch-depth: 0
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          # The newest stable Xcode on the runner image -- its iOS platform SDK
+          # is provisioned, whereas pinning an older Xcode (e.g. "16.2") hits
+          # "iOS <n> Platform Not Installed" on macos-15. Pin to an exact
+          # version here once a deterministic store build matters, adding an
+          # `xcodebuild -downloadPlatform iOS` step alongside it.
+          xcode-version: "latest-stable"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - run: npm ci
+
+      - name: Derive build identity from git
+        id: version
+        run: |
+          echo "app_version=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.0.1)" >> "$GITHUB_OUTPUT"
+          echo "build_number=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build web (static export)
+        run: npm run build:native
+        env:
+          NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+          NEXT_PUBLIC_APP_VERSION: ${{ steps.version.outputs.app_version }}
+          NEXT_PUBLIC_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+
+      - name: Sync web assets into the iOS project
+        run: npx cap sync ios
+
+      # --- Unsigned compile check: PRs, and tag/dispatch runs before signing
+      #     is configured. Needs no secrets. ---
+      - name: Build (unsigned)
+        if: >-
+          (github.event_name == 'pull_request') ||
+          (vars.IOS_TESTFLIGHT_ENABLED != 'true')
+        run: bundle exec fastlane build_unsigned
+        env:
+          APP_VERSION: ${{ steps.version.outputs.app_version }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+
+      # --- Sign + upload to TestFlight: tag push / manual dispatch, only when
+      #     IOS_TESTFLIGHT_ENABLED is set and the secrets exist. ---
+      - name: Sign + upload to TestFlight
+        if: >-
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          vars.IOS_TESTFLIGHT_ENABLED == 'true'
+        run: bundle exec fastlane ${{ (github.event_name == 'workflow_dispatch' && inputs.bootstrap_certs) && 'bootstrap_certs' || 'beta' }}
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          APP_VERSION: ${{ steps.version.outputs.app_version }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs
+          path: |
+            ios/output/logs/**
+            ~/Library/Logs/gym/**
+          if-no-files-found: ignore
+          retention-days: 7
