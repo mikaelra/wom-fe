@@ -1090,6 +1090,7 @@ comes off the schedule.
 | 1 | `/lobby/[lobbyId]` → `/lobby?id=` | ✅ Done — merged #298 2026-08-12; old-shape links redirect rather than break |
 | 1 | Conditional `output: export` | ✅ Done — merged #298 2026-08-12 |
 | 1 | Static export verified on the iPhone 14 itself (§5.3 item 4) | ✅ Done 2026-08-14 — served over NordVPN Meshnet (dev VM and phone aren't LAN-adjacent); logged in and played a full bossfight match in Safari, not just a page load |
+| 1 | Capacitor **iOS** shell + CORS origins | 🏗️ PR open (`mikaelra/capacitor-ios-shell`) — `capacitor.config.ts` + `ios/` (SwiftPM, committed, landscape-locked). `capacitor://localhost` / `https://localhost` already in `wom-be/cors.py` `NATIVE_SHELL_ORIGINS`, so no backend change |
 | 1 | Capacitor Android shell + CORS origins | Not started |
 | 1 | **Bossfight played on the iPhone 14 from TestFlight** (§5.5 milestone) | Not started |
 | 1 | Safari smoke test on the iPhone 14 (§5.1) | ✅ Done 2026-08-12 — played flawlessly |
@@ -1108,8 +1109,8 @@ comes off the schedule.
 | 2 | Confirm the unwired 31 MB music library is intentional | Not started |
 | 2 | Quality tiering + manual override | Not started |
 | 3 | Apple Developer enrolment | ✅ Done 2026-08-12 |
-| 3 | fastlane match + macOS CI — **stand up early** (§7) | Not started |
-| 3 | Hello-world TestFlight build to the iPhone 14 | Not started |
+| 3 | fastlane match + macOS CI — **stand up early** (§7) | 🏗️ PR open (`mikaelra/capacitor-ios-shell`) — `fastlane/` (`match` + `beta` + one-off `bootstrap_certs` lanes, App Store Connect API-key auth) and `.github/workflows/ios.yml` on `macos-15`. Runs unsigned-compile-check until the 7 Apple secrets + `IOS_TESTFLIGHT_ENABLED` var are set (secrets table in `ios/README.md`) |
+| 3 | Hello-world TestFlight build to the iPhone 14 | Not started — unblocked once the PR merges and secrets are set: run the workflow with `bootstrap_certs`, then push a `v*` tag |
 | 4 | **Pricing decided** — paid app (~couple of dollars), no IAP in v1 (§14.1) | ✅ Decided 2026-09-09 |
 | 4 | IAP products in both consoles | ⏸️ Deferred — not in v1 |
 | 4 | `verify_purchase` + entitlement path | ⏸️ Deferred — not in v1 |
