@@ -81,6 +81,63 @@ The build is **uploaded, not set live**. Review it and choose a branch at
 `steamcmd` can't set the `default` branch live anyway — do a beta branch first,
 test, then promote `default` from the web UI.
 
+## In CI (GitHub Actions)
+
+`.github/workflows/steam-upload.yml` runs this same pipeline on every push to
+`master` that touches frontend code (and on `workflow_dispatch`). It calls
+`steam-upload.sh --ci`, which is identical to a local run except:
+
+- the steamcmd container runs under `docker`, non-interactively (no `-it`);
+- the login token is seeded from a secret instead of the `wom-steam` podman
+  volume.
+
+Still **upload-only** — CI never sets a build live. Pick a beta branch in the
+web UI after reviewing.
+
+### Required repo secrets
+
+| Secret | What it is |
+| --- | --- |
+| `STEAM_APP_ID` | the app's ID from Steamworks |
+| `STEAM_DEPOT_WIN` | Windows depot ID |
+| `STEAM_BUILD_USER` | the **dedicated build account's** Steam login (not your personal one — its token lives in CI) |
+| `STEAM_CONFIG_VDF` | base64 of a locally-seeded `~/Steam/config/config.vdf` (see below) |
+| `STEAM_SSFN_FILENAME` / `STEAM_SSFN_FILE` | *only if* the build account also needs an `ssfn*` sentry file — its basename, and base64 of the file |
+
+Repo **variables** (`vars.*`, already set for `deploy.yml`): `NEXT_PUBLIC_BACKEND_URL`,
+`NEXT_PUBLIC_SENTRY_DSN`.
+
+### Seeding CI auth (one-time, local, manual)
+
+CI cannot answer a Steam Guard prompt, so you log the build account in **once**
+on your machine and hand CI the resulting token. There is no headless
+interactive login in `steamcmd` — this step is done by hand, once.
+
+1. Create a **dedicated Steam account** for builds (Steamworks → *Users &
+   Permissions*), grant it *Edit App Metadata* + *Publish App Changes To Steam*
+   for the app, and set Steam Guard to **email** (mobile-authenticator accounts
+   are harder to seed).
+2. Log it in once, in the same container image CI uses, with an empty `/root`:
+
+   ```sh
+   mkdir -p /tmp/steam-seed
+   podman run --rm -it -v /tmp/steam-seed:/root docker.io/steamcmd/steamcmd:latest \
+     +login <build_account> +quit
+   # enter the password, then the Steam Guard code from the account's email
+   ```
+
+3. Base64 the token file(s) it wrote and paste them into the repo secrets:
+
+   ```sh
+   base64 -w0 /tmp/steam-seed/Steam/config/config.vdf     # -> STEAM_CONFIG_VDF
+   # only if an ssfn* file was also written next to it:
+   ls /tmp/steam-seed/Steam/ssfn*                          # basename -> STEAM_SSFN_FILENAME
+   base64 -w0 /tmp/steam-seed/Steam/ssfn*                  # -> STEAM_SSFN_FILE
+   ```
+
+4. `rm -rf /tmp/steam-seed`. Re-seed if the token is later invalidated (account
+   password change, or Steam expiring it — the CI run fails with a login error).
+
 ## Notes / not done
 
 - **`app://wom` CORS** is live on the backend (wom-be #208), so REST + Socket.IO
@@ -94,5 +151,6 @@ test, then promote `default` from the web UI.
 - **`SHOP_ENABLED`** — the plan (§10.3, §14.1) leans toward shipping Steam as a
   paid game with the shop off. That's a separate decision; this pipeline just
   uploads whatever `build:native` produces.
-- **CI**: this runs locally for now. Moving it to a `windows`/`linux` runner
-  with `SteamAuthToken` (see the CI note in the SteamPipe doc) is §10.2.
+- **CI**: automated on push to `master` — see "In CI (GitHub Actions)" above.
+  Windows/Linux depots build on `ubuntu-latest` (`--win dir` needs no Wine).
+  Still upload-only; setting a build live stays a manual web-UI step.
