@@ -33,6 +33,12 @@ export default function SceneTopBar() {
   const router = useRouter();
   const [loggedInName, setLoggedInName] = useState('');
   const [equippedSkin, setEquippedSkin] = useState(DEFAULT_SKIN);
+  // True until the real equipped skin is known -- see the avatar span
+  // below, which shows a plain blinking-green placeholder instead of
+  // DEFAULT_SKIN's frog thumbnail while this is true (bug list 260916:
+  // showing a specific frog before swapping to the real skin read as
+  // "your skin is a frog" for that moment, not "still loading").
+  const [skinLoading, setSkinLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showRules, setShowRules] = useState(false);
@@ -51,9 +57,11 @@ export default function SceneTopBar() {
   useEffect(() => {
     const token = getStoredAccountToken();
     if (!token) return;
+    setSkinLoading(true);
     getInventory(token)
       .then((data) => setEquippedSkin(data.equipped_skin))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setSkinLoading(false));
   }, [loggedInName]);
 
   useEffect(() => {
@@ -79,6 +87,7 @@ export default function SceneTopBar() {
     // re-initialise the entire WebGL scene just to swap the top-bar button.
     setLoggedInName('');
     setEquippedSkin(DEFAULT_SKIN);
+    setSkinLoading(true);
     setShowUserMenu(false);
   };
 
@@ -195,16 +204,21 @@ export default function SceneTopBar() {
                 textClassName="flex items-center gap-2 text-white font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
               >
                 <span
-                  className="w-7 h-7 rounded-full border border-white/20 overflow-hidden shrink-0"
-                  style={{ background: skinColor(equippedSkin) }}
+                  className={
+                    skinLoading
+                      ? 'w-7 h-7 rounded-full border border-white/20 overflow-hidden shrink-0 avatar-loading-blink'
+                      : 'w-7 h-7 rounded-full border border-white/20 overflow-hidden shrink-0'
+                  }
+                  style={skinLoading ? undefined : { background: skinColor(equippedSkin) }}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- a small
-                      fixed set of local static assets, not remote/user content */}
-                  <img
-                    src={skinThumbnailUrl(equippedSkin)}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
+                  {!skinLoading && (
+                    // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets, not remote/user content
+                    <img
+                      src={skinThumbnailUrl(equippedSkin)}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                 </span>
                 <span>{loggedInName}</span>
                 <span className="text-white/70 text-xs">{showUserMenu ? '▲' : '▼'}</span>
