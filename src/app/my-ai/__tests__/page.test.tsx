@@ -91,13 +91,24 @@ describe('MyAiPage', () => {
     expect(dialog).toHaveTextContent(/buy a pack of 10 in the shop/i);
   });
 
-  it('saves settings with the edited minute counter', async () => {
+  it('saves settings with the edited pace, combined into one minute count', async () => {
     render(<MyAiPage />);
-    const spin = await screen.findByRole('spinbutton');
-    fireEvent.change(spin, { target: { value: '25' } });
+    await screen.findByLabelText('minutes');
+    fireEvent.change(screen.getByLabelText('days'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('hours'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('minutes'), { target: { value: '25' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await screen.findByText('Saved.');
-    expect(saveMyAiSettings).toHaveBeenCalledWith('tok', expect.objectContaining({ minute_counter: 25 }));
+    // 2 days + 3 hours + 25 minutes = 2*1440 + 3*60 + 25
+    expect(saveMyAiSettings).toHaveBeenCalledWith('tok', expect.objectContaining({ minute_counter: 3085 }));
+  });
+
+  it('splits a loaded minute count back into days/hours/minutes', async () => {
+    vi.mocked(getMyAiStatus).mockResolvedValue(status({ minute_counter: 3085 }));
+    render(<MyAiPage />);
+    expect(await screen.findByLabelText('days')).toHaveValue(2);
+    expect(screen.getByLabelText('hours')).toHaveValue(3);
+    expect(screen.getByLabelText('minutes')).toHaveValue(25);
   });
 
   it('defaults the influence slider to 100 and saves an edited value', async () => {
