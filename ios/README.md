@@ -70,7 +70,7 @@ mutated.
 | `APPLE_TEAM_ID` | 10-char Team ID | developer.apple.com → Membership details |
 | `APP_STORE_CONNECT_API_KEY_ID` | Key ID of an App Store Connect API key | App Store Connect → Users and Access → Integrations → App Store Connect API → **+** (Access: Admin or App Manager) |
 | `APP_STORE_CONNECT_API_ISSUER_ID` | Issuer ID (one per team) | same page, above the key list |
-| `APP_STORE_CONNECT_API_KEY` | full contents of the downloaded `AuthKey_XXXXXXXX.p8` | downloaded **once** at key creation — Apple will not let you re-download it |
+| `APP_STORE_CONNECT_API_KEY_CONTENT` | full contents of the downloaded `AuthKey_XXXXXXXX.p8` | downloaded **once** at key creation — Apple will not let you re-download it |
 | `MATCH_PASSWORD` | passphrase that encrypts the certs repo | you choose it; keep it in your password manager |
 | `MATCH_GIT_URL` | HTTPS URL of the empty private certs repo | e.g. `https://github.com/mikaelra/wom-ios-certs.git` |
 | `MATCH_GIT_BASIC_AUTHORIZATION` | base64 of `username:PAT` so CI can clone that repo | `printf '%s' 'mikaelra:<PAT>' \| base64` — PAT with `repo` scope (classic) or fine-grained scoped to just the certs repo |
