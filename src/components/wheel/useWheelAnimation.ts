@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { boundaryIndexAt, spinDistance, pickTargetRotation, type Slice } from '@/lib/wheelGeometry';
+import { boundaryIndexAt, clampFlapperRestBias, spinDistance, pickTargetRotation, type Slice } from '@/lib/wheelGeometry';
 import {
   FLAPPER_REST_BIAS,
   applyPegImpulse,
@@ -222,8 +222,13 @@ export function useWheelAnimation({
 
       // Peg-crossing detection drives the flapper regardless of phase, so
       // it keeps ticking through spin-up/cruise/stopping and settles
-      // naturally as omega drops toward zero.
-      const restTheta = phaseRef.current === 'settle' || phaseRef.current === 'result' ? FLAPPER_REST_BIAS : 0;
+      // naturally as omega drops toward zero. The rest lean itself is
+      // capped to the landed slice's own half-width (clampFlapperRestBias)
+      // -- see its own comment for why (bug list 260916, a Bling win's
+      // flapper pointing outside Bling's own wedge).
+      const isSettled = phaseRef.current === 'settle' || phaseRef.current === 'result';
+      const landedSlice = targetRef.current ? slicesRef.current[targetRef.current.sliceIndex] : undefined;
+      const restTheta = isSettled ? clampFlapperRestBias(FLAPPER_REST_BIAS, landedSlice) : 0;
       if (slicesRef.current.length > 0) {
         const boundary = boundaryIndexAt(slicesRef.current, mod(rotationRef.current, TWO_PI));
         if (lastBoundaryRef.current !== null && boundary !== lastBoundaryRef.current) {

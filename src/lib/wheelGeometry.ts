@@ -276,6 +276,22 @@ export function suppressNearMiss(slices: Slice[], resultSkin: string, missSkin: 
   return kept.map((s, i) => ({ ...s, startAngle: i * width, endAngle: (i + 1) * width }));
 }
 
+// A flapper's decorative "leaning on the trailing peg" rest bias
+// (wheelPhysics.ts's FLAPPER_REST_BIAS) can only ever be as large as the
+// slice it landed on actually allows -- a fixed bias wider than a very
+// thin slice visibly points past that slice's own boundary into its
+// neighbor. Confirmed live on the Special Wheel: Bling's wedge (under a
+// degree of half-width) is far narrower than the flapper's usual 6° lean,
+// so a Bling win pointed the flapper into the slice beside it (bug list
+// 260916, reported with a screenshot). Every other slice on every wheel
+// is already wider than any bias actually in use, so this is a no-op
+// everywhere else.
+export function clampFlapperRestBias(bias: number, landedSlice: Slice | undefined): number {
+  if (!landedSlice) return bias;
+  const halfWidth = (landedSlice.endAngle - landedSlice.startAngle) / 2;
+  return Math.sign(bias) * Math.min(Math.abs(bias), halfWidth);
+}
+
 // D = (target - current) mod 2π + turns * 2π, turns chosen so D covers at
 // least `minRevolutions` -- guarantees zero velocity discontinuity at the
 // moment STOP ROLL is pressed (the ease-out is a pure function of this D).

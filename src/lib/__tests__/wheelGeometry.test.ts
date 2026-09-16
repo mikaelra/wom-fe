@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   boundaryIndexAt,
   buildSlices,
+  clampFlapperRestBias,
   computeViewportGeometry,
   createSeededRng,
   oddsTable,
@@ -313,6 +314,43 @@ describe('suppressNearMiss', () => {
     const { slices } = buildSlices(table, { R: 900, H: 260 });
     const result = suppressNearMiss(slices, 'frog_pink_v1', 'frog_bling_v1');
     expect(result).toBe(slices);
+  });
+});
+
+describe('clampFlapperRestBias', () => {
+  const degToRad = (deg: number) => (deg * Math.PI) / 180;
+  const BIAS = degToRad(6);
+
+  it('passes the bias through unchanged on a slice wide enough to allow it', () => {
+    const wideSlice: Slice = { skin: 'A', startAngle: 0, endAngle: degToRad(40) }; // 20° half-width
+    expect(clampFlapperRestBias(BIAS, wideSlice)).toBeCloseTo(BIAS, 10);
+  });
+
+  it('caps the bias to a thin slice\'s own half-width (the reported Bling case)', () => {
+    // Bling's real half-width on the special wheel: 100/30100 of a full
+    // turn, halved.
+    const blingHalfWidth = (TWO_PI * (100 / 30_100)) / 2;
+    const blingSlice: Slice = { skin: 'frog_bling_v1', startAngle: 0, endAngle: blingHalfWidth * 2 };
+    const result = clampFlapperRestBias(BIAS, blingSlice);
+    expect(result).toBeLessThan(BIAS); // the 6° default would overshoot it
+    expect(result).toBeCloseTo(blingHalfWidth, 10);
+  });
+
+  it('preserves sign when clamping a negative bias', () => {
+    const thinSlice: Slice = { skin: 'A', startAngle: 0, endAngle: degToRad(2) }; // 1° half-width
+    const result = clampFlapperRestBias(-BIAS, thinSlice);
+    expect(result).toBeLessThan(0);
+    expect(result).toBeCloseTo(-degToRad(1), 10);
+  });
+
+  it('passes the bias through unchanged when there is no landed slice yet', () => {
+    expect(clampFlapperRestBias(BIAS, undefined)).toBe(BIAS);
+  });
+
+  it('lands exactly at the half-width boundary, not past it, for an exact match', () => {
+    const halfWidth = degToRad(6);
+    const exactSlice: Slice = { skin: 'A', startAngle: 0, endAngle: halfWidth * 2 };
+    expect(clampFlapperRestBias(BIAS, exactSlice)).toBeCloseTo(halfWidth, 10);
   });
 });
 
