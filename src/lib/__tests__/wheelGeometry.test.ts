@@ -11,6 +11,7 @@ import {
   suppressNearMiss,
   wheelKindFromString,
   type OddsEntry,
+  type Slice,
 } from '@/lib/wheelGeometry';
 
 const TWO_PI = Math.PI * 2;
@@ -258,22 +259,46 @@ describe('pickTargetRotation', () => {
 });
 
 describe('suppressNearMiss', () => {
-  it('relabels the miss skin to the most common remaining color', () => {
+  it('merges an interior miss run and a trailing (wraparound) miss run into their neighbors', () => {
+    // A(0-10), X-miss(10-12), B(12-20), X-miss(20-22), X-miss(22-25).
+    // The interior run folds forward into B; the trailing run has no
+    // later slice to absorb it in this pass, so it wraps onto A instead,
+    // pushing A's startAngle negative.
+    const slices: Slice[] = [
+      { skin: 'A', startAngle: 0, endAngle: 10 },
+      { skin: 'X', startAngle: 10, endAngle: 12 },
+      { skin: 'B', startAngle: 12, endAngle: 20 },
+      { skin: 'X', startAngle: 20, endAngle: 22 },
+      { skin: 'X', startAngle: 22, endAngle: 25 },
+    ];
+
+    const result = suppressNearMiss(slices, 'B', 'X');
+
+    expect(result.some((s) => s.skin === 'X')).toBe(false);
+    expect(result).toEqual([
+      { skin: 'A', startAngle: -5, endAngle: 10 },
+      { skin: 'B', startAngle: 10, endAngle: 20 },
+    ]);
+    // No thin sliver left behind, no angle lost or double-counted --
+    // the two kept slices' combined span exactly covers the original
+    // total (25), just as A+B+3xX did before the merge.
+    const totalBefore = slices.reduce((sum, s) => sum + (s.endAngle - s.startAngle), 0);
+    const totalAfter = result.reduce((sum, s) => sum + (s.endAngle - s.startAngle), 0);
+    expect(totalAfter).toBeCloseTo(totalBefore, 10);
+  });
+
+  it('removes every Bling wedge from a real special-wheel layout, preserving total angular coverage', () => {
     const table = oddsTable('special');
     const { slices } = buildSlices(table, { R: 900, H: 260 });
+    const blingCount = slices.filter((s) => s.skin === 'frog_bling_v1').length;
+
     const result = suppressNearMiss(slices, 'frog_gold_v1', 'frog_bling_v1');
 
     expect(result.some((s) => s.skin === 'frog_bling_v1')).toBe(false);
-    // Angles/order/count are untouched -- only .skin changed.
-    expect(result).toHaveLength(slices.length);
-    result.forEach((s, i) => {
-      expect(s.startAngle).toBe(slices[i].startAngle);
-      expect(s.endAngle).toBe(slices[i].endAngle);
-    });
-    // Every relabeled wedge got the wheel's most common color (Silver).
-    slices.forEach((s, i) => {
-      if (s.skin === 'frog_bling_v1') expect(result[i].skin).toBe('frog_silver_v1');
-    });
+    expect(result).toHaveLength(slices.length - blingCount);
+    const totalBefore = slices.reduce((sum, s) => sum + (s.endAngle - s.startAngle), 0);
+    const totalAfter = result.reduce((sum, s) => sum + (s.endAngle - s.startAngle), 0);
+    expect(totalAfter).toBeCloseTo(totalBefore, 10);
   });
 
   it('leaves the wheel untouched when the result is the miss skin itself', () => {
