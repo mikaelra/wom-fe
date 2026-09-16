@@ -1,0 +1,9 @@
+# Permanent bundle id -- must match capacitor.config.ts `appId`,
+# electron-builder.yml `appId`, and the App Store Connect record
+# (docs/MOBILE_AND_STEAM_PLAN.md §14.2).
+app_identifier "net.worldofmythos.game"
+
+# Team id comes from the APPLE_TEAM_ID secret in CI; no Apple ID is set here
+# because auth is via an App Store Connect API key (see the Fastfile), which
+# needs no 2FA session.
+team_id ENV["APPLE_TEAM_ID"] if ENV["APPLE_TEAM_ID"]
