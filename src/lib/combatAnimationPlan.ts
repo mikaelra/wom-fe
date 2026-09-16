@@ -413,17 +413,14 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
 
   // ── Well reward: only for the player who actually won the well ──────────
   // (steal *victims* also receive a "Steal-all!" line, so gate on wellwinner.)
-  // Spawned first; the combat strikes below are delayed until it finishes so
-  // the two don't play at once and confuse the player.
-  let wellDelayMs = 0;
+  // Computed here but not yet pushed to `batches` -- see pushWellFx below for
+  // why a steal defers that.
+  let wellFx: { fx: WellWinFx; rewardEvents: WellRewardEvent[]; rewardDurMs: number; isSteal: boolean } | null = null;
   if (myPos && wonWell) {
     const components = wellRewardFromEvents(events);
     if (components.length) {
-      // Splash + rarity glow on the well itself.
       const fxId = `wellfx-${Date.now()}`;
       const fx: WellWinFx = { id: fxId, splash: true, glow: glowForReward(components), glowStartMs: performance.now() };
-      batches.push({ delayMs: 0, actions: [{ type: 'addWellWinFx', fx }] });
-      batches.push({ delayMs: WELL_FX_DURATION, actions: [{ type: 'removeWellWinFx', id: fxId }] });
 
       // For steal: one coin per stolen coin, flying from each victim's seat.
       const stealVictims = components.find((c) => c.type === 'steal')?.victims ?? [];
@@ -434,10 +431,7 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       const rewardDurMs = rewardEvents.length
         ? (Math.max(...rewardEvents.map((e) => e.delay)) + WELL_REWARD_FLIGHT_DUR) * 1000
         : 0;
-      if (rewardEvents.length) batches.push({ delayMs: 0, actions: [{ type: 'addWellRewardEvents', events: rewardEvents }] });
-      // Hold combat strikes until both the splash/glow and any reward
-      // models have finished.
-      wellDelayMs = Math.max(rewardDurMs, WELL_FX_DURATION);
+      wellFx = { fx, rewardEvents, rewardDurMs, isSteal: components.some((c) => c.type === 'steal') };
     }
   }
 
@@ -448,25 +442,55 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   // Driven instead by well_steal_victim, which IS attached to each victim
   // (see backend/engine/rewards.py's _steal_gold). No splash -- that's the
   // water erupting for whoever actually interacted with the well, same
-  // reasoning as the "chose well but lost" red glow above.
+  // reasoning as the "chose well but lost" red glow above. Always a steal
+  // (there is no other way to be on this side of it).
   if (myPos && !wonWell) {
     const stolen = wellStealVictimFromEvents(events);
     const winnerPos = stolen ? posMap.get(stolen.winner) : undefined;
     if (stolen && winnerPos) {
       const fxId = `wellfx-steal-victim-${Date.now()}`;
       const fx: WellWinFx = { id: fxId, splash: false, glow: 'purple', glowStartMs: performance.now() };
-      batches.push({ delayMs: 0, actions: [{ type: 'addWellWinFx', fx }] });
-      batches.push({ delayMs: WELL_FX_DURATION, actions: [{ type: 'removeWellWinFx', id: fxId }] });
-
       const stealSources: StealSource[] = [{ pos: myPos, count: stolen.amount }];
       const rewardEvents = buildWellRewardEvents([{ type: 'steal', count: 1 }], winnerPos, stealSources);
       const rewardDurMs = rewardEvents.length
         ? (Math.max(...rewardEvents.map((e) => e.delay)) + WELL_REWARD_FLIGHT_DUR) * 1000
         : 0;
-      if (rewardEvents.length) batches.push({ delayMs: 0, actions: [{ type: 'addWellRewardEvents', events: rewardEvents }] });
-      wellDelayMs = Math.max(rewardDurMs, WELL_FX_DURATION);
+      wellFx = { fx, rewardEvents, rewardDurMs, isSteal: true };
     }
   }
+
+  // A steal-all can sweep up coins a same-round kill only just looted
+  // (engine/combat.py runs the attack phase before the well phase, so a
+  // kill's loot is already in its recipient's pile by the time steal-all
+  // draws from everyone's coins) -- animating steal's flight *before*
+  // combat's own kill-loot flight then showed money leaving a pile it
+  // hadn't visibly arrived at yet (bug list 260916). Non-steal rewards have
+  // no such dependency on combat's outcome, so they keep the original
+  // "well plays first, combat waits" pacing untouched.
+  const pushWellFx = (delayMs: number) => {
+    if (!wellFx) return;
+    const fxId = wellFx.fx.id;
+    batches.push({ delayMs, actions: [{ type: 'addWellWinFx', fx: wellFx.fx }] });
+    batches.push({ delayMs: delayMs + WELL_FX_DURATION, actions: [{ type: 'removeWellWinFx', id: fxId }] });
+    if (wellFx.rewardEvents.length) {
+      batches.push({ delayMs, actions: [{ type: 'addWellRewardEvents', events: wellFx.rewardEvents }] });
+    }
+  };
+  const stealInvolved = !!wellFx?.isSteal;
+  if (!stealInvolved) pushWellFx(0);
+  // Hold combat strikes until both the splash/glow and any reward models
+  // have finished -- unless a steal is involved, in which case combat runs
+  // first (from 0) and the well reward above is pushed after it, once its
+  // real duration (staggerMs, mutated by the combat loop below) is known.
+  const wellDelayMs = stealInvolved ? 0 : Math.max(wellFx?.rewardDurMs ?? 0, wellFx ? WELL_FX_DURATION : 0);
+  // Captures the combat loop's final `staggerMs` (its own local variable,
+  // out of scope here) once that loop below has run, so a deferred steal
+  // reward can be pushed at "whenever this round's combat actually
+  // finishes" instead of guessing at its duration ahead of time. Left equal
+  // to wellDelayMs for a spectator with no personal combat this round (the
+  // loop below never runs), so a deferred push still lands at the right
+  // spot -- right where it would have gone had there been no combat at all.
+  let combatEndMs = wellDelayMs;
 
   // ── Combat strikes: my own attack (outgoing) and attacks landing on me
   // (incoming), played in the order `events` lists them -- which mirrors the
@@ -686,7 +710,12 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       const defendShieldClearMs = !anyIncoming ? 0 : (firstBlockAtMs ?? staggerMs);
       batches.push({ delayMs: defendShieldClearMs, actions: [{ type: 'clearDefendShield' }] });
     }
+    combatEndMs = staggerMs;
   }
+  // Deferred from up above: a steal's coins fly (and its glow lights up)
+  // only once this round's combat has actually finished playing, so a
+  // same-round kill's loot has visibly arrived before steal-all can take it.
+  if (stealInvolved) pushWellFx(combatEndMs);
 
   // ── Witnessed eliminations ────────────────────────────────────────────────
   // The lone witness sees the actual killing blow -- the attacker's sword

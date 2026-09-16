@@ -547,6 +547,73 @@ describe('buildCombatAnimationPlan', () => {
       const strikeBatch = plan.find((b) => b.actions.some((a) => a.type === 'addStrike'));
       expect(strikeBatch?.delayMs).toBe(WELL_FX_DURATION); // no reward-flight events, so WELL_FX_DURATION wins
     });
+
+    describe('steal defers to combat (bug list 260916)', () => {
+      // A same-round kill's loot is already in its recipient's pile by the
+      // time steal-all draws from everyone's coins (engine/combat.py runs
+      // the attack phase before the well phase) -- so unlike a plain
+      // reward, steal's own effects must wait for combat, not the reverse.
+      const ONE_HIT_MS = 960; // (0.34 + 0.26 + 0.36) * 1000
+      const SWORD_IMPACT_MS = 600; // (0.34 + 0.26) * 1000
+
+      const findWellWinFxBatch = (plan: ReturnType<typeof buildCombatAnimationPlan>) =>
+        plan.find((b) => b.actions.some((a) => a.type === 'addWellWinFx'));
+      const findWellRewardBatchAt = (plan: ReturnType<typeof buildCombatAnimationPlan>, delayMs: number) =>
+        plan.find(
+          (b) => Math.abs(b.delayMs - delayMs) < 0.001 && b.actions.some((a) => a.type === 'addWellRewardEvents'),
+        );
+
+      it('plays my own kill first, deferring my steal-all win until combat finishes', () => {
+        const events: GameEvent[] = [
+          { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 1 },
+          {
+            kind: 'well_reward',
+            components: [{ type: 'steal', count: 1, victims: [{ name: 'Carol', amount: 1 }] }],
+          },
+        ];
+        const plan = buildCombatAnimationPlan({ ...baseInput, events, wonWell: true });
+
+        // My outgoing strike (the kill) plays immediately, same as with no
+        // well reward at all -- combat is no longer held back by the well.
+        expect(plan[0].delayMs).toBe(0);
+        expect(plan[0].actions[0].type).toBe('addStrike');
+        // Kill-loot lands on its usual schedule too, unaffected.
+        expect(findWellRewardBatchAt(plan, SWORD_IMPACT_MS)).toBeTruthy();
+
+        // The steal-all win's own fx/coins wait for combat to actually
+        // finish (ONE_HIT_MS for my one unblocked strike), not delayMs 0.
+        const fxBatch = findWellWinFxBatch(plan);
+        expect(fxBatch?.delayMs).toBeCloseTo(ONE_HIT_MS, 5);
+        expect(findWellRewardBatchAt(plan, ONE_HIT_MS)).toBeTruthy();
+      });
+
+      it('plays my own kill first, deferring being steal-all\'s victim until combat finishes', () => {
+        const events: GameEvent[] = [
+          { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 1 },
+          { kind: 'well_steal_victim', winner: 'Carol', amount: 2 },
+        ];
+        const plan = buildCombatAnimationPlan({ ...baseInput, events, wonWell: false });
+
+        expect(plan[0].delayMs).toBe(0);
+        expect(plan[0].actions[0].type).toBe('addStrike');
+        expect(findWellRewardBatchAt(plan, SWORD_IMPACT_MS)).toBeTruthy(); // my kill-loot, unaffected
+
+        const fxBatch = findWellWinFxBatch(plan);
+        expect(fxBatch?.delayMs).toBeCloseTo(ONE_HIT_MS, 5); // my coins fly away only after
+        expect(findWellRewardBatchAt(plan, ONE_HIT_MS)).toBeTruthy();
+      });
+
+      it('still plays immediately when a steal-all win has no combat to wait for', () => {
+        const events: GameEvent[] = [
+          {
+            kind: 'well_reward',
+            components: [{ type: 'steal', count: 1, victims: [{ name: 'Bob', amount: 1 }] }],
+          },
+        ];
+        const plan = buildCombatAnimationPlan({ ...baseInput, events, wonWell: true });
+        expect(findWellWinFxBatch(plan)?.delayMs).toBe(0);
+      });
+    });
   });
 
   describe('outgoing + incoming in the same round', () => {

@@ -2,14 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   boundaryIndexAt,
   buildSlices,
+  clampFlapperRestBias,
   computeViewportGeometry,
   createSeededRng,
   oddsTable,
   pickTargetRotation,
   screenAngleOf,
   spinDistance,
+  suppressNearMiss,
   wheelKindFromString,
   type OddsEntry,
+  type Slice,
 } from '@/lib/wheelGeometry';
 
 const TWO_PI = Math.PI * 2;
@@ -253,6 +256,101 @@ describe('pickTargetRotation', () => {
     const table = oddsTable('normal');
     const { slices } = buildSlices(table, { R: 900, H: 260 });
     expect(() => pickTargetRotation(slices, 'nonexistent_skin', () => 0)).toThrow();
+  });
+});
+
+describe('suppressNearMiss', () => {
+  it('drops the miss skin and re-lays every remaining slice out at equal width', () => {
+    // A(0-10), X-miss(10-12), B(12-20), X-miss(20-22), X-miss(22-25):
+    // A and B were unequal widths (10 and 8) even before the two misses
+    // are dropped -- both must come out equal, not just miss-free.
+    const slices: Slice[] = [
+      { skin: 'A', startAngle: 0, endAngle: 10 },
+      { skin: 'X', startAngle: 10, endAngle: 12 },
+      { skin: 'B', startAngle: 12, endAngle: 20 },
+      { skin: 'X', startAngle: 20, endAngle: 22 },
+      { skin: 'X', startAngle: 22, endAngle: 25 },
+    ];
+
+    const result = suppressNearMiss(slices, 'B', 'X');
+
+    expect(result.map((s) => s.skin)).toEqual(['A', 'B']); // order preserved
+    const width = TWO_PI / 2;
+    expect(result).toEqual([
+      { skin: 'A', startAngle: 0, endAngle: width },
+      { skin: 'B', startAngle: width, endAngle: TWO_PI },
+    ]);
+  });
+
+  it('removes every Bling wedge from a real special-wheel layout and equalises the rest', () => {
+    const table = oddsTable('special');
+    const { slices } = buildSlices(table, { R: 900, H: 260 });
+    const blingCount = slices.filter((s) => s.skin === 'frog_bling_v1').length;
+
+    const result = suppressNearMiss(slices, 'frog_gold_v1', 'frog_bling_v1');
+
+    expect(result.some((s) => s.skin === 'frog_bling_v1')).toBe(false);
+    expect(result).toHaveLength(slices.length - blingCount);
+    // Every remaining slice -- silver, gold and rainbow alike -- is now
+    // the exact same width. Before this fix they varied by design
+    // (silver's true weight vastly exceeds rainbow's), which is exactly
+    // the size-based "mining" tell this now closes off entirely, not
+    // just for Bling.
+    const widths = result.map((s) => s.endAngle - s.startAngle);
+    widths.forEach((w) => expect(w).toBeCloseTo(widths[0], 10));
+    const totalAfter = result.reduce((sum, s) => sum + (s.endAngle - s.startAngle), 0);
+    expect(totalAfter).toBeCloseTo(TWO_PI, 10);
+  });
+
+  it('leaves the wheel untouched when the result is the miss skin itself', () => {
+    const table = oddsTable('special');
+    const { slices } = buildSlices(table, { R: 900, H: 260 });
+    const result = suppressNearMiss(slices, 'frog_bling_v1', 'frog_bling_v1');
+    expect(result).toBe(slices);
+  });
+
+  it('is a no-op when the miss skin has no wedges on this wheel', () => {
+    const table = oddsTable('normal');
+    const { slices } = buildSlices(table, { R: 900, H: 260 });
+    const result = suppressNearMiss(slices, 'frog_pink_v1', 'frog_bling_v1');
+    expect(result).toBe(slices);
+  });
+});
+
+describe('clampFlapperRestBias', () => {
+  const degToRad = (deg: number) => (deg * Math.PI) / 180;
+  const BIAS = degToRad(6);
+
+  it('passes the bias through unchanged on a slice wide enough to allow it', () => {
+    const wideSlice: Slice = { skin: 'A', startAngle: 0, endAngle: degToRad(40) }; // 20° half-width
+    expect(clampFlapperRestBias(BIAS, wideSlice)).toBeCloseTo(BIAS, 10);
+  });
+
+  it('caps the bias to a thin slice\'s own half-width (the reported Bling case)', () => {
+    // Bling's real half-width on the special wheel: 100/30100 of a full
+    // turn, halved.
+    const blingHalfWidth = (TWO_PI * (100 / 30_100)) / 2;
+    const blingSlice: Slice = { skin: 'frog_bling_v1', startAngle: 0, endAngle: blingHalfWidth * 2 };
+    const result = clampFlapperRestBias(BIAS, blingSlice);
+    expect(result).toBeLessThan(BIAS); // the 6° default would overshoot it
+    expect(result).toBeCloseTo(blingHalfWidth, 10);
+  });
+
+  it('preserves sign when clamping a negative bias', () => {
+    const thinSlice: Slice = { skin: 'A', startAngle: 0, endAngle: degToRad(2) }; // 1° half-width
+    const result = clampFlapperRestBias(-BIAS, thinSlice);
+    expect(result).toBeLessThan(0);
+    expect(result).toBeCloseTo(-degToRad(1), 10);
+  });
+
+  it('passes the bias through unchanged when there is no landed slice yet', () => {
+    expect(clampFlapperRestBias(BIAS, undefined)).toBe(BIAS);
+  });
+
+  it('lands exactly at the half-width boundary, not past it, for an exact match', () => {
+    const halfWidth = degToRad(6);
+    const exactSlice: Slice = { skin: 'A', startAngle: 0, endAngle: halfWidth * 2 };
+    expect(clampFlapperRestBias(BIAS, exactSlice)).toBeCloseTo(halfWidth, 10);
   });
 });
 
