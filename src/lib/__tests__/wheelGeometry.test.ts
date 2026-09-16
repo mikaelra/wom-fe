@@ -259,11 +259,10 @@ describe('pickTargetRotation', () => {
 });
 
 describe('suppressNearMiss', () => {
-  it('merges an interior miss run and a trailing (wraparound) miss run into their neighbors', () => {
-    // A(0-10), X-miss(10-12), B(12-20), X-miss(20-22), X-miss(22-25).
-    // The interior run folds forward into B; the trailing run has no
-    // later slice to absorb it in this pass, so it wraps onto A instead,
-    // pushing A's startAngle negative.
+  it('drops the miss skin and re-lays every remaining slice out at equal width', () => {
+    // A(0-10), X-miss(10-12), B(12-20), X-miss(20-22), X-miss(22-25):
+    // A and B were unequal widths (10 and 8) even before the two misses
+    // are dropped -- both must come out equal, not just miss-free.
     const slices: Slice[] = [
       { skin: 'A', startAngle: 0, endAngle: 10 },
       { skin: 'X', startAngle: 10, endAngle: 12 },
@@ -274,20 +273,15 @@ describe('suppressNearMiss', () => {
 
     const result = suppressNearMiss(slices, 'B', 'X');
 
-    expect(result.some((s) => s.skin === 'X')).toBe(false);
+    expect(result.map((s) => s.skin)).toEqual(['A', 'B']); // order preserved
+    const width = TWO_PI / 2;
     expect(result).toEqual([
-      { skin: 'A', startAngle: -5, endAngle: 10 },
-      { skin: 'B', startAngle: 10, endAngle: 20 },
+      { skin: 'A', startAngle: 0, endAngle: width },
+      { skin: 'B', startAngle: width, endAngle: TWO_PI },
     ]);
-    // No thin sliver left behind, no angle lost or double-counted --
-    // the two kept slices' combined span exactly covers the original
-    // total (25), just as A+B+3xX did before the merge.
-    const totalBefore = slices.reduce((sum, s) => sum + (s.endAngle - s.startAngle), 0);
-    const totalAfter = result.reduce((sum, s) => sum + (s.endAngle - s.startAngle), 0);
-    expect(totalAfter).toBeCloseTo(totalBefore, 10);
   });
 
-  it('removes every Bling wedge from a real special-wheel layout, preserving total angular coverage', () => {
+  it('removes every Bling wedge from a real special-wheel layout and equalises the rest', () => {
     const table = oddsTable('special');
     const { slices } = buildSlices(table, { R: 900, H: 260 });
     const blingCount = slices.filter((s) => s.skin === 'frog_bling_v1').length;
@@ -296,9 +290,15 @@ describe('suppressNearMiss', () => {
 
     expect(result.some((s) => s.skin === 'frog_bling_v1')).toBe(false);
     expect(result).toHaveLength(slices.length - blingCount);
-    const totalBefore = slices.reduce((sum, s) => sum + (s.endAngle - s.startAngle), 0);
+    // Every remaining slice -- silver, gold and rainbow alike -- is now
+    // the exact same width. Before this fix they varied by design
+    // (silver's true weight vastly exceeds rainbow's), which is exactly
+    // the size-based "mining" tell this now closes off entirely, not
+    // just for Bling.
+    const widths = result.map((s) => s.endAngle - s.startAngle);
+    widths.forEach((w) => expect(w).toBeCloseTo(widths[0], 10));
     const totalAfter = result.reduce((sum, s) => sum + (s.endAngle - s.startAngle), 0);
-    expect(totalAfter).toBeCloseTo(totalBefore, 10);
+    expect(totalAfter).toBeCloseTo(TWO_PI, 10);
   });
 
   it('leaves the wheel untouched when the result is the miss skin itself', () => {

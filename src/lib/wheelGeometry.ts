@@ -254,44 +254,26 @@ export function pickTargetRotation(slices: Slice[], resultSkin: string, rng: Rng
 }
 
 // Once a spin's result is known and it isn't `missSkin` (the rare prize
-// players shouldn't see a false near-miss for), removes missSkin's wedges
-// entirely by merging each one's angular span into its neighbor, rather
-// than just relabelling its color in place. Bug list 260916: a first
-// version of this fix only recolored the wedge, but Bling's wedges are
-// so thin (~0.33% of the wheel) that the slice's own anomalous *width*
-// was still a visible tell -- a "slim near-miss" in a different color is
-// still a near-miss. Merging removes that tell too: the absorbing
-// neighbor just grows slightly wider (imperceptibly, given how little
-// angle a miss wedge carries), instead of leaving a narrow sliver
-// wherever Bling used to sit.
-//
-// Every consumer of the returned slices' angles (screenAngleOf,
-// boundaryIndexAt, WheelCanvas's wrapNear) already normalises mod 2π, so
-// letting the wraparound merge below push the first kept slice's
-// startAngle negative is safe.
+// players shouldn't see a false near-miss for), drops missSkin's wedges
+// and re-lays every remaining slice out at *equal* width. Bug list
+// 260916 went through two weaker fixes first: relabeling missSkin's
+// color in place still left its wedge's own anomalous *narrowness* as a
+// tell (a "slim near-miss" in a different color is still a near-miss),
+// and merging its span into a neighbor still left every OTHER slice at
+// its true weighted width -- letting a patient player "mine" the real
+// odds from width alone (exactly what removing the store's own odds
+// info box, elsewhere in this bug list, was trying to stop). Uniform
+// width removes every size-based tell at once, for every skin, not just
+// the missed one -- only color still varies, same as it always did.
 export function suppressNearMiss(slices: Slice[], resultSkin: string, missSkin: string): Slice[] {
   if (resultSkin === missSkin) return slices;
   if (!slices.some((s) => s.skin === missSkin)) return slices;
-  if (slices.every((s) => s.skin === missSkin)) return slices; // nothing to merge into
 
-  const kept: Slice[] = [];
-  let pendingStart: number | null = null;
-  for (const s of slices) {
-    if (s.skin === missSkin) {
-      if (pendingStart === null) pendingStart = s.startAngle;
-      continue;
-    }
-    kept.push(pendingStart === null ? s : { ...s, startAngle: pendingStart });
-    pendingStart = null;
-  }
-  // A run of miss slices trailing off the end of the array (nothing
-  // later in this pass to absorb it) wraps around onto the first kept
-  // slice instead, extending its startAngle backward past 0.
-  if (pendingStart !== null) {
-    const wrapAmount = slices[slices.length - 1].endAngle - pendingStart;
-    kept[0] = { ...kept[0], startAngle: kept[0].startAngle - wrapAmount };
-  }
-  return kept;
+  const kept = slices.filter((s) => s.skin !== missSkin);
+  if (kept.length === 0) return slices; // nothing left to lay out
+
+  const width = TWO_PI / kept.length;
+  return kept.map((s, i) => ({ ...s, startAngle: i * width, endAngle: (i + 1) * width }));
 }
 
 // D = (target - current) mod 2π + turns * 2π, turns chosen so D covers at
