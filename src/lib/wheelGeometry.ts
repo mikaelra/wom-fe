@@ -253,6 +253,34 @@ export function pickTargetRotation(slices: Slice[], resultSkin: string, rng: Rng
   return { rotation: mod(-(mid + jitter), TWO_PI), sliceIndex };
 }
 
+// Once a spin's result is known and it isn't `missSkin` (the rare prize
+// players shouldn't see a false near-miss for), relabels missSkin's wedges
+// to the wheel's most common remaining color -- angles/boundaries are
+// untouched, so odds fidelity and any target-rotation/peg maths run over
+// the result are unaffected; only which color paints each wedge changes.
+// Bug list 260916: watching the wheel slide past/near-land on Bling after
+// Roll, when the result isn't Bling, read as a bad beat for no reason.
+export function suppressNearMiss(slices: Slice[], resultSkin: string, missSkin: string): Slice[] {
+  if (resultSkin === missSkin) return slices;
+  if (!slices.some((s) => s.skin === missSkin)) return slices;
+
+  const counts = new Map<string, number>();
+  for (const s of slices) {
+    if (s.skin === missSkin) continue;
+    counts.set(s.skin, (counts.get(s.skin) ?? 0) + 1);
+  }
+  let fallbackSkin = resultSkin;
+  let bestCount = -1;
+  for (const [skin, count] of counts) {
+    if (count > bestCount) {
+      bestCount = count;
+      fallbackSkin = skin;
+    }
+  }
+
+  return slices.map((s) => (s.skin === missSkin ? { ...s, skin: fallbackSkin } : s));
+}
+
 // D = (target - current) mod 2π + turns * 2π, turns chosen so D covers at
 // least `minRevolutions` -- guarantees zero velocity discontinuity at the
 // moment STOP ROLL is pressed (the ease-out is a pure function of this D).

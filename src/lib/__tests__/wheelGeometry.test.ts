@@ -8,6 +8,7 @@ import {
   pickTargetRotation,
   screenAngleOf,
   spinDistance,
+  suppressNearMiss,
   wheelKindFromString,
   type OddsEntry,
 } from '@/lib/wheelGeometry';
@@ -253,6 +254,40 @@ describe('pickTargetRotation', () => {
     const table = oddsTable('normal');
     const { slices } = buildSlices(table, { R: 900, H: 260 });
     expect(() => pickTargetRotation(slices, 'nonexistent_skin', () => 0)).toThrow();
+  });
+});
+
+describe('suppressNearMiss', () => {
+  it('relabels the miss skin to the most common remaining color', () => {
+    const table = oddsTable('special');
+    const { slices } = buildSlices(table, { R: 900, H: 260 });
+    const result = suppressNearMiss(slices, 'frog_gold_v1', 'frog_bling_v1');
+
+    expect(result.some((s) => s.skin === 'frog_bling_v1')).toBe(false);
+    // Angles/order/count are untouched -- only .skin changed.
+    expect(result).toHaveLength(slices.length);
+    result.forEach((s, i) => {
+      expect(s.startAngle).toBe(slices[i].startAngle);
+      expect(s.endAngle).toBe(slices[i].endAngle);
+    });
+    // Every relabeled wedge got the wheel's most common color (Silver).
+    slices.forEach((s, i) => {
+      if (s.skin === 'frog_bling_v1') expect(result[i].skin).toBe('frog_silver_v1');
+    });
+  });
+
+  it('leaves the wheel untouched when the result is the miss skin itself', () => {
+    const table = oddsTable('special');
+    const { slices } = buildSlices(table, { R: 900, H: 260 });
+    const result = suppressNearMiss(slices, 'frog_bling_v1', 'frog_bling_v1');
+    expect(result).toBe(slices);
+  });
+
+  it('is a no-op when the miss skin has no wedges on this wheel', () => {
+    const table = oddsTable('normal');
+    const { slices } = buildSlices(table, { R: 900, H: 260 });
+    const result = suppressNearMiss(slices, 'frog_pink_v1', 'frog_bling_v1');
+    expect(result).toBe(slices);
   });
 });
 
