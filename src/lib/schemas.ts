@@ -226,6 +226,14 @@ export const RankedQueueLeaveResponseSchema = z.object({
   was_queued: z.boolean(),
 });
 
+// GET /ranked/season -- the current ranked season's name and when it ends
+// (docs/RANK_SYSTEM_PLAN.md §12). Shared by both ladders -- My AI resets on
+// the same cadence (docs/MY_AI.md §9).
+export const SeasonInfoResponseSchema = z.object({
+  name: z.string(),
+  ends_at: z.string(),
+});
+
 // GET /ranked/active/<name> -- does this player have a currently
 // unfinished ranked match to return to (docs/RANK_SYSTEM_PLAN.md §6/§10)?
 // "Back to Home" only navigates away, it never leaves the lobby server-side,

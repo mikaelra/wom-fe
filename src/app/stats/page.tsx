@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
 import RankBadge from '@/components/hud/RankBadge';
+import SeasonTimer from '@/components/hud/SeasonTimer';
 import { CITY_PATH } from '@/lib/cities';
 
 // Labels/emoji for every key in wom-be's config.WELL_REWARDS, matching the
@@ -142,7 +143,10 @@ export default function StatsPage() {
               <p className="text-sm text-white/50 mb-3">{playerName}</p>
               <h2 className="text-sm font-semibold text-white/70 mb-2">Ranked</h2>
               {tier ? (
-                <RankBadge tier={tier} className="text-base px-3 py-1" />
+                <>
+                  <RankBadge tier={tier} className="text-base px-3 py-1" />
+                  <SeasonTimer className="text-sm mt-3" />
+                </>
               ) : (
                 <>
                   <RankBadge tier={null} className="text-base px-3 py-1" />

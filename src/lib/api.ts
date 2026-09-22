@@ -46,6 +46,7 @@ import {
   RankedProfileResponseSchema,
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
+  SeasonInfoResponseSchema,
   WellProfileResponseSchema,
   ShopProductsResponseSchema,
   CheckoutResponseSchema,
@@ -159,6 +160,12 @@ export async function leaveRankedQueue(playerName: string): Promise<{ status: st
 export async function getRankedProfile(playerName: string): Promise<{ tier: string | null; ranked_games_played: number }> {
   return request(`/ranked/profile/${encodeURIComponent(playerName)}`, RankedProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch ranked profile.',
+  });
+}
+
+export async function getCurrentSeason(): Promise<{ name: string; ends_at: string }> {
+  return request('/ranked/season', SeasonInfoResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch the current season.',
   });
 }
 

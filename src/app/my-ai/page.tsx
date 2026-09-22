@@ -23,6 +23,7 @@ import type {
   MyAiMatches,
 } from '@/lib/schemas';
 import { CITY_PATH } from '@/lib/cities';
+import SeasonTimer from '@/components/hud/SeasonTimer';
 
 const KNOBS: { key: Exclude<keyof MyAiKnobs, 'action_split'>; label: string; low: string; high: string }[] = [
   { key: 'greed', label: 'Greed', low: 'heals', high: 'hoards coin' },
@@ -201,6 +202,7 @@ export default function MyAiPage() {
                 Bot rank:{' '}
                 <b>{status.bot_rank.tier ?? '—'}</b> ({status.bot_rank.games_played} games)
               </div>
+              {status.bot_rank.tier && <SeasonTimer className="text-xs mt-1" />}
             </div>
           </section>
           {toggleNote && <p className="text-white/70 text-sm -mt-4">{toggleNote}</p>}
