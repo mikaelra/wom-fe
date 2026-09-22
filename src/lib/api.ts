@@ -3,6 +3,7 @@ import { getSocket, subscribe } from '@/lib/socket';
 import { setStoredToken, getStoredToken, setStoredAccountToken } from '@/lib/http';
 import type { z } from 'zod';
 import type { Relic } from '@/types/game';
+import type { SeasonHistoryEntry } from '@/lib/schemas';
 import type { GameEvent } from '@/lib/gameEvents';
 import {
   MyAiStatusSchema,
@@ -46,6 +47,7 @@ import {
   RankedProfileResponseSchema,
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
+  SeasonHistoryResponseSchema,
   SeasonInfoResponseSchema,
   WellProfileResponseSchema,
   ShopProductsResponseSchema,
@@ -166,6 +168,14 @@ export async function getRankedProfile(playerName: string): Promise<{ tier: stri
 export async function getCurrentSeason(): Promise<{ name: string; ends_at: string }> {
   return request('/ranked/season', SeasonInfoResponseSchema, {
     defaultErrorMessage: 'Failed to fetch the current season.',
+  });
+}
+
+export async function getSeasonHistory(
+  playerName: string,
+): Promise<{ human: SeasonHistoryEntry[]; ai: SeasonHistoryEntry[] }> {
+  return request(`/ranked/season_history/${encodeURIComponent(playerName)}`, SeasonHistoryResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch season history.',
   });
 }
 

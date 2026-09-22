@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
 import RankBadge from '@/components/hud/RankBadge';
 import SeasonTimer from '@/components/hud/SeasonTimer';
+import SeasonHistoryOverlay from '@/components/hud/SeasonHistoryOverlay';
 import { CITY_PATH } from '@/lib/cities';
 
 // Labels/emoji for every key in wom-be's config.WELL_REWARDS, matching the
@@ -41,6 +42,7 @@ export default function StatsPage() {
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [wins, setWins] = useState(0);
   const [kills, setKills] = useState(0);
+  const [showSeasons, setShowSeasons] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -130,6 +132,10 @@ export default function StatsPage() {
           <h1 className="text-2xl font-bold tracking-wide">Stats</h1>
         </div>
 
+        {showSeasons && playerName && (
+          <SeasonHistoryOverlay playerName={playerName} onClose={() => setShowSeasons(false)} />
+        )}
+
         {loading ? (
           <p className="text-white/70">Loading…</p>
         ) : loadError ? (
@@ -146,7 +152,16 @@ export default function StatsPage() {
           <>
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
               <p className="text-sm text-white/50 mb-3">{playerName}</p>
-              <h2 className="text-sm font-semibold text-white/70 mb-2">Ranked</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-white/70">Ranked</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowSeasons(true)}
+                  className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+                >
+                  Seasons
+                </button>
+              </div>
               {tier ? (
                 <>
                   <RankBadge tier={tier} className="text-base px-3 py-1" />

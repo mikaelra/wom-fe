@@ -234,6 +234,20 @@ export const SeasonInfoResponseSchema = z.object({
   ends_at: z.string(),
 });
 
+// GET /ranked/season_history/<name> -- this player's rank across every
+// season they've had one, on both ladders. Backs the "Seasons" overlay.
+export const SeasonHistoryEntrySchema = z.object({
+  season: z.string(),
+  tier: z.string(),
+  current: z.boolean(),
+});
+
+export const SeasonHistoryResponseSchema = z.object({
+  human: z.array(SeasonHistoryEntrySchema),
+  ai: z.array(SeasonHistoryEntrySchema),
+});
+export type SeasonHistoryEntry = z.infer<typeof SeasonHistoryEntrySchema>;
+
 // GET /ranked/active/<name> -- does this player have a currently
 // unfinished ranked match to return to (docs/RANK_SYSTEM_PLAN.md §6/§10)?
 // "Back to Home" only navigates away, it never leaves the lobby server-side,
