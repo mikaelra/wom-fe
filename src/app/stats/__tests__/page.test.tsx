@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import StatsPage from '@/app/stats/page';
-import { getCurrentSeason, getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
+import { getCurrentSeason, getPlayerProfile, getRankedProfile, getSeasonHistory, getWellProfile } from '@/lib/api';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -13,12 +13,14 @@ vi.mock('@/lib/api', () => ({
   getWellProfile: vi.fn(),
   getPlayerProfile: vi.fn(),
   getCurrentSeason: vi.fn(),
+  getSeasonHistory: vi.fn(),
 }));
 
 const mockedGetRankedProfile = vi.mocked(getRankedProfile);
 const mockedGetWellProfile = vi.mocked(getWellProfile);
 const mockedGetPlayerProfile = vi.mocked(getPlayerProfile);
 const mockedGetCurrentSeason = vi.mocked(getCurrentSeason);
+const mockedGetSeasonHistory = vi.mocked(getSeasonHistory);
 
 const flush = () => act(async () => Promise.resolve());
 
@@ -28,6 +30,7 @@ beforeEach(() => {
   mockedGetWellProfile.mockReset();
   mockedGetPlayerProfile.mockReset();
   mockedGetCurrentSeason.mockReset();
+  mockedGetSeasonHistory.mockReset();
   // Every test that doesn't care about the Well/Overview sections gets a
   // harmless default so it doesn't have to stub this itself.
   mockedGetWellProfile.mockResolvedValue({ well_wins: 0, rewards: [] });
@@ -40,6 +43,7 @@ beforeEach(() => {
   mockedGetCurrentSeason.mockResolvedValue({
     name: 'Fall 2026', ends_at: new Date(Date.now() + 86400_000).toISOString(),
   });
+  mockedGetSeasonHistory.mockResolvedValue({ human: [], ai: [] });
 });
 
 afterEach(() => {
@@ -70,6 +74,22 @@ describe('StatsPage', () => {
     expect(screen.getByText('Oni')).toBeInTheDocument();
     expect(screen.getByText('Warlock')).toBeInTheDocument();
     expect(await screen.findByText(/New season in/i)).toBeInTheDocument();
+  });
+
+  it('opens the Seasons overlay for the logged-in player', async () => {
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 19 });
+    mockedGetSeasonHistory.mockResolvedValue({
+      human: [{ season: 'Fall 2026', tier: 'Warlock', current: true }],
+      ai: [],
+    });
+    render(<StatsPage />);
+    await flush();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seasons' }));
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(mockedGetSeasonHistory).toHaveBeenCalledWith('Oni');
   });
 
   it('hides the season timer while mid-placements', async () => {
