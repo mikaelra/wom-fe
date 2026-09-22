@@ -7,6 +7,7 @@ import {
   toggleMyAi,
   saveMyAiSettings,
   getMyAiMatches,
+  getCurrentSeason,
 } from '@/lib/api';
 
 vi.mock('@/lib/api', () => ({
@@ -14,6 +15,7 @@ vi.mock('@/lib/api', () => ({
   toggleMyAi: vi.fn(),
   saveMyAiSettings: vi.fn(),
   getMyAiMatches: vi.fn(),
+  getCurrentSeason: vi.fn(),
 }));
 
 const status = (over = {}) => ({
@@ -37,6 +39,9 @@ beforeEach(() => {
   vi.mocked(saveMyAiSettings).mockResolvedValue({
     saved: true, enabled: false, minute_counter: 15, knobs: {}, override_rules: [],
   });
+  vi.mocked(getCurrentSeason).mockResolvedValue({
+    name: 'Fall 2026', ends_at: new Date(Date.now() + 86400_000).toISOString(),
+  });
   setStoredAccountToken('tok');
 });
 
@@ -58,6 +63,24 @@ describe('MyAiPage', () => {
     expect(await screen.findByRole('button', { name: /AI is OFF/i })).toBeInTheDocument();
     expect(screen.getByText(/buy more/i)).toBeInTheDocument();
     expect(screen.getByText(/Bot rank/i)).toBeInTheDocument();
+  });
+
+  it('hides the season timer while the bot is still in placements', async () => {
+    render(<MyAiPage />);
+    await screen.findByText(/Bot rank/i);
+
+    expect(screen.queryByText(/New season in/i)).not.toBeInTheDocument();
+    expect(getCurrentSeason).not.toHaveBeenCalled();
+  });
+
+  it('shows the season timer once the bot has a placed rank', async () => {
+    vi.mocked(getMyAiStatus).mockResolvedValue(
+      status({ bot_rank: { tier: 'Wizard I', games_played: 19 } }),
+    );
+
+    render(<MyAiPage />);
+
+    expect(await screen.findByText(/New season in/i)).toBeInTheDocument();
   });
 
   it('toggles the AI on and shows the queue reason', async () => {

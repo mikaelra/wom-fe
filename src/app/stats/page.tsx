@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
 import RankBadge from '@/components/hud/RankBadge';
+import SeasonTimer from '@/components/hud/SeasonTimer';
 import { CITY_PATH } from '@/lib/cities';
 
 // Labels/emoji for every key in wom-be's config.WELL_REWARDS, matching the
@@ -80,8 +81,13 @@ export default function StatsPage() {
   // Games 1-10 are placements: rank stays hidden until the debut at game
   // 10 (docs/RANK_SYSTEM_PLAN.md §5) -- same display rule the badge and
   // post-game summary already follow, so this reads identically whether
-  // the player has never queued or is still mid-placement.
-  const gamesRemaining = 10 - rankedGamesPlayed;
+  // the player has never queued or is still mid-placement. Floored at 1:
+  // this branch only renders when `tier` is null, but ranked_games_played
+  // is a separate field that can already be >= 10 for a few more matches
+  // after that (bug list 260916 -- shown_tier_this_season lags a match
+  // behind on a season rollover until the next result writes it) --
+  // without the floor that read as a negative "Play -9 more matches."
+  const gamesRemaining = Math.max(1, 10 - rankedGamesPlayed);
   const placementMessage =
     rankedGamesPlayed === 0
       ? 'Play 10 matches to get your rank.'
@@ -142,7 +148,10 @@ export default function StatsPage() {
               <p className="text-sm text-white/50 mb-3">{playerName}</p>
               <h2 className="text-sm font-semibold text-white/70 mb-2">Ranked</h2>
               {tier ? (
-                <RankBadge tier={tier} className="text-base px-3 py-1" />
+                <>
+                  <RankBadge tier={tier} className="text-base px-3 py-1" />
+                  <SeasonTimer className="text-sm mt-3" />
+                </>
               ) : (
                 <>
                   <RankBadge tier={null} className="text-base px-3 py-1" />

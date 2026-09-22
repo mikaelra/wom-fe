@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import StatsPage from '@/app/stats/page';
-import { getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
+import { getCurrentSeason, getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -12,11 +12,13 @@ vi.mock('@/lib/api', () => ({
   getRankedProfile: vi.fn(),
   getWellProfile: vi.fn(),
   getPlayerProfile: vi.fn(),
+  getCurrentSeason: vi.fn(),
 }));
 
 const mockedGetRankedProfile = vi.mocked(getRankedProfile);
 const mockedGetWellProfile = vi.mocked(getWellProfile);
 const mockedGetPlayerProfile = vi.mocked(getPlayerProfile);
+const mockedGetCurrentSeason = vi.mocked(getCurrentSeason);
 
 const flush = () => act(async () => Promise.resolve());
 
@@ -25,6 +27,7 @@ beforeEach(() => {
   mockedGetRankedProfile.mockReset();
   mockedGetWellProfile.mockReset();
   mockedGetPlayerProfile.mockReset();
+  mockedGetCurrentSeason.mockReset();
   // Every test that doesn't care about the Well/Overview sections gets a
   // harmless default so it doesn't have to stub this itself.
   mockedGetWellProfile.mockResolvedValue({ well_wins: 0, rewards: [] });
@@ -33,6 +36,9 @@ beforeEach(() => {
     played_games: 0,
     wins: 0,
     kills: 0,
+  });
+  mockedGetCurrentSeason.mockResolvedValue({
+    name: 'Fall 2026', ends_at: new Date(Date.now() + 86400_000).toISOString(),
   });
 });
 
@@ -63,6 +69,17 @@ describe('StatsPage', () => {
     expect(mockedGetRankedProfile).toHaveBeenCalledWith('Oni');
     expect(screen.getByText('Oni')).toBeInTheDocument();
     expect(screen.getByText('Warlock')).toBeInTheDocument();
+    expect(await screen.findByText(/New season in/i)).toBeInTheDocument();
+  });
+
+  it('hides the season timer while mid-placements', async () => {
+    localStorage.setItem('playerName', 'Eleonora');
+    mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 4 });
+    render(<StatsPage />);
+    await flush();
+
+    expect(screen.queryByText(/New season in/i)).not.toBeInTheDocument();
+    expect(mockedGetCurrentSeason).not.toHaveBeenCalled();
   });
 
   it('shows a placement-progress message while mid-placements', async () => {
@@ -78,6 +95,18 @@ describe('StatsPage', () => {
   it('shows a singular "match" when exactly one placement game remains', async () => {
     localStorage.setItem('playerName', 'Eleonora');
     mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 9 });
+    render(<StatsPage />);
+    await flush();
+
+    expect(screen.getByText('Play 1 more match to get your rank.')).toBeInTheDocument();
+  });
+
+  it('floors the remaining-matches count at 1 rather than going negative', async () => {
+    // tier can lag ranked_games_played past 10 for a match or two around a
+    // season rollover (shown_tier_this_season only gets (re)written by the
+    // *next* ranked result) -- this must never read "Play -9 more matches."
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 19 });
     render(<StatsPage />);
     await flush();
 
