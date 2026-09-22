@@ -4,20 +4,22 @@ import { useEffect, useState } from 'react';
 import { getCurrentSeason } from '@/lib/api';
 
 /** The single largest time unit remaining until `msRemaining` runs out,
- *  formatted as "12d" / "4h" / "23m" / "52s" -- never stacked. Product
- *  decision 2026-09-22: a player checking the countdown wants "it's
- *  days away" or "it's minutes away", not a ticking "12d 4h 23m 52s" --
- *  so only the most relevant unit is ever shown, and which unit that is
- *  changes automatically as the deadline gets closer. */
+ *  formatted as "12 days" / "4 hours" / "23 minutes" / "52 seconds" --
+ *  never stacked. Product decision 2026-09-22: a player checking the
+ *  countdown wants "it's days away" or "it's minutes away", not a
+ *  ticking "12d 4h 23m 52s" -- so only the most relevant unit is ever
+ *  shown, and which unit that is changes automatically as the deadline
+ *  gets closer. */
 export function formatCountdown(msRemaining: number): string {
+  const unit = (n: number, name: string) => `${n} ${name}${n === 1 ? '' : 's'}`;
   const totalSeconds = Math.max(0, Math.floor(msRemaining / 1000));
   const days = Math.floor(totalSeconds / 86400);
-  if (days >= 1) return `${days}d`;
+  if (days >= 1) return unit(days, 'day');
   const hours = Math.floor(totalSeconds / 3600);
-  if (hours >= 1) return `${hours}h`;
+  if (hours >= 1) return unit(hours, 'hour');
   const minutes = Math.floor(totalSeconds / 60);
-  if (minutes >= 1) return `${minutes}m`;
-  return `${totalSeconds}s`;
+  if (minutes >= 1) return unit(minutes, 'minute');
+  return unit(totalSeconds, 'second');
 }
 
 /** "{season}. New season in {countdown}." (docs/RANK_SYSTEM_PLAN.md §12) --

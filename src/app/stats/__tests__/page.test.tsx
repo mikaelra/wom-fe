@@ -101,6 +101,18 @@ describe('StatsPage', () => {
     expect(screen.getByText('Play 1 more match to get your rank.')).toBeInTheDocument();
   });
 
+  it('floors the remaining-matches count at 1 rather than going negative', async () => {
+    // tier can lag ranked_games_played past 10 for a match or two around a
+    // season rollover (shown_tier_this_season only gets (re)written by the
+    // *next* ranked result) -- this must never read "Play -9 more matches."
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 19 });
+    render(<StatsPage />);
+    await flush();
+
+    expect(screen.getByText('Play 1 more match to get your rank.')).toBeInTheDocument();
+  });
+
   it('shows a never-queued message for a player with zero ranked games', async () => {
     localStorage.setItem('playerName', 'Newbie');
     mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 0 });

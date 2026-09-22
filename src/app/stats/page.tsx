@@ -81,8 +81,13 @@ export default function StatsPage() {
   // Games 1-10 are placements: rank stays hidden until the debut at game
   // 10 (docs/RANK_SYSTEM_PLAN.md §5) -- same display rule the badge and
   // post-game summary already follow, so this reads identically whether
-  // the player has never queued or is still mid-placement.
-  const gamesRemaining = 10 - rankedGamesPlayed;
+  // the player has never queued or is still mid-placement. Floored at 1:
+  // this branch only renders when `tier` is null, but ranked_games_played
+  // is a separate field that can already be >= 10 for a few more matches
+  // after that (bug list 260916 -- shown_tier_this_season lags a match
+  // behind on a season rollover until the next result writes it) --
+  // without the floor that read as a negative "Play -9 more matches."
+  const gamesRemaining = Math.max(1, 10 - rankedGamesPlayed);
   const placementMessage =
     rankedGamesPlayed === 0
       ? 'Play 10 matches to get your rank.'

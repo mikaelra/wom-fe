@@ -9,23 +9,30 @@ vi.mock('@/lib/api', () => ({
 
 describe('formatCountdown', () => {
   it('shows only days when more than a day remains', () => {
-    expect(formatCountdown(3 * 86400_000 + 5 * 3600_000)).toBe('3d');
+    expect(formatCountdown(3 * 86400_000 + 5 * 3600_000)).toBe('3 days');
   });
 
   it('shows only hours when less than a day remains', () => {
-    expect(formatCountdown(5 * 3600_000 + 30 * 60_000)).toBe('5h');
+    expect(formatCountdown(5 * 3600_000 + 30 * 60_000)).toBe('5 hours');
   });
 
   it('shows only minutes when less than an hour remains', () => {
-    expect(formatCountdown(23 * 60_000 + 45_000)).toBe('23m');
+    expect(formatCountdown(23 * 60_000 + 45_000)).toBe('23 minutes');
   });
 
   it('shows only seconds when less than a minute remains', () => {
-    expect(formatCountdown(45_000)).toBe('45s');
+    expect(formatCountdown(45_000)).toBe('45 seconds');
   });
 
-  it('clamps a past deadline to 0s rather than going negative', () => {
-    expect(formatCountdown(-5000)).toBe('0s');
+  it('clamps a past deadline to 0 seconds rather than going negative', () => {
+    expect(formatCountdown(-5000)).toBe('0 seconds');
+  });
+
+  it('singularizes exactly 1 of a unit', () => {
+    expect(formatCountdown(86400_000 + 1000)).toBe('1 day');
+    expect(formatCountdown(3600_000 + 1000)).toBe('1 hour');
+    expect(formatCountdown(60_000 + 1000)).toBe('1 minute');
+    expect(formatCountdown(1000)).toBe('1 second');
   });
 });
 
@@ -60,7 +67,7 @@ describe('SeasonTimer', () => {
     vi.mocked(getCurrentSeason).mockResolvedValue({ name: 'Fall 2026', ends_at: endsAt });
 
     render(<SeasonTimer />);
-    const message = await screen.findByText(byFullText('Fall 2026. New season in 3d.'));
+    const message = await screen.findByText(byFullText('Fall 2026. New season in 3 days.'));
 
     expect(message.className).toContain('italic');
   });
@@ -74,10 +81,10 @@ describe('SeasonTimer', () => {
     vi.mocked(getCurrentSeason).mockResolvedValue({ name: 'Fall 2026', ends_at: endsAt });
 
     render(<SeasonTimer />);
-    await screen.findByText(byFullText(/^Fall 2026\. New season in [34]s\.$/));
+    await screen.findByText(byFullText(/^Fall 2026\. New season in [34] seconds\.$/));
 
     await screen.findByText(
-      byFullText(/^Fall 2026\. New season in [012]s\.$/),
+      byFullText(/^Fall 2026\. New season in (0 seconds|1 second|2 seconds)\.$/),
       {},
       { timeout: 4_000, interval: 200 },
     );
