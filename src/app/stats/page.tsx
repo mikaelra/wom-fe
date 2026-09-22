@@ -128,13 +128,6 @@ export default function StatsPage() {
             >
               🏛️
             </button>
-            <button
-              type="button"
-              onClick={() => setShowSeasons(true)}
-              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-white/20 transition-colors cursor-pointer"
-            >
-              Seasons
-            </button>
           </span>
           <h1 className="text-2xl font-bold tracking-wide">Stats</h1>
         </div>
@@ -158,8 +151,17 @@ export default function StatsPage() {
         ) : (
           <>
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
-              <p className="text-sm text-white/50 mb-3">{playerName}</p>
-              <h2 className="text-sm font-semibold text-white/70 mb-2">Ranked</h2>
+              <div className="flex items-start justify-between mb-3">
+                <p className="text-sm text-white/50">{playerName}</p>
+                <button
+                  type="button"
+                  onClick={() => setShowSeasons(true)}
+                  className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+                >
+                  Seasons
+                </button>
+              </div>
+              <h2 className="text-sm font-semibold text-white/70 mb-2">Player Ranked</h2>
               {tier ? (
                 <>
                   <RankBadge tier={tier} className="text-base px-3 py-1" />

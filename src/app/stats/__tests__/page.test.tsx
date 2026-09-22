@@ -76,6 +76,15 @@ describe('StatsPage', () => {
     expect(await screen.findByText(/New season in/i)).toBeInTheDocument();
   });
 
+  it('labels the ranked section "Player Ranked"', async () => {
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 19 });
+    render(<StatsPage />);
+    await flush();
+
+    expect(screen.getByText('Player Ranked')).toBeInTheDocument();
+  });
+
   it('opens the Seasons overlay for the logged-in player', async () => {
     localStorage.setItem('playerName', 'Oni');
     mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 19 });
