@@ -23,6 +23,7 @@ import type {
   MyAiMatches,
 } from '@/lib/schemas';
 import { CITY_PATH } from '@/lib/cities';
+import SeasonTimer from '@/components/hud/SeasonTimer';
 
 const KNOBS: { key: Exclude<keyof MyAiKnobs, 'action_split'>; label: string; low: string; high: string }[] = [
   { key: 'greed', label: 'Greed', low: 'heals', high: 'hoards coin' },
@@ -47,6 +48,20 @@ const RULE_TARGETS: { v: string; l: string }[] = [
   { v: 'least_aggressive', l: 'whoever attacks me least' },
   { v: 'other', l: 'a random player' },
 ];
+
+/** Splits a total drip-interval minute count into days/hours/minutes for
+ *  the Pace inputs (bug list 260916 -- 60 minutes used to be the entire
+ *  range, no way to say "once a day"). */
+function minutesToDhm(total: number): { days: number; hours: number; minutes: number } {
+  const days = Math.floor(total / 1440);
+  const hours = Math.floor((total % 1440) / 60);
+  const minutes = total % 60;
+  return { days, hours, minutes };
+}
+
+function dhmToMinutes(days: number, hours: number, minutes: number): number {
+  return days * 1440 + hours * 60 + minutes;
+}
 
 /** "14:03" for a game that ended today, "Sep 1, 14:03" otherwise -- local
  *  clock. "—" if it doesn't parse. */
@@ -80,8 +95,12 @@ export default function MyAiPage() {
   const [toggleNote, setToggleNote] = useState('');
   const [savedNote, setSavedNote] = useState('');
 
-  // local draft of the tunables
-  const [minuteCounter, setMinuteCounter] = useState(10);
+  // local draft of the tunables. Days/hours default to 0 -- only minutes
+  // carries the pre-existing default (10) -- and combine into one total
+  // minute count on save (the server only ever sees that single number).
+  const [paceDays, setPaceDays] = useState(0);
+  const [paceHours, setPaceHours] = useState(0);
+  const [paceMinutes, setPaceMinutes] = useState(10);
   const [knobs, setKnobs] = useState<MyAiKnobs>({});
   const [rules, setRules] = useState<MyAiOverrideRule[]>([]);
 
@@ -89,7 +108,10 @@ export default function MyAiPage() {
     getMyAiStatus(t)
       .then((s) => {
         setStatus(s);
-        setMinuteCounter(s.minute_counter);
+        const dhm = minutesToDhm(s.minute_counter);
+        setPaceDays(dhm.days);
+        setPaceHours(dhm.hours);
+        setPaceMinutes(dhm.minutes);
         setKnobs(s.knobs);
         setRules(s.override_rules);
       })
@@ -137,7 +159,7 @@ export default function MyAiPage() {
     setSavedNote('');
     try {
       await saveMyAiSettings(token, {
-        minute_counter: minuteCounter,
+        minute_counter: dhmToMinutes(paceDays, paceHours, paceMinutes),
         knobs,
         override_rules: rules,
       });
@@ -180,6 +202,7 @@ export default function MyAiPage() {
                 Bot rank:{' '}
                 <b>{status.bot_rank.tier ?? '—'}</b> ({status.bot_rank.games_played} games)
               </div>
+              {status.bot_rank.tier && <SeasonTimer className="text-xs mt-1" />}
             </div>
           </section>
           {toggleNote && <p className="text-white/70 text-sm -mt-4">{toggleNote}</p>}
@@ -204,18 +227,42 @@ export default function MyAiPage() {
           {/* --- pace --- */}
           <section>
             <h2 className="text-white font-semibold mb-2">Pace</h2>
-            <label className="text-sm text-white/80 flex items-center gap-3">
+            <div className="text-sm text-white/80 flex flex-wrap items-center gap-3">
               While you&apos;re away, play a game every
-              <input
-                type="number"
-                min={1}
-                max={60}
-                value={minuteCounter}
-                onChange={(e) => setMinuteCounter(Number(e.target.value))}
-                className="w-16 bg-gray-800 border border-white/20 rounded px-2 py-1 text-white"
-              />
-              minutes
-            </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={paceDays}
+                  onChange={(e) => setPaceDays(Number(e.target.value))}
+                  className="w-16 bg-gray-800 border border-white/20 rounded px-2 py-1 text-white"
+                />
+                days
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={paceHours}
+                  onChange={(e) => setPaceHours(Number(e.target.value))}
+                  className="w-16 bg-gray-800 border border-white/20 rounded px-2 py-1 text-white"
+                />
+                hours
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={paceMinutes}
+                  onChange={(e) => setPaceMinutes(Number(e.target.value))}
+                  className="w-16 bg-gray-800 border border-white/20 rounded px-2 py-1 text-white"
+                />
+                minutes
+              </label>
+            </div>
           </section>
 
           {/* --- knobs --- */}

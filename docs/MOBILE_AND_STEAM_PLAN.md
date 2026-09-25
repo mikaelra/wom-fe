@@ -1,8 +1,18 @@
 # Mobile (iOS / Android) & Steam Distribution Plan
 
-Status: **draft · Apple enrolled, Play registration blocked (§14.3), Safari
-smoke test passed (§5.1), Phase 0 versioning merged (wom-fe#296, wom-be#170)** ·
-Scope: `wom-fe` + `wom-be` · Last updated: 2026-08-12
+Status: **draft · Apple enrolled, Steam Direct paid and partner access active — 30-day
+hold long cleared (§10.2), Electron shell + SteamPipe upload built (§10.1), Play
+registration blocked (§14.3), Safari smoke test passed (§5.1), static export verified on
+the iPhone 14 (§5.3), Phase 0 versioning merged (wom-fe#296, wom-be#170), privacy policy
+page shipped (wom-fe#333)** ·
+Scope: `wom-fe` + `wom-be` · Last updated: 2026-09-09
+
+**Product decision (2026-09-09): the mobile and Steam builds ship as a paid app at a low
+premium price (a couple of dollars / dollars-and-change), with no in-app purchases in v1.**
+This makes all three store builds premium-with-no-IAP; the web build keeps its free-to-play
++ Stripe cosmetics shop unchanged. Consequences are threaded through §8 (Phase 4 drops off
+the critical path), §10.3, §14.1 (now a decision, not a recommendation) and §14.2 (the
+Google app record **must** be created as Paid — free→paid conversion is impossible on Play).
 
 Goal: ship World of Mythos as an installable app on the Apple App Store and Google Play,
 and as a purchasable PC game on Steam, reusing the existing web build rather than
@@ -53,16 +63,22 @@ game playable on a phone" today, before anything is built.
 |---|---|---|---|
 | 1 | `/lobby/[lobbyId]` prevents static export | Engineering, ~½ day | §4 |
 | 2 | Three-tier asset system (the "490 MB" is an unused HD tier) | Engineering, ~4 days | §6 |
-| 3 | Stripe Checkout is not permitted for in-app digital goods | Policy + engineering, 1–2 weeks | §8 |
+| 3 | ~~Stripe Checkout is not permitted for in-app digital goods~~ — mooted for v1 by the paid-app / no-IAP decision (§8, §14.1) | Policy + engineering, 1–2 weeks | §8 |
 | 4 | No in-app account deletion, no privacy policy, no age gate | Policy + engineering, ~3 days | §9 |
 | 5 | iOS builds require macOS; the dev machine is Fedora | Logistics, cost | §7 |
 
 Blocker 2 turned out not to be a size problem at all — the 470 MB is an unused quality
 tier (§6.1), which is now wanted rather than deleted, making it a ~4-day feature. Even so,
 the engineering total stays close to a week, and what dominates the schedule is blockers
-3, 4 and 5, which have **lead times measured in weeks that are not developer time**: Apple enrolment, Google's 14-day closed-testing requirement, Steam's 30-day hold.
+3, 4 and 5, which have **lead times measured in weeks that are not developer time**: Apple
+enrolment, Google's 14-day closed-testing requirement, Steam's 30-day hold.
 Start those clocks in week one (§13), independent of whether any code is ready. That
 asymmetry is the single most important scheduling fact in this document.
+
+**Update (2026-09-03):** two of those three clocks are now spent — Apple enrolment cleared,
+and Steam Direct is fully done (fee, partner access, tax interview, 30-day hold all
+behind us). The only external clock still outstanding is Google's, and it has not even
+started because Play registration is still payment-blocked (§14.3).
 
 ---
 
@@ -106,10 +122,11 @@ These were checked against the codebase, not assumed:
   with golden tests, which is good, but nothing on the wire says which version a client
   speaks. On the web that is survivable because a refresh updates everyone at once. On a
   phone it is not (§3.1 below, and §3 of the backend doc).
-- **No account-deletion route** exists anywhere in `wom-be/routes/`. No privacy policy
-  page in `src/app/`. No age affirmation in `src/app/signup/page.tsx`. All three are
-  store-review blockers, and all three are already flagged in
-  `docs/LEGAL_COMPLIANCE_PLAN.md` §2.1/§2.2/§6 as outstanding.
+- **No account-deletion route** exists anywhere in `wom-be/routes/`. No age affirmation in
+  `src/app/signup/page.tsx` (it links the privacy policy but does not gate on age). Both
+  are store-review blockers, flagged in `docs/LEGAL_COMPLIANCE_PLAN.md` §2.2/§6. The third
+  of the original trio — the **privacy policy page** — is now done: `src/app/privacy/page.tsx`,
+  merged wom-fe#333.
 
 ### 3.1 Why versioning becomes load-bearing
 
@@ -646,6 +663,12 @@ one to find out whether the app builds.
 
 ## 8. Phase 4 — Payments: the policy blocker
 
+> **Deferred by the 2026-09-09 pricing decision.** v1 on both stores is a paid app with
+> **no in-app purchases**, so nothing in this section is on the path to the first release —
+> there is no in-app digital-goods sale for guideline 3.1.1 / Play Payments to apply to.
+> The section is kept because IAP may be added to a *live* app later (a normal update, per
+> §14.1); everything below applies at that point, not now.
+
 **This is the one that can invalidate assumptions about the business, not just the build.**
 
 ### 8.1 The rule
@@ -717,12 +740,12 @@ Every item here is a hard review blocker, and three of them are already known ga
 
 | Requirement | Status | Notes |
 |---|---|---|
-| Privacy policy at a public URL | 🔴 **Missing** | `LEGAL_COMPLIANCE_PLAN.md` §2.1. Both stores require the URL at submission. |
+| Privacy policy at a public URL | ✅ **Shipped** | `/privacy`, merged wom-fe#333 (revision dated 2 Sep 2026). Both stores require the URL at submission — this one is ready. |
 | **In-app** account deletion | 🔴 **Missing** | Apple 5.1.1(v): any app with account creation must offer deletion *in the app*. A documented manual process is GDPR-sufficient but **not** App Store-sufficient. Needs a real endpoint + settings UI. |
-| Age gate | 🔴 **Missing** | `LEGAL_COMPLIANCE_PLAN.md` §6. Required for rating accuracy; more so with paid randomised items. |
+| Age gate | 🔴 **Missing** | `LEGAL_COMPLIANCE_PLAN.md` §6. Still required for rating accuracy and chat (UGC), even though v1 has no paid randomised items (§8 deferred). |
 | Play Data Safety form | Not started | Must match actual behaviour: email, gameplay data, chat, Stripe/Resend/Sentry processors. |
 | Apple privacy nutrition labels | Not started | Same data, different form. Must be consistent with the above. |
-| Content rating (IARC) | Not started | Questionnaire covers chat (user-generated content → moderation questions, see `LEGAL_COMPLIANCE_PLAN.md` §8) and paid randomised items. |
+| Content rating (IARC) | Not started | Questionnaire covers chat (user-generated content → moderation questions, see `LEGAL_COMPLIANCE_PLAN.md` §8). v1 declares no paid randomised items (§8 deferred), which keeps the rating lower. |
 | Screenshots per device class | Not started | Multiple sizes each store. A landscape 3D game needs real gameplay captures. |
 | Support URL + support email | Partial | `SUPPORT_EMAIL` already exists and is surfaced on shop pages. |
 | Terms / EULA | Partial | `/terms` and `/refunds` exist; both need review against store requirements. |
@@ -748,6 +771,15 @@ date by at least two weeks.
 
 ### 10.1 The shell
 
+✅ **Built (2026-09).** The Electron shell is scaffolded (`electron/main.js`, `preload.js`,
+`serveFromExport.js`, `steam.js`), `steamworks.js` is wired in (wom-fe#355), Sentry tags
+events by shell (web / steam / capacitor), and `npm run steam:upload`
+(`scripts/steam-upload.sh`, wom-fe#363/#365) builds the win + linux `dir` trees and drives
+`steamcmd` in a container — verified end-to-end short of the authenticated upload. Windows
+is built by default, Linux is opt-in via `STEAM_DEPOT_LINUX`. What remains is the one-time
+partner-site setup (App ID, depots, launch options — `steam/README.md`), the store-page
+assets, and running the tier system (§6) so the extreme tier actually ships.
+
 Same static export, wrapped in **Electron**. Tauri is smaller and would also work, but
 Electron bundles a known Chromium version rather than inheriting the host WebView2/WebKit,
 and for a WebGL game deterministic renderer behaviour across a decade of Windows installs
@@ -768,13 +800,19 @@ logic is correct.
 
 ### 10.2 Steamworks logistics
 
-- **Steam Direct: $100 per app**, recoupable against revenue.
-- Partner account, bank details, and **tax interview** — for a Norwegian ENK this
-  intersects with `MONETIZATION_PLAN.md` §6.6; Valve becomes merchant of record for the
-  game price, which is a materially different VAT position from selling via Stripe.
-  Worth an explicit look before assuming the existing tax setup carries over.
-- **A mandatory ~30-day wait** between paying the fee / publishing the store page and
-  being allowed to release. Another clock to start early.
+- ~~**Steam Direct: $100 per app**, recoupable against revenue.~~ ✅ **Paid ~2026-06** (≈3
+  months ago). The app is registered, Steamworks partner access is active, and the
+  mandatory ~30-day release hold has long since cleared — a Steam build can be released as
+  soon as one exists and passes review. This is no longer on the critical path.
+- ~~Partner account, bank details, and **tax interview**~~ ✅ **Done.** Partner account,
+  banking and the tax interview are all complete. Note the standing consequence for
+  `MONETIZATION_PLAN.md` §6.6: Valve is merchant of record for the game price, a
+  materially different VAT position from selling via Stripe — the setup is done, but the
+  monetisation arithmetic should still reflect it.
+- ~~**A mandatory ~30-day wait** between paying the fee / publishing the store page and
+  being allowed to release.~~ ✅ Long cleared (fee paid ~2026-06). Not a constraint on the
+  timeline any more — see §10.1 for what's left (partner-site setup, store-page assets,
+  the extreme tier).
 - Store page assets: capsule art in several sizes, trailer, description. This is real
   design work, not a checkbox.
 - Builds upload via SteamPipe (`steamcmd`), which automates cleanly from CI.
@@ -792,8 +830,10 @@ simply be exposed in the Steam build. Two viable shapes:
    substantially more integration work and pulls the item economy into Steam's inventory
    system.
 
-Recommend (1) for the first Steam release. It also sidesteps the loot-box rating question
-on that platform entirely.
+**Decided 2026-09-09: (1) Premium.** The Steam build sells for a low premium price with
+`SHOP_ENABLED` off — consistent with the same decision for mobile (§14.1). It sidesteps the
+loot-box rating question on Steam entirely and means the Steam Inventory / MTX integration
+in option (2) is not built for v1.
 
 ### 10.4 Steam realities for an online-only game
 
@@ -815,8 +855,8 @@ This is where the plan pays for itself. Of the work above:
 - Asset hygiene and quality tiering (§6) — Steam does not care about bundle size, but
   benefits identically from the tiering and the manual quality setting, and from not
   shipping 470 MB of dead files in an installer
-- Payment provider abstraction on the backend (§8.3) — the same seam serves Stripe,
-  StoreKit, Play Billing and Steam MTX
+- ~~Payment provider abstraction on the backend (§8.3)~~ — deferred with Phase 4; v1 sells
+  no in-app goods on any store (§14.1). Still the right seam if/when IAP is added later.
 - Account deletion, privacy policy, age gate (§9)
 - Input handling: gamepad/fullscreen/pause work for Steam largely rides on the same
   refactor as touch controls for mobile
@@ -825,8 +865,8 @@ This is where the plan pays for itself. Of the work above:
 **Mobile-only**: IAP integration, store listings and ratings, TestFlight/Play tracks,
 touch controls, safe areas, WKWebView memory work, macOS build access.
 
-**Steam-only**: Electron shell, Steamworks SDK, store page art, the $100 fee and 30-day
-hold, Steam Deck verification.
+**Steam-only**: Electron shell, Steamworks SDK, store page art, Steam Deck verification.
+(The $100 fee, partner onboarding, tax interview and 30-day hold are all done — §10.2.)
 
 Rough split: **roughly 70% of the total work is shared.** The correct order is therefore
 mobile-first — mobile forces the harder constraints (asset size, IAP, review scrutiny),
@@ -841,7 +881,7 @@ would leave every hard problem still ahead.
 |---|---|---|
 | Apple Developer Program | $99 | Yearly |
 | Google Play Console | $25 | One-time |
-| Steam Direct | $100/app | Per app, recoupable |
+| Steam Direct | $100/app | Per app, recoupable · ✅ paid |
 | GitHub Actions macOS minutes | ~$0.08/min | Per build |
 | Used Mac mini (optional) | ~$400 | One-off |
 | Windows code signing cert (optional) | $200–400 | Yearly |
@@ -860,9 +900,11 @@ These run in parallel with all development and are the actual critical path:
 | ~~Apple Developer enrolment~~ | — | ✅ **Done 2026-08-12** (D-U-N-S obtained, payment cleared) |
 | Play Console account | **Blocked** | 🔴 Payment loop, 2 failed attempts, no charge taken (§14.3) |
 | Google closed testing (14 continuous days, tester minimum) | ≥ 2 weeks | Blocked until registration clears (§14.3) — recruit testers now regardless |
-| Steam Direct 30-day hold | 30 days | Whenever Steam is committed to |
+| ~~Steam Direct 30-day hold~~ | — | ✅ **Done** — fee paid ~2026-06, partner access active, tax interview complete, hold long cleared |
 | Store review, per submission | 1–3 days typical | Per submission, forever |
-| Legal opinion on loot boxes (`LEGAL_COMPLIANCE_PLAN.md` §4) | Weeks | Before any paid randomised item ships to a store |
+| **Apple Paid Apps agreement + banking + tax** (W-8BEN-E for the ENK) | days (Apple validates the bank account) | Now required *before the app can go on sale* — the paid-app decision (§14.1) makes this no longer deferrable. Start alongside the Bundle ID registration. |
+| **Google merchant / payments profile** (paid app) | days, after Play registration clears | Needed to publish a paid app; blocked behind §14.3 like everything else Google. |
+| ~~Legal opinion on loot boxes (`LEGAL_COMPLIANCE_PLAN.md` §4)~~ | Weeks | Not needed for v1 — no paid randomised items on any store (§8 deferred). Reinstate if IAP is ever added. |
 
 ---
 
@@ -917,16 +959,34 @@ These run in parallel with all development and are the actual critical path:
    clears**. Start the 14-day clock the same day; it cannot be compressed later.
 10. Decide the shop question (§14.1) and, if shipping it, Phase 4 IAP (§8).
 11. Store listings, ratings, screenshots (§9).
-12. Steam: Electron shell, Steam Direct, store page (§10).
+12. Steam (§10): the Electron shell + SteamPipe upload are built (wom-fe#355/#358/#363/#365)
+    and Steam Direct / partner access / tax / 30-day hold are all done. What's left is the
+    one-time partner-site setup, the store-page assets, and the extreme asset tier from
+    step 8 — no clock gates a release once those exist.
 
-### 14.1 One decision worth making early
+### 14.1 The pricing decision — made 2026-09-09
 
-**Ship v1 to the stores with `SHOP_ENABLED` off.**
+**v1 on both stores is a paid app (a couple of dollars) with `SHOP_ENABLED` off and no
+in-app purchases.** The web build keeps its free-to-play + Stripe cosmetics shop at
+~97% margin exactly as it does today, unaffected.
 
-It removes Phase 4 (§8) entirely from the critical path — no IAP integration, no
+This removes Phase 4 (§8) entirely from the critical path — no IAP integration, no
 loot-box rating questions, no 30% arithmetic, no store-level territory exclusions — and
-Phase 4 is both the largest policy risk and the largest source of rejection. The web build
-keeps selling through Stripe at ~97% margin exactly as it does today, unaffected.
+Phase 4 is both the largest policy risk and the largest source of rejection. A paid app
+with no IAP has no in-app digital-goods sale for Apple 3.1.1 / Play Payments to apply to.
+
+**What the paid-app choice adds** (small, but real, and to be started early):
+
+- **Apple**: the **Paid Apps agreement** plus banking and tax forms (W-8BEN-E for the ENK)
+  must be active in *Agreements, Tax, and Banking* before the app can go on sale — the plan
+  used to say this could wait (§14.2); it can't any more. Apple takes a few days to
+  validate the bank account. Same class of paperwork as the Steam tax interview.
+- **Google**: the app record **must be created as Paid from the start**. Free → Paid
+  conversion is **impossible** on Play (only Paid → Free works). A paid Play app also needs
+  a merchant / payments profile. Both are downstream of the still-blocked registration
+  (§14.3), so no time is lost — but the record must not be created as Free by reflex.
+- **Steam**: already covered — premium is the decided shape (§10.3), Steam Direct and the
+  tax interview are done (§10.2).
 
 That converts the first release into a purely technical problem, gets real installs and
 real crash data from real devices, and lets the monetisation integration be designed
@@ -951,16 +1011,17 @@ Permanent, chosen once, no take-backs:
 | Choice | Value | Why it's permanent |
 |---|---|---|
 | Bundle ID / package name | `net.worldofmythos.game` | Cannot be changed after first publish on either store. The same string is Capacitor's `appId`. |
-| Free vs Paid (Google) | **Free** | A free app can never be converted to paid. Free is correct regardless: IAP works on free apps, and §14.1 ships with the shop off anyway. |
+| Free vs Paid (Google) | **Paid** (per §14.1) | 🔴 A free app can **never** be converted to paid on Play — only paid → free. The pricing decision (§14.1) means the record **must** be created as Paid. |
 | App name | "World of Mythos" | Reserved per-store, first-come-first-served. |
 | Seller / developer name | Per enrolment entity | Shown publicly on every listing. |
 
 Then, in each console, before any build exists:
 
-- **Apple**: register the Bundle ID in the Developer portal → create the App Store Connect
-  app record → accept the Free Apps agreement under Agreements, Tax and Banking. Without
-  that agreement active, app records cannot be created at all. Paid agreement and banking
-  can wait until the shop turns on.
+- **Apple**: register the Bundle ID in the Developer portal → accept the **Paid Apps
+  agreement** and complete banking + tax (W-8BEN-E) under Agreements, Tax and Banking →
+  create the App Store Connect app record. Per §14.1 the app is paid, so the Paid Apps
+  agreement (not just Free Apps) has to be active before it can be sold; Apple takes a few
+  days to validate the bank account, so start this early.
 - **Google**: create the app → complete the identity/verification tasks → set up the
   Internal testing track (up to 100 testers, no review wait, installs over the web —
   this is the fastest route to a build on someone else's phone once one exists).
@@ -1049,14 +1110,20 @@ comes off the schedule.
 | 3 | Apple Developer enrolment | ✅ Done 2026-08-12 |
 | 3 | fastlane match + macOS CI — **stand up early** (§7) | Not started |
 | 3 | Hello-world TestFlight build to the iPhone 14 | Not started |
-| 4 | IAP products in both consoles | Not started |
-| 4 | `verify_purchase` + entitlement path | Not started |
-| 4 | Odds visible pre-purchase | Not started |
-| 5 | 🔴 Privacy policy page | Not started |
+| 4 | **Pricing decided** — paid app (~couple of dollars), no IAP in v1 (§14.1) | ✅ Decided 2026-09-09 |
+| 4 | IAP products in both consoles | ⏸️ Deferred — not in v1 |
+| 4 | `verify_purchase` + entitlement path | ⏸️ Deferred — not in v1 |
+| 4 | Odds visible pre-purchase | ⏸️ Deferred — not in v1 |
+| 4 | Apple **Paid Apps** agreement + banking + tax (W-8BEN-E) | 🔴 Not started — now required before sale (§14.1) |
+| 4 | Google app record created as **Paid** (free→paid impossible) | 🔴 Not started — blocked behind Play registration (§14.3) |
+| 5 | Privacy policy page | ✅ Shipped — `/privacy`, merged wom-fe#333 (revision dated 2 Sep 2026) |
 | 5 | 🔴 In-app account deletion | Not started |
 | 5 | 🔴 Age gate | Not started |
 | 5 | Data Safety / nutrition labels / IARC | Not started |
 | 5 | Play closed-testing 14 days | Not started |
-| 6 | Electron shell | Not started |
-| 6 | Steam Direct + store page | Not started |
-| 6 | SteamPipe upload from CI | Not started |
+| 6 | Electron shell | ✅ Scaffolded — `electron/` (main/preload/serveFromExport/steam), `steamworks.js` wired (wom-fe#355, #358) |
+| 6 | Steam Direct fee + app registration + tax interview | ✅ Done — paid ~2026-06, partner access active, tax interview complete, 30-day hold long cleared |
+| 6 | Steam premium pricing (option 1, §10.3) | ✅ Decided 2026-09-09 — sells for a fixed price, `SHOP_ENABLED` off, no Inventory/MTX |
+| 6 | Steam store page assets (capsule art, trailer, description) | Not started — capture harness for screenshots is up (wom-e2e#37, open) |
+| 6 | SteamPipe upload | 🟡 `npm run steam:upload` built + verified to the steamcmd login prompt (wom-fe#363/#365); one-time partner-site setup (App ID, depots) + first authenticated upload still to do |
+| 6 | Steam: bundle extreme asset tier | Not started — waits on §6 |
