@@ -23,6 +23,7 @@ import {
   BossfightRosterResponseSchema,
   MerchantOfferResponseSchema,
   MerchantPurchaseResponseSchema,
+  MerchantRevertTimeResponseSchema,
   GetPlayerRelicsResponseSchema,
   GetPlayerMessagesResponseSchema,
   CheckNameResponseSchema,
@@ -163,6 +164,16 @@ export async function purchaseMerchantOffer(token: string): Promise<{ ok: boolea
   return request('/merchant/purchase', MerchantPurchaseResponseSchema, {
     body: { token },
     defaultErrorMessage: "Failed to complete the trade.",
+  });
+}
+
+/** docs/MERCHANT_PLAN.md §7 -- sacrifice one Stone of Vitality to force the
+ * full-moon trigger active for everyone for an hour, opening a fresh
+ * period every player (including the caller) can buy under. */
+export async function revertMerchantTime(token: string): Promise<{ ok: boolean; expires_at: string }> {
+  return request('/merchant/revert_time', MerchantRevertTimeResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Failed to revert time.',
   });
 }
 

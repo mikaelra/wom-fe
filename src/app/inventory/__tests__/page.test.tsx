@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import InventoryPage from '@/app/inventory/page';
 import {
-  checkClaimVerified, equipSkin, getInventory, getPlayerRelics, getTradeUpRules, spinWheel, tradeUp,
+  checkClaimVerified, equipSkin, getInventory, getPlayerRelics, getTradeUpRules, revertMerchantTime, spinWheel,
+  tradeUp,
 } from '@/lib/api';
 import { setStoredAccountToken } from '@/lib/http';
 
@@ -14,6 +15,7 @@ vi.mock('@/lib/api', () => ({
   checkClaimVerified: vi.fn(),
   getTradeUpRules: vi.fn(),
   tradeUp: vi.fn(),
+  revertMerchantTime: vi.fn(),
 }));
 
 // Real RelicCoin/SpinningModelViewer render a react-three-fiber <Canvas>,
@@ -34,6 +36,7 @@ const mockedGetPlayerRelics = vi.mocked(getPlayerRelics);
 const mockedCheckClaimVerified = vi.mocked(checkClaimVerified);
 const mockedGetTradeUpRules = vi.mocked(getTradeUpRules);
 const mockedTradeUp = vi.mocked(tradeUp);
+const mockedRevertMerchantTime = vi.mocked(revertMerchantTime);
 const flush = () => act(async () => Promise.resolve());
 
 beforeEach(() => {
@@ -47,6 +50,7 @@ beforeEach(() => {
   mockedGetTradeUpRules.mockReset();
   mockedGetTradeUpRules.mockResolvedValue({ rules: {} });
   mockedTradeUp.mockReset();
+  mockedRevertMerchantTime.mockReset();
   vi.useFakeTimers();
 });
 
@@ -213,6 +217,20 @@ describe('InventoryPage', () => {
     expect(screen.getByText('Golden Fleece')).toBeInTheDocument();
     expect(screen.getByTestId('relic-coin')).toBeInTheDocument();
     expect(screen.getByText('×3')).toBeInTheDocument();
+  });
+
+  it('does not show a Revert Time button on an unrelated relic', async () => {
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({ name: 'Alice', equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+    mockedGetPlayerRelics.mockResolvedValue({
+      relics: [
+        { id: 1, boss_id: 7, created_at: '2026-01-01T00:00:00+00:00', name: 'Golden Fleece', power_category: 'fire', count: 1 },
+      ],
+    });
+    render(<InventoryPage />);
+    await flush();
+
+    expect(screen.queryByRole('button', { name: /Revert Time/ })).not.toBeInTheDocument();
   });
 
   it('tags Hades\' Coin and Stone of Vitality as Consumable, but not an unrelated relic', async () => {
@@ -413,5 +431,56 @@ describe('InventoryPage', () => {
     expect(mockedTradeUp).toHaveBeenCalledWith('sess-1', 'frog_blue_v1');
     // onTraded refreshes the background inventory data (docs/TRADE_UP_PLAN.md §8.4).
     expect(mockedGetInventory).toHaveBeenCalledTimes(1);
+  });
+
+  describe('Revert Time button (docs/MERCHANT_PLAN.md §7)', () => {
+    const stoneRelic = {
+      id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00',
+      name: 'Stone of Vitality', power_category: 'HEALTH', count: 2,
+    };
+
+    beforeEach(() => {
+      setStoredAccountToken('sess-1');
+      mockedGetInventory.mockResolvedValue({ name: 'Alice', equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+      mockedGetPlayerRelics.mockResolvedValue({ relics: [stoneRelic] });
+    });
+
+    it('shows a Revert Time button on the Stone of Vitality card', async () => {
+      render(<InventoryPage />);
+      await flush();
+
+      expect(screen.getByRole('button', { name: 'Revert Time (1h)' })).toBeInTheDocument();
+    });
+
+    it('calls the API with the session token and refreshes the inventory on success', async () => {
+      mockedRevertMerchantTime.mockResolvedValue({ ok: true, expires_at: '2026-09-25T21:00:00+00:00' });
+      render(<InventoryPage />);
+      await flush();
+      mockedGetInventory.mockClear();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Revert Time (1h)' }));
+        await flush();
+      });
+
+      expect(mockedRevertMerchantTime).toHaveBeenCalledWith('sess-1');
+      expect(mockedGetInventory).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not refresh the inventory when the API call fails', async () => {
+      mockedRevertMerchantTime.mockRejectedValue(new Error('Someone has already turned back time.'));
+      render(<InventoryPage />);
+      await flush();
+      mockedGetInventory.mockClear();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Revert Time (1h)' }));
+        await flush();
+      });
+
+      expect(mockedGetInventory).not.toHaveBeenCalled();
+      // The button re-enables rather than staying stuck on "Reverting…".
+      expect(screen.getByRole('button', { name: 'Revert Time (1h)' })).not.toBeDisabled();
+    });
   });
 });

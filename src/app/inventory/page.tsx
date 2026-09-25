@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules } from '@/lib/api';
-import { getStoredAccountToken } from '@/lib/http';
+import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules, revertMerchantTime } from '@/lib/api';
+import { getStoredAccountToken, ApiError } from '@/lib/http';
 import { skinColor, skinLabel, skinThumbnailUrl, skinUrl } from '@/lib/frogSkins';
 import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
@@ -38,7 +38,7 @@ function groupWheels(wheels: WheelEntry[]): WheelGroup[] {
 }
 
 export default function InventoryPage() {
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [equippedSkin, setEquippedSkin] = useState(DEFAULT_SKIN);
@@ -47,6 +47,7 @@ export default function InventoryPage() {
   const [relics, setRelics] = useState<Relic[]>([]);
   const [aiCredits, setAiCredits] = useState(0);
   const [equipping, setEquipping] = useState<string | null>(null);
+  const [reverting, setReverting] = useState(false);
   // The Artifacts category. `artifact` is null for almost every account --
   // that is the point of it, and the empty state carries the weight.
   const [equippedCosmetic, setEquippedCosmetic] = useState<string | null>(null);
@@ -141,6 +142,25 @@ export default function InventoryPage() {
       showError(e instanceof Error ? e.message : 'Failed to equip skin.');
     } finally {
       setEquipping(null);
+    }
+  };
+
+  // docs/MERCHANT_PLAN.md §7 -- sacrifice one Stone of Vitality to force
+  // the Merchant back for everyone for an hour. Consumes the relic on
+  // success, so the count/list is re-fetched the same way a purchase or
+  // trade-up would refresh it.
+  const handleRevertTime = async () => {
+    const token = getStoredAccountToken();
+    if (!token) return;
+    setReverting(true);
+    try {
+      await revertMerchantTime(token);
+      showSuccess('Time reverted -- the Merchant is back for an hour.');
+      load();
+    } catch (e) {
+      showError(e instanceof ApiError ? e.message : 'Failed to revert time.');
+    } finally {
+      setReverting(false);
     }
   };
 
@@ -284,6 +304,22 @@ export default function InventoryPage() {
                         <p className="text-xs text-white/50 text-center">{relic.flavour_text}</p>
                       )}
                       {relic.count > 1 && <p className="text-xs text-white/50">×{relic.count}</p>}
+                      {/* docs/MERCHANT_PLAN.md §7 -- sacrifices one copy to
+                          force the Merchant back for everyone for an hour.
+                          A standalone action, not tied to starting a
+                          match, so it lives on this card rather than in
+                          the pre-match relic picker. */}
+                      {relic.name === 'Stone of Vitality' && (
+                        <button
+                          type="button"
+                          onClick={handleRevertTime}
+                          disabled={reverting}
+                          title="Sacrifice one Stone of Vitality to bring the Merchant back for everyone for an hour."
+                          className="mt-1 text-[10px] uppercase tracking-wide text-purple-300 border border-purple-400/40 rounded px-1.5 py-0.5 hover:bg-purple-400/10 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          {reverting ? 'Reverting…' : 'Revert Time (1h)'}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

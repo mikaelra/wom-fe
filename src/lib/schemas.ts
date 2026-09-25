@@ -70,12 +70,23 @@ export const MerchantOfferResponseSchema = z.object({
     available: z.boolean(),
     already_bought_this_period: z.boolean(),
     period_start: z.string(),
+    // docs/MERCHANT_PLAN.md §7 -- is the trigger active right now only
+    // because someone sacrificed a relic to revert time, and when does
+    // that end. Lets the frontend explain an off-schedule Merchant
+    // instead of it looking like a bug.
+    reverted: z.boolean(),
+    revert_expires_at: z.string().nullable(),
   }).nullable(),
 });
 
 export const MerchantPurchaseResponseSchema = z.object({
   ok: z.boolean(),
   item_name: z.string(),
+});
+
+export const MerchantRevertTimeResponseSchema = z.object({
+  ok: z.boolean(),
+  expires_at: z.string(),
 });
 
 export const GetPlayerRelicsResponseSchema = z.object({
