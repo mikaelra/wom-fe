@@ -7,10 +7,11 @@ import { relicModelUrl } from '@/components/RelicCoin';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 
-// The merchant's box at its original 160px, scaled 2.3x per Mikael's ask --
-// kept as a constant since the desk's overlap offset below is derived from
-// it (half of this height), not eyeballed separately.
-const MERCHANT_BOX_PX = 160 * 2.3;
+// The merchant's box at its original 160px, scaled 2.3x then another 1.5x
+// per Mikael's asks -- kept as a constant since the clip wrapper's height
+// is derived from it (half of this), not eyeballed separately, so scaling
+// this one number keeps the clip proportion (always exactly half) intact.
+const MERCHANT_BOX_PX = 160 * 2.3 * 1.5;
 
 type Props = {
   offer: MerchantOffer;
@@ -72,37 +73,50 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
       >
         <div className="px-5 pt-5 text-center">
           <p className="text-amber-200/80 text-xs font-bold tracking-widest uppercase">{offer.merchant_name}</p>
-          <p className="text-amber-100/60 text-[11px] mt-0.5">One trade, every full moon</p>
+          <p className="text-amber-100/60 text-[11px] mt-0.5">
+            {offer.reverted ? 'Someone turned back time to bring him here' : 'One trade, every full moon'}
+          </p>
         </div>
 
         {/* Stage: the Stone of Vitality to the left, the Merchant to the
-            right and enlarged (2.3x his original box). This div is only
-            half the Merchant's height, so his canvas -- absolutely
-            positioned, top-anchored -- overflows past its bottom edge by
-            design; the desk immediately below (`relative z-10`, so it
-            paints over the overflow rather than under it) picks up right
-            at his vertical midpoint, reading as him standing behind it. */}
+            right and enlarged (2.3x his original box), staged over the
+            desk below. The Merchant's canvas is clipped -- not just
+            covered -- to exactly half his box by its own overflow-hidden
+            wrapper (sized MERCHANT_BOX_PX/2 tall; the inner square inside
+            it stays the full box height), so nothing of him ever bleeds
+            past that line into the desk or the text below it regardless
+            of the desk's own height. The stage itself stays overflow-
+            visible so the Stone (unclipped, deliberately) can sit slightly
+            past the stage's bottom edge without being cut off. */}
         <div className="relative mt-2" style={{ height: MERCHANT_BOX_PX / 2 }}>
-          <div className="absolute left-2 bottom-0 w-20 h-20">
+          <div
+            className="absolute"
+            style={{ left: 96, bottom: -15, width: 40, height: 40 }}
+          >
             <SpinningModelViewer
               key="stone_of_vitality_v1"
               url={relicModelUrl('Stone of Vitality')}
               targetSize={1.1}
-              spinSpeed={0.6}
+              spinSpeed={0}
             />
           </div>
           <div
-            className="absolute right-2 top-0"
-            style={{ width: MERCHANT_BOX_PX, height: MERCHANT_BOX_PX, maxWidth: '70%' }}
+            className="absolute right-2 top-0 overflow-hidden"
+            style={{ width: MERCHANT_BOX_PX, maxWidth: '70%', height: MERCHANT_BOX_PX / 2 }}
           >
-            <SpinningModelViewer key="merchant_v1" url={skinUrl('merchant_v1')} targetSize={1.6} spinSpeed={0} />
+            <div style={{ width: '100%', aspectRatio: '1 / 1' }}>
+              <SpinningModelViewer key="merchant_v1" url={skinUrl('merchant_v1')} targetSize={1.6} spinSpeed={0} />
+            </div>
           </div>
         </div>
 
         {/* The desk -- a plain wooden crate, same placeholder-art note as
-            the wall above. */}
+            the wall above. No z-index trick needed any more: the Merchant
+            is hard-clipped above, and the Stone (positioned, so it paints
+            over this static sibling by default) is meant to slightly
+            overlap the desk's top edge. */}
         <div
-          className="relative z-10 mx-6 rounded-md border border-amber-950/60 shadow-inner"
+          className="mx-6 rounded-md border border-amber-950/60 shadow-inner"
           style={{
             background: 'linear-gradient(180deg, #8a5a34 0%, #6b4224 60%, #52341c 100%)',
             height: 36,

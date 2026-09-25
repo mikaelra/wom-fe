@@ -26,6 +26,8 @@ const OFFER: MerchantOffer = {
   available: true,
   already_bought_this_period: false,
   period_start: '2026-09-26T16:49:32Z',
+  reverted: false,
+  revert_expires_at: null,
 };
 
 beforeEach(() => {
