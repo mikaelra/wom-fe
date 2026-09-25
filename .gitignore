@@ -44,6 +44,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Steam upload credentials (App ID, depot IDs, build-account login) -- see
+# steam/README.md. Not matched by .env* above.
+.steam.env
 
 # vercel
 .vercel

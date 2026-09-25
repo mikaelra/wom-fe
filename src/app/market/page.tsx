@@ -231,11 +231,11 @@ export default function MarketPage() {
       if (!token) return;
       try {
         await cancelMarketListing(token, listing.id);
-        toast.showSuccess('Trade cancelled.');
+        toast.showSuccess('Trade removed.');
         refetch();
         void reloadPlayer();  // the items it held are back in the picker
       } catch (e) {
-        toast.showError(e instanceof Error ? e.message : 'Failed to cancel.');
+        toast.showError(e instanceof Error ? e.message : 'Failed to remove.');
       }
     },
     [token, toast, refetch, reloadPlayer],

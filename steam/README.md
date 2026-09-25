@@ -1,7 +1,8 @@
 # SteamPipe upload
 
 Ships the Electron shell to Steam. `../scripts/steam-upload.sh` builds the
-unpacked Windows + Linux trees and hands them to `steamcmd`. Docs:
+unpacked game tree(s) and hands them to `steamcmd`. Windows always; Linux too
+when `STEAM_DEPOT_LINUX` is set. Docs:
 <https://partner.steamgames.com/doc/sdk/uploading>,
 `../docs/MOBILE_AND_STEAM_PLAN.md` §10.
 
@@ -23,17 +24,19 @@ The templates hold no IDs. `steam-upload.sh` renders concrete VDFs into
 ### On partner.steamgames.com
 
 1. **App** created → note the **App ID**.
-2. **Depots** page: one depot for Windows, one for Linux → note both **Depot IDs**.
-   Add each to a package on *Associated Packages & DLC*.
+2. **Depots** page: a Windows depot (required); a Linux depot when you want it
+   → note the **Depot IDs**. Add each to a package on *Associated Packages & DLC*.
 3. **Installation → General**: launch options per OS (executable name is
    pinned via `executableName` in `../electron-builder.yml`) —
    - Windows: executable `world-of-mythos.exe`, OS `windows`
    - Linux: executable `world-of-mythos`, OS `linux`
 4. **Publish** those changes (depots/launch options aren't live until published).
-5. A **Steam build account** in your Steamworks group with **Edit App Metadata**
-   + **Publish App Changes To Steam**. Use a dedicated account, not your
-   personal one. It needs the Steam Mobile App or a phone number to set builds
-   live once the app is released (not needed for pre-release beta branches).
+5. An account with **Edit App Metadata** + **Publish App Changes To Steam** for
+   the app. The account you created the Steamworks partner site with already
+   has this (it's the owner) and is fine for local uploads. A dedicated account
+   is worth setting up before moving this to CI, where its token lives in a
+   secret. Setting builds live for a *released* app needs the mobile app / a
+   phone on the account — not needed for pre-release beta branches.
 
 ### On this machine
 
@@ -47,19 +50,27 @@ podman pull docker.io/steamcmd/steamcmd:latest
 
 ## Running it
 
+Put the config in `../.steam.env` (gitignored) and `source` it:
+
 ```sh
+# .steam.env
 export STEAM_APP_ID=xxxxxx
 export STEAM_DEPOT_WIN=xxxxxx
-export STEAM_DEPOT_LINUX=xxxxxx
-export STEAM_BUILD_USER=your_build_account
+export STEAM_BUILD_USER=your_steam_login
+# export STEAM_DEPOT_LINUX=xxxxxx   # uncomment once the Linux depot exists
+```
 
+```sh
+source .steam.env
 npm run steam:upload
 ```
 
-- **First run** prompts for the build account's password and a **Steam Guard**
-  code (check email / the mobile app). The login token is then cached in the
-  `wom-steam` podman volume, so later runs need neither.
-- It builds against `https://api.worldofmythos.net` by default — override with
+- **Windows-only** unless `STEAM_DEPOT_LINUX` is set — then Linux is built and
+  uploaded in the same run.
+- **First run** prompts for the account password and a **Steam Guard** code
+  (email / mobile app). The login token is then cached in the `wom-steam`
+  podman volume, so later runs need neither.
+- Builds against `https://api.worldofmythos.net` by default — override with
   `NEXT_PUBLIC_BACKEND_URL`.
 - `npm run steam:upload -- --skip-build` reuses whatever is in `dist-electron/`.
 

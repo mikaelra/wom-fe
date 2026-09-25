@@ -138,17 +138,6 @@ export default function ArtifactLedger({
 
   return (
     <div className={className}>
-      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
-        <p className="text-white/60 text-xs">
-          {total.toLocaleString()} discovered
-          {chance !== null && (
-            <>
-              {' · '}next: <strong className="text-amber-300">{oneIn(chance)}</strong> per Well win
-            </>
-          )}
-        </p>
-      </div>
-
       {/* Scrolls inside its own container so a long ledger never makes the
           page itself scroll sideways or push the modal off screen. */}
       <div className="max-h-[50vh] overflow-y-auto -mx-1 px-1">

@@ -253,6 +253,45 @@ export function pickTargetRotation(slices: Slice[], resultSkin: string, rng: Rng
   return { rotation: mod(-(mid + jitter), TWO_PI), sliceIndex };
 }
 
+// Once a spin's result is known and it isn't `missSkin` (the rare prize
+// players shouldn't see a false near-miss for), drops missSkin's wedges
+// and re-lays every remaining slice out at *equal* width. Bug list
+// 260916 went through two weaker fixes first: relabeling missSkin's
+// color in place still left its wedge's own anomalous *narrowness* as a
+// tell (a "slim near-miss" in a different color is still a near-miss),
+// and merging its span into a neighbor still left every OTHER slice at
+// its true weighted width -- letting a patient player "mine" the real
+// odds from width alone (exactly what removing the store's own odds
+// info box, elsewhere in this bug list, was trying to stop). Uniform
+// width removes every size-based tell at once, for every skin, not just
+// the missed one -- only color still varies, same as it always did.
+export function suppressNearMiss(slices: Slice[], resultSkin: string, missSkin: string): Slice[] {
+  if (resultSkin === missSkin) return slices;
+  if (!slices.some((s) => s.skin === missSkin)) return slices;
+
+  const kept = slices.filter((s) => s.skin !== missSkin);
+  if (kept.length === 0) return slices; // nothing left to lay out
+
+  const width = TWO_PI / kept.length;
+  return kept.map((s, i) => ({ ...s, startAngle: i * width, endAngle: (i + 1) * width }));
+}
+
+// A flapper's decorative "leaning on the trailing peg" rest bias
+// (wheelPhysics.ts's FLAPPER_REST_BIAS) can only ever be as large as the
+// slice it landed on actually allows -- a fixed bias wider than a very
+// thin slice visibly points past that slice's own boundary into its
+// neighbor. Confirmed live on the Special Wheel: Bling's wedge (under a
+// degree of half-width) is far narrower than the flapper's usual 6° lean,
+// so a Bling win pointed the flapper into the slice beside it (bug list
+// 260916, reported with a screenshot). Every other slice on every wheel
+// is already wider than any bias actually in use, so this is a no-op
+// everywhere else.
+export function clampFlapperRestBias(bias: number, landedSlice: Slice | undefined): number {
+  if (!landedSlice) return bias;
+  const halfWidth = (landedSlice.endAngle - landedSlice.startAngle) / 2;
+  return Math.sign(bias) * Math.min(Math.abs(bias), halfWidth);
+}
+
 // D = (target - current) mod 2π + turns * 2π, turns chosen so D covers at
 // least `minRevolutions` -- guarantees zero velocity discontinuity at the
 // moment STOP ROLL is pressed (the ease-out is a pure function of this D).

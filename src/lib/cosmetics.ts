@@ -61,7 +61,7 @@ export function cosmeticLabel(id: string): string {
 }
 
 const COSMETIC_DESCRIPTIONS: Record<string, string> = {
-  [ARTIFACT]: 'A piece of paper found in a well one time.',
+  [ARTIFACT]: 'A single piece of paper, once pulled from a well.',
 };
 
 export function cosmeticDescription(id: string): string {

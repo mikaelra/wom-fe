@@ -14,11 +14,17 @@ import {
  * One trade on the board (wom-be docs/MARKET_PLAN.md §1A.8).
  *
  * Shows the give side, the want side, time remaining (ticking, measured
- * against the server clock), and one action:
- *   - the poster sees **Cancel**
+ * against the server clock), and exactly one action:
+ *   - the poster sees **Remove** -- the only way to take a listing down,
+ *     server-enforced (wom-be's market_cancel_listing 403s anyone else)
  *   - any other player who owns the requested items sees **Accept trade**
- *   - everyone sees **Remove** -- a client-only "hide this card from my
- *     view", no server state (§1A.1 step 5)
+ *
+ * There used to also be a client-only "Hide" on every card, own or not --
+ * removed entirely (not just relabeled) after it read as "remove someone
+ * else's trade" sitting next to the real action, and (being purely local,
+ * reset-on-refresh) didn't actually let the poster take their own listing
+ * down either -- it satisfied neither the "not theirs to touch" nor the
+ * "let me take mine down" half of what a card's second button should do.
  */
 export default function MarketListingCard({
   listing,
@@ -28,7 +34,6 @@ export default function MarketListingCard({
   canAccept,
   onAccept,
   onCancel,
-  onRemove,
 }: {
   listing: MarketListing;
   catalog: MarketCatalog | null;
@@ -37,7 +42,6 @@ export default function MarketListingCard({
   canAccept: boolean;
   onAccept: () => void;
   onCancel: () => void;
-  onRemove: () => void;
 }) {
   const [secs, setSecs] = useState(() => secondsRemaining(listing.expires_at, clockOffsetMs));
 
@@ -76,21 +80,13 @@ export default function MarketListingCard({
       </div>
 
       <div className="flex gap-2 justify-end pt-1">
-        <button
-          type="button"
-          onClick={onRemove}
-          className="px-2.5 py-1 rounded-md text-xs text-white/50 hover:text-white/80 hover:bg-white/5 transition-colors cursor-pointer"
-          title="Hide this from your view only"
-        >
-          Remove
-        </button>
         {mine ? (
           <button
             type="button"
             onClick={onCancel}
             className="px-3 py-1 rounded-md text-xs font-semibold bg-red-900/60 text-red-200 hover:bg-red-800/60 transition-colors cursor-pointer"
           >
-            Cancel
+            Remove
           </button>
         ) : (
           <button

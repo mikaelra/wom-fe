@@ -3,6 +3,7 @@ import { getSocket, subscribe } from '@/lib/socket';
 import { setStoredToken, getStoredToken, setStoredAccountToken } from '@/lib/http';
 import type { z } from 'zod';
 import type { Relic } from '@/types/game';
+import type { SeasonHistoryEntry } from '@/lib/schemas';
 import type { GameEvent } from '@/lib/gameEvents';
 import {
   MyAiStatusSchema,
@@ -46,6 +47,8 @@ import {
   RankedProfileResponseSchema,
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
+  SeasonHistoryResponseSchema,
+  SeasonInfoResponseSchema,
   WellProfileResponseSchema,
   ShopProductsResponseSchema,
   CheckoutResponseSchema,
@@ -159,6 +162,20 @@ export async function leaveRankedQueue(playerName: string): Promise<{ status: st
 export async function getRankedProfile(playerName: string): Promise<{ tier: string | null; ranked_games_played: number }> {
   return request(`/ranked/profile/${encodeURIComponent(playerName)}`, RankedProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch ranked profile.',
+  });
+}
+
+export async function getCurrentSeason(): Promise<{ name: string; ends_at: string }> {
+  return request('/ranked/season', SeasonInfoResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch the current season.',
+  });
+}
+
+export async function getSeasonHistory(
+  playerName: string,
+): Promise<{ human: SeasonHistoryEntry[]; ai: SeasonHistoryEntry[] }> {
+  return request(`/ranked/season_history/${encodeURIComponent(playerName)}`, SeasonHistoryResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch season history.',
   });
 }
 
