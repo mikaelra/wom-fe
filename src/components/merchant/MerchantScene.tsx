@@ -13,6 +13,20 @@ import { ApiError } from '@/lib/http';
 // this one number keeps the clip proportion (always exactly half) intact.
 const MERCHANT_BOX_PX = 160 * 2.3 * 1.5;
 
+// Table geometry: the top is tripled in thickness and raised to the middle
+// of the Merchant's visible portrait (half of STAGE_H -- the clip wrapper
+// below only ever shows his top half, so that's the "middle" a player
+// actually sees), standing on two legs that reach back down to the stage's
+// original floor line so it still reads as a table, not a slab floating
+// over him. STONE_BOTTOM is derived from the same numbers so the Stone
+// always lands exactly on the new top surface rather than being eyeballed
+// separately each time this geometry changes.
+const STAGE_H = MERCHANT_BOX_PX / 2;
+const TABLE_THICKNESS = 36 * 3;
+const TABLE_TOP_Y = STAGE_H / 2 - TABLE_THICKNESS / 2;
+const TABLE_LEG_HEIGHT = STAGE_H - (TABLE_TOP_Y + TABLE_THICKNESS);
+const STONE_BOTTOM = STAGE_H - TABLE_TOP_Y;
+
 type Props = {
   offer: MerchantOffer;
   token: string | null;
@@ -78,20 +92,53 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
           </p>
         </div>
 
-        {/* Stage: the Stone of Vitality to the left, the Merchant to the
-            right and enlarged (2.3x his original box), staged over the
-            desk below. The Merchant's canvas is clipped -- not just
-            covered -- to exactly half his box by its own overflow-hidden
-            wrapper (sized MERCHANT_BOX_PX/2 tall; the inner square inside
-            it stays the full box height), so nothing of him ever bleeds
-            past that line into the desk or the text below it regardless
-            of the desk's own height. The stage itself stays overflow-
-            visible so the Stone (unclipped, deliberately) can sit slightly
-            past the stage's bottom edge without being cut off. */}
-        <div className="relative mt-2" style={{ height: MERCHANT_BOX_PX / 2 }}>
+        {/* Stage: the Merchant enlarged (2.3x his original box) behind the
+            table, the Stone resting on the table's raised top surface. The
+            Merchant's canvas is clipped -- not just covered -- to exactly
+            half his box by its own overflow-hidden wrapper (sized
+            STAGE_H tall; the inner square inside it stays the full box
+            height), so nothing of him ever bleeds past that line. The
+            stage itself stays overflow-visible so the table/legs and the
+            Stone (deliberately unclipped) render fully. Paint order below
+            is load-bearing, not decoration -- no z-index anywhere: the
+            Merchant paints first (furthest back), the table next (so it
+            covers his middle like a real counter), the Stone last (so it
+            reads as sitting on the table, not embedded in it). */}
+        <div className="relative mt-2" style={{ height: STAGE_H }}>
+          <div
+            className="absolute right-2 top-0 overflow-hidden"
+            style={{ width: MERCHANT_BOX_PX, maxWidth: '70%', height: STAGE_H }}
+          >
+            <div style={{ width: '100%', aspectRatio: '1 / 1' }}>
+              <SpinningModelViewer key="merchant_v1" url={skinUrl('merchant_v1')} targetSize={1.6} spinSpeed={0} />
+            </div>
+          </div>
+
+          {/* The table -- top tripled in thickness and raised to the
+              middle of the Merchant, standing on two legs that reach back
+              down to the stage's floor line. */}
+          <div
+            className="absolute rounded-md border border-amber-950/60 shadow-inner"
+            style={{
+              left: 24,
+              right: 24,
+              top: TABLE_TOP_Y,
+              height: TABLE_THICKNESS,
+              background: 'linear-gradient(180deg, #8a5a34 0%, #6b4224 60%, #52341c 100%)',
+            }}
+          />
+          <div
+            className="absolute rounded-sm"
+            style={{ left: 34, top: TABLE_TOP_Y + TABLE_THICKNESS, width: 10, height: TABLE_LEG_HEIGHT, background: '#4a2e18' }}
+          />
+          <div
+            className="absolute rounded-sm"
+            style={{ right: 34, top: TABLE_TOP_Y + TABLE_THICKNESS, width: 10, height: TABLE_LEG_HEIGHT, background: '#4a2e18' }}
+          />
+
           <div
             className="absolute"
-            style={{ left: 96, bottom: -15, width: 40, height: 40 }}
+            style={{ left: 96, bottom: STONE_BOTTOM, width: 40, height: 40 }}
           >
             <SpinningModelViewer
               key="stone_of_vitality_v1"
@@ -100,28 +147,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
               spinSpeed={0}
             />
           </div>
-          <div
-            className="absolute right-2 top-0 overflow-hidden"
-            style={{ width: MERCHANT_BOX_PX, maxWidth: '70%', height: MERCHANT_BOX_PX / 2 }}
-          >
-            <div style={{ width: '100%', aspectRatio: '1 / 1' }}>
-              <SpinningModelViewer key="merchant_v1" url={skinUrl('merchant_v1')} targetSize={1.6} spinSpeed={0} />
-            </div>
-          </div>
         </div>
-
-        {/* The desk -- a plain wooden crate, same placeholder-art note as
-            the wall above. No z-index trick needed any more: the Merchant
-            is hard-clipped above, and the Stone (positioned, so it paints
-            over this static sibling by default) is meant to slightly
-            overlap the desk's top edge. */}
-        <div
-          className="mx-6 rounded-md border border-amber-950/60 shadow-inner"
-          style={{
-            background: 'linear-gradient(180deg, #8a5a34 0%, #6b4224 60%, #52341c 100%)',
-            height: 36,
-          }}
-        />
 
         <div className="bg-gray-950/90 px-5 py-5 text-center">
           {bought ? (
