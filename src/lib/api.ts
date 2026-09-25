@@ -376,6 +376,7 @@ export async function claimPendingArtifact(
 export async function getInventory(
   token: string
 ): Promise<{
+  name?: string;
   equipped_skin: string;
   skins: { skin: string; count: number }[];
   wheels: { id: number; kind: string }[];

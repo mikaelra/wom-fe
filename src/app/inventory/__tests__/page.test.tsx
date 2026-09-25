@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import InventoryPage from '@/app/inventory/page';
 import {
   checkClaimVerified, equipSkin, getInventory, getPlayerRelics, getTradeUpRules, spinWheel, tradeUp,
@@ -196,8 +196,10 @@ describe('InventoryPage', () => {
 
   it('lists relics as the first section, like the skins grid', async () => {
     setStoredAccountToken('sess-1');
-    localStorage.setItem('playerName', 'Alice');
-    mockedGetInventory.mockResolvedValue({ equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+    // Relics are fetched by the session-resolved name in getInventory's own
+    // response, not a client-cached localStorage guess (bug traced
+    // 2026-09-25) -- no localStorage.playerName setup needed here.
+    mockedGetInventory.mockResolvedValue({ name: 'Alice', equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
     mockedGetPlayerRelics.mockResolvedValue({
       relics: [
         { id: 1, boss_id: 7, created_at: '2026-01-01T00:00:00+00:00', name: 'Golden Fleece', power_category: 'fire', count: 3 },
@@ -211,6 +213,53 @@ describe('InventoryPage', () => {
     expect(screen.getByText('Golden Fleece')).toBeInTheDocument();
     expect(screen.getByTestId('relic-coin')).toBeInTheDocument();
     expect(screen.getByText('×3')).toBeInTheDocument();
+  });
+
+  it('tags Hades\' Coin and Stone of Vitality as Consumable, but not an unrelated relic', async () => {
+    // CONSUMABLE_RELIC_NAMES (types/game.ts) is name-keyed, not
+    // power_category-keyed: Spirit of Hera shares Stone of Vitality's
+    // HEALTH category but isn't consumable (no wired effect exists for
+    // it), so a category-based check would mislabel it.
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({ name: 'Alice', equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+    mockedGetPlayerRelics.mockResolvedValue({
+      relics: [
+        { id: 1, boss_id: 6, created_at: '2026-01-01T00:00:00+00:00', name: "Hades' Coin", power_category: 'MONETARY', count: 5 },
+        { id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00', name: 'Stone of Vitality', power_category: 'HEALTH', count: 1 },
+        { id: 2, boss_id: 4, created_at: '2026-01-01T00:00:00+00:00', name: 'Spirit of Hera', power_category: 'HEALTH', count: 1 },
+      ],
+    });
+    render(<InventoryPage />);
+    await flush();
+
+    // Each relic's name <p> is a direct child of its own card <div>, so
+    // .closest('div') from the name walks up to exactly that card.
+    const coinCard = screen.getByText("Hades' Coin").closest('div') as HTMLElement;
+    const stoneCard = screen.getByText('Stone of Vitality').closest('div') as HTMLElement;
+    const heraCard = screen.getByText('Spirit of Hera').closest('div') as HTMLElement;
+
+    expect(within(coinCard).getByText('Consumable')).toBeInTheDocument();
+    expect(within(stoneCard).getByText('Consumable')).toBeInTheDocument();
+    expect(within(heraCard).queryByText('Consumable')).not.toBeInTheDocument();
+  });
+
+  it('fetches relics by the session-resolved name, not a stale localStorage guess', async () => {
+    // The actual bug (traced 2026-09-25): a player's Relics box stayed
+    // empty because it asked for relics under whatever name was last
+    // cached in localStorage, which had drifted from the account this
+    // session token actually belongs to. getInventory's own `name` field
+    // must win.
+    setStoredAccountToken('sess-1');
+    localStorage.setItem('playerName', 'SomeStaleName');
+    mockedGetInventory.mockResolvedValue({ name: 'Alice', equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+    mockedGetPlayerRelics.mockResolvedValue({ relics: [] });
+
+    render(<InventoryPage />);
+    await flush();
+
+    expect(mockedGetPlayerRelics).toHaveBeenCalledWith('Alice');
+    expect(mockedGetPlayerRelics).not.toHaveBeenCalledWith('SomeStaleName');
+    expect(localStorage.getItem('playerName')).toBe('Alice');
   });
 
   it('shows a fallback message when the player has no relics', async () => {

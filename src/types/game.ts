@@ -122,7 +122,17 @@ export type LobbyState = z.infer<typeof LobbyStateSchema>;
 
 export const RelicSchema = z.object({
   id: z.union([z.string(), z.number()]),
-  boss_id: z.number().int(),
+  // Nullable: models.py's `relics.boss_id` always allowed NULL (a relic
+  // doesn't have to come from a boss kill), but every relic that existed
+  // until docs/MERCHANT_PLAN.md's Stone of Vitality happened to have one,
+  // so this was never exercised. Real bug, found live: with this as a
+  // required number, Stone of Vitality's `boss_id: null` failed this
+  // schema, which failed the whole `relics` array (Hades' Coin included,
+  // not just the new relic) -- and getPlayerRelics's blanket try/catch
+  // (src/lib/api.ts) swallowed that SchemaMismatchError and silently
+  // returned `{ relics: [] }`, so the Relics box just looked empty with no
+  // visible error anywhere.
+  boss_id: z.number().int().nullable(),
   created_at: z.string(),
   name: z.string(),
   power_category: z.string(),
@@ -133,4 +143,14 @@ export const RelicSchema = z.object({
   flavour_text: z.string().optional(),
   count: z.number().int(),
 });
+
+// Relics that get spent (one copy consumed) when selected pre-match,
+// rather than being a permanent item -- Hades' Coin
+// (sockets/utils.py's consume_selected_relics, wom-be) and Stone of
+// Vitality (docs/MERCHANT_PLAN.md) today. Named explicitly rather than
+// inferred from `power_category`: that field describes what a relic *is*
+// (HEALTH, MONETARY, ...), not whether using it spends the copy -- Spirit
+// of Hera is HEALTH-categorized too and isn't consumable at all (no wired
+// effect exists for it).
+export const CONSUMABLE_RELIC_NAMES: ReadonlySet<string> = new Set(["Hades' Coin", 'Stone of Vitality']);
 export type Relic = z.infer<typeof RelicSchema>;

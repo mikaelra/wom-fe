@@ -15,7 +15,7 @@ import ArtifactLedgerModal from '@/components/ArtifactLedgerModal';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
-import type { Relic } from '@/types/game';
+import { CONSUMABLE_RELIC_NAMES, type Relic } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
 
 type SkinEntry = { skin: string; count: number };
@@ -79,21 +79,34 @@ export default function InventoryPage() {
     }
     setPendingClaim(null);
     setLoading(true);
-    const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
-    Promise.all([
-      getInventory(token),
-      playerName ? getPlayerRelics(playerName) : Promise.resolve({ relics: [] }),
-    ])
-      .then(([inventoryData, relicsData]) => {
+    // Relics (GET /get_player_relics) are keyed by name, not by session
+    // token, so they need a name -- but it must be the session's own name,
+    // not a client-cached localStorage guess. That guess used to be all
+    // this had, and it can silently drift from the actual signed-in
+    // account (stale from an earlier login, wrong case, or simply never
+    // set), which showed up as a Relics box that stayed empty forever no
+    // matter what the account actually owned. getInventory's response now
+    // carries the session-resolved name (routes/wheel.py's /inventory),
+    // so relics are fetched from *that*, sequenced after it rather than in
+    // parallel via Promise.all.
+    getInventory(token)
+      .then((inventoryData) => {
         setEquippedSkin(inventoryData.equipped_skin);
         setSkins(inventoryData.skins);
         setWheels(inventoryData.wheels);
         setEquippedCosmetic(inventoryData.equipped_cosmetic ?? null);
         setArtifact(inventoryData.artifact ?? null);
         setAiCredits(inventoryData.ai_credits ?? 0);
-        setRelics(relicsData.relics);
         setLoadError('');
+
+        const name = inventoryData.name;
+        if (!name) return { relics: [] };
+        // Keep the client-side cache in sync with the authoritative name,
+        // so anything else still reading localStorage's copy self-heals.
+        if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
+        return getPlayerRelics(name);
       })
+      .then((relicsData) => setRelics(relicsData.relics))
       .catch((e: unknown) => {
         setLoadError(e instanceof Error ? e.message : 'Failed to load inventory.');
       })
@@ -262,7 +275,7 @@ export default function InventoryPage() {
                         <RelicCoin />
                       </div>
                       <p className="text-sm font-semibold text-center">{relic.name}</p>
-                      {relic.power_category === 'MONETARY' && (
+                      {CONSUMABLE_RELIC_NAMES.has(relic.name) && (
                         <span className="text-[10px] uppercase tracking-wide text-amber-400/80 border border-amber-400/30 rounded px-1.5 py-0.5">
                           Consumable
                         </span>

@@ -179,6 +179,13 @@ export const ClaimPendingWheelResponseSchema = z.object({
 });
 
 export const InventoryResponseSchema = z.object({
+  // Session-resolved, authoritative name -- fetching Relics
+  // (GET /get_player_relics, name-keyed) should use this, not a
+  // client-cached localStorage copy that can drift from the actual
+  // session (bug: Relics box silently empty, traced 2026-09-25). Optional
+  // for the same deploy-independence reasoning as every other field added
+  // here after v1.
+  name: z.string().optional(),
   equipped_skin: z.string(),
   skins: z.array(z.object({ skin: z.string(), count: z.number().int() })),
   wheels: z.array(z.object({ id: z.number().int(), kind: z.string() })),
