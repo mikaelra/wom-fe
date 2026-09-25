@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
+import { setSkyRevertOverride } from '@/lib/astrology';
 
 /**
  * The Merchant's current offer, for the globe to decide whether to draw the
@@ -25,7 +26,17 @@ export function useMerchantOffer(pollMs: number = MERCHANT_OFFER_POLL_MS) {
     const tick = async () => {
       try {
         const { offer: next } = await getMerchantOffer(getStoredAccountToken());
-        if (!cancelled) setOffer(next);
+        if (!cancelled) {
+          setOffer(next);
+          // docs/MERCHANT_PLAN.md §7: this is the one place the whole app
+          // learns whether a time-revert is active, so it's also where the
+          // globe's sky is told to rewind (or return to live) -- every
+          // getSky() caller picks this up on its next read, no separate
+          // plumbing needed.
+          setSkyRevertOverride(
+            next?.reverted && next.revert_to_date ? new Date(next.revert_to_date) : null,
+          );
+        }
       } catch {
         /* keep whatever we last saw -- a blink of a network error
            shouldn't make the marker disappear. */

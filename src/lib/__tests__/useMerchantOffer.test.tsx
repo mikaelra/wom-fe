@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { getMerchantOffer } from '@/lib/api';
+import { _resetSkyCache, getSky } from '@/lib/astrology';
 
 vi.mock('@/lib/api', () => ({ getMerchantOffer: vi.fn() }));
 vi.mock('@/lib/http', () => ({ getStoredAccountToken: () => 't' }));
@@ -10,6 +11,7 @@ const mockedGet = vi.mocked(getMerchantOffer);
 
 const offer = (over: Partial<{
   active: boolean; available: boolean; already_bought_this_period: boolean;
+  reverted: boolean; revert_to_date: string | null;
 }> = {}) => ({
   offer_id: 1,
   merchant_name: 'The Merchant',
@@ -22,6 +24,7 @@ const offer = (over: Partial<{
   period_start: '2026-09-26T16:49:32Z',
   reverted: false,
   revert_expires_at: null,
+  revert_to_date: null,
   ...over,
 });
 
@@ -29,6 +32,8 @@ beforeEach(() => {
   mockedGet.mockReset();
   mockedGet.mockResolvedValue({ offer: null });
 });
+
+afterEach(() => _resetSkyCache());
 
 describe('useMerchantOffer', () => {
   it('starts with no offer until the first poll answers', async () => {
@@ -80,5 +85,27 @@ describe('useMerchantOffer', () => {
     await new Promise((r) => setTimeout(r, 80));
 
     expect(mockedGet.mock.calls.length).toBe(callsAtUnmount);
+  });
+
+  // docs/MERCHANT_PLAN.md §7 -- a reverted offer also rewinds getSky(),
+  // the app's one shared sky singleton, to the instant the sacrificed
+  // Stone of Vitality was bought.
+  it('a reverted offer rewinds getSky() to revert_to_date', async () => {
+    const revertedTo = '2026-01-01T00:00:00Z';
+    mockedGet.mockResolvedValue({ offer: offer({ reverted: true, revert_to_date: revertedTo }) });
+
+    renderHook(() => useMerchantOffer());
+
+    await waitFor(() => expect(getSky().date.getTime()).toBe(new Date(revertedTo).getTime()));
+  });
+
+  it('a non-reverted offer leaves getSky() on the live clock', async () => {
+    mockedGet.mockResolvedValue({ offer: offer({ reverted: false, revert_to_date: null }) });
+
+    renderHook(() => useMerchantOffer());
+    await waitFor(() => expect(mockedGet).toHaveBeenCalled());
+
+    const before = Date.now();
+    expect(getSky().date.getTime()).toBeGreaterThanOrEqual(before);
   });
 });

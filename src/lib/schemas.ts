@@ -76,6 +76,10 @@ export const MerchantOfferResponseSchema = z.object({
     // instead of it looking like a bug.
     reverted: z.boolean(),
     revert_expires_at: z.string().nullable(),
+    // §7: while reverted, the sky itself also rewinds to this instant --
+    // the moment the sacrificed Stone of Vitality was originally bought --
+    // not just the offer window.
+    revert_to_date: z.string().nullable(),
   }).nullable(),
 });
 
@@ -87,6 +91,7 @@ export const MerchantPurchaseResponseSchema = z.object({
 export const MerchantRevertTimeResponseSchema = z.object({
   ok: z.boolean(),
   expires_at: z.string(),
+  revert_to_date: z.string(),
 });
 
 export const GetPlayerRelicsResponseSchema = z.object({

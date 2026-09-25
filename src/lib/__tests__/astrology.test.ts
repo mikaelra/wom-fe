@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
+  _resetSkyCache,
   computeAspects,
   computeSky,
   conjunctionWeight,
+  getSky,
   separationDeg,
+  setSkyRevertOverride,
   type AspectBody,
   type Sky,
 } from '@/lib/astrology';
@@ -382,5 +385,46 @@ describe('computeSky overrides', () => {
   it('a self-reference throws', () => {
     const date = new Date('2026-06-15T00:00:00Z');
     expect(() => computeSky(date, [{ body: 'Mars', relativeTo: 'Mars', sepDeg: 1 }])).toThrow();
+  });
+});
+
+// ── getSky() singleton + setSkyRevertOverride (docs/MERCHANT_PLAN.md §7) ──
+
+describe('getSky / setSkyRevertOverride', () => {
+  afterEach(() => _resetSkyCache());
+
+  it('with no override, getSky() returns a sky dated close to now', () => {
+    const before = Date.now();
+    const sky = getSky();
+    expect(sky.date.getTime()).toBeGreaterThanOrEqual(before);
+    expect(sky.date.getTime()).toBeLessThan(before + 5000);
+  });
+
+  it('setting an override makes getSky() return a sky at that instant instead', () => {
+    const revertedTo = new Date('2026-01-01T00:00:00Z');
+    setSkyRevertOverride(revertedTo);
+
+    expect(getSky().date.getTime()).toBe(revertedTo.getTime());
+  });
+
+  it('setting the same override again does not recompute (same object identity)', () => {
+    const revertedTo = new Date('2026-01-01T00:00:00Z');
+    setSkyRevertOverride(revertedTo);
+    const first = getSky();
+
+    setSkyRevertOverride(new Date(revertedTo.getTime()));
+    const second = getSky();
+
+    expect(second).toBe(first);
+  });
+
+  it('clearing the override (null) returns getSky() to the live clock', () => {
+    setSkyRevertOverride(new Date('2026-01-01T00:00:00Z'));
+    expect(getSky().date.getTime()).toBe(new Date('2026-01-01T00:00:00Z').getTime());
+
+    setSkyRevertOverride(null);
+
+    const before = Date.now();
+    expect(getSky().date.getTime()).toBeGreaterThanOrEqual(before);
   });
 });

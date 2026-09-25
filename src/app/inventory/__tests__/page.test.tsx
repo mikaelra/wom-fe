@@ -453,7 +453,11 @@ describe('InventoryPage', () => {
     });
 
     it('calls the API with the session token and refreshes the inventory on success', async () => {
-      mockedRevertMerchantTime.mockResolvedValue({ ok: true, expires_at: '2026-09-25T21:00:00+00:00' });
+      mockedRevertMerchantTime.mockResolvedValue({
+        ok: true,
+        expires_at: '2026-09-25T21:00:00+00:00',
+        revert_to_date: '2026-09-11T21:00:00+00:00',
+      });
       render(<InventoryPage />);
       await flush();
       mockedGetInventory.mockClear();
