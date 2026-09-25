@@ -8,13 +8,31 @@ import RelicCooldownOverlay from '@/components/RelicCooldownOverlay';
 
 const COOLDOWN_MS = 10_000;
 
-// The relic-specific explanation shown on hover/selection -- kept explicit
-// about consumption (not just "use it") so a player isn't surprised later
-// that their coin is gone from the inventory page. Only COIN_RELIC_ID has
-// an effect wired up server-side today; other relic types fall back to
-// their own flavour_text, with no consume-and-select affordance.
-const RELIC_SELECT_HELP: Record<number, string> = {
-  [COIN_RELIC_ID]: "Use one Hades' Coin to start the game with +1 coin. This consumes it.",
+// Name-keyed, not id-keyed: see RelicCoin.tsx's own note -- a new relic's
+// id isn't safe to hardcode across environments the way COIN_RELIC_ID is.
+// Kept explicit about consumption (not just "use it") so a player isn't
+// surprised later that the relic is gone from the inventory page. Relic
+// types with no entry here fall back to their own flavour_text, with no
+// consume-and-select affordance called out.
+const RELIC_SELECT_HELP: Record<string, string> = {
+  "Hades' Coin": "Use one Hades' Coin to start the game with +1 coin. This consumes it.",
+  'Stone of Vitality': 'Use one Stone of Vitality to start the game with 15 HP instead of 10. This consumes it.',
+};
+
+// The compact badge (selected-but-collapsed state) shows one glyph in place
+// of the full 3D model -- name-keyed for the same reason as RELIC_SELECT_HELP.
+const RELIC_BADGE_EMOJI: Record<string, string> = {
+  "Hades' Coin": '🪙',
+  'Stone of Vitality': '🪨',
+};
+const DEFAULT_RELIC_BADGE_EMOJI = '💠';
+
+// Short version of RELIC_SELECT_HELP for the caption under the icon/count
+// in the open popover -- that one's a full sentence meant for a
+// hover/tooltip title, this is meant to fit under a compact card.
+const RELIC_SELECT_CAPTION: Record<string, string> = {
+  "Hades' Coin": 'Start the game with 1 coin',
+  'Stone of Vitality': 'Start the game with 15 HP',
 };
 
 type RelicSelectionPopoverProps = {
@@ -56,11 +74,29 @@ export default function RelicSelectionPopover({
   const selectedRelicId = selectedRelicIds[0] ?? null;
   const onCooldown = cooldownUntil !== null && cooldownUntil > Date.now();
   const showCooldownOverlay = onCooldown && revealCooldown;
+  // Which relic is selected, by name -- needed for the compact badge's
+  // glyph/help text once more than one relic type is selectable.
+  // COIN_RELIC_ID is resolved synchronously (a stable cross-environment
+  // constant, same as config.COIN_RELIC_ID on wom-be) so the badge is
+  // correct on the very first paint, before `relics` has ever loaded --
+  // exactly the case every "selected state" test below renders directly
+  // into, with no popover-open/fetch step first. Anything else falls back
+  // to a name lookup in `relics`, which is only known once that load
+  // resolves (a relic whose id isn't safe to hardcode, per RelicCoin.tsx).
+  const selectedRelicName =
+    selectedRelicId === COIN_RELIC_ID
+      ? "Hades' Coin"
+      : relics.find((r) => Number(r.id) === selectedRelicId)?.name;
 
+  // Fetched on mount, not gated on `open`: the compact badge needs to know
+  // *which* relic is selected (for its glyph/help text) even before the
+  // popover is ever opened, e.g. right after the page loads with a relic
+  // already selected from a previous session. This component only mounts
+  // once per lobby (PlayerAvatars.tsx's isOwnPlayer gate), so this is one
+  // extra call, not one per roster row.
   useEffect(() => {
-    if (!open) return;
     getPlayerRelics(playerName).then((data) => setRelics(data.relics));
-  }, [open, playerName]);
+  }, [playerName]);
 
   useEffect(() => {
     if (!open && !armed) return;
@@ -124,7 +160,7 @@ export default function RelicSelectionPopover({
       ? 'View your relics'
       : armed
         ? 'Click again to remove'
-        : (RELIC_SELECT_HELP[selectedRelicId] ?? 'Selected');
+        : (RELIC_SELECT_HELP[selectedRelicName ?? ''] ?? 'Selected');
 
   return (
     <div ref={containerRef} className="relative inline-block">
@@ -137,7 +173,9 @@ export default function RelicSelectionPopover({
           '+'
         ) : (
           <>
-            <span className="text-xl leading-none">🪙</span>
+            <span className="text-xl leading-none">
+              {RELIC_BADGE_EMOJI[selectedRelicName ?? ''] ?? DEFAULT_RELIC_BADGE_EMOJI}
+            </span>
             {armed && (
               <span className="absolute inset-0 flex items-center justify-center text-red-600 text-xl font-bold">
                 ✕
@@ -162,7 +200,7 @@ export default function RelicSelectionPopover({
                     title={
                       onCooldown
                         ? 'You can only change your relic selection once every 10 seconds.'
-                        : (RELIC_SELECT_HELP[relicId] ?? relic.flavour_text ?? relic.name)
+                        : (RELIC_SELECT_HELP[relic.name] ?? relic.flavour_text ?? relic.name)
                     }
                     onClick={() => handleSelect(relicId)}
                     className={`relative flex flex-col items-center gap-1 p-3 rounded-lg border-2 border-transparent transition-colors ${
@@ -175,16 +213,16 @@ export default function RelicSelectionPopover({
                         size keeps the coin legible even when the camera pulls
                         back, without needing to decouple its screen position. */}
                     <div className="w-20 h-20 overflow-hidden">
-                      <RelicCoin />
+                      <RelicCoin relicName={relic.name} />
                     </div>
                     <span className="text-lg text-gray-700">×{relic.count}</span>
-                    {/* Only the Coin relic has an effect wired up server-side
-                        today (see RELIC_SELECT_HELP's own comment) -- this
-                        spells that effect out under the icon/count instead
-                        of leaving it to the hover-only title tooltip, which
-                        a touch device never sees at all. */}
-                    {relicId === COIN_RELIC_ID && (
-                      <span className="text-xs text-gray-600 text-center">Start the game with 1 coin</span>
+                    {/* Only relics with a wired server-side effect (see
+                        RELIC_SELECT_HELP's own comment) get a caption --
+                        this spells the effect out under the icon/count
+                        instead of leaving it to the hover-only title
+                        tooltip, which a touch device never sees at all. */}
+                    {RELIC_SELECT_CAPTION[relic.name] && (
+                      <span className="text-xs text-gray-600 text-center">{RELIC_SELECT_CAPTION[relic.name]}</span>
                     )}
                     {onCooldown && (
                       <RelicCooldownOverlay untilMs={cooldownUntil!} totalMs={COOLDOWN_MS} rounded="rounded-lg" />

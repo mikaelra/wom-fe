@@ -272,7 +272,7 @@ export default function InventoryPage() {
                       className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
                     >
                       <div className="w-16 h-16 overflow-hidden">
-                        <RelicCoin />
+                        <RelicCoin relicName={relic.name} />
                       </div>
                       <p className="text-sm font-semibold text-center">{relic.name}</p>
                       {CONSUMABLE_RELIC_NAMES.has(relic.name) && (
