@@ -6,6 +6,7 @@ import { skinUrl } from '@/lib/frogSkins';
 import { relicModelUrl } from '@/components/RelicCoin';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
+import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 
 // The merchant's box at its original 160px, scaled 2.3x then another 1.5x
 // per Mikael's asks -- kept as a constant since the clip wrapper's height
@@ -13,18 +14,17 @@ import { ApiError } from '@/lib/http';
 // this one number keeps the clip proportion (always exactly half) intact.
 const MERCHANT_BOX_PX = 160 * 2.3 * 1.5;
 
-// Table geometry: the top is tripled in thickness and raised to the middle
-// of the Merchant's visible portrait (half of STAGE_H -- the clip wrapper
-// below only ever shows his top half, so that's the "middle" a player
-// actually sees), standing on two legs that reach back down to the stage's
-// original floor line so it still reads as a table, not a slab floating
-// over him. STONE_BOTTOM is derived from the same numbers so the Stone
-// always lands exactly on the new top surface rather than being eyeballed
-// separately each time this geometry changes.
+// Table geometry: the legs are the base measurement now -- cut to 10% of
+// their original height per Mikael's ask -- and the tabletop (still
+// tripled in thickness) plus the Stone both derive from that, top-down
+// from the stage's floor line, rather than the reverse. That's what makes
+// them "follow" the legs: shrink TABLE_LEG_HEIGHT and the tabletop drops
+// with it, and STONE_BOTTOM (still exactly the tabletop's top surface)
+// drops right along with the tabletop.
 const STAGE_H = MERCHANT_BOX_PX / 2;
 const TABLE_THICKNESS = 36 * 3;
-const TABLE_TOP_Y = STAGE_H / 2 - TABLE_THICKNESS / 2;
-const TABLE_LEG_HEIGHT = STAGE_H - (TABLE_TOP_Y + TABLE_THICKNESS);
+const TABLE_LEG_HEIGHT = (STAGE_H / 2 - TABLE_THICKNESS / 2) * 0.1;
+const TABLE_TOP_Y = STAGE_H - TABLE_LEG_HEIGHT - TABLE_THICKNESS;
 const STONE_BOTTOM = STAGE_H - TABLE_TOP_Y;
 
 type Props = {
@@ -50,6 +50,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
   const [buying, setBuying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bought, setBought] = useState(false);
+  const reducedMotion = usePrefersReducedMotion();
 
   const handleBuy = async () => {
     if (!token) {
@@ -137,7 +138,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
           />
 
           <div
-            className="absolute"
+            className={`absolute ${reducedMotion ? '' : 'merchant-stone-hover'}`}
             style={{ left: 96, bottom: STONE_BOTTOM, width: 40, height: 40 }}
           >
             <SpinningModelViewer
@@ -148,6 +149,19 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
             />
           </div>
         </div>
+
+        {/* A slight hover on the Stone, off (usePrefersReducedMotion) for
+            anyone who has that preference set -- same convention as
+            SceneOverlay.tsx's round-zoom-in keyframe. */}
+        <style>{`
+          @keyframes merchant-stone-hover {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+          }
+          .merchant-stone-hover {
+            animation: merchant-stone-hover 2.4s ease-in-out infinite;
+          }
+        `}</style>
 
         <div className="bg-gray-950/90 px-5 py-5 text-center">
           {bought ? (
