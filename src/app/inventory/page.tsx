@@ -304,7 +304,7 @@ export default function InventoryPage() {
                 </div>
               ) : (
                 <div className="text-center py-2">
-                  <p className="text-white/60 text-sm mb-3">You don&apos;t have any wheels yet.</p>
+                  <p className="text-white/60 text-sm mb-3">You don&apos;t have any wheels.</p>
                   <Link
                     href="/shop"
                     className="inline-block px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-semibold hover:bg-amber-600/80 transition-colors no-underline text-sm"

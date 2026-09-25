@@ -96,11 +96,24 @@ export function useRankedQueue() {
   /** The one place a found match is acted on, whichever layer found it. */
   const enterMatch = useCallback(
     (lobbyId: string, token: string) => {
+      // Always store + rebind, even after the first call already navigated:
+      // /ranked/active mints a fresh token on every call, invalidating
+      // whatever it last issued -- so a poll request already in flight when
+      // the match-found push wins the race still lands moments later and
+      // silently kills the token the push just used. Discarding that
+      // straggler (the old early-return here) left the invalidated token
+      // as the only one ever stored, so every later rejoin attempt
+      // (including the lobby page's own retry) kept failing with "Invalid
+      // or missing session token" (bug list 260916, reported against
+      // bot-ranked but the identical race here too -- see
+      // useBotRankedQueue.ts's mirror of this fix). Whichever call is last
+      // to arrive now wins, which is exactly the one still valid
+      // server-side.
+      setStoredToken(lobbyId, token);
+      getSocket().emit('join_room', { lobby_id: lobbyId, token });
       if (enteredRef.current) return;
       enteredRef.current = true;
       stopListening();
-      setStoredToken(lobbyId, token);
-      getSocket().emit('join_room', { lobby_id: lobbyId, token });
       router.push(`/lobby?id=${lobbyId}`);
     },
     [router, stopListening]

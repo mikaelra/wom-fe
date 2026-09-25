@@ -338,6 +338,50 @@ describe('useRankedQueue', () => {
       expect(push).toHaveBeenCalledWith('/lobby?id=WXYZ');
     });
 
+    it('a poll response already in flight when the push wins still updates the stored token (bug list 260916)', async () => {
+      // /ranked/active mints a fresh token on every call, invalidating
+      // whatever it last issued -- so a poll request dispatched just before
+      // the push wins the race can still land moments later with a
+      // *different* token than the one the push just used, silently
+      // killing it server-side. The old early-return here discarded that
+      // straggler, leaving the now-invalid token as the only one ever
+      // stored -- every later rejoin attempt then failed forever.
+      vi.useFakeTimers();
+      mockedJoin.mockResolvedValue({ status: 'queued' });
+      let resolvePoll: (v: { lobby_id: string | null; token: string | null; ranked_countdown_deadline: null; started: boolean }) => void;
+      mockedActive.mockImplementationOnce(
+        () => new Promise((resolve) => { resolvePoll = resolve; })
+      );
+      const { result } = renderHook(() => useRankedQueue());
+
+      await act(async () => {
+        await result.current.startQueue('Alice');
+      });
+
+      // The poll tick fires (not yet entered) and dispatches its request,
+      // which stays pending -- exactly an in-flight request at the moment
+      // the push below wins the race.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+      });
+      expect(mockedActive).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        socket.__fireSubscribeEvent('ranked_match_found', { lobby_id: 'ABCD', token: 'tok-stale' });
+      });
+      expect(push).toHaveBeenCalledTimes(1);
+
+      // The in-flight poll request now resolves, moments too late to matter
+      // for navigation but carrying the token still valid server-side.
+      await act(async () => {
+        resolvePoll!({ lobby_id: 'ABCD', token: 'tok-fresher', ranked_countdown_deadline: null, started: false });
+      });
+
+      expect(push).toHaveBeenCalledTimes(1); // still navigates only once
+      expect(mockedSetStoredToken).toHaveBeenLastCalledWith('ABCD', 'tok-fresher');
+      expect(socket.__emit).toHaveBeenLastCalledWith('join_room', { lobby_id: 'ABCD', token: 'tok-fresher' });
+    });
+
     it('stops polling after cancelQueue', async () => {
       vi.useFakeTimers();
       mockedJoin.mockResolvedValue({ status: 'queued' });
