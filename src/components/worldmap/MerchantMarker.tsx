@@ -13,11 +13,19 @@ interface MerchantMarkerProps {
 }
 
 /**
- * The Merchant's ??? on the globe (docs/MERCHANT_PLAN.md). Same
- * position/orientation/hover mechanics as CityMarker.tsx (this file mirrors
- * it deliberately), but no GLTF pin model -- a glowing "???" label alone is
- * the whole marker, matching the encounter's mystery framing and avoiding a
- * second pin asset for something that only appears occasionally.
+ * The Merchant's ??? on the globe (docs/MERCHANT_PLAN.md). Position/
+ * orientation mechanics mirror CityMarker.tsx, but there is no GLTF pin
+ * model -- a glowing "???" label alone is the whole marker, matching the
+ * encounter's mystery framing and avoiding a second pin asset for
+ * something that only appears occasionally.
+ *
+ * Because there's no mesh, the click/hover target is the label itself, not
+ * the group: FreshHtml's `pointerEvents: 'none'` convention exists so a
+ * label's box doesn't steal clicks meant for a 3D object underneath it
+ * (see its own docstring) -- CityMarker relies on that because its sword
+ * model is the real target. There is no 3D object here for a group-level
+ * onClick to raycast against, so the label is given `pointerEvents: 'auto'`
+ * and handles the click/hover itself instead.
  *
  * WorldMap.tsx only mounts this when the current offer is available and
  * not yet bought this period -- this component itself does not know
@@ -31,44 +39,34 @@ export default function MerchantMarker({ lat, lng, globeRadius, onClick }: Merch
   const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
 
   return (
-    <group
-      position={position}
-      quaternion={quaternion}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      onPointerOver={(e) => {
-        e.stopPropagation();
-        setHovered(true);
-        document.body.style.cursor = 'pointer';
-      }}
-      onPointerOut={() => {
-        setHovered(false);
-        document.body.style.cursor = 'auto';
-      }}
-    >
-      {/* A small point light so the marker reads as something standing on
-          the globe, not just a floating label -- cheap, no glow texture. */}
-      <pointLight color="#f5c542" intensity={hovered ? 2.2 : 1.4} distance={2.5} />
+    <group position={position} quaternion={quaternion}>
+      {/* The glow on the globe itself -- tripled radius/intensity from the
+          original so it reads from a distance, purple to match the label. */}
+      <pointLight color="#a855f7" intensity={hovered ? 6.6 : 4.2} distance={7.5} />
 
-      <FreshHtml
-        position={[0, 1.0, 0]}
-        center
-        distanceFactor={6}
-        style={{ pointerEvents: 'none', userSelect: 'none' }}
-      >
+      <FreshHtml position={[0, 1.0, 0]} center distanceFactor={6}>
         <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
           style={{
-            color: '#f5c542',
-            fontSize: hovered ? 32 : 26,
+            // Same size as a city's actionLabel pill text (CityMarker.tsx,
+            // e.g. Athens' "GREECE") -- this label just isn't in a pill.
+            color: '#a855f7',
+            fontSize: hovered ? 22 : 18,
             fontWeight: 900,
             letterSpacing: '0.05em',
             WebkitTextStroke: '0.5px #000',
             textShadow: hovered
-              ? '0 0 16px rgba(245,197,66,0.9), 0 0 4px rgba(0,0,0,0.9)'
-              : '0 0 8px rgba(245,197,66,0.6), 0 0 4px rgba(0,0,0,0.9)',
+              ? '0 0 10px rgba(168,85,247,0.9), 0 0 3px rgba(0,0,0,0.9)'
+              : '0 0 6px rgba(168,85,247,0.6), 0 0 3px rgba(0,0,0,0.9)',
             transition: 'font-size 0.2s, text-shadow 0.2s',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+            userSelect: 'none',
           }}
         >
           ???
