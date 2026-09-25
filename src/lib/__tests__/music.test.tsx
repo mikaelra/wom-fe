@@ -50,9 +50,10 @@ describe('playMusic', () => {
 
   // The city scene had no music call at all, which is what made its toggle
   // look broken -- it was muting silence.
-  it('exposes a distinct city track', async () => {
+  it('plays Moonlit Saddle in the city, same as the earth screen', async () => {
     const m = await load();
-    expect(m.CITY_MUSIC).toBe('/audio/music/Main Theme.mp3');
+    expect(m.CITY_MUSIC).toBe('/audio/music/Moonlit Saddle.mp3');
+    expect(m.CITY_MUSIC).toBe(m.HOME_MUSIC);
     m.playMusic(m.CITY_MUSIC);
     expect(decodeURI(el().src)).toBe(m.CITY_MUSIC);
   });
@@ -60,9 +61,9 @@ describe('playMusic', () => {
   it('reuses the one element across a track change', async () => {
     const m = await load();
     m.playMusic(m.HOME_MUSIC);
-    m.playMusic(m.CITY_MUSIC);
+    m.playMusic(m.BATTLE_MUSIC);
     expect(created).toHaveLength(1);
-    expect(decodeURI(el().src)).toBe(m.CITY_MUSIC);
+    expect(decodeURI(el().src)).toBe(m.BATTLE_MUSIC);
   });
 
   it('stays silent while music is muted', async () => {
