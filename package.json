@@ -2,12 +2,20 @@
   "name": "wom-fe",
   "version": "0.1.0",
   "private": true,
+  "description": "World of Mythos",
+  "author": "World of Mythos",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
+    "build:native": "BUILD_TARGET=native next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "electron": "electron .",
+    "electron:dev": "npm run build:native && electron .",
+    "dist:steam": "npm run build:native && electron-builder",
+    "steam:upload": "scripts/steam-upload.sh"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -19,6 +27,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "socket.io-client": "^4.8.3",
+    "steamworks.js": "^0.4.0",
     "three": "^0.185.1",
     "three-stdlib": "^2.36.0",
     "zod": "^4.4.3"
@@ -33,6 +42,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.10",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "^16.1.6",
     "jsdom": "^29.1.1",

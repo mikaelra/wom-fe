@@ -64,7 +64,7 @@ describe('InviteSection', () => {
       fireEvent.click(copyButton);
       await Promise.resolve();
     });
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('/lobby/AAAA'));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('/lobby?id=AAAA'));
     expect(screen.getByTitle('Copied!')).toBeInTheDocument();
 
     act(() => {
@@ -269,8 +269,8 @@ describe('renderPreGame', () => {
     playerName: 'Alice',
     isAdmin: false,
     boss: undefined,
-    raidMins: null,
-    raidSecs: null,
+    bossfightMins: null,
+    bossfightSecs: null,
     rankedSecondsLeft: null,
     btn: '',
     onStartGame: vi.fn(),
@@ -322,7 +322,7 @@ describe('renderPreGame', () => {
       // Add Bot itself stays in the DOM (just hidden, not unmounted) --
       // see the component's own comment on why unmounting it shifted
       // Start Game sideways.
-      expect(screen.getByText('Add Bot')).toHaveClass('invisible');
+      expect(screen.getByRole('button', { name: 'Add Bot' })).toHaveClass('invisible');
       expect(screen.getByText('Turtle')).toBeInTheDocument();
       expect(screen.getByText('Sheep')).toBeInTheDocument();
       expect(screen.getByText('Wolf')).toBeInTheDocument();
@@ -348,7 +348,7 @@ describe('renderPreGame', () => {
       fireEvent.click(screen.getByText('Owl'));
 
       expect(onAddDummy).toHaveBeenCalledWith('OWL');
-      expect(screen.getByText('Add Bot')).not.toHaveClass('invisible');
+      expect(screen.getByRole('button', { name: 'Add Bot' })).not.toHaveClass('invisible');
       expect(screen.queryByText('Owl')).not.toBeInTheDocument();
     });
 
@@ -362,7 +362,7 @@ describe('renderPreGame', () => {
       fireEvent.mouseDown(document.body);
 
       expect(onAddDummy).not.toHaveBeenCalled();
-      expect(screen.getByText('Add Bot')).not.toHaveClass('invisible');
+      expect(screen.getByRole('button', { name: 'Add Bot' })).not.toHaveClass('invisible');
       expect(screen.queryByText('Owl')).not.toBeInTheDocument();
     });
   });
@@ -392,12 +392,12 @@ describe('renderPreGame', () => {
       ...baseOpts,
       state: { ...baseState, boss_fight: true },
       boss,
-      raidMins: 1,
-      raidSecs: 30,
+      bossfightMins: 1,
+      bossfightSecs: 30,
     })}</>);
     expect(screen.getByText('Hades')).toBeInTheDocument();
     expect(screen.getByText('Lord of the Underworld')).toBeInTheDocument();
-    expect(screen.getByText('Boss-fight starts in 1m 30s')).toBeInTheDocument();
+    expect(screen.getByText('Bossfight starts in 1m 30s')).toBeInTheDocument();
     expect(screen.queryByText(/Lobby ID/)).not.toBeInTheDocument();
   });
 

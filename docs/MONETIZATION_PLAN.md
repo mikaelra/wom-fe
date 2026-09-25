@@ -1095,7 +1095,11 @@ modal**, generated from `/shop/products` → `domain/wheels.odds_payload` → th
   days** (easy — it's a revocable inventory row); a spun wheel is consumed and not
   refundable, which is the standard "consumer consents to immediate performance" carve-out
   in the EU withdrawal right. Say this in the ToS *and* on the shop card, before purchase,
-  because that is the condition on which the carve-out actually holds.
+  because that is the condition on which the carve-out actually holds. Mechanically:
+  `revoke_order` only ever reaches an unspun wheel or a direct grant — a chargeback on an
+  already-spun wheel is accepted as a straight loss, the resulting skin stays with the
+  player, and this is why a later trade-up of that skin (`docs/TRADE_UP_PLAN.md`) can never
+  collide with revocation — there's no live clawback path left for it to break.
 - Every grant/spin/purchase is logged with `source`, `source_ref`, timestamps (already in
   the schema), so a dispute is answerable from the audit trail.
 
@@ -1179,8 +1183,9 @@ Component / visual:
 - **Same event delivered twice → one grant** (the property that matters most).
 - Two concurrent deliveries of the same event → one grant (exercise the `FOR UPDATE`
   path with two connections).
-- `charge.refunded` on an unspun wheel deletes it; on a spun wheel deletes the resulting
-  skin; equipped skin resets to green when revoked.
+- `charge.refunded` on an unspun wheel deletes it; a spun wheel is left alone entirely
+  (§9.4's carve-out — spinning is consuming the product); equipped skin resets to green
+  when a revoked grant was equipped.
 - A refund event for an unknown/never-fulfilled order logs and no-ops rather than
   crashing the webhook (a 500 makes Stripe retry forever).
 - Region-blocked billing country at fulfillment → refund called, no grant.

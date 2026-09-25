@@ -1,0 +1,66 @@
+# Packaging for the Electron shell -- docs/MOBILE_AND_STEAM_PLAN.md §10.
+# Output lands in dist-electron/ (gitignored).
+#
+#   npm run dist:steam     installers (nsis / dmg / AppImage) -- for direct
+#                          downloads, NOT Steam.
+#   npm run steam:upload   the Steam path: builds `--dir` (unpacked) win + linux
+#                          trees and hands them to SteamPipe. See
+#                          scripts/steam-upload.sh + steam/README.md.
+#
+# SteamPipe chunks and deltas the raw unpacked files, so an installer or a
+# tar.gz would be uploaded as one opaque blob -- the `dir` target is the input
+# it wants.
+appId: net.worldofmythos.game
+productName: World of Mythos
+# Pinned so the Steam launch option is stable: world-of-mythos (Linux),
+# world-of-mythos.exe (Windows). Without this the Linux `dir` binary stays
+# named `electron`.
+executableName: world-of-mythos
+copyright: © World of Mythos
+
+directories:
+  output: dist-electron
+  buildResources: electron/resources
+
+# The app is the static export in out/ plus this thin shell. The whole Next /
+# React / Three / Sentry tree is build-time only -- it's already compiled into
+# out/_next -- so the one node module that ships is steamworks.js. Without the
+# node_modules exclusion electron-builder bundles every production dependency
+# (~800 MB of webpack/babel/sentry/sharp the shell never loads).
+files:
+  - electron/**/*
+  - out/**/*
+  - package.json
+  - '!**/steam_appid.txt'
+  - '!node_modules/**/*'
+  - 'node_modules/steamworks.js/**/*'
+
+# steamworks.js ships prebuilt .node addons and the steam_api shared lib;
+# native code cannot be loaded from inside the asar archive.
+asarUnpack:
+  - node_modules/steamworks.js/**
+
+# No auto-update: on Steam, SteamPipe delivers new builds. electron-updater
+# would fight it.
+publish: null
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # Steam distributes the binary itself, so an unsigned exe is acceptable for
+  # a first release (§10.1). Add a signing cert here when doing direct downloads.
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  category: public.app-category.games
+
+linux:
+  # AppImage for local testing / Steam Deck sideloading. The Steam Linux depot
+  # is uploaded from the `dir` output by scripts/steam-upload.sh, not from these.
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Game

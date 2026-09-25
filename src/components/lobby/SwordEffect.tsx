@@ -21,6 +21,14 @@ const BOUNCE_SPINS = 1.5;
 // How far the blade pitches forward (nose-down, toward the target) over the
 // course of the lunge, reaching full tilt exactly as the sword arrives.
 const STRIKE_TILT_MAX = THREE.MathUtils.degToRad(60);
+// onStrike (and everything it drives: impact shield, hit flash, damage
+// number, combat sound) fires this much before the lunge frame-technically
+// finishes -- tied to the exact final frame, the sound in particular read
+// as late (some of that's inherent new Audio().play() startup latency, not
+// fixable by moving the trigger alone, but firing a beat early still closes
+// most of the gap). Same lead as WellRewardEffect/ResourceGainEffect's
+// LAND_LEAD_SEC.
+const STRIKE_LEAD_SEC = 0.15;
 
 export type SwordEffectProps = {
   /** World-space position of the attacker (used to compute sword direction). */
@@ -37,6 +45,13 @@ export type SwordEffectProps = {
   postImpact?: 'retreat' | 'stop' | 'bounce';
   /** Called the frame the sword makes contact. */
   onStrike?: () => void;
+  /** 'bounce' only: called shortly before the sword arrives back on the
+   *  attacker (see STRIKE_LEAD_SEC) -- the second impact's own sound cue,
+   *  distinct from onDone (below), which still fires at the true final
+   *  frame since that's what unmounts this effect (see LobbyScene's
+   *  strikeEvents cleanup) -- firing that early would cut the bounce-back
+   *  animation short instead of just nudging a sound. */
+  onBounceLand?: () => void;
   /** Called when the entire animation sequence finishes -- for 'bounce',
    *  this lands on the exact frame the sword arrives back on the
    *  attacker (a second impact, distinct from onStrike's first one). */
@@ -52,6 +67,7 @@ export default function SwordEffect({
   mode,
   postImpact = 'retreat',
   onStrike,
+  onBounceLand,
   onDone,
 }: SwordEffectProps) {
   const { scene, animations } = useGLTF('/models/swords/sword_animation-ld.glb');
@@ -60,6 +76,7 @@ export default function SwordEffect({
   const mixerRef   = useRef<THREE.AnimationMixer | null>(null);
   const tRef       = useRef(0);
   const strikeCalledRef = useRef(false);
+  const bounceLandCalledRef = useRef(false);
   const doneCalledRef   = useRef(false);
 
   const [fx, fy, fz] = fromPosition;
@@ -107,6 +124,10 @@ export default function SwordEffect({
     const t = tRef.current;
 
     if (t < STRIKE_DUR) {
+      if (!strikeCalledRef.current && t >= STRIKE_DUR - STRIKE_LEAD_SEC) {
+        strikeCalledRef.current = true;
+        onStrike?.();
+      }
       // Lunge toward target, pitching the blade forward as it closes the
       // distance so it reaches full 60° tilt right as it lands.
       const p = easeIn(t / STRIKE_DUR);
@@ -121,6 +142,10 @@ export default function SwordEffect({
         onStrike?.();
       }
     } else if (postImpact === 'bounce' && t < STRIKE_DUR + HOLD_DUR + BOUNCE_DUR) {
+      if (!bounceLandCalledRef.current && t >= STRIKE_DUR + HOLD_DUR + BOUNCE_DUR - STRIKE_LEAD_SEC) {
+        bounceLandCalledRef.current = true;
+        onBounceLand?.();
+      }
       // Arch back toward the attacker after being blocked + reflected, tumbling end-over-end
       const localT = (t - STRIKE_DUR - HOLD_DUR) / BOUNCE_DUR;
       group.position.lerpVectors(toVec, fromVec, localT);

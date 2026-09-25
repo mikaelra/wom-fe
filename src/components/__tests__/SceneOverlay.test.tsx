@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import SceneOverlay, { type SceneOverlayConfig, type PreGameRenderOpts } from '@/components/SceneOverlay';
 import { useLobbyConnection, type UseLobbyConnectionOptions } from '@/lib/useLobbyConnection';
 import { useLobbyGame, type UseLobbyGameResult } from '@/lib/useLobbyGame';
@@ -18,6 +18,12 @@ vi.mock('@/lib/useStagedResources', () => ({ useStagedResources: vi.fn() }));
 
 const emit = vi.fn();
 vi.mock('@/lib/socket', () => ({ getSocket: () => ({ emit }) }));
+
+// Toast is mocked so a test can assert what the player was NOT told: the
+// lobby-gone path is defined as much by the absence of a message as by the
+// redirect it fires.
+const showError = vi.fn();
+vi.mock('@/components/Toast', () => ({ useToast: () => ({ showError }) }));
 
 const mockedUseLobbyConnection = vi.mocked(useLobbyConnection);
 const mockedUseLobbyGame = vi.mocked(useLobbyGame);
@@ -104,11 +110,12 @@ function mockConnection(state: LobbyState | null) {
 
 beforeEach(() => {
   emit.mockClear();
+  showError.mockClear();
   capturedConnectionOptions = undefined;
   mockConnection(baseState);
   mockedUseLobbyGame.mockReturnValue({ ...baseLobbyGameResult });
   mockedUseRoundTimer.mockReturnValue(null);
-  mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: null, raidMins: null, raidSecs: null });
+  mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: null, bossfightMins: null, bossfightSecs: null });
   mockedUseGameEvents.mockReturnValue(null);
   mockedUseStagedResources.mockReturnValue(null);
 });
@@ -144,6 +151,52 @@ describe('connection lost', () => {
   });
 });
 
+describe('a lobby that no longer exists', () => {
+  // The backend restarting drops every in-memory lobby, and the next
+  // socket message back is "Lobby not found". Naming an internal object at
+  // someone who was mid-game a second ago tells them nothing they can act
+  // on, so they are walked out to the world map in silence instead.
+  const fireError = (message: string) => {
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} onLobbyGone={onLobbyGone} />);
+    act(() => { capturedConnectionOptions?.onError?.(message); });
+  };
+  const onLobbyGone = vi.fn();
+  beforeEach(() => onLobbyGone.mockClear());
+
+  it('leaves for the world map instead of showing "Lobby not found"', () => {
+    fireError('Lobby not found');
+    expect(onLobbyGone).toHaveBeenCalledTimes(1);
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('also catches the spelling that names the lobby', () => {
+    // One backend handler emits "Lobby <id> not found" rather than the
+    // bare string -- both mean the same thing to the player.
+    fireError('Lobby AAAA not found');
+    expect(onLobbyGone).toHaveBeenCalledTimes(1);
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('still shows every other error, and does not leave', () => {
+    fireError('You are not the admin');
+    expect(onLobbyGone).not.toHaveBeenCalled();
+    expect(showError).toHaveBeenCalledWith('You are not the admin');
+  });
+
+  it('goes on swallowing "Name taken" without leaving', () => {
+    fireError('Name taken');
+    expect(onLobbyGone).not.toHaveBeenCalled();
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('does not fall over when no handler was supplied', () => {
+    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(() => act(() => { capturedConnectionOptions?.onError?.('Lobby not found'); }))
+      .not.toThrow();
+    expect(showError).not.toHaveBeenCalled();
+  });
+});
+
 describe('pre-game delegation', () => {
   const preGameState: LobbyState = { ...baseState, round: 0 };
 
@@ -156,7 +209,7 @@ describe('pre-game delegation', () => {
       isAdmin: true,
       enemy: undefined,
     });
-    mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: 90, raidMins: 1, raidSecs: 30 });
+    mockedUseBossfightCountdown.mockReturnValue({ secondsUntil: 90, bossfightMins: 1, bossfightSecs: 30 });
     const renderPreGame = vi.fn(() => <div data-testid="pre-game" />);
 
     render(
@@ -173,8 +226,8 @@ describe('pre-game delegation', () => {
       lobbyId: 'AAAA',
       isAdmin: true,
       boss: undefined,
-      raidMins: 1,
-      raidSecs: 30,
+      bossfightMins: 1,
+      bossfightSecs: 30,
     }));
   });
 
@@ -515,7 +568,7 @@ describe('messages panel overflow', () => {
 });
 
 describe('player list', () => {
-  it('shows crown/skull/idle indicators, excludes spectators, and highlights the local player', () => {
+  it('shows crown/skull/idle indicators, keeps spectators out of the player list, and highlights the local player', () => {
     localStorage.setItem('playerName', 'Alice');
     const dead: Player = { ...basePlayer, name: 'Bob', hp: 0 };
     const spectator: Player = { ...basePlayer, name: 'Carol', spectator: true };
@@ -527,12 +580,35 @@ describe('player list', () => {
     expect(screen.getByText('👑')).toBeInTheDocument();
     expect(screen.getByText('☠️')).toBeInTheDocument();
     expect(screen.getByText('👻')).toBeInTheDocument();
-    expect(screen.queryByText('Carol')).not.toBeInTheDocument();
+    // Carol is a spectator: out of the Players list and its count, but no
+    // longer dropped from the panel altogether -- she is under her own
+    // heading below, so someone spectating can see they are in the lobby.
+    expect(screen.getByText('Players (3)')).toBeInTheDocument();
+    expect(screen.getByText('Spectator (1)')).toBeInTheDocument();
+    const carol = screen.getByText('Carol').closest('li');
+    expect(carol).toBeTruthy();
+    expect(within(carol!).getByTitle('Spectator')).toBeInTheDocument();
     // "Alice" also appears in the separate player-nametag block; scope to
     // the player-list entry specifically (its <li> ancestor).
     const aliceEntries = screen.getAllByText('Alice');
     const listEntry = aliceEntries.find((el) => el.closest('li'));
     expect(listEntry).toHaveClass('text-blue-300');
+  });
+
+  it('says Spectators, plural, once there is more than one', () => {
+    const carol: Player = { ...basePlayer, name: 'Carol', spectator: true };
+    const erin: Player = { ...basePlayer, name: 'Erin', spectator: true };
+    mockConnection({ ...baseState, players: [basePlayer, carol, erin] });
+
+    render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, showPlayerList: true }} />);
+
+    expect(screen.getByText('Spectators (2)')).toBeInTheDocument();
+  });
+
+  it('shows no spectator heading when nobody is watching', () => {
+    mockConnection({ ...baseState, players: [basePlayer] });
+    render(<SceneOverlay lobbyId="AAAA" config={{ ...baseConfig, showPlayerList: true }} />);
+    expect(screen.queryByText(/^Spectator/)).not.toBeInTheDocument();
   });
 
   it('crowns the well-winner instead, only when there is no game winner yet', () => {

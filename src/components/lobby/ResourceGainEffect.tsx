@@ -35,6 +35,13 @@ export const RESOURCE_GAIN_DUR = RISE_DUR + HANG_DUR + DESCEND_DUR; // 0.5s
 // dropping back down into the character.
 const RISE_HEIGHT = 0.7;
 const CHEST_Y_OFFSET = 0.3;
+// onLand fires this much before the descend/shrink actually finishes -- a
+// landing *sound* read as late when tied to the exact final frame; firing it
+// a beat early (while still shrinking in) reads as in-sync instead. Doesn't
+// move the model itself, only the callback -- see WellRewardEffect's
+// matching LAND_LEAD_SEC for the same reasoning. Bumped 0.08 -> 0.15, same
+// as WellRewardEffect (still read as late at 0.08).
+const LAND_LEAD_SEC = 0.15;
 
 function easeOut(t: number) { return 1 - Math.pow(1 - t, 3); }
 function easeIn(t: number) { return t * t * t; }
@@ -46,11 +53,15 @@ export type ResourceGainEffectProps = {
   position: [number, number, number];
   /** Seconds to wait before the animation starts. */
   delay?: number;
+  /** Called shortly before the model finishes descending into the character
+   *  -- see LAND_LEAD_SEC. Intended for a landing sound; onDone (below) is
+   *  still what actually finishes/unmounts the effect. */
+  onLand?: () => void;
   /** Called once the rise-hang-descend sequence has finished. */
   onDone?: () => void;
 };
 
-export default function ResourceGainEffect({ resource, position, delay = 0, onDone }: ResourceGainEffectProps) {
+export default function ResourceGainEffect({ resource, position, delay = 0, onLand, onDone }: ResourceGainEffectProps) {
   const type = RESOURCE_MODEL_TYPE[resource];
   const url = WELL_REWARD_MODELS[type];
   const { scene } = useGLTF(url);
@@ -59,6 +70,7 @@ export default function ResourceGainEffect({ resource, position, delay = 0, onDo
   const groupRef = useRef<THREE.Group>(null);
   const modelRef = useRef<THREE.Object3D>(null);
   const tRef = useRef(0);
+  const landCalledRef = useRef(false);
   const doneCalledRef = useRef(false);
 
   const [px, py, pz] = position;
@@ -91,6 +103,10 @@ export default function ResourceGainEffect({ resource, position, delay = 0, onDo
       group.position.y += Math.sin((t - RISE_DUR) * 10) * 0.03;
       model.scale.setScalar(baseScale);
     } else if (t < RESOURCE_GAIN_DUR) {
+      if (!landCalledRef.current && t >= RESOURCE_GAIN_DUR - LAND_LEAD_SEC) {
+        landCalledRef.current = true;
+        onLand?.();
+      }
       // Falls back down into the character, shrinking away as it "lands" --
       // easeIn (accelerating) rather than the rise's easeOut, so it reads as
       // being pulled in rather than gently placed down.
@@ -99,6 +115,10 @@ export default function ResourceGainEffect({ resource, position, delay = 0, onDo
       group.position.lerpVectors(peakVec, baseVec, eased);
       model.scale.setScalar(baseScale * (1 - eased));
     } else if (!doneCalledRef.current) {
+      if (!landCalledRef.current) {
+        landCalledRef.current = true;
+        onLand?.();
+      }
       doneCalledRef.current = true;
       onDone?.();
     }

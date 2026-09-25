@@ -123,7 +123,7 @@ describe('useAuthFlow', () => {
     mockedCheckName.mockRejectedValue('boom');
     const onAuthenticated = vi.fn();
     const { result } = renderHook(() =>
-      useAuthFlow({ onAuthenticated, submitErrorFallback: 'Failed to enter raid.' })
+      useAuthFlow({ onAuthenticated, submitErrorFallback: 'Failed to enter the bossfight.' })
     );
 
     act(() => result.current.setName('Bob'));
@@ -131,7 +131,7 @@ describe('useAuthFlow', () => {
       result.current.handleSubmitName();
     });
 
-    expect(result.current.error).toBe('Failed to enter raid.');
+    expect(result.current.error).toBe('Failed to enter the bossfight.');
   });
 
   it('falls back to a default message when submitErrorFallback is omitted', async () => {

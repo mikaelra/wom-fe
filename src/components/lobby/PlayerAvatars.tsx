@@ -1,23 +1,26 @@
 'use client';
 
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { Html, useGLTF } from '@react-three/drei';
-import { useRef, useMemo, useState, useEffect, memo, Suspense, type CSSProperties, type ReactNode } from 'react';
+import { useGLTF } from '@react-three/drei';
+import { useRef, useMemo, memo, Suspense, type CSSProperties, type ReactNode } from 'react';
 import * as THREE from 'three';
 import PlayerV1 from '@/components/Playerv1';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import DenyModelButton from '@/components/lobby/DenyModelButton';
 import EquippedCoinModel from '@/components/lobby/EquippedCoinModel';
+import { FreshHtml } from '@/components/hud/FreshHtml';
 import RelicSelectionPopover from '@/components/RelicSelectionPopover';
 import { skinUrl } from '@/lib/frogSkins';
+import { ARTIFACT } from '@/lib/cosmetics';
+import ArtifactModel from './ArtifactModel';
 import { COIN_RELIC_ID } from '@/types/game';
 
 // ── Per-player HTML stack ───────────────────────────────────────────────────
 // Chat bubble, ATTACK, name and DEFEND used to be four separate drei <Html>
 // mounts per player — each one is reprojected to screen space and written to
-// the DOM every frame. They now share ONE <Html> root anchored at the name
-// (world y 0.5, distanceFactor 3.45) with the other elements absolutely
+// the DOM every frame. They now share ONE <FreshHtml> root anchored at the
+// name (world y 0.5, distanceFactor 3.45) with the other elements absolutely
 // positioned around it in pre-scale pixels. ~230px ≈ 1 world unit here, so the
 // bubble/defend offsets below mirror the old world-space anchors (bubble
 // 1.3, defend −0.1). ATTACK was originally up at 0.9 (above the name, right
@@ -25,47 +28,29 @@ import { COIN_RELIC_ID } from '@/types/game';
 // player was chatting, so it now shares DEFEND's spot below the name instead
 // -- the two never appear on the same player (attack targets other players,
 // defend only ever shows on your own).
-// drei's Html only recomputes its CSS `scale()` when the object's projected
-// 2D screen position moves by more than `eps` (default 0.001px) since the
-// last update -- it never checks camera *distance* directly. A camera dolly
-// (zoom) aimed roughly at an object near screen-center barely shifts that
-// object's 2D projection even though the true distance -- and so the
-// correct scale -- changes a lot; once CameraFlyIn's per-frame lerp fully
-// converges (steady state, zero further 2D movement), whatever scale got
-// computed on the last frame that *did* cross the threshold is frozen
-// indefinitely. Confirmed live: name tags/action buttons/info badges
-// occasionally render far too large right after a round starts (or a
-// player joins mid-game) and only correct once the camera is dragged --
-// which perturbs the 2D projection enough to force a recompute. Since this
-// scene already renders continuously (frameloop="always"), forcing every
-// frame to recompute (eps=0) costs nothing extra and removes the
-// possibility of a stuck stale scale entirely.
-export const HTML_EPS = 0;
-
-// eps=0 above is not a complete fix, though: reading drei's own Html source
-// (node_modules/@react-three/drei/web/Html.js), its per-frame recompute is
-// gated on the object's projected 2D screen position and camera.zoom only --
-// it never checks camera.fov. This scene's FOV is responsive
-// (getResponsiveFov, re-applied every frame in CameraFlyIn) and can still be
-// settling right when a conditionally-mounted Html first appears (e.g. the
-// info-reveal badge below, which mounts fresh exactly at round-transition
-// time); if that first frame's scale is computed against a transient FOV
-// value and the object's 2D position doesn't keep moving afterwards, eps=0
-// never gets a reason to recompute again, and the stale (often oversized)
-// scale sticks until the player drags the camera -- which perturbs the 2D
-// position enough to force drei's own recompute. Confirmed live. Remounting
-// the badge once, a beat after it appears, gets it a second attempt after
-// FOV/camera have had time to settle -- same effect as dragging the camera,
-// on a timer instead of waiting for the player to notice and do it.
-function useRemountKeyOnceSettled(dep: unknown, delayMs = 400): number {
-  const [key, setKey] = useState(0);
-  useEffect(() => {
-    if (dep == null) return;
-    const t = setTimeout(() => setKey((k) => k + 1), delayMs);
-    return () => clearTimeout(t);
-  }, [dep, delayMs]);
-  return key;
-}
+//
+// This uses FreshHtml (a local fork of drei's Html, see FreshHtml.tsx),
+// not drei's own Html, because of a bug that took two attempts to actually
+// root-cause: drei's Html only recomputes its CSS translate+scale when the
+// object's projected 2D screen position or camera.zoom changes by more than
+// `eps` since the last frame -- it never checks camera.fov. This scene's FOV
+// is responsive (getResponsiveFov, see sceneConstants.ts) and can change
+// while an object's 2D screen position barely moves (anything near
+// screen-center), which leaves drei's gate permanently closed and the scale
+// frozen at whatever it was on the last frame that *did* cross the
+// threshold -- confirmed live as buttons/HP cards/name tags freezing
+// oversized after a round starts or a viewport resize settles. A first
+// attempt at fixing this remounted the Html whenever the viewport size
+// changed, which traded that bug for a worse one: a freshly mounted Html
+// has no scale applied until the *next* animation frame, so remounting
+// mid-game paints one full-native-size unscaled frame first -- confirmed
+// live as buttons visibly "ballooning" on the first hit of a match (a
+// hit's DamageNumberEffect popping in is exactly the kind of layout shift
+// that changes the canvas's reported size, which was triggering the
+// remount). FreshHtml removes the recompute gate entirely instead --
+// translate+scale+z-index are recalculated every frame, unconditionally,
+// so there's no stale state to get stuck and nothing ever remounts mid-game
+// to flash. See FreshHtml.tsx's own comment for the full detail.
 
 const STACK_BUBBLE_Y = -70;
 // Attack sits below the name now, at the same spot as DEFEND (the two never
@@ -250,12 +235,16 @@ export function WellCrown({ worldPosition }: { worldPosition: [number, number, n
 const CHERUB_HOVER_AMPLITUDE = 0.08;
 const CHERUB_HOVER_SPEED = 1.6;
 
-function HoveringModel({ children, phase = 0 }: { children: ReactNode; phase?: number }) {
+function HoveringModel({ children, phase = 0, active = true }: { children: ReactNode; phase?: number; active?: boolean }) {
   const ref = useRef<THREE.Group>(null);
   useFrame((state) => {
     if (ref.current) {
-      ref.current.position.y =
-        Math.sin(state.clock.elapsedTime * CHERUB_HOVER_SPEED + phase) * CHERUB_HOVER_AMPLITUDE;
+      // active=false (dead) freezes the offset at 0 instead of unmounting
+      // this wrapper -- see PlayerModelLayer's own comment on why the
+      // wrapper itself must stay mounted regardless of isDead.
+      ref.current.position.y = active
+        ? Math.sin(state.clock.elapsedTime * CHERUB_HOVER_SPEED + phase) * CHERUB_HOVER_AMPLITUDE
+        : 0;
     }
   });
   return <group ref={ref}>{children}</group>;
@@ -263,9 +252,10 @@ function HoveringModel({ children, phase = 0 }: { children: ReactNode; phase?: n
 
 // Holds only the GLB-dependent parts of a player slot so it can be Suspense-wrapped
 // independently of the HTML UI (names / action buttons) rendered by PlayerWithName.
-function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, hover, hoverPhase }: {
+function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, isGhost, showShield, hover, hoverPhase }: {
   modelUrl: string;
   isBoss: boolean;
+  isGhost?: boolean;
   isAnimating: boolean;
   isDead?: boolean;
   showShield?: boolean;
@@ -276,18 +266,27 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, h
   const model = (
     <PlayerV1
       url={modelUrl}
-      scale={isBoss ? 1.44 : 0.6}
+      scale={isBoss ? 2.88 : 0.6}
       position={[0, 0, 0]}
       rotation={[0, 0, 0]}
       isAnimating={isAnimating}
       isDead={isDead}
+      isGhost={isGhost}
     />
   );
   return (
     <>
-      {/* No hover once dead -- a defeated Cherub tips onto its side (PlayerV1's
-          own isDead pose) rather than floating, same as every other skin. */}
-      {hover && !isDead ? <HoveringModel phase={hoverPhase}>{model}</HoveringModel> : model}
+      {/* hover ? ... : model keeps the SAME element shape (HoveringModel
+          always mounted, or never) regardless of isDead -- switching between
+          wrapped/unwrapped based on isDead here used to force a full
+          unmount+remount of the GLB the instant a Cherub player died (e.g.
+          everyone still standing when a bossfight ends), visible as the
+          model disappearing and popping back in. The wrapper's own `active`
+          prop (not this ternary) is what turns hovering off on death: a
+          defeated Cherub tips onto its side (PlayerV1's own isDead pose)
+          rather than floating, same as every other skin, but without ever
+          tearing the model down to get there. */}
+      {hover ? <HoveringModel phase={hoverPhase} active={!isDead}>{model}</HoveringModel> : model}
       {showShield && <ShieldEffect />}
     </>
   );
@@ -297,13 +296,22 @@ function PlayerModelLayer({ modelUrl, isBoss, isAnimating, isDead, showShield, h
 // exactly (Player.bot_type on the wire, see types/game.ts). Falls back to
 // turtle for a bot_type this frontend doesn't recognize yet (e.g. an older
 // wom-fe deploy talking to a newer wom-be that's added a type), same
-// deploy-independence reasoning as the wire schema's optional fields.
+// deploy-independence reasoning as the wire schema's optional fields. Not
+// used for a My AI agent -- that's bot=True with no bot_type at all, not an
+// unrecognized one; see MY_AI_MODEL_URL below.
 const BOT_MODEL_URLS: Record<string, string> = {
   TURTLE: '/models/turtlev01.glb',
   SHEEP: '/models/sheepv01.glb',
   WOLF: '/models/wolfv01.glb',
   OWL: '/models/owlv01.glb',
 };
+
+// A My AI agent (backend/game_state.py's create_ai_agent) is bot=True with
+// no bot_type -- it's not one of the house archetypes above, so it gets its
+// own dedicated look instead of falling into BOT_MODEL_URLS' turtle
+// fallback (that fallback is for a genuinely unrecognized bot_type string,
+// a different case -- see the comment above).
+const MY_AI_MODEL_URL = '/models/frog_robot_v1.glb';
 
 export const PlayerWithName = memo(function PlayerWithName({
   name,
@@ -326,6 +334,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   bossHp,
   bossMaxHp,
   frogSkinUrl,
+  cosmetic,
   // own-player action UI
   showOwnActions,
   currentAction,
@@ -370,6 +379,9 @@ export const PlayerWithName = memo(function PlayerWithName({
   bossHp?: number;
   bossMaxHp?: number;
   frogSkinUrl?: string;
+  /** The cosmetic worn beside the skin (players.equipped_cosmetic, frozen
+   *  at join). Null for the overwhelming majority of players. */
+  cosmetic?: string | null;
   showOwnActions?: boolean;
   currentAction?: string;
   onDefend?: () => void;
@@ -391,16 +403,19 @@ export const PlayerWithName = memo(function PlayerWithName({
   // isBoss checked first: create_boss (game_state.py) sets bot=True on every
   // boss too (Hades included), so checking isBot first accidentally matched
   // it before isBoss ever got a look, rendering Hades with the turtle model.
+  // Within isBot, botType tells a house archetype (SHEEP/WOLF/OWL/TURTLE)
+  // apart from a My AI agent, which never gets a bot_type at all -- that
+  // used to fall into the turtle fallback below by accident (the "temporary"
+  // skin from early development), not because it was ever meant to look
+  // like one of the house bots.
   const modelUrl = isBoss
-    ? '/models/hades/hades_v3-ld.glb'
+    ? '/models/hades/hades_v4.glb'
     : isBot
-      ? (botType && BOT_MODEL_URLS[botType]) || BOT_MODEL_URLS.TURTLE
+      ? botType
+        ? (BOT_MODEL_URLS[botType] || BOT_MODEL_URLS.TURTLE)
+        : MY_AI_MODEL_URL
       : (frogSkinUrl ?? skinUrl('frog_green_v1'));
   const isCherub = modelUrl === skinUrl('cherub_v1');
-  // See useRemountKeyOnceSettled's own comment -- forces the info-reveal
-  // badge below to recompute its scale a beat after it appears, so a
-  // transient FOV value at mount time can't leave it stuck oversized.
-  const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
   // Clicking the model itself selects the same action as its button --
   // attack this player if they're a legal target, deny them if a deny is
   // pending, or defend if this is your own model. The three flags are
@@ -440,11 +455,26 @@ export const PlayerWithName = memo(function PlayerWithName({
           isBoss={!!isBoss}
           isAnimating={isAnimating}
           isDead={isDead}
+          isGhost={!!isSpectator}
           showShield={showShield}
           hover={isCherub}
           hoverPhase={position[0]}
         />
       </Suspense>
+
+      {/* Equipped cosmetic. A sibling of the avatar, not a child of it, so
+          it inherits this group's position/rotation and the click handling
+          above without PlayerV1 needing to know cosmetics exist. Bots and
+          the boss never wear one -- the wire field is null for them.
+          Its own Suspense: the model is ~6 MB and is not preloaded, so it
+          arrives well after the frog and must not hold the avatar back.
+          Static, not floating -- it is held in the frog's hands, so it takes
+          the body's death transform rather than bobbing on its own. */}
+      {cosmetic === ARTIFACT && !isBoss && !isBot && (
+        <Suspense fallback={null}>
+          <ArtifactModel isDead={isDead} isGhost={!!isSpectator} />
+        </Suspense>
+      )}
 
       {/* Deny prompt -- a ghosted copy of the Well's deny reward model,
           floating in front of this player. Inside the same group as the
@@ -468,9 +498,23 @@ export const PlayerWithName = memo(function PlayerWithName({
       )}
 
       {/* Single Html root per player: chat bubble + ATTACK + name + DEFEND
-          (see stackItem above). The boss HP card below stays separate — it uses
-          a different scale (4.2) and z-order. */}
-      <Html position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
+          (see stackItem above). isBoss anchors this at the boss HP card's own
+          scale (distanceFactor 4.2) but well above the card's own [0,-0.5,0]
+          anchor -- both are `center`-anchored boxes, so a small gap between
+          them isn't enough; the two boxes themselves overlap and the HP
+          card's higher zIndexRange ([5,5] vs this root's [0,0]) then paints
+          over the name entirely -- instead of the usual head-height spot, so
+          the name tag clears the HP card and sits above it, not up near
+          Hades' now much-taller (2x scale) head. Only the name div actually
+          renders here for isBoss -- chat bubble/attack/defend/lobby-controls
+          are all gated off it above -- so retargeting the whole root is
+          safe. */}
+      <FreshHtml
+        position={isBoss ? [0, 0.0, 0] : [0, 0.5, 0]}
+        center
+        distanceFactor={isBoss ? 4.2 : 3.45}
+        zIndexRange={[0, 0]}
+      >
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           {chatBubble && (
             <div style={{
@@ -589,16 +633,21 @@ export const PlayerWithName = memo(function PlayerWithName({
             />
           )}
         </div>
-      </Html>
+      </FreshHtml>
       {/* Info-reward badge — its own Html mount (same anchor/scale as the stack
           above) so its zIndexRange can sit above the boss HP card ([5,5])
           instead of being drawn underneath it when the two overlap on Hades. */}
       {infoReveal && (
-        <Html key={infoRevealRemountKey} position={[0, 0.5, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
+        <FreshHtml
+          position={isBoss ? [0, 0.0, 0] : [0, 0.5, 0]}
+          center
+          distanceFactor={isBoss ? 4.2 : 3.45}
+          zIndexRange={[10, 10]}
+        >
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>
-        </Html>
+        </FreshHtml>
       )}
       {/* Boss HP display — floats above the Hades model in world space, tracks with camera.
           No card/title/name (Hades already gets the standard name tag every
@@ -608,7 +657,7 @@ export const PlayerWithName = memo(function PlayerWithName({
           panels (waiting lobby + round messages, which use Tailwind
           z-10/z-20) so it renders beneath them rather than covering them. */}
       {isBoss && bossHp !== undefined && bossMaxHp !== undefined && (
-        <Html position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]} eps={HTML_EPS}>
+        <FreshHtml position={[0, -0.5, 0]} center distanceFactor={4.2} zIndexRange={[5, 5]}>
           <div style={{
             pointerEvents: showAttackButton ? 'auto' : 'none',
             userSelect: 'none',
@@ -640,7 +689,7 @@ export const PlayerWithName = memo(function PlayerWithName({
               />
             )}
           </div>
-        </Html>
+        </FreshHtml>
       )}
     </group>
   );
@@ -649,10 +698,10 @@ export const PlayerWithName = memo(function PlayerWithName({
 
 // Behind Hades who is fixed at [0, PLAYER_Y, -1.4] (far z- side)
 export const LOST_SOUL_POSITIONS: [number, number, number][] = [
-  [-0.5, 4.2, -1.9],
-  [0.5, 4.2, -1.9],
-  [-0.3, 4.4, -2.3],
-  [0.3, 4.4, -2.3],
+  [-1.0, 4.55, -1.7],
+  [1.0, 4.55, -1.7],
+  [-0.6, 4.95, -2.5],
+  [0.6, 4.95, -2.5],
 ];
 
 // GLB-only sub-component so Suspense can wrap the model without blocking the HTML labels.
@@ -695,8 +744,6 @@ export const LostSoulModel = memo(function LostSoulModel({
   infoReveal?: InfoRevealBadge | null;
 }) {
   const ref = useRef<THREE.Group>(null);
-  // See useRemountKeyOnceSettled's own comment, and PlayerWithName's use of it.
-  const infoRevealRemountKey = useRemountKeyOnceSettled(infoReveal);
   const clickSelectable = !!showAttackButton || !!showDenyButton;
 
   useFrame((state) => {
@@ -735,7 +782,7 @@ export const LostSoulModel = memo(function LostSoulModel({
       )}
       {/* Name + attack button share one Html root (was two per soul). The
           button sits ~0.15 world units (≈35px pre-scale) above the name. */}
-      <Html position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
+      <FreshHtml position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
         <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
           <div style={{
             ...stackItem(0),
@@ -762,13 +809,13 @@ export const LostSoulModel = memo(function LostSoulModel({
             />
           )}
         </div>
-      </Html>
+      </FreshHtml>
       {infoReveal && (
-        <Html key={infoRevealRemountKey} position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]} eps={HTML_EPS}>
+        <FreshHtml position={[0, 0.6, 0]} center distanceFactor={3.45} zIndexRange={[10, 10]}>
           <div style={{ position: 'relative', width: 0, height: 0, pointerEvents: 'none', userSelect: 'none' }}>
             <InfoRevealContent badge={infoReveal} />
           </div>
-        </Html>
+        </FreshHtml>
       )}
     </group>
   );
@@ -777,10 +824,11 @@ export const LostSoulModel = memo(function LostSoulModel({
 export const BOSS_MAX_HP = 8;
 
 useGLTF.preload('/models/lost_soul_v2.glb');
-useGLTF.preload('/models/hades/hades_v3-ld.glb');
+useGLTF.preload('/models/hades/hades_v4.glb');
 useGLTF.preload('/models/turtlev01.glb');
 useGLTF.preload('/models/sheepv01.glb');
 useGLTF.preload('/models/wolfv01.glb');
 useGLTF.preload('/models/owlv01.glb');
+useGLTF.preload(MY_AI_MODEL_URL);
 useGLTF.preload('/models/crowns/crown_ld_v1.glb');
 useGLTF.preload('/models/crowns/well_crown_v1.glb');

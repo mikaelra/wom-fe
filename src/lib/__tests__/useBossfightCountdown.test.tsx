@@ -46,15 +46,15 @@ describe('useBossfightCountdown', () => {
     });
 
     expect(result.current.secondsUntil).toBe(89);
-    expect(result.current.raidMins).toBe(1);
-    expect(result.current.raidSecs).toBe(29);
+    expect(result.current.bossfightMins).toBe(1);
+    expect(result.current.bossfightSecs).toBe(29);
 
     act(() => {
       vi.advanceTimersByTime(29_000);
     });
     expect(result.current.secondsUntil).toBe(60);
-    expect(result.current.raidMins).toBe(1);
-    expect(result.current.raidSecs).toBe(0);
+    expect(result.current.bossfightMins).toBe(1);
+    expect(result.current.bossfightSecs).toBe(0);
   });
 
   it('clamps to 0 once the deadline passes, never negative', async () => {
@@ -71,8 +71,8 @@ describe('useBossfightCountdown', () => {
       vi.advanceTimersByTime(10_000);
     });
     expect(result.current.secondsUntil).toBe(0);
-    expect(result.current.raidMins).toBe(0);
-    expect(result.current.raidSecs).toBe(0);
+    expect(result.current.bossfightMins).toBe(0);
+    expect(result.current.bossfightSecs).toBe(0);
   });
 
   it('sets secondsUntil to null when the fetch fails', async () => {
@@ -83,8 +83,8 @@ describe('useBossfightCountdown', () => {
 
     expect(mockedGetNextBossfightTime).toHaveBeenCalledTimes(1);
     expect(result.current.secondsUntil).toBeNull();
-    expect(result.current.raidMins).toBeNull();
-    expect(result.current.raidSecs).toBeNull();
+    expect(result.current.bossfightMins).toBeNull();
+    expect(result.current.bossfightSecs).toBeNull();
   });
 
   it('does not update state after unmounting before the fetch resolves', async () => {

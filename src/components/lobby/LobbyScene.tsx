@@ -1,13 +1,19 @@
 'use client';
 
 import { useFrame } from '@react-three/fiber';
-import { Html, Environment, useGLTF } from '@react-three/drei';
+import { Environment, useGLTF } from '@react-three/drei';
 import { useRef, useMemo, useState, useEffect, useCallback, Suspense } from 'react';
 import * as THREE from 'three';
 import Temple from '@/components/temple';
+import Senate from '@/components/city/Senate';
+import { ARENA, arenaPosition } from '@/lib/rankedArena';
 import SeaAndSky from '@/components/lobby/SeaAndSky';
 import Table from '@/components/Table';
+import dynamic from 'next/dynamic';
 import CameraFlyIn from '@/components/lobby/CameraFlyIn';
+// Dynamic: it pulls in the city's sky, star catalogue and terrain, which an
+// ordinary PvP lobby has no use for and should not pay to download.
+const BossfightScenery = dynamic(() => import('@/components/lobby/BossfightScenery'), { ssr: false });
 import ShieldEffect from '@/components/lobby/ShieldEffect';
 import SwordEffect, { STRIKE_DUR, HOLD_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import WellRewardEffect, { preloadWellRewardModels, WELL_REWARD_FLIGHT_DUR, type WellRewardType } from '@/components/lobby/WellRewardEffect';
@@ -16,14 +22,18 @@ import WellSplashEffect from '@/components/lobby/WellSplashEffect';
 import WellGlowEffect, { WellGlowLight } from '@/components/lobby/WellGlowEffect';
 import SelectionGlow from '@/components/lobby/SelectionGlow';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
+import DamageNumberEffect from '@/components/lobby/DamageNumberEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
-import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, HTML_EPS, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
+import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
+import { FreshHtml } from '@/components/hud/FreshHtml';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { emitHpFx } from '@/lib/resourceFx';
-import { playCombatSound } from '@/lib/sounds';
+import { emitBossHpFx } from '@/lib/bossHpFx';
+import { useStagedBossHp } from '@/lib/useStagedBossHp';
+import { playCombatSound, playResourceSound, type ResourceSound } from '@/lib/sounds';
 import { glowForReward, type WellRewardComponent } from '@/lib/gameEvents';
 import { skinUrl } from '@/lib/frogSkins';
 import {
@@ -39,6 +49,7 @@ import {
   type BlockGlowEvent,
   type WellRewardEvent,
   type KillFireEvent,
+  type DamageNumberEvent,
   type WellWinFx,
   type ImpactShield,
   type CombatAnimationAction,
@@ -49,8 +60,10 @@ import {
   getPlayerPositions,
   getBossPosition,
   getBossPlayerPositions,
+  getSpectatorPositions,
+  getSpectatorCameraPosition,
   radiusGrowthFactor,
-  BOSS_Y_LIFT,
+  BOSS_Y_LIFT, TEMPLE_LOBBY_Y,
 } from '@/lib/sceneConstants';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
@@ -93,6 +106,17 @@ preloadWellRewardModels();
 // Where the splash erupts (well mouth) and where the rarity glow lies (under it).
 const WELL_SPLASH_POSITION: [number, number, number] = [0, 2.4, 0];
 const WELL_GLOW_POSITION:   [number, number, number] = [0, 2.3, 0];
+
+// Which WellRewardEffect model types are a resource gain worth a landing
+// sound -- 'steal' reuses the gold coin model (kill loot, well steal-all),
+// so it plays the same sound as 'gold'. instakill/deny/info aren't resource
+// gains (and instakill's own sounds are intentionally not wired up yet).
+const WELL_REWARD_SOUND: Partial<Record<WellRewardType, ResourceSound>> = {
+  gold:   'gain_coin',
+  steal:  'gain_coin',
+  health: 'gain_hp',
+  sword:  'gain_attack',
+};
 
 // Persistent selection-glow colours -- each matches the same action's button
 // glow (ActionImageButton's glowColor) so the 3D cue and the 2D button read
@@ -225,6 +249,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   >([]);
   const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
   const [killFireEvents, setKillFireEvents] = useState<KillFireEvent[]>([]);
+  const [damageNumberEvents, setDamageNumberEvents] = useState<DamageNumberEvent[]>([]);
   const [denyRingFx, setDenyRingFx] = useState<{ id: string; pos: [number, number, number] }[]>([]);
   // Denier glow: only shown to the denied player themself, under whoever
   // denied them -- see the same trigger effect as denyRingFx below. A
@@ -301,13 +326,22 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // currentAction/attackTarget -- well before the round's own combat
   // animations even start fetching -- then reappear later when the actual
   // strike/block animation mounted a wholly separate instance. These sticky
-  // copies persist across that reset (only ever SET by the effects below,
-  // never cleared by a currentAction/attackTarget prop change) so the same
-  // visual instance carries through to the moment it hands off to the real
-  // animation. Cleared by the round-resolution effect below, at the exact
-  // moment that handoff happens (or immediately/at round-end when there's
-  // nothing to hand off to -- see combatAnimationPlan's clearDefendShield
-  // and the addStrike case in applyAction).
+  // copies persist across that reset (never cleared by currentAction
+  // resetting to '') so the same visual instance carries through to the
+  // moment it hands off to the real animation. Cleared by the
+  // round-resolution effect below, at the exact moment that handoff happens
+  // (or immediately/at round-end when there's nothing to hand off to -- see
+  // combatAnimationPlan's clearDefendShield and the addStrike case in
+  // applyAction).
+  //
+  // They ARE cleared by the effects right below, though, the moment the
+  // player picks the *other* action before the round even resolves --
+  // switching choices used to leave whichever preview was up (sword or
+  // shield) stuck floating there forever, since neither prop change nor any
+  // of the round-resolution paths above ever ran for a plain in-round
+  // switch. Gated on `currentAction` being truthy so the round-transition
+  // reset to '' still doesn't touch these -- only an explicit switch to a
+  // *different* real action does.
   const [stickyAttackTarget, setStickyAttackTarget] = useState<string | null>(null);
   const [defendShieldActive, setDefendShieldActive] = useState(false);
   // Read inside the async round-resolution effect below -- same "capture on
@@ -318,9 +352,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   defendShieldActiveRef.current = defendShieldActive;
   useEffect(() => {
     if (currentAction === 'attack' && attackTarget) setStickyAttackTarget(attackTarget);
+    else if (currentAction && currentAction !== 'attack') setStickyAttackTarget(null);
   }, [currentAction, attackTarget]);
   useEffect(() => {
     if (currentAction === 'defend') setDefendShieldActive(true);
+    else if (currentAction && currentAction !== 'defend') setDefendShieldActive(false);
   }, [currentAction]);
 
 
@@ -370,6 +406,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const showLobbyControls = state?.round === 0;
   const gameOver = phase === 'gameover';
   const isBossFight = !!state?.boss_fight;
+  // `ranked` is optional on the wire and absent means "not ranked", which is
+  // the same as its default (types/game.ts).
+  const isRanked = !!state?.ranked;
   const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
 
   // Skins are owned items now, not a per-lobby hash: the server freezes
@@ -410,6 +449,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       return a.name.localeCompare(b.name);
     })
     .slice(0, MAX_PLAYERS), [allPlayers, playerName, isBossFight]);
+  // Staged so the boss's own HP bar doesn't drop until this player's own
+  // strike against it visually connects, instead of the instant
+  // state_update arrives (see useStagedBossHp's own comment; emitted from
+  // the onStrike callback below).
+  const bossHpNow = players.find((p) => p.boss)?.hp;
+  const stagedBossHp = useStagedBossHp(bossHpNow, state?.round);
   // Once the game is over, trust ONLY the declared winner -- never fall
   // back to wellWinner (who most recently won The Well, a live in-game
   // indicator with no bearing on who actually won the match). Without
@@ -423,17 +468,62 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
 
   // Compute seat positions. In boss fights the boss is pinned to the far side and players
   // spread across the near half, so adding a player never moves Hades.
+  //
+  // Spectators are seated separately, in a ring above the players, and are
+  // NOT counted when the players' own circle is laid out. That is a fix as
+  // much as a feature: a spectator used to take a seat in the ring like
+  // anyone else, so someone arriving mid-round to watch shuffled every
+  // player along one place and widened the circle under them.
   const PLAYER_POSITIONS = useMemo(() => {
-    if (!isBossFight) return getPlayerPositions(players.length);
+    const actors = players.filter((p) => !p.spectator);
+    const spectatorSlots = getSpectatorPositions(
+      players.length - actors.length,
+      actors.length,
+    );
+    let si = 0;
+
+    if (!isBossFight) {
+      const actorSlots = getPlayerPositions(actors.length);
+      let ai = 0;
+      return players.map((p) => (p.spectator ? spectatorSlots[si++] : actorSlots[ai++]));
+    }
+
     const bossSlot = getBossPosition();
-    const nonBossSlots = getBossPlayerPositions(players.filter((p) => !p.boss).length);
+    const nonBossSlots = getBossPlayerPositions(actors.filter((p) => !p.boss).length);
     let nbi = 0;
-    return players.map((p) => (p.boss ? bossSlot : nonBossSlots[nbi++]));
+    return players.map((p) => (
+      p.boss ? bossSlot : p.spectator ? spectatorSlots[si++] : nonBossSlots[nbi++]
+    ));
   }, [players, isBossFight]);
+
+  /**
+   * If I am watching rather than playing, my own camera sits over my ghost's
+   * left shoulder instead of taking the room's establishing shot -- it says
+   * "this one is you" without a label, and frames the table the way that
+   * figure is already facing.
+   *
+   * Keyed off my index among the spectators, in the same order
+   * getSpectatorPositions seats them, so the camera lands on MY model and
+   * not on whoever happens to be first.
+   */
+  const spectatorCameraPosition = useMemo<[number, number, number] | undefined>(() => {
+    const spectators = players.filter((p) => p.spectator);
+    const index = spectators.findIndex((p) => p.name === playerName);
+    if (index < 0) return undefined;
+    return getSpectatorCameraPosition(
+      index,
+      spectators.length,
+      players.length - spectators.length,
+    );
+  }, [players, playerName]);
 
   // Boss-fight seating never grows past its fixed base radius (getBossPlayerPositions
   // doesn't scale with count), so only back the camera off for the regular circle.
-  const cameraRadiusFactor = isBossFight ? 1 : radiusGrowthFactor(players.length);
+  // Spectators are excluded for the same reason they get their own ring: they
+  // should not push the camera back off the people actually playing.
+  const cameraRadiusFactor = isBossFight
+    ? 1
+    : radiusGrowthFactor(players.filter((p) => !p.spectator).length);
 
   // Keep posMapRef up-to-date each render (synchronous ref write — no re-render triggered).
   // This is read by the round-transition effect below.
@@ -453,6 +543,27 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // that action isn't the current choice, in which case the glow just fades
   // out rather than unmounting (see SelectionGlow's comment on why).
   const bossName = allPlayers.find((p) => p.boss)?.name;
+  // Hades' seat sits far higher than a regular player's (getBossPosition's
+  // BOSS_Y_LIFT) and, since the hades_v4 model swap, renders ~2x wider/taller
+  // too -- the flat +1.1 head-clearance below left the damage number clipped
+  // inside his (much bigger) head/torso, and even after raising it the
+  // number was still swallowed by his own geometry depth-wise. Detected by
+  // y-position rather than name since StrikeEvent carries no target
+  // identity, only toPos. BOSS_DAMAGE_NUMBER_Z_OFFSET additionally pulls it
+  // toward the camera (players sit at z+, Hades at the far z- side -- see
+  // getPlayerPositions' comment) so it clears his now much thicker model
+  // instead of rendering inside it.
+  //
+  // bossStrikeY (not just getBossPosition()'s raw seat y) -- every strike's
+  // fromPos/toPos in combatAnimationPlan.ts bakes in a further +0.3 lift
+  // (see its baseToPos/fromPos), so comparing against the raw seat y never
+  // matched and this whole boss-specific offset silently never applied.
+  const bossStrikeY = getBossPosition().position[1] + 0.3;
+  // 2.2/3.0 (double-ish the regular +1.1) read as "in the sky, nowhere near
+  // Hades" once the bossStrikeY fix above actually made these apply for the
+  // first time -- dialed back to a modest bump over the regular offsets.
+  const BOSS_DAMAGE_NUMBER_Y_OFFSET = 1.3;
+  const BOSS_DAMAGE_NUMBER_Z_OFFSET = 0.8;
   const defendGlowPos: [number, number, number] | undefined =
     currentAction === 'defend' ? posMapRef.current.get(playerName) : undefined;
   // Block-glow position comes from the event itself (buildCombatAnimationPlan
@@ -557,6 +668,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     // is long since resolved by now, so drop it too rather than leave stale names.
     setKillFireEvents([]);
     setDenyRingFx([]);
+    // A blocked shield's own removeImpactShield is scheduled for whenever that
+    // round's combat finishes playing out (buildCombatAnimationPlan's "stays
+    // up through the rest of the round" logic) -- if that's later than this
+    // round's real-world duration (a short round timer, or several staggered
+    // attackers), its timeout above gets cancelled before it ever fires,
+    // orphaning the shield in this array forever. A new block next round then
+    // adds a second one on top of it. No shield legitimately belongs to a
+    // round that has already ended, so drop them all here unconditionally.
+    setImpactShields([]);
     denierGlowTimeoutsRef.current.forEach(clearTimeout);
     denierGlowTimeoutsRef.current = [];
     setDenierGlowActive(false);
@@ -783,9 +903,15 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     // goes fully idle in (submits nothing at all) replays their last actual
     // choice's animation rather than showing none -- a harmless cosmetic
     // edge case, not worth the added complexity to close.
+    // A dead player can never submit a new choice (the backend excludes
+    // eliminated players from the resource phase entirely, see
+    // run_resource_phase), so chosenResourceRef simply freezes at whatever
+    // was last picked while alive -- without the myNowHp guard below, that
+    // stale value kept replaying the gain animation on the dead player's own
+    // client every round after they died.
     const myPosForGain = posMapRef.current.get(playerName);
     const chosen = chosenResourceRef.current;
-    const playingResourceGain = !!(myPosForGain && chosen && isGainedResource(chosen));
+    const playingResourceGain = !!(myNowHp > 0 && myPosForGain && chosen && isGainedResource(chosen));
     if (playingResourceGain) {
       const gainId = `resgain-${chosen}-${state.round}`;
       setResourceGainEvents((ev) => [...ev, { id: gainId, resource: chosen as GainedResource, pos: myPosForGain! }]);
@@ -841,8 +967,17 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               if (p.name !== playerName) stats.set(p.name, { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage });
             });
             const revealDelayMs = (infoEvent.delay + WELL_REWARD_FLIGHT_DUR) * 1000;
+            const revealRound = state.round;
             staggerTimeoutsRef.current.push(
-              setTimeout(() => setInfoReveal({ round: state.round, stats }), revealDelayMs),
+              setTimeout(() => setInfoReveal((prev) => {
+                // Never let this go backward/sideways -- a badge should only
+                // ever move forward through fresh -> stale -> gone. If
+                // something (a stray reprocess, a stale gameEvents refetch)
+                // ever handed this the same round again, blindly overwriting
+                // would reset an already-stale badge back to freshly-won.
+                if (prev && revealRound <= prev.round) return prev;
+                return { round: revealRound, stats };
+              }), revealDelayMs),
             );
           }
           // Poisoned Dagger: same "wait for the model to land" reveal --
@@ -875,6 +1010,11 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           break;
         }
         case 'emitHpFx': emitHpFx(action.event); break;
+        // Kill loot's coin sound plays per-model via WellRewardEffect's
+        // onLand above (type 'steal') -- this is only ever scheduled for
+        // the +1 ATK from a kill, which has no flying model to hang a sound
+        // off (see combatAnimationPlan.ts's ATK_SOUND_LEAD_MS comment).
+        case 'playResourceSound': playResourceSound(action.resource); break;
         case 'addWellWinFx': setWellWinFx((fx) => [...fx, action.fx]); break;
         case 'removeWellWinFx': setWellWinFx((fx) => fx.filter((x) => x.id !== action.id)); break;
         case 'addHitFlash': setHitFlashEvents((ev) => [...ev, action.event]); break;
@@ -1117,23 +1257,54 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     <>
       <CameraFlyIn
         round={state?.round ?? 0}
+        basePosition={spectatorCameraPosition}
         radiusFactor={cameraRadiusFactor}
         spinEnabled={spinEnabled}
         resetSignal={resetCameraSignal}
         onUserAdjust={onCameraUserAdjust}
       />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 10]} intensity={1.2} />
+      {/* A boss fight is fought in the city you walked in from, so it gets
+          that scene's sky, island and lighting rather than the generic sea
+          and a sun nailed to [100, 20, 100]. Every other lobby is unchanged. */}
+      {isBossFight ? (
+        <BossfightScenery />
+      ) : (
+        <>
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[10, 10, 10]} intensity={1.2} />
 
-      {/* Sky dome + sea plane — the sea horizon sits where they meet in the distance.
-          Tweak seaLevel to line the water up with the temple/player base. */}
-      <SeaAndSky seaLevel={SEA_LEVEL} sunPosition={SUN_POSITION} />
+          {/* Sky dome + sea plane — the sea horizon sits where they meet in the distance.
+              Tweak seaLevel to line the water up with the temple/player base. */}
+          <SeaAndSky seaLevel={SEA_LEVEL} sunPosition={SUN_POSITION} />
+        </>
+      )}
 
-      {/* Stage 1: Temple — background scenery, loads first.
-          NOTE: the model's origin sits on one of its corner columns rather than its
-          center, so position/scale will likely need tweaking to frame it nicely. */}
+      {/* Stage 1: the building the match is played in.
+          Ranked is staged inside the Senate -- the same building that stands
+          on the city's right hand, so the one you walk into is the one you
+          play in (docs/CITY_SCENE_PLAN.md §5.2). Everything else keeps the
+          temple. It is sized rather than scaled so the camera stays inside
+          the colonnade at every viewport and player count; lib/rankedArena.ts
+          owns those numbers and the test that holds them.
+
+          NOTE on the temple: its origin is centred, contrary to the comment
+          that stood here for a long time -- measured from the GLB, its
+          visual centre is within 0.15 units of its origin. */}
       <Suspense fallback={null}>
-        <Temple scale={1} position={[0, 4, 0]} />
+        {isRanked ? (
+          <Senate
+            position={arenaPosition()}
+            width={ARENA.width}
+            depth={ARENA.depth}
+            columnHeight={ARENA.columnHeight}
+            columnRadius={ARENA.columnRadius}
+            stepHeight={ARENA.stepHeight}
+            columnCount={ARENA.columnCount}
+            sideColumnCount={ARENA.sideColumnCount}
+          />
+        ) : (
+          <Temple scale={1} position={[0, TEMPLE_LOBBY_Y, 0]} />
+        )}
       </Suspense>
 
       {/* Player names, action buttons, and resource cards — immediate, no model dependency.
@@ -1155,8 +1326,13 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         const isOwnPlayer = player.name === playerName;
         // "info" Well reward badge: fresh the round it's captured, greyed
         // ("last round") the round after, then gone — see infoReveal above.
+        // !gameOver: this decay is derived purely from state.round advancing,
+        // which stops happening once the game ends -- without this guard a
+        // badge captured on the final round (or the one before it) would sit
+        // stuck on the Game Over screen forever instead of ever reaching
+        // "gone".
         let infoBadge: InfoRevealBadge | null = null;
-        if (infoReveal && isOpponent && !isDead) {
+        if (infoReveal && isOpponent && !isDead && !gameOver) {
           const s = infoReveal.stats.get(player.name);
           if (s && infoReveal.round === state?.round) infoBadge = { ...s, stale: false };
           else if (s && infoReveal.round === (state?.round ?? 0) - 1) infoBadge = { ...s, stale: true };
@@ -1174,9 +1350,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               isBot={!!player.bot}
               botType={player.bot_type}
               isBoss={isBoss}
-              bossHp={isBoss ? player.hp : undefined}
+              bossHp={isBoss ? stagedBossHp : undefined}
               bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
               frogSkinUrl={skinMap.get(player.name)}
+              cosmetic={player.cosmetic}
               showAttackButton={showActionButtonsLook && !pendingDenyActive && isOpponent && !isDead && (!isBossFight || isBoss)}
               onAttack={handleAttack}
               showDenyButton={showDenyForThisPlayer}
@@ -1221,11 +1398,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       {lostSouls.map((soul, i) => {
         const pos = LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length];
         const isDead = (soul.hp ?? 0) <= 0;
-        // Same fresh/stale/gone derivation as the main player loop above.
-        // Souls share one server name, so — like their shared posMap entry —
+        // Same fresh/stale/gone derivation as the main player loop above
+        // (including the !gameOver guard -- see its comment there). Souls
+        // share one server name, so — like their shared posMap entry —
         // every soul with that name shows the same captured snapshot.
         let infoBadge: InfoRevealBadge | null = null;
-        if (infoReveal && !isDead) {
+        if (infoReveal && !isDead && !gameOver) {
           const s = infoReveal.stats.get(soul.name);
           if (s && infoReveal.round === state?.round) infoBadge = { ...s, stale: false };
           else if (s && infoReveal.round === (state?.round ?? 0) - 1) infoBadge = { ...s, stale: true };
@@ -1263,12 +1441,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       })}
 
       {/* Well button — immediate; the Table GLB loads separately below.
-          eps={HTML_EPS}: see PlayerAvatars.tsx's HTML_EPS comment -- without
-          it this can render stuck at the wrong (often much larger) size
-          after a camera dolly settles near screen-center, until the
-          camera is dragged. */}
+          Uses FreshHtml, not drei's Html -- see PlayerAvatars.tsx's
+          FreshHtml import comment for why. */}
       {showActionButtonsLook && (
-        <Html position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]} eps={HTML_EPS}>
+        <FreshHtml position={[0, 3.3, 0]} center distanceFactor={3.45} zIndexRange={[0, 0]}>
           <ActionImageButton
             src="/images/buttons/well-ld.png"
             alt="The Well"
@@ -1279,7 +1455,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             className={actionCue}
             style={{ pointerEvents: 'auto' }}
           />
-        </Html>
+        </FreshHtml>
       )}
 
       {/* Stage 2: Well/Table model -- also clickable, same as its 2D button */}
@@ -1323,7 +1499,14 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             postImpact={ev.postImpact}
             onStrike={() => {
               if (ev.isIncoming) {
-                playCombatSound('attacked');
+                // Defender's own perspective: reuse the same two outcome
+                // sounds the attacker hears (attack_blocked/attacked), not
+                // one blanket "something hit me" cue regardless of whether
+                // it actually landed or got blocked -- targetDefended/
+                // targetHit are already populated correctly for incoming
+                // events (combatAnimationPlan.ts), this just wasn't
+                // checking them.
+                playCombatSound(ev.targetDefended ? 'attack_blocked' : 'attacked');
               } else if (ev.targetHit) {
                 playCombatSound('attack_hit');
               } else if (ev.targetDefended) {
@@ -1347,23 +1530,75 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               if (ev.isIncoming && ev.incomingFx) {
                 emitHpFx(ev.incomingFx);
               }
+              // Reveal the boss's already-known new HP at the exact moment
+              // this player's own strike against it connects (bug list
+              // 260916) -- useStagedBossHp froze the display at the old
+              // value the instant this round's state_update arrived.
+              // toPos/bossStrikeY, not a name, is what identifies the boss
+              // here, matching the damage-number offset check just below.
+              if (!ev.isIncoming && ev.targetHit && bossHpNow !== undefined
+                  && Math.abs(ev.toPos[1] - bossStrikeY) < 0.05) {
+                emitBossHpFx({ hp: bossHpNow });
+              }
+              // Floating "-X"/"0" over the struck player -- both directions
+              // (my attack landing on someone else; someone else's attack
+              // landing on me), unlike incomingFx above.
+              if (ev.damageNumber) {
+                const did = `dmg-${ev.id}`;
+                setDamageNumberEvents((s) => [
+                  ...s,
+                  {
+                    id: did,
+                    position: [
+                      ev.toPos[0],
+                      ev.toPos[1] + (Math.abs(ev.toPos[1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Y_OFFSET : 1.1),
+                      ev.toPos[2] + (Math.abs(ev.toPos[1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
+                    ],
+                    ...ev.damageNumber!,
+                  },
+                ]);
+              }
+            }}
+            onBounceLand={() => {
+              // The reflected sword's about to land back on the attacker --
+              // an attack connecting, same cue as any other incoming
+              // impact, not a fresh successful hit of my own. Plays on
+              // both ends: this fires identically whether `ev` came from
+              // the outgoing branch (I attacked, got blocked + reflected
+              // -- I hear the attack land back on me) or the incoming
+              // branch (I blocked + reflected -- I hear it land on my
+              // attacker), since both flow through this same
+              // strikeEvents/SwordEffect rendering path. Fired early (see
+              // SwordEffect's STRIKE_LEAD_SEC) -- unlike onDone below, this
+              // only plays the sound, so nudging it earlier doesn't cut the
+              // bounce-back animation itself short.
+              if (ev.postImpact === 'bounce') playCombatSound('attacked');
             }}
             onDone={() => {
               if (ev.postImpact === 'bounce') {
-                // The reflected sword just landed back on the attacker --
-                // an attack connecting, same cue as any other incoming
-                // impact, not a fresh successful hit of my own. Plays on
-                // both ends: this fires identically whether `ev` came from
-                // the outgoing branch (I attacked, got blocked + reflected
-                // -- I hear the attack land back on me) or the incoming
-                // branch (I blocked + reflected -- I hear it land on my
-                // attacker), since both flow through this same
-                // strikeEvents/SwordEffect rendering path.
-                playCombatSound('attacked');
                 if (ev.bounceFlashPos) {
                   const fid = `fl-bounce-${ev.id}`;
                   setHitFlashEvents((s) => [...s, { id: fid, position: ev.bounceFlashPos! }]);
                   setTimeout(() => setHitFlashEvents((s) => s.filter((x) => x.id !== fid)), 788); // scaled to 0.8x
+                  // The reflection's own real hit -- the "-X" for HP the
+                  // original attacker actually lost when it bounced back,
+                  // separate from the "0" already shown at the initial
+                  // block (LobbyScene's onStrike, above).
+                  if (ev.bounceDamageNumber) {
+                    const did = `dmg-bounce-${ev.id}`;
+                    setDamageNumberEvents((s) => [
+                      ...s,
+                      {
+                        id: did,
+                        position: [
+                          ev.bounceFlashPos![0],
+                          ev.bounceFlashPos![1] + (Math.abs(ev.bounceFlashPos![1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Y_OFFSET : 1.1),
+                          ev.bounceFlashPos![2] + (Math.abs(ev.bounceFlashPos![1] - bossStrikeY) < 0.05 ? BOSS_DAMAGE_NUMBER_Z_OFFSET : 0),
+                        ],
+                        ...ev.bounceDamageNumber!,
+                      },
+                    ]);
+                  }
                 }
               }
               setStrikeEvents((s) => s.filter((x) => x.id !== ev.id));
@@ -1398,6 +1633,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             delay={ev.delay}
             scale={ev.scale}
             orbit={ev.orbit}
+            onLand={() => {
+              const sound = WELL_REWARD_SOUND[ev.type];
+              if (sound) playResourceSound(sound);
+            }}
             onDone={() => setWellRewardEvents((s) => s.filter((x) => x.id !== ev.id))}
           />
         ))}
@@ -1409,6 +1648,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
             key={ev.id}
             resource={ev.resource}
             position={ev.pos}
+            onLand={() => playResourceSound(ev.resource)}
             onDone={() => setResourceGainEvents((s) => s.filter((x) => x.id !== ev.id))}
           />
         ))}
@@ -1559,6 +1799,29 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           onDone={() => setKillFireEvents((e) => e.filter((x) => x.id !== k.id))}
         />
       ))}
+
+      {/* Floating "-X" (hit) / "0" (blocked) over whoever just got struck.
+          Wrapped in its own Suspense: drei's <Text> (used inside
+          DamageNumberEffect) suspends on its first-ever mount while
+          troika's font atlas loads (see DamageNumberEffect's own preload
+          comment). With no local boundary here, that suspension has
+          nothing to catch it before it reaches the R3F canvas root -- which
+          hides and then remounts this scene's *entire* tree, not just the
+          number. Confirmed live: a black flash and every player model
+          vanishing/reappearing on the very first hit of a session's first
+          match, never again after (the font, once loaded, is cached for
+          the rest of the session). */}
+      <Suspense fallback={null}>
+        {damageNumberEvents.map((d) => (
+          <DamageNumberEffect
+            key={d.id}
+            position={d.position}
+            text={d.text}
+            color={d.color}
+            onDone={() => setDamageNumberEvents((e) => e.filter((x) => x.id !== d.id))}
+          />
+        ))}
+      </Suspense>
 
       {/* Three red hoops dropping over a player denied their action by the Well */}
       {denyRingFx.map((fx) => (

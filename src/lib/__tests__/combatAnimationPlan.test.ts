@@ -50,6 +50,36 @@ describe('buildCombatAnimationPlan', () => {
       ]);
     });
 
+    it('shows a red "-X" damage number, using the damage the backend reports for MY hit', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, damage: 4 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: { text: string; color: string } } };
+      expect(strike.strike.damageNumber).toEqual({ text: '-4', color: 'red' });
+    });
+
+    it('shows a blue "0" damage number when my attack is blocked', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'blocked', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: { text: string; color: string } } };
+      expect(strike.strike.damageNumber).toEqual({ text: '0', color: 'blue' });
+    });
+
+    it('omits the damage number for an instakill (has its own burst effect)', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'instakill', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: unknown } };
+      expect(strike.strike.damageNumber).toBeUndefined();
+    });
+
     it('offsets toPos away from the attacker when the target defended', () => {
       const events: GameEvent[] = [
         { kind: 'outgoing', target: 'Bob', outcome: 'blocked', attackerDied: false },
@@ -96,6 +126,18 @@ describe('buildCombatAnimationPlan', () => {
       expect(strike.bounceFlashPos).toEqual([0, 0, 0]);
     });
 
+    it('shows a second red "-X" for the reflection\'s own real hit, landing back on me', () => {
+      const events: GameEvent[] = [
+        { kind: 'outgoing', target: 'Bob', outcome: 'reflected', attackerDied: false, reflectDamage: 3 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = (plan[0].actions[0] as { strike: { damageNumber?: unknown; bounceDamageNumber?: { text: string; color: string } } }).strike;
+      // The initial block still reads "0" -- the bounce's own damage is separate.
+      expect(strike.damageNumber).toEqual({ text: '0', color: 'blue' });
+      expect(strike.bounceDamageNumber).toEqual({ text: '-3', color: 'red' });
+    });
+
     it('schedules kill-fire and kill-loot at SWORD_IMPACT_MS when the outgoing attack eliminates the target', () => {
       const events: GameEvent[] = [
         { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 3 },
@@ -140,7 +182,11 @@ describe('buildCombatAnimationPlan', () => {
       ];
       const plan = buildCombatAnimationPlan({ ...baseInput, events });
       const actionTypes = plan.flatMap((b) => b.actions.map((a) => a.type));
-      expect(actionTypes).toEqual(['addStrike', 'addKillFire', 'markDead', 'emitHpFx']);
+      // playResourceSound (the kill's +1 ATK sound, no flying model to hang
+      // it off -- see combatAnimationPlan.ts's ATK_SOUND_LEAD_MS) still
+      // fires even with zero coins looted; emitHpFx (the ATK/coin card
+      // tick-up) does too, unconditionally.
+      expect(actionTypes).toEqual(['addStrike', 'addKillFire', 'markDead', 'emitHpFx', 'playResourceSound']);
     });
 
     it('produces no batches when the attacker has no known position', () => {
@@ -174,6 +220,36 @@ describe('buildCombatAnimationPlan', () => {
           }],
         },
       ]);
+    });
+
+    it('shows a red "-X" damage number over me, matching the reported damage', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'hit', attackerDied: false, damage: 5 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: { text: string; color: string } } };
+      expect(strike.strike.damageNumber).toEqual({ text: '-5', color: 'red' });
+    });
+
+    it('shows a blue "0" damage number over me when I block', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'blocked', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: { text: string; color: string } } };
+      expect(strike.strike.damageNumber).toEqual({ text: '0', color: 'blue' });
+    });
+
+    it('omits the damage number when I\'m instakilled (has its own burst effect)', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'instakill', attackerDied: false },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as { strike: { damageNumber?: unknown } };
+      expect(strike.strike.damageNumber).toBeUndefined();
     });
 
     it('carries the attacker name on the strike when their position is known, for the attacker glow', () => {
@@ -345,6 +421,20 @@ describe('buildCombatAnimationPlan', () => {
       expect(lootBatch?.delayMs).toBeCloseTo(0 + ONE_DEF_MS, 5);
     });
 
+    it('shows a second red "-X" over the attacker for the reflection\'s own real hit', () => {
+      const events: GameEvent[] = [
+        { kind: 'incoming', attacker: 'Bob', outcome: 'reflected_back', attackerDied: false, reflectDamage: 4 },
+      ];
+      const plan = buildCombatAnimationPlan({ ...baseInput, events });
+
+      const strike = plan[0].actions.find((a) => a.type === 'addStrike') as {
+        strike: { damageNumber?: { text: string; color: string }; bounceDamageNumber?: { text: string; color: string } };
+      };
+      // The initial block still reads "0" over me -- the bounce's own damage is separate.
+      expect(strike.strike.damageNumber).toEqual({ text: '0', color: 'blue' });
+      expect(strike.strike.bounceDamageNumber).toEqual({ text: '-4', color: 'red' });
+    });
+
     it('schedules kill-fire under the attacker when the local player is killed', () => {
       const events: GameEvent[] = [
         { kind: 'incoming', attacker: 'Bob', outcome: 'instakill', attackerDied: false },
@@ -456,6 +546,73 @@ describe('buildCombatAnimationPlan', () => {
       const plan = buildCombatAnimationPlan({ ...baseInput, events, wonWell: true });
       const strikeBatch = plan.find((b) => b.actions.some((a) => a.type === 'addStrike'));
       expect(strikeBatch?.delayMs).toBe(WELL_FX_DURATION); // no reward-flight events, so WELL_FX_DURATION wins
+    });
+
+    describe('steal defers to combat (bug list 260916)', () => {
+      // A same-round kill's loot is already in its recipient's pile by the
+      // time steal-all draws from everyone's coins (engine/combat.py runs
+      // the attack phase before the well phase) -- so unlike a plain
+      // reward, steal's own effects must wait for combat, not the reverse.
+      const ONE_HIT_MS = 960; // (0.34 + 0.26 + 0.36) * 1000
+      const SWORD_IMPACT_MS = 600; // (0.34 + 0.26) * 1000
+
+      const findWellWinFxBatch = (plan: ReturnType<typeof buildCombatAnimationPlan>) =>
+        plan.find((b) => b.actions.some((a) => a.type === 'addWellWinFx'));
+      const findWellRewardBatchAt = (plan: ReturnType<typeof buildCombatAnimationPlan>, delayMs: number) =>
+        plan.find(
+          (b) => Math.abs(b.delayMs - delayMs) < 0.001 && b.actions.some((a) => a.type === 'addWellRewardEvents'),
+        );
+
+      it('plays my own kill first, deferring my steal-all win until combat finishes', () => {
+        const events: GameEvent[] = [
+          { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 1 },
+          {
+            kind: 'well_reward',
+            components: [{ type: 'steal', count: 1, victims: [{ name: 'Carol', amount: 1 }] }],
+          },
+        ];
+        const plan = buildCombatAnimationPlan({ ...baseInput, events, wonWell: true });
+
+        // My outgoing strike (the kill) plays immediately, same as with no
+        // well reward at all -- combat is no longer held back by the well.
+        expect(plan[0].delayMs).toBe(0);
+        expect(plan[0].actions[0].type).toBe('addStrike');
+        // Kill-loot lands on its usual schedule too, unaffected.
+        expect(findWellRewardBatchAt(plan, SWORD_IMPACT_MS)).toBeTruthy();
+
+        // The steal-all win's own fx/coins wait for combat to actually
+        // finish (ONE_HIT_MS for my one unblocked strike), not delayMs 0.
+        const fxBatch = findWellWinFxBatch(plan);
+        expect(fxBatch?.delayMs).toBeCloseTo(ONE_HIT_MS, 5);
+        expect(findWellRewardBatchAt(plan, ONE_HIT_MS)).toBeTruthy();
+      });
+
+      it('plays my own kill first, deferring being steal-all\'s victim until combat finishes', () => {
+        const events: GameEvent[] = [
+          { kind: 'outgoing', target: 'Bob', outcome: 'hit', attackerDied: false, eliminated: true, coinsReceived: 1 },
+          { kind: 'well_steal_victim', winner: 'Carol', amount: 2 },
+        ];
+        const plan = buildCombatAnimationPlan({ ...baseInput, events, wonWell: false });
+
+        expect(plan[0].delayMs).toBe(0);
+        expect(plan[0].actions[0].type).toBe('addStrike');
+        expect(findWellRewardBatchAt(plan, SWORD_IMPACT_MS)).toBeTruthy(); // my kill-loot, unaffected
+
+        const fxBatch = findWellWinFxBatch(plan);
+        expect(fxBatch?.delayMs).toBeCloseTo(ONE_HIT_MS, 5); // my coins fly away only after
+        expect(findWellRewardBatchAt(plan, ONE_HIT_MS)).toBeTruthy();
+      });
+
+      it('still plays immediately when a steal-all win has no combat to wait for', () => {
+        const events: GameEvent[] = [
+          {
+            kind: 'well_reward',
+            components: [{ type: 'steal', count: 1, victims: [{ name: 'Bob', amount: 1 }] }],
+          },
+        ];
+        const plan = buildCombatAnimationPlan({ ...baseInput, events, wonWell: true });
+        expect(findWellWinFxBatch(plan)?.delayMs).toBe(0);
+      });
     });
   });
 

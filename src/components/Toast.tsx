@@ -1,6 +1,14 @@
 'use client';
 
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 type ToastVariant = 'error' | 'success';
 
@@ -56,8 +64,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const showError = useCallback((message: string) => show(message, 'error'), [show]);
   const showSuccess = useCallback((message: string) => show(message, 'success'), [show]);
 
+  // Stable across renders -- `show`/`dismiss` never change, so this object
+  // is built once. A fresh `{ showError, showSuccess }` every render made
+  // every `useToast()` consumer see a new value on each toast, and any
+  // effect with `toast` in its deps (e.g. the market page's profile load)
+  // would re-fire -- one failing request then loops as fast as the network
+  // allows, spraying identical error toasts.
+  const value = useMemo(() => ({ showError, showSuccess }), [showError, showSuccess]);
+
   return (
-    <ToastContext.Provider value={{ showError, showSuccess }}>
+    <ToastContext.Provider value={value}>
       {children}
       <div
         style={{

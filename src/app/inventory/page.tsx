@@ -2,18 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getInventory, equipSkin, getPlayerRelics } from '@/lib/api';
+import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
-import { skinColor, skinLabel, skinUrl } from '@/lib/frogSkins';
+import { skinColor, skinLabel, skinThumbnailUrl, skinUrl } from '@/lib/frogSkins';
+import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
+import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import WheelSpinModal from '@/components/WheelSpinModal';
+import TradeUpModal from '@/components/TradeUpModal';
 import RelicCoin from '@/components/RelicCoin';
+import ArtifactLedgerModal from '@/components/ArtifactLedgerModal';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 import type { Relic } from '@/types/game';
+import { CITY_PATH } from '@/lib/cities';
 
 type SkinEntry = { skin: string; count: number };
+type ArtifactEntry = { ordinal: number; discovered_at: string | null; cosmetic: string };
 type WheelEntry = { id: number; kind: string };
 // One button per distinct wheel kind, not one per row -- id is an arbitrary
 // representative of the group (any wheel of that kind spins the same way).
@@ -39,8 +45,17 @@ export default function InventoryPage() {
   const [skins, setSkins] = useState<SkinEntry[]>([]);
   const [wheels, setWheels] = useState<WheelEntry[]>([]);
   const [relics, setRelics] = useState<Relic[]>([]);
+  const [aiCredits, setAiCredits] = useState(0);
   const [equipping, setEquipping] = useState<string | null>(null);
+  // The Artifacts category. `artifact` is null for almost every account --
+  // that is the point of it, and the empty state carries the weight.
+  const [equippedCosmetic, setEquippedCosmetic] = useState<string | null>(null);
+  const [artifact, setArtifact] = useState<ArtifactEntry | null>(null);
+  const [equippingCosmetic, setEquippingCosmetic] = useState(false);
+  const [showLedger, setShowLedger] = useState(false);
   const [spinningWheel, setSpinningWheel] = useState<{ id: number; kind: string } | null>(null);
+  const [tradeUpRules, setTradeUpRules] = useState<Record<string, TradeUpRule>>({});
+  const [tradingUp, setTradingUp] = useState<{ skin: string; owned: number; rule: TradeUpRule } | null>(null);
   // Set when we're logged out but localStorage remembers a name+email pair
   // (i.e. a claim was submitted from this browser) -- covers verifying that
   // claim's email link on a different device (a phone) than this one, which
@@ -73,6 +88,9 @@ export default function InventoryPage() {
         setEquippedSkin(inventoryData.equipped_skin);
         setSkins(inventoryData.skins);
         setWheels(inventoryData.wheels);
+        setEquippedCosmetic(inventoryData.equipped_cosmetic ?? null);
+        setArtifact(inventoryData.artifact ?? null);
+        setAiCredits(inventoryData.ai_credits ?? 0);
         setRelics(relicsData.relics);
         setLoadError('');
       })
@@ -80,6 +98,14 @@ export default function InventoryPage() {
         setLoadError(e instanceof Error ? e.message : 'Failed to load inventory.');
       })
       .finally(() => setLoading(false));
+
+    // Fetched separately from the Promise.all above: a failure here means
+    // no Trade up buttons render (docs/TRADE_UP_PLAN.md §8.2), not a
+    // blocked page -- the inventory itself has nothing to do with the
+    // ladder table.
+    getTradeUpRules()
+      .then((data) => setTradeUpRules(data.rules))
+      .catch(() => setTradeUpRules({}));
   };
 
   useEffect(() => {
@@ -105,12 +131,42 @@ export default function InventoryPage() {
     }
   };
 
+  // Equip, or unequip by sending "". Unequipping needs no ownership check
+  // server-side, so the same handler covers both directions.
+  const handleToggleCosmetic = async (cosmetic: string) => {
+    const token = getStoredAccountToken();
+    if (!token) return;
+    const next = equippedCosmetic === cosmetic ? '' : cosmetic;
+    setEquippingCosmetic(true);
+    try {
+      const data = await equipCosmetic(token, next);
+      setEquippedCosmetic(data.equipped_cosmetic);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : 'Failed to equip cosmetic.');
+    } finally {
+      setEquippingCosmetic(false);
+    }
+  };
+
   // The wheel modal shows its own result splash once it visually lands --
   // a toast fired the instant the server responds (well before landing)
   // would spoil it, so this only refreshes the background inventory data.
   const handleSpun = () => {
     load();
   };
+
+  // TradeUpModal shows its own result state -- this just refreshes the
+  // background inventory counts (docs/TRADE_UP_PLAN.md §8.4) and, if the
+  // trade consumed the player's last copy of an equipped skin, applies the
+  // reset without waiting on the reload.
+  const handleTraded = (result: TradeUpResult) => {
+    load();
+    if (result.equipped_skin) setEquippedSkin(result.equipped_skin);
+  };
+
+  // null when the cosmetic has no model yet; the card falls back to an
+  // emoji rather than mounting an empty canvas.
+  const artifactUrl = artifact ? cosmeticModelUrl(artifact.cosmetic) : null;
 
   // Green is always owned implicitly -- no skin_items row needed for it
   // (docs/MONETIZATION_PLAN.md §3.1).
@@ -121,13 +177,23 @@ export default function InventoryPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
       <div className="w-full max-w-2xl">
         <div className="flex items-center justify-between mb-6">
-          <Link
-            href="/"
-            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
-            aria-label="Back to Home"
-          >
-            🏠
-          </Link>
+          {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+          <span className="emoji-pair inline-flex items-center gap-2">
+            <Link
+              href="/"
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+              aria-label="Back to Home"
+            >
+              🌍
+            </Link>
+            <Link
+              href={CITY_PATH}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+              aria-label="Go to the city"
+            >
+              🏛️
+            </Link>
+          </span>
           <h1 className="text-2xl font-bold tracking-wide">Inventory</h1>
         </div>
 
@@ -159,6 +225,30 @@ export default function InventoryPage() {
           </div>
         ) : (
           <>
+            {/* Bot-game credits -- the same balance shown on the My AI page
+                (wom-be /inventory's ai_credits). A small box above Relics. */}
+            <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl px-5 py-4 mb-6 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">My AI credits</p>
+                <p className="text-2xl font-bold text-amber-300 leading-tight">{aiCredits}</p>
+              </div>
+              {aiCredits === 0 ? (
+                <Link
+                  href="/shop"
+                  className="text-xs font-semibold text-amber-300 hover:text-amber-200 transition-colors no-underline shrink-0"
+                >
+                  Buy in the shop &rarr;
+                </Link>
+              ) : (
+                <Link
+                  href="/my-ai"
+                  className="text-xs text-white/50 hover:text-white/80 transition-colors no-underline shrink-0"
+                >
+                  My AI &rarr;
+                </Link>
+              )}
+            </div>
+
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
               <h2 className="text-lg font-semibold mb-4">Relics</h2>
               {relics.length > 0 ? (
@@ -214,7 +304,7 @@ export default function InventoryPage() {
                 </div>
               ) : (
                 <div className="text-center py-2">
-                  <p className="text-white/60 text-sm mb-3">You don&apos;t have any wheels yet.</p>
+                  <p className="text-white/60 text-sm mb-3">You don&apos;t have any wheels.</p>
                   <Link
                     href="/shop"
                     className="inline-block px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-semibold hover:bg-amber-600/80 transition-colors no-underline text-sm"
@@ -239,31 +329,138 @@ export default function InventoryPage() {
                       className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
                     >
                       <div
-                        className="w-16 h-16 rounded-full border-2 border-white/20"
+                        className="w-16 h-16 rounded-full border-2 border-white/20 overflow-hidden"
                         style={{ background: skinColor(skin) }}
-                      />
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- a small
+                            fixed set of local static assets, not remote/user content */}
+                        <img
+                          src={skinThumbnailUrl(skin)}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
                       <p className="text-sm font-semibold capitalize text-center">{skinLabel(skin)}</p>
                       {count > 1 && <p className="text-xs text-white/50">×{count}</p>}
-                      {isEquipped ? (
-                        <span className="text-xs font-bold text-green-400">EQUIPPED</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleEquip(skin)}
-                          disabled={equipping === skin}
-                          className="text-xs px-3 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
-                        >
-                          {equipping === skin ? 'Equipping…' : 'Equip'}
-                        </button>
-                      )}
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
+                        {isEquipped ? (
+                          <span className="text-xs font-bold text-green-400">EQUIPPED</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleEquip(skin)}
+                            disabled={equipping === skin}
+                            className="text-xs px-3 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            {equipping === skin ? 'Equipping…' : 'Equip'}
+                          </button>
+                        )}
+                        {tradeUpRules[skin] && (
+                          <button
+                            type="button"
+                            onClick={() => setTradingUp({ skin, owned: count, rule: tradeUpRules[skin] })}
+                            className="text-xs px-3 py-1 rounded-md bg-amber-700/80 text-amber-200 border border-amber-600 hover:bg-amber-600/80 transition-colors cursor-pointer"
+                          >
+                            Trade up
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </div>
+
+            {/* Artifacts. Below Skins deliberately: it is the rarest thing a
+                player can own and the last thing they scroll to, not a
+                headline slot that is empty for almost everyone. */}
+            <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mt-6">
+              {/* No "who has found one" link here. The ledger is readable
+                  only by someone who has discovered an artifact, so the way
+                  in is clicking your own artifact below -- which only
+                  exists if you are entitled to look. Offering a link to
+                  everyone would advertise a door most people cannot open. */}
+              <h2 className="text-lg font-semibold mb-4">Artifacts</h2>
+
+              {artifact ? (
+                <div className="flex flex-col sm:flex-row items-center gap-5">
+                  {/* The real model, not a drawing of it -- the card and the
+                      thing floating beside your frog in a lobby have to be
+                      the same object. A second WebGL context on this page
+                      (the equipped-skin preview is the first) is affordable
+                      because this only mounts for an account that actually
+                      owns an artifact, which is almost none of them. */}
+                  <button
+                    type="button"
+                    onClick={() => setShowLedger(true)}
+                    aria-label={`Artifact number ${artifact.ordinal}, open the discovery ledger`}
+                    className="w-28 h-28 shrink-0 bg-transparent border-0 p-0 cursor-pointer"
+                  >
+                    {artifactUrl ? (
+                      <SpinningModelViewer
+                        url={artifactUrl}
+                        targetSize={1.8}
+                        spinSpeed={0.6}
+                      />
+                    ) : (
+                      <span className="text-5xl" aria-hidden>📜</span>
+                    )}
+                  </button>
+                  <div className="flex-1 text-center sm:text-left">
+                    {/* The item's own name, catalogue number included. The
+                        finder's discovery ordinal is deliberately not shown
+                        here -- it belongs to the ledger, not to the item. */}
+                    <p className="text-sm font-semibold">
+                      {cosmeticLabel(artifact.cosmetic)}
+                    </p>
+                    <p className="text-xs text-white/50 mt-1">
+                      {cosmeticDescription(artifact.cosmetic)}
+                    </p>
+                    <div className="mt-3 flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                      {equippedCosmetic === artifact.cosmetic ? (
+                        <>
+                          <span className="text-xs font-bold text-green-400">EQUIPPED</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCosmetic(artifact.cosmetic)}
+                            disabled={equippingCosmetic}
+                            className="text-xs px-3 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            {equippingCosmetic ? 'Working…' : 'Unequip'}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleCosmetic(artifact.cosmetic)}
+                          disabled={equippingCosmetic}
+                          className="text-xs px-3 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          {equippingCosmetic ? 'Working…' : 'Equip'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-2">
+                  <p className="text-white/60 text-sm mb-1">You have no artifacts</p>
+                  <p className="text-white/40 text-xs">
+                    You have a 1 in 1000 chance of finding one when winning the well.
+                  </p>
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
+
+      {showLedger && (
+        <ArtifactLedgerModal
+          highlightOrdinal={artifact?.ordinal ?? null}
+          onClose={() => setShowLedger(false)}
+        />
+      )}
 
       {spinningWheel !== null && (
         <WheelSpinModal
@@ -272,6 +469,18 @@ export default function InventoryPage() {
           onClose={() => setSpinningWheel(null)}
           onSpun={handleSpun}
           onEquipped={setEquippedSkin}
+        />
+      )}
+
+      {tradingUp !== null && (
+        <TradeUpModal
+          skin={tradingUp.skin}
+          owned={tradingUp.owned}
+          rule={tradingUp.rule}
+          onClose={() => setTradingUp(null)}
+          onTraded={handleTraded}
+          onEquipped={setEquippedSkin}
+          onSpinNow={(wheelId) => setSpinningWheel({ id: wheelId, kind: 'special' })}
         />
       )}
     </div>

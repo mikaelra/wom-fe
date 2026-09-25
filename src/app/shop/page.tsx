@@ -6,8 +6,9 @@ import { useRouter } from 'next/navigation';
 import { claimName, getShopProducts, postCheckout, resolveAccountSession, type ShopProduct } from '@/lib/api';
 import { ApiError, getStoredAccountToken } from '@/lib/http';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
-import { skinLabel, skinUrl } from '@/lib/frogSkins';
+import { skinUrl } from '@/lib/frogSkins';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
+import { CITY_PATH } from '@/lib/cities';
 
 function formatPrice(cents: number, currency: string): string {
   try {
@@ -19,14 +20,22 @@ function formatPrice(cents: number, currency: string): string {
   }
 }
 
-// Trims trailing zeros (63.00 -> 63) while still showing real precision where
-// it matters (6.67, 0.33) -- .toFixed(2) alone would show "63.00%" for a
-// round number, which reads oddly next to "6.67%".
-function formatOddsPercent(probability: number): string {
-  return `${Number((probability * 100).toFixed(2))}%`;
+type VerifyState = 'idle' | 'sending' | 'awaiting' | 'error';
+
+// Wheels are a stackable inventory item; the FE cap mirrors routes/shop.py's
+// _MAX_WHEEL_QUANTITY. AI-credit packs carry their own `max_quantity` from
+// the API (docs/MY_AI.md §5). A direct skin purchase has no quantity concept.
+const MAX_WHEEL_QUANTITY = 100;
+
+function maxQuantityFor(product: ShopProduct): number {
+  if (product.kind === 'wheel') return MAX_WHEEL_QUANTITY;
+  if (product.kind === 'ai_credits') return product.max_quantity ?? 1;
+  return 1;
 }
 
-type VerifyState = 'idle' | 'sending' | 'awaiting' | 'error';
+function hasQuantityPicker(product: ShopProduct): boolean {
+  return maxQuantityFor(product) > 1;
+}
 
 export default function ShopPage() {
   const router = useRouter();
@@ -40,16 +49,14 @@ export default function ShopPage() {
   const [buying, setBuying] = useState<string | null>(null);
   const [productErrors, setProductErrors] = useState<Record<string, string>>({});
   const [duplicateConfirm, setDuplicateConfirm] = useState<Set<string>>(new Set());
-  const [oddsInfoOpen, setOddsInfoOpen] = useState<Set<string>>(new Set());
-  // Multi-packs are wheel-only (§3.3) -- matches routes/shop.py's
-  // _MAX_WHEEL_QUANTITY; a direct skin purchase has no quantity concept.
+  // Wheels and AI-credit packs can both be bought several at a time; the
+  // per-product cap comes from maxQuantityFor.
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const MAX_WHEEL_QUANTITY = 100;
 
-  const adjustQuantity = (productId: string, delta: number) => {
+  const adjustQuantity = (productId: string, delta: number, max: number) => {
     setQuantities((prev) => {
       const current = prev[productId] ?? 1;
-      const next = Math.min(MAX_WHEEL_QUANTITY, Math.max(1, current + delta));
+      const next = Math.min(max, Math.max(1, current + delta));
       return { ...prev, [productId]: next };
     });
   };
@@ -57,26 +64,14 @@ export default function ShopPage() {
   // Typing "10" one keystroke at a time passes through "1" first -- clamping
   // per-keystroke only ever narrows toward valid range, never blocks the
   // next digit, so this stays smooth to type into.
-  const setQuantityFromInput = (productId: string, raw: string) => {
+  const setQuantityFromInput = (productId: string, raw: string, max: number) => {
     const digitsOnly = raw.replace(/\D/g, '');
     if (digitsOnly === '') {
       setQuantities((prev) => ({ ...prev, [productId]: 1 }));
       return;
     }
-    const clamped = Math.min(MAX_WHEEL_QUANTITY, Math.max(1, parseInt(digitsOnly, 10)));
+    const clamped = Math.min(max, Math.max(1, parseInt(digitsOnly, 10)));
     setQuantities((prev) => ({ ...prev, [productId]: clamped }));
-  };
-
-  const toggleOddsInfo = (productId: string) => {
-    setOddsInfoOpen((prev) => {
-      const next = new Set(prev);
-      if (next.has(productId)) {
-        next.delete(productId);
-      } else {
-        next.add(productId);
-      }
-      return next;
-    });
   };
 
   const [verifyState, setVerifyState] = useState<VerifyState>('idle');
@@ -144,7 +139,7 @@ export default function ShopPage() {
     setProductErrors((prev) => ({ ...prev, [product.id]: '' }));
     setBuying(product.id);
     try {
-      const quantity = product.kind === 'wheel' ? (quantities[product.id] ?? 1) : undefined;
+      const quantity = hasQuantityPicker(product) ? (quantities[product.id] ?? 1) : undefined;
       const { checkout_url } = await postCheckout(token, product.id, confirmDuplicate, quantity);
       window.location.href = checkout_url;
       // No finally-reset of `buying` on this path -- the page is navigating
@@ -183,13 +178,23 @@ export default function ShopPage() {
       <div className="w-full max-w-2xl">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
-              aria-label="Back to Home"
-            >
-              🏠
-            </Link>
+            {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+            <span className="emoji-pair inline-flex items-center gap-2">
+              <Link
+                href="/"
+                className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+                aria-label="Back to Home"
+              >
+                🌍
+              </Link>
+              <Link
+                href={CITY_PATH}
+                className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors no-underline"
+                aria-label="Go to the city"
+              >
+                🏛️
+              </Link>
+            </span>
             <Link
               href="/inventory"
               className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-white/20 transition-colors no-underline"
@@ -232,6 +237,17 @@ export default function ShopPage() {
               </span>
             </label>
 
+            {/* Deliberately outside the agreement checkbox above: a privacy
+                policy informs, it isn't something a player consents to, and
+                bundling it into the same tick box muddies what was agreed. */}
+            <p className="text-xs text-white/40 -mt-4 mb-6">
+              How we handle your data:{' '}
+              <Link href="/privacy" target="_blank" className="text-amber-300 underline hover:text-amber-200">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+
             <div className="flex flex-col gap-6">
               {products.map((product) => (
                 <div
@@ -244,7 +260,7 @@ export default function ShopPage() {
                     </h2>
                     <span className="text-amber-300 font-bold text-lg">
                       {formatPrice(
-                        product.price_cents * (product.kind === 'wheel' ? (quantities[product.id] ?? 1) : 1),
+                        product.price_cents * (hasQuantityPicker(product) ? (quantities[product.id] ?? 1) : 1),
                         product.currency
                       )}
                     </span>
@@ -255,38 +271,27 @@ export default function ShopPage() {
                       <div className="flex justify-center py-4" aria-hidden="true">
                         <span className="text-5xl">🎡</span>
                       </div>
-                      <div className="flex items-start gap-1.5">
-                        <p className="text-xs text-white/50 flex-1">
-                          Buy a special wheel and roll it to get a special skin
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => toggleOddsInfo(product.id)}
-                          aria-label="Wheel odds info"
-                          aria-expanded={oddsInfoOpen.has(product.id)}
-                          className="shrink-0 w-4 h-4 rounded-full border border-white/30 text-white/60 text-[10px] leading-none flex items-center justify-center hover:bg-white/10 hover:text-white cursor-pointer"
-                        >
-                          i
-                        </button>
-                      </div>
-                      {oddsInfoOpen.has(product.id) && (
-                        <div className="mt-2 text-xs text-white/60 bg-white/5 border border-white/10 rounded-lg p-3">
-                          <p className="mb-1">
-                            You get a random skin when rolling the wheel. The odds for getting each skin is:
-                          </p>
-                          {product.odds.map((entry) => (
-                            <p key={entry.skin} className="capitalize">
-                              {skinLabel(entry.skin)} - {formatOddsPercent(entry.probability)}
-                            </p>
-                          ))}
-                        </div>
-                      )}
+                      <p className="text-xs text-white/50">
+                        Buy a special wheel and roll it to get a special skin
+                      </p>
                     </div>
                   )}
 
                   {product.kind === 'skin' && product.skin && (
                     <div className="mb-4 w-32 h-32 mx-auto">
                       <SpinningModelViewer url={skinUrl(product.skin)} targetSize={1.8} spinSpeed={0.6} />
+                    </div>
+                  )}
+
+                  {product.kind === 'ai_credits' && (
+                    <div className="mb-4">
+                      <div className="flex justify-center py-4" aria-hidden="true">
+                        <span className="text-5xl">🪙</span>
+                      </div>
+                      <p className="text-xs text-white/50">
+                        {(product.credits_per_pack ?? 0) * (quantities[product.id] ?? 1)} bot-game credits — your AI
+                        spends one each time it plays a ranked game on its own.
+                      </p>
                     </div>
                   )}
 
@@ -330,11 +335,11 @@ export default function ShopPage() {
                     </Link>
                   ) : (
                     <div className="flex items-center gap-3">
-                      {product.kind === 'wheel' && (
+                      {hasQuantityPicker(product) && (
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
-                            onClick={() => adjustQuantity(product.id, -1)}
+                            onClick={() => adjustQuantity(product.id, -1, maxQuantityFor(product))}
                             disabled={(quantities[product.id] ?? 1) <= 1}
                             aria-label="Decrease quantity"
                             className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
@@ -346,14 +351,14 @@ export default function ShopPage() {
                             inputMode="numeric"
                             pattern="[0-9]*"
                             value={quantities[product.id] ?? 1}
-                            onChange={(e) => setQuantityFromInput(product.id, e.target.value)}
+                            onChange={(e) => setQuantityFromInput(product.id, e.target.value, maxQuantityFor(product))}
                             aria-label="Quantity"
                             className="w-10 text-center font-semibold bg-white/5 border border-white/20 rounded-lg py-1"
                           />
                           <button
                             type="button"
-                            onClick={() => adjustQuantity(product.id, 1)}
-                            disabled={(quantities[product.id] ?? 1) >= MAX_WHEEL_QUANTITY}
+                            onClick={() => adjustQuantity(product.id, 1, maxQuantityFor(product))}
+                            disabled={(quantities[product.id] ?? 1) >= maxQuantityFor(product)}
                             aria-label="Increase quantity"
                             className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                           >

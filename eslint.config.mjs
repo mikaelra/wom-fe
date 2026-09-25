@@ -34,6 +34,15 @@ const eslintConfig = [
     },
   },
   {
+    // The Electron shell (docs/MOBILE_AND_STEAM_PLAN.md §10) is a Node
+    // CommonJS program, not part of the Next bundle -- require() is the
+    // correct module system there, so the repo-wide ban on it doesn't apply.
+    files: ["electron/**/*.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  {
     ignores: [
       "node_modules/**",
       ".next/**",

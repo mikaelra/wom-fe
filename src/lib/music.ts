@@ -1,0 +1,103 @@
+import {
+  getMusicVolume,
+  isMusicEnabled,
+  isMusicInBackgroundEnabled,
+  subscribeSoundSettings,
+} from './soundSettings';
+
+export const HOME_MUSIC = '/audio/music/Broken by Water.mp3';
+export const PRE_LOBBY_MUSIC = '/audio/music/Quiet Ascent.mp3';
+export const BATTLE_MUSIC = '/audio/music/Chamber.mp3';
+/** The city. Main Theme.mp3 shipped in public/audio/music/ from the start
+ *  but was never wired to anything -- the city scene had no music call at
+ *  all, so its toggle sat over silence and looked broken. */
+export const CITY_MUSIC = '/audio/music/Main Theme.mp3';
+
+// A single shared <audio> element rather than one per screen -- screens
+// mount/unmount their music via plain useEffects as the player navigates
+// between the home screen, the lobby waiting room and an in-progress
+// battle, so reusing one element lets a track change happen as a simple
+// src swap instead of tearing down and restarting playback (and risking two
+// tracks briefly overlapping).
+let audio: HTMLAudioElement | null = null;
+let currentTrack: string | null = null;
+
+// Autoplay can be blocked before the player has interacted with the page at
+// all, and jsdom (unit tests) doesn't implement play() at all -- it returns
+// undefined instead of a Promise. Either way, a failure here is silent; the
+// next toggle click or track change is what actually retries.
+function safePlay(el: HTMLAudioElement): void {
+  el.play()?.catch(() => {});
+}
+
+// Browsers block audio-with-sound from actually starting until the page has
+// seen a real user gesture -- the very first playMusic() call happens from a
+// mount effect, before any click, so it's silently rejected by that policy
+// and playback just sits paused. It used to look like clicking the mute
+// toggle "fixed" it, but that only worked because the click itself was the
+// first qualifying gesture -- any click anywhere resumes it just as well, so
+// retry once on the first one instead of requiring that specific button.
+const GESTURE_EVENTS = ['pointerdown', 'keydown', 'touchstart'] as const;
+
+function resumeOnFirstGesture(): void {
+  GESTURE_EVENTS.forEach((evt) => document.removeEventListener(evt, resumeOnFirstGesture));
+  if (audio && currentTrack && isMusicEnabled()) safePlay(audio);
+}
+
+// Mobile browsers exempt already-playing media from background-tab
+// throttling (so podcasts/videos can keep going) -- which means our loop=true
+// background music, once started, kept right on playing after the phone's
+// screen locked or the player switched apps, unlike everything else on the
+// page. The Page Visibility API is the standard fix (same pattern as
+// useWheelAnimation.ts's own visibilitychange handling): pause on hide,
+// resume on show -- gated on isMusicEnabled() so returning to the tab
+// doesn't override a mute the player set while away.
+// ...and gated on the player's own preference: someone who deliberately
+// turned on "keep playing in the background" wants exactly the behaviour
+// the pause was written to suppress, so leave their music alone.
+function onVisibilityChange(): void {
+  if (!audio || !currentTrack) return;
+  if (document.hidden) {
+    if (!isMusicInBackgroundEnabled()) audio.pause();
+  } else if (isMusicEnabled()) {
+    safePlay(audio);
+  }
+}
+
+function ensureAudio(): HTMLAudioElement | null {
+  if (typeof window === 'undefined') return null;
+  if (!audio) {
+    audio = new Audio();
+    audio.loop = true;
+    audio.volume = getMusicVolume();
+    subscribeSoundSettings(() => {
+      if (!audio) return;
+      // Volume tracks the slider even with no track loaded, so a level set
+      // on a silent screen is already right when one starts.
+      audio.volume = getMusicVolume();
+      if (!currentTrack) return;
+      if (isMusicEnabled()) safePlay(audio);
+      else audio.pause();
+    });
+    GESTURE_EVENTS.forEach((evt) => document.addEventListener(evt, resumeOnFirstGesture));
+    document.addEventListener('visibilitychange', onVisibilityChange);
+  }
+  return audio;
+}
+
+/** Starts looping `track`. Safe to call every render -- a no-op if it's
+ *  already the current track and playing. */
+export function playMusic(track: string): void {
+  const el = ensureAudio();
+  if (!el) return;
+  if (currentTrack !== track) {
+    currentTrack = track;
+    el.src = encodeURI(track);
+  }
+  if (isMusicEnabled()) safePlay(el);
+}
+
+export function stopMusic(): void {
+  currentTrack = null;
+  if (audio) audio.pause();
+}

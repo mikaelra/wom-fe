@@ -63,7 +63,7 @@ describe('HomeOverlay', () => {
     expect(mockedCheckName).toHaveBeenCalledWith('Alice');
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', '');
     expect(localStorage.getItem('playerName')).toBe('Alice');
-    expect(push).toHaveBeenCalledWith('/lobby/AAAA');
+    expect(push).toHaveBeenCalledWith('/lobby?id=AAAA');
     expect(screen.queryByText('This name is claimed. Type your email if you have claimed this username.')).not.toBeInTheDocument();
   });
 
@@ -103,7 +103,7 @@ describe('HomeOverlay', () => {
     // page navigates away (router.push unmounts this component); router is
     // mocked in this test, so what matters is that the right calls fired.
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', 'alice@example.com');
-    expect(push).toHaveBeenCalledWith('/lobby/BBBB');
+    expect(push).toHaveBeenCalledWith('/lobby?id=BBBB');
   });
 
   it('completes a pending join (not create) via the email-login modal, proving the pending action threads through', async () => {
@@ -127,7 +127,7 @@ describe('HomeOverlay', () => {
 
     expect(mockedJoinLobby).toHaveBeenCalledWith('ZZZZ', 'Alice', 'alice@example.com');
     expect(mockedCreateLobby).not.toHaveBeenCalled();
-    expect(push).toHaveBeenCalledWith('/lobby/ZZZZ');
+    expect(push).toHaveBeenCalledWith('/lobby?id=ZZZZ');
   });
 
   it('shows the code step when requires_code is true, and completes on a correct code', async () => {
@@ -167,7 +167,7 @@ describe('HomeOverlay', () => {
 
     expect(mockedVerifyLoginCode).toHaveBeenCalledWith('Alice', '123456');
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', 'alice@example.com');
-    expect(push).toHaveBeenCalledWith('/lobby/CCCC');
+    expect(push).toHaveBeenCalledWith('/lobby?id=CCCC');
   });
 
   it('skips checkName entirely and creates directly when already logged in', async () => {
@@ -182,7 +182,7 @@ describe('HomeOverlay', () => {
 
     expect(mockedCheckName).not.toHaveBeenCalled();
     expect(mockedCreateLobby).toHaveBeenCalledWith('Alice', '');
-    expect(push).toHaveBeenCalledWith('/lobby/DDDD');
+    expect(push).toHaveBeenCalledWith('/lobby?id=DDDD');
   });
 
   it('"Choose new name" closes the modal and clears the typed name', async () => {

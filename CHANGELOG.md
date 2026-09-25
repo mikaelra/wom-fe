@@ -11,6 +11,31 @@ count.
 ## [Unreleased]
 
 ### Added
+- Floating combat numbers: a red "-X" over whoever a hit actually landed on
+  (both the attacker's and the target's view), a blue "0" over whoever just
+  blocked. Requires wom-be#172 (`OutgoingEvent` now carries `damage`, so the
+  attacker's own view shows the same number the target sees).
+- Planetary aspects, generalized to all seven bodies (`docs/ASPECTS_PLAN.md`):
+  conjunctions are now mutual — every body can donate colour to, and receive
+  it from, every other body, each using its own orb, so e.g. a Jupiter/Saturn
+  conjunction lights both asymmetrically. Previously only the Moon received
+  a colour/strength effect from nearby planets. The Sun donates no colour but
+  amplifies whatever's near it (saturation, aura growth, and a "corona floor"
+  for close Sun-Moon conjunctions that would otherwise be swallowed by new-moon
+  phase scaling). A conjunct body's colour shows in the aura around a planet,
+  never on the planet's own body/shell, which always keeps its own colour.
+  New `src/lib/astrology.ts` (pure, unit-tested maths).
+
+### Changed
+- Lobby URLs moved from `/lobby/<id>` to `/lobby?id=<id>` (the dynamic path
+  segment couldn't be statically exported — `docs/MOBILE_AND_STEAM_PLAN.md`
+  §5.3). Old-shape links (already shared via copy-link/QR) keep working —
+  `/lobby/<id>` now redirects to the new shape rather than 404ing.
+- `next.config.ts`'s build output is conditional on `BUILD_TARGET=native`:
+  `output: "export"` (a native shell's static bundle) vs. today's
+  `"standalone"` (the web deploy, unaffected either way).
+
+### Added
 - `NEXT_PUBLIC_APP_VERSION` / `NEXT_PUBLIC_BUILD_NUMBER`, derived from `git
   describe`/`git rev-list --count` in CI and shown on the settings page —
   "which build are you on" is the first question in any store support

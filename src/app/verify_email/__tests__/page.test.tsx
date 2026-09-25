@@ -59,6 +59,32 @@ describe('VerifyEmailPage', () => {
     expect(replace).toHaveBeenCalledWith('/');
   });
 
+  it('redirects to the inventory with an artifact toast for a claim_artifact token', async () => {
+    searchParams = new URLSearchParams({ token: 'tok' });
+    mockedConfirm.mockResolvedValue({ success: true, purpose: 'claim_artifact' });
+    render(<VerifyEmailPage />);
+    await flush();
+
+    expect(showSuccess).toHaveBeenCalledWith('Artifact claimed! Equip it in your inventory.');
+    expect(replace).toHaveBeenCalledWith('/inventory');
+  });
+
+  it('still confirms success for a purpose this build does not recognise', async () => {
+    // Regression lock. `purpose` used to be a closed enum, so the day wom-be
+    // added 'claim_artifact' the response failed schema validation and this
+    // page showed a red error -- for a claim the backend had already
+    // completed: email verified, session issued, artifact granted. An
+    // unknown purpose must degrade to the generic confirmation, never to a
+    // failure.
+    searchParams = new URLSearchParams({ token: 'tok' });
+    mockedConfirm.mockResolvedValue({ success: true, purpose: 'claim_something_new' });
+    render(<VerifyEmailPage />);
+    await flush();
+
+    expect(showSuccess).toHaveBeenCalledWith('Account verified');
+    expect(replace).toHaveBeenCalledWith('/');
+  });
+
   it('shows the server error message on failure', async () => {
     searchParams = new URLSearchParams({ token: 'tok' });
     mockedConfirm.mockRejectedValue(new Error('Invalid or expired link.'));

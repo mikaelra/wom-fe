@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
 import RankBadge from '@/components/hud/RankBadge';
+import SeasonTimer from '@/components/hud/SeasonTimer';
+import SeasonHistoryOverlay from '@/components/hud/SeasonHistoryOverlay';
+import { CITY_PATH } from '@/lib/cities';
 
 // Labels/emoji for every key in wom-be's config.WELL_REWARDS, matching the
 // emoji already used in that reward's in-game message (engine/rewards.py)
@@ -39,6 +42,7 @@ export default function StatsPage() {
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [wins, setWins] = useState(0);
   const [kills, setKills] = useState(0);
+  const [showSeasons, setShowSeasons] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -79,8 +83,13 @@ export default function StatsPage() {
   // Games 1-10 are placements: rank stays hidden until the debut at game
   // 10 (docs/RANK_SYSTEM_PLAN.md §5) -- same display rule the badge and
   // post-game summary already follow, so this reads identically whether
-  // the player has never queued or is still mid-placement.
-  const gamesRemaining = 10 - rankedGamesPlayed;
+  // the player has never queued or is still mid-placement. Floored at 1:
+  // this branch only renders when `tier` is null, but ranked_games_played
+  // is a separate field that can already be >= 10 for a few more matches
+  // after that (bug list 260916 -- shown_tier_this_season lags a match
+  // behind on a season rollover until the next result writes it) --
+  // without the floor that read as a negative "Play -9 more matches."
+  const gamesRemaining = Math.max(1, 10 - rankedGamesPlayed);
   const placementMessage =
     rankedGamesPlayed === 0
       ? 'Play 10 matches to get your rank.'
@@ -101,16 +110,31 @@ export default function StatsPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
       <div className="w-full max-w-xl">
         <div className="flex items-center justify-between mb-6">
-          <button
-            type="button"
-            onClick={() => router.push('/')}
-            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
-            aria-label="Back to Home"
-          >
-            🏠
-          </button>
+          {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+          <span className="emoji-pair inline-flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+              aria-label="Back to Home"
+            >
+              🌍
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push(CITY_PATH)}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+              aria-label="Go to the city"
+            >
+              🏛️
+            </button>
+          </span>
           <h1 className="text-2xl font-bold tracking-wide">Stats</h1>
         </div>
+
+        {showSeasons && playerName && (
+          <SeasonHistoryOverlay playerName={playerName} onClose={() => setShowSeasons(false)} />
+        )}
 
         {loading ? (
           <p className="text-white/70">Loading…</p>
@@ -128,9 +152,21 @@ export default function StatsPage() {
           <>
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
               <p className="text-sm text-white/50 mb-3">{playerName}</p>
-              <h2 className="text-sm font-semibold text-white/70 mb-2">Ranked</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-white/70">Ranked</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowSeasons(true)}
+                  className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+                >
+                  Seasons
+                </button>
+              </div>
               {tier ? (
-                <RankBadge tier={tier} className="text-base px-3 py-1" />
+                <>
+                  <RankBadge tier={tier} className="text-base px-3 py-1" />
+                  <SeasonTimer className="text-sm mt-3" />
+                </>
               ) : (
                 <>
                   <RankBadge tier={null} className="text-base px-3 py-1" />
