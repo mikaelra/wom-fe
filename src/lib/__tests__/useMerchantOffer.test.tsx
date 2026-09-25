@@ -9,13 +9,14 @@ vi.mock('@/lib/http', () => ({ getStoredAccountToken: () => 't' }));
 const mockedGet = vi.mocked(getMerchantOffer);
 
 const offer = (over: Partial<{
-  available: boolean; already_bought_this_period: boolean;
+  active: boolean; available: boolean; already_bought_this_period: boolean;
 }> = {}) => ({
   offer_id: 1,
   merchant_name: 'The Merchant',
   item_name: 'Stone of Vitality',
   cost_hades_coins: 5,
   trigger_kind: 'full_moon',
+  active: true,
   available: true,
   already_bought_this_period: false,
   period_start: '2026-09-26T16:49:32Z',

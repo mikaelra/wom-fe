@@ -63,6 +63,10 @@ export const MerchantOfferResponseSchema = z.object({
     item_name: z.string(),
     cost_hades_coins: z.number(),
     trigger_kind: z.string(),
+    // Whether the trigger is up at all (drives the globe marker). Distinct
+    // from `available` (drives the buy button): a player who's already
+    // traded this period must still see the Merchant, just unable to buy.
+    active: z.boolean(),
     available: z.boolean(),
     already_bought_this_period: z.boolean(),
     period_start: z.string(),

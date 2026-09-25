@@ -39,12 +39,16 @@ export default function Page() {
   // clearing it would flash the globe back for a frame.
   const [enteringCity, setEnteringCity] = useState<City | null>(null);
 
-  // docs/MERCHANT_PLAN.md -- the globe ??? encounter.
+  // docs/MERCHANT_PLAN.md -- the Merchant encounter.
   const { offer: merchantOffer, refresh: refreshMerchantOffer } = useMerchantOffer();
   const [merchantSceneOpen, setMerchantSceneOpen] = useState(false);
-  // Marker only draws when there's something to click: an offer configured,
-  // its trigger active, and this player hasn't already traded this period.
-  const showMerchantMarker = merchantOffer?.available ?? false;
+  // Marker draws whenever the trigger is up, regardless of whether this
+  // player has already bought this period -- the Merchant stays visible
+  // and clickable either way; only the offer itself (inside MerchantScene)
+  // goes unavailable. Using `available` here instead would make the
+  // marker vanish for anyone who's already traded this moon, which is the
+  // actual bug this was fixed from (traced live 2026-09-25).
+  const showMerchantMarker = merchantOffer?.active ?? false;
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setSceneReady(true));

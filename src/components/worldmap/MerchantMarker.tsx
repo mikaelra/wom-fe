@@ -13,11 +13,18 @@ interface MerchantMarkerProps {
 }
 
 /**
- * The Merchant's ??? on the globe (docs/MERCHANT_PLAN.md). Position/
+ * The Merchant's marker on the globe (docs/MERCHANT_PLAN.md). Position/
  * orientation mechanics mirror CityMarker.tsx, but there is no GLTF pin
- * model -- a glowing "???" label alone is the whole marker, matching the
- * encounter's mystery framing and avoiding a second pin asset for
- * something that only appears occasionally.
+ * model -- a glowing "Merchant" label alone is the whole marker, avoiding a
+ * second pin asset for something that only appears occasionally.
+ *
+ * Labelled "Merchant", not "???": the marker stays up and clickable for
+ * the whole trigger window regardless of whether this player has already
+ * bought this period (WorldMap.tsx mounts it off `offer.active`, not
+ * `offer.available`) -- a "???" reads as a mystery you haven't solved yet,
+ * which stopped being true the moment you'd already traded here this moon.
+ * The offer inside the scene, not the marker itself, is what goes
+ * unavailable.
  *
  * Because there's no mesh, the click/hover target is the label itself, not
  * the group: FreshHtml's `pointerEvents: 'none'` convention exists so a
@@ -26,10 +33,6 @@ interface MerchantMarkerProps {
  * model is the real target. There is no 3D object here for a group-level
  * onClick to raycast against, so the label is given `pointerEvents: 'auto'`
  * and handles the click/hover itself instead.
- *
- * WorldMap.tsx only mounts this when the current offer is available and
- * not yet bought this period -- this component itself does not know
- * anything about offers, only where to sit and what to do when clicked.
  */
 export default function MerchantMarker({ lat, lng, globeRadius, onClick }: MerchantMarkerProps) {
   const [hovered, setHovered] = useState(false);
@@ -69,7 +72,7 @@ export default function MerchantMarker({ lat, lng, globeRadius, onClick }: Merch
             userSelect: 'none',
           }}
         >
-          ???
+          Merchant
         </div>
       </FreshHtml>
     </group>

@@ -101,6 +101,9 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
               <p className="text-white/60 text-sm mb-4">
                 {offer.cost_hades_coins} Hades&rsquo; Coin{offer.cost_hades_coins === 1 ? '' : 's'}
               </p>
+              {offer.already_bought_this_period && (
+                <p className="text-white/50 text-xs mb-3">You&rsquo;ve already traded this moon.</p>
+              )}
               {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
               <div className="flex gap-3 justify-center">
                 <button

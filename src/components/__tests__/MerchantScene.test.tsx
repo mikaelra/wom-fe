@@ -20,6 +20,7 @@ const OFFER: MerchantOffer = {
   offer_id: 1,
   merchant_name: 'The Merchant',
   item_name: 'Stone of Vitality',
+  active: true,
   cost_hades_coins: 5,
   trigger_kind: 'full_moon',
   available: true,
@@ -78,6 +79,20 @@ describe('MerchantScene', () => {
       <MerchantScene offer={{ ...OFFER, available: false }} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />,
     );
 
+    expect(screen.getByRole('button', { name: /Trade for 5/ })).toBeDisabled();
+  });
+
+  it('explains why the button is disabled when this player already traded this moon', () => {
+    render(
+      <MerchantScene
+        offer={{ ...OFFER, available: false, already_bought_this_period: true }}
+        token="t"
+        onClose={vi.fn()}
+        onPurchased={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('You’ve already traded this moon.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Trade for 5/ })).toBeDisabled();
   });
 
