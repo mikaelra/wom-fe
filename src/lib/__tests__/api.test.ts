@@ -451,12 +451,14 @@ describe('error-swallowing endpoints', () => {
     fetchMock.mockResolvedValue(jsonResponse({
       relics: [{
         id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00',
+        newest_copy_created_at: '2026-09-25T19:57:42+00:00',
         name: 'Stone of Vitality', power_category: 'HEALTH', count: 1,
       }],
     }));
     await expect(getPlayerRelics('Oni')).resolves.toEqual({
       relics: [{
         id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00',
+        newest_copy_created_at: '2026-09-25T19:57:42+00:00',
         name: 'Stone of Vitality', power_category: 'HEALTH', count: 1,
       }],
     });

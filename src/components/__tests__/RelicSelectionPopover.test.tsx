@@ -28,7 +28,7 @@ beforeEach(() => {
   mockedGetPlayerRelics.mockReset();
   mockedGetPlayerRelics.mockResolvedValue({
     relics: [
-      { id: COIN_RELIC_ID, boss_id: 6, created_at: '', name: "Hades' Coin", power_category: 'MONETARY', count: 3 },
+      { id: COIN_RELIC_ID, boss_id: 6, created_at: '', newest_copy_created_at: '', name: "Hades' Coin", power_category: 'MONETARY', count: 3 },
     ],
   });
 });
@@ -133,7 +133,7 @@ describe('RelicSelectionPopover: selected state', () => {
     const STONE_ID = 9;
     mockedGetPlayerRelics.mockResolvedValue({
       relics: [
-        { id: STONE_ID, boss_id: null, created_at: '', name: 'Stone of Vitality', power_category: 'HEALTH', count: 1 },
+        { id: STONE_ID, boss_id: null, created_at: '', newest_copy_created_at: '', name: 'Stone of Vitality', power_category: 'HEALTH', count: 1 },
       ],
     });
     render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[STONE_ID]} onToggle={vi.fn()} />);

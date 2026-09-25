@@ -142,6 +142,11 @@ export const RelicSchema = z.object({
   // accuracy gain of asserting it's always present.
   flavour_text: z.string().optional(),
   count: z.number().int(),
+  // The most-recently-bought owned copy's timestamp -- the same copy
+  // /merchant/revert_time would actually sacrifice (docs/MERCHANT_PLAN.md
+  // §7). Stone of Vitality's revert confirmation reads this to show
+  // exactly which moment time will turn back to before the player commits.
+  newest_copy_created_at: z.string(),
 });
 
 // Relics that get spent (one copy consumed) when selected pre-match,

@@ -104,6 +104,31 @@ export function isRetrograde(body: Astronomy.Body, date: Date): boolean {
   return d < 0;
 }
 
+// ── Zodiac (docs/MERCHANT_PLAN.md §7's revert confirmation) ───────────────
+
+const ZODIAC_SIGNS = [
+  'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces',
+] as const;
+
+/** The tropical zodiac sign a geocentric ecliptic longitude (degrees) falls
+ *  in -- Aries starts at 0°, each sign spans 30°. */
+export function zodiacSignAtLongitude(elonDeg: number): string {
+  const norm = ((elonDeg % 360) + 360) % 360;
+  return ZODIAC_SIGNS[Math.floor(norm / 30)];
+}
+
+/** Which sign the Moon is in at `date` -- what a player asks when they ask
+ *  "the full moon in [sign]". Not read off the shared Sky snapshot: unlike
+ *  everything in `Sky.dir` (unit direction vectors, deliberately without a
+ *  notion of ecliptic longitude), this needs the Moon's actual ecliptic
+ *  longitude, so it's computed directly from the ephemeris here instead. */
+export function moonZodiacSign(date: Date): string {
+  const time = new Astronomy.AstroTime(date);
+  const elon = Astronomy.Ecliptic(Astronomy.GeoVector(Astronomy.Body.Moon, time, true)).elon;
+  return zodiacSignAtLongitude(elon);
+}
+
 // ── Orbs, colours, strength tunables (docs/ASPECTS_PLAN.md §2) ────────────
 
 // Orb: exact conjunction (0°) is max influence; beyond this many degrees a
