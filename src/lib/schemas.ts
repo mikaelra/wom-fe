@@ -52,6 +52,28 @@ export const BossfightRosterResponseSchema = z.object({
   })),
 });
 
+// docs/MERCHANT_PLAN.md -- the globe ??? encounter. `offer` is null when no
+// offer is configured active at all (distinct from `available: false`,
+// which means one exists but its trigger isn't up right now or this player
+// already traded this period).
+export const MerchantOfferResponseSchema = z.object({
+  offer: z.object({
+    offer_id: z.number(),
+    merchant_name: z.string(),
+    item_name: z.string(),
+    cost_hades_coins: z.number(),
+    trigger_kind: z.string(),
+    available: z.boolean(),
+    already_bought_this_period: z.boolean(),
+    period_start: z.string(),
+  }).nullable(),
+});
+
+export const MerchantPurchaseResponseSchema = z.object({
+  ok: z.boolean(),
+  item_name: z.string(),
+});
+
 export const GetPlayerRelicsResponseSchema = z.object({
   relics: z.array(RelicSchema),
 });

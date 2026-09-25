@@ -11,6 +11,10 @@ describe('skinUrl', () => {
   it('routes Cherub to its own asset instead of the frogs/ pattern (§3.4/§8.3)', () => {
     expect(skinUrl('cherub_v1')).toBe('/models/cherub-v01.glb');
   });
+
+  it('routes the Merchant NPC to its own asset (docs/MERCHANT_PLAN.md)', () => {
+    expect(skinUrl('merchant_v1')).toBe('/models/merchant_v1.glb');
+  });
 });
 
 describe('skinThumbnailUrl', () => {

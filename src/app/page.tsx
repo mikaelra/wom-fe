@@ -7,8 +7,12 @@ import { useRouter } from 'next/navigation';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import type { City } from '@/lib/cities';
+import { useMerchantOffer } from '@/lib/useMerchantOffer';
+import { merchantMarkerLatLng } from '@/lib/merchant';
+import { getStoredAccountToken } from '@/lib/http';
 
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
+const MerchantScene = dynamic(() => import('@/components/merchant/MerchantScene'), { ssr: false });
 
 /**
  * The world map — the game's home screen (docs/CITY_SCENE_PLAN.md §4.4).
@@ -34,6 +38,13 @@ export default function Page() {
   // mounted. Never cleared: the only way out is the navigation itself, and
   // clearing it would flash the globe back for a frame.
   const [enteringCity, setEnteringCity] = useState<City | null>(null);
+
+  // docs/MERCHANT_PLAN.md -- the globe ??? encounter.
+  const { offer: merchantOffer, refresh: refreshMerchantOffer } = useMerchantOffer();
+  const [merchantSceneOpen, setMerchantSceneOpen] = useState(false);
+  // Marker only draws when there's something to click: an offer configured,
+  // its trigger active, and this player hasn't already traded this period.
+  const showMerchantMarker = merchantOffer?.available ?? false;
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setSceneReady(true));
@@ -79,7 +90,13 @@ export default function Page() {
           // its z-20 against this container's auto is.
           style={{ isolation: 'isolate' }}
         >
-          <WorldMap onCityClick={handleCityClick} />
+          <WorldMap
+            onCityClick={handleCityClick}
+            merchantMarkerLatLng={
+              showMerchantMarker && merchantOffer ? merchantMarkerLatLng(merchantOffer.period_start) : null
+            }
+            onMerchantClick={() => setMerchantSceneOpen(true)}
+          />
         </Canvas>
       )}
 
@@ -87,6 +104,15 @@ export default function Page() {
         <CityLoadingScreen
           title={enteringCity.actionLabel ?? enteringCity.name}
           accent={enteringCity.color}
+        />
+      )}
+
+      {merchantSceneOpen && merchantOffer && (
+        <MerchantScene
+          offer={merchantOffer}
+          token={getStoredAccountToken()}
+          onClose={() => setMerchantSceneOpen(false)}
+          onPurchased={refreshMerchantOffer}
         />
       )}
     </div>

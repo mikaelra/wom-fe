@@ -21,6 +21,8 @@ import {
   GetBossfightLobbyResponseSchema,
   GetNextBossfightTimeResponseSchema,
   BossfightRosterResponseSchema,
+  MerchantOfferResponseSchema,
+  MerchantPurchaseResponseSchema,
   GetPlayerRelicsResponseSchema,
   GetPlayerMessagesResponseSchema,
   CheckNameResponseSchema,
@@ -140,6 +142,27 @@ export type BossfightRosterPlayer = BossfightRoster['players'][number];
 export async function getBossfightRoster(): Promise<BossfightRoster> {
   return request('/get_bossfight_roster', BossfightRosterResponseSchema, {
     defaultErrorMessage: 'Failed to fetch the bossfight roster',
+  });
+}
+
+// docs/MERCHANT_PLAN.md -- the globe ??? encounter.
+
+export type MerchantOffer = NonNullable<z.infer<typeof MerchantOfferResponseSchema>['offer']>;
+
+/** `token` may be null (a signed-out viewer) -- the route still answers,
+ * with `already_bought_this_period` always false in that case, so the
+ * marker itself can render without requiring a session. */
+export async function getMerchantOffer(token: string | null): Promise<{ offer: MerchantOffer | null }> {
+  return request('/merchant/offer', MerchantOfferResponseSchema, {
+    body: { token: token ?? '' },
+    defaultErrorMessage: "Failed to reach the Merchant.",
+  });
+}
+
+export async function purchaseMerchantOffer(token: string): Promise<{ ok: boolean; item_name: string }> {
+  return request('/merchant/purchase', MerchantPurchaseResponseSchema, {
+    body: { token },
+    defaultErrorMessage: "Failed to complete the trade.",
   });
 }
 
