@@ -17,7 +17,10 @@ const RELIC_MODEL_URLS: Record<string, string> = {
   'Stone of Vitality': '/models/relics/stone_of_vitality_v1.glb',
 };
 
-function relicModelUrl(relicName?: string): string {
+// Exported for callers that need the raw model url without the rest of
+// this component (e.g. MerchantScene.tsx, which stages the Stone of
+// Vitality model itself rather than in a standard relic-card box).
+export function relicModelUrl(relicName?: string): string {
   return (relicName && RELIC_MODEL_URLS[relicName]) || COIN_MODEL_URL;
 }
 

@@ -3,8 +3,14 @@
 import { useState } from 'react';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { skinUrl } from '@/lib/frogSkins';
+import { relicModelUrl } from '@/components/RelicCoin';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
+
+// The merchant's box at its original 160px, scaled 2.3x per Mikael's ask --
+// kept as a constant since the desk's overlap offset below is derived from
+// it (half of this height), not eyeballed separately.
+const MERCHANT_BOX_PX = 160 * 2.3;
 
 type Props = {
   offer: MerchantOffer;
@@ -18,8 +24,9 @@ type Props = {
 /**
  * The Merchant encounter's scene (docs/MERCHANT_PLAN.md). Deliberately
  * simple, per the doc: a CSS wooden-logs backdrop and a plain wooden crate
- * standing in for real prop art, with the actual merchant_v1.glb model
- * (public/models/merchant_v1.glb) floating above the crate via the same
+ * standing in for real prop art, with the real merchant_v1.glb and
+ * stone_of_vitality_v1.glb models staged over it -- Merchant behind the
+ * desk on the right, the Stone beside him on the left -- via the same
  * SpinningModelViewer used for relic/skin reveals elsewhere. Swap the
  * backdrop/crate for real geometry or a rendered background later without
  * touching the offer logic below.
@@ -68,14 +75,34 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
           <p className="text-amber-100/60 text-[11px] mt-0.5">One trade, every full moon</p>
         </div>
 
-        <div className="w-40 h-40 mx-auto mt-1">
-          <SpinningModelViewer key="merchant_v1" url={skinUrl('merchant_v1')} targetSize={1.6} spinSpeed={0} />
+        {/* Stage: the Stone of Vitality to the left, the Merchant to the
+            right and enlarged (2.3x his original box). This div is only
+            half the Merchant's height, so his canvas -- absolutely
+            positioned, top-anchored -- overflows past its bottom edge by
+            design; the desk immediately below (`relative z-10`, so it
+            paints over the overflow rather than under it) picks up right
+            at his vertical midpoint, reading as him standing behind it. */}
+        <div className="relative mt-2" style={{ height: MERCHANT_BOX_PX / 2 }}>
+          <div className="absolute left-2 bottom-0 w-20 h-20">
+            <SpinningModelViewer
+              key="stone_of_vitality_v1"
+              url={relicModelUrl('Stone of Vitality')}
+              targetSize={1.1}
+              spinSpeed={0.6}
+            />
+          </div>
+          <div
+            className="absolute right-2 top-0"
+            style={{ width: MERCHANT_BOX_PX, height: MERCHANT_BOX_PX, maxWidth: '70%' }}
+          >
+            <SpinningModelViewer key="merchant_v1" url={skinUrl('merchant_v1')} targetSize={1.6} spinSpeed={0} />
+          </div>
         </div>
 
         {/* The desk -- a plain wooden crate, same placeholder-art note as
             the wall above. */}
         <div
-          className="mx-6 -mt-2 rounded-md border border-amber-950/60 shadow-inner"
+          className="relative z-10 mx-6 rounded-md border border-amber-950/60 shadow-inner"
           style={{
             background: 'linear-gradient(180deg, #8a5a34 0%, #6b4224 60%, #52341c 100%)',
             height: 36,
