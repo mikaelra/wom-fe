@@ -89,7 +89,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
         <div className="px-5 pt-5 text-center">
           <p className="text-amber-200/80 text-xs font-bold tracking-widest uppercase">{offer.merchant_name}</p>
           <p className="text-amber-100/60 text-[11px] mt-0.5">
-            {offer.reverted ? 'Someone turned back time to bring him here' : 'One trade, every full moon'}
+            {offer.reverted ? 'Someone turned back time to bring him here' : 'Appears around full moon'}
           </p>
         </div>
 
