@@ -5,15 +5,30 @@ import * as THREE from 'three';
 import { FreshHtml } from '@/components/hud/FreshHtml';
 import { latLngToVec3 } from '@/lib/cities';
 
+/** One merchant's marker, as the globe page hands it to WorldMap. */
+export interface MerchantMarkerSpec {
+  /** `offer_id|event_key` -- stable per merchant, and what a click names. */
+  key: string;
+  lat: number;
+  lng: number;
+  /** Text and light colour: purple for the full moon's Merchant, the blend
+   *  of the two planets for a conjunction's (lib/merchant.ts). */
+  color: string;
+  label: string;
+}
+
 interface MerchantMarkerProps {
   lat: number;
   lng: number;
+  color: string;
+  label: string;
   globeRadius: number;
   onClick: () => void;
 }
 
 /**
- * The Merchant's marker on the globe (docs/MERCHANT_PLAN.md). Position/
+ * A merchant's marker on the globe (docs/MERCHANT_PLAN.md) -- one per
+ * merchant in town, each in its own colour. Position/
  * orientation mechanics mirror CityMarker.tsx, but there is no GLTF pin
  * model -- a glowing "Merchant" label alone is the whole marker, avoiding a
  * second pin asset for something that only appears occasionally.
@@ -34,7 +49,7 @@ interface MerchantMarkerProps {
  * onClick to raycast against, so the label is given `pointerEvents: 'auto'`
  * and handles the click/hover itself instead.
  */
-export default function MerchantMarker({ lat, lng, globeRadius, onClick }: MerchantMarkerProps) {
+export default function MerchantMarker({ lat, lng, color, label, globeRadius, onClick }: MerchantMarkerProps) {
   const [hovered, setHovered] = useState(false);
 
   const position = latLngToVec3(lat, lng, globeRadius);
@@ -44,8 +59,8 @@ export default function MerchantMarker({ lat, lng, globeRadius, onClick }: Merch
   return (
     <group position={position} quaternion={quaternion}>
       {/* The glow on the globe itself -- tripled radius/intensity from the
-          original so it reads from a distance, purple to match the label. */}
-      <pointLight color="#a855f7" intensity={hovered ? 6.6 : 4.2} distance={7.5} />
+          original so it reads from a distance, the label's colour. */}
+      <pointLight color={color} intensity={hovered ? 6.6 : 4.2} distance={7.5} />
 
       <FreshHtml position={[0, 1.0, 0]} center distanceFactor={6}>
         <div
@@ -58,21 +73,21 @@ export default function MerchantMarker({ lat, lng, globeRadius, onClick }: Merch
           style={{
             // Same size as a city's actionLabel pill text (CityMarker.tsx,
             // e.g. Athens' "GREECE") -- this label just isn't in a pill.
-            color: '#a855f7',
+            color,
             fontSize: hovered ? 22 : 18,
             fontWeight: 900,
             letterSpacing: '0.05em',
             WebkitTextStroke: '0.5px #000',
             textShadow: hovered
-              ? '0 0 10px rgba(168,85,247,0.9), 0 0 3px rgba(0,0,0,0.9)'
-              : '0 0 6px rgba(168,85,247,0.6), 0 0 3px rgba(0,0,0,0.9)',
+              ? `0 0 10px ${color}e6, 0 0 3px rgba(0,0,0,0.9)`
+              : `0 0 6px ${color}99, 0 0 3px rgba(0,0,0,0.9)`,
             transition: 'font-size 0.2s, text-shadow 0.2s',
             cursor: 'pointer',
             pointerEvents: 'auto',
             userSelect: 'none',
           }}
         >
-          Merchant
+          {label}
         </div>
       </FreshHtml>
     </group>

@@ -1,19 +1,21 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { revertMerchantTime, type MerchantOffer } from '@/lib/api';
+import { getMerchantSkyEvents, revertMerchantTime, type MerchantEvent } from '@/lib/api';
 import { getStoredAccountToken, ApiError } from '@/lib/http';
-import { moonZodiacSign } from '@/lib/astrology';
+import { describeMerchantEvent, merchantEventColor } from '@/lib/merchant';
 import { useCountdown } from '@/lib/useCountdown';
 import type { Relic } from '@/types/game';
 
 type Props = {
+  /** A merchant relic -- Stone of Vitality or Paper. */
   relic: Relic;
-  /** The globe's current /merchant/offer poll, so this modal can tell
-   *  whether someone else has already reverted time before the player
-   *  tries to (docs/MERCHANT_PLAN.md §7) -- null while it hasn't loaded
-   *  yet, in which case the action is simply not offered. */
-  offer: MerchantOffer | null;
+  /** Whether someone else has already turned back time (the merchant
+   *  poll's `reverted`, docs/MERCHANT_PLAN.md §7), and until when -- so
+   *  the action is blocked with a reason and a countdown before the
+   *  player tries it, rather than after a 409. */
+  blocked: boolean;
+  blockedUntil: string | null;
   onClose: () => void;
   /** Called once the sacrifice actually succeeds -- the caller reloads the
    *  inventory and shows its own success toast, same as every other
@@ -37,24 +39,39 @@ export function formatCountdown(totalSeconds: number): string {
 }
 
 /**
- * Clicking the Stone of Vitality's model in the Inventory opens this --
- * mirrors ArtifactLedgerModal being what clicking your artifact opens.
+ * Clicking a merchant relic's model (Stone of Vitality, Paper) in the
+ * Inventory opens this -- mirrors ArtifactLedgerModal being what clicking
+ * your artifact opens.
  *
- * Two purposes in one popup: explain exactly what sacrificing a Stone will
- * do (the precise instant it reverts everyone's sky to, and what sign the
- * Moon was in then) before the player has to confirm, and -- if someone
- * has already reverted time -- block the action outright with a visible
- * reason and a countdown to when it becomes possible again, rather than
- * letting the player hit a 409 with no warning.
+ * Two purposes in one popup: explain exactly what sacrificing this copy
+ * will do -- the precise instant it turns everyone's sky back to, and
+ * every event that was live then ("Full moon in Aries", "Conjunction
+ * between Mercury and Jupiter in Libra"), because each of those brings
+ * its merchant back -- before the player has to confirm; and, if someone
+ * has already reverted time, block the action outright with a visible
+ * reason and a countdown to when it becomes possible again.
  */
-export default function RevertTimeModal({ relic, offer, onClose, onReverted }: Props) {
+export default function RevertTimeModal({ relic, blocked, blockedUntil, onClose, onReverted }: Props) {
   const [phase, setPhase] = useState<Phase>('preview');
   const [error, setError] = useState('');
   const submittingRef = useRef(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
 
-  const blocked = offer?.reverted ?? false;
-  const secondsUntilAvailable = useCountdown(blocked ? offer?.revert_expires_at : null);
+  const secondsUntilAvailable = useCountdown(blocked ? blockedUntil : null);
+  const revertToDate = relic.newest_copy_created_at;
+  // The backend is the authority on which events count (which planets,
+  // how close), so the list is asked for rather than re-derived here.
+  // undefined while loading, null if the sky couldn't be read.
+  const [events, setEvents] = useState<MerchantEvent[] | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEvents(undefined);
+    getMerchantSkyEvents(revertToDate)
+      .then((e) => { if (!cancelled) setEvents(e); })
+      .catch(() => { if (!cancelled) setEvents(null); });
+    return () => { cancelled = true; };
+  }, [revertToDate]);
 
   useEffect(() => {
     if (phase === 'confirming') confirmRef.current?.focus();
@@ -81,7 +98,7 @@ export default function RevertTimeModal({ relic, offer, onClose, onReverted }: P
       submittingRef.current = false;
       return;
     }
-    revertMerchantTime(token)
+    revertMerchantTime(token, relic.name)
       .then(() => {
         onReverted();
         onClose();
@@ -95,8 +112,27 @@ export default function RevertTimeModal({ relic, offer, onClose, onReverted }: P
       });
   };
 
-  const revertToDate = relic.newest_copy_created_at;
-  const sign = moonZodiacSign(new Date(revertToDate));
+  // What this copy would turn the sky back to: its instant, and every
+  // merchant-summoning event live then.
+  const boughtAt = (
+    <div className="bg-black/30 border border-white/10 rounded-lg p-3 mb-4 text-left">
+      <p className="text-white/50 text-[11px] uppercase tracking-wide mb-1">This {relic.name} was bought</p>
+      <p className="text-sm font-semibold">{formatExact(revertToDate)}</p>
+      {events === undefined ? (
+        <p className="text-white/40 text-xs mt-1">Reading the sky…</p>
+      ) : events === null ? (
+        <p className="text-white/40 text-xs mt-1">Couldn&rsquo;t read the sky right now.</p>
+      ) : events.length === 0 ? (
+        <p className="text-white/40 text-xs mt-1">No merchant was in town then.</p>
+      ) : (
+        events.map((event) => (
+          <p key={`${event.kind}|${event.key}`} className="text-xs mt-1" style={{ color: merchantEventColor(event) }}>
+            {describeMerchantEvent(event)}
+          </p>
+        ))
+      )}
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -116,7 +152,7 @@ export default function RevertTimeModal({ relic, offer, onClose, onReverted }: P
               Someone has already turned back time.
             </p>
             <p className="text-white/60 text-sm mb-4">
-              You can&rsquo;t use a Stone of Vitality this way while another revert is running.
+              You can&rsquo;t use {relic.name === 'Paper' ? 'Paper' : `a ${relic.name}`} this way while another revert is running.
             </p>
             {secondsUntilAvailable !== null && secondsUntilAvailable > 0 && (
               <p className="text-purple-300 font-mono text-2xl font-bold mb-4">
@@ -124,13 +160,9 @@ export default function RevertTimeModal({ relic, offer, onClose, onReverted }: P
               </p>
             )}
             {/* Blocked from using it right now, but the player can still
-                see what THIS Stone would have reverted time to -- the
+                see what THIS copy would have reverted time to -- the
                 information doesn't depend on being able to act on it. */}
-            <div className="bg-black/30 border border-white/10 rounded-lg p-3 mb-4 text-left">
-              <p className="text-white/50 text-[11px] uppercase tracking-wide mb-1">This Stone was bought</p>
-              <p className="text-sm font-semibold">{formatExact(revertToDate)}</p>
-              <p className="text-purple-300 text-xs mt-1">Full Moon in {sign}</p>
-            </div>
+            {boughtAt}
             <button
               type="button"
               onClick={onClose}
@@ -155,8 +187,9 @@ export default function RevertTimeModal({ relic, offer, onClose, onReverted }: P
         ) : phase === 'confirming' ? (
           <>
             <p className="text-white/80 text-sm mt-3 mb-4">
-              This sacrifices 1 Stone of Vitality and cannot be undone. The Merchant will appear
-              for everyone for 1 hour, and the sky will turn back to {formatExact(revertToDate)}.
+              This sacrifices 1 {relic.name} and cannot be undone. The sky will turn back to{' '}
+              {formatExact(revertToDate)} for everyone for 1 hour, and every merchant who was in
+              town then will be back.
             </p>
             <div className="flex gap-3 justify-center">
               <button
@@ -179,13 +212,10 @@ export default function RevertTimeModal({ relic, offer, onClose, onReverted }: P
         ) : (
           <>
             <p className="text-white/60 text-xs mb-4">
-              Sacrifice this Stone of Vitality to bring the Merchant back for everyone for 1 hour.
+              Sacrifice this {relic.name} to bring back the merchants of the moment it was bought,
+              for everyone, for 1 hour.
             </p>
-            <div className="bg-black/30 border border-white/10 rounded-lg p-3 mb-4 text-left">
-              <p className="text-white/50 text-[11px] uppercase tracking-wide mb-1">This Stone was bought</p>
-              <p className="text-sm font-semibold">{formatExact(revertToDate)}</p>
-              <p className="text-purple-300 text-xs mt-1">Full Moon in {sign}</p>
-            </div>
+            {boughtAt}
             <p className="text-white/60 text-xs mb-4">
               Using it will turn the sky back to that exact moment for everyone, for 1 hour.
             </p>

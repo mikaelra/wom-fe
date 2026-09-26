@@ -52,35 +52,66 @@ export const BossfightRosterResponseSchema = z.object({
   })),
 });
 
-// docs/MERCHANT_PLAN.md -- the globe ??? encounter. `offer` is null when no
-// offer is configured active at all (distinct from `available: false`,
-// which means one exists but its trigger isn't up right now or this player
-// already traded this period).
+// docs/MERCHANT_PLAN.md -- the merchants on the globe.
+//
+// A merchant-summoning event in the sky (wom-be domain/merchant.py
+// SkyEvent): the full moon, or a conjunction between two planets.
+export const MerchantEventSchema = z.object({
+  kind: z.string(),
+  // "" for the full moon, "Venus-Jupiter" for a conjunction.
+  key: z.string(),
+  bodies: z.array(z.string()),
+  sign: z.string(),
+  at: z.string(),
+});
+
+// One merchant in town -- one per live sky event, so a conjunction on a
+// full moon is two of these.
+export const MerchantOfferSchema = z.object({
+  offer_id: z.number(),
+  merchant_name: z.string(),
+  item_name: z.string(),
+  cost_hades_coins: z.number(),
+  trigger_kind: z.string(),
+  // Whether the merchant is in town at all (drives the globe marker).
+  // Distinct from `available` (drives the buy button): a player who's
+  // already traded this period must still see the merchant, just unable
+  // to buy.
+  active: z.boolean(),
+  available: z.boolean(),
+  already_bought_this_period: z.boolean(),
+  period_start: z.string(),
+  // Which event this merchant came for; with period_start, what a
+  // purchase names and what seeds the marker's spot. Defaults cover a
+  // backend that predates stacking.
+  event_key: z.string().default(''),
+  event: MerchantEventSchema.nullable().default(null),
+  // docs/MERCHANT_PLAN.md §7 -- is the merchant here only because someone
+  // sacrificed a relic to turn back time, and when does that end.
+  reverted: z.boolean(),
+  revert_expires_at: z.string().nullable(),
+  // §7: while reverted, the sky itself also rewinds to this instant --
+  // the moment the sacrificed relic was originally bought.
+  revert_to_date: z.string().nullable(),
+});
+
 export const MerchantOfferResponseSchema = z.object({
-  offer: z.object({
-    offer_id: z.number(),
-    merchant_name: z.string(),
-    item_name: z.string(),
-    cost_hades_coins: z.number(),
-    trigger_kind: z.string(),
-    // Whether the trigger is up at all (drives the globe marker). Distinct
-    // from `available` (drives the buy button): a player who's already
-    // traded this period must still see the Merchant, just unable to buy.
-    active: z.boolean(),
-    available: z.boolean(),
-    already_bought_this_period: z.boolean(),
-    period_start: z.string(),
-    // docs/MERCHANT_PLAN.md §7 -- is the trigger active right now only
-    // because someone sacrificed a relic to revert time, and when does
-    // that end. Lets the frontend explain an off-schedule Merchant
-    // instead of it looking like a bug.
-    reverted: z.boolean(),
-    revert_expires_at: z.string().nullable(),
-    // §7: while reverted, the sky itself also rewinds to this instant --
-    // the moment the sacrificed Stone of Vitality was originally bought --
-    // not just the offer window.
-    revert_to_date: z.string().nullable(),
-  }).nullable(),
+  // The full-moon Merchant in the shape from before merchants stacked.
+  offer: MerchantOfferSchema.nullable(),
+  // Every merchant in town. Defaults (and the revert fields below) cover a
+  // backend that predates stacking, during a deploy.
+  offers: z.array(MerchantOfferSchema).default([]),
+  // The instant to draw the sky at when it isn't the viewer's own clock:
+  // a revert's instant, or the dev clock (wom-be engine/dev_clock.py).
+  sky_date: z.string().nullable().default(null),
+  reverted: z.boolean().optional(),
+  revert_expires_at: z.string().nullable().optional(),
+  revert_to_date: z.string().nullable().optional(),
+});
+
+export const MerchantSkyEventsResponseSchema = z.object({
+  at: z.string(),
+  events: z.array(MerchantEventSchema),
 });
 
 export const MerchantPurchaseResponseSchema = z.object({
@@ -92,6 +123,7 @@ export const MerchantRevertTimeResponseSchema = z.object({
   ok: z.boolean(),
   expires_at: z.string(),
   revert_to_date: z.string(),
+  events: z.array(MerchantEventSchema).default([]),
 });
 
 export const GetPlayerRelicsResponseSchema = z.object({

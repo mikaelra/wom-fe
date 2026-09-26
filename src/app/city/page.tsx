@@ -42,15 +42,16 @@ function CityPageContent() {
   // ?t= lets you look at a sky that is not the one currently overhead --
   // "02:00" is 2am Athens tonight (docs/CITY_SCENE_PLAN.md §6.6).
   const { date: resolvedSkyDate, overridden: tOverridden } = resolveCityTime(searchParams.get('t'));
-  // docs/MERCHANT_PLAN.md §7: while a revert is active, the city's sky
-  // rewinds to the same instant the globe's does (getSky()'s own revert
-  // override, wired in useMerchantOffer) -- an explicit ?t= still wins,
-  // since that's a deliberate debug request, not something a revert should
-  // silently clobber.
-  const { offer: merchantOffer } = useMerchantOffer();
-  const reverted = !tOverridden && !!merchantOffer?.reverted && !!merchantOffer.revert_to_date;
-  const skyDate = reverted ? new Date(merchantOffer!.revert_to_date!) : resolvedSkyDate;
-  const skyOverridden = tOverridden || reverted;
+  // docs/MERCHANT_PLAN.md §7: while the sky is somewhere other than now --
+  // a revert, or the dev clock -- the city's sky follows it to the same
+  // instant the globe's does (getSky()'s own override, wired in
+  // useMerchantOffer). An explicit ?t= still wins, since that's a
+  // deliberate debug request, not something a revert should silently
+  // clobber.
+  const { merchant } = useMerchantOffer();
+  const skyMoved = !tOverridden && !!merchant?.sky_date;
+  const skyDate = skyMoved ? new Date(merchant!.sky_date!) : resolvedSkyDate;
+  const skyOverridden = tOverridden || skyMoved;
 
   // The city had no music call of its own -- WorldMapOverlay and
   // LobbyOverlay were the only two screens that ever started a track -- so

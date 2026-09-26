@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { merchantState, paperOffer, revertedState, stoneOffer } from '@/lib/__tests__/merchantFixtures';
+import { blendPlanetColors, FULL_MOON_MERCHANT_COLOR } from '@/lib/merchant';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import type { CSSProperties, ReactNode } from 'react';
 import Page from '@/app/page';
@@ -31,7 +33,7 @@ vi.mock('@/lib/api', () => ({
   // docs/MERCHANT_PLAN.md's useMerchantOffer polls this on every mount of
   // this page -- no offer, so the ??? marker this suite isn't testing
   // stays off rather than the hook silently failing every poll.
-  getMerchantOffer: vi.fn().mockResolvedValue({ offer: null }),
+  getMerchantOffer: vi.fn().mockResolvedValue(merchantState()),
 }));
 
 // Same fake-subscribe pattern as WorldMapOverlay.test.tsx -- useRankedQueue
@@ -91,14 +93,29 @@ const RULES: City = { id: 3, name: 'Rules City', country: '', lat: 0, lng: 0, re
 
 let cityClickHandler: ((city: City) => void) | undefined;
 let lastSkyRevertKey: string | null | undefined;
+let lastMerchantMarkers: { key: string; color: string; label: string; lat: number; lng: number }[] = [];
+let merchantClickHandler: ((key: string) => void) | undefined;
 vi.mock('@/components/worldmap/WorldMap', () => ({
   default: ({
-    onCityClick, skyRevertKey,
-  }: { onCityClick: (city: City) => void; skyRevertKey?: string | null }) => {
+    onCityClick, skyRevertKey, merchantMarkers, onMerchantClick,
+  }: {
+    onCityClick: (city: City) => void;
+    skyRevertKey?: string | null;
+    merchantMarkers?: { key: string; color: string; label: string; lat: number; lng: number }[];
+    onMerchantClick?: (key: string) => void;
+  }) => {
     cityClickHandler = onCityClick;
     lastSkyRevertKey = skyRevertKey;
+    lastMerchantMarkers = merchantMarkers ?? [];
+    merchantClickHandler = onMerchantClick;
     return null;
   },
+}));
+
+vi.mock('@/components/merchant/MerchantScene', () => ({
+  default: ({ offer }: { offer: { merchant_name: string; item_name: string } }) => (
+    <div data-testid="merchant-scene">{offer.merchant_name}: {offer.item_name}</div>
+  ),
 }));
 
 vi.mock('@/components/worldmap/WorldMapOverlay', () => ({
@@ -137,7 +154,7 @@ beforeEach(() => {
   mockedGetActiveRankedLobby.mockReset();
   mockedJoinRankedQueue.mockReset();
   mockedLeaveRankedQueue.mockReset();
-  vi.mocked(getMerchantOffer).mockReset().mockResolvedValue({ offer: null });
+  vi.mocked(getMerchantOffer).mockReset().mockResolvedValue(merchantState());
   // Harmless "no active ranked match" default for every test that isn't
   // specifically exercising the New York ranked flow.
   mockedGetActiveRankedLobby.mockResolvedValue({
@@ -219,16 +236,49 @@ describe('Page (Merchant time-revert -> globe sky)', () => {
 
   it('passes revert_to_date as the key while a revert is active', async () => {
     const revertedTo = '2026-01-01T00:00:00Z';
-    vi.mocked(getMerchantOffer).mockResolvedValue({
-      offer: {
-        offer_id: 1, merchant_name: 'The Merchant', item_name: 'Stone of Vitality',
-        cost_hades_coins: 5, trigger_kind: 'full_moon', active: true, available: true,
-        already_bought_this_period: false, period_start: '2026-09-25T16:49:32Z',
-        reverted: true, revert_expires_at: '2026-09-25T17:49:32Z', revert_to_date: revertedTo,
-      },
-    });
+    vi.mocked(getMerchantOffer).mockResolvedValue(revertedState(revertedTo));
     render(<Page />);
     await waitFor(() => expect(lastSkyRevertKey).toBe(revertedTo));
+  });
+});
+
+// docs/MERCHANT_PLAN.md: every merchant in town gets its own marker -- a
+// conjunction on a full moon is two -- and the conjunction's is drawn in
+// the blend of its two planets' colours.
+describe('Page (merchant markers)', () => {
+  it('draws no marker with nobody in town', async () => {
+    render(<Page />);
+    await waitForWorldMap();
+    expect(lastMerchantMarkers).toEqual([]);
+  });
+
+  it('draws one marker per merchant when a conjunction falls on a full moon', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({ offers: [stoneOffer(), paperOffer()] }));
+    render(<Page />);
+
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(2));
+    const [moon, conj] = lastMerchantMarkers;
+    expect(moon).toMatchObject({ label: 'Merchant', color: FULL_MOON_MERCHANT_COLOR });
+    expect(conj).toMatchObject({ label: 'Scribe', color: blendPlanetColors('Mercury', 'Jupiter') });
+    expect([moon.lat, moon.lng]).not.toEqual([conj.lat, conj.lng]);
+  });
+
+  it('keeps a merchant you have already bought from on the globe', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({
+      offers: [paperOffer({ available: false, already_bought_this_period: true })],
+    }));
+    render(<Page />);
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(1));
+  });
+
+  it('opens the scene of the merchant whose marker was clicked', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({ offers: [stoneOffer(), paperOffer()] }));
+    render(<Page />);
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(2));
+
+    act(() => merchantClickHandler!(lastMerchantMarkers[1].key));
+
+    expect(await screen.findByTestId('merchant-scene')).toHaveTextContent('The Scribe: Paper');
   });
 });
 

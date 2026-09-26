@@ -3,7 +3,7 @@ import { getSocket, subscribe } from '@/lib/socket';
 import { setStoredToken, getStoredToken, setStoredAccountToken } from '@/lib/http';
 import type { z } from 'zod';
 import type { Relic } from '@/types/game';
-import type { SeasonHistoryEntry } from '@/lib/schemas';
+import type { SeasonHistoryEntry, MerchantOfferSchema, MerchantEventSchema } from '@/lib/schemas';
 import type { GameEvent } from '@/lib/gameEvents';
 import {
   MyAiStatusSchema,
@@ -24,6 +24,7 @@ import {
   MerchantOfferResponseSchema,
   MerchantPurchaseResponseSchema,
   MerchantRevertTimeResponseSchema,
+  MerchantSkyEventsResponseSchema,
   GetPlayerRelicsResponseSchema,
   GetPlayerMessagesResponseSchema,
   CheckNameResponseSchema,
@@ -146,37 +147,56 @@ export async function getBossfightRoster(): Promise<BossfightRoster> {
   });
 }
 
-// docs/MERCHANT_PLAN.md -- the globe ??? encounter.
+// docs/MERCHANT_PLAN.md -- the merchants on the globe.
 
-export type MerchantOffer = NonNullable<z.infer<typeof MerchantOfferResponseSchema>['offer']>;
+export type MerchantOffer = z.infer<typeof MerchantOfferSchema>;
+export type MerchantEvent = z.infer<typeof MerchantEventSchema>;
+export type MerchantState = z.infer<typeof MerchantOfferResponseSchema>;
 
 /** `token` may be null (a signed-out viewer) -- the route still answers,
  * with `already_bought_this_period` always false in that case, so the
- * marker itself can render without requiring a session. */
-export async function getMerchantOffer(token: string | null): Promise<{ offer: MerchantOffer | null }> {
+ * markers themselves can render without requiring a session. */
+export async function getMerchantOffer(token: string | null): Promise<MerchantState> {
   return request('/merchant/offer', MerchantOfferResponseSchema, {
     body: { token: token ?? '' },
     defaultErrorMessage: "Failed to reach the Merchant.",
   });
 }
 
-export async function purchaseMerchantOffer(token: string): Promise<{ ok: boolean; item_name: string }> {
+/** Buy from one merchant -- `offer` names which (its offer_id and the
+ *  event it came for), since a full moon and a conjunction can both have
+ *  one in town at once. */
+export async function purchaseMerchantOffer(
+  token: string,
+  offer: Pick<MerchantOffer, 'offer_id' | 'event_key'>,
+): Promise<{ ok: boolean; item_name: string }> {
   return request('/merchant/purchase', MerchantPurchaseResponseSchema, {
-    body: { token },
+    body: { token, offer_id: offer.offer_id, event_key: offer.event_key },
     defaultErrorMessage: "Failed to complete the trade.",
   });
 }
 
-/** docs/MERCHANT_PLAN.md §7 -- sacrifice one Stone of Vitality to force the
- * full-moon trigger active for everyone for an hour, opening a fresh
- * period every player (including the caller) can buy under. */
+/** docs/MERCHANT_PLAN.md §7 -- sacrifice one merchant relic (Stone of
+ * Vitality or Paper) to turn the sky back, for everyone for an hour, to
+ * the instant that copy was bought: every merchant whose event was live
+ * then comes back. */
 export async function revertMerchantTime(
-  token: string
-): Promise<{ ok: boolean; expires_at: string; revert_to_date: string }> {
+  token: string,
+  relic: string,
+): Promise<z.infer<typeof MerchantRevertTimeResponseSchema>> {
   return request('/merchant/revert_time', MerchantRevertTimeResponseSchema, {
-    body: { token },
+    body: { token, relic },
     defaultErrorMessage: 'Failed to revert time.',
   });
+}
+
+/** The merchant-summoning events live at an instant -- what a relic
+ *  bought then would bring back if sacrificed. */
+export async function getMerchantSkyEvents(at: string): Promise<MerchantEvent[]> {
+  const res = await request(`/merchant/sky_events?at=${encodeURIComponent(at)}`, MerchantSkyEventsResponseSchema, {
+    defaultErrorMessage: 'Failed to read the sky.',
+  });
+  return res.events;
 }
 
 // docs/RANK_SYSTEM_PLAN.md §6/§10 -- ranked matchmaking queue + rank badge.
