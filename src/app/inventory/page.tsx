@@ -30,6 +30,18 @@ type WheelGroup = { kind: string; id: number; count: number };
 
 const DEFAULT_SKIN = 'frog_green_v1';
 
+// docs/MERCHANT_PLAN.md §7 -- "time is currently reverted to 14:32 26.
+// sep", read off the viewer's own device clock/timezone. toLocaleTimeString
+// and getDate()/toLocaleDateString are local-timezone by construction (no
+// explicit `timeZone` option), so this already adjusts itself per viewer
+// without any extra work.
+function formatRevertedTo(iso: string): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const month = d.toLocaleDateString(undefined, { month: 'short' }).toLowerCase();
+  return `${time} ${d.getDate()}. ${month}`;
+}
+
 function groupWheels(wheels: WheelEntry[]): WheelGroup[] {
   const groups = new Map<string, WheelGroup>();
   for (const w of wheels) {
@@ -329,33 +341,44 @@ export default function InventoryPage() {
                           force the Merchant back for everyone for an hour.
                           A standalone action, not tied to starting a
                           match, so it lives on this card rather than in
-                          the pre-match relic picker. Blocked outright,
-                          with a visible reason and a countdown, while
-                          someone else's revert is still running -- rather
-                          than only finding that out after clicking
+                          the pre-match relic picker. The status line (red
+                          vs. green) is only shown once merchantOffer has
+                          actually loaded -- there's nothing honest to say
+                          about the world's clock before that. Blocked
+                          outright, with a visible reason and a countdown,
+                          while someone else's revert is still running --
+                          rather than only finding that out after clicking
                           through and hitting a 409. */}
                       {relic.name === 'Stone of Vitality' && (
-                        revertBlocked ? (
-                          <div className="mt-1 text-center">
-                            <p className="text-red-400 text-[10px] font-semibold uppercase tracking-wide">
-                              Already reverted
-                            </p>
-                            {secondsUntilRevertAvailable !== null && secondsUntilRevertAvailable > 0 && (
+                        <div className="mt-1 text-center">
+                          {merchantOffer && (
+                            revertBlocked && merchantOffer.revert_to_date ? (
+                              <p className="text-red-400 text-[10px] font-semibold">
+                                Time is currently reverted to {formatRevertedTo(merchantOffer.revert_to_date)}
+                              </p>
+                            ) : !revertBlocked ? (
+                              <p className="text-green-400 text-[10px] font-semibold uppercase tracking-wide">
+                                Normal time
+                              </p>
+                            ) : null
+                          )}
+                          {revertBlocked ? (
+                            secondsUntilRevertAvailable !== null && secondsUntilRevertAvailable > 0 && (
                               <p className="text-white/50 text-[10px] font-mono">
                                 {formatCountdown(secondsUntilRevertAvailable)}
                               </p>
-                            )}
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setRevertRelic(relic)}
-                            title="Sacrifice one Stone of Vitality to bring the Merchant back for everyone for an hour."
-                            className="mt-1 text-[10px] uppercase tracking-wide text-purple-300 border border-purple-400/40 rounded px-1.5 py-0.5 hover:bg-purple-400/10 transition-colors cursor-pointer"
-                          >
-                            Revert Time (1h)
-                          </button>
-                        )
+                            )
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setRevertRelic(relic)}
+                              title="Sacrifice one Stone of Vitality to bring the Merchant back for everyone for an hour."
+                              className="mt-1 text-[10px] uppercase tracking-wide text-purple-300 border border-purple-400/40 rounded px-1.5 py-0.5 hover:bg-purple-400/10 transition-colors cursor-pointer"
+                            >
+                              Revert Time (1h)
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))}

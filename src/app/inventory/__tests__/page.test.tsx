@@ -469,6 +469,32 @@ describe('InventoryPage', () => {
       expect(screen.getByRole('button', { name: 'Revert Time (1h)' })).toBeInTheDocument();
     });
 
+    it('shows green "Normal time" once the offer has loaded and nobody has reverted', async () => {
+      mockedGetMerchantOffer.mockResolvedValue({
+        offer: {
+          offer_id: 1, merchant_name: 'The Merchant', item_name: 'Stone of Vitality',
+          cost_hades_coins: 5, trigger_kind: 'full_moon', active: true, available: true,
+          already_bought_this_period: false, period_start: '2026-09-25T16:49:32Z',
+          reverted: false, revert_expires_at: null, revert_to_date: null,
+        },
+      });
+      render(<InventoryPage />);
+      await flush();
+
+      expect(screen.getByText('Normal time')).toBeInTheDocument();
+    });
+
+    it('shows nothing (no red or green status) while the offer has not loaded yet', async () => {
+      mockedGetMerchantOffer.mockReturnValue(new Promise(() => {})); // never resolves
+      render(<InventoryPage />);
+      await flush();
+
+      expect(screen.queryByText('Normal time')).not.toBeInTheDocument();
+      expect(screen.queryByText(/reverted to/)).not.toBeInTheDocument();
+      // The action itself is still offered while we don't yet know better.
+      expect(screen.getByRole('button', { name: 'Revert Time (1h)' })).toBeInTheDocument();
+    });
+
     it('opening the popup does not call the API by itself', async () => {
       render(<InventoryPage />);
       await flush();
@@ -535,11 +561,19 @@ describe('InventoryPage', () => {
       });
     });
 
-    it('shows red text and a countdown instead of the Revert Time button', async () => {
+    it('shows red text with the reverted-to instant (device-local) and a countdown, instead of the Revert Time button', async () => {
       render(<InventoryPage />);
       await flush();
 
-      expect(screen.getByText('Already reverted')).toBeInTheDocument();
+      // Same formatting the production code uses (device-local time/date,
+      // no explicit timeZone) -- this checks the right data flows through
+      // to the card, not a fixed string that would only hold in one TZ.
+      const revertedTo = new Date('2026-09-11T21:00:00+00:00');
+      const time = revertedTo.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      const month = revertedTo.toLocaleDateString(undefined, { month: 'short' }).toLowerCase();
+      expect(
+        screen.getByText(`Time is currently reverted to ${time} ${revertedTo.getDate()}. ${month}`),
+      ).toBeInTheDocument();
       expect(screen.getByText('42:00')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Revert Time (1h)' })).not.toBeInTheDocument();
     });
