@@ -19,6 +19,19 @@ export const RARE_SKINS = [
 
 export const ALL_FROG_SKINS = [...COMMON_SKINS, ...RARE_SKINS] as const;
 
+// Display order wherever a player's skins are listed: the colours first,
+// then the rares by rarity (silver, gold, rainbow, bling), then Cherub.
+// Anything not named here sorts after all of them, in its original order.
+const SKIN_DISPLAY_ORDER: readonly string[] = [...ALL_FROG_SKINS, 'cherub_v1'];
+
+export function sortSkins<T>(items: readonly T[], skinOf: (item: T) => string): T[] {
+  const rank = (item: T) => {
+    const i = SKIN_DISPLAY_ORDER.indexOf(skinOf(item));
+    return i === -1 ? SKIN_DISPLAY_ORDER.length : i;
+  };
+  return [...items].sort((a, b) => rank(a) - rank(b));
+}
+
 // The 6 non-green common skins a Normal Wheel spin can land on (uniform
 // odds) -- mirrors wom-be's routes/wheel.py NORMAL_WHEEL_SKINS exactly.
 export const NORMAL_WHEEL_SKINS = COMMON_SKINS.filter((s) => s !== 'frog_green_v1');
