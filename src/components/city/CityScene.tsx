@@ -383,9 +383,7 @@ export default function CityScene({
         // The body's own aspect colour, so the label and the glow sprite it
         // sits on are the same hue by construction.
         color: p.color,
-        // The city has a horizon to measure against, so its detail line
-        // opens with where the body actually stands (§7.5).
-        detail: labelDetail(sky, p.body, p.horizon),
+        detail: labelDetail(sky, p.body),
       })),
     [placements, sky],
   );
