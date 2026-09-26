@@ -15,11 +15,14 @@ const COIN_MODEL_URL = '/models/well/rewards/gold-ld.glb';
 // reason).
 const RELIC_MODEL_URLS: Record<string, string> = {
   'Stone of Vitality': '/models/relics/stone_of_vitality_v1.glb',
+  // pergament_v1 (add-pergament-item-model), textures resized 2048 -> 1024:
+  // it is drawn at relic-card size, and that took it from 6.6 MB to 0.7.
+  Paper: '/models/relics/paper_v1.glb',
 };
 
 // Exported for callers that need the raw model url without the rest of
-// this component (e.g. MerchantScene.tsx, which stages the Stone of
-// Vitality model itself rather than in a standard relic-card box).
+// this component (e.g. MerchantScene.tsx, which stages the relic a
+// merchant sells itself rather than in a standard relic-card box).
 export function relicModelUrl(relicName?: string): string {
   return (relicName && RELIC_MODEL_URLS[relicName]) || COIN_MODEL_URL;
 }

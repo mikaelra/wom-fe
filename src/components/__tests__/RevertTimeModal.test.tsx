@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import RevertTimeModal from '@/components/merchant/RevertTimeModal';
-import { revertMerchantTime, type MerchantOffer } from '@/lib/api';
+import { getMerchantSkyEvents, revertMerchantTime } from '@/lib/api';
 import { ApiError, setStoredAccountToken } from '@/lib/http';
-import { moonZodiacSign } from '@/lib/astrology';
+import { blendPlanetColors, FULL_MOON_MERCHANT_COLOR } from '@/lib/merchant';
+import { FULL_MOON_EVENT, MERCURY_JUPITER_EVENT } from '@/lib/__tests__/merchantFixtures';
 import type { Relic } from '@/types/game';
 
-vi.mock('@/lib/api', () => ({ revertMerchantTime: vi.fn() }));
+vi.mock('@/lib/api', () => ({ revertMerchantTime: vi.fn(), getMerchantSkyEvents: vi.fn() }));
 
 const mockedRevert = vi.mocked(revertMerchantTime);
+const mockedSkyEvents = vi.mocked(getMerchantSkyEvents);
 
 const STONE: Relic = {
   id: 9,
@@ -20,42 +22,81 @@ const STONE: Relic = {
   count: 1,
 };
 
-const OFFER: MerchantOffer = {
-  offer_id: 1,
-  merchant_name: 'The Merchant',
-  item_name: 'Stone of Vitality',
-  cost_hades_coins: 5,
-  trigger_kind: 'full_moon',
-  active: true,
-  available: true,
-  already_bought_this_period: false,
-  period_start: '2026-09-26T16:49:32Z',
-  reverted: false,
-  revert_expires_at: null,
-  revert_to_date: null,
+const PAPER: Relic = {
+  ...STONE,
+  id: 10,
+  name: 'Paper',
+  power_category: 'KNOWLEDGE',
+  newest_copy_created_at: '2028-10-03T12:00:00+00:00',
 };
 
 beforeEach(() => {
   mockedRevert.mockReset();
+  mockedSkyEvents.mockReset().mockResolvedValue([FULL_MOON_EVENT]);
   setStoredAccountToken('sess-1');
 });
 
 const openConfirm = () => act(() => screen.getByRole('button', { name: 'Turn Back Time' }).click());
 const confirm = () => act(() => screen.getByRole('button', { name: 'Yes, turn back time' }).click());
 
-describe('RevertTimeModal', () => {
-  it('shows the exact purchase instant and the Moon\'s zodiac sign, and calls no API yet', () => {
-    render(<RevertTimeModal relic={STONE} offer={OFFER} onClose={vi.fn()} onReverted={vi.fn()} />);
+const renderModal = (props: Partial<Parameters<typeof RevertTimeModal>[0]> = {}) =>
+  render(
+    <RevertTimeModal
+      relic={STONE}
+      blocked={false}
+      blockedUntil={null}
+      onClose={vi.fn()}
+      onReverted={vi.fn()}
+      {...props}
+    />,
+  );
 
-    expect(screen.getByText('This Stone was bought')).toBeInTheDocument();
-    const sign = moonZodiacSign(new Date(STONE.newest_copy_created_at));
-    expect(screen.getByText(`Full Moon in ${sign}`)).toBeInTheDocument();
+describe('RevertTimeModal', () => {
+  it('shows the exact purchase instant and what was in the sky then, and calls no revert yet', async () => {
+    renderModal();
+
+    expect(screen.getByText('This Stone of Vitality was bought')).toBeInTheDocument();
+    expect(await screen.findByText('Full moon in Aries')).toBeInTheDocument();
+    expect(mockedSkyEvents).toHaveBeenCalledWith(STONE.newest_copy_created_at);
     expect(mockedRevert).not.toHaveBeenCalled();
+  });
+
+  it('lists every event of a moment that was a full moon and a conjunction, each in its colour', async () => {
+    mockedSkyEvents.mockResolvedValue([FULL_MOON_EVENT, MERCURY_JUPITER_EVENT]);
+    renderModal({ relic: PAPER });
+
+    expect(screen.getByText('This Paper was bought')).toBeInTheDocument();
+    const moon = await screen.findByText('Full moon in Aries');
+    const conj = screen.getByText('Conjunction between Mercury and Jupiter in Libra');
+    expect(moon).toHaveStyle({ color: FULL_MOON_MERCHANT_COLOR });
+    expect(conj).toHaveStyle({ color: blendPlanetColors('Mercury', 'Jupiter') });
+  });
+
+  it('says so while it is still reading the sky', () => {
+    mockedSkyEvents.mockReturnValue(new Promise(() => {}));
+    renderModal();
+
+    expect(screen.getByText('Reading the sky…')).toBeInTheDocument();
+  });
+
+  it('says so when no merchant was in town then', async () => {
+    mockedSkyEvents.mockResolvedValue([]);
+    renderModal();
+
+    expect(await screen.findByText('No merchant was in town then.')).toBeInTheDocument();
+  });
+
+  it('says so when the sky could not be read, and still lets the player act', async () => {
+    mockedSkyEvents.mockRejectedValue(new Error('offline'));
+    renderModal();
+
+    expect(await screen.findByText('Couldn’t read the sky right now.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Turn Back Time' })).toBeInTheDocument();
   });
 
   it('Cancel calls onClose without calling the API', () => {
     const onClose = vi.fn();
-    render(<RevertTimeModal relic={STONE} offer={OFFER} onClose={onClose} onReverted={vi.fn()} />);
+    renderModal({ onClose });
 
     act(() => screen.getByRole('button', { name: 'Cancel' }).click());
 
@@ -64,16 +105,17 @@ describe('RevertTimeModal', () => {
   });
 
   it('requires a second confirm before calling the API', () => {
-    render(<RevertTimeModal relic={STONE} offer={OFFER} onClose={vi.fn()} onReverted={vi.fn()} />);
+    renderModal();
 
     openConfirm();
 
     expect(screen.getByRole('button', { name: 'Yes, turn back time' })).toBeInTheDocument();
+    expect(screen.getByText(/This sacrifices 1 Stone of Vitality/)).toBeInTheDocument();
     expect(mockedRevert).not.toHaveBeenCalled();
   });
 
   it('Back from the confirm step returns to the preview without calling the API', () => {
-    render(<RevertTimeModal relic={STONE} offer={OFFER} onClose={vi.fn()} onReverted={vi.fn()} />);
+    renderModal();
 
     openConfirm();
     act(() => screen.getByRole('button', { name: 'Back' }).click());
@@ -82,26 +124,51 @@ describe('RevertTimeModal', () => {
     expect(mockedRevert).not.toHaveBeenCalled();
   });
 
-  it('confirming twice calls the API with the session token, then reports success and closes', async () => {
+  it('confirming twice sacrifices this relic with the session token, then reports success and closes', async () => {
     mockedRevert.mockResolvedValue({
-      ok: true, expires_at: '2026-09-25T21:00:00+00:00', revert_to_date: '2026-09-11T21:00:00+00:00',
+      ok: true, expires_at: '2026-09-25T21:00:00+00:00', revert_to_date: '2026-09-11T21:00:00+00:00', events: [],
     });
     const onClose = vi.fn();
     const onReverted = vi.fn();
-    render(<RevertTimeModal relic={STONE} offer={OFFER} onClose={onClose} onReverted={onReverted} />);
+    renderModal({ onClose, onReverted });
 
     openConfirm();
     confirm();
 
     await waitFor(() => expect(onReverted).toHaveBeenCalled());
-    expect(mockedRevert).toHaveBeenCalledWith('sess-1');
+    expect(mockedRevert).toHaveBeenCalledWith('sess-1', 'Stone of Vitality');
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('shows the server error and does not report success when the sacrifice is rejected', async () => {
-    mockedRevert.mockRejectedValue(new ApiError(409, "Someone has already turned back time.", 'already_reverted'));
+  it('sacrifices a Paper when a Paper is open', async () => {
+    mockedRevert.mockResolvedValue({
+      ok: true, expires_at: '2026-09-25T21:00:00+00:00', revert_to_date: PAPER.newest_copy_created_at, events: [],
+    });
     const onReverted = vi.fn();
-    render(<RevertTimeModal relic={STONE} offer={OFFER} onClose={vi.fn()} onReverted={onReverted} />);
+    renderModal({ relic: PAPER, onReverted });
+
+    openConfirm();
+    confirm();
+
+    await waitFor(() => expect(onReverted).toHaveBeenCalled());
+    expect(mockedRevert).toHaveBeenCalledWith('sess-1', 'Paper');
+  });
+
+  it('asks to log in rather than calling the API without a session', async () => {
+    setStoredAccountToken(null);
+    renderModal();
+
+    openConfirm();
+    confirm();
+
+    expect(await screen.findByText('Log in to do this.')).toBeInTheDocument();
+    expect(mockedRevert).not.toHaveBeenCalled();
+  });
+
+  it('shows the server error and does not report success when the sacrifice is rejected', async () => {
+    mockedRevert.mockRejectedValue(new ApiError(409, 'Someone has already turned back time.', 'already_reverted'));
+    const onReverted = vi.fn();
+    renderModal({ onReverted });
 
     openConfirm();
     confirm();
@@ -111,19 +178,13 @@ describe('RevertTimeModal', () => {
   });
 
   describe('blocked by someone else\'s active revert', () => {
-    // Built fresh per test, right before render -- not shared at describe
-    // scope -- so the countdown's floor(diff/1000) can't drift across a
-    // whole second between this being computed and the component's own
-    // Date.now() read.
-    const revertedOffer = (): MerchantOffer => ({
-      ...OFFER,
-      reverted: true,
-      revert_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
-      revert_to_date: '2026-09-11T21:00:00+00:00',
-    });
+    // Built fresh per test, right before render, so the countdown's
+    // floor(diff/1000) can't drift across a whole second between this
+    // being computed and the component's own Date.now() read.
+    const until = () => new Date(Date.now() + 5 * 60_000).toISOString();
 
     it('shows the block reason and a countdown, with no way to confirm', () => {
-      render(<RevertTimeModal relic={STONE} offer={revertedOffer()} onClose={vi.fn()} onReverted={vi.fn()} />);
+      renderModal({ blocked: true, blockedUntil: until() });
 
       expect(screen.getByText('Someone has already turned back time.')).toBeInTheDocument();
       // Real time, not fake timers here -- a few ms of real test execution
@@ -134,17 +195,22 @@ describe('RevertTimeModal', () => {
       expect(mockedRevert).not.toHaveBeenCalled();
     });
 
-    it('still shows this Stone\'s own purchase instant and zodiac sign even though the action is blocked', () => {
-      render(<RevertTimeModal relic={STONE} offer={revertedOffer()} onClose={vi.fn()} onReverted={vi.fn()} />);
+    it('names the relic in the block reason', () => {
+      renderModal({ relic: PAPER, blocked: true, blockedUntil: until() });
 
-      expect(screen.getByText('This Stone was bought')).toBeInTheDocument();
-      const sign = moonZodiacSign(new Date(STONE.newest_copy_created_at));
-      expect(screen.getByText(`Full Moon in ${sign}`)).toBeInTheDocument();
+      expect(screen.getByText(/can’t use Paper this way/)).toBeInTheDocument();
+    });
+
+    it('still shows this copy\'s own purchase instant and events even though the action is blocked', async () => {
+      renderModal({ blocked: true, blockedUntil: until() });
+
+      expect(screen.getByText('This Stone of Vitality was bought')).toBeInTheDocument();
+      expect(await screen.findByText('Full moon in Aries')).toBeInTheDocument();
     });
 
     it('Close calls onClose', () => {
       const onClose = vi.fn();
-      render(<RevertTimeModal relic={STONE} offer={revertedOffer()} onClose={onClose} onReverted={vi.fn()} />);
+      renderModal({ blocked: true, blockedUntil: until(), onClose });
 
       act(() => screen.getByRole('button', { name: 'Close' }).click());
 
@@ -152,15 +218,9 @@ describe('RevertTimeModal', () => {
     });
   });
 
-  it('treats a not-yet-loaded offer (null) as not blocked', () => {
-    render(<RevertTimeModal relic={STONE} offer={null} onClose={vi.fn()} onReverted={vi.fn()} />);
-
-    expect(screen.getByRole('button', { name: 'Turn Back Time' })).toBeInTheDocument();
-  });
-
   it('Escape closes from the preview step', () => {
     const onClose = vi.fn();
-    render(<RevertTimeModal relic={STONE} offer={OFFER} onClose={onClose} onReverted={vi.fn()} />);
+    renderModal({ onClose });
 
     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
 
@@ -169,7 +229,7 @@ describe('RevertTimeModal', () => {
 
   it('Escape backs out of the confirm step instead of closing', () => {
     const onClose = vi.fn();
-    render(<RevertTimeModal relic={STONE} offer={OFFER} onClose={onClose} onReverted={vi.fn()} />);
+    renderModal({ onClose });
 
     openConfirm();
     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));

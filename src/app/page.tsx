@@ -2,13 +2,13 @@
 
 import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import type { City } from '@/lib/cities';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
-import { merchantMarkerLatLng } from '@/lib/merchant';
+import { merchantMarkerColors, merchantMarkerLabel, placeMerchantMarkers } from '@/lib/merchant';
 import { getStoredAccountToken } from '@/lib/http';
 
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
@@ -39,16 +39,31 @@ export default function Page() {
   // clearing it would flash the globe back for a frame.
   const [enteringCity, setEnteringCity] = useState<City | null>(null);
 
-  // docs/MERCHANT_PLAN.md -- the Merchant encounter.
-  const { offer: merchantOffer, refresh: refreshMerchantOffer } = useMerchantOffer();
-  const [merchantSceneOpen, setMerchantSceneOpen] = useState(false);
-  // Marker draws whenever the trigger is up, regardless of whether this
-  // player has already bought this period -- the Merchant stays visible
-  // and clickable either way; only the offer itself (inside MerchantScene)
-  // goes unavailable. Using `available` here instead would make the
-  // marker vanish for anyone who's already traded this moon, which is the
-  // actual bug this was fixed from (traced live 2026-09-25).
-  const showMerchantMarker = merchantOffer?.active ?? false;
+  // docs/MERCHANT_PLAN.md -- the merchants. One marker per merchant in
+  // town: a full moon and a conjunction at once are two.
+  const { offers: merchantOffers, merchant, refresh: refreshMerchantOffer } = useMerchantOffer();
+  // Which merchant's scene is open, by `offer_id|event_key` -- a key rather
+  // than the offer object, so the scene follows the latest poll (a
+  // purchase flips already_bought_this_period) instead of a stale copy.
+  const [openMerchantKey, setOpenMerchantKey] = useState<string | null>(null);
+  // Markers draw for every merchant in town (`active`), regardless of
+  // whether this player has already bought from it -- the merchant stays
+  // visible and clickable either way; only the offer itself (inside
+  // MerchantScene) goes unavailable. Filtering on `available` instead
+  // would make a marker vanish for anyone who's already traded, which is
+  // the actual bug this was fixed from (traced live 2026-09-25).
+  const merchantKey = (o: { offer_id: number; event_key: string }) => `${o.offer_id}|${o.event_key}`;
+  const merchantMarkers = useMemo(() => {
+    // Placed together, so no marker lands on a city or on another merchant.
+    const spots = placeMerchantMarkers(merchantOffers);
+    return merchantOffers.map((o, i) => ({
+      key: merchantKey(o),
+      ...spots[i],
+      ...(({ fill, outline }) => ({ color: fill, outline }))(merchantMarkerColors(o.event)),
+      label: merchantMarkerLabel(o.merchant_name),
+    }));
+  }, [merchantOffers]);
+  const openMerchant = merchantOffers.find((o) => merchantKey(o) === openMerchantKey) ?? null;
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setSceneReady(true));
@@ -96,11 +111,9 @@ export default function Page() {
         >
           <WorldMap
             onCityClick={handleCityClick}
-            merchantMarkerLatLng={
-              showMerchantMarker && merchantOffer ? merchantMarkerLatLng(merchantOffer.period_start) : null
-            }
-            onMerchantClick={() => setMerchantSceneOpen(true)}
-            skyRevertKey={merchantOffer?.reverted ? merchantOffer.revert_to_date : null}
+            merchantMarkers={merchantMarkers}
+            onMerchantClick={setOpenMerchantKey}
+            skyRevertKey={merchant?.sky_date ?? null}
           />
         </Canvas>
       )}
@@ -112,11 +125,11 @@ export default function Page() {
         />
       )}
 
-      {merchantSceneOpen && merchantOffer && (
+      {openMerchant && (
         <MerchantScene
-          offer={merchantOffer}
+          offer={openMerchant}
           token={getStoredAccountToken()}
-          onClose={() => setMerchantSceneOpen(false)}
+          onClose={() => setOpenMerchantKey(null)}
           onPurchased={refreshMerchantOffer}
         />
       )}

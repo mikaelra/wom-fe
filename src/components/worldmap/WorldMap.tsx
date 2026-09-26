@@ -6,7 +6,7 @@ import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
-import MerchantMarker from './MerchantMarker';
+import MerchantMarker, { type MerchantMarkerSpec } from './MerchantMarker';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import {
@@ -1021,11 +1021,11 @@ interface GlobeProps {
   onReady?: () => void;
   /** docs/MERCHANT_PLAN.md -- where to draw the ??? this trigger period, or
    * null to draw nothing (no active/available offer right now). */
-  merchantMarkerLatLng?: { lat: number; lng: number } | null;
-  onMerchantClick?: () => void;
+  merchantMarkers?: readonly MerchantMarkerSpec[];
+  onMerchantClick?: (key: string) => void;
 }
 
-function Globe({ onCityClick, onReady, merchantMarkerLatLng, onMerchantClick }: GlobeProps) {
+function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
   // Epicenter for the crackle effect — Athens on the globe surface
@@ -1120,14 +1120,18 @@ function Globe({ onCityClick, onReady, merchantMarkerLatLng, onMerchantClick }: 
         />
       ))}
 
-      {merchantMarkerLatLng && onMerchantClick && (
+      {onMerchantClick && merchantMarkers.map((m) => (
         <MerchantMarker
-          lat={merchantMarkerLatLng.lat}
-          lng={merchantMarkerLatLng.lng}
+          key={m.key}
+          lat={m.lat}
+          lng={m.lng}
+          color={m.color}
+          outline={m.outline}
+          label={m.label}
           globeRadius={GLOBE_RADIUS}
-          onClick={onMerchantClick}
+          onClick={() => onMerchantClick(m.key)}
         />
-      )}
+      ))}
 
       {/* Crackle electricity radiating from the sword's impact point */}
       <GlobeCrackleEffect epicenter={athensEpicenter} radius={GLOBE_RADIUS} />
@@ -1200,10 +1204,12 @@ function CameraRig({
 
 interface WorldMapProps {
   onCityClick: (city: City) => void;
-  merchantMarkerLatLng?: { lat: number; lng: number } | null;
-  onMerchantClick?: () => void;
-  // docs/MERCHANT_PLAN.md §7: the current revert's revert_to_date (or null
-  // when nothing is reverted) -- PlanetSprites is memoized on `phase` alone
+  /** One per merchant in town (docs/MERCHANT_PLAN.md) -- a full moon and a
+   *  conjunction at once are two. */
+  merchantMarkers?: readonly MerchantMarkerSpec[];
+  onMerchantClick?: (key: string) => void;
+  // docs/MERCHANT_PLAN.md §7: the instant the sky is drawn at when it
+  // isn't now -- a revert's, or the dev clock's -- or null. PlanetSprites is memoized on `phase` alone
   // so it stops re-rendering once the reveal animation finishes, and passing
   // this through as a second prop is what makes it pick a revert back up
   // (and drop it again once the revert ends) without giving up that
@@ -1212,7 +1218,7 @@ interface WorldMapProps {
 }
 
 export default function WorldMap({
-  onCityClick, merchantMarkerLatLng, onMerchantClick, skyRevertKey = null,
+  onCityClick, merchantMarkers, onMerchantClick, skyRevertKey = null,
 }: WorldMapProps) {
   const [phase, setPhase] = useState(0);
   // Flips to true once Globe signals its textures have finished loading.
@@ -1261,7 +1267,7 @@ export default function WorldMap({
           <Globe
             onCityClick={onCityClick}
             onReady={() => setGlobeReady(true)}
-            merchantMarkerLatLng={merchantMarkerLatLng}
+            merchantMarkers={merchantMarkers}
             onMerchantClick={onMerchantClick}
           />
         </Suspense>

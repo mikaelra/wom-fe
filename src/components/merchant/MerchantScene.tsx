@@ -7,6 +7,7 @@ import { relicModelUrl } from '@/components/RelicCoin';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
+import { merchantArrivalLine } from '@/lib/merchant';
 
 // The merchant's box at its original 160px, scaled 2.3x then another 1.5x
 // per Mikael's asks -- kept as a constant since the clip wrapper's height
@@ -27,6 +28,12 @@ const TABLE_LEG_HEIGHT = (STAGE_H / 2 - TABLE_THICKNESS / 2) * 0.1;
 const TABLE_TOP_Y = STAGE_H - TABLE_LEG_HEIGHT - TABLE_THICKNESS;
 const STONE_BOTTOM = STAGE_H - TABLE_TOP_Y;
 
+// The relic on the table: its box's size and the x it is centred on. Paper
+// is staged 4x the Stone's size, per Mikael's ask.
+const RELIC_BOX_PX = 40;
+const RELIC_CENTER_X = 96 + RELIC_BOX_PX / 2;
+const RELIC_SCALE: Record<string, number> = { Paper: 4 };
+
 type Props = {
   offer: MerchantOffer;
   token: string | null;
@@ -37,7 +44,8 @@ type Props = {
 };
 
 /**
- * The Merchant encounter's scene (docs/MERCHANT_PLAN.md). Deliberately
+ * A merchant's scene (docs/MERCHANT_PLAN.md) -- the Merchant, with the
+ * relic he sells: Stone of Vitality at a full moon, Paper at a conjunction. Deliberately
  * simple, per the doc: a CSS wooden-logs backdrop and a plain wooden crate
  * standing in for real prop art, with the real merchant_v1.glb and
  * stone_of_vitality_v1.glb models staged over it -- Merchant behind the
@@ -51,16 +59,18 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
   const [error, setError] = useState<string | null>(null);
   const [bought, setBought] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
+  const relicBox = RELIC_BOX_PX * (RELIC_SCALE[offer.item_name] ?? 1);
+  const periodNoun = offer.trigger_kind === 'conjunction' ? 'conjunction' : 'moon';
 
   const handleBuy = async () => {
     if (!token) {
-      setError('Log in to trade with the Merchant.');
+      setError(`Log in to trade with ${offer.merchant_name}.`);
       return;
     }
     setBuying(true);
     setError(null);
     try {
-      await purchaseMerchantOffer(token);
+      await purchaseMerchantOffer(token, offer);
       setBought(true);
       onPurchased();
     } catch (e) {
@@ -89,7 +99,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
         <div className="px-5 pt-5 text-center">
           <p className="text-amber-200/80 text-xs font-bold tracking-widest uppercase">{offer.merchant_name}</p>
           <p className="text-amber-100/60 text-[11px] mt-0.5">
-            {offer.reverted ? 'Someone turned back time to bring him here' : 'Appears around full moon'}
+            {offer.reverted ? 'Someone turned back time to bring him here' : merchantArrivalLine(offer.trigger_kind)}
           </p>
         </div>
 
@@ -139,11 +149,18 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
 
           <div
             className={`absolute ${reducedMotion ? '' : 'merchant-stone-hover'}`}
-            style={{ left: 96, bottom: STONE_BOTTOM, width: 40, height: 40 }}
+            style={{
+              // Centred where the Stone's 40px box always stood, and still
+              // resting on the tabletop, whatever its size.
+              left: RELIC_CENTER_X - relicBox / 2,
+              bottom: STONE_BOTTOM,
+              width: relicBox,
+              height: relicBox,
+            }}
           >
             <SpinningModelViewer
-              key="stone_of_vitality_v1"
-              url={relicModelUrl('Stone of Vitality')}
+              key={offer.item_name}
+              url={relicModelUrl(offer.item_name)}
               targetSize={1.1}
               spinSpeed={0}
             />
@@ -183,7 +200,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
                 {offer.cost_hades_coins} Hades&rsquo; Coin{offer.cost_hades_coins === 1 ? '' : 's'}
               </p>
               {offer.already_bought_this_period && (
-                <p className="text-white/50 text-xs mb-3">You&rsquo;ve already traded this moon.</p>
+                <p className="text-white/50 text-xs mb-3">You&rsquo;ve already traded this {periodNoun}.</p>
               )}
               {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
               <div className="flex gap-3 justify-center">
