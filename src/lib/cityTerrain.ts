@@ -1,6 +1,7 @@
 import {
   SEA_LEVEL, LAND_LEVEL, SIGNPOST_POSITION, CAMPFIRE_POSITION,
   TEMPLE_POSITION, SENATE_POSITION, RANKED_FORK_SIGNPOST_POSITION,
+  BAY_POSITION, BAY_DIRECTION,
 } from '@/lib/cityLayout';
 import { TEMPLE_TABLEAU_LIFT } from '@/lib/templeTableau';
 
@@ -58,6 +59,8 @@ const PADS: { x: number; z: number; radius: number }[] = [
   // The ranked fork and the spot the guided camera stands to read it -- so
   // the post does not float and the viewpoint is not pitched on a hillock.
   { x: RANKED_FORK_SIGNPOST_POSITION[0], z: RANKED_FORK_SIGNPOST_POSITION[2], radius: 13 },
+  // The Bay's quay, which stands on the land side of the inlet's head.
+  { x: BAY_POSITION[0], z: BAY_POSITION[2], radius: 9 },
 ];
 
 function smoothstep(edge0: number, edge1: number, x: number): number {
@@ -114,11 +117,64 @@ export function padFlatness(x: number, z: number, clearRadius = 0): number {
  * hill near the coast is cut down by it rather than surviving as a spike
  * standing out of the water.
  */
-export function terrainHeight(x: number, z: number, clearRadius = 0): number {
+export function terrainHeight(x: number, z: number, clearRadius = 0, withBay = false): number {
   const r = Math.hypot(x, z);
   const offshore = smoothstep(SHORE_RADIUS, LAND_RADIUS, r);
   const hills = RELIEF_HEIGHT * relief(x, z) * padFlatness(x, z, clearRadius);
-  return (LAND_LEVEL + hills) * (1 - offshore) - RIM_DEPTH * offshore;
+  const island = (LAND_LEVEL + hills) * (1 - offshore) - RIM_DEPTH * offshore;
+  if (!withBay) return island;
+  const water = bayWater(x, z);
+  // min, so the inlet only ever digs: out past the shore the rim is already
+  // deeper than the bay's bed and must stay that way.
+  return Math.min(island, island * (1 - water) + BAY_BED * water);
+}
+
+// ── The Bay ───────────────────────────────────────────────────────────────
+
+/**
+ * The inlet in the city's south-west corner (lib/cityLayout.ts BAY_POSITION),
+ * where components/city/Bay.tsx puts its quay and pier.
+ *
+ * A channel of open water running from BAY_POSITION out along BAY_DIRECTION
+ * to the sea, widening as it goes, so the boat has somewhere to be going.
+ * Its head is square rather than rounded: the quay is a straight wall and
+ * the bank has to meet it along a line.
+ *
+ * Opt-in (`withBay`) rather than always on, because the boss lobby reuses
+ * this island with the temple stood at the origin (padFlatness's
+ * clearRadius), and the inlet's head would cut straight through the
+ * temple's footprint there.
+ */
+/** Half the channel's width at its head -- the quay is a little wider. */
+export const BAY_HALF_WIDTH = 5;
+/** How much wider each side gets per unit out to sea. */
+export const BAY_FLARE = 0.35;
+/** Width of the sloping bank from dry land down to the channel's bed. It
+ *  lies landward of the head, under the quay, which is what the quay's depth
+ *  (Bay.tsx QUAY_DEPTH) is sized to hide. */
+export const BAY_BANK = 3;
+/** The channel's floor: deep enough to read as water, not a wet beach. */
+export const BAY_BED = SEA_LEVEL - 3;
+
+/**
+ * How far a point is from the channel, 0 anywhere inside it.
+ *
+ * The signed-distance shape of a half-strip: `t` is how far along the
+ * channel from its head, `s` how far off its centre line.
+ */
+export function bayDistance(x: number, z: number): number {
+  const dx = x - BAY_POSITION[0];
+  const dz = z - BAY_POSITION[2];
+  const t = dx * BAY_DIRECTION[0] + dz * BAY_DIRECTION[1];
+  const s = Math.abs(dx * BAY_DIRECTION[1] - dz * BAY_DIRECTION[0]);
+  if (t >= 0) return Math.max(0, s - (BAY_HALF_WIDTH + BAY_FLARE * t));
+  // Behind the head: straight back from the square end, or from its corner.
+  return s <= BAY_HALF_WIDTH ? -t : Math.hypot(t, s - BAY_HALF_WIDTH);
+}
+
+/** 1 in the channel, 0 on dry land, easing across the bank between. */
+export function bayWater(x: number, z: number): number {
+  return 1 - smoothstep(0, BAY_BANK, bayDistance(x, z));
 }
 
 // ── The islands on the horizon ────────────────────────────────────────────

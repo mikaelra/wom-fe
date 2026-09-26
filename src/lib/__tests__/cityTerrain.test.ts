@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   terrainHeight, relief, padFlatness, islandPlacements, templeFloorOffsetFor,
   LAND_LEVEL, SHORE_RADIUS, LAND_RADIUS, RELIEF_HEIGHT,
+  bayDistance, bayWater, BAY_BED, BAY_BANK, BAY_HALF_WIDTH,
 } from '@/lib/cityTerrain';
 import { PLAYER_Y } from '@/lib/sceneConstants';
 import { TEMPLE_TABLEAU_LIFT } from '@/lib/templeTableau';
 import {
   SEA_LEVEL, SIGNPOST_POSITION, CAMPFIRE_POSITION, TEMPLE_POSITION, SENATE_POSITION,
+  BAY_POSITION, BAY_DIRECTION, MARKET_POSITION,
 } from '@/lib/cityLayout';
 
 const STANDING_ON = [
@@ -83,6 +85,56 @@ describe('the shape of the island', () => {
   it('is the same island every visit', () => {
     expect(terrainHeight(31, -47)).toBe(terrainHeight(31, -47));
     expect(relief(12, 34)).toBeCloseTo(relief(12, 34), 12);
+  });
+});
+
+describe('the Bay\'s inlet', () => {
+  /** A point `t` out along the channel from its head and `s` across it. */
+  const at = (t: number, s = 0): [number, number] => [
+    BAY_POSITION[0] + BAY_DIRECTION[0] * t + BAY_DIRECTION[1] * s,
+    BAY_POSITION[2] + BAY_DIRECTION[1] * t - BAY_DIRECTION[0] * s,
+  ];
+  const withBay = (x: number, z: number) => terrainHeight(x, z, 0, true);
+
+  it('is open water from the quay all the way out to the sea', () => {
+    for (let t = 0.5; t <= LAND_RADIUS; t += 4) {
+      expect(withBay(...at(t))).toBeLessThan(SEA_LEVEL);
+    }
+  });
+
+  it('bottoms out at its bed in the channel, and not deeper', () => {
+    expect(withBay(...at(8))).toBeCloseTo(BAY_BED, 6);
+  });
+
+  it('keeps the quay\'s ground level and dry behind the bank', () => {
+    // Bay.tsx's quay stands from the head back BAY_BANK+1 units; the ground
+    // it sits on has to be the plateau there, not a slope into the water.
+    expect(withBay(...at(-(BAY_BANK + 0.01)))).toBeCloseTo(LAND_LEVEL, 6);
+    expect(withBay(...at(-(BAY_BANK + 0.01), BAY_HALF_WIDTH))).toBeCloseTo(LAND_LEVEL, 6);
+  });
+
+  it('is a channel, not a flood: dry land either side of it', () => {
+    expect(withBay(...at(10, BAY_HALF_WIDTH + 5 + BAY_BANK))).toBeGreaterThan(SEA_LEVEL);
+    expect(withBay(...at(10, -(BAY_HALF_WIDTH + 5 + BAY_BANK)))).toBeGreaterThan(SEA_LEVEL);
+  });
+
+  it('leaves every other thing in the city on dry, level ground', () => {
+    for (const [, x, z] of STANDING_ON) {
+      expect(withBay(x, z)).toBeCloseTo(LAND_LEVEL, 6);
+    }
+    expect(withBay(MARKET_POSITION[0], MARKET_POSITION[2])).toBeGreaterThan(SEA_LEVEL);
+  });
+
+  it('is off unless asked for, so the boss lobby\'s island is unchanged', () => {
+    const [x, z] = at(8);
+    expect(terrainHeight(x, z)).toBeGreaterThan(SEA_LEVEL);
+    expect(bayWater(x, z)).toBe(1);
+  });
+
+  it('measures distance from the channel as zero inside it and growing outside', () => {
+    expect(bayDistance(...at(20))).toBe(0);
+    expect(bayDistance(...at(-2))).toBeCloseTo(2, 9);
+    expect(bayDistance(...at(-3, BAY_HALF_WIDTH + 4))).toBeCloseTo(5, 9);
   });
 });
 

@@ -7,6 +7,8 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import Senate from '@/components/city/Senate';
 import Market from '@/components/city/Market';
+import Bay from '@/components/city/Bay';
+import { LAND_LEVEL, SEA_LEVEL } from '@/lib/cityLayout';
 import { ARENA } from '@/lib/rankedArena';
 import {
   gridSizeFor,
@@ -84,7 +86,24 @@ function ModelBody({ modelId }: { modelId: ModellingModelId }) {
       return <Market />;
     case 'senate-city':
       return <Senate />;
+    case 'bay':
+      return <Bay />;
   }
+}
+
+/**
+ * Water for the Bay to stand in, outside the measured group so the readout
+ * stays the model's own size. The Bay is the one model that is half sea --
+ * its pilings and boat mean nothing on a bare grid -- and this is the
+ * channel lib/cityTerrain.ts cuts for it, flared the same way.
+ */
+function SandboxWater() {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, SEA_LEVEL - LAND_LEVEL, 18]}>
+      <planeGeometry args={[40, 36]} />
+      <meshStandardMaterial color="#2e6f8e" transparent opacity={0.72} roughness={0.25} depthWrite={false} />
+    </mesh>
+  );
 }
 
 interface Measurement {
@@ -245,6 +264,8 @@ export default function ModellingScene({
       <group ref={groupRef}>
         <ModelBody modelId={modelId} />
       </group>
+
+      {modelId === 'bay' && <SandboxWater />}
 
       {/* A one-unit grid, so a dimension can be read straight off the floor
           -- the reason this is a grid and not the city's terrain. */}

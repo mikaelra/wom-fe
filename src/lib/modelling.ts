@@ -12,7 +12,7 @@
  * test could catch has to sit outside one.
  */
 
-export type ModellingModelId = 'ranked' | 'market' | 'senate-city';
+export type ModellingModelId = 'ranked' | 'market' | 'senate-city' | 'bay';
 
 export interface ModellingModel {
   id: ModellingModelId;
@@ -43,6 +43,12 @@ export const MODELLING_MODELS: readonly ModellingModel[] = [
     label: 'Senate (city size)',
     accent: '#ff9d6e',
     blurb: 'The same Senate component at the size it stands at in the city -- sized, not scaled, so both have to be looked at.',
+  },
+  {
+    id: 'bay',
+    label: 'Bay',
+    accent: '#f2c230',
+    blurb: 'Quay, pier and a boat leaving for the sea, at the head of the inlet in the city’s south-west corner. +Z is out to sea.',
   },
 ] as const;
 

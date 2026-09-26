@@ -30,7 +30,7 @@ const ROCK = new THREE.Color('#b9b2a4');
 
 const _c = new THREE.Color();
 
-function Ground({ clearRadius }: { clearRadius: number }) {
+function Ground({ clearRadius, bay }: { clearRadius: number; bay: boolean }) {
   const geometry = useMemo(() => {
     const geo = new THREE.PlaneGeometry(SPAN, SPAN, GRID, GRID);
     // Lay it flat before displacing, so the heights below are world Y and
@@ -43,7 +43,7 @@ function Ground({ clearRadius }: { clearRadius: number }) {
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
-      const y = terrainHeight(x, z, clearRadius);
+      const y = terrainHeight(x, z, clearRadius, bay);
       pos.setY(i, y);
 
       // Height above the waterline decides the band. Anything at or under
@@ -62,7 +62,7 @@ function Ground({ clearRadius }: { clearRadius: number }) {
     pos.needsUpdate = true;
     geo.computeVertexNormals();
     return geo;
-  }, [clearRadius]);
+  }, [clearRadius, bay]);
 
   return (
     <mesh geometry={geometry} receiveShadow>
@@ -112,13 +112,18 @@ export default function Terrain({
    *  for a caller standing a building there that the city does not know
    *  about. See padFlatness. */
   clearRadius = 0,
+  /** Cut the Bay's inlet into the south-west shore (lib/cityTerrain.ts
+   *  bayWater). The city's island only: the boss lobby's temple stands
+   *  where the inlet would run. */
+  bay = false,
 }: {
   nightness: number;
   clearRadius?: number;
+  bay?: boolean;
 }) {
   return (
     <>
-      <Ground clearRadius={clearRadius} />
+      <Ground clearRadius={clearRadius} bay={bay} />
       <Islands nightness={nightness} />
     </>
   );
