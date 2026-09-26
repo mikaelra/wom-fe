@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
-import { skinColor, skinLabel, skinThumbnailUrl, skinUrl } from '@/lib/frogSkins';
+import { skinColor, skinLabel, skinThumbnailUrl, skinUrl, sortSkins } from '@/lib/frogSkins';
 import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
@@ -219,7 +219,7 @@ export default function InventoryPage() {
 
   // Green is always owned implicitly -- no skin_items row needed for it
   // (docs/MONETIZATION_PLAN.md §3.1).
-  const ownedSkins: SkinEntry[] = [{ skin: DEFAULT_SKIN, count: 1 }, ...skins];
+  const ownedSkins: SkinEntry[] = sortSkins([{ skin: DEFAULT_SKIN, count: 1 }, ...skins], (e) => e.skin);
   const wheelGroups = groupWheels(wheels);
 
   return (

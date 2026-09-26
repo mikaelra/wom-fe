@@ -12,6 +12,7 @@ import { getStoredToken } from '@/lib/http';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { LobbyState } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
+import { cameraSpinCookie, readCameraSpin } from '@/lib/cameraSpinPref';
 
 const LobbyScene = dynamic(() => import('@/components/lobby/LobbyScene'), { ssr: false });
 
@@ -57,6 +58,18 @@ function LobbyPageContent() {
 
   // Join form state (used when not logged in)
   const [previewState, setPreviewState] = useState<LobbyState | null>(null);
+
+  // The camera spin choice is remembered in a cookie (cameraSpinPref.ts),
+  // read after mount so the server render and first client render agree.
+  useEffect(() => {
+    setSpinEnabled(readCameraSpin(document.cookie));
+  }, []);
+  const toggleSpin = useCallback(() => {
+    setSpinEnabled((v) => {
+      document.cookie = cameraSpinCookie(!v);
+      return !v;
+    });
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -183,7 +196,7 @@ function LobbyPageContent() {
           onActionChange={setSharedAction}
           onResourceChange={setSharedResource}
           spinEnabled={spinEnabled}
-          onToggleSpin={() => setSpinEnabled((v) => !v)}
+          onToggleSpin={toggleSpin}
           cameraMoved={cameraMoved}
           onResetCamera={handleResetCamera}
           instakillActive={instakillActive}
