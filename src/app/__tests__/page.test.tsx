@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { merchantState, paperOffer, revertedState, stoneOffer } from '@/lib/__tests__/merchantFixtures';
-import { blendPlanetColors, FULL_MOON_MERCHANT_COLOR } from '@/lib/merchant';
+import { arcDegrees, blendPlanetColors, FULL_MOON_MERCHANT_COLOR, MARKER_MIN_SEPARATION_DEG } from '@/lib/merchant';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import type { CSSProperties, ReactNode } from 'react';
 import Page from '@/app/page';
@@ -259,8 +259,8 @@ describe('Page (merchant markers)', () => {
     await waitFor(() => expect(lastMerchantMarkers).toHaveLength(2));
     const [moon, conj] = lastMerchantMarkers;
     expect(moon).toMatchObject({ label: 'Merchant', color: FULL_MOON_MERCHANT_COLOR });
-    expect(conj).toMatchObject({ label: 'Scribe', color: blendPlanetColors('Mercury', 'Jupiter') });
-    expect([moon.lat, moon.lng]).not.toEqual([conj.lat, conj.lng]);
+    expect(conj).toMatchObject({ label: 'Merchant', color: blendPlanetColors('Mercury', 'Jupiter') });
+    expect(arcDegrees(moon, conj)).toBeGreaterThanOrEqual(MARKER_MIN_SEPARATION_DEG);
   });
 
   it('keeps a merchant you have already bought from on the globe', async () => {
@@ -278,7 +278,7 @@ describe('Page (merchant markers)', () => {
 
     act(() => merchantClickHandler!(lastMerchantMarkers[1].key));
 
-    expect(await screen.findByTestId('merchant-scene')).toHaveTextContent('The Scribe: Paper');
+    expect(await screen.findByTestId('merchant-scene')).toHaveTextContent('The Merchant: Paper');
   });
 });
 

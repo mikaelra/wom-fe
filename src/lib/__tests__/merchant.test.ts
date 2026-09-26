@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   blendPlanetColors, describeMerchantEvent, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine,
   merchantEventColor, merchantEventLatLng, merchantMarkerLabel, merchantMarkerLatLng,
-  PLANET_COLOR, REVERT_RELIC_NAMES,
+  PLANET_COLOR, REVERT_RELIC_NAMES, arcDegrees, MARKER_MIN_SEPARATION_DEG, placeMerchantMarkers,
 } from '@/lib/merchant';
 import { bodyColorHex } from '@/lib/astrology';
+import { CITIES } from '@/lib/cities';
 import { FULL_MOON_EVENT, MERCURY_JUPITER_EVENT } from '@/lib/__tests__/merchantFixtures';
 
 describe('merchantMarkerLatLng', () => {
@@ -111,18 +112,17 @@ describe('merchantEventColor', () => {
 describe('describing events', () => {
   it('names the full moon by sign', () => {
     expect(describeMerchantEvent(FULL_MOON_EVENT)).toBe('Full moon in Aries');
-    expect(merchantArrivalLine(FULL_MOON_EVENT)).toBe('Appears at the full moon in Aries');
+
   });
 
   it('names a conjunction by its two planets and sign', () => {
     expect(describeMerchantEvent(MERCURY_JUPITER_EVENT)).toBe('Conjunction between Mercury and Jupiter in Libra');
-    expect(merchantArrivalLine(MERCURY_JUPITER_EVENT)).toBe('Appears at the conjunction of Mercury and Jupiter in Libra');
+
   });
 
   it('still says something for a kind it does not know yet', () => {
     const trine = { kind: 'trine', key: 'Venus-Mars', bodies: ['Venus', 'Mars'], sign: 'Leo', at: 'x' };
     expect(describeMerchantEvent(trine)).toBe('trine in Leo');
-    expect(merchantArrivalLine(trine)).toBe('Appears at trine in Leo');
     expect(describeMerchantEvent({ ...trine, sign: '' })).toBe('trine');
   });
 });
@@ -130,13 +130,76 @@ describe('describing events', () => {
 describe('merchantMarkerLabel', () => {
   it('drops the article', () => {
     expect(merchantMarkerLabel('The Merchant')).toBe('Merchant');
-    expect(merchantMarkerLabel('The Scribe')).toBe('Scribe');
-    expect(merchantMarkerLabel('Scribe')).toBe('Scribe');
+    expect(merchantMarkerLabel('Merchant')).toBe('Merchant');
   });
 });
 
 describe('REVERT_RELIC_NAMES', () => {
   it('is what each merchant sells', () => {
     expect([...REVERT_RELIC_NAMES]).toEqual(['Stone of Vitality', 'Paper']);
+  });
+});
+
+describe('merchantArrivalLine', () => {
+  it('is by what summons him, never the particular event', () => {
+    expect(merchantArrivalLine('full_moon')).toBe('Appears around the full moon');
+    expect(merchantArrivalLine('conjunction')).toBe('Appears around conjunctions');
+  });
+});
+
+describe('arcDegrees', () => {
+  it('measures along the globe', () => {
+    expect(arcDegrees({ lat: 0, lng: 0 }, { lat: 0, lng: 90 })).toBeCloseTo(90, 9);
+    expect(arcDegrees({ lat: 10, lng: 20 }, { lat: 10, lng: 20 })).toBeCloseTo(0, 4);
+    expect(arcDegrees({ lat: 90, lng: 0 }, { lat: -90, lng: 0 })).toBeCloseTo(180, 9);
+  });
+});
+
+describe('placeMerchantMarkers', () => {
+  const athens = CITIES[0];
+  const clearOfAll = (spots: { lat: number; lng: number }[]) => {
+    for (const [i, s] of spots.entries()) {
+      for (const city of CITIES) expect(arcDegrees(s, city)).toBeGreaterThanOrEqual(MARKER_MIN_SEPARATION_DEG);
+      for (const t of spots.slice(i + 1)) expect(arcDegrees(s, t)).toBeGreaterThanOrEqual(MARKER_MIN_SEPARATION_DEG);
+    }
+  };
+
+  it('never puts a merchant on Greece -- the Mars-Jupiter seed that landed there live', () => {
+    const [spot] = placeMerchantMarkers([{ period_start: '2026-11-16T06:21:58+00:00', event_key: 'Mars-Jupiter' }]);
+    expect(arcDegrees(spot, athens)).toBeGreaterThanOrEqual(MARKER_MIN_SEPARATION_DEG);
+  });
+
+  it('keeps a seed that is already clear exactly where it was', () => {
+    const periods = Array.from({ length: 40 }, (_, i) => `2026-01-${String(i % 28 + 1).padStart(2, '0')}T0${i % 10}:00:00Z`);
+    const clearSeed = periods.find((p) => arcDegrees(merchantMarkerLatLng(p), athens) >= MARKER_MIN_SEPARATION_DEG)!;
+    expect(placeMerchantMarkers([{ period_start: clearSeed, event_key: '' }])).toEqual([merchantMarkerLatLng(clearSeed)]);
+  });
+
+  it('never puts two merchants on top of each other or on a city, across many periods', () => {
+    for (let d = 1; d <= 200; d++) {
+      const period = new Date(Date.UTC(2026, 0, d)).toISOString();
+      clearOfAll(placeMerchantMarkers([
+        { period_start: period, event_key: '' },
+        { period_start: period, event_key: 'Mercury-Jupiter' },
+        { period_start: period, event_key: 'Venus-Mars' },
+      ]));
+    }
+  });
+
+  it('forces a re-roll when a seed collides, and is the same for every player', () => {
+    // Avoid a point right on the first seed's spot: it must move, twice alike.
+    const seed = { period_start: '2026-09-26T16:49:32Z', event_key: '' };
+    const onIt = merchantMarkerLatLng(seed.period_start);
+    const a = placeMerchantMarkers([seed], [onIt]);
+    const b = placeMerchantMarkers([seed], [onIt]);
+    expect(arcDegrees(a[0], onIt)).toBeGreaterThanOrEqual(MARKER_MIN_SEPARATION_DEG);
+    expect(a).toEqual(b);
+  });
+
+  it('gives up re-rolling after a bounded number of tries rather than looping', () => {
+    // A ring of avoid points covering the whole band leaves nowhere clear.
+    const everywhere = [];
+    for (let lat = -60; lat <= 60; lat += 10) for (let lng = -180; lng < 180; lng += 10) everywhere.push({ lat, lng });
+    expect(placeMerchantMarkers([{ period_start: 'x', event_key: '' }], everywhere)).toHaveLength(1);
   });
 });

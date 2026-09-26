@@ -7,9 +7,10 @@ Coins.
 
 Phase 1: **Stone of Vitality**, a relic that starts the player with 15 HP
 instead of 10, sold by **The Merchant** for 5 Hades' Coins, once per full
-moon. Phase 2 (§5): **Paper**, sold by **The Scribe** for 3 Hades' Coins at
+moon. Phase 2 (§5): **Paper**, sold by the Merchant for 3 Hades' Coins at
 every **planetary conjunction** — and merchants now stack: every live sky
-event brings its own. Same mechanism, different trigger and item — that
+event brings its own. Every one is just "The Merchant" (a different model
+later changes nothing about that). Same mechanism, different trigger and item — that
 reuse is the point of everything below. Paper's second use, upgrading to
 an Artifact in a trade (`docs/MARKET_PLAN.md` §1B), is the next PR.
 
@@ -138,7 +139,7 @@ cached — `/merchant/offer` is polled by every globe.
 `domain/merchant.py`'s `sky_events_at(at)` lists every event live at an
 instant — the full moon, each conjunction — with its sign and bodies. **Each
 event summons its merchant**: a conjunction on a full moon is The Merchant
-*and* The Scribe; two conjunctions at once are two Scribes. Each is its own
+*and* the conjunction's; two conjunctions at once are two Merchants. Each is its own
 once-per-event purchase (`merchant_trades.event_key`: `""` for the full
 moon, `"Venus-Jupiter"` for a conjunction). A later aspect summoning a
 merchant is one more producer in `sky_events_at` plus an offer row.
@@ -169,9 +170,12 @@ from.
   `blendPlanetColors`) — an even mix of the planets' own globe colours with
   its lightness pulled into a readable band, since the raw average of a warm
   and a cool planet is a dark mud on the night side.
-- Markers are seeded by `period_start|event_key` (the full moon's key is
-  `""`, so its spot is unchanged) — two Scribes under one revert still stand
-  apart.
+- Markers are seeded by `period_start|event_key` and placed together
+  (`placeMerchantMarkers`): one landing within 25° of a city (Greece) or of
+  another merchant re-rolls its seed until clear, so no marker ever sits on
+  another. Deterministic, so every player sees the same spots.
+- The scene's line is by what summons him, never the particular event:
+  "Appears around the full moon" / "Appears around conjunctions".
 - `MerchantScene` stages whichever relic the merchant sells; Paper's model is
   `public/models/relics/paper_v1.glb` (`pergament_v1` with its textures
   resized 2048 → 1024: 6.6 MB → 0.7 MB).

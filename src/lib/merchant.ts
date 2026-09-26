@@ -1,6 +1,7 @@
 // The merchants (docs/MERCHANT_PLAN.md). Everything here is pure and
 // node-testable, no React/THREE -- src/components/worldmap/MerchantMarker.tsx
 // is the only caller that turns this into a scene position.
+import { CITIES } from '@/lib/cities';
 
 /** FNV-1a, 32-bit. Deterministic and cheap -- there is no need for
  * cryptographic properties here, only "the same string always gives the
@@ -42,11 +43,59 @@ export function merchantMarkerLatLng(periodStartIso: string): { lat: number; lng
 /**
  * Where a merchant's marker sits: seeded by its period, plus its event key
  * when it has one. Two conjunctions under one revert share a period_start
- * and would otherwise stand on the same spot; the full moon's key is ""
- * and seeds exactly as before, so its marker has not moved.
+ * and would otherwise seed the same spot; the full moon's key is "" and
+ * seeds exactly as before.
  */
 export function merchantEventLatLng(periodStartIso: string, eventKey: string): { lat: number; lng: number } {
   return merchantMarkerLatLng(eventKey ? `${periodStartIso}|${eventKey}` : periodStartIso);
+}
+
+/** How far apart, in degrees of arc, a merchant's marker must stand from a
+ *  city's and from every other merchant's -- enough that the labels never
+ *  sit on top of each other at the globe's usual zoom. */
+export const MARKER_MIN_SEPARATION_DEG = 25;
+
+/** Great-circle distance between two lat/lng points, degrees. */
+export function arcDegrees(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = Math.PI / 180;
+  const cos =
+    Math.sin(a.lat * rad) * Math.sin(b.lat * rad) +
+    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos((a.lng - b.lng) * rad);
+  return Math.acos(Math.max(-1, Math.min(1, cos))) / rad;
+}
+
+// Re-rolls before giving up on a clear spot. The band a marker can land in
+// is so much larger than the circles it must avoid that this is never
+// reached in practice; it only bounds the loop.
+const MAX_PLACEMENT_TRIES = 64;
+
+/**
+ * Every merchant's marker, placed so none sits on a city or on another
+ * merchant.
+ *
+ * Each starts at its own seeded spot (merchantEventLatLng); one that lands
+ * within MARKER_MIN_SEPARATION_DEG of a city or an already-placed merchant
+ * re-rolls with a counter on its seed until it is clear. Still
+ * deterministic -- same merchants in the same order, same spots for every
+ * player -- because the offers arrive in the backend's fixed order and
+ * the re-rolls are seeded too.
+ */
+export function placeMerchantMarkers(
+  merchants: readonly { period_start: string; event_key: string }[],
+  avoid: readonly { lat: number; lng: number }[] = CITIES,
+): { lat: number; lng: number }[] {
+  const placed: { lat: number; lng: number }[] = [];
+  for (const m of merchants) {
+    const base = m.event_key ? `${m.period_start}|${m.event_key}` : m.period_start;
+    let spot = merchantMarkerLatLng(base);
+    for (let i = 1; i < MAX_PLACEMENT_TRIES; i++) {
+      const clear = [...avoid, ...placed].every((p) => arcDegrees(p, spot) >= MARKER_MIN_SEPARATION_DEG);
+      if (clear) break;
+      spot = merchantMarkerLatLng(`${base}#${i}`);
+    }
+    placed.push(spot);
+  }
+  return placed;
 }
 
 /** A merchant-summoning sky event, as /merchant/offer and
@@ -149,17 +198,14 @@ export function describeMerchantEvent(event: MerchantEvent): string {
   return event.sign ? `${event.kind} in ${event.sign}` : event.kind;
 }
 
-/** The line under a merchant's name in his scene: "Appears at the full
- *  moon in Aries", "Appears at the conjunction of Mars and Jupiter in Leo". */
-export function merchantArrivalLine(event: MerchantEvent): string {
-  if (event.kind === 'full_moon') return `Appears at the full moon in ${event.sign}`;
-  if (event.kind === 'conjunction' && event.bodies.length === 2) {
-    return `Appears at the conjunction of ${event.bodies[0]} and ${event.bodies[1]} in ${event.sign}`;
-  }
-  return `Appears at ${describeMerchantEvent(event)}`;
+/** The line under the merchant's name in his scene -- by what summons
+ *  him, never the particular event: "Appears around the full moon",
+ *  "Appears around conjunctions". */
+export function merchantArrivalLine(triggerKind: string): string {
+  return triggerKind === 'conjunction' ? 'Appears around conjunctions' : 'Appears around the full moon';
 }
 
-/** The marker's label: "Merchant", "Scribe" -- the merchant's name without
+/** The marker's label: "Merchant" -- the merchant's name without
  *  its article, short enough to float over the globe. */
 export function merchantMarkerLabel(merchantName: string): string {
   return merchantName.replace(/^The\s+/i, '');

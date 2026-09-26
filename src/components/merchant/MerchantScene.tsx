@@ -7,7 +7,7 @@ import { relicModelUrl } from '@/components/RelicCoin';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
-import { merchantArrivalLine, merchantEventColor } from '@/lib/merchant';
+import { merchantArrivalLine } from '@/lib/merchant';
 
 // The merchant's box at its original 160px, scaled 2.3x then another 1.5x
 // per Mikael's asks -- kept as a constant since the clip wrapper's height
@@ -38,8 +38,8 @@ type Props = {
 };
 
 /**
- * A merchant's scene (docs/MERCHANT_PLAN.md) -- The Merchant at a full
- * moon, The Scribe at a conjunction, each with the relic he sells. Deliberately
+ * A merchant's scene (docs/MERCHANT_PLAN.md) -- the Merchant, with the
+ * relic he sells: Stone of Vitality at a full moon, Paper at a conjunction. Deliberately
  * simple, per the doc: a CSS wooden-logs backdrop and a plain wooden crate
  * standing in for real prop art, with the real merchant_v1.glb and
  * stone_of_vitality_v1.glb models staged over it -- Merchant behind the
@@ -53,11 +53,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
   const [error, setError] = useState<string | null>(null);
   const [bought, setBought] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
-  const eventColor = merchantEventColor(offer.event);
   const periodNoun = offer.trigger_kind === 'conjunction' ? 'conjunction' : 'moon';
-  // Why he is in town: the event itself when the backend named it, the
-  // old generic line for one that predates stacking.
-  const whyHere = offer.event ? merchantArrivalLine(offer.event) : 'Appears around full moon';
 
   const handleBuy = async () => {
     if (!token) {
@@ -95,8 +91,8 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
       >
         <div className="px-5 pt-5 text-center">
           <p className="text-amber-200/80 text-xs font-bold tracking-widest uppercase">{offer.merchant_name}</p>
-          <p className="text-[11px] mt-0.5" style={{ color: eventColor }}>
-            {offer.reverted ? 'Someone turned back time to bring him here' : whyHere}
+          <p className="text-amber-100/60 text-[11px] mt-0.5">
+            {offer.reverted ? 'Someone turned back time to bring him here' : merchantArrivalLine(offer.trigger_kind)}
           </p>
         </div>
 

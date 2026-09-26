@@ -8,7 +8,7 @@ import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import type { City } from '@/lib/cities';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
-import { merchantEventColor, merchantEventLatLng, merchantMarkerLabel } from '@/lib/merchant';
+import { merchantEventColor, merchantMarkerLabel, placeMerchantMarkers } from '@/lib/merchant';
 import { getStoredAccountToken } from '@/lib/http';
 
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
@@ -53,16 +53,16 @@ export default function Page() {
   // would make a marker vanish for anyone who's already traded, which is
   // the actual bug this was fixed from (traced live 2026-09-25).
   const merchantKey = (o: { offer_id: number; event_key: string }) => `${o.offer_id}|${o.event_key}`;
-  const merchantMarkers = useMemo(
-    () =>
-      merchantOffers.map((o) => ({
-        key: merchantKey(o),
-        ...merchantEventLatLng(o.period_start, o.event_key),
-        color: merchantEventColor(o.event),
-        label: merchantMarkerLabel(o.merchant_name),
-      })),
-    [merchantOffers],
-  );
+  const merchantMarkers = useMemo(() => {
+    // Placed together, so no marker lands on a city or on another merchant.
+    const spots = placeMerchantMarkers(merchantOffers);
+    return merchantOffers.map((o, i) => ({
+      key: merchantKey(o),
+      ...spots[i],
+      color: merchantEventColor(o.event),
+      label: merchantMarkerLabel(o.merchant_name),
+    }));
+  }, [merchantOffers]);
   const openMerchant = merchantOffers.find((o) => merchantKey(o) === openMerchantKey) ?? null;
 
   useEffect(() => {

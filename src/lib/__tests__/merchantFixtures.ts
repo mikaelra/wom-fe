@@ -32,11 +32,11 @@ export function stoneOffer(over: Partial<MerchantOffer> = {}): MerchantOffer {
   };
 }
 
-/** A conjunction's Scribe, selling Paper, in town and unbought. */
+/** A conjunction's Merchant, selling Paper, in town and unbought. */
 export function paperOffer(over: Partial<MerchantOffer> = {}): MerchantOffer {
   return stoneOffer({
     offer_id: 3,
-    merchant_name: 'The Scribe',
+    merchant_name: 'The Merchant',
     item_name: 'Paper',
     cost_hades_coins: 3,
     trigger_kind: 'conjunction',
