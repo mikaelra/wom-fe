@@ -13,7 +13,7 @@ import {
 } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { CITY_PATH } from '@/lib/cities';
-import { skinLabel } from '@/lib/frogSkins';
+import { skinLabel, sortSkins } from '@/lib/frogSkins';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
 import { useToast } from '@/components/Toast';
 import { useMarketConnection } from '@/lib/useMarketConnection';
@@ -97,7 +97,7 @@ export default function MarketPage() {
       const list: OwnedItem[] = [];
       const counts: Record<string, number> = {};
       if (inv) {
-        for (const s of inv.skins) {
+        for (const s of sortSkins(inv.skins, (e) => e.skin)) {
           if (s.skin === NON_TRADEABLE_SKIN) continue;
           const input: MarketItemInput = { item_type: 'skin', skin: s.skin, quantity: 1 };
           list.push({ input, label: cap(skinLabel(s.skin)), count: s.count });
