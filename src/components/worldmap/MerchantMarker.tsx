@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { FreshHtml } from '@/components/hud/FreshHtml';
 import { latLngToVec3 } from '@/lib/cities';
+import { sphereDrop } from '@/lib/merchant';
 
 /** One merchant's marker, as the globe page hands it to WorldMap. */
 export interface MerchantMarkerSpec {
@@ -15,8 +16,8 @@ export interface MerchantMarkerSpec {
    *  the bigger planet's for a conjunction's (lib/merchant.ts
    *  merchantMarkerColors). */
   color: string;
-  /** A conjunction's other planet: the text's outer colour, and a second
-   *  light beside the first. null for the full moon. */
+  /** A conjunction's smaller planet: the text's outer colour, and the rim
+   *  of light around the pool on the ground. null for the full moon. */
   outline: string | null;
   label: string;
 }
@@ -54,13 +55,65 @@ interface MerchantMarkerProps {
  * onClick to raycast against, so the label is given `pointerEvents: 'auto'`
  * and handles the click/hover itself instead.
  */
-// A conjunction's two lights: side by side along the surface, a little
-// above it, each cut off (`distance`) just short of the other's pool, so
-// the ground shows both planets' colours next to each other rather than
-// one mixed colour.
-const PAIR_LIGHT_OFFSET = 0.6;
-const PAIR_LIGHT_LIFT = 0.1;
-const PAIR_LIGHT_REACH = 0.62;
+// A conjunction's light on the ground is concentric: a pool in the bigger
+// planet's colour (a real point light, cut off at the pool's edge) inside a
+// thinner rim in the smaller planet's colour. The rim is an additive glow
+// band laid on the globe (a light can't make a ring -- it always falls off
+// outward from a point).
+const POOL_LIFT = 0.1;
+const POOL_REACH = 0.55;
+const RIM_INNER = 0.42;
+const RIM_OUTER = 0.66;
+const RIM_OPACITY = 0.55;
+
+/** The rim: a ring bent onto the sphere, brightest mid-band and fading to
+ *  nothing at both edges, so it reads as light rather than a painted
+ *  ring. Added over the globe, never occluding it. */
+function RimGlow({ color, globeRadius, hovered }: { color: string; globeRadius: number; hovered: boolean }) {
+  const geometry = useMemo(() => {
+    const geo = new THREE.RingGeometry(RIM_INNER, RIM_OUTER, 96, 6);
+    geo.rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    const fade = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {
+      const r = Math.hypot(pos.getX(i), pos.getZ(i));
+      // A hair above the surface so it never z-fights the globe.
+      pos.setY(i, 0.012 - sphereDrop(globeRadius, r));
+      fade[i] = Math.sin(Math.PI * (r - RIM_INNER) / (RIM_OUTER - RIM_INNER));
+    }
+    geo.setAttribute('fade', new THREE.BufferAttribute(fade, 1));
+    return geo;
+  }, [globeRadius]);
+
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: { uColor: { value: new THREE.Color(color) }, uOpacity: { value: RIM_OPACITY } },
+        vertexShader: `
+          attribute float fade;
+          varying float vFade;
+          void main() {
+            vFade = fade;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: `
+          uniform vec3 uColor;
+          uniform float uOpacity;
+          varying float vFade;
+          void main() { gl_FragColor = vec4(uColor, uOpacity * vFade); }`,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    [color],
+  );
+  material.uniforms.uOpacity.value = hovered ? RIM_OPACITY * 1.5 : RIM_OPACITY;
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => material.dispose(), [material]);
+
+  return <mesh geometry={geometry} material={material} renderOrder={1} />;
+}
 
 export default function MerchantMarker({ lat, lng, color, outline, label, globeRadius, onClick }: MerchantMarkerProps) {
   const [hovered, setHovered] = useState(false);
@@ -75,16 +128,11 @@ export default function MerchantMarker({ lat, lng, color, outline, label, globeR
         <>
           <pointLight
             color={color}
-            position={[-PAIR_LIGHT_OFFSET, PAIR_LIGHT_LIFT, 0]}
+            position={[0, POOL_LIFT, 0]}
             intensity={hovered ? 6.6 : 4.2}
-            distance={PAIR_LIGHT_REACH}
+            distance={POOL_REACH}
           />
-          <pointLight
-            color={outline}
-            position={[PAIR_LIGHT_OFFSET, PAIR_LIGHT_LIFT, 0]}
-            intensity={hovered ? 6.6 : 4.2}
-            distance={PAIR_LIGHT_REACH}
-          />
+          <RimGlow color={outline} globeRadius={globeRadius} hovered={hovered} />
         </>
       ) : (
         // The glow on the globe itself -- tripled radius/intensity from the

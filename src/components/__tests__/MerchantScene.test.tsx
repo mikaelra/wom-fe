@@ -123,6 +123,23 @@ describe('MerchantScene', () => {
       expect(models).toContain('/models/relics/paper_v1.glb');
     });
 
+    it('stages the Paper at 4x the Stone\'s size, still on the table', () => {
+      const { unmount } = render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const stoneBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
+      const stone = { w: stoneBox.style.width, bottom: stoneBox.style.bottom, left: parseFloat(stoneBox.style.left) };
+      unmount();
+
+      render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const paperBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
+
+      expect(stone.w).toBe('40px');
+      expect(paperBox.style.width).toBe('160px');
+      expect(paperBox.style.height).toBe('160px');
+      expect(paperBox.style.bottom).toBe(stone.bottom);
+      // Same centre: 60px further left for a box 120px wider.
+      expect(parseFloat(paperBox.style.left)).toBe(stone.left - 60);
+    });
+
     it('says he appears around conjunctions -- never the particular one', () => {
       render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
 

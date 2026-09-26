@@ -168,9 +168,12 @@ from.
   purple with a dark outline and one light. A conjunction's text is the
   **bigger planet's colour inside and the other's outside** (outline and
   glow; `lib/merchant.ts` `merchantMarkerColors`, sized by
-  `PLANET_RADIUS_KM`), and it casts **two lights side by side**, one per
-  planet, each cut off just short of the other so the ground shows both
-  colours unmixed.
+  `PLANET_RADIUS_KM`). Its light on the ground is concentric: a pool
+  in the bigger planet's colour (a point light cut off at the pool's edge)
+  inside a thinner rim in the smaller planet's (an additive glow band bent
+  onto the globe, fading at both edges).
+- In the scene, Paper is staged at 4x the Stone's size, centred on the same
+  spot on the table.
 - Markers are seeded by `period_start|event_key` and placed together
   (`placeMerchantMarkers`): one landing within 25° of a city (Greece) or of
   another merchant re-rolls its seed until clear, so no marker ever sits on

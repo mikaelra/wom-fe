@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   blendPlanetColors, describeMerchantEvent, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine,
   merchantEventColor, merchantEventLatLng, merchantMarkerLabel, merchantMarkerLatLng,
-  PLANET_COLOR, REVERT_RELIC_NAMES, arcDegrees, merchantMarkerColors, PLANET_RADIUS_KM, MARKER_MIN_SEPARATION_DEG, placeMerchantMarkers,
+  PLANET_COLOR, REVERT_RELIC_NAMES, arcDegrees, merchantMarkerColors, PLANET_RADIUS_KM, sphereDrop, MARKER_MIN_SEPARATION_DEG, placeMerchantMarkers,
 } from '@/lib/merchant';
 import { bodyColorHex } from '@/lib/astrology';
 import { CITIES } from '@/lib/cities';
@@ -226,5 +226,17 @@ describe('merchantMarkerColors', () => {
 
   it('falls back to the purple for a body it does not know', () => {
     expect(merchantMarkerColors(conj('Mars', 'Pluto'))).toEqual({ fill: FULL_MOON_MERCHANT_COLOR, outline: null });
+  });
+});
+
+describe('sphereDrop', () => {
+  it('is zero at the touching point and grows toward the edge', () => {
+    expect(sphereDrop(2.5, 0)).toBe(0);
+    expect(sphereDrop(2.5, 0.66)).toBeCloseTo(2.5 - Math.sqrt(2.5 ** 2 - 0.66 ** 2), 12);
+    expect(sphereDrop(2.5, -0.66)).toBe(sphereDrop(2.5, 0.66));
+  });
+
+  it('bottoms out at the sphere radius rather than going NaN past it', () => {
+    expect(sphereDrop(2.5, 10)).toBe(2.5);
   });
 });

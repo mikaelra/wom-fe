@@ -28,6 +28,12 @@ const TABLE_LEG_HEIGHT = (STAGE_H / 2 - TABLE_THICKNESS / 2) * 0.1;
 const TABLE_TOP_Y = STAGE_H - TABLE_LEG_HEIGHT - TABLE_THICKNESS;
 const STONE_BOTTOM = STAGE_H - TABLE_TOP_Y;
 
+// The relic on the table: its box's size and the x it is centred on. Paper
+// is staged 4x the Stone's size, per Mikael's ask.
+const RELIC_BOX_PX = 40;
+const RELIC_CENTER_X = 96 + RELIC_BOX_PX / 2;
+const RELIC_SCALE: Record<string, number> = { Paper: 4 };
+
 type Props = {
   offer: MerchantOffer;
   token: string | null;
@@ -53,6 +59,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
   const [error, setError] = useState<string | null>(null);
   const [bought, setBought] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
+  const relicBox = RELIC_BOX_PX * (RELIC_SCALE[offer.item_name] ?? 1);
   const periodNoun = offer.trigger_kind === 'conjunction' ? 'conjunction' : 'moon';
 
   const handleBuy = async () => {
@@ -142,7 +149,14 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
 
           <div
             className={`absolute ${reducedMotion ? '' : 'merchant-stone-hover'}`}
-            style={{ left: 96, bottom: STONE_BOTTOM, width: 40, height: 40 }}
+            style={{
+              // Centred where the Stone's 40px box always stood, and still
+              // resting on the tabletop, whatever its size.
+              left: RELIC_CENTER_X - relicBox / 2,
+              bottom: STONE_BOTTOM,
+              width: relicBox,
+              height: relicBox,
+            }}
           >
             <SpinningModelViewer
               key={offer.item_name}

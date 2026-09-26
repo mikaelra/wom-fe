@@ -240,3 +240,13 @@ export function merchantArrivalLine(triggerKind: string): string {
 export function merchantMarkerLabel(merchantName: string): string {
   return merchantName.replace(/^The\s+/i, '');
 }
+
+/**
+ * How far a sphere's surface falls below the tangent plane at a point,
+ * `dist` along that plane from it -- what bends a merchant marker's flat
+ * rim of light onto the globe instead of letting its edges float off it.
+ */
+export function sphereDrop(sphereRadius: number, dist: number): number {
+  const d = Math.min(Math.abs(dist), sphereRadius);
+  return sphereRadius - Math.sqrt(sphereRadius * sphereRadius - d * d);
+}
