@@ -10,6 +10,7 @@ import {
   getActiveRankedLobby,
   joinRankedQueue,
   leaveRankedQueue,
+  getMerchantOffer,
 } from '@/lib/api';
 import type { City } from '@/lib/cities';
 import * as socketModule from '@/lib/socket';
@@ -89,9 +90,13 @@ const VAULT: City = { id: 2, name: 'Vault City', country: '', lat: 0, lng: 0, re
 const RULES: City = { id: 3, name: 'Rules City', country: '', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '', isRules: true };
 
 let cityClickHandler: ((city: City) => void) | undefined;
+let lastSkyRevertKey: string | null | undefined;
 vi.mock('@/components/worldmap/WorldMap', () => ({
-  default: ({ onCityClick }: { onCityClick: (city: City) => void }) => {
+  default: ({
+    onCityClick, skyRevertKey,
+  }: { onCityClick: (city: City) => void; skyRevertKey?: string | null }) => {
     cityClickHandler = onCityClick;
+    lastSkyRevertKey = skyRevertKey;
     return null;
   },
 }));
@@ -124,6 +129,7 @@ const clickAthens = () => clickCity(ATHENS);
 beforeEach(() => {
   push.mockClear();
   cityClickHandler = undefined;
+  lastSkyRevertKey = undefined;
   mockedCheckName.mockReset();
   mockedLogInUser.mockReset();
   mockedVerifyLoginCode.mockReset();
@@ -131,6 +137,7 @@ beforeEach(() => {
   mockedGetActiveRankedLobby.mockReset();
   mockedJoinRankedQueue.mockReset();
   mockedLeaveRankedQueue.mockReset();
+  vi.mocked(getMerchantOffer).mockReset().mockResolvedValue({ offer: null });
   // Harmless "no active ranked match" default for every test that isn't
   // specifically exercising the New York ranked flow.
   mockedGetActiveRankedLobby.mockResolvedValue({
@@ -195,6 +202,33 @@ describe('Page (world map view, city routing)', () => {
     await clickCity(RULES);
     expect(push).toHaveBeenCalledWith('/rules');
     expect(screen.queryByText('Enter the Hades Bossfight')).not.toBeInTheDocument();
+  });
+});
+
+// docs/MERCHANT_PLAN.md §7: WorldMap's planets go stale once its reveal
+// animation settles (PlanetSprites is memoized on `phase` alone) unless
+// something tells it a revert started or ended -- skyRevertKey is that
+// something. Real bug, found live: the globe kept showing the live sky
+// through an active revert.
+describe('Page (Merchant time-revert -> globe sky)', () => {
+  it('passes null when nothing is reverted', async () => {
+    render(<Page />);
+    await waitForWorldMap();
+    expect(lastSkyRevertKey).toBeNull();
+  });
+
+  it('passes revert_to_date as the key while a revert is active', async () => {
+    const revertedTo = '2026-01-01T00:00:00Z';
+    vi.mocked(getMerchantOffer).mockResolvedValue({
+      offer: {
+        offer_id: 1, merchant_name: 'The Merchant', item_name: 'Stone of Vitality',
+        cost_hades_coins: 5, trigger_kind: 'full_moon', active: true, available: true,
+        already_bought_this_period: false, period_start: '2026-09-25T16:49:32Z',
+        reverted: true, revert_expires_at: '2026-09-25T17:49:32Z', revert_to_date: revertedTo,
+      },
+    });
+    render(<Page />);
+    await waitFor(() => expect(lastSkyRevertKey).toBe(revertedTo));
   });
 });
 

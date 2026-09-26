@@ -10,6 +10,7 @@ import AuthGatePopup from '@/components/AuthGatePopup';
 import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
 import { findCity } from '@/lib/cities';
 import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
+import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
 import { useEnterBotRanked } from '@/lib/useEnterBotRanked';
@@ -40,7 +41,16 @@ function CityPageContent() {
   const city = findCity(searchParams.get('id'));
   // ?t= lets you look at a sky that is not the one currently overhead --
   // "02:00" is 2am Athens tonight (docs/CITY_SCENE_PLAN.md §6.6).
-  const { date: skyDate, overridden: skyOverridden } = resolveCityTime(searchParams.get('t'));
+  const { date: resolvedSkyDate, overridden: tOverridden } = resolveCityTime(searchParams.get('t'));
+  // docs/MERCHANT_PLAN.md §7: while a revert is active, the city's sky
+  // rewinds to the same instant the globe's does (getSky()'s own revert
+  // override, wired in useMerchantOffer) -- an explicit ?t= still wins,
+  // since that's a deliberate debug request, not something a revert should
+  // silently clobber.
+  const { offer: merchantOffer } = useMerchantOffer();
+  const reverted = !tOverridden && !!merchantOffer?.reverted && !!merchantOffer.revert_to_date;
+  const skyDate = reverted ? new Date(merchantOffer!.revert_to_date!) : resolvedSkyDate;
+  const skyOverridden = tOverridden || reverted;
 
   // The city had no music call of its own -- WorldMapOverlay and
   // LobbyOverlay were the only two screens that ever started a track -- so

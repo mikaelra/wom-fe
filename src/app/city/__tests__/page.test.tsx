@@ -5,7 +5,7 @@ import CityPage from '@/app/city/page';
 import {
   checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime,
   getActiveRankedLobby, joinRankedQueue, leaveRankedQueue, getBossfightRoster,
-  joinBotRankedQueue, leaveBotRankedQueue, getActiveBotRankedLobby,
+  joinBotRankedQueue, leaveBotRankedQueue, getActiveBotRankedLobby, getMerchantOffer,
 } from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
 import { setStoredAccountToken } from '@/lib/http';
@@ -14,9 +14,12 @@ import { findCity } from '@/lib/cities';
 
 const push = vi.fn();
 let searchId: string | null = 'athens';
+let searchT: string | null = null;
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
-  useSearchParams: () => ({ get: (k: string) => (k === 'id' ? searchId : null) }),
+  useSearchParams: () => ({
+    get: (k: string) => (k === 'id' ? searchId : k === 't' ? searchT : null),
+  }),
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -34,6 +37,10 @@ vi.mock('@/lib/api', () => ({
   getActiveBotRankedLobby: vi.fn().mockResolvedValue({
     lobby_id: null, token: null, ai_ranked_countdown_deadline: null, started: false,
   }),
+  // docs/MERCHANT_PLAN.md §7 -- the city's sky rewinds along with the
+  // globe's while a revert is active. Defaults to "nothing reverted" so
+  // every other test in this file keeps rendering the real current sky.
+  getMerchantOffer: vi.fn().mockResolvedValue({ offer: null }),
   // SceneTopBar (via CityOverlay) loads these once an account token is
   // present -- which the bot-ranked tests set.
   getInventory: vi.fn().mockResolvedValue({
@@ -108,11 +115,12 @@ let backHandler: (() => void) | undefined;
 let marketHandler: (() => void) | undefined;
 let botRankedHandler: (() => void) | undefined;
 let lastCoords: { realLat: number; realLng: number } | undefined;
+let lastDate: Date | undefined;
 vi.mock('@/components/city/CityScene', () => ({
   default: ({
     onBossfight, bossfightSublabel, onRanked, onBotRanked, rankedLabel, rankedSublabel,
     botRankedLabel, botRankedSublabel,
-    onBackToEarth, onMarket, onReady, realLat, realLng,
+    onBackToEarth, onMarket, onReady, realLat, realLng, date,
   }: {
     onBossfight: () => void; bossfightSublabel?: string | null;
     onRanked: () => void; onBotRanked: () => void;
@@ -122,6 +130,7 @@ vi.mock('@/components/city/CityScene', () => ({
     onMarket: () => void;
     onReady?: () => void;
     realLat: number; realLng: number;
+    date: Date;
   }) => {
     bossfightHandler = onBossfight;
     lastSublabel = bossfightSublabel;
@@ -137,6 +146,7 @@ vi.mock('@/components/city/CityScene', () => ({
     backHandler = onBackToEarth;
     marketHandler = onMarket;
     lastCoords = { realLat, realLng };
+    lastDate = date;
     return <div data-testid="city-scene" />;
   },
   CITY_CAMERA: [0, 5, 0.01],
@@ -184,6 +194,7 @@ const clickRanked = async () => {
 beforeEach(() => {
   push.mockClear();
   searchId = 'athens';
+  searchT = null;
   bossfightHandler = undefined;
   rankedHandler = undefined;
   lastSublabel = undefined;
@@ -193,7 +204,9 @@ beforeEach(() => {
   backHandler = undefined;
   marketHandler = undefined;
   lastCoords = undefined;
+  lastDate = undefined;
   socket.__reset();
+  vi.mocked(getMerchantOffer).mockReset().mockResolvedValue({ offer: null });
   mockedCheckName.mockReset();
   mockedLogInUser.mockReset();
   mockedVerifyLoginCode.mockReset();
@@ -282,6 +295,53 @@ describe('CityPage (routing)', () => {
     await waitFor(() => expect(marketHandler).toBeDefined());
     act(() => { marketHandler!(); });
     expect(push).toHaveBeenCalledWith('/market');
+  });
+});
+
+// docs/MERCHANT_PLAN.md §7: the city's sky should rewind along with the
+// globe's while a revert is active, not just the Merchant's own offer
+// window (real bug, found live: it didn't).
+describe('CityPage (Merchant time-revert)', () => {
+  it('hands the scene the real current time when nothing is reverted', async () => {
+    const before = Date.now();
+    renderCity();
+    await waitForScene();
+    expect(lastDate!.getTime()).toBeGreaterThanOrEqual(before);
+  });
+
+  it('hands the scene revert_to_date while a revert is active', async () => {
+    const revertedTo = '2026-01-01T00:00:00Z';
+    vi.mocked(getMerchantOffer).mockResolvedValue({
+      offer: {
+        offer_id: 1, merchant_name: 'The Merchant', item_name: 'Stone of Vitality',
+        cost_hades_coins: 5, trigger_kind: 'full_moon', active: true, available: true,
+        already_bought_this_period: false, period_start: '2026-09-25T16:49:32Z',
+        reverted: true, revert_expires_at: '2026-09-25T17:49:32Z', revert_to_date: revertedTo,
+      },
+    });
+    renderCity();
+    await waitForScene();
+    await waitFor(() => expect(lastDate!.getTime()).toBe(new Date(revertedTo).getTime()));
+  });
+
+  it('an explicit ?t= debug override still wins over an active revert', async () => {
+    searchT = '02:00';
+    vi.mocked(getMerchantOffer).mockResolvedValue({
+      offer: {
+        offer_id: 1, merchant_name: 'The Merchant', item_name: 'Stone of Vitality',
+        cost_hades_coins: 5, trigger_kind: 'full_moon', active: true, available: true,
+        already_bought_this_period: false, period_start: '2026-09-25T16:49:32Z',
+        reverted: true, revert_expires_at: '2026-09-25T17:49:32Z',
+        revert_to_date: '2026-01-01T00:00:00Z',
+      },
+    });
+    renderCity();
+    await waitForScene();
+    // resolveCityTime('02:00') is exercised directly by cityTime.test.ts --
+    // this only needs to prove the ?t= branch is what actually ran, not
+    // recompute its exact instant: 2am Athens today is never equal to the
+    // revert's Jan 1st.
+    expect(lastDate!.getTime()).not.toBe(new Date('2026-01-01T00:00:00Z').getTime());
   });
 });
 

@@ -100,6 +100,7 @@ export default function Page() {
               showMerchantMarker && merchantOffer ? merchantMarkerLatLng(merchantOffer.period_start) : null
             }
             onMerchantClick={() => setMerchantSceneOpen(true)}
+            skyRevertKey={merchantOffer?.reverted ? merchantOffer.revert_to_date : null}
           />
         </Canvas>
       )}
