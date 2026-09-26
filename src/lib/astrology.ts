@@ -195,8 +195,8 @@ function baseColorHex(body: Exclude<AspectBody, 'Sun'>, mercuryRetrograde: boole
 }
 
 /** A body's own identity colour, as the globe draws it with no aspect or
- *  retrograde in play -- what the conjunction merchant blends for its
- *  marker (lib/merchant.ts merchantEventColor). */
+ *  retrograde in play -- what the conjunction merchant's marker and its
+ *  revert-popup line are coloured from (lib/merchant.ts PLANET_COLOR). */
 export function bodyColorHex(body: Exclude<AspectBody, 'Sun'>): number {
   return BASE_COLOR[body];
 }

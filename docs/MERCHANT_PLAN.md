@@ -164,12 +164,13 @@ from.
 
 ### 5.4 The frontend
 
-- One globe marker per merchant (`MerchantMarker` takes a colour and a
-  label). The full moon's stays purple; a conjunction's text and light are
-  the **blend of its two planets' colours** (`lib/merchant.ts`
-  `blendPlanetColors`) — an even mix of the planets' own globe colours with
-  its lightness pulled into a readable band, since the raw average of a warm
-  and a cool planet is a dark mud on the night side.
+- One globe marker per merchant (`MerchantMarker`). The full moon's stays
+  purple with a dark outline and one light. A conjunction's text is the
+  **bigger planet's colour inside and the other's outside** (outline and
+  glow; `lib/merchant.ts` `merchantMarkerColors`, sized by
+  `PLANET_RADIUS_KM`), and it casts **two lights side by side**, one per
+  planet, each cut off just short of the other so the ground shows both
+  colours unmixed.
 - Markers are seeded by `period_start|event_key` and placed together
   (`placeMerchantMarkers`): one landing within 25° of a city (Greece) or of
   another merchant re-rolls its seed until clear, so no marker ever sits on

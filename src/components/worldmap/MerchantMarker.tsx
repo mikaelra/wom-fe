@@ -11,9 +11,13 @@ export interface MerchantMarkerSpec {
   key: string;
   lat: number;
   lng: number;
-  /** Text and light colour: purple for the full moon's Merchant, the blend
-   *  of the two planets for a conjunction's (lib/merchant.ts). */
+  /** Text (inner) and light colour: purple for the full moon's Merchant,
+   *  the bigger planet's for a conjunction's (lib/merchant.ts
+   *  merchantMarkerColors). */
   color: string;
+  /** A conjunction's other planet: the text's outer colour, and a second
+   *  light beside the first. null for the full moon. */
+  outline: string | null;
   label: string;
 }
 
@@ -21,6 +25,7 @@ interface MerchantMarkerProps {
   lat: number;
   lng: number;
   color: string;
+  outline: string | null;
   label: string;
   globeRadius: number;
   onClick: () => void;
@@ -49,7 +54,15 @@ interface MerchantMarkerProps {
  * onClick to raycast against, so the label is given `pointerEvents: 'auto'`
  * and handles the click/hover itself instead.
  */
-export default function MerchantMarker({ lat, lng, color, label, globeRadius, onClick }: MerchantMarkerProps) {
+// A conjunction's two lights: side by side along the surface, a little
+// above it, each cut off (`distance`) just short of the other's pool, so
+// the ground shows both planets' colours next to each other rather than
+// one mixed colour.
+const PAIR_LIGHT_OFFSET = 0.6;
+const PAIR_LIGHT_LIFT = 0.1;
+const PAIR_LIGHT_REACH = 0.62;
+
+export default function MerchantMarker({ lat, lng, color, outline, label, globeRadius, onClick }: MerchantMarkerProps) {
   const [hovered, setHovered] = useState(false);
 
   const position = latLngToVec3(lat, lng, globeRadius);
@@ -58,9 +71,26 @@ export default function MerchantMarker({ lat, lng, color, label, globeRadius, on
 
   return (
     <group position={position} quaternion={quaternion}>
-      {/* The glow on the globe itself -- tripled radius/intensity from the
-          original so it reads from a distance, the label's colour. */}
-      <pointLight color={color} intensity={hovered ? 6.6 : 4.2} distance={7.5} />
+      {outline ? (
+        <>
+          <pointLight
+            color={color}
+            position={[-PAIR_LIGHT_OFFSET, PAIR_LIGHT_LIFT, 0]}
+            intensity={hovered ? 6.6 : 4.2}
+            distance={PAIR_LIGHT_REACH}
+          />
+          <pointLight
+            color={outline}
+            position={[PAIR_LIGHT_OFFSET, PAIR_LIGHT_LIFT, 0]}
+            intensity={hovered ? 6.6 : 4.2}
+            distance={PAIR_LIGHT_REACH}
+          />
+        </>
+      ) : (
+        // The glow on the globe itself -- tripled radius/intensity from the
+        // original so it reads from a distance, the label's colour.
+        <pointLight color={color} intensity={hovered ? 6.6 : 4.2} distance={7.5} />
+      )}
 
       <FreshHtml position={[0, 1.0, 0]} center distanceFactor={6}>
         <div
@@ -74,13 +104,17 @@ export default function MerchantMarker({ lat, lng, color, label, globeRadius, on
             // Same size as a city's actionLabel pill text (CityMarker.tsx,
             // e.g. Athens' "GREECE") -- this label just isn't in a pill.
             color,
+            // A conjunction's other planet rings the letters: a stroke
+            // painted under the fill, so the fill keeps its full width and
+            // the outer half of the stroke shows as the outer colour.
             fontSize: hovered ? 22 : 18,
             fontWeight: 900,
             letterSpacing: '0.05em',
-            WebkitTextStroke: '0.5px #000',
+            WebkitTextStroke: outline ? `3px ${outline}` : '0.5px #000',
+            paintOrder: 'stroke fill',
             textShadow: hovered
-              ? `0 0 10px ${color}e6, 0 0 3px rgba(0,0,0,0.9)`
-              : `0 0 6px ${color}99, 0 0 3px rgba(0,0,0,0.9)`,
+              ? `0 0 10px ${outline ?? color}e6, 0 0 3px rgba(0,0,0,0.9)`
+              : `0 0 6px ${outline ?? color}99, 0 0 3px rgba(0,0,0,0.9)`,
             transition: 'font-size 0.2s, text-shadow 0.2s',
             cursor: 'pointer',
             pointerEvents: 'auto',

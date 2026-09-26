@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { merchantState, paperOffer, revertedState, stoneOffer } from '@/lib/__tests__/merchantFixtures';
-import { arcDegrees, blendPlanetColors, FULL_MOON_MERCHANT_COLOR, MARKER_MIN_SEPARATION_DEG } from '@/lib/merchant';
+import { arcDegrees, FULL_MOON_MERCHANT_COLOR, MARKER_MIN_SEPARATION_DEG } from '@/lib/merchant';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import type { CSSProperties, ReactNode } from 'react';
 import Page from '@/app/page';
@@ -93,7 +93,7 @@ const RULES: City = { id: 3, name: 'Rules City', country: '', lat: 0, lng: 0, re
 
 let cityClickHandler: ((city: City) => void) | undefined;
 let lastSkyRevertKey: string | null | undefined;
-let lastMerchantMarkers: { key: string; color: string; label: string; lat: number; lng: number }[] = [];
+let lastMerchantMarkers: { key: string; color: string; outline: string | null; label: string; lat: number; lng: number }[] = [];
 let merchantClickHandler: ((key: string) => void) | undefined;
 vi.mock('@/components/worldmap/WorldMap', () => ({
   default: ({
@@ -101,7 +101,7 @@ vi.mock('@/components/worldmap/WorldMap', () => ({
   }: {
     onCityClick: (city: City) => void;
     skyRevertKey?: string | null;
-    merchantMarkers?: { key: string; color: string; label: string; lat: number; lng: number }[];
+    merchantMarkers?: { key: string; color: string; outline: string | null; label: string; lat: number; lng: number }[];
     onMerchantClick?: (key: string) => void;
   }) => {
     cityClickHandler = onCityClick;
@@ -258,8 +258,9 @@ describe('Page (merchant markers)', () => {
 
     await waitFor(() => expect(lastMerchantMarkers).toHaveLength(2));
     const [moon, conj] = lastMerchantMarkers;
-    expect(moon).toMatchObject({ label: 'Merchant', color: FULL_MOON_MERCHANT_COLOR });
-    expect(conj).toMatchObject({ label: 'Merchant', color: blendPlanetColors('Mercury', 'Jupiter') });
+    expect(moon).toMatchObject({ label: 'Merchant', color: FULL_MOON_MERCHANT_COLOR, outline: null });
+    // Jupiter is the bigger planet: its colour inside, Mercury's outside.
+    expect(conj).toMatchObject({ label: 'Merchant', color: '#008296', outline: '#db9504' });
     expect(arcDegrees(moon, conj)).toBeGreaterThanOrEqual(MARKER_MIN_SEPARATION_DEG);
   });
 

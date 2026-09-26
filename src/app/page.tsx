@@ -8,7 +8,7 @@ import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import type { City } from '@/lib/cities';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
-import { merchantEventColor, merchantMarkerLabel, placeMerchantMarkers } from '@/lib/merchant';
+import { merchantMarkerColors, merchantMarkerLabel, placeMerchantMarkers } from '@/lib/merchant';
 import { getStoredAccountToken } from '@/lib/http';
 
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
@@ -59,7 +59,7 @@ export default function Page() {
     return merchantOffers.map((o, i) => ({
       key: merchantKey(o),
       ...spots[i],
-      color: merchantEventColor(o.event),
+      ...(({ fill, outline }) => ({ color: fill, outline }))(merchantMarkerColors(o.event)),
       label: merchantMarkerLabel(o.merchant_name),
     }));
   }, [merchantOffers]);

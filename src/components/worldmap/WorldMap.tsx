@@ -1126,6 +1126,7 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
           lat={m.lat}
           lng={m.lng}
           color={m.color}
+          outline={m.outline}
           label={m.label}
           globeRadius={GLOBE_RADIUS}
           onClick={() => onMerchantClick(m.key)}

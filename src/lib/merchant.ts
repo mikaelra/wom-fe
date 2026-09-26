@@ -188,6 +188,36 @@ export function merchantEventColor(event: MerchantEvent | null | undefined): str
   return FULL_MOON_MERCHANT_COLOR;
 }
 
+/** Mean radius, km -- which of two conjunct planets is the bigger. */
+export const PLANET_RADIUS_KM: Record<string, number> = {
+  Mercury: 2440,
+  Venus: 6052,
+  Mars: 3390,
+  Jupiter: 69911,
+  Saturn: 58232,
+};
+
+const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+
+/**
+ * A merchant marker's colours on the globe. A conjunction's text is the
+ * bigger planet's colour inside and the other's outside (its outline and
+ * glow), and its light is the bigger planet's. The full moon's stays
+ * purple with the dark outline it always had (`outline` null).
+ */
+export function merchantMarkerColors(
+  event: MerchantEvent | null | undefined,
+): { fill: string; outline: string | null } {
+  if (event?.kind === 'conjunction' && event.bodies.length === 2) {
+    const [a, b] = event.bodies;
+    if (PLANET_COLOR[a] !== undefined && PLANET_COLOR[b] !== undefined) {
+      const [big, other] = (PLANET_RADIUS_KM[b] ?? 0) > (PLANET_RADIUS_KM[a] ?? 0) ? [b, a] : [a, b];
+      return { fill: hex(PLANET_COLOR[big]), outline: hex(PLANET_COLOR[other]) };
+    }
+  }
+  return { fill: FULL_MOON_MERCHANT_COLOR, outline: null };
+}
+
 /** "Full moon in Aries", "Conjunction between Mercury and Jupiter in Libra"
  *  -- how the revert popup and the merchant's scene name an event. */
 export function describeMerchantEvent(event: MerchantEvent): string {

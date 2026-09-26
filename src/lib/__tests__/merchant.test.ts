@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   blendPlanetColors, describeMerchantEvent, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine,
   merchantEventColor, merchantEventLatLng, merchantMarkerLabel, merchantMarkerLatLng,
-  PLANET_COLOR, REVERT_RELIC_NAMES, arcDegrees, MARKER_MIN_SEPARATION_DEG, placeMerchantMarkers,
+  PLANET_COLOR, REVERT_RELIC_NAMES, arcDegrees, merchantMarkerColors, PLANET_RADIUS_KM, MARKER_MIN_SEPARATION_DEG, placeMerchantMarkers,
 } from '@/lib/merchant';
 import { bodyColorHex } from '@/lib/astrology';
 import { CITIES } from '@/lib/cities';
@@ -201,5 +201,30 @@ describe('placeMerchantMarkers', () => {
     const everywhere = [];
     for (let lat = -60; lat <= 60; lat += 10) for (let lng = -180; lng < 180; lng += 10) everywhere.push({ lat, lng });
     expect(placeMerchantMarkers([{ period_start: 'x', event_key: '' }], everywhere)).toHaveLength(1);
+  });
+});
+
+describe('merchantMarkerColors', () => {
+  const conj = (a: string, b: string) => ({ kind: 'conjunction', key: `${a}-${b}`, bodies: [a, b], sign: 'Leo', at: 'x' });
+
+  it('fills with the bigger planet and rings with the other, whichever is named first', () => {
+    expect(merchantMarkerColors(conj('Mars', 'Jupiter'))).toEqual({ fill: '#008296', outline: '#ff0000' });
+    expect(merchantMarkerColors(conj('Jupiter', 'Mars'))).toEqual({ fill: '#008296', outline: '#ff0000' });
+    expect(merchantMarkerColors(conj('Mercury', 'Venus'))).toEqual({ fill: '#ab9d00', outline: '#db9504' });
+  });
+
+  it('ranks the planets by size: Jupiter, Saturn, Venus, Mars, Mercury', () => {
+    const bySize = Object.keys(PLANET_RADIUS_KM).sort((a, b) => PLANET_RADIUS_KM[b] - PLANET_RADIUS_KM[a]);
+    expect(bySize).toEqual(['Jupiter', 'Saturn', 'Venus', 'Mars', 'Mercury']);
+    expect(merchantMarkerColors(conj('Venus', 'Saturn')).fill).toBe('#a16300');
+  });
+
+  it('keeps the full moon purple with no planet outline', () => {
+    expect(merchantMarkerColors(FULL_MOON_EVENT)).toEqual({ fill: FULL_MOON_MERCHANT_COLOR, outline: null });
+    expect(merchantMarkerColors(null)).toEqual({ fill: FULL_MOON_MERCHANT_COLOR, outline: null });
+  });
+
+  it('falls back to the purple for a body it does not know', () => {
+    expect(merchantMarkerColors(conj('Mars', 'Pluto'))).toEqual({ fill: FULL_MOON_MERCHANT_COLOR, outline: null });
   });
 });
