@@ -366,30 +366,47 @@ function useSignTexture(text: string): THREE.CanvasTexture | null {
   return texture;
 }
 
+/** Where the board still hangs from its one post, as a fraction of the
+ *  board's height up from its bottom edge. */
+const SIGN_NAIL = 0.7;
+
 function WorkInProgressSign({ position }: { position: [number, number, number] }) {
   const texture = useSignTexture('Work in progress');
   const postHeight = SIGN_LIFT + SIGN_HEIGHT;
 
+  // One post, on the board's left as you read it; the right-hand one is
+  // gone. The board still hangs from a nail near the top of the surviving
+  // post and has swung down until its free bottom corner rests on the
+  // quay. The angle is solved for rather than picked, so the corner sits
+  // on the stone instead of floating over it or sinking into it.
+  const postX = -(SIGN_WIDTH / 2 - 0.25);
+  const nailY = SIGN_LIFT + SIGN_HEIGHT * SIGN_NAIL;
+  // The free corner, relative to the nail: (dx, -dy). Turned by θ it lands
+  // at y = nailY - dx·sinθ - dy·cosθ; setting that to 0 is
+  // R·sin(θ + φ) = nailY with R = |(dx, dy)| and φ = atan(dy / dx).
+  const dx = SIGN_WIDTH / 2 - postX;
+  const dy = SIGN_HEIGHT * SIGN_NAIL;
+  const tilt = Math.asin(nailY / Math.hypot(dx, dy)) - Math.atan2(dy, dx);
+
   return (
-    // Faces -Z, inland, toward the viewer; a slight lean so it looks
-    // put up by hand.
-    <group position={position} rotation={[0, Math.PI, 0.03]}>
-      {[-1, 1].map((side) => (
-        <mesh key={side} position={[side * (SIGN_WIDTH / 2 - 0.25), postHeight / 2, -0.09]} castShadow>
-          <boxGeometry args={[0.14, postHeight, 0.14]} />
-          <meshStandardMaterial color={SIGN_BROWN} roughness={0.9} />
-        </mesh>
-      ))}
-      <mesh position={[0, SIGN_LIFT + SIGN_HEIGHT / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[SIGN_WIDTH, SIGN_HEIGHT, 0.08]} />
-        <meshStandardMaterial attach="material-0" color={SIGN_YELLOW} roughness={0.7} />
-        <meshStandardMaterial attach="material-1" color={SIGN_YELLOW} roughness={0.7} />
-        <meshStandardMaterial attach="material-2" color={SIGN_YELLOW} roughness={0.7} />
-        <meshStandardMaterial attach="material-3" color={SIGN_YELLOW} roughness={0.7} />
-        {/* +Z face of the board, which the group's half-turn points inland. */}
-        <meshStandardMaterial attach="material-4" map={texture} roughness={0.7} />
-        <meshStandardMaterial attach="material-5" color={SIGN_YELLOW} roughness={0.7} />
+    // Faces -Z, inland, toward the viewer.
+    <group position={position} rotation={[0, Math.PI, 0]}>
+      <mesh position={[postX, postHeight / 2, -0.09]} castShadow>
+        <boxGeometry args={[0.14, postHeight, 0.14]} />
+        <meshStandardMaterial color={SIGN_BROWN} roughness={0.9} />
       </mesh>
+      <group position={[postX, nailY, 0]} rotation={[0, 0, -tilt]}>
+        <mesh position={[-postX, SIGN_HEIGHT * (0.5 - SIGN_NAIL), 0]} castShadow receiveShadow>
+          <boxGeometry args={[SIGN_WIDTH, SIGN_HEIGHT, 0.08]} />
+          <meshStandardMaterial attach="material-0" color={SIGN_YELLOW} roughness={0.7} />
+          <meshStandardMaterial attach="material-1" color={SIGN_YELLOW} roughness={0.7} />
+          <meshStandardMaterial attach="material-2" color={SIGN_YELLOW} roughness={0.7} />
+          <meshStandardMaterial attach="material-3" color={SIGN_YELLOW} roughness={0.7} />
+          {/* +Z face of the board, which the group's half-turn points inland. */}
+          <meshStandardMaterial attach="material-4" map={texture} roughness={0.7} />
+          <meshStandardMaterial attach="material-5" color={SIGN_YELLOW} roughness={0.7} />
+        </mesh>
+      </group>
     </group>
   );
 }
