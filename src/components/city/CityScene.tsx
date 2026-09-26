@@ -28,6 +28,7 @@ import Terrain from '@/components/city/Terrain';
 import TempleTableau from '@/components/city/TempleTableau';
 import BuildingSign, { playingLabel, inMarketLabel } from '@/components/city/BuildingSign';
 import { TEMPLE_TABLEAU_LIFT } from '@/lib/templeTableau';
+import { fovAfterPinch, fovAfterWheel, rotateSpeedForFov } from '@/lib/cityZoom';
 import type { BossfightRoster } from '@/lib/api';
 import type { CityPresence } from '@/lib/schemas';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
@@ -47,8 +48,9 @@ import { useClickNotDrag } from '@/lib/useClickNotDrag';
  * panorama-viewer arrangement -- orbiting at a radius of a centimetre is
  * indistinguishable from turning your head, and it means the well-tested
  * OrbitControls damping and touch handling come along for free rather than
- * hand-rolling a look controller. Pan and zoom are off: both would slide the
- * viewer off the spot they are pinned to.
+ * hand-rolling a look controller. Pan and OrbitControls' dolly zoom are
+ * off: both would slide the viewer off the spot they are pinned to. Zoom
+ * narrows the field of view instead (CityZoom).
  *
  * The sky is the real one over Athens at `date`, ephemeris-placed and
  * lit by where the Sun actually is (CitySky).
@@ -92,6 +94,11 @@ const LABEL_DISTANCE_FACTOR = SKY_R * 2 * Math.tan((CITY_FOV * Math.PI) / 360);
 // Look limits. Azimuth is deliberately UNCLAMPED -- a full 360 is the point.
 const MIN_POLAR = 0.02;               // ~1 deg off the zenith
 const MAX_POLAR = Math.PI * 0.86;     // well below the horizon, short of inverting
+
+/** Drag-to-turn speed at the base FOV. Negative so dragging feels like
+ *  turning your head rather than spinning an object in front of you -- the
+ *  same sign three.js's own panorama example uses. */
+const ROTATE_SPEED = -0.35;
 
 
 const BOSSFIGHT_COLOR = '#4da6ff';
@@ -211,6 +218,62 @@ export interface CitySceneProps {
  * re-arm, so BACK eases from the fork's facing rather than snapping. Once
  * settled the rig stops touching the camera and free look resumes.
  */
+/**
+ * Zoom by narrowing the field of view (lib/cityZoom.ts): mouse wheel or
+ * trackpad on desktop, two-finger pinch on touch. OrbitControls' own zoom
+ * stays off because it dollies, which would move the viewer off the pin.
+ * Drag speed follows the FOV so turning stays proportionate when zoomed in.
+ */
+function CityZoom() {
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+  const gl = useThree((s) => s.gl);
+  const controls = useThree((s) => s.controls) as { rotateSpeed: number } | null;
+
+  useEffect(() => {
+    const el = gl.domElement;
+    const apply = (fov: number) => {
+      if (fov === camera.fov) return;
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+      if (controls) controls.rotateSpeed = rotateSpeedForFov(ROTATE_SPEED, fov, CITY_FOV);
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      apply(fovAfterWheel(camera.fov, e.deltaY, CITY_FOV));
+    };
+
+    let pinch: { distance: number; fov: number } | null = null;
+    const spread = (t: TouchList) =>
+      Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const onTouchStart = (e: TouchEvent) => {
+      pinch = e.touches.length === 2 ? { distance: spread(e.touches), fov: camera.fov } : null;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return;
+      apply(fovAfterPinch(pinch.fov, pinch.distance, spread(e.touches), CITY_FOV));
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = null;
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: true });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [camera, gl, controls]);
+
+  return null;
+}
+
 function GuidedView({
   pin,
   offsetDir,
@@ -648,18 +711,18 @@ export default function CityScene({
         <Mountain scale={150} position={[40, -282, 62]} />
       </Suspense>
 
+      <CityZoom />
       <OrbitControls
         makeDefault
         target={EYE}
         // Both off: either would move the viewer off the spot they are
         // pinned to, which is the one thing this camera must not do.
+        // Zoom is CityZoom's FOV zoom instead.
         enablePan={false}
         enableZoom={false}
         autoRotate={false}
-        // Negative so dragging feels like turning your head rather than
-        // spinning an object in front of you -- the same sign three.js's own
-        // panorama example uses. Purely a feel choice; flip if it reads wrong.
-        rotateSpeed={-0.35}
+        // CityZoom rescales this as the FOV narrows.
+        rotateSpeed={ROTATE_SPEED}
         enableDamping
         dampingFactor={0.08}
         minPolarAngle={MIN_POLAR}
