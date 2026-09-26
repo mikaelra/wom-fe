@@ -653,7 +653,12 @@ const SKY_DRIFT   = -0.0002;
 
 function SunLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
-  const initPos  = useMemo(() => getSky().dir.Sun.clone().multiplyScalar(PLANET_R), []);
+  // [] here (unlike every sibling *Light below, which depend on [sky]) used
+  // to freeze this at whatever the sky was on first mount forever -- a
+  // revert changing getSky()'s underlying date was never picked up
+  // (docs/MERCHANT_PLAN.md §7, found live).
+  const sky      = getSky();
+  const initPos  = useMemo(() => sky.dir.Sun.clone().multiplyScalar(PLANET_R), [sky]);
 
   // Mirror the same Y-rotation the planet group applies each frame so the
   // light stays aligned with the sun sprite's world position.
@@ -877,7 +882,14 @@ const REVEAL_PHASE: Record<AspectBody, number> = {
  *  to that body rather than floating loose in the sky. */
 const PLANET_LABEL_OFFSET = { x: 1.4, y: 2.0 };
 
-const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) {
+const PlanetSprites = memo(function PlanetSprites({
+  phase, skyRevertKey,
+}: { phase: number; skyRevertKey: string | null }) {
+  // Not read below -- memo()'s default shallow prop-compare is what
+  // actually uses it, forcing a re-render (and therefore a fresh
+  // getSky() read) when a revert starts or ends despite `phase` staying
+  // put. See the WorldMapProps comment on skyRevertKey.
+  void skyRevertKey;
   const groupRef = useRef<THREE.Group>(null);
   const sky = getSky();
   const aspects = useMemo(() => computeAspects(sky), [sky]);
@@ -1044,7 +1056,10 @@ function Globe({ onCityClick, onReady, merchantMarkerLatLng, onMerchantClick }: 
   useEffect(() => { onReady?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fresnelMat = useMemo(makeFresnelMat, []);
-  const moonAspect = useMemo(() => computeAspects(getSky()).Moon, []);
+  // [] here used to freeze the globe's moon-conjunction shell at whatever
+  // the sky was on first mount forever, same bug as SunLight's initPos.
+  const sky = getSky();
+  const moonAspect = useMemo(() => computeAspects(sky).Moon, [sky]);
   const moonFresnelMat = useMemo(() => makeMoonFresnelMat(moonAspect), [moonAspect]);
 
   const lightsMat = useMemo(
@@ -1187,9 +1202,18 @@ interface WorldMapProps {
   onCityClick: (city: City) => void;
   merchantMarkerLatLng?: { lat: number; lng: number } | null;
   onMerchantClick?: () => void;
+  // docs/MERCHANT_PLAN.md §7: the current revert's revert_to_date (or null
+  // when nothing is reverted) -- PlanetSprites is memoized on `phase` alone
+  // so it stops re-rendering once the reveal animation finishes, and passing
+  // this through as a second prop is what makes it pick a revert back up
+  // (and drop it again once the revert ends) without giving up that
+  // memoization the rest of the time.
+  skyRevertKey?: string | null;
 }
 
-export default function WorldMap({ onCityClick, merchantMarkerLatLng, onMerchantClick }: WorldMapProps) {
+export default function WorldMap({
+  onCityClick, merchantMarkerLatLng, onMerchantClick, skyRevertKey = null,
+}: WorldMapProps) {
   const [phase, setPhase] = useState(0);
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
@@ -1245,7 +1269,7 @@ export default function WorldMap({ onCityClick, merchantMarkerLatLng, onMerchant
 
       {/* Planets revealed one-by-one; each has its own Suspense so the moon
           texture doesn't block the canvas-generated planet sprites. */}
-      {phase >= 1 && <PlanetSprites phase={phase} />}
+      {phase >= 1 && <PlanetSprites phase={phase} skyRevertKey={skyRevertKey} />}
 
       {/* Stars last */}
       {phase >= 9 && (
