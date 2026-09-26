@@ -30,6 +30,10 @@ export const NORMAL_WHEEL_SKINS = COMMON_SKINS.filter((s) => s !== 'frog_green_v
 // pattern, rather than teaching every skinUrl() caller two different rules.
 const SKIN_MODEL_URLS: Record<string, string> = {
   cherub_v1: '/models/cherub-v01.glb',
+  // The Merchant NPC (docs/MERCHANT_PLAN.md), not a player skin at all --
+  // reuses this lookup (and SpinningModelViewer/PlayerV1, whichever render
+  // it) rather than growing a second model-URL table for one entry.
+  merchant_v1: '/models/merchant_v1.glb',
 };
 
 export function skinUrl(skinName: string): string {

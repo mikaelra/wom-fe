@@ -52,6 +52,48 @@ export const BossfightRosterResponseSchema = z.object({
   })),
 });
 
+// docs/MERCHANT_PLAN.md -- the globe ??? encounter. `offer` is null when no
+// offer is configured active at all (distinct from `available: false`,
+// which means one exists but its trigger isn't up right now or this player
+// already traded this period).
+export const MerchantOfferResponseSchema = z.object({
+  offer: z.object({
+    offer_id: z.number(),
+    merchant_name: z.string(),
+    item_name: z.string(),
+    cost_hades_coins: z.number(),
+    trigger_kind: z.string(),
+    // Whether the trigger is up at all (drives the globe marker). Distinct
+    // from `available` (drives the buy button): a player who's already
+    // traded this period must still see the Merchant, just unable to buy.
+    active: z.boolean(),
+    available: z.boolean(),
+    already_bought_this_period: z.boolean(),
+    period_start: z.string(),
+    // docs/MERCHANT_PLAN.md §7 -- is the trigger active right now only
+    // because someone sacrificed a relic to revert time, and when does
+    // that end. Lets the frontend explain an off-schedule Merchant
+    // instead of it looking like a bug.
+    reverted: z.boolean(),
+    revert_expires_at: z.string().nullable(),
+    // §7: while reverted, the sky itself also rewinds to this instant --
+    // the moment the sacrificed Stone of Vitality was originally bought --
+    // not just the offer window.
+    revert_to_date: z.string().nullable(),
+  }).nullable(),
+});
+
+export const MerchantPurchaseResponseSchema = z.object({
+  ok: z.boolean(),
+  item_name: z.string(),
+});
+
+export const MerchantRevertTimeResponseSchema = z.object({
+  ok: z.boolean(),
+  expires_at: z.string(),
+  revert_to_date: z.string(),
+});
+
 export const GetPlayerRelicsResponseSchema = z.object({
   relics: z.array(RelicSchema),
 });
@@ -157,6 +199,13 @@ export const ClaimPendingWheelResponseSchema = z.object({
 });
 
 export const InventoryResponseSchema = z.object({
+  // Session-resolved, authoritative name -- fetching Relics
+  // (GET /get_player_relics, name-keyed) should use this, not a
+  // client-cached localStorage copy that can drift from the actual
+  // session (bug: Relics box silently empty, traced 2026-09-25). Optional
+  // for the same deploy-independence reasoning as every other field added
+  // here after v1.
+  name: z.string().optional(),
   equipped_skin: z.string(),
   skins: z.array(z.object({ skin: z.string(), count: z.number().int() })),
   wheels: z.array(z.object({ id: z.number().int(), kind: z.string() })),

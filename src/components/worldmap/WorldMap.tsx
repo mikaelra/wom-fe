@@ -6,6 +6,7 @@ import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
+import MerchantMarker from './MerchantMarker';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import {
@@ -1006,9 +1007,13 @@ const PlanetSprites = memo(function PlanetSprites({ phase }: { phase: number }) 
 interface GlobeProps {
   onCityClick: (city: City) => void;
   onReady?: () => void;
+  /** docs/MERCHANT_PLAN.md -- where to draw the ??? this trigger period, or
+   * null to draw nothing (no active/available offer right now). */
+  merchantMarkerLatLng?: { lat: number; lng: number } | null;
+  onMerchantClick?: () => void;
 }
 
-function Globe({ onCityClick, onReady }: GlobeProps) {
+function Globe({ onCityClick, onReady, merchantMarkerLatLng, onMerchantClick }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
 
   // Epicenter for the crackle effect — Athens on the globe surface
@@ -1100,6 +1105,15 @@ function Globe({ onCityClick, onReady }: GlobeProps) {
         />
       ))}
 
+      {merchantMarkerLatLng && onMerchantClick && (
+        <MerchantMarker
+          lat={merchantMarkerLatLng.lat}
+          lng={merchantMarkerLatLng.lng}
+          globeRadius={GLOBE_RADIUS}
+          onClick={onMerchantClick}
+        />
+      )}
+
       {/* Crackle electricity radiating from the sword's impact point */}
       <GlobeCrackleEffect epicenter={athensEpicenter} radius={GLOBE_RADIUS} />
     </group>
@@ -1171,9 +1185,11 @@ function CameraRig({
 
 interface WorldMapProps {
   onCityClick: (city: City) => void;
+  merchantMarkerLatLng?: { lat: number; lng: number } | null;
+  onMerchantClick?: () => void;
 }
 
-export default function WorldMap({ onCityClick }: WorldMapProps) {
+export default function WorldMap({ onCityClick, merchantMarkerLatLng, onMerchantClick }: WorldMapProps) {
   const [phase, setPhase] = useState(0);
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
@@ -1218,7 +1234,12 @@ export default function WorldMap({ onCityClick }: WorldMapProps) {
           textures are ready without waiting for moon/star textures. */}
       {phase >= 1 && (
         <Suspense fallback={null}>
-          <Globe onCityClick={onCityClick} onReady={() => setGlobeReady(true)} />
+          <Globe
+            onCityClick={onCityClick}
+            onReady={() => setGlobeReady(true)}
+            merchantMarkerLatLng={merchantMarkerLatLng}
+            onMerchantClick={onMerchantClick}
+          />
         </Suspense>
       )}
 

@@ -442,6 +442,28 @@ describe('error-swallowing endpoints', () => {
     await expect(getPlayerRelics('Alice')).resolves.toEqual({ relics: [] });
   });
 
+  it('getPlayerRelics does not swallow a relic with no boss (regression, traced 2026-09-25)', async () => {
+    // Stone of Vitality's boss_id is null; RelicSchema used to require a
+    // number there, which failed the whole array's parse -- and this same
+    // catch-all turned that real schema bug into an indistinguishable
+    // empty list, hiding it (including hiding every *other* owned relic,
+    // e.g. Hades' Coin, in the same response).
+    fetchMock.mockResolvedValue(jsonResponse({
+      relics: [{
+        id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00',
+        newest_copy_created_at: '2026-09-25T19:57:42+00:00',
+        name: 'Stone of Vitality', power_category: 'HEALTH', count: 1,
+      }],
+    }));
+    await expect(getPlayerRelics('Oni')).resolves.toEqual({
+      relics: [{
+        id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00',
+        newest_copy_created_at: '2026-09-25T19:57:42+00:00',
+        name: 'Stone of Vitality', power_category: 'HEALTH', count: 1,
+      }],
+    });
+  });
+
   it('getPlayerMessages returns empty lists on failure', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: 'boom' }, 500));
     await expect(getPlayerMessages('abc', 'Alice')).resolves.toEqual({
@@ -536,6 +558,19 @@ describe('getInventory', () => {
   it('throws on an invalid session', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: 'Invalid or expired session.' }, 401));
     await expect(getInventory('bad')).rejects.toThrow('Invalid or expired session.');
+  });
+
+  it('passes through the session-resolved name', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        name: 'Oni',
+        equipped_skin: 'frog_green_v1',
+        skins: [],
+        wheels: [],
+      }),
+    );
+
+    await expect(getInventory('sess-1')).resolves.toMatchObject({ name: 'Oni' });
   });
 });
 

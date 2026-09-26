@@ -119,6 +119,7 @@ describe('Player/LobbyState/ChatMessage/Relic schemas', () => {
       id: 3,
       boss_id: 7,
       created_at: '2026-01-01T00:00:00+00:00',
+      newest_copy_created_at: '2026-01-01T00:00:00+00:00',
       name: 'Shiny Relic',
       power_category: 'fire',
       flavour_text: 'A shiny relic.',
@@ -128,7 +129,25 @@ describe('Player/LobbyState/ChatMessage/Relic schemas', () => {
   });
 
   it('parses a relic missing the optional flavour_text', () => {
-    const relic = { id: 3, boss_id: 7, created_at: '2026-01-01T00:00:00+00:00', name: 'Shiny Relic', power_category: 'fire', count: 1 };
+    const relic = {
+      id: 3, boss_id: 7, created_at: '2026-01-01T00:00:00+00:00',
+      newest_copy_created_at: '2026-01-01T00:00:00+00:00',
+      name: 'Shiny Relic', power_category: 'fire', count: 1,
+    };
+    expect(RelicSchema.safeParse(relic).success).toBe(true);
+  });
+
+  it('parses a relic with no boss (docs/MERCHANT_PLAN.md\'s Stone of Vitality, boss_id: null)', () => {
+    // Regression: this used to be `z.number().int()` (required), which
+    // failed the *entire* relics array for any player owning a relic with
+    // no boss, silently emptying the Relics box (getPlayerRelics's
+    // catch-all swallowed the resulting SchemaMismatchError) even for
+    // relics that do have a boss, like Hades' Coin. Traced live 2026-09-25.
+    const relic = {
+      id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00',
+      newest_copy_created_at: '2026-09-25T19:57:42+00:00',
+      name: 'Stone of Vitality', power_category: 'HEALTH', count: 1,
+    };
     expect(RelicSchema.safeParse(relic).success).toBe(true);
   });
 });
@@ -193,7 +212,10 @@ describe('HTTP response schemas', () => {
 
   it('parses get_player_relics', () => {
     const body = {
-      relics: [{ id: 1, boss_id: 7, created_at: '2026-01-01T00:00:00+00:00', name: 'Relic', power_category: 'fire', count: 1 }],
+      relics: [{
+        id: 1, boss_id: 7, created_at: '2026-01-01T00:00:00+00:00',
+        newest_copy_created_at: '2026-01-01T00:00:00+00:00', name: 'Relic', power_category: 'fire', count: 1,
+      }],
     };
     expect(GetPlayerRelicsResponseSchema.safeParse(body).success).toBe(true);
   });

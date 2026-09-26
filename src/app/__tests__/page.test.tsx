@@ -27,6 +27,10 @@ vi.mock('@/lib/api', () => ({
   getActiveRankedLobby: vi.fn(),
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
+  // docs/MERCHANT_PLAN.md's useMerchantOffer polls this on every mount of
+  // this page -- no offer, so the ??? marker this suite isn't testing
+  // stays off rather than the hook silently failing every poll.
+  getMerchantOffer: vi.fn().mockResolvedValue({ offer: null }),
 }));
 
 // Same fake-subscribe pattern as WorldMapOverlay.test.tsx -- useRankedQueue
