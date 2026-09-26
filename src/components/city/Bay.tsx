@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { LAND_LEVEL, SEA_LEVEL } from '@/lib/cityLayout';
-import { BAY_BED } from '@/lib/cityTerrain';
+import {
+  BAY_BED, BAY_BANK, BAY_DOCK_WIDTH, BAY_FLARE, BAY_HALF_WIDTH, bayDockLength,
+} from '@/lib/cityTerrain';
 
 /**
  * The Bay -- procedural first pass, built in /modelling.
@@ -37,11 +39,13 @@ const SAIL = '#efe4c8';
 const SIGN_YELLOW = '#f2c230';
 const SIGN_BROWN = '#5a3a1a';
 
-/** The quay is wider than the channel's head so the bank meets its wall,
- *  and as deep as lib/cityTerrain.ts BAY_BANK so it hides the slope. */
-const QUAY_WIDTH = 12;
-const QUAY_DEPTH = 4;
+/** The quay across the head spans the channel and both side docks, and is
+ *  deeper than lib/cityTerrain.ts BAY_BANK so it hides the slope. */
+const QUAY_WIDTH = 2 * (BAY_HALF_WIDTH + BAY_DOCK_WIDTH);
+const QUAY_DEPTH = BAY_BANK + 1;
 const QUAY_TOP = 0.3;
+/** Spacing of the bollards along the side docks. */
+const BOLLARD_SPACING = 9;
 
 const PIER_LENGTH = 13;
 const PIER_WIDTH = 2.2;
@@ -58,6 +62,8 @@ export default function Bay({ position = [0, 0, 0], rotationY = 0 }: BayProps) {
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
       <Quay />
+      <SideDock side={-1} />
+      <SideDock side={1} />
       <Pier />
       <Boat />
       <WorkInProgressSign position={[-3.6, QUAY_TOP, -2.4]} />
@@ -81,6 +87,64 @@ function Quay() {
         <boxGeometry args={[QUAY_WIDTH + 0.2, 0.16, 0.6]} />
         <meshStandardMaterial color={STONE_DARK} roughness={0.9} />
       </mesh>
+    </group>
+  );
+}
+
+/**
+ * The dock down one bank of the inlet, from the head quay to where the bank
+ * meets the open sea (bayDockLength). The channel's edge is a straight line
+ * flaring out at BAY_FLARE, so each side is one straight run of wall turned
+ * onto it. It starts a quay-depth behind the head so its corner is buried in
+ * the head quay rather than meeting it at a seam.
+ */
+function SideDock({ side }: { side: -1 | 1 }) {
+  const angle = Math.atan(BAY_FLARE);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const z0 = -QUAY_DEPTH;
+  const z1 = bayDockLength();
+  const length = (z1 - z0) / cos;
+  const height = QUAY_TOP - BED_Y;
+
+  /** Point on the water's edge `t` out along the channel. */
+  const edge = (t: number): [number, number] => [side * (BAY_HALF_WIDTH + BAY_FLARE * t), t];
+  // The run's centre, pushed half a dock-width in off the water, square to
+  // the edge: the outward normal of an edge heading (side·sin, cos) is
+  // (side·cos, -sin).
+  const [mx, mz] = edge((z0 + z1) / 2);
+  const cx = mx + side * cos * (BAY_DOCK_WIDTH / 2);
+  const cz = mz - sin * (BAY_DOCK_WIDTH / 2);
+
+  const bollards: [number, number][] = [];
+  for (let t = BOLLARD_SPACING / 2; t < z1 - 1; t += BOLLARD_SPACING) {
+    const [x, z] = edge(t);
+    bollards.push([x + side * cos * 0.45, z - sin * 0.45]);
+  }
+
+  return (
+    <group>
+      <group position={[cx, 0, cz]} rotation={[0, side * angle, 0]}>
+        <mesh position={[0, BED_Y + height / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[BAY_DOCK_WIDTH, height, length]} />
+          <meshStandardMaterial color={STONE} roughness={0.9} />
+        </mesh>
+        {/* Coping on the water side, matching the head quay's. */}
+        <mesh
+          position={[-side * (BAY_DOCK_WIDTH / 2 - 0.25), QUAY_TOP + 0.08, 0]}
+          castShadow
+          receiveShadow
+        >
+          <boxGeometry args={[0.6, 0.16, length]} />
+          <meshStandardMaterial color={STONE_DARK} roughness={0.9} />
+        </mesh>
+      </group>
+      {bollards.map(([x, z]) => (
+        <mesh key={`${x}:${z}`} position={[x, QUAY_TOP + 0.36, z]} castShadow>
+          <cylinderGeometry args={[0.14, 0.18, 0.4, 10]} />
+          <meshStandardMaterial color={STONE_DARK} roughness={0.8} />
+        </mesh>
+      ))}
     </group>
   );
 }

@@ -121,8 +121,14 @@ export function terrainHeight(x: number, z: number, clearRadius = 0, withBay = f
   const r = Math.hypot(x, z);
   const offshore = smoothstep(SHORE_RADIUS, LAND_RADIUS, r);
   const hills = RELIEF_HEIGHT * relief(x, z) * padFlatness(x, z, clearRadius);
-  const island = (LAND_LEVEL + hills) * (1 - offshore) - RIM_DEPTH * offshore;
-  if (!withBay) return island;
+  if (!withBay) return (LAND_LEVEL + hills) * (1 - offshore) - RIM_DEPTH * offshore;
+  // The headlands either side of the inlet push the coast out on its side.
+  const shore = bayShoreRadius(x, z);
+  const bayOffshore = smoothstep(shore, Math.max(LAND_RADIUS, shore + 15), r);
+  // Level ground along the docks: a hill rising beside a quay would stand
+  // taller than the dock it borders.
+  const dockFlat = smoothstep(BAY_DOCK_WIDTH, BAY_DOCK_WIDTH + 10, bayDistance(x, z));
+  const island = (LAND_LEVEL + hills * dockFlat) * (1 - bayOffshore) - RIM_DEPTH * bayOffshore;
   const water = bayWater(x, z);
   // min, so the inlet only ever digs: out past the shore the rim is already
   // deeper than the bay's bed and must stay that way.
@@ -146,15 +152,62 @@ export function terrainHeight(x: number, z: number, clearRadius = 0, withBay = f
  * temple's footprint there.
  */
 /** Half the channel's width at its head -- the quay is a little wider. */
-export const BAY_HALF_WIDTH = 5;
+export const BAY_HALF_WIDTH = 10;
 /** How much wider each side gets per unit out to sea. */
-export const BAY_FLARE = 0.35;
+export const BAY_FLARE = 0.7;
 /** Width of the sloping bank from dry land down to the channel's bed. It
  *  lies landward of the head, under the quay, which is what the quay's depth
  *  (Bay.tsx QUAY_DEPTH) is sized to hide. */
 export const BAY_BANK = 3;
 /** The channel's floor: deep enough to read as water, not a wet beach. */
 export const BAY_BED = SEA_LEVEL - 3;
+/** Width of the stone dock that lines the inlet on every side, measured in
+ *  from the water's edge. Wider than the bank, so the dock covers the slope
+ *  and the water meets a wall rather than a beach. */
+export const BAY_DOCK_WIDTH = BAY_BANK + 1;
+
+/**
+ * How much further the coast reaches on the Bay's side: half the inlet's
+ * run from its head to the ordinary shore, so the channel cuts 1.5 times as
+ * far through land before it opens to the sea. The head cannot come any
+ * nearer the viewer (the quay behind it would stand in their clearing), so
+ * the length is added at the far end, as two headlands flanking the mouth.
+ */
+export const BAY_SHORE_REACH = 0.5 * (SHORE_RADIUS - Math.hypot(BAY_POSITION[0], BAY_POSITION[2]));
+/** Headlands at full reach within this angle of the inlet's bearing... */
+const HEADLAND_FULL = (35 * Math.PI) / 180;
+/** ...easing back to the ordinary coast by this one. Kept inside 60 degrees
+ *  so the pushed-out coast stays off the axis-aligned edges of Terrain's
+ *  square mesh, which is only 150 out there -- the ground has to be under
+ *  water before the mesh ends or it stops at a cliff. */
+const HEADLAND_FADE = (60 * Math.PI) / 180;
+
+/** Where the island's coast is on this bearing, with the Bay's headlands. */
+export function bayShoreRadius(x: number, z: number): number {
+  const r = Math.hypot(x, z);
+  if (r === 0) return SHORE_RADIUS;
+  const cos = (x * BAY_DIRECTION[0] + z * BAY_DIRECTION[1]) / r;
+  const angle = Math.acos(Math.max(-1, Math.min(1, cos)));
+  return SHORE_RADIUS + BAY_SHORE_REACH * (1 - smoothstep(HEADLAND_FULL, HEADLAND_FADE, angle));
+}
+
+/**
+ * How far out along the channel its sides reach before they meet the
+ * headlands' shore -- where Bay.tsx's side docks end, because past it the
+ * ground falls away into the sea and there is no bank to line.
+ *
+ * The edge at `t` is BAY_POSITION + t·dir ± w(t)·across, with w linear in t,
+ * so its distance from the origin squared is a quadratic in t:
+ *   (head + t)² + (W + F·t)² = R².
+ */
+export function bayDockLength(): number {
+  const R = SHORE_RADIUS + BAY_SHORE_REACH;
+  const head = Math.hypot(BAY_POSITION[0], BAY_POSITION[2]);
+  const a = 1 + BAY_FLARE * BAY_FLARE;
+  const b = 2 * (head + BAY_HALF_WIDTH * BAY_FLARE);
+  const c = head * head + BAY_HALF_WIDTH * BAY_HALF_WIDTH - R * R;
+  return (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
+}
 
 /**
  * How far a point is from the channel, 0 anywhere inside it.

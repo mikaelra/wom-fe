@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   terrainHeight, relief, padFlatness, islandPlacements, templeFloorOffsetFor,
   LAND_LEVEL, SHORE_RADIUS, LAND_RADIUS, RELIEF_HEIGHT,
-  bayDistance, bayWater, BAY_BED, BAY_BANK, BAY_HALF_WIDTH,
+  bayDistance, bayWater, bayShoreRadius, bayDockLength,
+  BAY_BED, BAY_BANK, BAY_HALF_WIDTH, BAY_FLARE, BAY_DOCK_WIDTH, BAY_SHORE_REACH,
 } from '@/lib/cityTerrain';
 import { PLAYER_Y } from '@/lib/sceneConstants';
 import { TEMPLE_TABLEAU_LIFT } from '@/lib/templeTableau';
@@ -114,8 +115,55 @@ describe('the Bay\'s inlet', () => {
   });
 
   it('is a channel, not a flood: dry land either side of it', () => {
-    expect(withBay(...at(10, BAY_HALF_WIDTH + 5 + BAY_BANK))).toBeGreaterThan(SEA_LEVEL);
-    expect(withBay(...at(10, -(BAY_HALF_WIDTH + 5 + BAY_BANK)))).toBeGreaterThan(SEA_LEVEL);
+    const beside = BAY_HALF_WIDTH + BAY_FLARE * 10 + BAY_BANK + 0.5;
+    expect(withBay(...at(10, beside))).toBeGreaterThan(SEA_LEVEL);
+    expect(withBay(...at(10, -beside))).toBeGreaterThan(SEA_LEVEL);
+  });
+
+  it('keeps the ground beside the docks level with them, hills or not', () => {
+    for (const t of [5, 30, 55, 80]) {
+      const edge = BAY_HALF_WIDTH + BAY_FLARE * t;
+      for (const side of [-1, 1]) {
+        expect(withBay(...at(t, side * (edge + BAY_DOCK_WIDTH)))).toBeCloseTo(LAND_LEVEL, 6);
+      }
+    }
+  });
+
+  it('runs 1.5 times as far through land as the ordinary coast would allow', () => {
+    // Without the headlands the sides reach the shore where the edge is
+    // SHORE_RADIUS out; with them, BAY_SHORE_REACH further.
+    const head = Math.hypot(BAY_POSITION[0], BAY_POSITION[2]);
+    expect(BAY_SHORE_REACH).toBeCloseTo(0.5 * (SHORE_RADIUS - head), 9);
+    // Land flanks the channel well past where the old coast was.
+    const t = 75;
+    const beside = BAY_HALF_WIDTH + BAY_FLARE * t + BAY_DOCK_WIDTH + 1;
+    const [x, z] = at(t, beside);
+    expect(Math.hypot(x, z)).toBeGreaterThan(SHORE_RADIUS);
+    expect(withBay(x, z)).toBeGreaterThan(SEA_LEVEL);
+  });
+
+  it('ends the docks where the channel\'s edge meets the headlands\' coast', () => {
+    const t = bayDockLength();
+    const [x, z] = at(t, BAY_HALF_WIDTH + BAY_FLARE * t);
+    expect(Math.hypot(x, z)).toBeCloseTo(SHORE_RADIUS + BAY_SHORE_REACH, 6);
+    // ...and that point is inside the headlands' full reach, so the dock
+    // does not run on past the coast into open sea.
+    expect(bayShoreRadius(x, z)).toBeCloseTo(SHORE_RADIUS + BAY_SHORE_REACH, 6);
+  });
+
+  it('leaves the coast where it was away from the Bay\'s side', () => {
+    expect(bayShoreRadius(-BAY_POSITION[0], -BAY_POSITION[2])).toBe(SHORE_RADIUS);
+    expect(bayShoreRadius(0, 0)).toBe(SHORE_RADIUS);
+  });
+
+  it('is under water at the terrain mesh\'s edge on every bearing, headlands included', () => {
+    // Terrain.tsx's mesh is a square LAND_RADIUS from the origin on each
+    // axis; land still above water there would end at a cliff.
+    for (let deg = 0; deg < 360; deg += 3) {
+      const a = (deg * Math.PI) / 180;
+      const reach = LAND_RADIUS / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
+      expect(withBay(Math.cos(a) * reach, Math.sin(a) * reach)).toBeLessThan(SEA_LEVEL);
+    }
   });
 
   it('leaves every other thing in the city on dry, level ground', () => {
