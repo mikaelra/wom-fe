@@ -13,6 +13,7 @@ import Signpost, { type SignpostArm } from '@/components/city/Signpost';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
 import CompassMarks from '@/components/city/CompassMarks';
 import Campfire from '@/components/city/Campfire';
+import Bay from '@/components/city/Bay';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import { sunIsDown } from '@/lib/skyLocal';
 import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
@@ -21,7 +22,7 @@ import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION, MARKET_POSITION,
   SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION, RANKED_FORK_SIGNPOST_ROTATION_Y,
-  RANKED_FORK_VIEW_PIN, RANKED_FORK_VIEW_OFFSET,
+  RANKED_FORK_VIEW_PIN, RANKED_FORK_VIEW_OFFSET, BAY_POSITION, BAY_ROTATION_Y,
   SEA_LEVEL, LAND_LEVEL, EYE_HEIGHT,
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
@@ -574,7 +575,7 @@ export default function CityScene({
       {/* The island, and the islands beyond it. Outside the Suspense below:
           it loads no assets, and the ground appearing a beat after the
           buildings would look worse than either arriving alone. */}
-      <Terrain nightness={nightness} />
+      <Terrain nightness={nightness} bay />
 
       <Suspense fallback={null}>
         <SceneReady onReady={onReady} />
@@ -686,6 +687,12 @@ export default function CityScene({
         >
           <Market color={marketHot ? LIT_MARKET : PLAIN} />
         </BuildingTarget>
+
+        {/* The Bay, in the back-left corner the Market left clear: a quay at
+            the head of the inlet Terrain carves, a boat leaving it, and a
+            sign saying more is coming. Scenery for now -- no click target
+            until there is something for it to open. */}
+        <Bay position={BAY_POSITION} rotationY={BAY_ROTATION_Y} />
 
         <Signpost position={SIGNPOST_POSITION} arms={arms} />
 
