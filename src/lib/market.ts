@@ -180,3 +180,42 @@ export function artifactTradeProblem(
   if (hasArtifact(want) && !hasPaper(give)) return 'Asking for an Artifact needs a Paper on your side.';
   return null;
 }
+
+/** What a trade is called. An Artifact against a Paper is a Transcribe --
+ *  the Artifact is copied onto the Paper, nothing is handed over -- and a
+ *  trade carrying one alongside anything else is a Transcribe and Trade.
+ *  "Only those" means the Artifact plus the one Paper it consumes; a
+ *  second Paper swaps like any item, so it makes a Transcribe and Trade. */
+export type TradeName = 'Trade' | 'Transcribe' | 'Transcribe and Trade';
+
+/** Accepts both the wire shape (nullable relic_id) and the craft input. */
+type NamedItem = { item_type: string; relic_id?: number | null; quantity: number };
+
+export function tradeName(
+  give: NamedItem[],
+  want: NamedItem[],
+  paperRelicId: number | null | undefined,
+): TradeName {
+  const isArtifact = (i: NamedItem) => i.item_type === 'artifact';
+  const isPaper = (i: NamedItem) =>
+    paperRelicId != null && i.item_type === 'relic' && i.relic_id === paperRelicId;
+  const artifactSide = give.some(isArtifact) ? give : want.some(isArtifact) ? want : null;
+  if (!artifactSide) return 'Trade';
+  const paperSide = artifactSide === give ? want : give;
+  if (!paperSide.some(isPaper)) return 'Trade';
+  const count = (side: NamedItem[]) => side.reduce((n, i) => n + i.quantity, 0);
+  const rest = count(artifactSide) - 1 + count(paperSide) - 1;
+  return rest === 0 ? 'Transcribe' : 'Transcribe and Trade';
+}
+
+/** The name mid-sentence: "Accept trade", "Accept Transcribe". */
+export function tradeNoun(name: TradeName): string {
+  return name === 'Trade' ? 'trade' : name;
+}
+
+/** The past tense, for receipts: "traded with", "transcribed with". */
+export function tradeNamePast(name: TradeName): string {
+  if (name === 'Transcribe') return 'transcribed';
+  if (name === 'Transcribe and Trade') return 'transcribed and traded';
+  return 'traded';
+}

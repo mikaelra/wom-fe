@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   artifactTradeProblem,
   clampCoins,
+  tradeName,
+  tradeNoun,
   itemKey,
   itemName,
   longOfferHours,
@@ -157,6 +159,10 @@ export default function CraftOfferModal({
     catalog.paper_relic_id,
   );
 
+  const noun = tradeNoun(
+    tradeName(give.map((l) => l.input), want.map((l) => l.input), catalog.paper_relic_id),
+  );
+
   const canProceed =
     !artifactProblem &&
     give.length > 0 &&
@@ -174,7 +180,7 @@ export default function CraftOfferModal({
         want: mergeItemInputs(want.map((l) => l.input)),
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to post the trade.');
+      setError(e instanceof Error ? e.message : `Failed to post the ${noun}.`);
       setBusy(false);
       setStep('craft');
     }
@@ -331,7 +337,7 @@ export default function CraftOfferModal({
 
         {step === 'confirm' && (
           <div className="text-sm text-white/80 space-y-3">
-            <p>Post this trade to the board?</p>
+            <p>Post this {noun} to the board?</p>
             <div className="rounded-lg bg-white/5 border border-white/10 p-3">
               <p>
                 <span className="text-white/50">Give: </span>
@@ -363,7 +369,7 @@ export default function CraftOfferModal({
                 onClick={submit}
                 className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
               >
-                {busy ? 'Posting…' : 'Post trade'}
+                {busy ? 'Posting…' : `Post ${noun}`}
               </button>
             </div>
           </div>

@@ -7,6 +7,9 @@ import {
   itemLabel,
   itemName,
   listingIsMine,
+  tradeName,
+  tradeNamePast,
+  tradeNoun,
   longOfferHours,
   mergeItemInputs,
   NON_TRADEABLE_SKIN,
@@ -212,5 +215,37 @@ describe('Paper -> Artifact (wom-be MARKET_PLAN.md §1B)', () => {
   it('refuses an Artifact on both sides, or any Artifact without a known Paper', () => {
     expect(artifactTradeProblem([artifact, paper], [artifact, paper], PAPER)).toMatch(/both sides/);
     expect(artifactTradeProblem([artifact], [paper], null)).not.toBeNull();
+  });
+});
+
+describe('tradeName -- Transcribe / Transcribe and Trade', () => {
+  const PAPER = 11;
+  const artifact = { item_type: 'artifact', quantity: 1 };
+  const paper = (quantity = 1) => ({ item_type: 'relic', relic_id: PAPER, quantity });
+  const coin = { item_type: 'relic', relic_id: 1, quantity: 1 };
+
+  it('is a Transcribe when only the Artifact and one Paper are on it, either way round', () => {
+    expect(tradeName([artifact], [paper()], PAPER)).toBe('Transcribe');
+    expect(tradeName([paper()], [artifact], PAPER)).toBe('Transcribe');
+  });
+
+  it('is a Transcribe and Trade when anything else rides along', () => {
+    expect(tradeName([artifact, coin], [paper()], PAPER)).toBe('Transcribe and Trade');
+    expect(tradeName([artifact], [paper(), coin], PAPER)).toBe('Transcribe and Trade');
+    expect(tradeName([artifact], [paper(2)], PAPER)).toBe('Transcribe and Trade');
+  });
+
+  it('is a Trade without an Artifact opposite a Paper', () => {
+    expect(tradeName([coin], [paper()], PAPER)).toBe('Trade');
+    expect(tradeName([artifact], [coin], PAPER)).toBe('Trade');
+    expect(tradeName([artifact], [paper()], null)).toBe('Trade');
+  });
+
+  it('reads mid-sentence and in the past tense', () => {
+    expect(tradeNoun('Trade')).toBe('trade');
+    expect(tradeNoun('Transcribe')).toBe('Transcribe');
+    expect(tradeNamePast('Trade')).toBe('traded');
+    expect(tradeNamePast('Transcribe')).toBe('transcribed');
+    expect(tradeNamePast('Transcribe and Trade')).toBe('transcribed and traded');
   });
 });

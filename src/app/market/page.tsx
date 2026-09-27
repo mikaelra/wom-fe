@@ -19,6 +19,8 @@ import { useToast } from '@/components/Toast';
 import { useMarketConnection } from '@/lib/useMarketConnection';
 import {
   itemKey,
+  tradeName,
+  tradeNoun,
   NON_TRADEABLE_SKIN,
   type MarketCatalog,
   type MarketItemInput,
@@ -217,39 +219,40 @@ export default function MarketPage() {
       if (!token) return;
       await createMarketListing(token, payload);
       setCraft(null);
-      toast.showSuccess('Trade posted.');
+      toast.showSuccess(`${tradeName(payload.give, payload.want, catalog?.paper_relic_id)} posted.`);
       refetch();
       void reloadPlayer();
     },
-    [token, toast, refetch, reloadPlayer],
+    [token, toast, refetch, reloadPlayer, catalog],
   );
 
   const confirmAccept = useCallback(async () => {
     if (!token || !acceptTarget) return;
     const res = await acceptMarketListing(token, acceptTarget.id);
     setAcceptTarget(null);
+    const name = tradeName(acceptTarget.give, acceptTarget.want, catalog?.paper_relic_id);
     toast.showSuccess(
       res.reproduced
-        ? `Trade complete — ${res.reproduced.to} received an Artifact.`
-        : 'Trade complete — check your inventory.',
+        ? `${name} complete — ${res.reproduced.to} received an Artifact.`
+        : `${name} complete — check your inventory.`,
     );
     refetch();
     void reloadPlayer();
-  }, [token, acceptTarget, toast, refetch, reloadPlayer]);
+  }, [token, acceptTarget, toast, refetch, reloadPlayer, catalog]);
 
   const onCancel = useCallback(
     async (listing: MarketListing) => {
       if (!token) return;
       try {
         await cancelMarketListing(token, listing.id);
-        toast.showSuccess('Trade removed.');
+        toast.showSuccess(`${tradeName(listing.give, listing.want, catalog?.paper_relic_id)} removed.`);
         refetch();
         void reloadPlayer();  // the items it held are back in the picker
       } catch (e) {
         toast.showError(e instanceof Error ? e.message : 'Failed to remove.');
       }
     },
-    [token, toast, refetch, reloadPlayer],
+    [token, toast, refetch, reloadPlayer, catalog],
   );
 
   const coinsAvailable = enterData?.coins ?? 0;
@@ -258,7 +261,11 @@ export default function MarketPage() {
     if (!acceptTarget) return null;
     const fmt = (items: MarketListing['give']) =>
       items.map((i) => `${labelFor(i, catalog)}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`).join(', ');
-    return { give: fmt(acceptTarget.give), want: fmt(acceptTarget.want) };
+    return {
+      give: fmt(acceptTarget.give),
+      want: fmt(acceptTarget.want),
+      name: tradeName(acceptTarget.give, acceptTarget.want, catalog?.paper_relic_id),
+    };
   }, [acceptTarget, catalog]);
 
   return (
@@ -386,8 +393,8 @@ export default function MarketPage() {
 
       {acceptTarget && acceptSummary && (
         <ConfirmModal
-          title="Accept this trade?"
-          confirmLabel="Accept trade"
+          title={`Accept this ${tradeNoun(acceptSummary.name)}?`}
+          confirmLabel={`Accept ${tradeNoun(acceptSummary.name)}`}
           onConfirm={confirmAccept}
           onClose={() => setAcceptTarget(null)}
         >
@@ -397,7 +404,10 @@ export default function MarketPage() {
           <p>
             You receive <span className="text-white">{acceptSummary.give}</span>.
           </p>
-          <p className="text-white/50">Ownership is re-checked as the swap runs. This can&apos;t be undone.</p>
+          <p className="text-white/50">
+            Ownership is re-checked as the {acceptSummary.name === 'Trade' ? 'swap' : acceptSummary.name} runs.
+            This can&apos;t be undone.
+          </p>
         </ConfirmModal>
       )}
     </div>
