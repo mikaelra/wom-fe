@@ -71,3 +71,35 @@ export function warpBands(colors: readonly string[]): string | null {
   const stops = colors.flatMap((c, i) => [`${c} ${(i * step).toFixed(2)}%`, `${c} ${((i + 1) * step).toFixed(2)}%`]);
   return `linear-gradient(to bottom, ${stops.join(', ')})`;
 }
+
+/** How long a timewarp lasts (wom-be domain/merchant.py REVERT_WINDOW). */
+export const TIMEWARP_WINDOW_MS = 60 * 60 * 1000;
+
+/** What the clock falls back to when a timewarp has no colours of its own. */
+export const WARP_FALLBACK_COLOR = '#f87171';
+
+/** What the colour drains to as the timewarp's hour runs out. */
+export const WARP_SPENT_COLOR = '#6b7280';
+
+/** How much of the timewarp's hour is left, 1 -> 0. 1 when its end isn't
+ *  known (a backend that doesn't say) -- the colour then simply stays. */
+export function warpRemaining(expiresAt: string | null | undefined, now: number): number {
+  if (!expiresAt) return 1;
+  const end = new Date(expiresAt).getTime();
+  if (Number.isNaN(end)) return 1;
+  return Math.min(1, Math.max(0, (end - now) / TIMEWARP_WINDOW_MS));
+}
+
+/**
+ * The timewarped clock's paint, drawn through the digits: the moment's
+ * colours (warpBands, one colour, or the red fallback) with grey coming
+ * over them from the left as the hour runs out -- half grey after half an
+ * hour, all grey at the end. CSS background layers, top first.
+ */
+export function warpPaint(colors: readonly string[], remaining: number): string {
+  const spent = ((1 - Math.min(1, Math.max(0, remaining))) * 100).toFixed(2);
+  const grey = `linear-gradient(to right, ${WARP_SPENT_COLOR} 0%, ${WARP_SPENT_COLOR} ${spent}%, transparent ${spent}%, transparent 100%)`;
+  const one = colors[0] ?? WARP_FALLBACK_COLOR;
+  const color = warpBands(colors) ?? `linear-gradient(${one}, ${one})`;
+  return `${grey}, ${color}`;
+}

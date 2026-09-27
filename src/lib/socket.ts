@@ -18,6 +18,7 @@ import {
   MarketFrogsSchema,
   CityPresenceSchema,
   TimewarpBroadcastSchema,
+  TimewarpEndBroadcastSchema,
 } from '@/lib/schemas';
 
 // Typed event maps, built directly against wom-be's docs/PROTOCOL.md.
@@ -59,6 +60,8 @@ export interface ServerToClientEvents {
   // Someone timewarped (wom-be routes/merchant.py): everyone on the globe
   // watches it happen.
   timewarp: (payload: z.infer<typeof TimewarpBroadcastSchema>) => void;
+  // ...and when its hour runs out: the globe animates back to now.
+  timewarp_end: (payload: z.infer<typeof TimewarpEndBroadcastSchema>) => void;
 }
 
 export interface ClientToServerEvents {
@@ -134,6 +137,7 @@ const EVENT_SCHEMAS = {
   market_chat_backlog: MarketChatBacklogSchema,
   market_frogs: MarketFrogsSchema,
   timewarp: TimewarpBroadcastSchema,
+  timewarp_end: TimewarpEndBroadcastSchema,
 } satisfies { [K in keyof ServerToClientEvents]: z.ZodTypeAny };
 
 /**
