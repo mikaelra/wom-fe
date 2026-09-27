@@ -19,6 +19,7 @@ import { useToast } from '@/components/Toast';
 import { useMarketConnection } from '@/lib/useMarketConnection';
 import {
   itemKey,
+  TRANSCRIBE_HOLDER_NOTE,
   tradeName,
   tradeNoun,
   NON_TRADEABLE_SKIN,
@@ -404,6 +405,11 @@ export default function MarketPage() {
           <p>
             You receive <span className="text-white">{acceptSummary.give}</span>.
           </p>
+          {/* The accepter holds the Artifact: it stays theirs, and the
+              Paper they're asked for isn't handed to them. */}
+          {acceptTarget.want.some((i) => i.item_type === 'artifact') && (
+            <p className="text-red-400 font-semibold">{TRANSCRIBE_HOLDER_NOTE}</p>
+          )}
           <p className="text-white/50">
             Ownership is re-checked as the {acceptSummary.name === 'Trade' ? 'swap' : acceptSummary.name} runs.
             This can&apos;t be undone.

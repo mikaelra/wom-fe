@@ -181,6 +181,10 @@ export function artifactTradeProblem(
   return null;
 }
 
+/** Shown in red to the Artifact's holder as they agree to a Transcribe. */
+export const TRANSCRIBE_HOLDER_NOTE =
+  'You do NOT lose your Artifact or gain the Paper. You only transcribe their Paper into an Artifact.';
+
 /** What a trade is called. An Artifact against a Paper is a Transcribe --
  *  the Artifact is copied onto the Paper, nothing is handed over -- and a
  *  trade carrying one alongside anything else is a Transcribe and Trade.

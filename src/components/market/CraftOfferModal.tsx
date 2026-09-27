@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   artifactTradeProblem,
   clampCoins,
+  TRANSCRIBE_HOLDER_NOTE,
   tradeName,
   tradeNoun,
   itemKey,
@@ -118,8 +119,17 @@ export default function CraftOfferModal({
     return [aiCredits, ...skins, ...relics, ...wheels, artifact];
   }, [catalog]);
 
-  const wantMatches = catalogLines.filter((l) =>
-    l.label.toLowerCase().includes(wantSearch.trim().toLowerCase()),
+  // The Artifact is asked for with a Paper: it shows up in the picker once
+  // a Paper is on your side -- and only for someone without one, since an
+  // account holds one Artifact.
+  const paperOnGive = give.some(
+    (l) => l.input.item_type === 'relic' && l.input.relic_id === catalog.paper_relic_id,
+  );
+  const ownsArtifact = owned.some((o) => o.input.item_type === 'artifact');
+  const wantMatches = catalogLines.filter(
+    (l) =>
+      (l.input.item_type !== 'artifact' || (paperOnGive && !ownsArtifact)) &&
+      l.label.toLowerCase().includes(wantSearch.trim().toLowerCase()),
   );
 
   const addTo = (side: 'give' | 'want', line: Line) => {
@@ -338,6 +348,9 @@ export default function CraftOfferModal({
         {step === 'confirm' && (
           <div className="text-sm text-white/80 space-y-3">
             <p>Post this {noun} to the board?</p>
+            {give.some((l) => l.input.item_type === 'artifact') && (
+              <p className="text-red-400 font-semibold">{TRANSCRIBE_HOLDER_NOTE}</p>
+            )}
             <div className="rounded-lg bg-white/5 border border-white/10 p-3">
               <p>
                 <span className="text-white/50">Give: </span>
