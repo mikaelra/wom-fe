@@ -310,8 +310,11 @@ export const RankedProfileResponseSchema = z.object({
 });
 
 // POST /ranked/queue/join, /ranked/queue/leave (docs/RANK_SYSTEM_PLAN.md §6).
+// `ticket` is optional only so a backend from before ranked tickets still
+// parses; every current backend sends it.
 export const RankedQueueJoinResponseSchema = z.object({
   status: z.string(),
+  ticket: z.string().optional(),
 });
 
 export const RankedQueueLeaveResponseSchema = z.object({
@@ -341,7 +344,7 @@ export const SeasonHistoryResponseSchema = z.object({
 });
 export type SeasonHistoryEntry = z.infer<typeof SeasonHistoryEntrySchema>;
 
-// GET /ranked/active/<name> -- does this player have a currently
+// POST /ranked/active -- does this player have a currently
 // unfinished ranked match to return to (docs/RANK_SYSTEM_PLAN.md §6/§10)?
 // "Back to Home" only navigates away, it never leaves the lobby server-side,
 // so a player can come back here and find their way back in.

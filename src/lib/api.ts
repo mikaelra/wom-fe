@@ -1,6 +1,13 @@
 import { request, ApiError } from '@/lib/http';
 import { getSocket, subscribe } from '@/lib/socket';
-import { setStoredToken, getStoredToken, setStoredAccountToken } from '@/lib/http';
+import {
+  setStoredToken,
+  getStoredToken,
+  setStoredAccountToken,
+  getStoredAccountToken,
+  getStoredRankedTicket,
+  setStoredRankedTicket,
+} from '@/lib/http';
 import type { z } from 'zod';
 import type { Relic } from '@/types/game';
 import type { SeasonHistoryEntry, MerchantOfferSchema, MerchantEventSchema } from '@/lib/schemas';
@@ -204,16 +211,31 @@ export async function getMerchantSkyEvents(at: string): Promise<MerchantEvent[]>
 
 // docs/RANK_SYSTEM_PLAN.md §6/§10 -- ranked matchmaking queue + rank badge.
 
-export async function joinRankedQueue(playerName: string): Promise<{ status: string }> {
-  return request('/ranked/queue/join', RankedQueueJoinResponseSchema, {
-    body: { name: playerName },
+/**
+ * What proves to wom-be that this client is `playerName` in ranked: the
+ * ranked ticket /ranked/queue/join handed out, and the account session if
+ * logged in. Either is enough; undefined fields drop out of the JSON.
+ * Also the join_ranked_queue socket payload.
+ */
+export function rankedCredentials(playerName: string): { ticket?: string; token?: string } {
+  return {
+    ticket: getStoredRankedTicket(playerName) ?? undefined,
+    token: getStoredAccountToken() ?? undefined,
+  };
+}
+
+export async function joinRankedQueue(playerName: string): Promise<{ status: string; ticket?: string }> {
+  const data = await request('/ranked/queue/join', RankedQueueJoinResponseSchema, {
+    body: { name: playerName, ...rankedCredentials(playerName) },
     defaultErrorMessage: 'Failed to join the ranked queue.',
   });
+  if (data.ticket) setStoredRankedTicket(playerName, data.ticket);
+  return data;
 }
 
 export async function leaveRankedQueue(playerName: string): Promise<{ status: string; was_queued: boolean }> {
   return request('/ranked/queue/leave', RankedQueueLeaveResponseSchema, {
-    body: { name: playerName },
+    body: { name: playerName, ...rankedCredentials(playerName) },
     defaultErrorMessage: 'Failed to leave the ranked queue.',
   });
 }
@@ -241,7 +263,15 @@ export async function getSeasonHistory(
 export async function getActiveRankedLobby(
   playerName: string
 ): Promise<{ lobby_id: string | null; token: string | null; ranked_countdown_deadline: string | null; started: boolean }> {
-  return request(`/ranked/active/${encodeURIComponent(playerName)}`, RankedActiveResponseSchema, {
+  const credentials = rankedCredentials(playerName);
+  // Nothing to prove who we are with -- the backend would 403, and a
+  // player who never queued (or queued on another browser, logged out)
+  // has no match here to return to anyway.
+  if (!credentials.ticket && !credentials.token) {
+    return { lobby_id: null, token: null, ranked_countdown_deadline: null, started: false };
+  }
+  return request('/ranked/active', RankedActiveResponseSchema, {
+    body: { name: playerName, ...credentials },
     defaultErrorMessage: 'Failed to check for an active ranked match.',
   });
 }

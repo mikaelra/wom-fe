@@ -33,6 +33,7 @@ vi.mock('@/lib/api', () => ({
   getActiveRankedLobby: vi.fn(),
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
+  rankedCredentials: (name: string) => ({ ticket: `ticket-for-${name}` }),
   getBossfightRoster: vi.fn(),
   joinBotRankedQueue: vi.fn(),
   leaveBotRankedQueue: vi.fn(),
@@ -601,7 +602,7 @@ describe('CityPage (ranked)', () => {
     await act(async () => { fireEvent.click(screen.getByText('Continue')); await flush(); });
 
     expect(mockedCheckName).toHaveBeenCalledWith('Alice');
-    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice', ticket: 'ticket-for-Alice' });
     expect(mockedJoinRankedQueue).toHaveBeenCalledWith('Alice');
     expect(localStorage.getItem('playerName')).toBe('Alice');
     expect(screen.queryByText('Play Ranked')).not.toBeInTheDocument();
@@ -616,7 +617,7 @@ describe('CityPage (ranked)', () => {
     await clickRanked();
 
     expect(mockedCheckName).not.toHaveBeenCalled();
-    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice', ticket: 'ticket-for-Alice' });
     expect(lastRankedSublabel).toMatch(/^SEARCHING/);
   });
 
@@ -698,7 +699,7 @@ describe('CityPage (bot ranked)', () => {
       await flush();
     });
 
-    expect(socket.__emit).toHaveBeenCalledWith('join_ai_ranked_queue', { name: 'Alice' });
+    expect(socket.__emit).toHaveBeenCalledWith('join_ai_ranked_queue', { token: 'acct-tok' });
     expect(joinBotRankedQueue).toHaveBeenCalledWith('acct-tok');
     expect(lastBotRankedLabel).toBe('BOTS');
     expect(lastBotRankedSublabel).toMatch(/^SEARCHING/);
