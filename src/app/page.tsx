@@ -9,7 +9,7 @@ import WorldClock from '@/components/worldmap/WorldClock';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import type { City } from '@/lib/cities';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
-import { merchantMarkerColors, merchantMarkerLabel, placeMerchantMarkers } from '@/lib/merchant';
+import { merchantMarkerColors, merchantMarkerLabel, merchantSkyBodies } from '@/lib/merchant';
 import { getStoredAccountToken } from '@/lib/http';
 
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
@@ -61,16 +61,19 @@ export default function Page() {
   // would make a marker vanish for anyone who's already traded, which is
   // the actual bug this was fixed from (traced live 2026-09-25).
   const merchantKey = (o: { offer_id: number; event_key: string }) => `${o.offer_id}|${o.event_key}`;
-  const merchantMarkers = useMemo(() => {
-    // Placed together, so no marker lands on a city or on another merchant.
-    const spots = placeMerchantMarkers(merchantOffers);
-    return merchantOffers.map((o, i) => ({
-      key: merchantKey(o),
-      ...spots[i],
-      ...(({ fill, outline }) => ({ color: fill, outline }))(merchantMarkerColors(o.event)),
-      label: merchantMarkerLabel(o.merchant_name),
-    }));
-  }, [merchantOffers]);
+  // Each stands on the globe under its own sky: the full moon's under the
+  // Moon, a conjunction's under its two planets (MerchantMarker moves it
+  // there every frame as the sky turns).
+  const merchantMarkers = useMemo(
+    () =>
+      merchantOffers.map((o) => ({
+        key: merchantKey(o),
+        bodies: merchantSkyBodies(o.event),
+        ...(({ fill, outline }) => ({ color: fill, outline }))(merchantMarkerColors(o.event)),
+        label: merchantMarkerLabel(o.merchant_name),
+      })),
+    [merchantOffers],
+  );
   const openMerchant = merchantOffers.find((o) => merchantKey(o) === openMerchantKey) ?? null;
 
   useEffect(() => {

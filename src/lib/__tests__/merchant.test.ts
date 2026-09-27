@@ -1,51 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONJUNCTION_COLOR, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine, timewarpEventLabels,
-  merchantEventLatLng, merchantMarkerLabel, merchantMarkerLatLng,
-  PLANET_COLOR, REVERT_RELIC_NAMES, arcDegrees, merchantMarkerColors, PLANET_RADIUS_KM, sphereDrop, MARKER_MIN_SEPARATION_DEG, placeMerchantMarkers,
+  merchantMarkerLabel, merchantSkyBodies, meanDirection, skyToGlobeLocal,
+  PLANET_COLOR, REVERT_RELIC_NAMES, merchantMarkerColors, PLANET_RADIUS_KM, sphereDrop,
 } from '@/lib/merchant';
 import { bodyColorHex } from '@/lib/astrology';
-import { CITIES } from '@/lib/cities';
+import * as THREE from 'three';
+import { skyDrift } from '@/lib/skyDrift';
 import { FULL_MOON_EVENT, MERCURY_JUPITER_EVENT } from '@/lib/__tests__/merchantFixtures';
-
-describe('merchantMarkerLatLng', () => {
-  it('is deterministic for the same period', () => {
-    const a = merchantMarkerLatLng('2026-09-26T16:49:32Z');
-    const b = merchantMarkerLatLng('2026-09-26T16:49:32Z');
-    expect(a).toEqual(b);
-  });
-
-  it('moves for a different period', () => {
-    const a = merchantMarkerLatLng('2026-09-26T16:49:32Z');
-    const b = merchantMarkerLatLng('2026-08-28T02:18:11Z');
-    expect(a).not.toEqual(b);
-  });
-
-  it('stays within the usable lat/lng band, away from the poles', () => {
-    const seeds = [
-      '2026-09-26T16:49:32Z', '2026-08-28T02:18:11Z', '', 'x', '2040-01-01T00:00:00Z',
-    ];
-    for (const seed of seeds) {
-      const { lat, lng } = merchantMarkerLatLng(seed);
-      expect(lat).toBeGreaterThanOrEqual(-60);
-      expect(lat).toBeLessThanOrEqual(60);
-      expect(lng).toBeGreaterThanOrEqual(-180);
-      expect(lng).toBeLessThanOrEqual(180);
-    }
-  });
-});
-
-describe('merchantEventLatLng', () => {
-  it('seeds the full moon (no key) exactly as before, so its marker has not moved', () => {
-    expect(merchantEventLatLng('2026-09-26T16:49:32Z', '')).toEqual(merchantMarkerLatLng('2026-09-26T16:49:32Z'));
-  });
-
-  it('parts two conjunctions that share a period (under one revert)', () => {
-    const a = merchantEventLatLng('2026-09-26T16:00:00Z', 'Mercury-Jupiter');
-    const b = merchantEventLatLng('2026-09-26T16:00:00Z', 'Venus-Mars');
-    expect(a).not.toEqual(b);
-  });
-});
 
 describe('PLANET_COLOR', () => {
   it('uses the same planet colours the globe draws', () => {
@@ -96,63 +58,6 @@ describe('merchantArrivalLine', () => {
   });
 });
 
-describe('arcDegrees', () => {
-  it('measures along the globe', () => {
-    expect(arcDegrees({ lat: 0, lng: 0 }, { lat: 0, lng: 90 })).toBeCloseTo(90, 9);
-    expect(arcDegrees({ lat: 10, lng: 20 }, { lat: 10, lng: 20 })).toBeCloseTo(0, 4);
-    expect(arcDegrees({ lat: 90, lng: 0 }, { lat: -90, lng: 0 })).toBeCloseTo(180, 9);
-  });
-});
-
-describe('placeMerchantMarkers', () => {
-  const athens = CITIES[0];
-  const clearOfAll = (spots: { lat: number; lng: number }[]) => {
-    for (const [i, s] of spots.entries()) {
-      for (const city of CITIES) expect(arcDegrees(s, city)).toBeGreaterThanOrEqual(MARKER_MIN_SEPARATION_DEG);
-      for (const t of spots.slice(i + 1)) expect(arcDegrees(s, t)).toBeGreaterThanOrEqual(MARKER_MIN_SEPARATION_DEG);
-    }
-  };
-
-  it('never puts a merchant on Greece -- the Mars-Jupiter seed that landed there live', () => {
-    const [spot] = placeMerchantMarkers([{ period_start: '2026-11-16T06:21:58+00:00', event_key: 'Mars-Jupiter' }]);
-    expect(arcDegrees(spot, athens)).toBeGreaterThanOrEqual(MARKER_MIN_SEPARATION_DEG);
-  });
-
-  it('keeps a seed that is already clear exactly where it was', () => {
-    const periods = Array.from({ length: 40 }, (_, i) => `2026-01-${String(i % 28 + 1).padStart(2, '0')}T0${i % 10}:00:00Z`);
-    const clearSeed = periods.find((p) => arcDegrees(merchantMarkerLatLng(p), athens) >= MARKER_MIN_SEPARATION_DEG)!;
-    expect(placeMerchantMarkers([{ period_start: clearSeed, event_key: '' }])).toEqual([merchantMarkerLatLng(clearSeed)]);
-  });
-
-  it('never puts two merchants on top of each other or on a city, across many periods', () => {
-    for (let d = 1; d <= 200; d++) {
-      const period = new Date(Date.UTC(2026, 0, d)).toISOString();
-      clearOfAll(placeMerchantMarkers([
-        { period_start: period, event_key: '' },
-        { period_start: period, event_key: 'Mercury-Jupiter' },
-        { period_start: period, event_key: 'Venus-Mars' },
-      ]));
-    }
-  });
-
-  it('forces a re-roll when a seed collides, and is the same for every player', () => {
-    // Avoid a point right on the first seed's spot: it must move, twice alike.
-    const seed = { period_start: '2026-09-26T16:49:32Z', event_key: '' };
-    const onIt = merchantMarkerLatLng(seed.period_start);
-    const a = placeMerchantMarkers([seed], [onIt]);
-    const b = placeMerchantMarkers([seed], [onIt]);
-    expect(arcDegrees(a[0], onIt)).toBeGreaterThanOrEqual(MARKER_MIN_SEPARATION_DEG);
-    expect(a).toEqual(b);
-  });
-
-  it('gives up re-rolling after a bounded number of tries rather than looping', () => {
-    // A ring of avoid points covering the whole band leaves nowhere clear.
-    const everywhere = [];
-    for (let lat = -60; lat <= 60; lat += 10) for (let lng = -180; lng < 180; lng += 10) everywhere.push({ lat, lng });
-    expect(placeMerchantMarkers([{ period_start: 'x', event_key: '' }], everywhere)).toHaveLength(1);
-  });
-});
-
 describe('merchantMarkerColors', () => {
   const conj = (a: string, b: string) => ({ kind: 'conjunction', key: `${a}-${b}`, bodies: [a, b], sign: 'Leo', at: 'x' });
 
@@ -187,5 +92,41 @@ describe('sphereDrop', () => {
 
   it('bottoms out at the sphere radius rather than going NaN past it', () => {
     expect(sphereDrop(2.5, 10)).toBe(2.5);
+  });
+});
+
+describe('where a merchant stands on the globe', () => {
+  it('stands under the Moon for the full moon, and under its two planets for a conjunction', () => {
+    expect(merchantSkyBodies(FULL_MOON_EVENT)).toEqual(['Moon']);
+    expect(merchantSkyBodies(MERCURY_JUPITER_EVENT)).toEqual(['Mercury', 'Jupiter']);
+    expect(merchantSkyBodies(null)).toEqual(['Moon']);
+  });
+
+  it('takes the direction between two conjunct planets', () => {
+    const a = new THREE.Vector3(1, 0.1, 0).normalize();
+    const b = new THREE.Vector3(1, -0.1, 0.05).normalize();
+    const mid = meanDirection([[a.x, a.y, a.z], [b.x, b.y, b.z]]);
+    expect(Math.hypot(...mid)).toBeCloseTo(1, 12);
+    const m = new THREE.Vector3(...mid);
+    expect(m.angleTo(a)).toBeCloseTo(m.angleTo(b), 9);
+    expect(meanDirection([])).toEqual([0, 0, 0]);
+  });
+
+  it('turns a sky direction into the globe\'s frame exactly as the two groups are turned', () => {
+    // A body at `dir` in a sky group turned `sky` about Y is, in world
+    // space, dir rotated by sky. The globe group is turned `globe`, so the
+    // point under it, in the globe's own frame, must map back to that same
+    // world direction when rotated by `globe`.
+    const dir = new THREE.Vector3(0.3, 0.5, -0.8).normalize();
+    for (const [sky, globe] of [[0, 0], [-1.2, 2.9], [0.7, -0.4], [-12.3, 5.1]]) {
+      const local = new THREE.Vector3(...skyToGlobeLocal([dir.x, dir.y, dir.z], sky, globe));
+      const world = local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), globe);
+      const expected = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), sky);
+      expect(world.distanceTo(expected)).toBeLessThan(1e-12);
+    }
+  });
+
+  it('starts the shared sky turn at zero', () => {
+    expect(skyDrift.angle).toBe(0);
   });
 });

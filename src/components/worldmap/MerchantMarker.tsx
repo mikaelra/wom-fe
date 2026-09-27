@@ -1,17 +1,20 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { FreshHtml } from '@/components/hud/FreshHtml';
-import { latLngToVec3 } from '@/lib/cities';
-import { sphereDrop } from '@/lib/merchant';
+import { getSky, type AspectBody } from '@/lib/astrology';
+import { skyDrift } from '@/lib/skyDrift';
+import { meanDirection, skyToGlobeLocal, sphereDrop } from '@/lib/merchant';
 
 /** One merchant's marker, as the globe page hands it to WorldMap. */
 export interface MerchantMarkerSpec {
   /** `offer_id|event_key` -- stable per merchant, and what a click names. */
   key: string;
-  lat: number;
-  lng: number;
+  /** The bodies it stands under: ['Moon'], or a conjunction's two planets
+   *  (lib/merchant.ts merchantSkyBodies). */
+  bodies: string[];
   /** Text (inner) and light colour: purple for the full moon's Merchant,
    *  the bigger planet's for a conjunction's (lib/merchant.ts
    *  merchantMarkerColors). */
@@ -24,8 +27,9 @@ export interface MerchantMarkerSpec {
 }
 
 interface MerchantMarkerProps {
-  lat: number;
-  lng: number;
+  bodies: string[];
+  /** The globe group's own Y rotation (WorldMap's EARTH_ROTATION_Y). */
+  globeRotationY: number;
   color: string;
   outline: string | null;
   label: string;
@@ -35,8 +39,9 @@ interface MerchantMarkerProps {
 
 /**
  * A merchant's marker on the globe (docs/MERCHANT_PLAN.md) -- one per
- * merchant in town, each in its own colour. Position/
- * orientation mechanics mirror CityMarker.tsx, but there is no GLTF pin
+ * merchant in town, each in its own colour, standing on the globe straight
+ * under the Moon (a full moon's) or its conjunction, and moving with them
+ * as the sky turns. There is no GLTF pin
  * model -- a glowing "Merchant" label alone is the whole marker, avoiding a
  * second pin asset for something that only appears occasionally.
  *
@@ -116,15 +121,42 @@ function RimGlow({ color, globeRadius, hovered }: { color: string; globeRadius: 
   return <mesh geometry={geometry} material={material} renderOrder={1} />;
 }
 
-export default function MerchantMarker({ lat, lng, color, outline, label, globeRadius, onClick }: MerchantMarkerProps) {
-  const [hovered, setHovered] = useState(false);
+const _up = new THREE.Vector3();
+const _yUp = new THREE.Vector3(0, 1, 0);
 
-  const position = latLngToVec3(lat, lng, globeRadius);
-  const up = new THREE.Vector3(...position).normalize();
-  const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
+/** Where on the globe the marker stands right now: straight under its
+ *  bodies as the sky is currently turned. */
+function placeUnder(group: THREE.Group, bodies: string[], globeRotationY: number, globeRadius: number) {
+  const sky = getSky();
+  const dirs = bodies
+    .map((b) => sky.dir[b as AspectBody])
+    .filter(Boolean)
+    .map((v) => [v.x, v.y, v.z] as const);
+  if (dirs.length === 0) return;
+  const [x, y, z] = skyToGlobeLocal(meanDirection(dirs), skyDrift.angle, globeRotationY);
+  _up.set(x, y, z);
+  group.position.copy(_up).multiplyScalar(globeRadius);
+  group.quaternion.setFromUnitVectors(_yUp, _up);
+}
+
+export default function MerchantMarker({
+  bodies, globeRotationY, color, outline, label, globeRadius, onClick,
+}: MerchantMarkerProps) {
+  const [hovered, setHovered] = useState(false);
+  const groupRef = useRef<THREE.Group>(null);
+
+  // Under the Moon, or the conjunction, as the sky turns: re-placed every
+  // frame, since the sky never stops turning around the globe. Before the
+  // first frame too, so it never shows a frame at the globe's centre.
+  useLayoutEffect(() => {
+    if (groupRef.current) placeUnder(groupRef.current, bodies, globeRotationY, globeRadius);
+  }, [bodies, globeRotationY, globeRadius]);
+  useFrame(() => {
+    if (groupRef.current) placeUnder(groupRef.current, bodies, globeRotationY, globeRadius);
+  });
 
   return (
-    <group position={position} quaternion={quaternion}>
+    <group ref={groupRef}>
       {/* The pool of light on the ground and its rim: the bigger planet's
           colour inside the smaller one's for a conjunction, both the
           Merchant's purple for the full moon. */}

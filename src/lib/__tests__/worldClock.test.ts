@@ -37,15 +37,29 @@ describe('worldClockReading', () => {
     })).toBeNull();
   });
 
-  it('is the timewarped instant, held there, while time is turned back', () => {
+  it('is the timewarped time, running on, while time is turned back', () => {
+    // Half an hour into a timewarp to 12:00 the server said 12:30 a minute
+    // ago; the clock has run on to 12:31.
     const reading = worldClockReading({
       reverted: true,
       revertToDate: '2028-10-03T12:00:00Z',
-      skyDate: '2028-10-03T12:00:00Z',
+      skyDate: '2028-10-03T12:30:00Z',
       skyDateReceivedAt: NOW - 60_000,
       now: NOW,
     });
-    expect(reading).toEqual({ date: new Date('2028-10-03T12:00:00Z'), warped: true });
+    expect(reading).toEqual({ date: new Date('2028-10-03T12:31:00Z'), warped: true });
+  });
+
+  it('never runs backwards when its own now is a moment older than the answer', () => {
+    expect(worldClockReading({
+      reverted: true, revertToDate: null, skyDate: '2028-10-03T12:00:00Z', skyDateReceivedAt: NOW + 800, now: NOW,
+    })).toEqual({ date: new Date('2028-10-03T12:00:00Z'), warped: true });
+  });
+
+  it('falls back to the instant turned back to when no sky_date came with the revert', () => {
+    expect(worldClockReading({
+      reverted: true, revertToDate: '2028-10-03T12:00:00Z', skyDate: null, skyDateReceivedAt: NOW, now: NOW,
+    })).toEqual({ date: new Date('2028-10-03T12:00:00Z'), warped: true });
   });
 
   it('follows a moved dev clock, running on from when it was read, as normal time', () => {

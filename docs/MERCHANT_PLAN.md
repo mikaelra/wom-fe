@@ -187,10 +187,11 @@ from.
   never shows an unreadable instant.
 - In the scene, Paper is staged at 4x the Stone's size, centred on the same
   spot on the table.
-- Markers are seeded by `period_start|event_key` and placed together
-  (`placeMerchantMarkers`): one landing within 25° of a city (Greece) or of
-  another merchant re-rolls its seed until clear, so no marker ever sits on
-  another. Deterministic, so every player sees the same spots.
+- Each marker stands on the globe straight under its own sky: the full
+  moon's under the Moon, a conjunction's under the midpoint of its two
+  planets. The globe stays put and the sky turns around it
+  (`lib/skyDrift.ts` shares how far), so the markers move with the sky,
+  re-placed every frame. (This replaced a seeded random spot.)
 - The scene's line is by what summons him, never the particular event:
   "Appears around the full moon" / "Appears around conjunctions".
 - `MerchantScene` stages whichever relic the merchant sells; Paper's model is

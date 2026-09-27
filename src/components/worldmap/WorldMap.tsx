@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
 import MerchantMarker, { type MerchantMarkerSpec } from './MerchantMarker';
+import { skyDrift } from '@/lib/skyDrift';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import {
@@ -909,7 +910,12 @@ const PlanetSprites = memo(function PlanetSprites({
   const posJup  = useMemo(() => sky.dir.Jupiter.clone().multiplyScalar(JUPITER_BODY_R), [sky]);
   const posSat  = useMemo(() => sky.dir.Saturn.clone().multiplyScalar(SATURN_BODY_R), [sky]);
 
-  useFrame(() => { if (groupRef.current) groupRef.current.rotation.y -= 0.0002; });
+  useFrame(() => {
+    if (!groupRef.current) return;
+    groupRef.current.rotation.y -= 0.0002;
+    // Shared, so a merchant marker can stand under a body in this sky.
+    skyDrift.angle = groupRef.current.rotation.y;
+  });
 
   // Only bodies that have actually been revealed get a label -- otherwise a
   // name could fade in over empty space during the staggered load.
@@ -1123,8 +1129,8 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
       {onMerchantClick && merchantMarkers.map((m) => (
         <MerchantMarker
           key={m.key}
-          lat={m.lat}
-          lng={m.lng}
+          bodies={m.bodies}
+          globeRotationY={earthRot}
           color={m.color}
           outline={m.outline}
           label={m.label}
