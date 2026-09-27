@@ -6,6 +6,7 @@ import Image from 'next/image';
 import ArtifactLedger from '@/components/ArtifactLedger';
 import TranscribedToList from '@/components/TranscribedToList';
 import type { TranscribedEntry } from '@/lib/api';
+import type { LedgerMark } from '@/lib/market';
 
 type Tab = 'discoverers' | 'transcribed';
 
@@ -28,13 +29,12 @@ const REVEAL_GIF_TALL = '/images/artifacts/white-frog-void-vertical.gif';
  * IS the backdrop -- so closing is the × button or Escape only.
  */
 export default function ArtifactLedgerModal({
-  highlightOrdinal = null,
-  highlightLabel,
+  marks = [],
   transcribedTo = [],
   onClose,
 }: {
-  highlightOrdinal?: number | null;
-  highlightLabel?: string;
+  /** Rows to mark in the discoverers list (lib/market.ts ledgerMarks). */
+  marks?: LedgerMark[];
   /** Who the viewer's Artifact was transcribed to, in order (wom-be
    *  docs/MARKET_PLAN.md §1B) -- the second tab beside the discoverers. */
   transcribedTo?: TranscribedEntry[];
@@ -117,7 +117,7 @@ export default function ArtifactLedgerModal({
             ))}
           </div>
           {tab === 'discoverers' ? (
-            <ArtifactLedger highlightOrdinal={highlightOrdinal} highlightLabel={highlightLabel} />
+            <ArtifactLedger marks={marks} />
           ) : (
             <TranscribedToList entries={transcribedTo} />
           )}

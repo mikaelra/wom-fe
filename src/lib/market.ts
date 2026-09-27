@@ -223,3 +223,28 @@ export function tradeNamePast(name: TradeName): string {
   if (name === 'Transcribe and Trade') return 'transcribed and traded';
   return 'traded';
 }
+
+/** A row marked in the discoverers list, and what it's marked with. */
+export type LedgerMark = { ordinal: number; label: string };
+
+/** "#n" -- which copy of its source a copy is: the number after the last
+ *  "#" of its origin label ("{source holder}#{n}"; a name may itself
+ *  contain "#"). null for an original, or an origin with no number. */
+export function copyMark(origin: string | null | undefined): string | null {
+  const n = origin?.slice(origin.lastIndexOf('#') + 1);
+  return origin?.includes('#') && n && /^\d+$/.test(n) ? `#${n}` : null;
+}
+
+/** The viewer's marks in the discoverers list: their own find "(you)",
+ *  and -- for a transcribed copy -- the row it came from, marked with
+ *  which copy it is ("#2 Oni #1"). Both at once for a copy holder who
+ *  went on to find one at the Well. */
+export function ledgerMarks(
+  artifact: { ordinal?: number | null; origin?: string | null; origin_ordinal?: number | null } | null | undefined,
+): LedgerMark[] {
+  const marks: LedgerMark[] = [];
+  if (artifact?.ordinal != null) marks.push({ ordinal: artifact.ordinal, label: '(you)' });
+  const mark = copyMark(artifact?.origin);
+  if (artifact?.origin_ordinal != null && mark) marks.push({ ordinal: artifact.origin_ordinal, label: mark });
+  return marks;
+}

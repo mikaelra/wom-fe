@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { timewarpParamFor } from '@/lib/timewarpFx';
 import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules, type TranscribedEntry } from '@/lib/api';
+import { ledgerMarks } from '@/lib/market';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel, skinThumbnailUrl, skinUrl, sortSkins } from '@/lib/frogSkins';
 import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
@@ -543,8 +544,7 @@ export default function InventoryPage() {
 
       {showLedger && (
         <ArtifactLedgerModal
-          highlightOrdinal={artifact?.ordinal ?? artifact?.origin_ordinal ?? null}
-          highlightLabel={artifact?.origin ? `(your copy: ${artifact.origin})` : undefined}
+          marks={ledgerMarks(artifact)}
           transcribedTo={artifact?.reproduced_to ?? []}
           onClose={() => setShowLedger(false)}
         />

@@ -10,6 +10,8 @@ import {
   tradeName,
   tradeNamePast,
   tradeNoun,
+  copyMark,
+  ledgerMarks,
   longOfferHours,
   mergeItemInputs,
   NON_TRADEABLE_SKIN,
@@ -247,5 +249,35 @@ describe('tradeName -- Transcribe / Transcribe and Trade', () => {
     expect(tradeNamePast('Trade')).toBe('traded');
     expect(tradeNamePast('Transcribe')).toBe('transcribed');
     expect(tradeNamePast('Transcribe and Trade')).toBe('transcribed and traded');
+  });
+});
+
+describe('the viewer\'s marks in the discoverers list', () => {
+  it('reads a copy\'s number off its origin', () => {
+    expect(copyMark('Oni#1')).toBe('#1');
+    expect(copyMark('A#b#12')).toBe('#12');
+    expect(copyMark(null)).toBeNull();
+    expect(copyMark(undefined)).toBeNull();
+    expect(copyMark('Oni')).toBeNull();
+    expect(copyMark('Oni#')).toBeNull();
+  });
+
+  it('marks your own find', () => {
+    expect(ledgerMarks({ ordinal: 4, origin: null, origin_ordinal: null })).toEqual([{ ordinal: 4, label: '(you)' }]);
+  });
+
+  it('marks the row a copy came from with its number: "#2 Oni #1"', () => {
+    expect(ledgerMarks({ ordinal: null, origin: 'Oni#1', origin_ordinal: 2 })).toEqual([{ ordinal: 2, label: '#1' }]);
+  });
+
+  it('marks both for a copy holder who then found one', () => {
+    expect(ledgerMarks({ ordinal: 5, origin: 'Oni#1', origin_ordinal: 2 })).toEqual([
+      { ordinal: 5, label: '(you)' },
+      { ordinal: 2, label: '#1' },
+    ]);
+  });
+
+  it('marks nothing without an Artifact', () => {
+    expect(ledgerMarks(null)).toEqual([]);
   });
 });

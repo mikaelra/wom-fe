@@ -3,8 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import ArtifactLedgerModal from '@/components/ArtifactLedgerModal';
 
 vi.mock('@/components/ArtifactLedger', () => ({
-  default: ({ highlightOrdinal, highlightLabel }: { highlightOrdinal: number | null; highlightLabel?: string }) => (
-    <p>ledger {String(highlightOrdinal)} {highlightLabel}</p>
+  default: ({ marks }: { marks: { ordinal: number; label: string }[] }) => (
+    <p>ledger {marks.map((m) => `${m.ordinal} ${m.label}`).join(', ')}</p>
   ),
 }));
 // eslint-disable-next-line @next/next/no-img-element -- test stub for next/image
@@ -19,9 +19,9 @@ describe('ArtifactLedgerModal tabs', () => {
     fireEvent.click(screen.getByRole('button', { name: /Reveal/ }));
   };
 
-  it('opens on the discoverers, marking the original a copy descends from', () => {
-    open({ highlightOrdinal: 2, highlightLabel: '(your copy: Bob#2)' });
-    expect(screen.getByText('ledger 2 (your copy: Bob#2)')).toBeTruthy();
+  it('opens on the discoverers, marking your find and where your copy came from', () => {
+    open({ marks: [{ ordinal: 5, label: '(you)' }, { ordinal: 2, label: '#1' }] });
+    expect(screen.getByText('ledger 5 (you), 2 #1')).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Discoverers of Artifact#1' }).getAttribute('aria-selected')).toBe('true');
   });
 
