@@ -650,7 +650,6 @@ function VenusBody({ position, aspect }: { position: THREE.Vector3; aspect: Body
 // (docs/ASPECTS_PLAN.md §4.4), so wiring influence in here would be a
 // permanent no-op.
 
-const _sunDriftQ  = new THREE.Quaternion();
 const _sunDriftAx = new THREE.Vector3(0, 1, 0);
 
 function SunLight() {
@@ -666,8 +665,11 @@ function SunLight() {
   // light stays aligned with the sun sprite's world position.
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, skyStep());
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -693,8 +695,11 @@ function VenusLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, skyStep());
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -720,8 +725,11 @@ function JupiterLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, skyStep());
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -747,8 +755,11 @@ function MercuryLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, skyStep());
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -774,8 +785,11 @@ function MarsLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, skyStep());
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -801,8 +815,11 @@ function SaturnLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, skyStep());
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -832,8 +849,11 @@ function MoonLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, skyStep());
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -911,6 +931,9 @@ const PlanetSprites = memo(function PlanetSprites({
   const posJup  = useMemo(() => sky.dir.Jupiter.clone().multiplyScalar(JUPITER_BODY_R), [sky]);
   const posSat  = useMemo(() => sky.dir.Saturn.clone().multiplyScalar(SATURN_BODY_R), [sky]);
 
+  // The group starts unturned on every mount; so does the shared count,
+  // rather than carrying a previous visit's turn for its first frame.
+  useEffect(() => { skyDrift.angle = 0; }, []);
   useFrame(() => {
     if (!groupRef.current) return;
     groupRef.current.rotation.y += skyStep();
