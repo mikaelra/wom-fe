@@ -3,6 +3,7 @@ import { getSocket, subscribe } from '@/lib/socket';
 import { setStoredToken, getStoredToken, setStoredAccountToken } from '@/lib/http';
 import type { z } from 'zod';
 import type { Relic } from '@/types/game';
+import type { SeasonHistoryEntry, MerchantOfferSchema, MerchantEventSchema } from '@/lib/schemas';
 import type { GameEvent } from '@/lib/gameEvents';
 import {
   MyAiStatusSchema,
@@ -20,6 +21,10 @@ import {
   GetBossfightLobbyResponseSchema,
   GetNextBossfightTimeResponseSchema,
   BossfightRosterResponseSchema,
+  MerchantOfferResponseSchema,
+  MerchantPurchaseResponseSchema,
+  MerchantRevertTimeResponseSchema,
+  MerchantSkyEventsResponseSchema,
   GetPlayerRelicsResponseSchema,
   GetPlayerMessagesResponseSchema,
   CheckNameResponseSchema,
@@ -36,6 +41,7 @@ import {
   LogOutResponseSchema,
   ClaimPendingWheelResponseSchema,
   ArtifactLedgerResponseSchema,
+  ArtifactTranscribedToResponseSchema,
   EquipCosmeticResponseSchema,
   InventoryResponseSchema,
   EquipSkinResponseSchema,
@@ -46,6 +52,8 @@ import {
   RankedProfileResponseSchema,
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
+  SeasonHistoryResponseSchema,
+  SeasonInfoResponseSchema,
   WellProfileResponseSchema,
   ShopProductsResponseSchema,
   CheckoutResponseSchema,
@@ -140,6 +148,61 @@ export async function getBossfightRoster(): Promise<BossfightRoster> {
   });
 }
 
+// docs/MERCHANT_PLAN.md -- the merchants on the globe.
+
+export type MerchantOffer = z.infer<typeof MerchantOfferSchema>;
+export type MerchantEvent = z.infer<typeof MerchantEventSchema>;
+export type MerchantState = z.infer<typeof MerchantOfferResponseSchema>;
+
+/** `token` may be null (a signed-out viewer) -- the route still answers,
+ * with `already_bought_this_period` always false in that case, so the
+ * markers themselves can render without requiring a session. */
+export async function getMerchantOffer(token: string | null): Promise<MerchantState> {
+  return request('/merchant/offer', MerchantOfferResponseSchema, {
+    body: { token: token ?? '' },
+    defaultErrorMessage: "Failed to reach the Merchant.",
+  });
+}
+
+/** Buy from one merchant -- `offer` names which (its offer_id and the
+ *  event it came for), since a full moon and a conjunction can both have
+ *  one in town at once. */
+export async function purchaseMerchantOffer(
+  token: string,
+  offer: Pick<MerchantOffer, 'offer_id' | 'event_key'>,
+): Promise<{ ok: boolean; item_name: string }> {
+  return request('/merchant/purchase', MerchantPurchaseResponseSchema, {
+    body: { token, offer_id: offer.offer_id, event_key: offer.event_key },
+    defaultErrorMessage: "Failed to complete the trade.",
+  });
+}
+
+/** docs/MERCHANT_PLAN.md §7 -- sacrifice one merchant relic (Stone of
+ * Vitality or Paper) to turn the sky back, for everyone for an hour, to
+ * the instant that copy was bought: every merchant whose event was live
+ * then comes back. */
+export async function revertMerchantTime(
+  token: string,
+  relic: string,
+  /** Which copy -- each turns time back to its own purchase instant. null
+   *  or omitted is the newest. */
+  copyId: number | null = null,
+): Promise<z.infer<typeof MerchantRevertTimeResponseSchema>> {
+  return request('/merchant/revert_time', MerchantRevertTimeResponseSchema, {
+    body: copyId === null ? { token, relic } : { token, relic, copy_id: copyId },
+    defaultErrorMessage: 'Timewarp failed.',
+  });
+}
+
+/** The merchant-summoning events live at an instant -- what a relic
+ *  bought then would bring back if sacrificed. */
+export async function getMerchantSkyEvents(at: string): Promise<MerchantEvent[]> {
+  const res = await request(`/merchant/sky_events?at=${encodeURIComponent(at)}`, MerchantSkyEventsResponseSchema, {
+    defaultErrorMessage: 'Failed to read the sky.',
+  });
+  return res.events;
+}
+
 // docs/RANK_SYSTEM_PLAN.md §6/§10 -- ranked matchmaking queue + rank badge.
 
 export async function joinRankedQueue(playerName: string): Promise<{ status: string }> {
@@ -159,6 +222,20 @@ export async function leaveRankedQueue(playerName: string): Promise<{ status: st
 export async function getRankedProfile(playerName: string): Promise<{ tier: string | null; ranked_games_played: number }> {
   return request(`/ranked/profile/${encodeURIComponent(playerName)}`, RankedProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch ranked profile.',
+  });
+}
+
+export async function getCurrentSeason(): Promise<{ name: string; ends_at: string }> {
+  return request('/ranked/season', SeasonInfoResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch the current season.',
+  });
+}
+
+export async function getSeasonHistory(
+  playerName: string,
+): Promise<{ human: SeasonHistoryEntry[]; ai: SeasonHistoryEntry[] }> {
+  return request(`/ranked/season_history/${encodeURIComponent(playerName)}`, SeasonHistoryResponseSchema, {
+    defaultErrorMessage: 'Failed to fetch season history.',
   });
 }
 
@@ -333,14 +410,33 @@ export async function claimPendingArtifact(
   });
 }
 
+/** One Artifact this one was transcribed to (wom-be MARKET_PLAN.md §1B). */
+export type TranscribedEntry = {
+  id?: number;
+  name: string;
+  origin: string;
+  copy_number?: number;
+  transcribed_count?: number;
+  at: string | null;
+};
+
 export async function getInventory(
   token: string
 ): Promise<{
+  name?: string;
   equipped_skin: string;
   skins: { skin: string; count: number }[];
   wheels: { id: number; kind: string }[];
   equipped_cosmetic?: string | null;
-  artifact?: { ordinal: number; discovered_at: string | null; cosmetic: string } | null;
+  artifact?: {
+    ordinal: number | null;
+    discovered_at: string | null;
+    cosmetic: string;
+    origin?: string | null;
+    origin_ordinal?: number | null;
+    origin_order?: number | null;
+    reproduced_to?: TranscribedEntry[];
+  } | null;
   ai_credits?: number;
 }> {
   return request('/inventory', InventoryResponseSchema, {
@@ -372,6 +468,18 @@ export async function equipCosmetic(
  *  answers 403 otherwise, which callers should treat as "sealed" rather than
  *  as a failure. Keyset-paginated on ordinal: pass the last ordinal seen as
  *  `after`. */
+/** Who another Artifact was transcribed to -- following the list down a
+ *  chain (wom-be routes/artifacts.py). */
+export async function getArtifactTranscribedTo(
+  token: string,
+  artifactId: number,
+): Promise<{ name: string; transcribed_to: TranscribedEntry[] }> {
+  return request('/artifacts/transcribed_to', ArtifactTranscribedToResponseSchema, {
+    body: { token, artifact_id: artifactId },
+    defaultErrorMessage: 'Failed to load who it was transcribed to.',
+  });
+}
+
 export async function getArtifactLedger(
   token: string,
   after = 0,
@@ -668,7 +776,7 @@ export async function createMarketListing(
 export async function acceptMarketListing(
   token: string,
   listingId: number,
-): Promise<{ listing: MarketListing }> {
+): Promise<{ listing: MarketListing; reproduced?: { to: string; origin: string | null } }> {
   try {
     return await request(`/market/listings/${listingId}/accept`, MarketMutationResponseSchema, {
       body: { token },

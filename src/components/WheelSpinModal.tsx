@@ -9,6 +9,7 @@ import {
   computeViewportGeometry,
   createSeededRng,
   oddsTable,
+  suppressNearMiss,
   wheelKindFromString,
   type Slice,
   type ViewportGeometry,
@@ -27,6 +28,13 @@ type Props = {
   onSpun: (resultSkin: string) => void;
   onEquipped?: (equippedSkin: string) => void;
 };
+
+// The Special Wheel's rarest prize (§ wheelGeometry's WHEEL_WEIGHTS). Once
+// the server's result is in and it isn't this, seeing the wheel visibly
+// slide past/near a Bling wedge on the way to stopping reads as a near-miss
+// even though nothing was ever at stake there -- bug list 260916 asks to
+// stop showing that.
+const BLING_SKIN = 'frog_bling_v1';
 
 // Captured once at mount, deliberately not reactive to resize. A committed
 // spin target (§ handleRoll) is an index into a specific `slices` array --
@@ -77,6 +85,10 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
     () => buildSlices(table, { R: geometry.R, H: geometry.H }, createSeededRng(rngSeedRef.current)).slices,
     [table, geometry.R, geometry.H],
   );
+  const displaySlices = useMemo<Slice[]>(
+    () => (resultSkin ? suppressNearMiss(slices, resultSkin, BLING_SKIN) : slices),
+    [slices, resultSkin],
+  );
 
   const handleRoll = () => {
     if (rollingRef.current) return;
@@ -93,7 +105,7 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
   };
 
   const anim = useWheelAnimation({
-    slices,
+    slices: displaySlices,
     resultSkin: spinError ? null : resultSkin,
     reducedMotion,
     qualityTier: getQualityTier(),
@@ -222,7 +234,7 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
         <>
           <div className="relative w-full shrink-0" style={{ height: geometry.H }}>
             <WheelCanvas
-              slices={slices}
+              slices={displaySlices}
               geometry={geometry}
               rotation={anim.rotation}
               rotationDelta={anim.rotationDelta}

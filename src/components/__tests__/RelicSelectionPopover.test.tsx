@@ -28,7 +28,7 @@ beforeEach(() => {
   mockedGetPlayerRelics.mockReset();
   mockedGetPlayerRelics.mockResolvedValue({
     relics: [
-      { id: COIN_RELIC_ID, boss_id: 6, created_at: '', name: 'Coin', power_category: 'MONETARY', count: 3 },
+      { id: COIN_RELIC_ID, boss_id: 6, created_at: '', newest_copy_created_at: '', name: "Hades' Coin", power_category: 'MONETARY', count: 3 },
     ],
   });
 });
@@ -38,10 +38,19 @@ afterEach(() => {
 });
 
 describe('RelicSelectionPopover: unselected state', () => {
-  it('shows "+" and does not fetch inventory until opened', () => {
+  it('shows "+" immediately', () => {
     render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[]} onToggle={vi.fn()} />);
     expect(screen.getByText('+')).toBeInTheDocument();
-    expect(mockedGetPlayerRelics).not.toHaveBeenCalled();
+  });
+
+  it('fetches relics on mount, not only once opened', () => {
+    // Changed deliberately: the compact badge needs relic *names* (for its
+    // glyph/help text once more than one relic type is selectable), which
+    // for anything other than the id-stable Hades' Coin means having
+    // `relics` loaded -- including for a badge that renders pre-selected,
+    // before the popover has ever been opened.
+    render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[]} onToggle={vi.fn()} />);
+    expect(mockedGetPlayerRelics).toHaveBeenCalledWith('Alice');
   });
 
   it('fetches and renders the inventory on open, with the consumption-explicit tooltip', async () => {
@@ -118,6 +127,21 @@ describe('RelicSelectionPopover: selected state', () => {
     render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[COIN_RELIC_ID]} onToggle={vi.fn()} />);
     expect(screen.queryByText('+')).not.toBeInTheDocument();
     expect(screen.getByText('🪙')).toBeInTheDocument();
+  });
+
+  it('shows a non-coin relic\'s own badge glyph and help text once relics have loaded', async () => {
+    const STONE_ID = 9;
+    mockedGetPlayerRelics.mockResolvedValue({
+      relics: [
+        { id: STONE_ID, boss_id: null, created_at: '', newest_copy_created_at: '', name: 'Stone of Vitality', power_category: 'HEALTH', count: 1 },
+      ],
+    });
+    render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[STONE_ID]} onToggle={vi.fn()} />);
+
+    await screen.findByText('🪨');
+    expect(
+      screen.getByTitle('Use one Stone of Vitality to start the game with 15 HP instead of 10. This consumes it.')
+    ).toBeInTheDocument();
   });
 
   it('arms a removal confirmation (red cross) on first click, without calling onToggle or showing a cooldown', () => {

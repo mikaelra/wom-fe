@@ -5,11 +5,14 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import CityOverlay from '@/components/city/CityOverlay';
+import WorldClock from '@/components/worldmap/WorldClock';
+import { timewarpColorsFor } from '@/lib/timewarpFx';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import AuthGatePopup from '@/components/AuthGatePopup';
 import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
 import { findCity } from '@/lib/cities';
 import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
+import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
 import { useEnterBotRanked } from '@/lib/useEnterBotRanked';
@@ -40,7 +43,19 @@ function CityPageContent() {
   const city = findCity(searchParams.get('id'));
   // ?t= lets you look at a sky that is not the one currently overhead --
   // "02:00" is 2am Athens tonight (docs/CITY_SCENE_PLAN.md §6.6).
-  const { date: skyDate, overridden: skyOverridden } = resolveCityTime(searchParams.get('t'));
+  const { date: resolvedSkyDate, overridden: tOverridden } = resolveCityTime(searchParams.get('t'));
+  // docs/MERCHANT_PLAN.md §7: while the sky is somewhere other than now --
+  // a revert, or the dev clock -- the city's sky follows it to the same
+  // instant the globe's does (getSky()'s own override, wired in
+  // useMerchantOffer). An explicit ?t= still wins, since that's a
+  // deliberate debug request, not something a revert should silently
+  // clobber.
+  const {
+    merchant, offers: merchantOffers, receivedAt: merchantReceivedAt, reverted, revertToDate, revertExpiresAt,
+  } = useMerchantOffer();
+  const skyMoved = !tOverridden && !!merchant?.sky_date;
+  const skyDate = skyMoved ? new Date(merchant!.sky_date!) : resolvedSkyDate;
+  const skyOverridden = tOverridden || skyMoved;
 
   // The city had no music call of its own -- WorldMapOverlay and
   // LobbyOverlay were the only two screens that ever started a track -- so
@@ -138,7 +153,19 @@ function CityPageContent() {
           onReady={handleReady}
         />
       </Canvas>
-      <CityOverlay skyClock={skyOverridden ? formatAthensClock(skyDate) : null} />
+      <CityOverlay
+        skyClock={skyOverridden ? formatAthensClock(skyDate) : null}
+        clock={
+          <WorldClock
+            reverted={reverted}
+            revertToDate={revertToDate ?? null}
+            skyDate={merchant?.sky_date ?? null}
+            skyDateReceivedAt={merchantReceivedAt}
+            revertExpiresAt={revertExpiresAt}
+            warpColors={timewarpColorsFor(merchantOffers.map((o) => o.event))}
+          />
+        }
+      />
 
       <CityLoadingScreen
         title={city.actionLabel ?? city.name}

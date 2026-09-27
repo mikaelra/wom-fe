@@ -52,6 +52,101 @@ export const BossfightRosterResponseSchema = z.object({
   })),
 });
 
+// docs/MERCHANT_PLAN.md -- the merchants on the globe.
+//
+// A merchant-summoning event in the sky (wom-be domain/merchant.py
+// SkyEvent): the full moon, or a conjunction between two planets.
+export const MerchantEventSchema = z.object({
+  kind: z.string(),
+  // "" for the full moon, "Venus-Jupiter" for a conjunction.
+  key: z.string(),
+  bodies: z.array(z.string()),
+  sign: z.string(),
+  at: z.string(),
+});
+
+// One merchant in town -- one per live sky event, so a conjunction on a
+// full moon is two of these.
+export const MerchantOfferSchema = z.object({
+  offer_id: z.number(),
+  merchant_name: z.string(),
+  item_name: z.string(),
+  cost_hades_coins: z.number(),
+  trigger_kind: z.string(),
+  // Whether the merchant is in town at all (drives the globe marker).
+  // Distinct from `available` (drives the buy button): a player who's
+  // already traded this period must still see the merchant, just unable
+  // to buy.
+  active: z.boolean(),
+  available: z.boolean(),
+  already_bought_this_period: z.boolean(),
+  period_start: z.string(),
+  // Which event this merchant came for; with period_start, what a
+  // purchase names and what seeds the marker's spot. Defaults cover a
+  // backend that predates stacking.
+  event_key: z.string().default(''),
+  event: MerchantEventSchema.nullable().default(null),
+  // docs/MERCHANT_PLAN.md §7 -- is the merchant here only because someone
+  // sacrificed a relic to turn back time, and when does that end.
+  reverted: z.boolean(),
+  revert_expires_at: z.string().nullable(),
+  // Until when nobody else may timewarp; after it, a new timewarp replaces
+  // this one. Absent from a backend without the lock.
+  revert_locked_until: z.string().nullable().optional(),
+  // §7: while reverted, the sky itself also rewinds to this instant --
+  // the moment the sacrificed relic was originally bought.
+  revert_to_date: z.string().nullable(),
+});
+
+export const MerchantOfferResponseSchema = z.object({
+  // The full-moon Merchant in the shape from before merchants stacked.
+  offer: MerchantOfferSchema.nullable(),
+  // Every merchant in town. Defaults (and the revert fields below) cover a
+  // backend that predates stacking, during a deploy.
+  offers: z.array(MerchantOfferSchema).default([]),
+  // The instant to draw the sky at when it isn't the viewer's own clock:
+  // a revert's instant, or the dev clock (wom-be engine/dev_clock.py).
+  sky_date: z.string().nullable().default(null),
+  reverted: z.boolean().optional(),
+  revert_expires_at: z.string().nullable().optional(),
+  revert_locked_until: z.string().nullable().optional(),
+  revert_to_date: z.string().nullable().optional(),
+});
+
+// Pushed to every client when anyone timewarps (wom-be routes/merchant.py
+// TIMEWARP_EVENT): the moment warped to and the events live there, so the
+// globe can play the timewarp for everyone watching.
+export const TimewarpBroadcastSchema = z.object({
+  revert_to_date: z.string(),
+  events: z.array(MerchantEventSchema),
+});
+
+// Pushed to every client when a timewarp's hour runs out (wom-be
+// routes/merchant.py TIMEWARP_END_EVENT): the moment it had warped to and
+// its events, so the way back to now is drawn in the same colours.
+export const TimewarpEndBroadcastSchema = z.object({
+  revert_to_date: z.string().nullable(),
+  ended_at: z.string(),
+  events: z.array(MerchantEventSchema),
+});
+
+export const MerchantSkyEventsResponseSchema = z.object({
+  at: z.string(),
+  events: z.array(MerchantEventSchema),
+});
+
+export const MerchantPurchaseResponseSchema = z.object({
+  ok: z.boolean(),
+  item_name: z.string(),
+});
+
+export const MerchantRevertTimeResponseSchema = z.object({
+  ok: z.boolean(),
+  expires_at: z.string(),
+  revert_to_date: z.string(),
+  events: z.array(MerchantEventSchema).default([]),
+});
+
 export const GetPlayerRelicsResponseSchema = z.object({
   relics: z.array(RelicSchema),
 });
@@ -156,7 +251,32 @@ export const ClaimPendingWheelResponseSchema = z.object({
   pending_verification: z.boolean().optional(),
 });
 
+// One "Transcribed to" row (wom-be docs/MARKET_PLAN.md §1B): someone this
+// Artifact was transcribed to. `id` and `transcribed_count` let the list be
+// followed down the chain (POST /artifacts/transcribed_to).
+export const TranscribedEntrySchema = z.object({
+  id: z.number().int().optional(),
+  name: z.string(),
+  origin: z.string(),
+  copy_number: z.number().int().optional(),
+  transcribed_count: z.number().int().optional(),
+  at: z.string().nullable(),
+});
+
+// POST /artifacts/transcribed_to -- who another Artifact was transcribed to.
+export const ArtifactTranscribedToResponseSchema = z.object({
+  name: z.string(),
+  transcribed_to: z.array(TranscribedEntrySchema),
+});
+
 export const InventoryResponseSchema = z.object({
+  // Session-resolved, authoritative name -- fetching Relics
+  // (GET /get_player_relics, name-keyed) should use this, not a
+  // client-cached localStorage copy that can drift from the actual
+  // session (bug: Relics box silently empty, traced 2026-09-25). Optional
+  // for the same deploy-independence reasoning as every other field added
+  // here after v1.
+  name: z.string().optional(),
   equipped_skin: z.string(),
   skins: z.array(z.object({ skin: z.string(), count: z.number().int() })),
   wheels: z.array(z.object({ id: z.number().int(), kind: z.string() })),
@@ -167,9 +287,18 @@ export const InventoryResponseSchema = z.object({
   equipped_cosmetic: z.string().nullable().optional(),
   artifact: z
     .object({
-      ordinal: z.number().int(),
+      // Null on a reproduced copy -- only discoveries are numbered.
+      ordinal: z.number().int().nullable(),
       discovered_at: z.string().nullable(),
       cosmetic: z.string(),
+      // wom-be docs/MARKET_PLAN.md §1B: "{source holder}#{n}" on a copy,
+      // null on a discovered original; and who it was reproduced to.
+      origin: z.string().nullable().optional(),
+      // A copy's discovered original's ledger number, to mark it there.
+      origin_ordinal: z.number().int().nullable().optional(),
+      // ...and the copy's place among everything descended from that row.
+      origin_order: z.number().int().nullable().optional(),
+      reproduced_to: z.array(TranscribedEntrySchema).optional(),
     })
     .nullable()
     .optional(),
@@ -225,6 +354,28 @@ export const RankedQueueLeaveResponseSchema = z.object({
   status: z.string(),
   was_queued: z.boolean(),
 });
+
+// GET /ranked/season -- the current ranked season's name and when it ends
+// (docs/RANK_SYSTEM_PLAN.md §12). Shared by both ladders -- My AI resets on
+// the same cadence (docs/MY_AI.md §9).
+export const SeasonInfoResponseSchema = z.object({
+  name: z.string(),
+  ends_at: z.string(),
+});
+
+// GET /ranked/season_history/<name> -- this player's rank across every
+// season they've had one, on both ladders. Backs the "Seasons" overlay.
+export const SeasonHistoryEntrySchema = z.object({
+  season: z.string(),
+  tier: z.string(),
+  current: z.boolean(),
+});
+
+export const SeasonHistoryResponseSchema = z.object({
+  human: z.array(SeasonHistoryEntrySchema),
+  ai: z.array(SeasonHistoryEntrySchema),
+});
+export type SeasonHistoryEntry = z.infer<typeof SeasonHistoryEntrySchema>;
 
 // GET /ranked/active/<name> -- does this player have a currently
 // unfinished ranked match to return to (docs/RANK_SYSTEM_PLAN.md §6/§10)?
@@ -387,7 +538,9 @@ export const OnlineCountPayloadSchema = z.object({
 export const MarketItemSchema = z.object({
   // 'ai_credits' is a fungible balance -- quantity is the credit count,
   // skin/relic_id/wheel_kind all null.
-  item_type: z.enum(['skin', 'relic', 'wheel', 'ai_credits']),
+  // 'artifact' never changes hands -- it is reproduced onto a Paper on the
+  // other side of the trade (wom-be docs/MARKET_PLAN.md §1B). Always 1.
+  item_type: z.enum(['skin', 'relic', 'wheel', 'ai_credits', 'artifact']),
   skin: z.string().nullable(),
   relic_id: z.number().int().nullable(),
   wheel_kind: z.string().nullable(),
@@ -418,6 +571,8 @@ export const MarketCatalogResponseSchema = z.object({
   relics: z.array(z.object({ id: z.number().int(), name: z.string() })),
   wheel_kinds: z.array(z.string()),
   coin_relic_id: z.number().int(),
+  // Which relic is Paper -- an Artifact on a trade needs one opposite it.
+  paper_relic_id: z.number().int().nullable().optional(),
   terms_version: z.string(),
   terms_text: z.string(),
 });
@@ -465,6 +620,9 @@ export const MarketAcceptTermsResponseSchema = z.object({
 export const MarketMutationResponseSchema = z.object({
   success: z.boolean(),
   listing: MarketListingSchema,
+  // An accepted trade that reproduced an Artifact: who got it, and its
+  // origin label ("{source holder}#{n}").
+  reproduced: z.object({ to: z.string(), origin: z.string().nullable() }).optional(),
 });
 
 // Socket payloads (wom-be sockets/market.py). A market chat message reuses

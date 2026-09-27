@@ -13,12 +13,15 @@ import {
 } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { CITY_PATH } from '@/lib/cities';
-import { skinLabel } from '@/lib/frogSkins';
+import { skinLabel, sortSkins } from '@/lib/frogSkins';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
 import { useToast } from '@/components/Toast';
 import { useMarketConnection } from '@/lib/useMarketConnection';
 import {
   itemKey,
+  TRANSCRIBE_HOLDER_NOTE,
+  tradeName,
+  tradeNoun,
   NON_TRADEABLE_SKIN,
   type MarketCatalog,
   type MarketItemInput,
@@ -97,7 +100,7 @@ export default function MarketPage() {
       const list: OwnedItem[] = [];
       const counts: Record<string, number> = {};
       if (inv) {
-        for (const s of inv.skins) {
+        for (const s of sortSkins(inv.skins, (e) => e.skin)) {
           if (s.skin === NON_TRADEABLE_SKIN) continue;
           const input: MarketItemInput = { item_type: 'skin', skin: s.skin, quantity: 1 };
           list.push({ input, label: cap(skinLabel(s.skin)), count: s.count });
@@ -117,6 +120,13 @@ export default function MarketPage() {
         const input: MarketItemInput = { item_type: 'relic', relic_id: relicId, quantity: 1 };
         list.push({ input, label: r.name, count: r.count });
         counts[itemKey(input)] = r.count;
+      }
+      // The Artifact -- one per account, never handed over: offering it
+      // reproduces it onto the other side's Paper (wom-be MARKET_PLAN.md §1B).
+      if (inv?.artifact) {
+        const input: MarketItemInput = { item_type: 'artifact', quantity: 1 };
+        list.push({ input, label: 'Artifact', count: 1 });
+        counts[itemKey(input)] = 1;
       }
       // Bot-game credits -- a spendable balance, offered like an item.
       const aiCreditInput: MarketItemInput = { item_type: 'ai_credits', quantity: 1 };
@@ -210,35 +220,40 @@ export default function MarketPage() {
       if (!token) return;
       await createMarketListing(token, payload);
       setCraft(null);
-      toast.showSuccess('Trade posted.');
+      toast.showSuccess(`${tradeName(payload.give, payload.want, catalog?.paper_relic_id)} posted.`);
       refetch();
       void reloadPlayer();
     },
-    [token, toast, refetch, reloadPlayer],
+    [token, toast, refetch, reloadPlayer, catalog],
   );
 
   const confirmAccept = useCallback(async () => {
     if (!token || !acceptTarget) return;
-    await acceptMarketListing(token, acceptTarget.id);
+    const res = await acceptMarketListing(token, acceptTarget.id);
     setAcceptTarget(null);
-    toast.showSuccess('Trade complete — check your inventory.');
+    const name = tradeName(acceptTarget.give, acceptTarget.want, catalog?.paper_relic_id);
+    toast.showSuccess(
+      res.reproduced
+        ? `${name} complete — ${res.reproduced.to} received an Artifact.`
+        : `${name} complete — check your inventory.`,
+    );
     refetch();
     void reloadPlayer();
-  }, [token, acceptTarget, toast, refetch, reloadPlayer]);
+  }, [token, acceptTarget, toast, refetch, reloadPlayer, catalog]);
 
   const onCancel = useCallback(
     async (listing: MarketListing) => {
       if (!token) return;
       try {
         await cancelMarketListing(token, listing.id);
-        toast.showSuccess('Trade removed.');
+        toast.showSuccess(`${tradeName(listing.give, listing.want, catalog?.paper_relic_id)} removed.`);
         refetch();
         void reloadPlayer();  // the items it held are back in the picker
       } catch (e) {
         toast.showError(e instanceof Error ? e.message : 'Failed to remove.');
       }
     },
-    [token, toast, refetch, reloadPlayer],
+    [token, toast, refetch, reloadPlayer, catalog],
   );
 
   const coinsAvailable = enterData?.coins ?? 0;
@@ -247,7 +262,11 @@ export default function MarketPage() {
     if (!acceptTarget) return null;
     const fmt = (items: MarketListing['give']) =>
       items.map((i) => `${labelFor(i, catalog)}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`).join(', ');
-    return { give: fmt(acceptTarget.give), want: fmt(acceptTarget.want) };
+    return {
+      give: fmt(acceptTarget.give),
+      want: fmt(acceptTarget.want),
+      name: tradeName(acceptTarget.give, acceptTarget.want, catalog?.paper_relic_id),
+    };
   }, [acceptTarget, catalog]);
 
   return (
@@ -375,8 +394,8 @@ export default function MarketPage() {
 
       {acceptTarget && acceptSummary && (
         <ConfirmModal
-          title="Accept this trade?"
-          confirmLabel="Accept trade"
+          title={`Accept this ${tradeNoun(acceptSummary.name)}?`}
+          confirmLabel={`Accept ${tradeNoun(acceptSummary.name)}`}
           onConfirm={confirmAccept}
           onClose={() => setAcceptTarget(null)}
         >
@@ -386,7 +405,15 @@ export default function MarketPage() {
           <p>
             You receive <span className="text-white">{acceptSummary.give}</span>.
           </p>
-          <p className="text-white/50">Ownership is re-checked as the swap runs. This can&apos;t be undone.</p>
+          {/* The accepter holds the Artifact: it stays theirs, and the
+              Paper they're asked for isn't handed to them. */}
+          {acceptTarget.want.some((i) => i.item_type === 'artifact') && (
+            <p className="text-red-400 font-semibold">{TRANSCRIBE_HOLDER_NOTE}</p>
+          )}
+          <p className="text-white/50">
+            Ownership is re-checked as the {acceptSummary.name === 'Trade' ? 'swap' : acceptSummary.name} runs.
+            This can&apos;t be undone.
+          </p>
         </ConfirmModal>
       )}
     </div>
@@ -403,5 +430,6 @@ function labelFor(
 ): string {
   if (item.item_type === 'skin') return cap(skinLabel(item.skin ?? ''));
   if (item.item_type === 'wheel') return wheelKindLabel(item.wheel_kind ?? '');
+  if (item.item_type === 'artifact') return 'Artifact';
   return catalog?.relics.find((r) => r.id === item.relic_id)?.name ?? `Relic #${item.relic_id}`;
 }

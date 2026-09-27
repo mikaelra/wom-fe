@@ -56,7 +56,9 @@ export interface SignpostArm {
   lengthScale?: number;
   /** The destination, e.g. "BOSSFIGHT". */
   label: string;
-  /** Live state under the label -- a countdown, a queue status. */
+  /** Live state under the label -- a countdown, a queue status. `\n`-joined
+   *  for two lines (e.g. a headcount over its countdown); each renders in
+   *  its own line below the label. */
   sublabel?: string | null;
   /** Accent for the label text. */
   color: string;
@@ -134,11 +136,14 @@ function Arm({ arm }: { arm: SignpostArm }) {
           >
             {arm.side === 'left' ? '◀ ' : ''}{arm.label}{arm.side === 'right' ? ' ▶' : ''}
           </div>
-          {arm.sublabel && (
-            <div style={{ color: '#fff', fontSize: 18, fontWeight: 700, textShadow: '0 0 8px rgba(0,0,0,0.8)' }}>
-              {arm.sublabel}
+          {arm.sublabel && arm.sublabel.split('\n').map((line, i) => (
+            <div
+              key={i}
+              style={{ color: '#fff', fontSize: 18, fontWeight: 700, textShadow: '0 0 8px rgba(0,0,0,0.8)' }}
+            >
+              {line}
             </div>
-          )}
+          ))}
         </div>
       </FreshHtml>
     </group>

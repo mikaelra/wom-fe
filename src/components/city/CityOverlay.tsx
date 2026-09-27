@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import SceneTopBar from '@/components/hud/SceneTopBar';
 
 /**
@@ -15,8 +16,11 @@ export default function CityOverlay({
   /** Athens wall-clock time being viewed, when ?t= overrode the real one.
    *  Null while the sky is live -- there is nothing to say then. */
   skyClock,
+  /** The world clock, drawn under the Rules button (components/worldmap/WorldClock). */
+  clock,
 }: {
   skyClock?: string | null;
+  clock?: ReactNode;
 }) {
   return (
     <>
@@ -27,7 +31,7 @@ export default function CityOverlay({
           The way back to Earth is NOT here: it is a sign on the signpost,
           under the Bossfight arm, so leaving the city is a thing in the
           world rather than a button floating over it. */}
-      <SceneTopBar />
+      <SceneTopBar belowRules={clock} />
 
       {/* No city nameplate. The scene says where you are far better than a
           caption does -- the temple, the signpost and the sky over Greece

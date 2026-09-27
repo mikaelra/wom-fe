@@ -1,10 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
+  _resetSkyCache,
   computeAspects,
   computeSky,
   conjunctionWeight,
+  getSky,
+  moonZodiacSign,
   separationDeg,
+  setSkyRevertOverride,
+  zodiacSignAtLongitude,
   type AspectBody,
   type Sky,
 } from '@/lib/astrology';
@@ -382,5 +387,88 @@ describe('computeSky overrides', () => {
   it('a self-reference throws', () => {
     const date = new Date('2026-06-15T00:00:00Z');
     expect(() => computeSky(date, [{ body: 'Mars', relativeTo: 'Mars', sepDeg: 1 }])).toThrow();
+  });
+});
+
+// ── getSky() singleton + setSkyRevertOverride (docs/MERCHANT_PLAN.md §7) ──
+
+describe('getSky / setSkyRevertOverride', () => {
+  afterEach(() => _resetSkyCache());
+
+  it('with no override, getSky() returns a sky dated close to now', () => {
+    const before = Date.now();
+    const sky = getSky();
+    expect(sky.date.getTime()).toBeGreaterThanOrEqual(before);
+    expect(sky.date.getTime()).toBeLessThan(before + 5000);
+  });
+
+  it('setting an override makes getSky() return a sky at that instant instead', () => {
+    const revertedTo = new Date('2026-01-01T00:00:00Z');
+    setSkyRevertOverride(revertedTo);
+
+    expect(getSky().date.getTime()).toBe(revertedTo.getTime());
+  });
+
+  it('setting the same override again does not recompute (same object identity)', () => {
+    const revertedTo = new Date('2026-01-01T00:00:00Z');
+    setSkyRevertOverride(revertedTo);
+    const first = getSky();
+
+    setSkyRevertOverride(new Date(revertedTo.getTime()));
+    const second = getSky();
+
+    expect(second).toBe(first);
+  });
+
+  it('clearing the override (null) returns getSky() to the live clock', () => {
+    setSkyRevertOverride(new Date('2026-01-01T00:00:00Z'));
+    expect(getSky().date.getTime()).toBe(new Date('2026-01-01T00:00:00Z').getTime());
+
+    setSkyRevertOverride(null);
+
+    const before = Date.now();
+    expect(getSky().date.getTime()).toBeGreaterThanOrEqual(before);
+  });
+});
+
+// ── Zodiac (docs/MERCHANT_PLAN.md §7) ──────────────────────────────────────
+
+describe('zodiacSignAtLongitude', () => {
+  it('0deg is the start of Aries', () => {
+    expect(zodiacSignAtLongitude(0)).toBe('Aries');
+  });
+
+  it('just under 30deg is still Aries; exactly 30deg is Taurus', () => {
+    expect(zodiacSignAtLongitude(29.99)).toBe('Aries');
+    expect(zodiacSignAtLongitude(30)).toBe('Taurus');
+  });
+
+  it('just under 360deg is Pisces', () => {
+    expect(zodiacSignAtLongitude(359)).toBe('Pisces');
+  });
+
+  it('wraps past 360deg back to Aries', () => {
+    expect(zodiacSignAtLongitude(360)).toBe('Aries');
+    expect(zodiacSignAtLongitude(725)).toBe('Aries'); // 725 - 720 = 5deg
+  });
+
+  it('wraps a negative longitude into Pisces', () => {
+    expect(zodiacSignAtLongitude(-1)).toBe('Pisces');
+  });
+});
+
+describe('moonZodiacSign', () => {
+  const ALL_SIGNS = [
+    'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+    'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces',
+  ];
+
+  it('returns one of the twelve zodiac signs for a real date', () => {
+    expect(ALL_SIGNS).toContain(moonZodiacSign(new Date('2026-09-26T16:49:32Z')));
+  });
+
+  it('is deterministic for the same instant', () => {
+    const date = new Date('2026-01-01T00:00:00Z');
+    expect(moonZodiacSign(date)).toBe(moonZodiacSign(new Date(date.getTime())));
   });
 });

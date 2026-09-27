@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { createLobby, joinLobby } from '@/lib/api';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
@@ -10,7 +10,12 @@ import SceneTopBar from '@/components/hud/SceneTopBar';
 import { useToast } from '@/components/Toast';
 import { playMusic, HOME_MUSIC } from '@/lib/music';
 
-export default function WorldMapOverlay() {
+export default function WorldMapOverlay({
+  clock,
+}: {
+  /** The world clock, drawn under the Rules button (components/worldmap/WorldClock). */
+  clock?: ReactNode;
+} = {}) {
   const router = useRouter();
   const { showError } = useToast();
   const [mounted, setMounted] = useState(false);
@@ -112,7 +117,7 @@ export default function WorldMapOverlay() {
     <>
       {/* Rules, music and the user menu, shared with the city scene so the
           top bar is continuous between them (locked decision 4). */}
-      <SceneTopBar />
+      <SceneTopBar belowRules={clock} />
 
       {/* Bottom: lobby controls */}
       <div className="absolute bottom-8 left-0 right-0 z-20 flex flex-col items-center gap-2 pointer-events-none">

@@ -31,6 +31,8 @@ import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { emitHpFx } from '@/lib/resourceFx';
+import { emitBossHpFx } from '@/lib/bossHpFx';
+import { useStagedBossHp } from '@/lib/useStagedBossHp';
 import { playCombatSound, playResourceSound, type ResourceSound } from '@/lib/sounds';
 import { glowForReward, type WellRewardComponent } from '@/lib/gameEvents';
 import { skinUrl } from '@/lib/frogSkins';
@@ -447,6 +449,12 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       return a.name.localeCompare(b.name);
     })
     .slice(0, MAX_PLAYERS), [allPlayers, playerName, isBossFight]);
+  // Staged so the boss's own HP bar doesn't drop until this player's own
+  // strike against it visually connects, instead of the instant
+  // state_update arrives (see useStagedBossHp's own comment; emitted from
+  // the onStrike callback below).
+  const bossHpNow = players.find((p) => p.boss)?.hp;
+  const stagedBossHp = useStagedBossHp(bossHpNow, state?.round);
   // Once the game is over, trust ONLY the declared winner -- never fall
   // back to wellWinner (who most recently won The Well, a live in-game
   // indicator with no bearing on who actually won the match). Without
@@ -1342,7 +1350,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               isBot={!!player.bot}
               botType={player.bot_type}
               isBoss={isBoss}
-              bossHp={isBoss ? player.hp : undefined}
+              bossHp={isBoss ? stagedBossHp : undefined}
               bossMaxHp={isBoss ? BOSS_MAX_HP : undefined}
               frogSkinUrl={skinMap.get(player.name)}
               cosmetic={player.cosmetic}
@@ -1521,6 +1529,16 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               // shake on a hit, blue aura on a block) — incoming attacks only.
               if (ev.isIncoming && ev.incomingFx) {
                 emitHpFx(ev.incomingFx);
+              }
+              // Reveal the boss's already-known new HP at the exact moment
+              // this player's own strike against it connects (bug list
+              // 260916) -- useStagedBossHp froze the display at the old
+              // value the instant this round's state_update arrived.
+              // toPos/bossStrikeY, not a name, is what identifies the boss
+              // here, matching the damage-number offset check just below.
+              if (!ev.isIncoming && ev.targetHit && bossHpNow !== undefined
+                  && Math.abs(ev.toPos[1] - bossStrikeY) < 0.05) {
+                emitBossHpFx({ hp: bossHpNow });
               }
               // Floating "-X"/"0" over the struck player -- both directions
               // (my attack landing on someone else; someone else's attack

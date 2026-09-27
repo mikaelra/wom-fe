@@ -107,3 +107,14 @@ body {
   100% { transform: translateX(320%);  }
 }
 .city-loading-sweep { animation: city-loading-sweep 1.15s ease-in-out infinite; }
+
+/* Top-bar user avatar while its equipped skin is still loading (bug list
+   260916): a plain green circle blinking subtly into a darker green,
+   rather than a specific skin's thumbnail (previously always the green
+   frog default, which just read as "your skin is a frog" before the real
+   one swapped in). */
+@keyframes avatar-loading-blink {
+  0%, 100% { background-color: #4ade80; }
+  50%       { background-color: #14532d; }
+}
+.avatar-loading-blink { animation: avatar-loading-blink 1.4s ease-in-out infinite; }

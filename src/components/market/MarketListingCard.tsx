@@ -6,6 +6,8 @@ import {
   formatRemaining,
   itemKey,
   secondsRemaining,
+  tradeName,
+  tradeNoun,
   type MarketCatalog,
   type MarketListing,
 } from '@/lib/market';
@@ -54,6 +56,7 @@ export default function MarketListingCard({
   }, [listing.expires_at, clockOffsetMs]);
 
   const low = secs <= 15 && listing.kind === 'quick';
+  const noun = tradeNoun(tradeName(listing.give, listing.want, catalog?.paper_relic_id));
 
   return (
     <div className="rounded-xl bg-gray-900/80 border border-white/10 p-3 flex flex-col gap-2">
@@ -94,9 +97,9 @@ export default function MarketListingCard({
             onClick={onAccept}
             disabled={!canAccept || secs === 0}
             className="px-3 py-1 rounded-md text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            title={canAccept ? 'Accept this trade' : "You don't own the requested items"}
+            title={canAccept ? `Accept this ${noun}` : "You don't own the requested items"}
           >
-            Accept trade
+            Accept {noun}
           </button>
         )}
       </div>

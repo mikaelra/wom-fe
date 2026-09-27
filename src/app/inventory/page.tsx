@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { timewarpParamFor } from '@/lib/timewarpFx';
+import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules, type TranscribedEntry } from '@/lib/api';
+import { ledgerMarks } from '@/lib/market';
 import { getStoredAccountToken } from '@/lib/http';
-import { skinColor, skinLabel, skinThumbnailUrl, skinUrl } from '@/lib/frogSkins';
+import { skinColor, skinLabel, skinThumbnailUrl, skinUrl, sortSkins } from '@/lib/frogSkins';
 import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
@@ -12,14 +15,27 @@ import WheelSpinModal from '@/components/WheelSpinModal';
 import TradeUpModal from '@/components/TradeUpModal';
 import RelicCoin from '@/components/RelicCoin';
 import ArtifactLedgerModal from '@/components/ArtifactLedgerModal';
+import RevertTimeModal from '@/components/merchant/RevertTimeModal';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
-import type { Relic } from '@/types/game';
+import { useMerchantOffer } from '@/lib/useMerchantOffer';
+import { useCountdown } from '@/lib/useCountdown';
+import { REVERT_RELIC_NAMES } from '@/lib/merchant';
+import { CONSUMABLE_RELIC_NAMES, type Relic } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
 
 type SkinEntry = { skin: string; count: number };
-type ArtifactEntry = { ordinal: number; discovered_at: string | null; cosmetic: string };
+type ArtifactEntry = {
+  // Null on a reproduced copy (wom-be docs/MARKET_PLAN.md §1B).
+  ordinal: number | null;
+  discovered_at: string | null;
+  cosmetic: string;
+  origin?: string | null;
+  origin_ordinal?: number | null;
+  origin_order?: number | null;
+  reproduced_to?: TranscribedEntry[];
+};
 type WheelEntry = { id: number; kind: string };
 // One button per distinct wheel kind, not one per row -- id is an arbitrary
 // representative of the group (any wheel of that kind spins the same way).
@@ -38,6 +54,7 @@ function groupWheels(wheels: WheelEntry[]): WheelGroup[] {
 }
 
 export default function InventoryPage() {
+  const router = useRouter();
   const { showError } = useToast();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -47,6 +64,22 @@ export default function InventoryPage() {
   const [relics, setRelics] = useState<Relic[]>([]);
   const [aiCredits, setAiCredits] = useState(0);
   const [equipping, setEquipping] = useState<string | null>(null);
+  // docs/MERCHANT_PLAN.md §7 -- the merchant relic (Stone of Vitality or
+  // Paper) currently open in the "turn back time" confirmation popup, or
+  // null when it's closed.
+  const [revertRelic, setRevertRelic] = useState<Relic | null>(null);
+  // Polled the same way the globe learns it, so the Timewarp popup can
+  // show where time stands -- and block with a countdown if someone has
+  // timewarped within the last minute -- before the player tries, not
+  // after a 409.
+  const {
+    merchant,
+    reverted,
+    revertLockedUntil,
+    revertToDate,
+  } = useMerchantOffer();
+  const secondsLocked = useCountdown(revertLockedUntil);
+  const revertLocked = reverted && secondsLocked !== null && secondsLocked > 0;
   // The Artifacts category. `artifact` is null for almost every account --
   // that is the point of it, and the empty state carries the weight.
   const [equippedCosmetic, setEquippedCosmetic] = useState<string | null>(null);
@@ -79,21 +112,34 @@ export default function InventoryPage() {
     }
     setPendingClaim(null);
     setLoading(true);
-    const playerName = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
-    Promise.all([
-      getInventory(token),
-      playerName ? getPlayerRelics(playerName) : Promise.resolve({ relics: [] }),
-    ])
-      .then(([inventoryData, relicsData]) => {
+    // Relics (GET /get_player_relics) are keyed by name, not by session
+    // token, so they need a name -- but it must be the session's own name,
+    // not a client-cached localStorage guess. That guess used to be all
+    // this had, and it can silently drift from the actual signed-in
+    // account (stale from an earlier login, wrong case, or simply never
+    // set), which showed up as a Relics box that stayed empty forever no
+    // matter what the account actually owned. getInventory's response now
+    // carries the session-resolved name (routes/wheel.py's /inventory),
+    // so relics are fetched from *that*, sequenced after it rather than in
+    // parallel via Promise.all.
+    getInventory(token)
+      .then((inventoryData) => {
         setEquippedSkin(inventoryData.equipped_skin);
         setSkins(inventoryData.skins);
         setWheels(inventoryData.wheels);
         setEquippedCosmetic(inventoryData.equipped_cosmetic ?? null);
         setArtifact(inventoryData.artifact ?? null);
         setAiCredits(inventoryData.ai_credits ?? 0);
-        setRelics(relicsData.relics);
         setLoadError('');
+
+        const name = inventoryData.name;
+        if (!name) return { relics: [] };
+        // Keep the client-side cache in sync with the authoritative name,
+        // so anything else still reading localStorage's copy self-heals.
+        if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
+        return getPlayerRelics(name);
       })
+      .then((relicsData) => setRelics(relicsData.relics))
       .catch((e: unknown) => {
         setLoadError(e instanceof Error ? e.message : 'Failed to load inventory.');
       })
@@ -129,6 +175,22 @@ export default function InventoryPage() {
     } finally {
       setEquipping(null);
     }
+  };
+
+  // docs/MERCHANT_PLAN.md §7 -- RevertTimeModal does the actual sacrifice
+  // (and its own error handling); this just reflects success back into the
+  // page the same way a purchase or trade-up would -- reload the relic
+  // list/count, and re-poll the offer immediately so the card's own
+  // "already reverted" state/countdown appears without waiting out the
+  // rest of useMerchantOffer's minute-long poll interval.
+  // A timewarp takes the player home to watch it happen: the sky running
+  // back to the moment they warped to, in that moment's colours
+  // (lib/timewarpFx.ts). `play` marks it as the real thing, not a preview.
+  const handleReverted = (result: { revert_to_date: string; events: { kind: string; key: string }[] }) => {
+    router.push(
+      `/?timewarp=${encodeURIComponent(timewarpParamFor(result.events))}` +
+        `&to=${encodeURIComponent(result.revert_to_date)}&play=1`,
+    );
   };
 
   // Equip, or unequip by sending "". Unequipping needs no ownership check
@@ -170,7 +232,7 @@ export default function InventoryPage() {
 
   // Green is always owned implicitly -- no skin_items row needed for it
   // (docs/MONETIZATION_PLAN.md §3.1).
-  const ownedSkins: SkinEntry[] = [{ skin: DEFAULT_SKIN, count: 1 }, ...skins];
+  const ownedSkins: SkinEntry[] = sortSkins([{ skin: DEFAULT_SKIN, count: 1 }, ...skins], (e) => e.skin);
   const wheelGroups = groupWheels(wheels);
 
   return (
@@ -258,11 +320,28 @@ export default function InventoryPage() {
                       key={String(relic.id)}
                       className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
                     >
-                      <div className="w-16 h-16 overflow-hidden">
-                        <RelicCoin />
-                      </div>
+                      {/* A merchant relic's model (Stone of Vitality,
+                          Paper) is also the Timewarp entry point -- same affordance as the
+                          Artifact card below (click the model, get a
+                          popup), rather than a click target that does
+                          nothing. Every other relic keeps a plain,
+                          non-interactive coin. */}
+                      {REVERT_RELIC_NAMES.has(relic.name) ? (
+                        <button
+                          type="button"
+                          onClick={() => setRevertRelic(relic)}
+                          aria-label={`${relic.name} -- open the Timewarp popup`}
+                          className="w-16 h-16 overflow-hidden bg-transparent border-0 p-0 cursor-pointer"
+                        >
+                          <RelicCoin relicName={relic.name} />
+                        </button>
+                      ) : (
+                        <div className="w-16 h-16 overflow-hidden">
+                          <RelicCoin relicName={relic.name} />
+                        </div>
+                      )}
                       <p className="text-sm font-semibold text-center">{relic.name}</p>
-                      {relic.power_category === 'MONETARY' && (
+                      {CONSUMABLE_RELIC_NAMES.has(relic.name) && (
                         <span className="text-[10px] uppercase tracking-wide text-amber-400/80 border border-amber-400/30 rounded px-1.5 py-0.5">
                           Consumable
                         </span>
@@ -304,7 +383,7 @@ export default function InventoryPage() {
                 </div>
               ) : (
                 <div className="text-center py-2">
-                  <p className="text-white/60 text-sm mb-3">You don&apos;t have any wheels yet.</p>
+                  <p className="text-white/60 text-sm mb-3">You don&apos;t have any wheels.</p>
                   <Link
                     href="/shop"
                     className="inline-block px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-semibold hover:bg-amber-600/80 transition-colors no-underline text-sm"
@@ -393,7 +472,11 @@ export default function InventoryPage() {
                   <button
                     type="button"
                     onClick={() => setShowLedger(true)}
-                    aria-label={`Artifact number ${artifact.ordinal}, open the discovery ledger`}
+                    aria-label={
+                      artifact.ordinal != null
+                        ? `Artifact number ${artifact.ordinal}, open the discovery ledger`
+                        : 'Artifact, open the discovery ledger'
+                    }
                     className="w-28 h-28 shrink-0 bg-transparent border-0 p-0 cursor-pointer"
                   >
                     {artifactUrl ? (
@@ -416,6 +499,11 @@ export default function InventoryPage() {
                     <p className="text-xs text-white/50 mt-1">
                       {cosmeticDescription(artifact.cosmetic)}
                     </p>
+                    {/* Paper -> Artifact: a copy names where it came from.
+                        Who it was transcribed to is a tab in the ledger. */}
+                    {artifact.origin && (
+                      <p className="text-xs text-white/40 mt-1">Origin: {artifact.origin}</p>
+                    )}
                     <div className="mt-3 flex items-center justify-center sm:justify-start gap-2 flex-wrap">
                       {equippedCosmetic === artifact.cosmetic ? (
                         <>
@@ -457,8 +545,22 @@ export default function InventoryPage() {
 
       {showLedger && (
         <ArtifactLedgerModal
-          highlightOrdinal={artifact?.ordinal ?? null}
+          marks={ledgerMarks(artifact)}
+          transcribedTo={artifact?.reproduced_to ?? []}
           onClose={() => setShowLedger(false)}
+        />
+      )}
+
+      {revertRelic && (
+        <RevertTimeModal
+          relic={revertRelic}
+          reverted={reverted}
+          blocked={revertLocked}
+          blockedUntil={revertLockedUntil}
+          revertedTo={revertToDate ?? null}
+          statusKnown={merchant !== null}
+          onClose={() => setRevertRelic(null)}
+          onReverted={handleReverted}
         />
       )}
 

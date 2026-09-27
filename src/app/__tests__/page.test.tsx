@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { merchantState, paperOffer, revertedState, stoneOffer } from '@/lib/__tests__/merchantFixtures';
+import { FULL_MOON_MERCHANT_COLOR } from '@/lib/merchant';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { CSSProperties, ReactNode } from 'react';
 import Page from '@/app/page';
 import {
@@ -10,13 +12,15 @@ import {
   getActiveRankedLobby,
   joinRankedQueue,
   leaveRankedQueue,
+  getMerchantOffer,
 } from '@/lib/api';
 import type { City } from '@/lib/cities';
 import * as socketModule from '@/lib/socket';
 
 const push = vi.fn();
+const replace = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, replace }),
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -27,6 +31,10 @@ vi.mock('@/lib/api', () => ({
   getActiveRankedLobby: vi.fn(),
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
+  // docs/MERCHANT_PLAN.md's useMerchantOffer polls this on every mount of
+  // this page -- no offer, so the ??? marker this suite isn't testing
+  // stays off rather than the hook silently failing every poll.
+  getMerchantOffer: vi.fn().mockResolvedValue(merchantState()),
 }));
 
 // Same fake-subscribe pattern as WorldMapOverlay.test.tsx -- useRankedQueue
@@ -85,11 +93,36 @@ const VAULT: City = { id: 2, name: 'Vault City', country: '', lat: 0, lng: 0, re
 const RULES: City = { id: 3, name: 'Rules City', country: '', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '', isRules: true };
 
 let cityClickHandler: ((city: City) => void) | undefined;
+let lastSkyRevertKey: string | null | undefined;
+let lastMerchantMarkers: { key: string; color: string; outline: string | null; label: string; bodies: string[] }[] = [];
+let merchantClickHandler: ((key: string) => void) | undefined;
+let lastTimewarpColors: string[] | null | undefined;
+let skyReadyHandler: (() => void) | undefined;
 vi.mock('@/components/worldmap/WorldMap', () => ({
-  default: ({ onCityClick }: { onCityClick: (city: City) => void }) => {
+  default: ({
+    onCityClick, skyRevertKey, merchantMarkers, onMerchantClick, timewarpColors, onSkyReady,
+  }: {
+    onCityClick: (city: City) => void;
+    skyRevertKey?: string | null;
+    merchantMarkers?: { key: string; color: string; outline: string | null; label: string; bodies: string[] }[];
+    onMerchantClick?: (key: string) => void;
+    timewarpColors?: string[] | null;
+    onSkyReady?: () => void;
+  }) => {
+    lastTimewarpColors = timewarpColors;
+    skyReadyHandler = onSkyReady;
     cityClickHandler = onCityClick;
+    lastSkyRevertKey = skyRevertKey;
+    lastMerchantMarkers = merchantMarkers ?? [];
+    merchantClickHandler = onMerchantClick;
     return null;
   },
+}));
+
+vi.mock('@/components/merchant/MerchantScene', () => ({
+  default: ({ offer }: { offer: { merchant_name: string; item_name: string } }) => (
+    <div data-testid="merchant-scene">{offer.merchant_name}: {offer.item_name}</div>
+  ),
 }));
 
 vi.mock('@/components/worldmap/WorldMapOverlay', () => ({
@@ -120,6 +153,7 @@ const clickAthens = () => clickCity(ATHENS);
 beforeEach(() => {
   push.mockClear();
   cityClickHandler = undefined;
+  lastSkyRevertKey = undefined;
   mockedCheckName.mockReset();
   mockedLogInUser.mockReset();
   mockedVerifyLoginCode.mockReset();
@@ -127,6 +161,7 @@ beforeEach(() => {
   mockedGetActiveRankedLobby.mockReset();
   mockedJoinRankedQueue.mockReset();
   mockedLeaveRankedQueue.mockReset();
+  vi.mocked(getMerchantOffer).mockReset().mockResolvedValue(merchantState());
   // Harmless "no active ranked match" default for every test that isn't
   // specifically exercising the New York ranked flow.
   mockedGetActiveRankedLobby.mockResolvedValue({
@@ -191,6 +226,181 @@ describe('Page (world map view, city routing)', () => {
     await clickCity(RULES);
     expect(push).toHaveBeenCalledWith('/rules');
     expect(screen.queryByText('Enter the Hades Bossfight')).not.toBeInTheDocument();
+  });
+});
+
+// docs/MERCHANT_PLAN.md §7: WorldMap's planets go stale once its reveal
+// animation settles (PlanetSprites is memoized on `phase` alone) unless
+// something tells it a revert started or ended -- skyRevertKey is that
+// something. Real bug, found live: the globe kept showing the live sky
+// through an active revert.
+describe('Page (Merchant time-revert -> globe sky)', () => {
+  it('passes null when nothing is reverted', async () => {
+    render(<Page />);
+    await waitForWorldMap();
+    expect(lastSkyRevertKey).toBeNull();
+  });
+
+  it('passes revert_to_date as the key while a revert is active', async () => {
+    const revertedTo = '2026-01-01T00:00:00Z';
+    vi.mocked(getMerchantOffer).mockResolvedValue(revertedState(revertedTo));
+    render(<Page />);
+    await waitFor(() => expect(lastSkyRevertKey).toBe(revertedTo));
+  });
+});
+
+// docs/MERCHANT_PLAN.md: every merchant in town gets its own marker -- a
+// conjunction on a full moon is two -- and the conjunction's is drawn in
+// the blend of its two planets' colours.
+describe('Page (merchant markers)', () => {
+  it('draws no marker with nobody in town', async () => {
+    render(<Page />);
+    await waitForWorldMap();
+    expect(lastMerchantMarkers).toEqual([]);
+  });
+
+  it('draws one marker per merchant when a conjunction falls on a full moon', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({ offers: [stoneOffer(), paperOffer()] }));
+    render(<Page />);
+
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(2));
+    const [moon, conj] = lastMerchantMarkers;
+    expect(moon).toMatchObject({ label: 'Merchant', color: FULL_MOON_MERCHANT_COLOR, outline: null });
+    // Jupiter is the bigger planet: its colour inside, Mercury's outside.
+    expect(conj).toMatchObject({ label: 'Merchant', color: '#008296', outline: '#db9504' });
+    // Each stands under its own sky: the Moon, and the conjunction's planets.
+    expect(moon.bodies).toEqual(['Moon']);
+    expect(conj.bodies).toEqual(['Mercury', 'Jupiter']);
+  });
+
+  it('keeps a merchant you have already bought from on the globe', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({
+      offers: [paperOffer({ available: false, already_bought_this_period: true })],
+    }));
+    render(<Page />);
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(1));
+  });
+
+  it('opens the scene of the merchant whose marker was clicked', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({ offers: [stoneOffer(), paperOffer()] }));
+    render(<Page />);
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(2));
+
+    act(() => merchantClickHandler!(lastMerchantMarkers[1].key));
+
+    expect(await screen.findByTestId('merchant-scene')).toHaveTextContent('The Merchant: Paper');
+  });
+});
+
+// The timewarp animation (lib/timewarpFx.ts): `?timewarp` previews it with
+// controls to replay; `&play=1` is a player arriving from a real timewarp.
+describe('Page (?timewarp)', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+    replace.mockClear();
+  });
+
+  it('plays nothing on a plain visit, and shows no preview controls', async () => {
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    expect(lastTimewarpColors).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
+  });
+
+  it('previews: shows the controls and plays once the whole sky is up', async () => {
+    window.history.replaceState(null, '', '/?timewarp=Mars-Jupiter');
+    render(<Page />);
+    await waitForWorldMap();
+
+    expect(screen.getByRole('group', { name: 'Timewarp preview' })).toBeInTheDocument();
+    // Not before the sky is ready.
+    expect(lastTimewarpColors).toBeNull();
+
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#ff0000', '#008296']));
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('shows the merchants of the previewed moment, under its Moon and conjunction, not today\'s', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({ offers: [stoneOffer()] }));
+    window.history.replaceState(null, '', '/?timewarp=Mars-Jupiter');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+
+    await waitFor(() => expect(lastMerchantMarkers.map((m) => m.bodies)).toEqual([['Mars', 'Jupiter']]));
+    // Jupiter is the bigger planet: its colour inside, Mars' outside.
+    expect(lastMerchantMarkers[0]).toMatchObject({ label: 'Merchant', color: '#008296', outline: '#ff0000' });
+  });
+
+  it('opens nothing when a preview merchant is clicked', async () => {
+    window.history.replaceState(null, '', '/?timewarp');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(1));
+
+    act(() => merchantClickHandler!(lastMerchantMarkers[0].key));
+
+    expect(screen.queryByTestId('merchant-scene')).not.toBeInTheDocument();
+  });
+
+  it('replays with the colours of the button pressed', async () => {
+    window.history.replaceState(null, '', '/?timewarp');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual([FULL_MOON_MERCHANT_COLOR]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Conjunction' }));
+
+    // The panel starts on Mercury and Jupiter.
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#db9504', '#008296']));
+  });
+
+  it('plays anyone\'s timewarp for everyone on the globe, pushed by the server', async () => {
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    const pollsBefore = vi.mocked(getMerchantOffer).mock.calls.length;
+
+    act(() => socket.__fireSubscribeEvent('timewarp', {
+      revert_to_date: '2026-11-16T06:21:58+00:00',
+      events: [{ kind: 'conjunction', key: 'Mars-Jupiter', bodies: ['Mars', 'Jupiter'], sign: 'Leo', at: 'x' }],
+    }));
+
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#ff0000', '#008296']));
+    // The new moment's merchants are asked for straight away.
+    await waitFor(() => expect(vi.mocked(getMerchantOffer).mock.calls.length).toBeGreaterThan(pollsBefore));
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
+  });
+
+  it('does not replay, for the player who made it, a timewarp already playing from the inventory', async () => {
+    window.history.replaceState(null, '', '/?timewarp=full_moon&to=2028-10-03T12%3A00%3A00Z&play=1');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual([FULL_MOON_MERCHANT_COLOR]));
+    const pollsBefore = vi.mocked(getMerchantOffer).mock.calls.length;
+
+    act(() => socket.__fireSubscribeEvent('timewarp', {
+      revert_to_date: '2028-10-03T12:00:00+00:00',
+      events: [{ kind: 'full_moon', key: '', bodies: ['Moon'], sign: 'Aries', at: 'x' }],
+    }));
+
+    expect(vi.mocked(getMerchantOffer).mock.calls.length).toBe(pollsBefore);
+  });
+
+  it('plays a real timewarp without the controls, and takes the parameters off the URL', async () => {
+    window.history.replaceState(null, '', '/?timewarp=full_moon&to=2028-10-03T12%3A00%3A00Z&play=1');
+    render(<Page />);
+    await waitForWorldMap();
+
+    expect(replace).toHaveBeenCalledWith('/');
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual([FULL_MOON_MERCHANT_COLOR]));
   });
 });
 

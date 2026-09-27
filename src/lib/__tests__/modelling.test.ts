@@ -11,7 +11,7 @@ import {
 
 describe('the /modelling model list', () => {
   it('offers the two buildings being sculpted, plus the Senate at city size', () => {
-    expect(MODELLING_MODELS.map((m) => m.id)).toEqual(['ranked', 'market', 'senate-city']);
+    expect(MODELLING_MODELS.map((m) => m.id)).toEqual(['ranked', 'market', 'senate-city', 'bay']);
   });
 
   it('has a unique id and a non-empty caption for every entry', () => {

@@ -43,10 +43,17 @@ describe('bossfightSignSublabel', () => {
       expect(bossfightSignSublabel(three, null, null)).toBe('3 PLAYERS WAITING');
     });
 
-    it('beats a running countdown', () => {
-      // A headcount tells a passer-by whether it is worth walking over;
-      // the clock does not.
+    it('shows the countdown as a second line under the headcount', () => {
+      // A headcount tells a passer-by whether it is worth walking over; the
+      // countdown then tells them how long they still have to join before
+      // this lobby locks -- bug list 260916: this used to be dropped
+      // entirely the moment anyone showed up.
       expect(bossfightSignSublabel(roster({ players: [occupant('Ada')] }), 2, 5))
+        .toBe('1 PLAYER WAITING\nBOSSFIGHT IN 2:05');
+    });
+
+    it('is just the headcount when there is no countdown to add', () => {
+      expect(bossfightSignSublabel(roster({ players: [occupant('Ada')] }), null, null))
         .toBe('1 PLAYER WAITING');
     });
   });
@@ -67,6 +74,11 @@ describe('bossfightSignSublabel', () => {
         round: 3, players: [occupant('Ada', { alive: false }), occupant('Bo')],
       });
       expect(bossfightSignSublabel(started, null, null)).toBe('2 PLAYERS PLAYING');
+    });
+
+    it('drops the countdown once playing -- it counted down to this lobby, which already started', () => {
+      const started = roster({ round: 1, players: [occupant('Ada')] });
+      expect(bossfightSignSublabel(started, 2, 5)).toBe('1 PLAYER PLAYING');
     });
   });
 

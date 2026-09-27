@@ -104,6 +104,31 @@ export function isRetrograde(body: Astronomy.Body, date: Date): boolean {
   return d < 0;
 }
 
+// ── Zodiac (docs/MERCHANT_PLAN.md §7's revert confirmation) ───────────────
+
+const ZODIAC_SIGNS = [
+  'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces',
+] as const;
+
+/** The tropical zodiac sign a geocentric ecliptic longitude (degrees) falls
+ *  in -- Aries starts at 0°, each sign spans 30°. */
+export function zodiacSignAtLongitude(elonDeg: number): string {
+  const norm = ((elonDeg % 360) + 360) % 360;
+  return ZODIAC_SIGNS[Math.floor(norm / 30)];
+}
+
+/** Which sign the Moon is in at `date` -- what a player asks when they ask
+ *  "the full moon in [sign]". Not read off the shared Sky snapshot: unlike
+ *  everything in `Sky.dir` (unit direction vectors, deliberately without a
+ *  notion of ecliptic longitude), this needs the Moon's actual ecliptic
+ *  longitude, so it's computed directly from the ephemeris here instead. */
+export function moonZodiacSign(date: Date): string {
+  const time = new Astronomy.AstroTime(date);
+  const elon = Astronomy.Ecliptic(Astronomy.GeoVector(Astronomy.Body.Moon, time, true)).elon;
+  return zodiacSignAtLongitude(elon);
+}
+
 // ── Orbs, colours, strength tunables (docs/ASPECTS_PLAN.md §2) ────────────
 
 // Orb: exact conjunction (0°) is max influence; beyond this many degrees a
@@ -167,6 +192,13 @@ function donorColorHex(body: Exclude<AspectBody, 'Sun'>, mercuryRetrograde: bool
 
 function baseColorHex(body: Exclude<AspectBody, 'Sun'>, mercuryRetrograde: boolean): number {
   return body === 'Mercury' && mercuryRetrograde ? MERCURY_RETRO_COLOR : BASE_COLOR[body];
+}
+
+/** A body's own identity colour, as the globe draws it with no aspect or
+ *  retrograde in play -- what the conjunction merchant's marker and its
+ *  revert-popup line are coloured from (lib/merchant.ts PLANET_COLOR). */
+export function bodyColorHex(body: Exclude<AspectBody, 'Sun'>): number {
+  return BASE_COLOR[body];
 }
 
 // Per-body, optional: only the Moon has one today. Kept separate from the
@@ -285,16 +317,54 @@ export function separationDeg(sky: Sky, a: AspectBody, b: AspectBody): number {
 // session -- deliberately session-length, not per-frame or per-component,
 // so the sky doesn't visibly drift mid-session as real time passes.
 let cached: Sky | null = null;
+
+// docs/MERCHANT_PLAN.md §7: while a time-revert is active, every consumer
+// of getSky() (the globe today) must show the sky as it stood at
+// `revert_to_date` -- the instant the sacrificed relic was originally
+// bought -- not real "now"; that is the whole point of "turning back
+// time". null means no revert is active, i.e. the ordinary live sky.
+let revertOverride: Date | null = null;
+
+// While a timewarp animation runs (lib/useTimewarpFx.ts) it drives the sky
+// through time itself, ahead of any revert override; null otherwise.
+let fxOverride: Date | null = null;
+
 export function getSky(): Sky {
-  if (!cached) cached = computeSky(new Date());
+  if (!cached) cached = computeSky(fxOverride ?? revertOverride ?? new Date());
   return cached;
 }
 
-/** Test-only: clears the getSky() singleton so a fresh call recomputes
- *  from the current clock. Production code never needs this -- the
- *  singleton is deliberately session-length. */
+/** Called by the timewarp animation as it runs the sky through time, and
+ *  with null when it ends -- the sky then falls back to whatever the revert
+ *  override says, which the merchant poll kept up to date meanwhile. */
+export function setSkyFxOverride(date: Date | null): void {
+  const changed = (date?.getTime() ?? null) !== (fxOverride?.getTime() ?? null);
+  if (!changed) return;
+  fxOverride = date;
+  cached = null;
+}
+
+/** Called by whatever is polling /merchant/offer once it knows whether a
+ *  revert is active. Setting a new override (or clearing it back to null)
+ *  invalidates the singleton so the switch is reflected on the very next
+ *  getSky() call, rather than waiting out the rest of the session the way
+ *  ordinary time-passing never does. A no-op if the value hasn't actually
+ *  changed, so a 60s poll landing the same answer doesn't force a redraw. */
+export function setSkyRevertOverride(date: Date | null): void {
+  const changed = (date?.getTime() ?? null) !== (revertOverride?.getTime() ?? null);
+  if (!changed) return;
+  revertOverride = date;
+  // A running timewarp animation owns the sky; this takes effect after it.
+  if (!fxOverride) cached = null;
+}
+
+/** Test-only: clears the getSky() singleton (and any revert override) so
+ *  a fresh call recomputes from the current clock. Production code never
+ *  needs this -- the singleton is deliberately session-length. */
 export function _resetSkyCache(): void {
   cached = null;
+  revertOverride = null;
+  fxOverride = null;
 }
 
 // ── Aspects ─────────────────────────────────────────────────────────────
