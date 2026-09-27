@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  artifactTradeProblem,
   clampCoins,
   itemKey,
   itemName,
@@ -40,6 +41,7 @@ const CATEGORIES: ReadonlyArray<{ type: MarketItemInput['item_type']; label: str
   { type: 'relic', label: 'Relics' },
   { type: 'wheel', label: 'Wheels' },
   { type: 'skin', label: 'Skins' },
+  { type: 'artifact', label: 'Artifacts' },
 ];
 
 //: ai_credits per line -- matches domain/market.py's MAX_AI_CREDITS_PER_ITEM.
@@ -104,7 +106,14 @@ export default function CraftOfferModal({
       label: 'AI credits',
       max: MAX_AI_CREDITS_PER_ITEM,
     };
-    return [aiCredits, ...skins, ...relics, ...wheels];
+    // Nor is the Artifact -- always askable, one at most (wom-be
+    // docs/MARKET_PLAN.md §1B); it needs a Paper on your side.
+    const artifact: Line = {
+      input: { item_type: 'artifact', quantity: 1 },
+      label: 'Artifact',
+      max: 1,
+    };
+    return [aiCredits, ...skins, ...relics, ...wheels, artifact];
   }, [catalog]);
 
   const wantMatches = catalogLines.filter((l) =>
@@ -142,7 +151,14 @@ export default function CraftOfferModal({
     );
   };
 
+  const artifactProblem = artifactTradeProblem(
+    give.map((l) => l.input),
+    want.map((l) => l.input),
+    catalog.paper_relic_id,
+  );
+
   const canProceed =
+    !artifactProblem &&
     give.length > 0 &&
     want.length > 0 &&
     (kind === 'quick' || (coins >= 1 && coins <= Math.min(MAX_LONG_COINS, coinsAvailable)));
@@ -288,6 +304,9 @@ export default function CraftOfferModal({
               </div>
             )}
 
+            {artifactProblem && give.length > 0 && want.length > 0 && (
+              <p className="text-sm text-amber-300 mt-3">{artifactProblem}</p>
+            )}
             {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
 
             <div className="mt-5 flex justify-end gap-2">

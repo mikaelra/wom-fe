@@ -118,6 +118,13 @@ export default function MarketPage() {
         list.push({ input, label: r.name, count: r.count });
         counts[itemKey(input)] = r.count;
       }
+      // The Artifact -- one per account, never handed over: offering it
+      // reproduces it onto the other side's Paper (wom-be MARKET_PLAN.md §1B).
+      if (inv?.artifact) {
+        const input: MarketItemInput = { item_type: 'artifact', quantity: 1 };
+        list.push({ input, label: 'Artifact', count: 1 });
+        counts[itemKey(input)] = 1;
+      }
       // Bot-game credits -- a spendable balance, offered like an item.
       const aiCreditInput: MarketItemInput = { item_type: 'ai_credits', quantity: 1 };
       counts[itemKey(aiCreditInput)] = entered.ai_credits;
@@ -219,9 +226,13 @@ export default function MarketPage() {
 
   const confirmAccept = useCallback(async () => {
     if (!token || !acceptTarget) return;
-    await acceptMarketListing(token, acceptTarget.id);
+    const res = await acceptMarketListing(token, acceptTarget.id);
     setAcceptTarget(null);
-    toast.showSuccess('Trade complete — check your inventory.');
+    toast.showSuccess(
+      res.reproduced
+        ? `Trade complete — ${res.reproduced.to} received an Artifact.`
+        : 'Trade complete — check your inventory.',
+    );
     refetch();
     void reloadPlayer();
   }, [token, acceptTarget, toast, refetch, reloadPlayer]);
@@ -403,5 +414,6 @@ function labelFor(
 ): string {
   if (item.item_type === 'skin') return cap(skinLabel(item.skin ?? ''));
   if (item.item_type === 'wheel') return wheelKindLabel(item.wheel_kind ?? '');
+  if (item.item_type === 'artifact') return 'Artifact';
   return catalog?.relics.find((r) => r.id === item.relic_id)?.name ?? `Relic #${item.relic_id}`;
 }

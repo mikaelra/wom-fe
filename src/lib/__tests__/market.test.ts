@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  artifactTradeProblem,
   clampCoins,
   formatRemaining,
   itemKey,
@@ -181,5 +182,35 @@ describe('recentChat', () => {
       timestamp: new Date().toISOString(),
     };
     expect(recentChat([fresh])).toEqual([fresh]);
+  });
+});
+
+describe('Paper -> Artifact (wom-be MARKET_PLAN.md §1B)', () => {
+  const PAPER = 11;
+  const artifact = { item_type: 'artifact' as const };
+  const paper = { item_type: 'relic' as const, relic_id: PAPER };
+  const coin = { item_type: 'relic' as const, relic_id: 1 };
+
+  it('names and keys the Artifact', () => {
+    const item = { item_type: 'artifact' as const, skin: null, relic_id: null, wheel_kind: null };
+    expect(itemName(item, null)).toBe('Artifact');
+    expect(itemKey(item)).toBe('artifact');
+  });
+
+  it('allows an Artifact opposite a Paper, either way round, alongside anything', () => {
+    expect(artifactTradeProblem([artifact], [paper], PAPER)).toBeNull();
+    expect(artifactTradeProblem([paper, coin], [artifact], PAPER)).toBeNull();
+    expect(artifactTradeProblem([coin], [coin], PAPER)).toBeNull();
+  });
+
+  it('needs a Paper on the other side of the Artifact', () => {
+    expect(artifactTradeProblem([artifact], [coin], PAPER)).toMatch(/Paper on the other side/);
+    expect(artifactTradeProblem([coin], [artifact], PAPER)).toMatch(/Paper on your side/);
+    expect(artifactTradeProblem([artifact, paper], [coin], PAPER)).toMatch(/Paper on the other side/);
+  });
+
+  it('refuses an Artifact on both sides, or any Artifact without a known Paper', () => {
+    expect(artifactTradeProblem([artifact, paper], [artifact, paper], PAPER)).toMatch(/both sides/);
+    expect(artifactTradeProblem([artifact], [paper], null)).not.toBeNull();
   });
 });

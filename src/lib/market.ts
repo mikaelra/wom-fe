@@ -60,7 +60,8 @@ export function recentChat(
 export type MarketItemInput = {
   // 'ai_credits' is a fungible balance -- `quantity` is the credit count,
   // no skin/relic_id/wheel_kind.
-  item_type: 'skin' | 'relic' | 'wheel' | 'ai_credits';
+  // 'artifact' is always quantity 1 and never moves (see artifactTradeProblem).
+  item_type: 'skin' | 'relic' | 'wheel' | 'ai_credits' | 'artifact';
   skin?: string;
   relic_id?: number;
   wheel_kind?: string;
@@ -79,6 +80,7 @@ export function itemKey(item: {
   if (item.item_type === 'skin') return `skin:${item.skin}`;
   if (item.item_type === 'relic') return `relic:${item.relic_id}`;
   if (item.item_type === 'ai_credits') return 'ai_credits';
+  if (item.item_type === 'artifact') return 'artifact';
   return `wheel:${item.wheel_kind}`;
 }
 
@@ -90,6 +92,7 @@ export function itemName(
   if (item.item_type === 'skin') return capitalize(skinLabel(item.skin ?? ''));
   if (item.item_type === 'wheel') return wheelKindLabel(item.wheel_kind ?? '');
   if (item.item_type === 'ai_credits') return 'AI credits';
+  if (item.item_type === 'artifact') return 'Artifact';
   const relic = catalog?.relics.find((r) => r.id === item.relic_id);
   return relic?.name ?? `Relic #${item.relic_id}`;
 }
@@ -156,4 +159,24 @@ export function mergeItemInputs(items: MarketItemInput[]): MarketItemInput[] {
 
 export function listingIsMine(listing: MarketListing, myPlayerId: number | null): boolean {
   return myPlayerId != null && listing.seller_player_id === myPlayerId;
+}
+
+/** Paper -> Artifact (wom-be docs/MARKET_PLAN.md §1B). An Artifact on a
+ *  trade is not handed over: its holder keeps it, and one Paper from the
+ *  other side is consumed to give that side an Artifact of its own. So a
+ *  trade carrying an Artifact needs a Paper opposite it, and can carry
+ *  only one Artifact. Mirrors wom-be domain/market.py's validate_craft;
+ *  returns why a crafted trade can't be posted, or null. */
+export function artifactTradeProblem(
+  give: Pick<MarketItemInput, 'item_type' | 'relic_id'>[],
+  want: Pick<MarketItemInput, 'item_type' | 'relic_id'>[],
+  paperRelicId: number | null | undefined,
+): string | null {
+  const hasArtifact = (side: typeof give) => side.some((i) => i.item_type === 'artifact');
+  const hasPaper = (side: typeof give) =>
+    paperRelicId != null && side.some((i) => i.item_type === 'relic' && i.relic_id === paperRelicId);
+  if (hasArtifact(give) && hasArtifact(want)) return "An Artifact can't be on both sides of a trade.";
+  if (hasArtifact(give) && !hasPaper(want)) return 'Offering your Artifact needs a Paper on the other side.';
+  if (hasArtifact(want) && !hasPaper(give)) return 'Asking for an Artifact needs a Paper on your side.';
+  return null;
 }

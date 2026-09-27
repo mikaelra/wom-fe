@@ -417,7 +417,13 @@ export async function getInventory(
   skins: { skin: string; count: number }[];
   wheels: { id: number; kind: string }[];
   equipped_cosmetic?: string | null;
-  artifact?: { ordinal: number; discovered_at: string | null; cosmetic: string } | null;
+  artifact?: {
+    ordinal: number | null;
+    discovered_at: string | null;
+    cosmetic: string;
+    origin?: string | null;
+    reproduced_to?: { name: string; origin: string; at: string | null }[];
+  } | null;
   ai_credits?: number;
 }> {
   return request('/inventory', InventoryResponseSchema, {
@@ -745,7 +751,7 @@ export async function createMarketListing(
 export async function acceptMarketListing(
   token: string,
   listingId: number,
-): Promise<{ listing: MarketListing }> {
+): Promise<{ listing: MarketListing; reproduced?: { to: string; origin: string | null } }> {
   try {
     return await request(`/market/listings/${listingId}/accept`, MarketMutationResponseSchema, {
       body: { token },

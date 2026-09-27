@@ -37,5 +37,6 @@ export default function MarketItemChip({
 
 function swatch(item: MarketItem): string {
   if (item.item_type === 'wheel') return item.wheel_kind === 'special' ? '#f5c542' : '#8b9dc3';
+  if (item.item_type === 'artifact') return '#e8dcc0';
   return '#c58cff'; // relic
 }

@@ -25,7 +25,14 @@ import { CONSUMABLE_RELIC_NAMES, type Relic } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
 
 type SkinEntry = { skin: string; count: number };
-type ArtifactEntry = { ordinal: number; discovered_at: string | null; cosmetic: string };
+type ArtifactEntry = {
+  // Null on a reproduced copy (wom-be docs/MARKET_PLAN.md §1B).
+  ordinal: number | null;
+  discovered_at: string | null;
+  cosmetic: string;
+  origin?: string | null;
+  reproduced_to?: { name: string; origin: string; at: string | null }[];
+};
 type WheelEntry = { id: number; kind: string };
 // One button per distinct wheel kind, not one per row -- id is an arbitrary
 // representative of the group (any wheel of that kind spins the same way).
@@ -462,7 +469,11 @@ export default function InventoryPage() {
                   <button
                     type="button"
                     onClick={() => setShowLedger(true)}
-                    aria-label={`Artifact number ${artifact.ordinal}, open the discovery ledger`}
+                    aria-label={
+                      artifact.ordinal != null
+                        ? `Artifact number ${artifact.ordinal}, open the discovery ledger`
+                        : 'Artifact, open the discovery ledger'
+                    }
                     className="w-28 h-28 shrink-0 bg-transparent border-0 p-0 cursor-pointer"
                   >
                     {artifactUrl ? (
@@ -485,6 +496,17 @@ export default function InventoryPage() {
                     <p className="text-xs text-white/50 mt-1">
                       {cosmeticDescription(artifact.cosmetic)}
                     </p>
+                    {/* Paper -> Artifact: a copy names where it came from,
+                        and every Artifact lists who it was reproduced to. */}
+                    {artifact.origin && (
+                      <p className="text-xs text-white/40 mt-1">Origin: {artifact.origin}</p>
+                    )}
+                    {artifact.reproduced_to && artifact.reproduced_to.length > 0 && (
+                      <p className="text-xs text-white/40 mt-1">
+                        Reproduced to:{' '}
+                        {artifact.reproduced_to.map((r) => `${r.name} (${r.origin})`).join(', ')}
+                      </p>
+                    )}
                     <div className="mt-3 flex items-center justify-center sm:justify-start gap-2 flex-wrap">
                       {equippedCosmetic === artifact.cosmetic ? (
                         <>
