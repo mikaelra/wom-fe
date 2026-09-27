@@ -55,16 +55,19 @@
 	<array>
 		<string>armv7</string>
 	</array>
-	<!-- Landscape-locked: the game renders a landscape 3D scene and the HUD is
-	     laid out for it, matching the Steam/Electron window. Revisit if a
-	     portrait layout is ever wanted (docs/MOBILE_AND_STEAM_PLAN.md §5.4). -->
+	<!-- Portrait + landscape: the 3D scene/camera already reflow to any aspect
+	     ratio via R3F's own ResizeObserver, and the HUD (SceneOverlay.tsx,
+	     LobbyOverlay.tsx) now branches its few width-tuned panels on
+	     orientation via useOrientation (docs/MOBILE_AND_STEAM_PLAN.md §5.4). -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
+		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
+		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>

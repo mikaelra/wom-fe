@@ -9,6 +9,7 @@ import { useRoundTimer } from '@/lib/useRoundTimer';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useCountdown } from '@/lib/useCountdown';
 import { useGameEvents } from '@/lib/useGameEvents';
+import { useOrientation } from '@/lib/useOrientation';
 import { buildCombatAnimationPlan } from '@/lib/combatAnimationPlan';
 import type { LobbyState, Player } from '@/types/game';
 import ResourceCard from '@/components/ResourceCard';
@@ -189,6 +190,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     setMessages([]);
   }, [lobbyId]);
 
+  const orientation = useOrientation();
   const { state, connectionStatus } = useLobbyConnection(lobbyId, playerName, {
     onChatMessage: () => {
       if (!chatExpandedRef.current) setUnreadChat(true);
@@ -696,15 +698,33 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           buttons kicks in, and blinks along with it. Vanishes the moment
           the player picks attack/well/defend. */}
       {actionCue && (
-        <div className="absolute top-28 left-4 w-1/2 max-w-xs px-4 z-20">
+        // In portrait, top-28/w-1/2 would sit directly under the round
+        // messages panel below (both anchored near the top edge-to-edge) --
+        // pushed below it instead of narrowed, since a narrow phone screen
+        // gives the two panels' 50%-each widths no gap to share.
+        <div
+          className={
+            orientation === 'portrait'
+              ? 'absolute top-56 inset-x-4 px-4 z-20'
+              : 'absolute top-28 left-4 w-1/2 max-w-xs px-4 z-20'
+          }
+        >
           <div className={`bg-black/80 backdrop-blur-sm rounded-xl border ${theme.panelBorderClass} p-3 text-white text-sm ${actionCue}`}>
             You must choose an action: Attack someone, Well or Defend.
           </div>
         </div>
       )}
 
-      {/* Round messages panel — top right, half width */}
-      <div className="absolute top-12 right-4 w-1/2 max-w-2xl px-4 pointer-events-auto z-20">
+      {/* Round messages panel — top right. Half width in landscape; wider in
+          portrait since there's no adjacent panel left to share space with
+          once actionCue moves below it. */}
+      <div
+        className={
+          orientation === 'portrait'
+            ? 'absolute top-12 right-4 w-[85%] max-w-2xl px-4 pointer-events-auto z-20'
+            : 'absolute top-12 right-4 w-1/2 max-w-2xl px-4 pointer-events-auto z-20'
+        }
+      >
         <div className={`bg-black/80 backdrop-blur-sm rounded-xl border ${theme.panelBorderClass} p-3 sm:p-4 text-white`}>
           <div className="flex justify-between items-center">
             <span className={`${theme.accentColorClass} font-semibold`}>
@@ -761,7 +781,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           lobby can run quite tall, especially on a phone, so clicking the
           header hides everything but the count. */}
       {showPlayerList && (
-        <div className="absolute bottom-4 right-4 pointer-events-auto z-20 max-w-[calc(50%-7.5rem)] sm:max-w-none">
+        // The old sm:-breakpoint cap keyed off viewport width, which
+        // conflates a narrow-landscape phone with a portrait one -- keying
+        // off orientation directly instead so this doesn't clip player
+        // names down to ~75px on a portrait screen.
+        <div
+          className={`absolute bottom-4 right-4 pointer-events-auto z-20 ${
+            orientation === 'portrait' ? 'max-w-[70%]' : 'max-w-[calc(50%-7.5rem)]'
+          }`}
+        >
           <div className="bg-black/70 backdrop-blur-sm rounded-xl border border-white/20 p-2 sm:p-3 text-white text-sm">
             <button
               type="button"
