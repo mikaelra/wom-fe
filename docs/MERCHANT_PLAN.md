@@ -5,6 +5,11 @@ astronomical trigger. Click it and — if the trigger is active and you
 haven't already this period — the Merchant offers one item for Hades'
 Coins.
 
+**Now (since wom-be c7d2e4f1a8b3):** the full moon's Merchant (the man,
+`merchant_v1`) sells **Paper** and a conjunction's (the Lady Merchant,
+`lady_merchant_v1`) sells **Stone of Vitality** -- the reverse of how
+Phases 1-2 below first shipped.
+
 Phase 1: **Stone of Vitality**, a relic that starts the player with 15 HP
 instead of 10, sold by **The Merchant** for 5 Hades' Coins, once per full
 moon. Phase 2 (§5): **Paper**, sold by the Merchant for 3 Hades' Coins at
@@ -186,8 +191,10 @@ from.
 - The Earth and city screens have a plain digital clock under the Rules
   button (`WorldClock`, `lib/worldClock.ts`): `HH:MM DD.MM.YYYY` on the
   viewer's own clock, green in normal time (following the dev clock when
-  one is set), red and held at the timewarped instant while time is turned
-  back. It isn't shown at all until the merchant poll has answered, and
+  one is set). While time is turned back it shows the timewarped time in
+  that moment's colours: purple for a full moon, a conjunction's two
+  planets as horizontal bands, one band per colour for several (red only
+  if there are none). It isn't shown at all until the merchant poll has answered, and
   never shows an unreadable instant.
 - In the scene, Paper is staged at 4x the Stone's size, centred on the same
   spot on the table.

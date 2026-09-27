@@ -117,6 +117,12 @@ export function merchantArrivalLine(triggerKind: string): string {
   return triggerKind === 'conjunction' ? 'Appears around conjunctions' : 'Appears around the full moon';
 }
 
+/** Which model stands behind the counter: the Merchant at the full moon,
+ *  the Lady Merchant at a conjunction. Still both "The Merchant" by name. */
+export function merchantModelFor(triggerKind: string): 'merchant_v1' | 'lady_merchant_v1' {
+  return triggerKind === 'conjunction' ? 'lady_merchant_v1' : 'merchant_v1';
+}
+
 /** The marker's label: "Merchant" -- the merchant's name without
  *  its article, short enough to float over the globe. */
 export function merchantMarkerLabel(merchantName: string): string {

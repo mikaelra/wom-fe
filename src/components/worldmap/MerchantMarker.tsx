@@ -193,7 +193,10 @@ export default function MerchantMarker({
               : `0 0 6px ${outline ?? color}99, 0 0 3px rgba(0,0,0,0.9)`,
             transition: 'font-size 0.2s, text-shadow 0.2s',
             cursor: 'pointer',
-            pointerEvents: 'auto',
+            // Fades with the pin while a timewarp spins the globe, and takes
+            // no clicks while it is gone.
+            opacity: 'var(--timewarp-markers, 1)',
+            pointerEvents: 'var(--timewarp-markers-events, auto)' as React.CSSProperties['pointerEvents'],
             userSelect: 'none',
           }}
         >

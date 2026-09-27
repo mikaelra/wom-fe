@@ -47,6 +47,7 @@ const SKIN_MODEL_URLS: Record<string, string> = {
   // reuses this lookup (and SpinningModelViewer/PlayerV1, whichever render
   // it) rather than growing a second model-URL table for one entry.
   merchant_v1: '/models/merchant_v1.glb',
+  lady_merchant_v1: '/models/lady_merchant_v1.glb',
 };
 
 export function skinUrl(skinName: string): string {

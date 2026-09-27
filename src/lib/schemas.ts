@@ -113,6 +113,14 @@ export const MerchantOfferResponseSchema = z.object({
   revert_to_date: z.string().nullable().optional(),
 });
 
+// Pushed to every client when anyone timewarps (wom-be routes/merchant.py
+// TIMEWARP_EVENT): the moment warped to and the events live there, so the
+// globe can play the timewarp for everyone watching.
+export const TimewarpBroadcastSchema = z.object({
+  revert_to_date: z.string(),
+  events: z.array(MerchantEventSchema),
+});
+
 export const MerchantSkyEventsResponseSchema = z.object({
   at: z.string(),
   events: z.array(MerchantEventSchema),

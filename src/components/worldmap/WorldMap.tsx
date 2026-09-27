@@ -7,13 +7,15 @@ import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
 import MerchantMarker, { type MerchantMarkerSpec } from './MerchantMarker';
-import { skyDrift } from '@/lib/skyDrift';
+import { skyDrift, skyStep } from '@/lib/skyDrift';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import {
   milkyWayQuaternion, milkyWayTexturePath, orientMilkyWayTexture,
 } from '@/lib/milkyWay';
 import GlobeCrackleEffect from './GlobeCrackleEffect';
+import TimewarpFx from './TimewarpFx';
+import TimewarpFade from './TimewarpFade';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
 import {
@@ -254,7 +256,7 @@ const Starfield = memo(function Starfield() {
 
   const groupRef = useRef<THREE.Group>(null);
   useFrame(() => {
-    if (groupRef.current) groupRef.current.rotation.y -= 0.0002;
+    if (groupRef.current) groupRef.current.rotation.y += skyStep();
   });
 
   const milkyWayRef = useRef<THREE.Mesh>(null);
@@ -648,9 +650,7 @@ function VenusBody({ position, aspect }: { position: THREE.Vector3; aspect: Body
 // (docs/ASPECTS_PLAN.md §4.4), so wiring influence in here would be a
 // permanent no-op.
 
-const _sunDriftQ  = new THREE.Quaternion();
 const _sunDriftAx = new THREE.Vector3(0, 1, 0);
-const SKY_DRIFT   = -0.0002;
 
 function SunLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
@@ -665,8 +665,11 @@ function SunLight() {
   // light stays aligned with the sun sprite's world position.
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -692,8 +695,11 @@ function VenusLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -719,8 +725,11 @@ function JupiterLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -746,8 +755,11 @@ function MercuryLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -773,8 +785,11 @@ function MarsLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -800,8 +815,11 @@ function SaturnLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -831,8 +849,11 @@ function MoonLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -910,9 +931,12 @@ const PlanetSprites = memo(function PlanetSprites({
   const posJup  = useMemo(() => sky.dir.Jupiter.clone().multiplyScalar(JUPITER_BODY_R), [sky]);
   const posSat  = useMemo(() => sky.dir.Saturn.clone().multiplyScalar(SATURN_BODY_R), [sky]);
 
+  // The group starts unturned on every mount; so does the shared count,
+  // rather than carrying a previous visit's turn for its first frame.
+  useEffect(() => { skyDrift.angle = 0; }, []);
   useFrame(() => {
     if (!groupRef.current) return;
-    groupRef.current.rotation.y -= 0.0002;
+    groupRef.current.rotation.y += skyStep();
     // Shared, so a merchant marker can stand under a body in this sky.
     skyDrift.angle = groupRef.current.rotation.y;
   });
@@ -1117,6 +1141,9 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
 
       <mesh geometry={geo} material={moonFresnelMat} scale={1.018} />
 
+      {/* The pins -- Greece's sword and the merchants -- leave while a
+          timewarp spins the globe and fade slowly back at the end. */}
+      <TimewarpFade>
       {CITIES.map((city) => (
         <CityMarker
           key={city.id}
@@ -1141,6 +1168,7 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
 
       {/* Crackle electricity radiating from the sword's impact point */}
       <GlobeCrackleEffect epicenter={athensEpicenter} radius={GLOBE_RADIUS} />
+      </TimewarpFade>
     </group>
   );
 }
@@ -1188,7 +1216,7 @@ function CameraRig({
 
     if (paused) return;
 
-    _driftQ.setFromAxisAngle(_yAxis, SKY_DRIFT);
+    _driftQ.setFromAxisAngle(_yAxis, skyStep());
     camera.position.applyQuaternion(_driftQ);
     camera.up.applyQuaternion(_driftQ).normalize();
   });
@@ -1221,10 +1249,16 @@ interface WorldMapProps {
   // (and drop it again once the revert ends) without giving up that
   // memoization the rest of the time.
   skyRevertKey?: string | null;
+  /** While a timewarp animation plays, its colours -- the clouds and
+   *  electricity around the globe (TimewarpFx). null otherwise. */
+  timewarpColors?: string[] | null;
+  /** Called once every planet and the stars have appeared -- when there
+   *  is a whole sky for a timewarp animation to act on. */
+  onSkyReady?: () => void;
 }
 
 export default function WorldMap({
-  onCityClick, merchantMarkers, onMerchantClick, skyRevertKey = null,
+  onCityClick, merchantMarkers, onMerchantClick, skyRevertKey = null, timewarpColors = null, onSkyReady,
 }: WorldMapProps) {
   const [phase, setPhase] = useState(0);
   // Flips to true once Globe signals its textures have finished loading.
@@ -1233,6 +1267,11 @@ export default function WorldMap({
 
   // Phase 1: mount the Globe immediately.
   useEffect(() => { setPhase(1); }, []);
+
+  // Phase 9 is the last reveal: the whole sky is up.
+  useEffect(() => {
+    if (phase >= 9) onSkyReady?.();
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps -- once per phase, not per callback identity
 
   // Phases 2-9: stagger planets then stars, starting only after the Globe is ready.
   useEffect(() => {
@@ -1276,6 +1315,12 @@ export default function WorldMap({
             merchantMarkers={merchantMarkers}
             onMerchantClick={onMerchantClick}
           />
+        </Suspense>
+      )}
+
+      {timewarpColors && timewarpColors.length > 0 && (
+        <Suspense fallback={null}>
+          <TimewarpFx colors={timewarpColors} radius={GLOBE_RADIUS} />
         </Suspense>
       )}
 

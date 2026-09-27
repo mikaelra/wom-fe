@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONJUNCTION_COLOR, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine, timewarpEventLabels,
-  merchantMarkerLabel, merchantSkyBodies, meanDirection, skyToGlobeLocal,
+  merchantMarkerLabel, merchantModelFor, merchantSkyBodies, meanDirection, skyToGlobeLocal,
   PLANET_COLOR, REVERT_RELIC_NAMES, merchantMarkerColors, PLANET_RADIUS_KM, sphereDrop,
 } from '@/lib/merchant';
 import { bodyColorHex } from '@/lib/astrology';
 import * as THREE from 'three';
-import { skyDrift } from '@/lib/skyDrift';
+import { skyDrift, skyStep, BASE_SKY_STEP } from '@/lib/skyDrift';
 import { FULL_MOON_EVENT, MERCURY_JUPITER_EVENT } from '@/lib/__tests__/merchantFixtures';
 
 describe('PLANET_COLOR', () => {
@@ -126,7 +126,24 @@ describe('where a merchant stands on the globe', () => {
     }
   });
 
-  it('starts the shared sky turn at zero', () => {
+  it('starts the shared sky turn at zero, at its normal step', () => {
     expect(skyDrift.angle).toBe(0);
+    expect(skyStep()).toBe(BASE_SKY_STEP);
+  });
+
+  it('turns faster by the boost a timewarp gives it', () => {
+    skyDrift.boost = 9;
+    try {
+      expect(skyStep()).toBeCloseTo(BASE_SKY_STEP * 10, 12);
+    } finally {
+      skyDrift.boost = 0;
+    }
+  });
+});
+
+describe('merchantModelFor', () => {
+  it('is the old Merchant at the full moon and the Lady Merchant at a conjunction', () => {
+    expect(merchantModelFor('full_moon')).toBe('merchant_v1');
+    expect(merchantModelFor('conjunction')).toBe('lady_merchant_v1');
   });
 });
