@@ -15,9 +15,13 @@
     "electron": "electron .",
     "electron:dev": "npm run build:native && electron .",
     "dist:steam": "npm run build:native && electron-builder",
-    "steam:upload": "scripts/steam-upload.sh"
+    "steam:upload": "scripts/steam-upload.sh",
+    "cap:sync": "cap sync ios",
+    "ios:sync": "npm run build:native && cap sync ios"
   },
   "dependencies": {
+    "@capacitor/core": "8.5.1",
+    "@capacitor/ios": "8.5.1",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.3.0",
     "@sentry/nextjs": "^10.67.0",
@@ -33,6 +37,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.1",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
