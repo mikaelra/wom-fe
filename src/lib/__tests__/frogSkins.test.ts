@@ -14,6 +14,7 @@ describe('skinUrl', () => {
 
   it('routes the Merchant NPC to its own asset (docs/MERCHANT_PLAN.md)', () => {
     expect(skinUrl('merchant_v1')).toBe('/models/merchant_v1.glb');
+    expect(skinUrl('lady_merchant_v1')).toBe('/models/lady_merchant_v1.glb');
   });
 });
 

@@ -7,7 +7,7 @@ import { relicModelUrl } from '@/components/RelicCoin';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
-import { merchantArrivalLine } from '@/lib/merchant';
+import { merchantArrivalLine, merchantModelFor } from '@/lib/merchant';
 
 // The merchant's box at its original 160px, scaled 2.3x then another 1.5x
 // per Mikael's asks -- kept as a constant since the clip wrapper's height
@@ -60,6 +60,8 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
   const [bought, setBought] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
   const relicBox = RELIC_BOX_PX * (RELIC_SCALE[offer.item_name] ?? 1);
+  // The old Merchant at the full moon, the Lady Merchant at a conjunction.
+  const merchantModel = merchantModelFor(offer.trigger_kind);
   const periodNoun = offer.trigger_kind === 'conjunction' ? 'conjunction' : 'moon';
 
   const handleBuy = async () => {
@@ -121,7 +123,12 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
             style={{ width: MERCHANT_BOX_PX, maxWidth: '70%', height: STAGE_H }}
           >
             <div style={{ width: '100%', aspectRatio: '1 / 1' }}>
-              <SpinningModelViewer key="merchant_v1" url={skinUrl('merchant_v1')} targetSize={1.6} spinSpeed={0} />
+              <SpinningModelViewer
+                key={merchantModel}
+                url={skinUrl(merchantModel)}
+                targetSize={1.6}
+                spinSpeed={0}
+              />
             </div>
           </div>
 

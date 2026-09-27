@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONJUNCTION_COLOR, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine, timewarpEventLabels,
-  merchantMarkerLabel, merchantSkyBodies, meanDirection, skyToGlobeLocal,
+  merchantMarkerLabel, merchantModelFor, merchantSkyBodies, meanDirection, skyToGlobeLocal,
   PLANET_COLOR, REVERT_RELIC_NAMES, merchantMarkerColors, PLANET_RADIUS_KM, sphereDrop,
 } from '@/lib/merchant';
 import { bodyColorHex } from '@/lib/astrology';
@@ -138,5 +138,12 @@ describe('where a merchant stands on the globe', () => {
     } finally {
       skyDrift.boost = 0;
     }
+  });
+});
+
+describe('merchantModelFor', () => {
+  it('is the old Merchant at the full moon and the Lady Merchant at a conjunction', () => {
+    expect(merchantModelFor('full_moon')).toBe('merchant_v1');
+    expect(merchantModelFor('conjunction')).toBe('lady_merchant_v1');
   });
 });

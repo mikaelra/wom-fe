@@ -121,6 +121,16 @@ describe('MerchantScene', () => {
       expect(screen.getByRole('button', { name: /Trade for 3/ })).toBeEnabled();
       const models = screen.getAllByTestId('merchant-model').map((el) => el.getAttribute('data-url'));
       expect(models).toContain('/models/relics/paper_v1.glb');
+      // The Lady Merchant stands behind the counter at a conjunction.
+      expect(models).toContain('/models/lady_merchant_v1.glb');
+      expect(models).not.toContain('/models/merchant_v1.glb');
+    });
+
+    it('keeps the old Merchant at the full moon', () => {
+      render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const models = screen.getAllByTestId('merchant-model').map((el) => el.getAttribute('data-url'));
+      expect(models).toContain('/models/merchant_v1.glb');
+      expect(models).not.toContain('/models/lady_merchant_v1.glb');
     });
 
     it('stages the Paper at 4x the Stone\'s size, still on the table', () => {
