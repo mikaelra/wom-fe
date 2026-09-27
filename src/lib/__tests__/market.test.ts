@@ -266,7 +266,14 @@ describe('the viewer\'s marks in the discoverers list', () => {
     expect(ledgerMarks({ ordinal: 4, origin: null, origin_ordinal: null })).toEqual([{ ordinal: 4, label: '(you)' }]);
   });
 
-  it('marks the row a copy came from with its number: "#2 Oni #1"', () => {
+  it('marks the row a copy traces back to with its place under it: "#2 Oni #2"', () => {
+    // Blimkin, transcribed from Skoober (Skoober#1), the 2nd under Oni.
+    expect(ledgerMarks({ ordinal: null, origin: 'Skoober#1', origin_ordinal: 2, origin_order: 2 })).toEqual([
+      { ordinal: 2, label: '#2' },
+    ]);
+  });
+
+  it('falls back to the copy\'s own number from a backend without origin_order', () => {
     expect(ledgerMarks({ ordinal: null, origin: 'Oni#1', origin_ordinal: 2 })).toEqual([{ ordinal: 2, label: '#1' }]);
   });
 

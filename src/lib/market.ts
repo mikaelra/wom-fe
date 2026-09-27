@@ -236,15 +236,22 @@ export function copyMark(origin: string | null | undefined): string | null {
 }
 
 /** The viewer's marks in the discoverers list: their own find "(you)",
- *  and -- for a transcribed copy -- the row it came from, marked with
- *  which copy it is ("#2 Oni #1"). Both at once for a copy holder who
- *  went on to find one at the Well. */
+ *  and -- for a transcribed copy -- the row it traces back to, marked with
+ *  its place among everything descended from it (wom-be origin_mark):
+ *  Oni -> Skoober -> Blimkin reads "#2 Oni #2" for Blimkin. Both at once
+ *  for a copy holder who went on to find one at the Well. A backend
+ *  without origin_order falls back to the copy's own number. */
 export function ledgerMarks(
-  artifact: { ordinal?: number | null; origin?: string | null; origin_ordinal?: number | null } | null | undefined,
+  artifact: {
+    ordinal?: number | null;
+    origin?: string | null;
+    origin_ordinal?: number | null;
+    origin_order?: number | null;
+  } | null | undefined,
 ): LedgerMark[] {
   const marks: LedgerMark[] = [];
   if (artifact?.ordinal != null) marks.push({ ordinal: artifact.ordinal, label: '(you)' });
-  const mark = copyMark(artifact?.origin);
+  const mark = artifact?.origin_order != null ? `#${artifact.origin_order}` : copyMark(artifact?.origin);
   if (artifact?.origin_ordinal != null && mark) marks.push({ ordinal: artifact.origin_ordinal, label: mark });
   return marks;
 }

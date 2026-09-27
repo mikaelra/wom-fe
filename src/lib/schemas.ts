@@ -269,6 +269,8 @@ export const InventoryResponseSchema = z.object({
       origin: z.string().nullable().optional(),
       // A copy's discovered original's ledger number, to mark it there.
       origin_ordinal: z.number().int().nullable().optional(),
+      // ...and the copy's place among everything descended from that row.
+      origin_order: z.number().int().nullable().optional(),
       reproduced_to: z
         .array(
           z.object({

@@ -33,6 +33,7 @@ type ArtifactEntry = {
   cosmetic: string;
   origin?: string | null;
   origin_ordinal?: number | null;
+  origin_order?: number | null;
   reproduced_to?: TranscribedEntry[];
 };
 type WheelEntry = { id: number; kind: string };
