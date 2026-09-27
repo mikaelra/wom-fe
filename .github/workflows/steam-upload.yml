@@ -1,0 +1,95 @@
+name: Steam upload
+
+# Builds the Electron/Steam shell and uploads it to SteamPipe whenever
+# frontend code lands on master. Upload-only: the build is NOT set live --
+# review it and pick a beta branch at
+#   https://partner.steamgames.com/apps/builds/$STEAM_APP_ID
+# The pipeline this automates is scripts/steam-upload.sh (--ci mode) +
+# steam/*.vdf; conventions mirror .github/workflows/deploy.yml.
+# docs/MOBILE_AND_STEAM_PLAN.md §10.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "src/**"
+      - "electron/**"
+      - "public/**"
+      - "next.config.*"
+      - "package.json"
+      - "package-lock.json"
+      - "electron-builder.yml"
+      - "instrumentation-client.ts"
+      # The pipeline's own definition -- a change here should prove itself.
+      - "scripts/steam-upload.sh"
+      - "steam/**"
+      - ".github/workflows/steam-upload.yml"
+  workflow_dispatch: {}
+
+# One upload at a time; never cancel an in-flight one (a half-finished
+# SteamPipe upload is messier than a queued run).
+concurrency:
+  group: steam-upload
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    # First full upload is a ~600 MB transfer; deltas after that. Generous
+    # ceiling so a slow SteamPipe run doesn't fail spuriously.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # `git describe --tags` needs full history + tags for the build
+          # identity and description (deploy.yml does the same).
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Derive build identity from git
+        id: version
+        run: |
+          echo "app_version=$(git describe --tags --abbrev=0 2>/dev/null || echo dev)" >> "$GITHUB_OUTPUT"
+          echo "build_number=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+      # electron-builder --win dir (unpacked, no installer) cross-builds from
+      # Linux without Wine -- Wine is only needed for nsis/signing, which the
+      # Steam depot path doesn't use. steam-upload.sh --ci then renders
+      # steam/*.vdf via envsubst and runs steamcmd in a container
+      # non-interactively, with the build-account token seeded from secrets.
+      - name: Build shell + upload to SteamPipe
+        run: npm run steam:upload -- --ci
+        env:
+          STEAM_APP_ID: ${{ secrets.STEAM_APP_ID }}
+          STEAM_DEPOT_WIN: ${{ secrets.STEAM_DEPOT_WIN }}
+          STEAM_BUILD_USER: ${{ secrets.STEAM_BUILD_USER }}
+          STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+          # Only needed if the build account's login also requires an ssfn
+          # sentry file (see steam/README.md "Seeding CI auth").
+          STEAM_SSFN_FILENAME: ${{ secrets.STEAM_SSFN_FILENAME }}
+          STEAM_SSFN_FILE: ${{ secrets.STEAM_SSFN_FILE }}
+          # Baked into the client bundle so the in-game version label matches
+          # the web deploy (config.ts / deploy.yml).
+          NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+          NEXT_PUBLIC_APP_VERSION: ${{ steps.version.outputs.app_version }}
+          NEXT_PUBLIC_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          STEAM_BUILD_DESC: "wom-fe ${{ steps.version.outputs.app_version }}+${{ steps.version.outputs.build_number }} ${{ github.sha }}"
+
+      - name: Upload steamcmd logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: steamcmd-logs
+          path: steam/output/steampipe/*.log
+          if-no-files-found: ignore
+          retention-days: 14

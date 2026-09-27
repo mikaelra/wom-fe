@@ -126,3 +126,7 @@ This frontend expects a backend API server (see [wom-be](https://github.com/mika
 ## Deployment
 
 Self-hosted on a Hetzner VM with Docker. `.github/workflows/deploy.yml` builds the image, pushes it to GHCR, and deploys it over SSH on every push to `master`. Configuration is in the top-level `Dockerfile`.
+
+### Steam
+
+`.github/workflows/steam-upload.yml` builds the Electron shell and uploads it to SteamPipe on every push to `master` that touches frontend code (or on manual dispatch). It's **upload-only** — a build is never set live; that stays a manual step in the Steamworks web UI. Pipeline details, required secrets, and the one-time auth-seeding step are in [`steam/README.md`](steam/README.md).
