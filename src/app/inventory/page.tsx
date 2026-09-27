@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { timewarpParamFor } from '@/lib/timewarpFx';
-import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules } from '@/lib/api';
+import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules, type TranscribedEntry } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel, skinThumbnailUrl, skinUrl, sortSkins } from '@/lib/frogSkins';
 import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
@@ -31,7 +31,8 @@ type ArtifactEntry = {
   discovered_at: string | null;
   cosmetic: string;
   origin?: string | null;
-  reproduced_to?: { name: string; origin: string; at: string | null }[];
+  origin_ordinal?: number | null;
+  reproduced_to?: TranscribedEntry[];
 };
 type WheelEntry = { id: number; kind: string };
 // One button per distinct wheel kind, not one per row -- id is an arbitrary
@@ -496,16 +497,10 @@ export default function InventoryPage() {
                     <p className="text-xs text-white/50 mt-1">
                       {cosmeticDescription(artifact.cosmetic)}
                     </p>
-                    {/* Paper -> Artifact: a copy names where it came from,
-                        and every Artifact lists who it was reproduced to. */}
+                    {/* Paper -> Artifact: a copy names where it came from.
+                        Who it was transcribed to is a tab in the ledger. */}
                     {artifact.origin && (
                       <p className="text-xs text-white/40 mt-1">Origin: {artifact.origin}</p>
-                    )}
-                    {artifact.reproduced_to && artifact.reproduced_to.length > 0 && (
-                      <p className="text-xs text-white/40 mt-1">
-                        Reproduced to:{' '}
-                        {artifact.reproduced_to.map((r) => `${r.name} (${r.origin})`).join(', ')}
-                      </p>
                     )}
                     <div className="mt-3 flex items-center justify-center sm:justify-start gap-2 flex-wrap">
                       {equippedCosmetic === artifact.cosmetic ? (
@@ -548,7 +543,9 @@ export default function InventoryPage() {
 
       {showLedger && (
         <ArtifactLedgerModal
-          highlightOrdinal={artifact?.ordinal ?? null}
+          highlightOrdinal={artifact?.ordinal ?? artifact?.origin_ordinal ?? null}
+          highlightLabel={artifact?.origin ? `(your copy: ${artifact.origin})` : undefined}
+          transcribedTo={artifact?.reproduced_to ?? []}
           onClose={() => setShowLedger(false)}
         />
       )}

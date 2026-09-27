@@ -43,10 +43,13 @@ function oneIn(chance: number): string {
  */
 export default function ArtifactLedger({
   highlightOrdinal = null,
+  highlightLabel = '(you)',
   className = '',
 }: {
-  /** The viewer's own artifact, marked in the list. */
+  /** The viewer's own artifact, marked in the list -- or, for a copy, the
+   *  discovered original it descends from (the list is Well finds only). */
   highlightOrdinal?: number | null;
+  highlightLabel?: string;
   className?: string;
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -168,7 +171,7 @@ export default function ArtifactLedger({
                 </span>
                 <span className="flex-1 min-w-0 truncate text-sm font-semibold">
                   {e.finder_name}
-                  {isMine && <span className="ml-2 text-xs text-amber-300">(you)</span>}
+                  {isMine && <span className="ml-2 text-xs text-amber-300">{highlightLabel}</span>}
                 </span>
 
                 {/* How long the world waited after the discovery above this

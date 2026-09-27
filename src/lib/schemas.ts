@@ -267,8 +267,17 @@ export const InventoryResponseSchema = z.object({
       // wom-be docs/MARKET_PLAN.md §1B: "{source holder}#{n}" on a copy,
       // null on a discovered original; and who it was reproduced to.
       origin: z.string().nullable().optional(),
+      // A copy's discovered original's ledger number, to mark it there.
+      origin_ordinal: z.number().int().nullable().optional(),
       reproduced_to: z
-        .array(z.object({ name: z.string(), origin: z.string(), at: z.string().nullable() }))
+        .array(
+          z.object({
+            name: z.string(),
+            origin: z.string(),
+            copy_number: z.number().int().optional(),
+            at: z.string().nullable(),
+          }),
+        )
         .optional(),
     })
     .nullable()

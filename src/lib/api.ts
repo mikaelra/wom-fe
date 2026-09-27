@@ -409,6 +409,9 @@ export async function claimPendingArtifact(
   });
 }
 
+/** One Artifact this one was transcribed to (wom-be MARKET_PLAN.md §1B). */
+export type TranscribedEntry = { name: string; origin: string; copy_number?: number; at: string | null };
+
 export async function getInventory(
   token: string
 ): Promise<{
@@ -422,7 +425,8 @@ export async function getInventory(
     discovered_at: string | null;
     cosmetic: string;
     origin?: string | null;
-    reproduced_to?: { name: string; origin: string; at: string | null }[];
+    origin_ordinal?: number | null;
+    reproduced_to?: TranscribedEntry[];
   } | null;
   ai_credits?: number;
 }> {
