@@ -27,6 +27,7 @@ const SPOT_OPACITY_BY_COLOR: Record<string, number> = {
   '#a16300': 0.04, // Saturn
   '#db9504': 0.08, // Mercury
   '#ff0000': 0.2, // Mars
+  '#ab9d00': 0.07, // Venus
 };
 const MAX_CRACKLE_SEGS = 1500;
 /** Space between one colour's layer and the next, as a share of the
