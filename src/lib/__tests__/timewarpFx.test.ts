@@ -37,6 +37,21 @@ describe('parseTimewarp', () => {
   });
 });
 
+describe('the events a timewarp names', () => {
+  it('stands a preview merchant under the Moon for the full moon, and under each conjunction\'s planets', () => {
+    expect(parseTimewarp('full_moon,Mercury-Jupiter,Mars-Saturn', null)!.events).toEqual([
+      { kind: 'full_moon', key: '', bodies: ['Moon'] },
+      { kind: 'conjunction', key: 'Mercury-Jupiter', bodies: ['Mercury', 'Jupiter'] },
+      { kind: 'conjunction', key: 'Mars-Saturn', bodies: ['Mars', 'Saturn'] },
+    ]);
+  });
+
+  it('names each once, and falls back to the full moon for nothing readable', () => {
+    expect(parseTimewarp('Mars-Jupiter,Mars-Jupiter', null)!.events).toHaveLength(1);
+    expect(parseTimewarp('nonsense', null)!.events).toEqual([{ kind: 'full_moon', key: '', bodies: ['Moon'] }]);
+  });
+});
+
 describe('timewarpParamFor', () => {
   it('names the full moon and each conjunction', () => {
     expect(timewarpParamFor([

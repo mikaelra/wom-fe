@@ -65,6 +65,9 @@ export interface TimewarpSpec {
   colors: string[];
   /** The moment time warps to. */
   to: Date;
+  /** The events it names, in order: what a preview puts a merchant for
+   *  on the globe at the end, standing under its Moon or conjunction. */
+  events: { kind: 'full_moon' | 'conjunction'; key: string; bodies: string[] }[];
 }
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
@@ -78,22 +81,29 @@ const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 export function parseTimewarp(value: string | null, to: string | null): TimewarpSpec | null {
   if (value === null) return null;
   const colors: string[] = [];
+  const events: TimewarpSpec['events'] = [];
   const add = (c: string) => { if (!colors.includes(c)) colors.push(c); };
   for (const part of value.split(',').map((p) => p.trim()).filter(Boolean)) {
     if (part === 'full_moon') {
       add(FULL_MOON_MERCHANT_COLOR);
+      if (!events.some((e) => e.kind === 'full_moon')) events.push({ kind: 'full_moon', key: '', bodies: ['Moon'] });
       continue;
     }
     const [a, b] = part.split('-');
     if (a && b && a !== b && PLANET_COLOR[a] !== undefined && PLANET_COLOR[b] !== undefined) {
       add(hex(PLANET_COLOR[a]));
       add(hex(PLANET_COLOR[b]));
+      if (!events.some((e) => e.key === part)) events.push({ kind: 'conjunction', key: part, bodies: [a, b] });
     }
   }
-  if (colors.length === 0) add(FULL_MOON_MERCHANT_COLOR);
+  if (colors.length === 0) {
+    add(FULL_MOON_MERCHANT_COLOR);
+    events.push({ kind: 'full_moon', key: '', bodies: ['Moon'] });
+  }
   const parsed = to ? new Date(to) : null;
   return {
     colors,
+    events,
     to: parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date(DEFAULT_PREVIEW_TO),
   };
 }

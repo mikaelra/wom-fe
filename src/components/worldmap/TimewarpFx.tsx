@@ -20,11 +20,13 @@ import { timewarpFxState } from '@/lib/timewarpFx';
 /** How strong the colour spots get at full glow (halved from 0.85 after a
  *  first look in dev). */
 const SPOT_OPACITY = 0.425;
-/** Colours whose layer is set apart from SPOT_OPACITY, by eye in dev:
- *  Saturn's brown (lib/merchant.ts PLANET_COLOR) covers too much of the
- *  globe at the common value. */
+/** Colours whose layer is set apart from SPOT_OPACITY, by eye in dev --
+ *  these planets' colours (lib/merchant.ts PLANET_COLOR) covered too much
+ *  of the globe at the common value. */
 const SPOT_OPACITY_BY_COLOR: Record<string, number> = {
   '#a16300': 0.04, // Saturn
+  '#db9504': 0.08, // Mercury
+  '#ff0000': 0.2, // Mars
 };
 const MAX_CRACKLE_SEGS = 1500;
 /** Space between one colour's layer and the next, as a share of the

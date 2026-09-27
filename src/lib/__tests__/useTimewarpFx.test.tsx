@@ -7,7 +7,7 @@ import { TIMEWARP_DURATION_MS, timewarpFxState, SPIN_UP_MS, SCRUB_END_MS } from 
 
 const TO = new Date('2028-10-03T12:00:00Z');
 const run = (over: Partial<TimewarpRun> = {}): TimewarpRun => ({
-  spec: { colors: ['#a855f7'], to: TO },
+  spec: { colors: ['#a855f7'], to: TO, events: [{ kind: 'full_moon', key: '', bodies: ['Moon'] }] },
   from: 'now',
   hold: false,
   ...over,

@@ -322,6 +322,30 @@ describe('Page (?timewarp)', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it('shows the merchants of the previewed moment, under its Moon and conjunction, not today\'s', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({ offers: [stoneOffer()] }));
+    window.history.replaceState(null, '', '/?timewarp=Mars-Jupiter');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+
+    await waitFor(() => expect(lastMerchantMarkers.map((m) => m.bodies)).toEqual([['Mars', 'Jupiter']]));
+    // Jupiter is the bigger planet: its colour inside, Mars' outside.
+    expect(lastMerchantMarkers[0]).toMatchObject({ label: 'Merchant', color: '#008296', outline: '#ff0000' });
+  });
+
+  it('opens nothing when a preview merchant is clicked', async () => {
+    window.history.replaceState(null, '', '/?timewarp');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(1));
+
+    act(() => merchantClickHandler!(lastMerchantMarkers[0].key));
+
+    expect(screen.queryByTestId('merchant-scene')).not.toBeInTheDocument();
+  });
+
   it('replays with the colours of the button pressed', async () => {
     window.history.replaceState(null, '', '/?timewarp');
     render(<Page />);

@@ -15,6 +15,8 @@ import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { merchantMarkerColors, merchantMarkerLabel, merchantSkyBodies } from '@/lib/merchant';
 import { getStoredAccountToken } from '@/lib/http';
 
+const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
+
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
 const MerchantScene = dynamic(() => import('@/components/merchant/MerchantScene'), { ssr: false });
 
@@ -67,7 +69,7 @@ export default function Page() {
   // Each stands on the globe under its own sky: the full moon's under the
   // Moon, a conjunction's under its two planets (MerchantMarker moves it
   // there every frame as the sky turns).
-  const merchantMarkers = useMemo(
+  const realMerchantMarkers = useMemo(
     () =>
       merchantOffers.map((o) => ({
         key: merchantKey(o),
@@ -108,6 +110,29 @@ export default function Page() {
     setTimewarpRun({ spec, from: 'now', hold: true });
     setTimewarpRunId((n) => n + 1);
   }, []);
+  // A preview shows the merchants of the moment it warps to -- one for each
+  // of its events, under the Moon or that conjunction -- rather than
+  // today's, which would stand under whatever today has. For looking at
+  // only: clicking one opens nothing. A real timewarp needs none of this;
+  // the merchant poll brings the new moment's own.
+  const merchantMarkers = useMemo(
+    () =>
+      timewarpPreview && timewarpRun
+        ? timewarpRun.spec.events.map((e, i) => ({
+          key: `${PREVIEW_MERCHANT_PREFIX}${i}`,
+          bodies: e.bodies,
+          ...(({ fill, outline }) => ({ color: fill, outline }))(
+            merchantMarkerColors({ kind: e.kind, key: e.key, bodies: e.bodies, sign: '', at: '' }),
+          ),
+          label: merchantMarkerLabel('The Merchant'),
+        }))
+        : realMerchantMarkers,
+    [timewarpPreview, timewarpRun, realMerchantMarkers],
+  );
+  const handleMerchantClick = useCallback((key: string) => {
+    if (!key.startsWith(PREVIEW_MERCHANT_PREFIX)) setOpenMerchantKey(key);
+  }, []);
+
   // Waits for the whole sky to be up, so the animation has something to
   // act on.
   const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
@@ -171,7 +196,7 @@ export default function Page() {
           <WorldMap
             onCityClick={handleCityClick}
             merchantMarkers={merchantMarkers}
-            onMerchantClick={setOpenMerchantKey}
+            onMerchantClick={handleMerchantClick}
             // The timewarp's step too: each one moves the sky's instant, and
             // the planets have to be redrawn where it now has them.
             skyRevertKey={timewarpStep ? `${merchant?.sky_date ?? ''}|${timewarpStep}` : merchant?.sky_date ?? null}
