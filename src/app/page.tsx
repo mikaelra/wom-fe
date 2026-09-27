@@ -54,6 +54,7 @@ export default function Page() {
     receivedAt: merchantReceivedAt,
     reverted,
     revertToDate,
+    revertExpiresAt,
     refresh: refreshMerchantOffer,
   } = useMerchantOffer();
   // Which merchant's scene is open, by `offer_id|event_key` -- a key rather
@@ -118,6 +119,21 @@ export default function Page() {
     const spec = parseTimewarp(timewarpParamFor(payload.events), payload.revert_to_date);
     if (!spec || spec.to.getTime() === lastTimewarpTo.current) return;
     lastTimewarpTo.current = spec.to.getTime();
+    setTimewarpPreview(false);
+    setTimewarpRun({ spec, from: 'sky', hold: false });
+    setTimewarpRunId((n) => n + 1);
+    refreshMerchantOffer();
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps -- one subscription for the page's life
+
+  // A timewarp's hour running out: the same animation in the same colours,
+  // from the warped sky forward to now. The poll is asked right away so
+  // the sky it hands back to at the end is now's, with now's merchants.
+  const lastTimewarpEnd = useRef<string | null>(null);
+  useEffect(() => subscribe('timewarp_end', (payload) => {
+    if (payload.ended_at === lastTimewarpEnd.current) return;
+    lastTimewarpEnd.current = payload.ended_at;
+    const spec = parseTimewarp(timewarpParamFor(payload.events), new Date().toISOString());
+    if (!spec) return;
     setTimewarpPreview(false);
     setTimewarpRun({ spec, from: 'sky', hold: false });
     setTimewarpRunId((n) => n + 1);
@@ -198,6 +214,7 @@ export default function Page() {
             revertToDate={revertToDate ?? null}
             skyDate={merchant?.sky_date ?? null}
             skyDateReceivedAt={merchantReceivedAt}
+            revertExpiresAt={revertExpiresAt}
             warpColors={timewarpColorsFor(merchantOffers.map((o) => o.event))}
           />
         }

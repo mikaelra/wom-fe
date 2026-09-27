@@ -27,7 +27,7 @@ describe('WorldClock', () => {
 
     const clock = screen.getByRole('timer', { name: 'Timewarped time' });
     expect(clock).toHaveTextContent(formatWorldClock(new Date('2028-10-03T12:00:00Z')));
-    expect(clock).toHaveClass('text-red-400');
+    expect((clock.querySelector('span') as HTMLElement).style.backgroundImage).toContain('rgb(248, 113, 113)');
   });
 
   it('ticks over as the minutes pass', () => {
@@ -54,8 +54,9 @@ describe('WorldClock', () => {
         skyDateReceivedAt={Date.now()} warpColors={['#a855f7']} />,
     );
     const clock = screen.getByRole('timer', { name: 'Timewarped time' });
-    expect(clock).not.toHaveClass('text-red-400');
-    expect(clock.querySelector('span')).toHaveStyle({ color: '#a855f7' });
+    const span = clock.querySelector('span') as HTMLElement;
+    expect(span.style.backgroundImage).toContain('rgb(168, 85, 247)');
+    expect(span.style.backgroundImage).not.toContain('rgb(248, 113, 113)');
   });
 
   it('bands a conjunction\'s two colours through the digits, top and bottom', () => {
@@ -68,6 +69,16 @@ describe('WorldClock', () => {
     // it drops the direction): Mars red over Jupiter teal, split at 50%.
     expect(span.style.backgroundImage).toContain('rgb(255, 0, 0) 50.00%, rgb(0, 130, 150) 50.00%');
     expect(span.style.color).toBe('transparent');
+  });
+
+  it('greys out from the left as the hour runs out: half grey at half an hour', () => {
+    vi.useFakeTimers({ now: new Date('2026-09-27T12:30:00Z') });
+    render(
+      <WorldClock reverted revertToDate="2028-10-03T12:00:00Z" skyDate="2028-10-03T12:30:00Z"
+        skyDateReceivedAt={Date.now()} warpColors={['#a855f7']} revertExpiresAt="2026-09-27T13:00:00Z" />,
+    );
+    const span = screen.getByRole('timer', { name: 'Timewarped time' }).querySelector('span') as HTMLElement;
+    expect(span.style.backgroundImage).toContain('rgb(107, 114, 128) 50.00%, transparent 50.00%');
   });
 
   it('stays green in normal time whatever colours it is given', () => {

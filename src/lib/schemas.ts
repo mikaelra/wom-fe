@@ -121,6 +121,15 @@ export const TimewarpBroadcastSchema = z.object({
   events: z.array(MerchantEventSchema),
 });
 
+// Pushed to every client when a timewarp's hour runs out (wom-be
+// routes/merchant.py TIMEWARP_END_EVENT): the moment it had warped to and
+// its events, so the way back to now is drawn in the same colours.
+export const TimewarpEndBroadcastSchema = z.object({
+  revert_to_date: z.string().nullable(),
+  ended_at: z.string(),
+  events: z.array(MerchantEventSchema),
+});
+
 export const MerchantSkyEventsResponseSchema = z.object({
   at: z.string(),
   events: z.array(MerchantEventSchema),

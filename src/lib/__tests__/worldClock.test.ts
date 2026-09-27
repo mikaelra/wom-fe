@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { formatWorldClock, warpBands, worldClockReading } from '@/lib/worldClock';
+import {
+  TIMEWARP_WINDOW_MS, formatWorldClock, warpBands, warpPaint, warpRemaining, worldClockReading,
+} from '@/lib/worldClock';
 
 // Built from local parts, so the expected strings hold in any timezone
 // the tests run in -- the clock is on the viewer's own clock by design.
@@ -97,5 +99,33 @@ describe('warpBands', () => {
     expect(three).toContain('#a855f7 0.00%, #a855f7 33.33%');
     expect(three).toContain('#db9504 33.33%, #db9504 66.67%');
     expect(three).toContain('#008296 66.67%, #008296 100.00%');
+  });
+});
+
+describe('the timewarp draining from the clock', () => {
+  const end = Date.parse('2026-09-27T13:00:00Z');
+  const at = (msBeforeEnd: number) => end - msBeforeEnd;
+
+  it('is the share of the hour left, clamped', () => {
+    expect(warpRemaining('2026-09-27T13:00:00Z', at(TIMEWARP_WINDOW_MS))).toBe(1);
+    expect(warpRemaining('2026-09-27T13:00:00Z', at(TIMEWARP_WINDOW_MS / 2))).toBe(0.5);
+    expect(warpRemaining('2026-09-27T13:00:00Z', at(-1000))).toBe(0);
+    expect(warpRemaining('2026-09-27T13:00:00Z', at(2 * TIMEWARP_WINDOW_MS))).toBe(1);
+  });
+
+  it('keeps the colour when the end is not known', () => {
+    expect(warpRemaining(null, end)).toBe(1);
+    expect(warpRemaining('not a date', end)).toBe(1);
+  });
+
+  it('lays grey from the left over the colours by the time spent', () => {
+    expect(warpPaint(['#a855f7'], 0.5)).toBe(
+      'linear-gradient(to right, #6b7280 0%, #6b7280 50.00%, transparent 50.00%, transparent 100%), ' +
+        'linear-gradient(#a855f7, #a855f7)',
+    );
+    expect(warpPaint(['#ff0000', '#008296'], 1)).toContain('#6b7280 0.00%, transparent 0.00%');
+    expect(warpPaint(['#ff0000', '#008296'], 1)).toContain(warpBands(['#ff0000', '#008296'])!);
+    expect(warpPaint([], 0)).toContain('#6b7280 100.00%');
+    expect(warpPaint([], 0)).toContain('#f87171');
   });
 });

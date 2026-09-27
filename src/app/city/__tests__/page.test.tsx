@@ -324,7 +324,7 @@ describe('CityPage world clock (under Rules, as on the Earth screen)', () => {
     await waitForScene();
 
     const clock = await screen.findByRole('timer', { name: 'Timewarped time' });
-    expect(clock).toHaveClass('text-red-400');
+    expect((clock.querySelector('span') as HTMLElement).style.backgroundImage).toContain('rgb(248, 113, 113)');
     expect(clock).toHaveTextContent(formatWorldClock(new Date('2028-10-03T12:00:00Z')));
   });
 });
