@@ -359,6 +359,39 @@ describe('Page (?timewarp)', () => {
     await waitFor(() => expect(lastTimewarpColors).toEqual(['#db9504', '#008296']));
   });
 
+  it('plays anyone\'s timewarp for everyone on the globe, pushed by the server', async () => {
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    const pollsBefore = vi.mocked(getMerchantOffer).mock.calls.length;
+
+    act(() => socket.__fireSubscribeEvent('timewarp', {
+      revert_to_date: '2026-11-16T06:21:58+00:00',
+      events: [{ kind: 'conjunction', key: 'Mars-Jupiter', bodies: ['Mars', 'Jupiter'], sign: 'Leo', at: 'x' }],
+    }));
+
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#ff0000', '#008296']));
+    // The new moment's merchants are asked for straight away.
+    await waitFor(() => expect(vi.mocked(getMerchantOffer).mock.calls.length).toBeGreaterThan(pollsBefore));
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
+  });
+
+  it('does not replay, for the player who made it, a timewarp already playing from the inventory', async () => {
+    window.history.replaceState(null, '', '/?timewarp=full_moon&to=2028-10-03T12%3A00%3A00Z&play=1');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual([FULL_MOON_MERCHANT_COLOR]));
+    const pollsBefore = vi.mocked(getMerchantOffer).mock.calls.length;
+
+    act(() => socket.__fireSubscribeEvent('timewarp', {
+      revert_to_date: '2028-10-03T12:00:00+00:00',
+      events: [{ kind: 'full_moon', key: '', bodies: ['Moon'], sign: 'Aries', at: 'x' }],
+    }));
+
+    expect(vi.mocked(getMerchantOffer).mock.calls.length).toBe(pollsBefore);
+  });
+
   it('plays a real timewarp without the controls, and takes the parameters off the URL', async () => {
     window.history.replaceState(null, '', '/?timewarp=full_moon&to=2028-10-03T12%3A00%3A00Z&play=1');
     render(<Page />);

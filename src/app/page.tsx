@@ -2,12 +2,13 @@
 
 import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import WorldClock from '@/components/worldmap/WorldClock';
 import TimewarpPanel from '@/components/worldmap/TimewarpPanel';
-import { parseTimewarp } from '@/lib/timewarpFx';
+import { parseTimewarp, timewarpParamFor } from '@/lib/timewarpFx';
+import { subscribe } from '@/lib/socket';
 import { useTimewarpFx, type TimewarpRun } from '@/lib/useTimewarpFx';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import type { City } from '@/lib/cities';
@@ -91,11 +92,16 @@ export default function Page() {
   const [timewarpRun, setTimewarpRun] = useState<TimewarpRun | null>(null);
   const [timewarpRunId, setTimewarpRunId] = useState(0);
   const [skyReady, setSkyReady] = useState(false);
+  // The moment of the last real timewarp this page played, so the player
+  // who made it -- sent here with &play=1 -- doesn't see it again when the
+  // server's broadcast of that same timewarp arrives.
+  const lastTimewarpTo = useRef<number | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const spec = parseTimewarp(params.get('timewarp'), params.get('to'));
     if (!spec) return;
     if (params.get('play')) {
+      lastTimewarpTo.current = spec.to.getTime();
       setTimewarpRun({ spec, from: 'sky', hold: false });
       router.replace('/');
     } else {
@@ -103,6 +109,21 @@ export default function Page() {
       setTimewarpRun({ spec, from: 'now', hold: true });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- read the arrival URL once
+  // Anyone timewarping, anywhere: the server tells every client, and
+  // everyone on the globe watches the sky warp to that moment. The merchant
+  // poll is asked right away, so the new moment's merchants (and its
+  // sky_date, which the animation hands back to) are in before the pins
+  // fade back in.
+  useEffect(() => subscribe('timewarp', (payload) => {
+    const spec = parseTimewarp(timewarpParamFor(payload.events), payload.revert_to_date);
+    if (!spec || spec.to.getTime() === lastTimewarpTo.current) return;
+    lastTimewarpTo.current = spec.to.getTime();
+    setTimewarpPreview(false);
+    setTimewarpRun({ spec, from: 'sky', hold: false });
+    setTimewarpRunId((n) => n + 1);
+    refreshMerchantOffer();
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps -- one subscription for the page's life
+
   const playPreview = useCallback((value: string, momentTo?: string) => {
     const to = momentTo ?? new URLSearchParams(window.location.search).get('to');
     const spec = parseTimewarp(value, to);
