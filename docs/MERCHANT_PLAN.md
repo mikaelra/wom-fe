@@ -151,7 +151,11 @@ player could buy twice in one window.
 ### 5.3 Turning back time, for every merchant
 
 There is one sky, so there is one revert (`merchant_time_reverts` row
-`'sky'`). Sacrificing **either** relic — Stone of Vitality or Paper — rewinds
+`'sky'`). It lasts an hour, but only its first minute is locked
+(`REVERT_LOCK`): after that anyone may timewarp again, replacing it — so
+many players get to timewarp, and one still runs its full hour when few
+do. Timewarped time runs on: half an hour into a timewarp to 12:00 the
+world is at 12:30. Sacrificing **either** relic — Stone of Vitality or Paper — rewinds
 it for everyone for an hour to the instant that copy was bought, and every
 trigger is evaluated **there**: whatever was live then is live again. A
 Paper bought under a conjunction that fell on a full moon brings back both

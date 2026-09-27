@@ -47,9 +47,10 @@ const renderModal = (props: Partial<Parameters<typeof RevertTimeModal>[0]> = {})
   render(
     <RevertTimeModal
       relic={STONE}
+      reverted={false}
+      revertedTo={null}
       blocked={false}
       blockedUntil={null}
-      revertedTo={null}
       statusKnown
       onClose={vi.fn()}
       onReverted={vi.fn()}
@@ -192,9 +193,9 @@ describe('RevertTimeModal', () => {
     const until = () => new Date(Date.now() + 5 * 60_000).toISOString();
 
     it('shows the block reason and a countdown, with no way to confirm', () => {
-      renderModal({ blocked: true, blockedUntil: until() });
+      renderModal({ reverted: true, blocked: true, blockedUntil: until() });
 
-      expect(screen.getByText('Someone has already turned back time.')).toBeInTheDocument();
+      expect(screen.getByText('Someone has just turned back time.')).toBeInTheDocument();
       // Real time, not fake timers here -- a few ms of real test execution
       // can floor the countdown to 4:59 instead of 5:00, so match the
       // format rather than an exact value.
@@ -203,14 +204,14 @@ describe('RevertTimeModal', () => {
       expect(mockedRevert).not.toHaveBeenCalled();
     });
 
-    it('names the relic in the block reason', () => {
-      renderModal({ relic: PAPER, blocked: true, blockedUntil: until() });
+    it('says anyone can timewarp again a minute after it began', () => {
+      renderModal({ relic: PAPER, reverted: true, blocked: true, blockedUntil: until() });
 
-      expect(screen.getByText(/can’t use Paper this way/)).toBeInTheDocument();
+      expect(screen.getByText('Anyone can timewarp again a minute after it began.')).toBeInTheDocument();
     });
 
     it('still shows this copy\'s own purchase instant and events even though the action is blocked', async () => {
-      renderModal({ blocked: true, blockedUntil: until(), revertedTo: '2026-09-11T21:00:00+00:00' });
+      renderModal({ reverted: true, blocked: true, blockedUntil: until(), revertedTo: '2026-09-11T21:00:00+00:00' });
 
       expect(screen.getByText('This Stone of Vitality was bought')).toBeInTheDocument();
       expect(await screen.findByText('Full moon')).toBeInTheDocument();
@@ -218,7 +219,7 @@ describe('RevertTimeModal', () => {
 
     it('Close calls onClose', () => {
       const onClose = vi.fn();
-      renderModal({ blocked: true, blockedUntil: until(), onClose });
+      renderModal({ reverted: true, blocked: true, blockedUntil: until(), onClose });
 
       act(() => screen.getByRole('button', { name: 'Close' }).click());
 
@@ -234,6 +235,7 @@ describe('RevertTimeModal', () => {
 
     it('says what time is reverted to, in red, while someone has', () => {
       renderModal({
+        reverted: true,
         blocked: true,
         blockedUntil: new Date(Date.now() + 42 * 60_000).toISOString(),
         revertedTo: '2026-09-11T21:00:00+00:00',
@@ -241,6 +243,14 @@ describe('RevertTimeModal', () => {
       expect(screen.getByText(`Time is currently reverted to ${formatRevertedTo('2026-09-11T21:00:00+00:00')}`))
         .toHaveClass('text-red-400');
       expect(screen.queryByText('Normal time')).not.toBeInTheDocument();
+    });
+
+    it('once past the first minute, still says reverted but lets the player Timewarp', () => {
+      renderModal({ reverted: true, blocked: false, revertedTo: '2026-09-11T21:00:00+00:00' });
+
+      expect(screen.getByText(/Time is currently reverted to/)).toHaveClass('text-red-400');
+      expect(screen.queryByText('Normal time')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Timewarp' })).toBeEnabled();
     });
 
     it('says nothing until the merchant poll has answered', () => {

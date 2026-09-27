@@ -17,6 +17,7 @@ import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
+import { useCountdown } from '@/lib/useCountdown';
 import { REVERT_RELIC_NAMES } from '@/lib/merchant';
 import { CONSUMABLE_RELIC_NAMES, type Relic } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
@@ -55,15 +56,18 @@ export default function InventoryPage() {
   // null when it's closed.
   const [revertRelic, setRevertRelic] = useState<Relic | null>(null);
   // Polled the same way the globe learns it, so the Timewarp popup can
-  // show where time stands -- and block with a countdown if someone else
-  // already reverted it -- before the player tries, not after a 409.
+  // show where time stands -- and block with a countdown if someone has
+  // timewarped within the last minute -- before the player tries, not
+  // after a 409.
   const {
     merchant,
-    reverted: revertBlocked,
-    revertExpiresAt,
+    reverted,
+    revertLockedUntil,
     revertToDate,
     refresh: refreshMerchantOffer,
   } = useMerchantOffer();
+  const secondsLocked = useCountdown(revertLockedUntil);
+  const revertLocked = reverted && secondsLocked !== null && secondsLocked > 0;
   // The Artifacts category. `artifact` is null for almost every account --
   // that is the point of it, and the empty state carries the weight.
   const [equippedCosmetic, setEquippedCosmetic] = useState<string | null>(null);
@@ -524,8 +528,9 @@ export default function InventoryPage() {
       {revertRelic && (
         <RevertTimeModal
           relic={revertRelic}
-          blocked={revertBlocked}
-          blockedUntil={revertExpiresAt}
+          reverted={reverted}
+          blocked={revertLocked}
+          blockedUntil={revertLockedUntil}
           revertedTo={revertToDate ?? null}
           statusKnown={merchant !== null}
           onClose={() => setRevertRelic(null)}

@@ -90,6 +90,9 @@ export const MerchantOfferSchema = z.object({
   // sacrificed a relic to turn back time, and when does that end.
   reverted: z.boolean(),
   revert_expires_at: z.string().nullable(),
+  // Until when nobody else may timewarp; after it, a new timewarp replaces
+  // this one. Absent from a backend without the lock.
+  revert_locked_until: z.string().nullable().optional(),
   // §7: while reverted, the sky itself also rewinds to this instant --
   // the moment the sacrificed relic was originally bought.
   revert_to_date: z.string().nullable(),
@@ -106,6 +109,7 @@ export const MerchantOfferResponseSchema = z.object({
   sky_date: z.string().nullable().default(null),
   reverted: z.boolean().optional(),
   revert_expires_at: z.string().nullable().optional(),
+  revert_locked_until: z.string().nullable().optional(),
   revert_to_date: z.string().nullable().optional(),
 });
 

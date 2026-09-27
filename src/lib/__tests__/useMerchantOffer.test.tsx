@@ -96,6 +96,26 @@ describe('useMerchantOffer', () => {
     expect(result.current.revertExpiresAt).toBe('2026-09-25T17:49:32Z');
   });
 
+  it('reports until when the next timewarp is held off', async () => {
+    mockedGet.mockResolvedValue(revertedState('2026-01-01T00:00:00Z', { revert_locked_until: '2026-09-25T16:50:32Z' }));
+    const { result } = renderHook(() => useMerchantOffer());
+
+    await waitFor(() => expect(result.current.revertLockedUntil).toBe('2026-09-25T16:50:32Z'));
+  });
+
+  it('holds the next timewarp off for the whole revert with a backend that has no lock', async () => {
+    mockedGet.mockResolvedValue(revertedState('2026-01-01T00:00:00Z'));
+    const { result } = renderHook(() => useMerchantOffer());
+
+    await waitFor(() => expect(result.current.revertLockedUntil).toBe('2026-09-25T17:49:32Z'));
+  });
+
+  it('has no lock when nothing is reverted', async () => {
+    const { result } = renderHook(() => useMerchantOffer());
+    await waitFor(() => expect(mockedGet).toHaveBeenCalled());
+    expect(result.current.revertLockedUntil).toBeNull();
+  });
+
   it('reads a revert off the legacy offer from a backend that predates stacking', async () => {
     mockedGet.mockResolvedValue({
       offer: stoneOffer({ reverted: true, revert_to_date: '2026-01-01T00:00:00Z', revert_expires_at: 'x' }),

@@ -10,15 +10,15 @@ import type { Relic } from '@/types/game';
 type Props = {
   /** A merchant relic -- Stone of Vitality or Paper. */
   relic: Relic;
-  /** Whether someone else has already turned back time (the merchant
-   *  poll's `reverted`, docs/MERCHANT_PLAN.md §7), and until when -- so
-   *  the action is blocked with a reason and a countdown before the
-   *  player tries it, rather than after a 409. */
+  /** Whether time is turned back right now, and to when -- the status line. */
+  reverted: boolean;
+  revertedTo: string | null;
+  /** Whether someone has timewarped within the last minute (the lock,
+   *  docs/MERCHANT_PLAN.md §7), and until when -- so the action is blocked
+   *  with a reason and a countdown before the player tries it, rather than
+   *  after a 409. */
   blocked: boolean;
   blockedUntil: string | null;
-  /** Where the sky is while blocked (the revert's instant), for the status
-   *  line. */
-  revertedTo: string | null;
   /** Whether the merchant poll has answered yet -- the status line says
    *  nothing until it has, since there is nothing honest to say about the
    *  world's clock before that. */
@@ -77,7 +77,7 @@ export function formatCountdown(totalSeconds: number): string {
  * and a countdown, rather than letting the player hit a 409.
  */
 export default function RevertTimeModal({
-  relic, blocked, blockedUntil, revertedTo, statusKnown, onClose, onReverted,
+  relic, reverted, revertedTo, blocked, blockedUntil, statusKnown, onClose, onReverted,
 }: Props) {
   const [phase, setPhase] = useState<Phase>('preview');
   const [error, setError] = useState('');
@@ -152,11 +152,11 @@ export default function RevertTimeModal({
   };
 
   // Where time stands right now -- moved here from the inventory card.
-  const status = !statusKnown ? null : blocked && revertedTo ? (
+  const status = !statusKnown ? null : reverted && revertedTo ? (
     <p className="text-red-400 text-xs font-semibold mb-3">
       Time is currently reverted to {formatRevertedTo(revertedTo)}
     </p>
-  ) : !blocked ? (
+  ) : !reverted ? (
     <p className="text-green-400 text-xs font-semibold uppercase tracking-wide mb-3">Normal time</p>
   ) : null;
 
@@ -226,10 +226,10 @@ export default function RevertTimeModal({
         {blocked ? (
           <>
             <p className="text-red-400 text-sm font-semibold mt-3 mb-1">
-              Someone has already turned back time.
+              Someone has just turned back time.
             </p>
             <p className="text-white/60 text-sm mb-4">
-              You can&rsquo;t use {relic.name === 'Paper' ? 'Paper' : `a ${relic.name}`} this way while another revert is running.
+              Anyone can timewarp again a minute after it began.
             </p>
             {secondsUntilAvailable !== null && secondsUntilAvailable > 0 && (
               <p className="text-purple-300 font-mono text-2xl font-bold mb-4">

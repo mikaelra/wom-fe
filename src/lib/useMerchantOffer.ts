@@ -65,6 +65,11 @@ export function useMerchantOffer(pollMs: number = MERCHANT_OFFER_POLL_MS) {
   const reverted = merchant?.reverted ?? merchant?.offer?.reverted ?? false;
   const revertExpiresAt = merchant?.revert_expires_at ?? merchant?.offer?.revert_expires_at ?? null;
   const revertToDate = merchant?.revert_to_date ?? merchant?.offer?.revert_to_date ?? null;
+  /** Until when nobody else may timewarp. A backend without the lock held
+   *  it for the whole revert, so fall back to that. */
+  const revertLockedUntil = reverted
+    ? merchant?.revert_locked_until ?? merchant?.offer?.revert_locked_until ?? revertExpiresAt
+    : null;
 
-  return { merchant, receivedAt, offers, reverted, revertExpiresAt, revertToDate, refresh };
+  return { merchant, receivedAt, offers, reverted, revertExpiresAt, revertLockedUntil, revertToDate, refresh };
 }

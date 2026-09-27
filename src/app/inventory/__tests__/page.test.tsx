@@ -582,6 +582,36 @@ describe('InventoryPage', () => {
     });
   });
 
+  describe('Timewarp once a running one is past its first minute', () => {
+    const stoneRelic = {
+      id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00',
+      newest_copy_created_at: '2026-09-25T19:57:42+00:00',
+      name: 'Stone of Vitality', power_category: 'HEALTH', count: 1,
+    };
+
+    it('shows time as reverted but lets the player Timewarp again', async () => {
+      setStoredAccountToken('sess-1');
+      mockedGetInventory.mockResolvedValue({ name: 'Alice', equipped_skin: 'frog_green_v1', skins: [], wheels: [] });
+      mockedGetPlayerRelics.mockResolvedValue({ relics: [stoneRelic] });
+      mockedGetMerchantOffer.mockResolvedValue(revertedState('2026-09-11T21:00:00+00:00', {
+        revert_expires_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+        revert_locked_until: new Date(Date.now() - 1_000).toISOString(),
+      }));
+      render(<InventoryPage />);
+      await flush();
+
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the turn back time popup'));
+        await flush();
+      });
+
+      const dialog = within(screen.getByRole('dialog'));
+      expect(dialog.getByText(/Time is currently reverted to/)).toBeInTheDocument();
+      expect(dialog.getByRole('button', { name: 'Timewarp' })).toBeEnabled();
+      expect(dialog.queryByText('Someone has just turned back time.')).not.toBeInTheDocument();
+    });
+  });
+
   describe('Revert Time blocked by an active revert (docs/MERCHANT_PLAN.md §7)', () => {
     const stoneRelic = {
       id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00',
@@ -629,7 +659,7 @@ describe('InventoryPage', () => {
       });
 
       const dialog = within(screen.getByRole('dialog'));
-      expect(dialog.getByText('Someone has already turned back time.')).toBeInTheDocument();
+      expect(dialog.getByText('Someone has just turned back time.')).toBeInTheDocument();
       expect(dialog.getByText('42:00')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Timewarp' })).not.toBeInTheDocument();
       expect(mockedRevertMerchantTime).not.toHaveBeenCalled();
