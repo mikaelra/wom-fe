@@ -242,6 +242,24 @@ export const ClaimPendingWheelResponseSchema = z.object({
   pending_verification: z.boolean().optional(),
 });
 
+// One "Transcribed to" row (wom-be docs/MARKET_PLAN.md §1B): someone this
+// Artifact was transcribed to. `id` and `transcribed_count` let the list be
+// followed down the chain (POST /artifacts/transcribed_to).
+export const TranscribedEntrySchema = z.object({
+  id: z.number().int().optional(),
+  name: z.string(),
+  origin: z.string(),
+  copy_number: z.number().int().optional(),
+  transcribed_count: z.number().int().optional(),
+  at: z.string().nullable(),
+});
+
+// POST /artifacts/transcribed_to -- who another Artifact was transcribed to.
+export const ArtifactTranscribedToResponseSchema = z.object({
+  name: z.string(),
+  transcribed_to: z.array(TranscribedEntrySchema),
+});
+
 export const InventoryResponseSchema = z.object({
   // Session-resolved, authoritative name -- fetching Relics
   // (GET /get_player_relics, name-keyed) should use this, not a
@@ -271,16 +289,7 @@ export const InventoryResponseSchema = z.object({
       origin_ordinal: z.number().int().nullable().optional(),
       // ...and the copy's place among everything descended from that row.
       origin_order: z.number().int().nullable().optional(),
-      reproduced_to: z
-        .array(
-          z.object({
-            name: z.string(),
-            origin: z.string(),
-            copy_number: z.number().int().optional(),
-            at: z.string().nullable(),
-          }),
-        )
-        .optional(),
+      reproduced_to: z.array(TranscribedEntrySchema).optional(),
     })
     .nullable()
     .optional(),
