@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import CityOverlay from '@/components/city/CityOverlay';
+import WorldClock from '@/components/worldmap/WorldClock';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import AuthGatePopup from '@/components/AuthGatePopup';
 import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
@@ -48,7 +49,7 @@ function CityPageContent() {
   // useMerchantOffer). An explicit ?t= still wins, since that's a
   // deliberate debug request, not something a revert should silently
   // clobber.
-  const { merchant } = useMerchantOffer();
+  const { merchant, receivedAt: merchantReceivedAt, reverted, revertToDate } = useMerchantOffer();
   const skyMoved = !tOverridden && !!merchant?.sky_date;
   const skyDate = skyMoved ? new Date(merchant!.sky_date!) : resolvedSkyDate;
   const skyOverridden = tOverridden || skyMoved;
@@ -149,7 +150,17 @@ function CityPageContent() {
           onReady={handleReady}
         />
       </Canvas>
-      <CityOverlay skyClock={skyOverridden ? formatAthensClock(skyDate) : null} />
+      <CityOverlay
+        skyClock={skyOverridden ? formatAthensClock(skyDate) : null}
+        clock={
+          <WorldClock
+            reverted={reverted}
+            revertToDate={revertToDate ?? null}
+            skyDate={merchant?.sky_date ?? null}
+            skyDateReceivedAt={merchantReceivedAt}
+          />
+        }
+      />
 
       <CityLoadingScreen
         title={city.actionLabel ?? city.name}

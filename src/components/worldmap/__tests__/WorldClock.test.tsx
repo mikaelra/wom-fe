@@ -8,7 +8,7 @@ afterEach(() => vi.useRealTimers());
 describe('WorldClock', () => {
   it('shows the viewer\'s time in green in normal time', () => {
     vi.useFakeTimers({ now: new Date(2026, 8, 27, 10, 5) });
-    render(<WorldClock reverted={false} revertToDate={null} skyDate={null} skyDateReceivedAt={null} />);
+    render(<WorldClock reverted={false} revertToDate={null} skyDate={null} skyDateReceivedAt={Date.now()} />);
 
     const clock = screen.getByRole('timer', { name: 'Normal time' });
     expect(clock).toHaveTextContent('10:05 27.09.2026');
@@ -32,11 +32,19 @@ describe('WorldClock', () => {
 
   it('ticks over as the minutes pass', () => {
     vi.useFakeTimers({ now: new Date(2026, 8, 27, 10, 5, 59) });
-    render(<WorldClock reverted={false} revertToDate={null} skyDate={null} skyDateReceivedAt={null} />);
+    render(<WorldClock reverted={false} revertToDate={null} skyDate={null} skyDateReceivedAt={Date.now()} />);
     expect(screen.getByRole('timer')).toHaveTextContent('10:05');
 
     act(() => { vi.advanceTimersByTime(1000); });
 
     expect(screen.getByRole('timer')).toHaveTextContent('10:06 27.09.2026');
+  });
+
+  it('shows nothing at all while the time is still loading', () => {
+    const { container } = render(
+      <WorldClock reverted={false} revertToDate={null} skyDate={null} skyDateReceivedAt={null} />,
+    );
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
   });
 });

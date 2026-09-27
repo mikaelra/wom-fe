@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { formatWorldClock, worldClockReading, type WorldClockInput } from '@/lib/worldClock';
 
 /**
- * A plain digital clock under the Rules button on the Earth screen:
+ * A plain digital clock under the Rules button, on the Earth and city screens:
  * "HH:MM DD.MM.YYYY", green in normal time, red showing the timewarped
  * instant while time is turned back (lib/worldClock.ts).
  */
@@ -15,7 +15,10 @@ export default function WorldClock(props: Omit<WorldClockInput, 'now'>) {
     return () => clearInterval(id);
   }, []);
 
-  const { date, warped } = worldClockReading({ ...props, now });
+  const reading = worldClockReading({ ...props, now });
+  // Nothing at all until the time is known -- no placeholder, no NaN.
+  if (!reading) return null;
+  const { date, warped } = reading;
   return (
     <div
       role="timer"

@@ -21,7 +21,9 @@ export interface WorldClockInput {
   /** /merchant/offer's sky_date: set during a revert, and in dev while the
    *  dev clock is moved (wom-be engine/dev_clock.py). */
   skyDate: string | null;
-  /** When that sky_date was received, ms -- the dev clock runs on from it. */
+  /** When the merchant poll's answer (and so sky_date) arrived, ms -- the
+   *  dev clock runs on from it. null until it first has: the clock is not
+   *  shown before then, since whether time is warped isn't known yet. */
   skyDateReceivedAt: number | null;
   /** The viewer's own now, ms. */
   now: number;
@@ -33,13 +35,19 @@ export interface WorldClockInput {
  * Timewarped: the instant time is turned back to -- the sky is held there,
  * so the clock is too. Otherwise the world's own now: the dev clock's when
  * one is set (running on from when it was read), else the viewer's.
+ *
+ * null -- show no clock at all -- while the poll hasn't answered yet, or
+ * if the instant can't be read: never a NaN on screen.
  */
 export function worldClockReading({
   reverted, revertToDate, skyDate, skyDateReceivedAt, now,
-}: WorldClockInput): { date: Date; warped: boolean } {
-  if (reverted && revertToDate) return { date: new Date(revertToDate), warped: true };
-  if (skyDate && skyDateReceivedAt !== null) {
-    return { date: new Date(new Date(skyDate).getTime() + (now - skyDateReceivedAt)), warped: false };
-  }
-  return { date: new Date(now), warped: false };
+}: WorldClockInput): { date: Date; warped: boolean } | null {
+  if (skyDateReceivedAt === null) return null;
+  const reading =
+    reverted && revertToDate
+      ? { date: new Date(revertToDate), warped: true }
+      : skyDate
+        ? { date: new Date(new Date(skyDate).getTime() + (now - skyDateReceivedAt)), warped: false }
+        : { date: new Date(now), warped: false };
+  return Number.isNaN(reading.date.getTime()) ? null : reading;
 }

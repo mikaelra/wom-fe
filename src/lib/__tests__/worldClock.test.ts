@@ -18,8 +18,23 @@ describe('worldClockReading', () => {
 
   it('is the viewer\'s now, not warped, in normal time', () => {
     expect(worldClockReading({
-      reverted: false, revertToDate: null, skyDate: null, skyDateReceivedAt: null, now: NOW,
+      reverted: false, revertToDate: null, skyDate: null, skyDateReceivedAt: NOW - 5_000, now: NOW,
     })).toEqual({ date: new Date(NOW), warped: false });
+  });
+
+  it('is nothing at all until the merchant poll has answered', () => {
+    expect(worldClockReading({
+      reverted: false, revertToDate: null, skyDate: null, skyDateReceivedAt: null, now: NOW,
+    })).toBeNull();
+  });
+
+  it('is nothing at all, never NaN, for an instant it cannot read', () => {
+    expect(worldClockReading({
+      reverted: true, revertToDate: 'not a date', skyDate: null, skyDateReceivedAt: NOW, now: NOW,
+    })).toBeNull();
+    expect(worldClockReading({
+      reverted: false, revertToDate: null, skyDate: 'garbage', skyDateReceivedAt: NOW, now: NOW,
+    })).toBeNull();
   });
 
   it('is the timewarped instant, held there, while time is turned back', () => {
@@ -46,7 +61,7 @@ describe('worldClockReading', () => {
 
   it('is normal time when reverted is claimed without an instant', () => {
     expect(worldClockReading({
-      reverted: true, revertToDate: null, skyDate: null, skyDateReceivedAt: null, now: NOW,
-    }).warped).toBe(false);
+      reverted: true, revertToDate: null, skyDate: null, skyDateReceivedAt: NOW, now: NOW,
+    })!.warped).toBe(false);
   });
 });

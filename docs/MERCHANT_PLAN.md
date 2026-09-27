@@ -179,10 +179,12 @@ from.
   in the bigger planet's colour (a point light cut off at the pool's edge)
   inside a thinner rim in the smaller planet's (an additive glow band bent
   onto the globe, fading at both edges).
-- The Earth screen has a plain digital clock under the Rules button
-  (`WorldClock`, `lib/worldClock.ts`): `HH:MM DD.MM.YYYY` on the viewer's
-  own clock, green in normal time (following the dev clock when one is
-  set), red and held at the timewarped instant while time is turned back.
+- The Earth and city screens have a plain digital clock under the Rules
+  button (`WorldClock`, `lib/worldClock.ts`): `HH:MM DD.MM.YYYY` on the
+  viewer's own clock, green in normal time (following the dev clock when
+  one is set), red and held at the timewarped instant while time is turned
+  back. It isn't shown at all until the merchant poll has answered, and
+  never shows an unreadable instant.
 - In the scene, Paper is staged at 4x the Stone's size, centred on the same
   spot on the table.
 - Markers are seeded by `period_start|event_key` and placed together

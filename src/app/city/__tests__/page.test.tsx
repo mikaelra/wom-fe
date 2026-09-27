@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { merchantState, revertedState } from '@/lib/__tests__/merchantFixtures';
+import { formatWorldClock } from '@/lib/worldClock';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { CSSProperties, ReactNode } from 'react';
 import CityPage from '@/app/city/page';
@@ -302,6 +303,32 @@ describe('CityPage (routing)', () => {
 // docs/MERCHANT_PLAN.md §7: the city's sky should rewind along with the
 // globe's while a revert is active, not just the Merchant's own offer
 // window (real bug, found live: it didn't).
+describe('CityPage world clock (under Rules, as on the Earth screen)', () => {
+  it('shows nothing until the merchant poll answers, then the time in green', async () => {
+    let answer: (v: ReturnType<typeof merchantState>) => void = () => {};
+    vi.mocked(getMerchantOffer).mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+    renderCity();
+    await waitForScene();
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument();
+
+    await act(async () => { answer(merchantState()); });
+
+    const clock = await screen.findByRole('timer', { name: 'Normal time' });
+    expect(clock).toHaveClass('text-green-400');
+    expect(clock.textContent).not.toMatch(/NaN/);
+  });
+
+  it('shows the timewarped time in red while time is turned back', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(revertedState('2028-10-03T12:00:00Z'));
+    renderCity();
+    await waitForScene();
+
+    const clock = await screen.findByRole('timer', { name: 'Timewarped time' });
+    expect(clock).toHaveClass('text-red-400');
+    expect(clock).toHaveTextContent(formatWorldClock(new Date('2028-10-03T12:00:00Z')));
+  });
+});
+
 describe('CityPage (Merchant time-revert)', () => {
   it('hands the scene the real current time when nothing is reverted', async () => {
     const before = Date.now();
