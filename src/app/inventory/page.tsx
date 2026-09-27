@@ -321,7 +321,7 @@ export default function InventoryPage() {
                       className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
                     >
                       {/* A merchant relic's model (Stone of Vitality,
-                          Paper) is also the "turn back time" entry point -- same affordance as the
+                          Paper) is also the Timewarp entry point -- same affordance as the
                           Artifact card below (click the model, get a
                           popup), rather than a click target that does
                           nothing. Every other relic keeps a plain,
@@ -330,7 +330,7 @@ export default function InventoryPage() {
                         <button
                           type="button"
                           onClick={() => setRevertRelic(relic)}
-                          aria-label={`${relic.name} -- open the turn back time popup`}
+                          aria-label={`${relic.name} -- open the Timewarp popup`}
                           className="w-16 h-16 overflow-hidden bg-transparent border-0 p-0 cursor-pointer"
                         >
                           <RelicCoin relicName={relic.name} />

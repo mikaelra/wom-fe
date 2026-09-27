@@ -134,7 +134,7 @@ export default function RevertTimeModal({
         onClose();
       })
       .catch((e: unknown) => {
-        setError(e instanceof ApiError ? e.message : 'Failed to revert time.');
+        setError(e instanceof ApiError ? e.message : 'Timewarp failed.');
         setPhase('error');
       })
       .finally(() => {
@@ -145,7 +145,7 @@ export default function RevertTimeModal({
   // Where time stands right now -- moved here from the inventory card.
   const status = !statusKnown ? null : reverted && revertedTo ? (
     <p className="text-red-400 text-xs font-semibold mb-3">
-      Someone has currently warped time to {formatWorldClock(new Date(revertedTo))}.
+      Someone has timewarped to {formatWorldClock(new Date(revertedTo))}.
     </p>
   ) : !reverted ? (
     <p className="text-green-400 text-xs font-semibold uppercase tracking-wide mb-3">Normal time</p>
@@ -232,7 +232,7 @@ export default function RevertTimeModal({
             </button>
           </>
         ) : phase === 'reverting' ? (
-          <p className="text-purple-300 font-semibold mt-3 mb-2">Turning back time…</p>
+          <p className="text-purple-300 font-semibold mt-3 mb-2">Timewarping…</p>
         ) : phase === 'confirming' ? (
           <>
             <p className="text-white/80 text-sm mt-3 mb-4">
@@ -247,7 +247,7 @@ export default function RevertTimeModal({
                 onClick={handleConfirm}
                 className="px-5 py-2 rounded-lg bg-purple-700/80 text-purple-200 border border-purple-500 font-bold hover:bg-purple-600/80 transition-colors cursor-pointer"
               >
-                Yes, turn back time
+                Yes, timewarp
               </button>
               <button
                 type="button"

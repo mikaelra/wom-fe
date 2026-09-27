@@ -135,7 +135,7 @@ export default function Page() {
     const spec = parseTimewarp(timewarpParamFor(payload.events), new Date().toISOString());
     if (!spec) return;
     setTimewarpPreview(false);
-    setTimewarpRun({ spec, from: 'sky', hold: false });
+    setTimewarpRun({ spec, from: 'sky', hold: false, ending: true });
     setTimewarpRunId((n) => n + 1);
     refreshMerchantOffer();
   }), []); // eslint-disable-line react-hooks/exhaustive-deps -- one subscription for the page's life
@@ -147,6 +147,15 @@ export default function Page() {
     setTimewarpRun({ spec, from: 'now', hold: true });
     setTimewarpRunId((n) => n + 1);
   }, []);
+  // A preview of a timewarp's hour running out: what `timewarp_end` plays,
+  // from the moment warped to forward to now, handing the sky back to now.
+  const playPreviewEnd = useCallback((value: string, momentTo?: string) => {
+    const spec = parseTimewarp(value, new Date().toISOString());
+    const from = parseTimewarp(value, momentTo ?? new URLSearchParams(window.location.search).get('to'));
+    if (!spec || !from) return;
+    setTimewarpRun({ spec, from: from.to, hold: false, ending: true });
+    setTimewarpRunId((n) => n + 1);
+  }, []);
   // A preview shows the merchants of the moment it warps to -- one for each
   // of its events, under the Moon or that conjunction -- rather than
   // today's, which would stand under whatever today has. For looking at
@@ -154,7 +163,7 @@ export default function Page() {
   // the merchant poll brings the new moment's own.
   const merchantMarkers = useMemo(
     () =>
-      timewarpPreview && timewarpRun
+      timewarpPreview && timewarpRun && !timewarpRun.ending
         ? timewarpRun.spec.events.map((e, i) => ({
           key: `${PREVIEW_MERCHANT_PREFIX}${i}`,
           bodies: e.bodies,
@@ -245,7 +254,7 @@ export default function Page() {
         </Canvas>
       )}
 
-      {timewarpPreview && <TimewarpPanel onPlay={playPreview} />}
+      {timewarpPreview && <TimewarpPanel onPlay={playPreview} onPlayEnd={playPreviewEnd} />}
 
       {enteringCity && (
         <CityLoadingScreen

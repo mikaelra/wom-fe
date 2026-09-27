@@ -190,7 +190,7 @@ export async function revertMerchantTime(
 ): Promise<z.infer<typeof MerchantRevertTimeResponseSchema>> {
   return request('/merchant/revert_time', MerchantRevertTimeResponseSchema, {
     body: copyId === null ? { token, relic } : { token, relic, copy_id: copyId },
-    defaultErrorMessage: 'Failed to revert time.',
+    defaultErrorMessage: 'Timewarp failed.',
   });
 }
 

@@ -107,7 +107,7 @@ describe('MerchantScene', () => {
   it('says a revert brought him when time is turned back', () => {
     render(<MerchantScene offer={stoneOffer({ reverted: true })} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
 
-    expect(screen.getByText('Someone turned back time to bring him here')).toBeInTheDocument();
+    expect(screen.getByText('Someone timewarped to bring The Merchant here')).toBeInTheDocument();
   });
 
   describe('the Merchant at a conjunction', () => {

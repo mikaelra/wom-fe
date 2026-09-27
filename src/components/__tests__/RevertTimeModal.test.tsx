@@ -42,7 +42,7 @@ const formatExactFor = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
 const openConfirm = () => act(() => screen.getByRole('button', { name: 'Timewarp' }).click());
-const confirm = () => act(() => screen.getByRole('button', { name: 'Yes, turn back time' }).click());
+const confirm = () => act(() => screen.getByRole('button', { name: 'Yes, timewarp' }).click());
 
 const renderModal = (props: Partial<Parameters<typeof RevertTimeModal>[0]> = {}) =>
   render(
@@ -119,7 +119,7 @@ describe('RevertTimeModal', () => {
 
     openConfirm();
 
-    expect(screen.getByRole('button', { name: 'Yes, turn back time' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Yes, timewarp' })).toBeInTheDocument();
     expect(screen.getByText(/This sacrifices 1 Stone of Vitality/)).toBeInTheDocument();
     expect(mockedRevert).not.toHaveBeenCalled();
   });
@@ -262,7 +262,7 @@ describe('RevertTimeModal', () => {
         revertedTo: '2026-09-11T21:00:00+00:00',
       });
       expect(screen.getByText(
-        `Someone has currently warped time to ${formatWorldClock(new Date('2026-09-11T21:00:00+00:00'))}.`,
+        `Someone has timewarped to ${formatWorldClock(new Date('2026-09-11T21:00:00+00:00'))}.`,
       )).toHaveClass('text-red-400');
       expect(screen.queryByText('Normal time')).not.toBeInTheDocument();
     });
@@ -270,7 +270,7 @@ describe('RevertTimeModal', () => {
     it('once past the first minute, still says reverted but lets the player Timewarp', () => {
       renderModal({ reverted: true, blocked: false, revertedTo: '2026-09-11T21:00:00+00:00' });
 
-      expect(screen.getByText(/Someone has currently warped time to/)).toHaveClass('text-red-400');
+      expect(screen.getByText(/Someone has timewarped to/)).toHaveClass('text-red-400');
       expect(screen.queryByText('Normal time')).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Timewarp' })).toBeEnabled();
     });
