@@ -17,6 +17,9 @@ export const MERCHANT_OFFER_POLL_MS = 60_000;
 
 export function useMerchantOffer(pollMs: number = MERCHANT_OFFER_POLL_MS) {
   const [merchant, setMerchant] = useState<MerchantState | null>(null);
+  // When `merchant` last arrived, ms -- the Earth screen's clock runs a
+  // moved dev clock (sky_date) on from this.
+  const [receivedAt, setReceivedAt] = useState<number | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
   useEffect(() => {
@@ -28,6 +31,7 @@ export function useMerchantOffer(pollMs: number = MERCHANT_OFFER_POLL_MS) {
         const next = await getMerchantOffer(getStoredAccountToken());
         if (!cancelled) {
           setMerchant(next);
+          setReceivedAt(Date.now());
           // docs/MERCHANT_PLAN.md §7: this is the one place the whole app
           // learns whether the sky is somewhere other than now -- a revert,
           // or the dev clock -- so it's also where the globe's sky is told
@@ -62,5 +66,5 @@ export function useMerchantOffer(pollMs: number = MERCHANT_OFFER_POLL_MS) {
   const revertExpiresAt = merchant?.revert_expires_at ?? merchant?.offer?.revert_expires_at ?? null;
   const revertToDate = merchant?.revert_to_date ?? merchant?.offer?.revert_to_date ?? null;
 
-  return { merchant, offers, reverted, revertExpiresAt, revertToDate, refresh };
+  return { merchant, receivedAt, offers, reverted, revertExpiresAt, revertToDate, refresh };
 }

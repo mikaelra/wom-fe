@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
+import WorldClock from '@/components/worldmap/WorldClock';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import type { City } from '@/lib/cities';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
@@ -41,7 +42,14 @@ export default function Page() {
 
   // docs/MERCHANT_PLAN.md -- the merchants. One marker per merchant in
   // town: a full moon and a conjunction at once are two.
-  const { offers: merchantOffers, merchant, refresh: refreshMerchantOffer } = useMerchantOffer();
+  const {
+    offers: merchantOffers,
+    merchant,
+    receivedAt: merchantReceivedAt,
+    reverted,
+    revertToDate,
+    refresh: refreshMerchantOffer,
+  } = useMerchantOffer();
   // Which merchant's scene is open, by `offer_id|event_key` -- a key rather
   // than the offer object, so the scene follows the latest poll (a
   // purchase flips already_bought_this_period) instead of a stale copy.
@@ -95,7 +103,16 @@ export default function Page() {
 
   return (
     <div style={{ width: '100%', height: '100dvh', position: 'relative', overflow: 'hidden', background: '#070b15' }}>
-      <WorldMapOverlay />
+      <WorldMapOverlay
+        clock={
+          <WorldClock
+            reverted={reverted}
+            revertToDate={revertToDate ?? null}
+            skyDate={merchant?.sky_date ?? null}
+            skyDateReceivedAt={merchantReceivedAt}
+          />
+        }
+      />
       {sceneReady && (
         <Canvas
           camera={{ position: [0, 3, 10.5], fov: 50 }}

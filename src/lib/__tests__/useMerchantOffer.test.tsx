@@ -78,6 +78,15 @@ describe('useMerchantOffer', () => {
     expect(mockedGet.mock.calls.length).toBe(callsAtUnmount);
   });
 
+  it('records when the answer arrived, for the Earth clock to run a dev clock on from', async () => {
+    const before = Date.now();
+    const { result } = renderHook(() => useMerchantOffer());
+    expect(result.current.receivedAt).toBeNull();
+
+    await waitFor(() => expect(result.current.receivedAt).not.toBeNull());
+    expect(result.current.receivedAt!).toBeGreaterThanOrEqual(before);
+  });
+
   it('reports a revert and when it ends', async () => {
     mockedGet.mockResolvedValue(revertedState('2026-01-01T00:00:00Z'));
     const { result } = renderHook(() => useMerchantOffer());

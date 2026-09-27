@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logOut, getInventory } from '@/lib/api';
@@ -29,7 +29,12 @@ import SfxToggleButton from '@/components/audio/SfxToggleButton';
 
 const DEFAULT_SKIN = 'frog_green_v1';
 
-export default function SceneTopBar() {
+export default function SceneTopBar({
+  belowRules,
+}: {
+  /** Drawn directly under the Rules button -- the Earth screen's clock. */
+  belowRules?: ReactNode;
+} = {}) {
   const router = useRouter();
   const [loggedInName, setLoggedInName] = useState('');
   const [equippedSkin, setEquippedSkin] = useState(DEFAULT_SKIN);
@@ -145,6 +150,7 @@ export default function SceneTopBar() {
           >
             Rules
           </RopedButton>
+          {belowRules}
           <MusicToggleButton />
           {/* The sound-effects toggle was only ever rendered in the lobby
               (LobbyOverlay), so every screen carrying this bar -- the city
