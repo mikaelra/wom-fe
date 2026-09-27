@@ -101,8 +101,8 @@ export default function Page() {
       setTimewarpRun({ spec, from: 'now', hold: true });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- read the arrival URL once
-  const playPreview = useCallback((value: string) => {
-    const to = new URLSearchParams(window.location.search).get('to');
+  const playPreview = useCallback((value: string, momentTo?: string) => {
+    const to = momentTo ?? new URLSearchParams(window.location.search).get('to');
     const spec = parseTimewarp(value, to);
     if (!spec) return;
     setTimewarpRun({ spec, from: 'now', hold: true });

@@ -18,11 +18,46 @@ export const SCRUB_END_MS = 4500;
 /** How much faster than normal the sky turns at full spin. */
 export const MAX_SKY_BOOST = 90;
 
+/** The pins (Greece, the merchants) leave this fast at the start... */
+export const MARKERS_OUT_MS = 400;
+/** ...and come back this slowly at the end -- by which time the merchants
+ *  may well be different ones: those of the moment warped to. */
+export const MARKERS_IN_MS = 1500;
+
 /** Where a preview warps to when not told: Mercury and Jupiter meeting on
  *  the full moon of 2028-10-03 (wom-be engine/conjunctions.py). */
 export const DEFAULT_PREVIEW_TO = '2028-10-03T12:00:00Z';
 
 export const TIMEWARP_PLANETS = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'] as const;
+
+/**
+ * Real moments to test the animation against, each with every event the
+ * backend (wom-be engine/conjunctions.py, domain/merchant.py
+ * sky_events_at) finds live then -- so a moment with several conjunctions,
+ * or one on a full moon, plays in all of its colours. One for each pair of
+ * planets (Jupiter and Saturn next meet in 2040), plus the moments with
+ * more than one event.
+ */
+export const TIMEWARP_TEST_MOMENTS: readonly { label: string; to: string; value: string }[] = [
+  { label: 'Full moon (2026-10-26)', to: '2026-10-26T05:00:00Z', value: 'full_moon' },
+  { label: 'Mercury–Venus (2026-10-07)', to: '2026-10-07T00:05:52Z', value: 'Mercury-Venus' },
+  { label: 'Mars–Jupiter (2026-11-16)', to: '2026-11-16T06:21:58Z', value: 'Mars-Jupiter' },
+  { label: 'Mercury–Saturn (2027-04-19)', to: '2027-04-19T13:01:48Z', value: 'Mercury-Saturn' },
+  { label: 'Venus–Saturn (2027-05-07)', to: '2027-05-07T18:44:27Z', value: 'Venus-Saturn' },
+  { label: 'Mercury–Jupiter (2027-08-19)', to: '2027-08-19T22:46:49Z', value: 'Mercury-Jupiter' },
+  { label: 'Venus–Jupiter (2027-08-26)', to: '2027-08-26T02:59:29Z', value: 'Venus-Jupiter' },
+  { label: 'Venus–Mars (2027-11-25)', to: '2027-11-25T01:35:13Z', value: 'Venus-Mars' },
+  { label: 'Mercury–Mars (2028-01-08)', to: '2028-01-08T20:55:40Z', value: 'Mercury-Mars' },
+  { label: 'Mars–Saturn (2028-04-30)', to: '2028-04-30T22:35:53Z', value: 'Mars-Saturn' },
+  { label: 'Jupiter–Saturn (2040-10-31)', to: '2040-10-31T11:54:11Z', value: 'Jupiter-Saturn' },
+  {
+    label: 'Three conjunctions (2026-04-20)',
+    to: '2026-04-20T11:20:17Z',
+    value: 'Mars-Saturn,Mercury-Saturn,Mercury-Mars',
+  },
+  { label: 'Full moon + Mercury–Jupiter (2028-10-03)', to: '2028-10-03T12:46:50Z', value: 'full_moon,Mercury-Jupiter' },
+  { label: 'Full moon + Mercury–Venus (2030-12-10)', to: '2030-12-10T00:09:13Z', value: 'full_moon,Mercury-Venus' },
+];
 
 export interface TimewarpSpec {
   /** One colour per part, never blended: the full moon's purple, and a
@@ -84,6 +119,8 @@ export interface TimewarpFrame {
   scrub: number;
   /** 0..1: how strong the clouds and electricity are. */
   glow: number;
+  /** 0..1: how visible the pins on the globe are. */
+  markers: number;
   done: boolean;
 }
 
@@ -97,7 +134,10 @@ export function timewarpFrame(elapsed: number): TimewarpFrame {
       : 1 - smooth((elapsed - SCRUB_END_MS) / (end - SCRUB_END_MS));
   const scrub = smooth((elapsed - SPIN_UP_MS) / (SCRUB_END_MS - SPIN_UP_MS));
   const glow = elapsed < 700 ? smooth(elapsed / 700) : 1 - smooth((elapsed - (end - 1200)) / 1200);
-  return { spin, scrub, glow, done: elapsed >= end };
+  const markers = elapsed < end - MARKERS_IN_MS
+    ? 1 - smooth(elapsed / MARKERS_OUT_MS)
+    : smooth((elapsed - (end - MARKERS_IN_MS)) / MARKERS_IN_MS);
+  return { spin, scrub, glow, markers, done: elapsed >= end };
 }
 
 /** The sky's instant `scrub` of the way from `from` to `to`. */
@@ -106,8 +146,26 @@ export function scrubDate(from: Date, to: Date, scrub: number): Date {
 }
 
 /** What the drawing reads each frame while an animation runs. */
-export const timewarpFxState: { glow: number; spin: number; colors: string[] } = {
+export const timewarpFxState: { glow: number; spin: number; markers: number; colors: string[] } = {
   glow: 0,
   spin: 0,
+  markers: 1,
   colors: [FULL_MOON_MERCHANT_COLOR],
 };
+
+/** The CSS variables the pins' DOM labels read their fade from -- the
+ *  labels are HTML over the canvas, out of reach of the 3D fade. */
+export const MARKER_OPACITY_VAR = '--timewarp-markers';
+export const MARKER_EVENTS_VAR = '--timewarp-markers-events';
+
+/** Fade the pins' labels to `markers` (1 clears it back to normal). */
+export function applyMarkerLabelFade(markers: number, root: HTMLElement = document.documentElement): void {
+  if (markers >= 1) {
+    root.style.removeProperty(MARKER_OPACITY_VAR);
+    root.style.removeProperty(MARKER_EVENTS_VAR);
+    return;
+  }
+  root.style.setProperty(MARKER_OPACITY_VAR, String(Math.max(0, markers)));
+  // Invisible labels must not take clicks.
+  root.style.setProperty(MARKER_EVENTS_VAR, markers < 0.2 ? 'none' : 'auto');
+}

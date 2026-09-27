@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TIMEWARP_PLANETS } from '@/lib/timewarpFx';
+import { TIMEWARP_PLANETS, TIMEWARP_TEST_MOMENTS } from '@/lib/timewarpFx';
 
 /**
  * The `?timewarp` preview's controls: play the full moon's timewarp, or a
@@ -9,9 +9,16 @@ import { TIMEWARP_PLANETS } from '@/lib/timewarpFx';
  * animation without spending a relic. Only shown for a preview, never
  * after a real timewarp.
  */
-export default function TimewarpPanel({ onPlay }: { onPlay: (value: string) => void }) {
+export default function TimewarpPanel({
+  onPlay,
+}: {
+  /** `to`: the moment to warp to, for a test moment; otherwise the page's
+   *  own `?to=` (or the default). */
+  onPlay: (value: string, to?: string) => void;
+}) {
   const [a, setA] = useState<string>('Mercury');
   const [b, setB] = useState<string>('Jupiter');
+  const [moment, setMoment] = useState(0);
 
   const select = (value: string, onChange: (v: string) => void, other: string, label: string) => (
     <select
@@ -54,6 +61,27 @@ export default function TimewarpPanel({ onPlay }: { onPlay: (value: string) => v
       >
         Conjunction
       </button>
+      <div className="border-t border-white/15 pt-2 flex flex-col gap-1">
+        <select
+          aria-label="Test moment"
+          value={moment}
+          onChange={(e) => setMoment(Number(e.target.value))}
+          className="bg-black/70 border border-white/20 rounded px-2 py-1 text-xs text-white max-w-[15rem]"
+        >
+          {TIMEWARP_TEST_MOMENTS.map((m, i) => (
+            <option key={m.to} value={i}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => onPlay(TIMEWARP_TEST_MOMENTS[moment].value, TIMEWARP_TEST_MOMENTS[moment].to)}
+          className={`${button} bg-white/10 border-white/30 text-white hover:bg-white/20`}
+        >
+          Play moment
+        </button>
+      </div>
     </div>
   );
 }

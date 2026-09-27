@@ -32,4 +32,16 @@ describe('TimewarpPanel', () => {
     expect((first.querySelector('option[value="Jupiter"]') as HTMLOptionElement).disabled).toBe(true);
     expect((second.querySelector('option[value="Mercury"]') as HTMLOptionElement).disabled).toBe(true);
   });
+
+  it('plays a test moment at its own time, in all of its colours', () => {
+    const onPlay = vi.fn();
+    render(<TimewarpPanel onPlay={onPlay} />);
+
+    const select = screen.getByLabelText('Test moment') as HTMLSelectElement;
+    const three = Array.from(select.options).findIndex((o) => o.text.startsWith('Three conjunctions'));
+    fireEvent.change(select, { target: { value: String(three) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Play moment' }));
+
+    expect(onPlay).toHaveBeenCalledWith('Mars-Saturn,Mercury-Saturn,Mercury-Mars', '2026-04-20T11:20:17Z');
+  });
 });

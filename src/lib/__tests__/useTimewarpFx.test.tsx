@@ -50,12 +50,18 @@ describe('useTimewarpFx', () => {
     expect(midway).toBeGreaterThan(start + 1000);
     expect(midway).toBeLessThan(TO.getTime());
 
+    // The pins are gone through the spin, and so are their labels.
+    expect(timewarpFxState.markers).toBe(0);
+    expect(document.documentElement.style.getPropertyValue('--timewarp-markers')).toBe('0');
+
     const stepBefore = result.current.step;
     advance(TIMEWARP_DURATION_MS);
     expect(result.current.step).toBeGreaterThan(stepBefore);
     expect(result.current.playing).toBe(false);
     expect(skyDrift.boost).toBe(0);
     expect(timewarpFxState.glow).toBe(0);
+    expect(timewarpFxState.markers).toBe(1);
+    expect(document.documentElement.style.getPropertyValue('--timewarp-markers')).toBe('');
     // Let go: the sky is the live one again (no revert override here).
     expect(Math.abs(getSky().date.getTime() - Date.now())).toBeLessThan(2000);
   });

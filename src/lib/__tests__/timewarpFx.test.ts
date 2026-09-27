@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_PREVIEW_TO, SCRUB_END_MS, SPIN_UP_MS, TIMEWARP_DURATION_MS,
-  parseTimewarp, scrubDate, timewarpFrame, timewarpParamFor,
+  DEFAULT_PREVIEW_TO, MARKERS_IN_MS, MARKERS_OUT_MS, MARKER_EVENTS_VAR, MARKER_OPACITY_VAR,
+  SCRUB_END_MS, SPIN_UP_MS, TIMEWARP_DURATION_MS, TIMEWARP_TEST_MOMENTS,
+  applyMarkerLabelFade, parseTimewarp, scrubDate, timewarpFrame, timewarpParamFor,
 } from '@/lib/timewarpFx';
 import { FULL_MOON_MERCHANT_COLOR } from '@/lib/merchant';
 
@@ -56,7 +57,7 @@ describe('timewarpParamFor', () => {
 
 describe('timewarpFrame', () => {
   it('starts still and dark', () => {
-    expect(timewarpFrame(0)).toEqual({ spin: 0, scrub: 0, glow: 0, done: false });
+    expect(timewarpFrame(0)).toEqual({ spin: 0, scrub: 0, glow: 0, markers: 1, done: false });
   });
 
   it('spins up before running through time', () => {
@@ -80,7 +81,7 @@ describe('timewarpFrame', () => {
   });
 
   it('is done, still and dark at the end', () => {
-    expect(timewarpFrame(TIMEWARP_DURATION_MS)).toEqual({ spin: 0, scrub: 1, glow: 0, done: true });
+    expect(timewarpFrame(TIMEWARP_DURATION_MS)).toEqual({ spin: 0, scrub: 1, glow: 0, markers: 1, done: true });
   });
 });
 
@@ -91,5 +92,63 @@ describe('scrubDate', () => {
     expect(scrubDate(from, to, 0)).toEqual(from);
     expect(scrubDate(from, to, 0.5)).toEqual(new Date('2026-01-02T00:00:00Z'));
     expect(scrubDate(from, to, 1)).toEqual(to);
+  });
+});
+
+describe('the pins during a timewarp', () => {
+  it('leave fast at the start, stay gone through the spin, and come back slowly at the end', () => {
+    expect(timewarpFrame(0).markers).toBe(1);
+    expect(timewarpFrame(MARKERS_OUT_MS).markers).toBe(0);
+    expect(timewarpFrame((SPIN_UP_MS + SCRUB_END_MS) / 2).markers).toBe(0);
+    const halfBack = timewarpFrame(TIMEWARP_DURATION_MS - MARKERS_IN_MS / 2).markers;
+    expect(halfBack).toBeGreaterThan(0.3);
+    expect(halfBack).toBeLessThan(0.7);
+    expect(timewarpFrame(TIMEWARP_DURATION_MS).markers).toBe(1);
+  });
+
+  it('fade their DOM labels through CSS variables, and take no clicks while gone', () => {
+    // A stand-in element: these tests run without a DOM.
+    const props = new Map<string, string>();
+    const root = {
+      style: {
+        setProperty: (k: string, v: string) => { props.set(k, v); },
+        removeProperty: (k: string) => { props.delete(k); return ''; },
+        getPropertyValue: (k: string) => props.get(k) ?? '',
+      },
+    } as unknown as HTMLElement;
+    applyMarkerLabelFade(0.1, root);
+    expect(root.style.getPropertyValue(MARKER_OPACITY_VAR)).toBe('0.1');
+    expect(root.style.getPropertyValue(MARKER_EVENTS_VAR)).toBe('none');
+
+    applyMarkerLabelFade(0.6, root);
+    expect(root.style.getPropertyValue(MARKER_EVENTS_VAR)).toBe('auto');
+
+    applyMarkerLabelFade(1, root);
+    expect(root.style.getPropertyValue(MARKER_OPACITY_VAR)).toBe('');
+    expect(root.style.getPropertyValue(MARKER_EVENTS_VAR)).toBe('');
+  });
+});
+
+describe('TIMEWARP_TEST_MOMENTS', () => {
+  it('covers every pair of planets once', () => {
+    const pairs = TIMEWARP_TEST_MOMENTS.filter((m) => !m.value.includes(',') && m.value !== 'full_moon');
+    expect(pairs.map((m) => m.value).sort()).toEqual([
+      'Jupiter-Saturn', 'Mars-Jupiter', 'Mars-Saturn', 'Mercury-Jupiter', 'Mercury-Mars',
+      'Mercury-Saturn', 'Mercury-Venus', 'Venus-Jupiter', 'Venus-Mars', 'Venus-Saturn',
+    ]);
+  });
+
+  it('each warps to a real moment in its own colours, never the preview default', () => {
+    for (const m of TIMEWARP_TEST_MOMENTS) {
+      const spec = parseTimewarp(m.value, m.to)!;
+      expect(spec.to.toISOString()).toBe(new Date(m.to).toISOString());
+      expect(spec.colors.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('uses every colour a moment has: three conjunctions, three planets\' colours', () => {
+    const three = TIMEWARP_TEST_MOMENTS.find((m) => m.label.startsWith('Three'))!;
+    // Mercury, Mars and Saturn, each once.
+    expect(parseTimewarp(three.value, three.to)!.colors).toEqual(['#ff0000', '#a16300', '#db9504']);
   });
 });

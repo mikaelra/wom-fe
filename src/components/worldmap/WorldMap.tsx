@@ -15,6 +15,7 @@ import {
 } from '@/lib/milkyWay';
 import GlobeCrackleEffect from './GlobeCrackleEffect';
 import TimewarpFx from './TimewarpFx';
+import TimewarpFade from './TimewarpFade';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
 import {
@@ -1117,6 +1118,9 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
 
       <mesh geometry={geo} material={moonFresnelMat} scale={1.018} />
 
+      {/* The pins -- Greece's sword and the merchants -- leave while a
+          timewarp spins the globe and fade slowly back at the end. */}
+      <TimewarpFade>
       {CITIES.map((city) => (
         <CityMarker
           key={city.id}
@@ -1141,6 +1145,7 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
 
       {/* Crackle electricity radiating from the sword's impact point */}
       <GlobeCrackleEffect epicenter={athensEpicenter} radius={GLOBE_RADIUS} />
+      </TimewarpFade>
     </group>
   );
 }

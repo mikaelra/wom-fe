@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { getSky, setSkyFxOverride } from '@/lib/astrology';
 import { skyDrift } from '@/lib/skyDrift';
 import {
-  MAX_SKY_BOOST, scrubDate, timewarpFrame, timewarpFxState, type TimewarpSpec,
+  MAX_SKY_BOOST, applyMarkerLabelFade, scrubDate, timewarpFrame, timewarpFxState, type TimewarpSpec,
 } from '@/lib/timewarpFx';
 
 /** How often the sky's instant is advanced while it runs through time.
@@ -45,6 +45,8 @@ export function useTimewarpFx(run: TimewarpRun | null, runId: number): { playing
       skyDrift.boost = 0;
       timewarpFxState.glow = 0;
       timewarpFxState.spin = 0;
+      timewarpFxState.markers = 1;
+      applyMarkerLabelFade(1);
     };
 
     const tick = (now: number) => {
@@ -52,6 +54,8 @@ export function useTimewarpFx(run: TimewarpRun | null, runId: number): { playing
       skyDrift.boost = frame.spin * MAX_SKY_BOOST;
       timewarpFxState.glow = frame.glow;
       timewarpFxState.spin = frame.spin;
+      timewarpFxState.markers = frame.markers;
+      applyMarkerLabelFade(frame.markers);
       if (now - lastScrub >= SCRUB_STEP_MS || frame.done) {
         lastScrub = now;
         setSkyFxOverride(scrubDate(from, run.spec.to, frame.scrub));
