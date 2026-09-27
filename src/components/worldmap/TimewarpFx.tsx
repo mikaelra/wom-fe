@@ -17,8 +17,9 @@ import { timewarpFxState } from '@/lib/timewarpFx';
  * colour it has.
  */
 
-/** How strong the colour spots get at full glow. */
-const SPOT_OPACITY = 0.85;
+/** How strong the colour spots get at full glow (halved from 0.85 after a
+ *  first look in dev). */
+const SPOT_OPACITY = 0.425;
 const MAX_CRACKLE_SEGS = 1500;
 
 // Value noise and fbm over 3D -- procedural, so each layer's spots are its
@@ -54,7 +55,7 @@ const NOISE_GLSL = `
 /**
  * One colour's layer of spots: its own shell, its own uneven spotted
  * pattern (a seed of its own, a frequency and threshold of its own) and
- * its own spin. Crisp-edged and drawn over, not added to, whatever is
+ * its own spin about the Earth's axis. Crisp-edged and drawn over, not added to, whatever is
  * under it -- where two colours' spots overlap, the outer one shows rather
  * than a blend of both.
  */
@@ -70,8 +71,8 @@ function SpotLayer({ color, radius, index }: { color: string; radius: number; in
       seed: new THREE.Vector3(r(1) * 100, r(2) * 100, r(3) * 100),
       frequency: 2.6 + r(4) * 2.4,
       threshold: 0.5 + r(5) * 0.08,
+      // Either way round, but always about the Earth's own axis.
       spinSpeed: (0.35 + r(6) * 0.6) * (index % 2 === 0 ? 1 : -1),
-      tilt: new THREE.Euler(r(7) * 0.8 - 0.4, 0, r(8) * 0.8 - 0.4),
     };
   }, [index]);
 
@@ -121,7 +122,9 @@ function SpotLayer({ color, radius, index }: { color: string; radius: number; in
 
   return (
     // Each colour at its own height, so the layers stack in a fixed order.
-    <mesh ref={meshRef} material={material} rotation={character.tilt} renderOrder={10 + index}>
+    // Untilted: it spins about Y, which is the Earth's axis in this scene
+    // (celestial north; the globe itself turns about it too).
+    <mesh ref={meshRef} material={material} renderOrder={10 + index}>
       <sphereGeometry args={[radius * (1.05 + 0.025 * index), 96, 48]} />
     </mesh>
   );
