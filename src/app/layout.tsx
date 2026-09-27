@@ -16,7 +16,13 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "World of Mythos",
-  description: "World of Mythos",
+  // The hook is the simultaneous commit, so the description leads with it --
+  // "mythology game" is a crowded shelf and "you are guessing what they will
+  // do" is not. Deliberately carries no price: the browser build is free while
+  // the Steam build is a $2 premium anchor (docs/STEAM_STORE_PAGE_PLAN.md §3a),
+  // and a "free" in the social preview would undercut the store page.
+  description:
+    "A turn-based multiplayer duel in a hand-drawn mythological world. Both players commit at once — read your opponent, or be read.",
   // No manual `icons` entry here -- src/app/icon.svg, icon.png, and
   // apple-icon.png (Next's file-based icon convention) are auto-detected
   // and take care of it. That's deliberate, not an oversight: the old setup
