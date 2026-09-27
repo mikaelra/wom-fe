@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getArtifactLedger } from '@/lib/api';
 import { ApiError, getStoredAccountToken } from '@/lib/http';
 import { discoveryGapMs, formatDiscoveryGap } from '@/lib/artifactLedger';
+import type { LedgerMark } from '@/lib/market';
 
 type Entry = { ordinal: number; finder_name: string; discovered_at: string | null };
 
@@ -42,11 +43,13 @@ function oneIn(chance: number): string {
  * not decoration.
  */
 export default function ArtifactLedger({
-  highlightOrdinal = null,
+  marks = [],
   className = '',
 }: {
-  /** The viewer's own artifact, marked in the list. */
-  highlightOrdinal?: number | null;
+  /** Rows marked in the list: the viewer's own find "(you)", and for a
+   *  transcribed copy the row it came from, "#n" (lib/market.ts
+   *  ledgerMarks). The list itself is Well finds only. */
+  marks?: LedgerMark[];
   className?: string;
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -143,7 +146,8 @@ export default function ArtifactLedger({
       <div className="max-h-[50vh] overflow-y-auto -mx-1 px-1">
         <ol className="space-y-1">
           {entries.map((e, i) => {
-            const isMine = highlightOrdinal === e.ordinal;
+            const mark = marks.find((m) => m.ordinal === e.ordinal);
+            const isMine = !!mark;
             // The gap to the discovery directly above. entries is one
             // append-only list across pages, so a row at a page boundary
             // still measures against the real previous entry rather than
@@ -168,7 +172,7 @@ export default function ArtifactLedger({
                 </span>
                 <span className="flex-1 min-w-0 truncate text-sm font-semibold">
                   {e.finder_name}
-                  {isMine && <span className="ml-2 text-xs text-amber-300">(you)</span>}
+                  {mark && <span className="ml-2 text-xs text-amber-300">{mark.label}</span>}
                 </span>
 
                 {/* How long the world waited after the discovery above this

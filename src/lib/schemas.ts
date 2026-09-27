@@ -242,6 +242,24 @@ export const ClaimPendingWheelResponseSchema = z.object({
   pending_verification: z.boolean().optional(),
 });
 
+// One "Transcribed to" row (wom-be docs/MARKET_PLAN.md §1B): someone this
+// Artifact was transcribed to. `id` and `transcribed_count` let the list be
+// followed down the chain (POST /artifacts/transcribed_to).
+export const TranscribedEntrySchema = z.object({
+  id: z.number().int().optional(),
+  name: z.string(),
+  origin: z.string(),
+  copy_number: z.number().int().optional(),
+  transcribed_count: z.number().int().optional(),
+  at: z.string().nullable(),
+});
+
+// POST /artifacts/transcribed_to -- who another Artifact was transcribed to.
+export const ArtifactTranscribedToResponseSchema = z.object({
+  name: z.string(),
+  transcribed_to: z.array(TranscribedEntrySchema),
+});
+
 export const InventoryResponseSchema = z.object({
   // Session-resolved, authoritative name -- fetching Relics
   // (GET /get_player_relics, name-keyed) should use this, not a
@@ -260,9 +278,18 @@ export const InventoryResponseSchema = z.object({
   equipped_cosmetic: z.string().nullable().optional(),
   artifact: z
     .object({
-      ordinal: z.number().int(),
+      // Null on a reproduced copy -- only discoveries are numbered.
+      ordinal: z.number().int().nullable(),
       discovered_at: z.string().nullable(),
       cosmetic: z.string(),
+      // wom-be docs/MARKET_PLAN.md §1B: "{source holder}#{n}" on a copy,
+      // null on a discovered original; and who it was reproduced to.
+      origin: z.string().nullable().optional(),
+      // A copy's discovered original's ledger number, to mark it there.
+      origin_ordinal: z.number().int().nullable().optional(),
+      // ...and the copy's place among everything descended from that row.
+      origin_order: z.number().int().nullable().optional(),
+      reproduced_to: z.array(TranscribedEntrySchema).optional(),
     })
     .nullable()
     .optional(),
@@ -502,7 +529,9 @@ export const OnlineCountPayloadSchema = z.object({
 export const MarketItemSchema = z.object({
   // 'ai_credits' is a fungible balance -- quantity is the credit count,
   // skin/relic_id/wheel_kind all null.
-  item_type: z.enum(['skin', 'relic', 'wheel', 'ai_credits']),
+  // 'artifact' never changes hands -- it is reproduced onto a Paper on the
+  // other side of the trade (wom-be docs/MARKET_PLAN.md §1B). Always 1.
+  item_type: z.enum(['skin', 'relic', 'wheel', 'ai_credits', 'artifact']),
   skin: z.string().nullable(),
   relic_id: z.number().int().nullable(),
   wheel_kind: z.string().nullable(),
@@ -533,6 +562,8 @@ export const MarketCatalogResponseSchema = z.object({
   relics: z.array(z.object({ id: z.number().int(), name: z.string() })),
   wheel_kinds: z.array(z.string()),
   coin_relic_id: z.number().int(),
+  // Which relic is Paper -- an Artifact on a trade needs one opposite it.
+  paper_relic_id: z.number().int().nullable().optional(),
   terms_version: z.string(),
   terms_text: z.string(),
 });
@@ -580,6 +611,9 @@ export const MarketAcceptTermsResponseSchema = z.object({
 export const MarketMutationResponseSchema = z.object({
   success: z.boolean(),
   listing: MarketListingSchema,
+  // An accepted trade that reproduced an Artifact: who got it, and its
+  // origin label ("{source holder}#{n}").
+  reproduced: z.object({ to: z.string(), origin: z.string().nullable() }).optional(),
 });
 
 // Socket payloads (wom-be sockets/market.py). A market chat message reuses
