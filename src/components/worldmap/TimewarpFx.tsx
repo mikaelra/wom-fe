@@ -21,6 +21,11 @@ import { timewarpFxState } from '@/lib/timewarpFx';
  *  first look in dev). */
 const SPOT_OPACITY = 0.425;
 const MAX_CRACKLE_SEGS = 1500;
+/** Space between one colour's layer and the next, as a share of the
+ *  globe's radius -- close, so the layers read as one weather. */
+const LAYER_GAP = 0.008;
+/** Lightning sources per colour, each striking from its own spot. */
+const BOLTS_PER_COLOR = 3;
 
 // Value noise and fbm over 3D -- procedural, so each layer's spots are its
 // own (a seed per layer) and nothing repeats across the globe the way a
@@ -125,7 +130,7 @@ function SpotLayer({ color, radius, index }: { color: string; radius: number; in
     // Untilted: it spins about Y, which is the Earth's axis in this scene
     // (celestial north; the globe itself turns about it too).
     <mesh ref={meshRef} material={material} renderOrder={10 + index}>
-      <sphereGeometry args={[radius * (1.05 + 0.025 * index), 96, 48]} />
+      <sphereGeometry args={[radius * (1.05 + LAYER_GAP * index), 96, 48]} />
     </mesh>
   );
 }
@@ -158,7 +163,7 @@ function Lightning({ color, radius, seedOffset }: { color: string; radius: numbe
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime + seedOffset;
-    if (t - lastBurst.current > 0.09 + 0.08 * Math.random()) {
+    if (t - lastBurst.current > 0.06 + 0.07 * Math.random()) {
       lastBurst.current = t;
       peak.current = 0.5 + Math.random() * 0.5;
       epicenter.randomDirection().multiplyScalar(radius);
@@ -179,9 +184,16 @@ export default function TimewarpFx({ colors, radius }: { colors: string[]; radiu
       {colors.map((c, i) => (
         <SpotLayer key={`spots|${c}|${i}`} color={c} radius={radius} index={i} />
       ))}
-      {colors.map((c, i) => (
-        <Lightning key={`${c}|${i}`} color={c} radius={radius} seedOffset={i * 0.37} />
-      ))}
+      {colors.flatMap((c, i) =>
+        Array.from({ length: BOLTS_PER_COLOR }, (_, j) => (
+          <Lightning
+            key={`${c}|${i}|${j}`}
+            color={c}
+            radius={radius}
+            seedOffset={(i * BOLTS_PER_COLOR + j) * 0.37}
+          />
+        )),
+      )}
     </group>
   );
 }
