@@ -71,3 +71,21 @@ describe('SceneTopBar avatar loading placeholder', () => {
     expect(avatarSpan(container).querySelector('img')).not.toBeNull();
   });
 });
+
+describe('SceneTopBar belowRules', () => {
+  it('draws what it is given directly under the Rules button', async () => {
+    mockedGetInventory.mockResolvedValue(inventory());
+    render(<SceneTopBar belowRules={<div data-testid="clock">12:00</div>} />);
+
+    const clock = await screen.findByTestId('clock');
+    const rules = screen.getByRole('button', { name: 'Rules' });
+    expect(rules.nextElementSibling).toBe(clock);
+  });
+
+  it('draws nothing extra without it', async () => {
+    mockedGetInventory.mockResolvedValue(inventory());
+    render(<SceneTopBar />);
+    await screen.findByRole('button', { name: 'Rules' });
+    expect(screen.queryByTestId('clock')).not.toBeInTheDocument();
+  });
+});

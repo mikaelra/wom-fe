@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { merchantState, revertedState } from '@/lib/__tests__/merchantFixtures';
+import { formatWorldClock } from '@/lib/worldClock';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { CSSProperties, ReactNode } from 'react';
 import CityPage from '@/app/city/page';
@@ -40,7 +42,7 @@ vi.mock('@/lib/api', () => ({
   // docs/MERCHANT_PLAN.md §7 -- the city's sky rewinds along with the
   // globe's while a revert is active. Defaults to "nothing reverted" so
   // every other test in this file keeps rendering the real current sky.
-  getMerchantOffer: vi.fn().mockResolvedValue({ offer: null }),
+  getMerchantOffer: vi.fn().mockResolvedValue(merchantState()),
   // SceneTopBar (via CityOverlay) loads these once an account token is
   // present -- which the bot-ranked tests set.
   getInventory: vi.fn().mockResolvedValue({
@@ -206,7 +208,7 @@ beforeEach(() => {
   lastCoords = undefined;
   lastDate = undefined;
   socket.__reset();
-  vi.mocked(getMerchantOffer).mockReset().mockResolvedValue({ offer: null });
+  vi.mocked(getMerchantOffer).mockReset().mockResolvedValue(merchantState());
   mockedCheckName.mockReset();
   mockedLogInUser.mockReset();
   mockedVerifyLoginCode.mockReset();
@@ -301,6 +303,32 @@ describe('CityPage (routing)', () => {
 // docs/MERCHANT_PLAN.md §7: the city's sky should rewind along with the
 // globe's while a revert is active, not just the Merchant's own offer
 // window (real bug, found live: it didn't).
+describe('CityPage world clock (under Rules, as on the Earth screen)', () => {
+  it('shows nothing until the merchant poll answers, then the time in green', async () => {
+    let answer: (v: ReturnType<typeof merchantState>) => void = () => {};
+    vi.mocked(getMerchantOffer).mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+    renderCity();
+    await waitForScene();
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument();
+
+    await act(async () => { answer(merchantState()); });
+
+    const clock = await screen.findByRole('timer', { name: 'Normal time' });
+    expect(clock).toHaveClass('text-green-400');
+    expect(clock.textContent).not.toMatch(/NaN/);
+  });
+
+  it('shows the timewarped time in red while time is turned back', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(revertedState('2028-10-03T12:00:00Z'));
+    renderCity();
+    await waitForScene();
+
+    const clock = await screen.findByRole('timer', { name: 'Timewarped time' });
+    expect(clock).toHaveClass('text-red-400');
+    expect(clock).toHaveTextContent(formatWorldClock(new Date('2028-10-03T12:00:00Z')));
+  });
+});
+
 describe('CityPage (Merchant time-revert)', () => {
   it('hands the scene the real current time when nothing is reverted', async () => {
     const before = Date.now();
@@ -311,14 +339,7 @@ describe('CityPage (Merchant time-revert)', () => {
 
   it('hands the scene revert_to_date while a revert is active', async () => {
     const revertedTo = '2026-01-01T00:00:00Z';
-    vi.mocked(getMerchantOffer).mockResolvedValue({
-      offer: {
-        offer_id: 1, merchant_name: 'The Merchant', item_name: 'Stone of Vitality',
-        cost_hades_coins: 5, trigger_kind: 'full_moon', active: true, available: true,
-        already_bought_this_period: false, period_start: '2026-09-25T16:49:32Z',
-        reverted: true, revert_expires_at: '2026-09-25T17:49:32Z', revert_to_date: revertedTo,
-      },
-    });
+    vi.mocked(getMerchantOffer).mockResolvedValue(revertedState(revertedTo));
     renderCity();
     await waitForScene();
     await waitFor(() => expect(lastDate!.getTime()).toBe(new Date(revertedTo).getTime()));
@@ -326,15 +347,7 @@ describe('CityPage (Merchant time-revert)', () => {
 
   it('an explicit ?t= debug override still wins over an active revert', async () => {
     searchT = '02:00';
-    vi.mocked(getMerchantOffer).mockResolvedValue({
-      offer: {
-        offer_id: 1, merchant_name: 'The Merchant', item_name: 'Stone of Vitality',
-        cost_hades_coins: 5, trigger_kind: 'full_moon', active: true, available: true,
-        already_bought_this_period: false, period_start: '2026-09-25T16:49:32Z',
-        reverted: true, revert_expires_at: '2026-09-25T17:49:32Z',
-        revert_to_date: '2026-01-01T00:00:00Z',
-      },
-    });
+    vi.mocked(getMerchantOffer).mockResolvedValue(revertedState('2026-01-01T00:00:00Z'));
     renderCity();
     await waitForScene();
     // resolveCityTime('02:00') is exercised directly by cityTime.test.ts --

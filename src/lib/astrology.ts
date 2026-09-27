@@ -194,6 +194,13 @@ function baseColorHex(body: Exclude<AspectBody, 'Sun'>, mercuryRetrograde: boole
   return body === 'Mercury' && mercuryRetrograde ? MERCURY_RETRO_COLOR : BASE_COLOR[body];
 }
 
+/** A body's own identity colour, as the globe draws it with no aspect or
+ *  retrograde in play -- what the conjunction merchant's marker and its
+ *  revert-popup line are coloured from (lib/merchant.ts PLANET_COLOR). */
+export function bodyColorHex(body: Exclude<AspectBody, 'Sun'>): number {
+  return BASE_COLOR[body];
+}
+
 // Per-body, optional: only the Moon has one today. Kept separate from the
 // generic Sun amplification below so it can be extended to other bodies, or
 // dropped, without touching that maths.

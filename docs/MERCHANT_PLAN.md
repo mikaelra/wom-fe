@@ -5,12 +5,14 @@ astronomical trigger. Click it and — if the trigger is active and you
 haven't already this period — the Merchant offers one item for Hades'
 Coins.
 
-Phase 1 (this doc, shipped on branch): **Stone of Vitality**, a relic that
-starts the player with 15 HP instead of 10, sold for 5 Hades' Coins, once
-per full moon. Phase 2 (not started): the same Merchant sells **Paper**
-(`docs/MARKET_PLAN.md` §1B's "Paper → Artifact spread" mechanic) on
-**conjunctions** instead, temporarily. Same mechanism, different trigger
-and item — that reuse is the point of everything below.
+Phase 1: **Stone of Vitality**, a relic that starts the player with 15 HP
+instead of 10, sold by **The Merchant** for 5 Hades' Coins, once per full
+moon. Phase 2 (§5): **Paper**, sold by the Merchant for 3 Hades' Coins at
+every **planetary conjunction** — and merchants now stack: every live sky
+event brings its own. Every one is just "The Merchant" (a different model
+later changes nothing about that). Same mechanism, different trigger and item — that
+reuse is the point of everything below. Paper's second use, upgrading to
+an Artifact in a trade (`docs/MARKET_PLAN.md` §1B), is the next PR.
 
 ---
 
@@ -92,11 +94,10 @@ dict, which Phase 2 extends with one entry.
    any player can buy Stone of Vitality every single full moon forever.
    Whether a first-time-only variant is wanted for a future offer is an
    open product call, not assumed here.
-3. **Phase 2 (Paper / conjunctions)** needs a conjunction-instant
-   authority before it can gate correctly — the same frontend-computes /
-   backend-stores split `ASTRAL_TIMERS_PLAN.md` §3 designs for the lunar
-   and solar gates, generalized to an arbitrary pair of bodies. Until that
-   exists, `_TRIGGER_CHECKS` only has `'full_moon'`.
+3. ~~**Phase 2 (Paper / conjunctions)** needs a conjunction-instant
+   authority.~~ Done (§5): the backend already pinned the same
+   `astronomy-engine` as the frontend (for `engine/season_calendar.py`), so
+   it computes conjunctions itself — no committed table needed.
 4. **`engine/moon.py` should retire** once `domain/astral_gates.py`
    (`ASTRAL_TIMERS_PLAN.md` §3) ships — swap `latest_full_moon_at_or_before`
    for `astral_gates.latest_lunar_at_or_before` and delete the
@@ -120,3 +121,100 @@ exemption:
   added to `src/lib/__tests__/frogSkins.test.ts`. `MerchantMarker.tsx`
   itself is untested directly, same as `CityMarker.tsx` — R3F scene
   components in this repo are verified by eye, not RTL.
+
+## 5. Phase 2: Paper, conjunctions, and stacking merchants
+
+### 5.1 The trigger
+
+A **conjunction** is two of Mercury, Venus, Mars, Jupiter, Saturn (not the
+Sun, not the Moon) at the same geocentric ecliptic longitude
+(`wom-be engine/conjunctions.py`). About twelve a year, the same rhythm as
+full moons (including the Moon would be ~76). Like the full moon it is live
+for 24h either side of its exact instant, and that instant is its
+`period_start`. Solved per month with the pinned `astronomy-engine` and
+cached — `/merchant/offer` is polled by every globe.
+
+### 5.2 Events, not triggers
+
+`domain/merchant.py`'s `sky_events_at(at)` lists every event live at an
+instant — the full moon, each conjunction — with its sign and bodies. **Each
+event summons its merchant**: a conjunction on a full moon is The Merchant
+*and* the conjunction's; two conjunctions at once are two Merchants. Each is its own
+once-per-event purchase (`merchant_trades.event_key`: `""` for the full
+moon, `"Venus-Jupiter"` for a conjunction). A later aspect summoning a
+merchant is one more producer in `sky_events_at` plus an offer row.
+
+The full-moon period is now the **nearest** full moon. It was the latest one
+at-or-before, which for the day before a full moon named last month's — a
+player could buy twice in one window.
+
+### 5.3 Turning back time, for every merchant
+
+There is one sky, so there is one revert (`merchant_time_reverts` row
+`'sky'`). It lasts an hour, but only its first minute is locked
+(`REVERT_LOCK`): after that anyone may timewarp again, replacing it — so
+many players get to timewarp, and one still runs its full hour when few
+do. Timewarped time runs on: half an hour into a timewarp to 12:00 the
+world is at 12:30. Sacrificing **either** relic — Stone of Vitality or Paper — rewinds
+it for everyone for an hour to the instant that copy was bought, and every
+trigger is evaluated **there**: whatever was live then is live again. A
+Paper bought under a conjunction that fell on a full moon brings back both
+merchants. The popup (opened by clicking the relic in the Inventory; the
+card itself carries no revert button or time status any more) shows where
+time stands ("Normal time" / "Time is currently reverted to …"), every copy
+the player owns with its own purchase instant — each turns time back to its
+own moment, and the player chooses which (`copy_id` on
+`/merchant/revert_time`; the newest if omitted) — and its **Timewarp**
+button. For each copy's instant it asks `GET /merchant/sky_events?at=` and
+lists just the kind of each event live then — "Full moon" in purple,
+"Conjunction" in orange — so the player knows who comes back. A copy
+bought during a revert is dated to the reverted instant, and outside one
+explicitly to now — so its own later revert lands on the events it came
+from.
+
+### 5.4 The frontend
+
+- One globe marker per merchant (`MerchantMarker`). The full moon's text
+  stays purple with a dark outline, and its light on the ground is the same
+  pool-and-rim as a conjunction's, both purple. A conjunction's text is the
+  **bigger planet's colour inside and the other's outside** (outline and
+  glow; `lib/merchant.ts` `merchantMarkerColors`, sized by
+  `PLANET_RADIUS_KM`). Its light on the ground is concentric: a pool
+  in the bigger planet's colour (a point light cut off at the pool's edge)
+  inside a thinner rim in the smaller planet's (an additive glow band bent
+  onto the globe, fading at both edges).
+- The Earth and city screens have a plain digital clock under the Rules
+  button (`WorldClock`, `lib/worldClock.ts`): `HH:MM DD.MM.YYYY` on the
+  viewer's own clock, green in normal time (following the dev clock when
+  one is set), red and held at the timewarped instant while time is turned
+  back. It isn't shown at all until the merchant poll has answered, and
+  never shows an unreadable instant.
+- In the scene, Paper is staged at 4x the Stone's size, centred on the same
+  spot on the table.
+- Each marker stands on the globe straight under its own sky: the full
+  moon's under the Moon, a conjunction's under the midpoint of its two
+  planets. The globe stays put and the sky turns around it
+  (`lib/skyDrift.ts` shares how far), so the markers move with the sky,
+  re-placed every frame. (This replaced a seeded random spot.)
+- The scene's line is by what summons him, never the particular event:
+  "Appears around the full moon" / "Appears around conjunctions".
+- `MerchantScene` stages whichever relic the merchant sells; Paper's model is
+  `public/models/relics/paper_v1.glb` (`pergament_v1` with its textures
+  resized 2048 → 1024: 6.6 MB → 0.7 MB).
+- `/merchant/offer`'s `sky_date` is the instant to draw the sky at when it
+  isn't now (a revert, or the dev clock); the globe and the city follow it.
+  The singular `offer` keeps its old shape for a frontend deployed before
+  this one.
+
+### 5.5 Testing it in dev
+
+`wom-be engine/dev_clock.py` moves "now" — honoured only when `ENV == "dev"`
+(production runs `ENV=prod`):
+
+```
+docker exec -w /app game_backend python -m engine.dev_clock 2026-11-16T06:00:00Z  # Mars–Jupiter in Leo
+docker exec -w /app game_backend python -m engine.dev_clock 2028-10-03T12:00:00Z  # Mercury–Jupiter in Libra on the full moon in Aries
+docker exec -w /app game_backend python -m engine.dev_clock --clear
+```
+
+The clock runs on from the set instant, and the globe's sky follows it.
