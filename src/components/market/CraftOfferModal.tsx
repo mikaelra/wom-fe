@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  artifactTradeProblem,
   clampCoins,
+  TRANSCRIBE_HOLDER_NOTE,
+  tradeName,
+  tradeNoun,
   itemKey,
   itemName,
   longOfferHours,
@@ -40,6 +44,7 @@ const CATEGORIES: ReadonlyArray<{ type: MarketItemInput['item_type']; label: str
   { type: 'relic', label: 'Relics' },
   { type: 'wheel', label: 'Wheels' },
   { type: 'skin', label: 'Skins' },
+  { type: 'artifact', label: 'Artifacts' },
 ];
 
 //: ai_credits per line -- matches domain/market.py's MAX_AI_CREDITS_PER_ITEM.
@@ -104,11 +109,27 @@ export default function CraftOfferModal({
       label: 'AI credits',
       max: MAX_AI_CREDITS_PER_ITEM,
     };
-    return [aiCredits, ...skins, ...relics, ...wheels];
+    // Nor is the Artifact -- always askable, one at most (wom-be
+    // docs/MARKET_PLAN.md §1B); it needs a Paper on your side.
+    const artifact: Line = {
+      input: { item_type: 'artifact', quantity: 1 },
+      label: 'Artifact',
+      max: 1,
+    };
+    return [aiCredits, ...skins, ...relics, ...wheels, artifact];
   }, [catalog]);
 
-  const wantMatches = catalogLines.filter((l) =>
-    l.label.toLowerCase().includes(wantSearch.trim().toLowerCase()),
+  // The Artifact is asked for with a Paper: it shows up in the picker once
+  // a Paper is on your side -- and only for someone without one, since an
+  // account holds one Artifact.
+  const paperOnGive = give.some(
+    (l) => l.input.item_type === 'relic' && l.input.relic_id === catalog.paper_relic_id,
+  );
+  const ownsArtifact = owned.some((o) => o.input.item_type === 'artifact');
+  const wantMatches = catalogLines.filter(
+    (l) =>
+      (l.input.item_type !== 'artifact' || (paperOnGive && !ownsArtifact)) &&
+      l.label.toLowerCase().includes(wantSearch.trim().toLowerCase()),
   );
 
   const addTo = (side: 'give' | 'want', line: Line) => {
@@ -142,7 +163,18 @@ export default function CraftOfferModal({
     );
   };
 
+  const artifactProblem = artifactTradeProblem(
+    give.map((l) => l.input),
+    want.map((l) => l.input),
+    catalog.paper_relic_id,
+  );
+
+  const noun = tradeNoun(
+    tradeName(give.map((l) => l.input), want.map((l) => l.input), catalog.paper_relic_id),
+  );
+
   const canProceed =
+    !artifactProblem &&
     give.length > 0 &&
     want.length > 0 &&
     (kind === 'quick' || (coins >= 1 && coins <= Math.min(MAX_LONG_COINS, coinsAvailable)));
@@ -158,7 +190,7 @@ export default function CraftOfferModal({
         want: mergeItemInputs(want.map((l) => l.input)),
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to post the trade.');
+      setError(e instanceof Error ? e.message : `Failed to post the ${noun}.`);
       setBusy(false);
       setStep('craft');
     }
@@ -288,6 +320,9 @@ export default function CraftOfferModal({
               </div>
             )}
 
+            {artifactProblem && give.length > 0 && want.length > 0 && (
+              <p className="text-sm text-amber-300 mt-3">{artifactProblem}</p>
+            )}
             {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
 
             <div className="mt-5 flex justify-end gap-2">
@@ -312,7 +347,10 @@ export default function CraftOfferModal({
 
         {step === 'confirm' && (
           <div className="text-sm text-white/80 space-y-3">
-            <p>Post this trade to the board?</p>
+            <p>Post this {noun} to the board?</p>
+            {give.some((l) => l.input.item_type === 'artifact') && (
+              <p className="text-red-400 font-semibold">{TRANSCRIBE_HOLDER_NOTE}</p>
+            )}
             <div className="rounded-lg bg-white/5 border border-white/10 p-3">
               <p>
                 <span className="text-white/50">Give: </span>
@@ -344,7 +382,7 @@ export default function CraftOfferModal({
                 onClick={submit}
                 className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
               >
-                {busy ? 'Posting…' : 'Post trade'}
+                {busy ? 'Posting…' : `Post ${noun}`}
               </button>
             </div>
           </div>
