@@ -6,15 +6,19 @@ import { TIMEWARP_PLANETS, TIMEWARP_TEST_MOMENTS } from '@/lib/timewarpFx';
 /**
  * The `?timewarp` preview's controls: play the full moon's timewarp, or a
  * conjunction's between any two planets -- for looking at and tuning the
- * animation without spending a relic. Only shown for a preview, never
+ * animation without spending a relic -- and a test moment's end, the way
+ * back to now when its hour runs out. Only shown for a preview, never
  * after a real timewarp.
  */
 export default function TimewarpPanel({
   onPlay,
+  onPlayEnd,
 }: {
   /** `to`: the moment to warp to, for a test moment; otherwise the page's
    *  own `?to=` (or the default). */
   onPlay: (value: string, to?: string) => void;
+  /** The same moment's end: from `to` forward to now. */
+  onPlayEnd: (value: string, to?: string) => void;
 }) {
   const [a, setA] = useState<string>('Mercury');
   const [b, setB] = useState<string>('Jupiter');
@@ -80,6 +84,13 @@ export default function TimewarpPanel({
           className={`${button} bg-white/10 border-white/30 text-white hover:bg-white/20`}
         >
           Play moment
+        </button>
+        <button
+          type="button"
+          onClick={() => onPlayEnd(TIMEWARP_TEST_MOMENTS[moment].value, TIMEWARP_TEST_MOMENTS[moment].to)}
+          className={`${button} bg-white/10 border-white/30 text-white hover:bg-white/20`}
+        >
+          Play end
         </button>
       </div>
     </div>

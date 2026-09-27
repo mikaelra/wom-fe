@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { buildCrackles } from './GlobeCrackleEffect';
 import { timewarpFxState } from '@/lib/timewarpFx';
+import { skyStep } from '@/lib/skyDrift';
 
 /**
  * The timewarp's clouds and electricity around the globe
@@ -85,8 +86,9 @@ function SpotLayer({ color, radius, index }: { color: string; radius: number; in
       seed: new THREE.Vector3(r(1) * 100, r(2) * 100, r(3) * 100),
       frequency: 2.6 + r(4) * 2.4,
       threshold: 0.5 + r(5) * 0.08,
-      // Either way round, but always about the Earth's own axis.
-      spinSpeed: (0.35 + r(6) * 0.6) * (index % 2 === 0 ? 1 : -1),
+      // Either way round, but always about the Earth's own axis. On-screen
+      // rad/s, about the same for every colour so none of them lags.
+      spinSpeed: (0.7 + r(6) * 0.2) * (index % 2 === 0 ? 1 : -1),
     };
   }, [index]);
 
@@ -129,7 +131,12 @@ function SpotLayer({ color, radius, index }: { color: string; radius: number; in
   useFrame((_, delta) => {
     const mesh = meshRef.current;
     if (!mesh) return;
-    mesh.rotation.y += delta * character.spinSpeed * (0.4 + 2.2 * timewarpFxState.spin);
+    // The camera turns with the sky (WorldMap's CameraRig, skyStep() a
+    // frame -- fast at full spin), so the layer turns with it first and
+    // then by its own speed: what shows on screen is that speed, either way
+    // round. Relative to the globe alone, a layer turning the camera's way
+    // looked nearly still.
+    mesh.rotation.y += skyStep() + delta * character.spinSpeed * (0.4 + 2.2 * timewarpFxState.spin);
     material.uniforms.uTime.value += delta;
     material.uniforms.uOpacity.value = (SPOT_OPACITY_BY_COLOR[color.toLowerCase()] ?? SPOT_OPACITY) * timewarpFxState.glow;
   });
