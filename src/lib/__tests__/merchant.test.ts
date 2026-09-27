@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  blendPlanetColors, describeMerchantEvent, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine,
-  merchantEventColor, merchantEventLatLng, merchantMarkerLabel, merchantMarkerLatLng,
+  CONJUNCTION_COLOR, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine, timewarpEventLabels,
+  merchantEventLatLng, merchantMarkerLabel, merchantMarkerLatLng,
   PLANET_COLOR, REVERT_RELIC_NAMES, arcDegrees, merchantMarkerColors, PLANET_RADIUS_KM, sphereDrop, MARKER_MIN_SEPARATION_DEG, placeMerchantMarkers,
 } from '@/lib/merchant';
 import { bodyColorHex } from '@/lib/astrology';
@@ -47,83 +47,32 @@ describe('merchantEventLatLng', () => {
   });
 });
 
-/** Lightness of a #rrggbb colour, 0..1. */
-function lightness(hex: string): number {
-  const n = parseInt(hex.slice(1), 16);
-  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
-  return (Math.max(...c) + Math.min(...c)) / 2;
-}
-
-describe('blendPlanetColors', () => {
+describe('PLANET_COLOR', () => {
   it('uses the same planet colours the globe draws', () => {
     for (const body of ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'] as const) {
       expect(PLANET_COLOR[body]).toBe(bodyColorHex(body));
     }
   });
-
-  it('is the same whichever planet is named first', () => {
-    expect(blendPlanetColors('Mars', 'Jupiter')).toBe(blendPlanetColors('Jupiter', 'Mars'));
-  });
-
-  it('keeps every pair readable: no muddy dark average, no wash to white', () => {
-    const planets = Object.keys(PLANET_COLOR);
-    for (const a of planets) {
-      for (const b of planets) {
-        if (a === b) continue;
-        const color = blendPlanetColors(a, b);
-        expect(color).toMatch(/^#[0-9a-f]{6}$/);
-        expect(lightness(color)).toBeGreaterThanOrEqual(0.59);
-        expect(lightness(color)).toBeLessThanOrEqual(0.73);
-      }
-    }
-  });
-
-  it('lands between the two hues: Mars red and Jupiter teal do not make Mars red', () => {
-    const blend = blendPlanetColors('Mars', 'Jupiter');
-    expect(blend).not.toBe(blendPlanetColors('Mars', 'Mars'));
-    expect(blend).not.toBe(blendPlanetColors('Jupiter', 'Jupiter'));
-  });
-
-  it('a grey mix (no saturation) stays grey', () => {
-    PLANET_COLOR.Grey = 0x808080;
-    try {
-      expect(blendPlanetColors('Grey', 'Grey')).toBe('#999999');
-    } finally {
-      delete PLANET_COLOR.Grey;
-    }
-  });
-
-  it('falls back to the full-moon purple for a body it does not know', () => {
-    expect(blendPlanetColors('Mars', 'Pluto')).toBe(FULL_MOON_MERCHANT_COLOR);
-  });
 });
 
-describe('merchantEventColor', () => {
-  it('is the purple for the full moon, and for no event at all', () => {
-    expect(merchantEventColor(FULL_MOON_EVENT)).toBe(FULL_MOON_MERCHANT_COLOR);
-    expect(merchantEventColor(null)).toBe(FULL_MOON_MERCHANT_COLOR);
+describe('timewarpEventLabels', () => {
+  it('is just the kind: Full moon in purple, Conjunction in orange, full moon first', () => {
+    expect(timewarpEventLabels([MERCURY_JUPITER_EVENT, FULL_MOON_EVENT])).toEqual([
+      { text: 'Full moon', color: FULL_MOON_MERCHANT_COLOR },
+      { text: 'Conjunction', color: CONJUNCTION_COLOR },
+    ]);
   });
 
-  it('is the blend of the two planets for a conjunction', () => {
-    expect(merchantEventColor(MERCURY_JUPITER_EVENT)).toBe(blendPlanetColors('Mercury', 'Jupiter'));
-  });
-});
-
-describe('describing events', () => {
-  it('names the full moon by sign', () => {
-    expect(describeMerchantEvent(FULL_MOON_EVENT)).toBe('Full moon in Aries');
-
+  it('names two conjunctions at one moment once', () => {
+    const other = { ...MERCURY_JUPITER_EVENT, key: 'Venus-Mars', bodies: ['Venus', 'Mars'] };
+    expect(timewarpEventLabels([MERCURY_JUPITER_EVENT, other])).toEqual([
+      { text: 'Conjunction', color: CONJUNCTION_COLOR },
+    ]);
   });
 
-  it('names a conjunction by its two planets and sign', () => {
-    expect(describeMerchantEvent(MERCURY_JUPITER_EVENT)).toBe('Conjunction between Mercury and Jupiter in Libra');
-
-  });
-
-  it('still says something for a kind it does not know yet', () => {
-    const trine = { kind: 'trine', key: 'Venus-Mars', bodies: ['Venus', 'Mars'], sign: 'Leo', at: 'x' };
-    expect(describeMerchantEvent(trine)).toBe('trine in Leo');
-    expect(describeMerchantEvent({ ...trine, sign: '' })).toBe('trine');
+  it('is nothing for a quiet moment, or a kind it does not know yet', () => {
+    expect(timewarpEventLabels([])).toEqual([]);
+    expect(timewarpEventLabels([{ ...MERCURY_JUPITER_EVENT, kind: 'trine' }])).toEqual([]);
   });
 });
 

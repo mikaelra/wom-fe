@@ -162,8 +162,8 @@ the player owns with its own purchase instant — each turns time back to its
 own moment, and the player chooses which (`copy_id` on
 `/merchant/revert_time`; the newest if omitted) — and its **Timewarp**
 button. For each copy's instant it asks `GET /merchant/sky_events?at=` and
-lists each event ("Full moon in Aries", "Conjunction between
-Mercury and Jupiter in Libra") so the player knows who comes back. A copy
+lists just the kind of each event live then — "Full moon" in purple,
+"Conjunction" in orange — so the player knows who comes back. A copy
 bought during a revert is dated to the reverted instant, and outside one
 explicitly to now — so its own later revert lands on the events it came
 from.

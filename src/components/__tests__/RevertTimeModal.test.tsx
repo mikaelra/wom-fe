@@ -3,7 +3,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import RevertTimeModal, { formatRevertedTo } from '@/components/merchant/RevertTimeModal';
 import { getMerchantSkyEvents, revertMerchantTime } from '@/lib/api';
 import { ApiError, setStoredAccountToken } from '@/lib/http';
-import { blendPlanetColors, FULL_MOON_MERCHANT_COLOR } from '@/lib/merchant';
+import { CONJUNCTION_COLOR, FULL_MOON_MERCHANT_COLOR } from '@/lib/merchant';
 import { FULL_MOON_EVENT, MERCURY_JUPITER_EVENT } from '@/lib/__tests__/merchantFixtures';
 import type { Relic } from '@/types/game';
 
@@ -62,20 +62,22 @@ describe('RevertTimeModal', () => {
     renderModal();
 
     expect(screen.getByText('This Stone of Vitality was bought')).toBeInTheDocument();
-    expect(await screen.findByText('Full moon in Aries')).toBeInTheDocument();
+    expect(await screen.findByText('Full moon')).toBeInTheDocument();
     expect(mockedSkyEvents).toHaveBeenCalledWith(new Date(STONE.newest_copy_created_at).toISOString());
     expect(mockedRevert).not.toHaveBeenCalled();
   });
 
-  it('lists every event of a moment that was a full moon and a conjunction, each in its colour', async () => {
+  it('lists only "Full moon" in purple and "Conjunction" in orange for a moment with both', async () => {
     mockedSkyEvents.mockResolvedValue([FULL_MOON_EVENT, MERCURY_JUPITER_EVENT]);
     renderModal({ relic: PAPER });
 
     expect(screen.getByText('This Paper was bought')).toBeInTheDocument();
-    const moon = await screen.findByText('Full moon in Aries');
-    const conj = screen.getByText('Conjunction between Mercury and Jupiter in Libra');
+    const moon = await screen.findByText('Full moon');
+    const conj = screen.getByText('Conjunction');
     expect(moon).toHaveStyle({ color: FULL_MOON_MERCHANT_COLOR });
-    expect(conj).toHaveStyle({ color: blendPlanetColors('Mercury', 'Jupiter') });
+    expect(conj).toHaveStyle({ color: CONJUNCTION_COLOR });
+    // Only the kind -- no sign, no planets.
+    expect(screen.queryByText(/Aries|Libra|Mercury|Jupiter/)).not.toBeInTheDocument();
   });
 
   it('says so while it is still reading the sky', () => {
@@ -211,7 +213,7 @@ describe('RevertTimeModal', () => {
       renderModal({ blocked: true, blockedUntil: until(), revertedTo: '2026-09-11T21:00:00+00:00' });
 
       expect(screen.getByText('This Stone of Vitality was bought')).toBeInTheDocument();
-      expect(await screen.findByText('Full moon in Aries')).toBeInTheDocument();
+      expect(await screen.findByText('Full moon')).toBeInTheDocument();
     });
 
     it('Close calls onClose', () => {
@@ -269,7 +271,7 @@ describe('RevertTimeModal', () => {
       expect(options).toHaveLength(2);
       expect(options[0]).toHaveAttribute('aria-checked', 'true');
       expect(options[1]).toHaveAttribute('aria-checked', 'false');
-      expect(await within(options[0]).findByText('Full moon in Aries')).toBeInTheDocument();
+      expect(await within(options[0]).findByText('Full moon')).toBeInTheDocument();
       expect(await within(options[1]).findByText('No merchant was in town then.')).toBeInTheDocument();
     });
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getMerchantSkyEvents, revertMerchantTime, type MerchantEvent } from '@/lib/api';
 import { getStoredAccountToken, ApiError } from '@/lib/http';
-import { describeMerchantEvent, merchantEventColor } from '@/lib/merchant';
+import { timewarpEventLabels } from '@/lib/merchant';
 import { useCountdown } from '@/lib/useCountdown';
 import type { Relic } from '@/types/game';
 
@@ -70,8 +70,8 @@ export function formatCountdown(totalSeconds: number): string {
  *
  * Where time stands (normal, or reverted and until when), every copy the
  * player owns with the instant it was bought and every event that was
- * live then ("Full moon in Aries", "Conjunction between Mercury and
- * Jupiter in Libra") -- each copy turns time back to its own moment, so
+ * live then ("Full moon", "Conjunction") -- each copy turns time back to
+ * its own moment, so
  * the player picks which -- and the Timewarp action. If someone has
  * already reverted time the action is blocked outright, with the reason
  * and a countdown, rather than letting the player hit a 409.
@@ -165,9 +165,9 @@ export default function RevertTimeModal({
     if (list === undefined) return <p className="text-white/40 text-xs mt-1">Reading the sky…</p>;
     if (list === null) return <p className="text-white/40 text-xs mt-1">Couldn&rsquo;t read the sky right now.</p>;
     if (list.length === 0) return <p className="text-white/40 text-xs mt-1">No merchant was in town then.</p>;
-    return list.map((event) => (
-      <p key={`${event.kind}|${event.key}`} className="text-xs mt-1" style={{ color: merchantEventColor(event) }}>
-        {describeMerchantEvent(event)}
+    return timewarpEventLabels(list).map(({ text, color }) => (
+      <p key={text} className="text-xs mt-1" style={{ color }}>
+        {text}
       </p>
     ));
   };
