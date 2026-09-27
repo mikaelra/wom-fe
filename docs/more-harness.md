@@ -12,7 +12,7 @@ notes under each item.
 | Layer | Harness |
 |---|---|
 | **wom-be** (backend) | pytest with a **coverage ratchet** (`fail_under` in `pyproject.toml`, raised deliberately per-phase with a changelog of *why* in comments) · **Hypothesis** property-based tests for combat math (`tests/test_combat_properties.py`) · `ruff` + `mypy` (non-strict, scoped) · all three gate PRs via GitHub Actions |
-| **wom-fe** (frontend) | Vitest unit/component tests · `eslint` with `react-hooks/exhaustive-deps` promoted to error (targets this codebase's most likely bug class — stale closures in socket effects) · `tsc --noEmit` as its own CI job · Playwright smoke spec (`e2e/lobby-smoke.spec.ts`) |
+| **wom-fe** (frontend) | Vitest unit/component tests · `eslint` with `react-hooks/exhaustive-deps` promoted to error (targets this codebase's most likely bug class — stale closures in socket effects) · `tsc --noEmit` as its own CI job · browser e2e lives in the separate `wom-e2e` repo (the in-repo Playwright smoke spec was moved there) |
 | **wom-e2e** (cross-repo) | Failure-injection harness — real browser + real Socket.IO + real Postgres, three named assertion *shapes* (`assertNoStall`/`assertHandlesDeparture`/`readState`) to avoid false-fail/false-pass patterns, a `matrix.yaml` registry with drift-checking (`npm run matrix:check`), env "knobs" for timers instead of sleeping through real durations, an isolated chaos tier for backend-restart, and `KNOWN_ISSUES.md` tracking real product bugs found by the suite |
 | **Docs-as-harness** | `docs/CODEBASE_HARDENING_PLAN.md` — a living, phased plan with a self-audit, already substantially executed based on the coverage-ratchet changelog |
 

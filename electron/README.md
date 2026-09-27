@@ -55,11 +55,10 @@ Steam release.
 
 ## Not done yet
 
-- **Real Steam app id.** `480` is a placeholder until Steam Direct is paid and
-  Valve assigns one (§10.2). Set it in `steam.js`'s `APP_ID` default;
-  `electron-builder.yml`'s `appId` stays `net.worldofmythos.game`.
 - **Real Steam app id.** `480` is a placeholder — set `steam.js`'s `APP_ID`
-  default (and `WOM_STEAM_APPID` / the `steam:upload` env) to the assigned one.
+  default (and `WOM_STEAM_APPID` / the `steam:upload` env) to the one Valve
+  assigned (§10.2). `electron-builder.yml`'s `appId` stays
+  `net.worldofmythos.game`.
 - **Content-Security-Policy.** No CSP is set on the renderer yet; it needs to
   allow the backend origin + `wss:` and the app's blob/wasm workers (Draco),
   which is easiest to tune against the app actually running.

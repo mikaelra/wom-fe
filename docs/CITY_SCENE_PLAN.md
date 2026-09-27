@@ -1,7 +1,9 @@
 # City Scene Plan — Greece, the Signpost, and the Real Sky
 
-Status: **in progress — steps 1–12 of §13 built** · Scope: `wom-fe` only (no backend,
-no protocol change) · Written: 2026-08-30 · Last updated: 2026-08-30
+Status: **in progress — steps 1–12 and 17 of §13 built and merged (wom-fe#327, #348);
+the Senate is still the procedural placeholder (step 13); steps 14–16 still open** ·
+Scope: `wom-fe` only (no backend, no protocol change) · Written: 2026-08-30 · Last
+updated: 2026-09-27
 
 > **Implementation notes.** Steps 1–11 are built on the `city-scene` branch, which
 > carries the running work. Building them disproved six things this plan asserted
