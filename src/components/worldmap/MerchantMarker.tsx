@@ -17,7 +17,8 @@ export interface MerchantMarkerSpec {
    *  merchantMarkerColors). */
   color: string;
   /** A conjunction's smaller planet: the text's outer colour, and the rim
-   *  of light around the pool on the ground. null for the full moon. */
+   *  of light around the pool on the ground. null for the full moon, whose
+   *  rim is its own purple. */
   outline: string | null;
   label: string;
 }
@@ -55,9 +56,9 @@ interface MerchantMarkerProps {
  * onClick to raycast against, so the label is given `pointerEvents: 'auto'`
  * and handles the click/hover itself instead.
  */
-// A conjunction's light on the ground is concentric: a pool in the bigger
-// planet's colour (a real point light, cut off at the pool's edge) inside a
-// thinner rim in the smaller planet's colour. The rim is an additive glow
+// A merchant's light on the ground is concentric: a pool (a real point
+// light, cut off at the pool's edge) inside a thinner rim -- a conjunction's
+// bigger planet inside its smaller one, the full moon's purple in both. The rim is an additive glow
 // band laid on the globe (a light can't make a ring -- it always falls off
 // outward from a point).
 const POOL_LIFT = 0.1;
@@ -124,21 +125,16 @@ export default function MerchantMarker({ lat, lng, color, outline, label, globeR
 
   return (
     <group position={position} quaternion={quaternion}>
-      {outline ? (
-        <>
-          <pointLight
-            color={color}
-            position={[0, POOL_LIFT, 0]}
-            intensity={hovered ? 6.6 : 4.2}
-            distance={POOL_REACH}
-          />
-          <RimGlow color={outline} globeRadius={globeRadius} hovered={hovered} />
-        </>
-      ) : (
-        // The glow on the globe itself -- tripled radius/intensity from the
-        // original so it reads from a distance, the label's colour.
-        <pointLight color={color} intensity={hovered ? 6.6 : 4.2} distance={7.5} />
-      )}
+      {/* The pool of light on the ground and its rim: the bigger planet's
+          colour inside the smaller one's for a conjunction, both the
+          Merchant's purple for the full moon. */}
+      <pointLight
+        color={color}
+        position={[0, POOL_LIFT, 0]}
+        intensity={hovered ? 6.6 : 4.2}
+        distance={POOL_REACH}
+      />
+      <RimGlow color={outline ?? color} globeRadius={globeRadius} hovered={hovered} />
 
       <FreshHtml position={[0, 1.0, 0]} center distanceFactor={6}>
         <div

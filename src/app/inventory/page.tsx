@@ -12,13 +12,12 @@ import WheelSpinModal from '@/components/WheelSpinModal';
 import TradeUpModal from '@/components/TradeUpModal';
 import RelicCoin from '@/components/RelicCoin';
 import ArtifactLedgerModal from '@/components/ArtifactLedgerModal';
-import RevertTimeModal, { formatCountdown } from '@/components/merchant/RevertTimeModal';
+import RevertTimeModal from '@/components/merchant/RevertTimeModal';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { REVERT_RELIC_NAMES } from '@/lib/merchant';
-import { useCountdown } from '@/lib/useCountdown';
 import { CONSUMABLE_RELIC_NAMES, type Relic } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
 
@@ -30,18 +29,6 @@ type WheelEntry = { id: number; kind: string };
 type WheelGroup = { kind: string; id: number; count: number };
 
 const DEFAULT_SKIN = 'frog_green_v1';
-
-// docs/MERCHANT_PLAN.md §7 -- "time is currently reverted to 14:32 26.
-// sep", read off the viewer's own device clock/timezone. toLocaleTimeString
-// and getDate()/toLocaleDateString are local-timezone by construction (no
-// explicit `timeZone` option), so this already adjusts itself per viewer
-// without any extra work.
-function formatRevertedTo(iso: string): string {
-  const d = new Date(iso);
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  const month = d.toLocaleDateString(undefined, { month: 'short' }).toLowerCase();
-  return `${time} ${d.getDate()}. ${month}`;
-}
 
 function groupWheels(wheels: WheelEntry[]): WheelGroup[] {
   const groups = new Map<string, WheelGroup>();
@@ -67,9 +54,9 @@ export default function InventoryPage() {
   // Paper) currently open in the "turn back time" confirmation popup, or
   // null when it's closed.
   const [revertRelic, setRevertRelic] = useState<Relic | null>(null);
-  // Polled the same way the globe learns it, so the card can show "someone
-  // already reverted" + a countdown before the player even opens the
-  // popup, not just once they've clicked through and hit a 409.
+  // Polled the same way the globe learns it, so the Timewarp popup can
+  // show where time stands -- and block with a countdown if someone else
+  // already reverted it -- before the player tries, not after a 409.
   const {
     merchant,
     reverted: revertBlocked,
@@ -77,7 +64,6 @@ export default function InventoryPage() {
     revertToDate,
     refresh: refreshMerchantOffer,
   } = useMerchantOffer();
-  const secondsUntilRevertAvailable = useCountdown(revertBlocked ? revertExpiresAt : null);
   // The Artifacts category. `artifact` is null for almost every account --
   // that is the point of it, and the empty state carries the weight.
   const [equippedCosmetic, setEquippedCosmetic] = useState<string | null>(null);
@@ -344,50 +330,6 @@ export default function InventoryPage() {
                         <p className="text-xs text-white/50 text-center">{relic.flavour_text}</p>
                       )}
                       {relic.count > 1 && <p className="text-xs text-white/50">×{relic.count}</p>}
-                      {/* docs/MERCHANT_PLAN.md §7 -- sacrifices one copy to
-                          turn the sky back for everyone for an hour, to
-                          when it was bought.
-                          A standalone action, not tied to starting a
-                          match, so it lives on this card rather than in
-                          the pre-match relic picker. The status line (red
-                          vs. green) is only shown once the merchant poll has
-                          actually loaded -- there's nothing honest to say
-                          about the world's clock before that. Blocked
-                          outright, with a visible reason and a countdown,
-                          while someone else's revert is still running --
-                          rather than only finding that out after clicking
-                          through and hitting a 409. */}
-                      {REVERT_RELIC_NAMES.has(relic.name) && (
-                        <div className="mt-1 text-center">
-                          {merchant && (
-                            revertBlocked && revertToDate ? (
-                              <p className="text-red-400 text-[10px] font-semibold">
-                                Time is currently reverted to {formatRevertedTo(revertToDate)}
-                              </p>
-                            ) : !revertBlocked ? (
-                              <p className="text-green-400 text-[10px] font-semibold uppercase tracking-wide">
-                                Normal time
-                              </p>
-                            ) : null
-                          )}
-                          {revertBlocked ? (
-                            secondsUntilRevertAvailable !== null && secondsUntilRevertAvailable > 0 && (
-                              <p className="text-white/50 text-[10px] font-mono">
-                                {formatCountdown(secondsUntilRevertAvailable)}
-                              </p>
-                            )
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setRevertRelic(relic)}
-                              title={`Sacrifice one ${relic.name} to turn the sky back to when it was bought, for everyone, for an hour.`}
-                              className="mt-1 text-[10px] uppercase tracking-wide text-purple-300 border border-purple-400/40 rounded px-1.5 py-0.5 hover:bg-purple-400/10 transition-colors cursor-pointer"
-                            >
-                              Revert Time (1h)
-                            </button>
-                          )}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -584,6 +526,8 @@ export default function InventoryPage() {
           relic={revertRelic}
           blocked={revertBlocked}
           blockedUntil={revertExpiresAt}
+          revertedTo={revertToDate ?? null}
+          statusKnown={merchant !== null}
           onClose={() => setRevertRelic(null)}
           onReverted={handleReverted}
         />

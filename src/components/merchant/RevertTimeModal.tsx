@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getMerchantSkyEvents, revertMerchantTime, type MerchantEvent } from '@/lib/api';
 import { getStoredAccountToken, ApiError } from '@/lib/http';
 import { describeMerchantEvent, merchantEventColor } from '@/lib/merchant';
@@ -16,6 +16,13 @@ type Props = {
    *  player tries it, rather than after a 409. */
   blocked: boolean;
   blockedUntil: string | null;
+  /** Where the sky is while blocked (the revert's instant), for the status
+   *  line. */
+  revertedTo: string | null;
+  /** Whether the merchant poll has answered yet -- the status line says
+   *  nothing until it has, since there is nothing honest to say about the
+   *  world's clock before that. */
+  statusKnown: boolean;
   onClose: () => void;
   /** Called once the sacrifice actually succeeds -- the caller reloads the
    *  inventory and shows its own success toast, same as every other
@@ -32,6 +39,24 @@ function formatExact(iso: string): string {
   return `${date} at ${time}`;
 }
 
+// "Time is currently reverted to 14:32 26. sep", read off the viewer's own
+// device clock/timezone (no explicit `timeZone`, so it adjusts itself per
+// viewer). Moved here from the inventory card along with the status line.
+export function formatRevertedTo(iso: string): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const month = d.toLocaleDateString(undefined, { month: 'short' }).toLowerCase();
+  return `${time} ${d.getDate()}. ${month}`;
+}
+
+/** An instant as ISO 8601, whatever form it arrived in -- the relic list's
+ *  own timestamps come back RFC 1123 ("Tue, 03 Oct 2028 12:00:00 GMT"),
+ *  which /merchant/sky_events does not read. */
+function toIso(instant: string): string {
+  const d = new Date(instant);
+  return Number.isNaN(d.getTime()) ? instant : d.toISOString();
+}
+
 export function formatCountdown(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
@@ -43,35 +68,49 @@ export function formatCountdown(totalSeconds: number): string {
  * Inventory opens this -- mirrors ArtifactLedgerModal being what clicking
  * your artifact opens.
  *
- * Two purposes in one popup: explain exactly what sacrificing this copy
- * will do -- the precise instant it turns everyone's sky back to, and
- * every event that was live then ("Full moon in Aries", "Conjunction
- * between Mercury and Jupiter in Libra"), because each of those brings
- * its merchant back -- before the player has to confirm; and, if someone
- * has already reverted time, block the action outright with a visible
- * reason and a countdown to when it becomes possible again.
+ * Where time stands (normal, or reverted and until when), every copy the
+ * player owns with the instant it was bought and every event that was
+ * live then ("Full moon in Aries", "Conjunction between Mercury and
+ * Jupiter in Libra") -- each copy turns time back to its own moment, so
+ * the player picks which -- and the Timewarp action. If someone has
+ * already reverted time the action is blocked outright, with the reason
+ * and a countdown, rather than letting the player hit a 409.
  */
-export default function RevertTimeModal({ relic, blocked, blockedUntil, onClose, onReverted }: Props) {
+export default function RevertTimeModal({
+  relic, blocked, blockedUntil, revertedTo, statusKnown, onClose, onReverted,
+}: Props) {
   const [phase, setPhase] = useState<Phase>('preview');
   const [error, setError] = useState('');
   const submittingRef = useRef(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   const secondsUntilAvailable = useCountdown(blocked ? blockedUntil : null);
-  const revertToDate = relic.newest_copy_created_at;
-  // The backend is the authority on which events count (which planets,
-  // how close), so the list is asked for rather than re-derived here.
-  // undefined while loading, null if the sky couldn't be read.
-  const [events, setEvents] = useState<MerchantEvent[] | null | undefined>(undefined);
+  // Every copy, newest first. A backend that predates the per-copy list
+  // only knows the newest one, which is also what it sacrifices unasked.
+  const copies = useMemo(
+    () =>
+      relic.copies?.length
+        ? relic.copies
+        : [{ id: null as number | null, created_at: relic.newest_copy_created_at }],
+    [relic.copies, relic.newest_copy_created_at],
+  );
+  const [chosenIndex, setChosenIndex] = useState(0);
+  const chosen = copies[Math.min(chosenIndex, copies.length - 1)];
 
+  // The backend is the authority on which events count (which planets,
+  // how close), so each copy's list is asked for rather than re-derived
+  // here. Keyed by instant: undefined while loading, null if the sky
+  // couldn't be read.
+  const [events, setEvents] = useState<Record<string, MerchantEvent[] | null>>({});
   useEffect(() => {
     let cancelled = false;
-    setEvents(undefined);
-    getMerchantSkyEvents(revertToDate)
-      .then((e) => { if (!cancelled) setEvents(e); })
-      .catch(() => { if (!cancelled) setEvents(null); });
+    for (const instant of new Set(copies.map((c) => toIso(c.created_at)))) {
+      getMerchantSkyEvents(instant)
+        .then((e) => { if (!cancelled) setEvents((prev) => ({ ...prev, [instant]: e })); })
+        .catch(() => { if (!cancelled) setEvents((prev) => ({ ...prev, [instant]: null })); });
+    }
     return () => { cancelled = true; };
-  }, [revertToDate]);
+  }, [copies]);
 
   useEffect(() => {
     if (phase === 'confirming') confirmRef.current?.focus();
@@ -98,7 +137,7 @@ export default function RevertTimeModal({ relic, blocked, blockedUntil, onClose,
       submittingRef.current = false;
       return;
     }
-    revertMerchantTime(token, relic.name)
+    revertMerchantTime(token, relic.name, chosen.id)
       .then(() => {
         onReverted();
         onClose();
@@ -112,25 +151,62 @@ export default function RevertTimeModal({ relic, blocked, blockedUntil, onClose,
       });
   };
 
-  // What this copy would turn the sky back to: its instant, and every
-  // merchant-summoning event live then.
-  const boughtAt = (
-    <div className="bg-black/30 border border-white/10 rounded-lg p-3 mb-4 text-left">
-      <p className="text-white/50 text-[11px] uppercase tracking-wide mb-1">This {relic.name} was bought</p>
-      <p className="text-sm font-semibold">{formatExact(revertToDate)}</p>
-      {events === undefined ? (
-        <p className="text-white/40 text-xs mt-1">Reading the sky…</p>
-      ) : events === null ? (
-        <p className="text-white/40 text-xs mt-1">Couldn&rsquo;t read the sky right now.</p>
-      ) : events.length === 0 ? (
-        <p className="text-white/40 text-xs mt-1">No merchant was in town then.</p>
-      ) : (
-        events.map((event) => (
-          <p key={`${event.kind}|${event.key}`} className="text-xs mt-1" style={{ color: merchantEventColor(event) }}>
-            {describeMerchantEvent(event)}
-          </p>
-        ))
-      )}
+  // Where time stands right now -- moved here from the inventory card.
+  const status = !statusKnown ? null : blocked && revertedTo ? (
+    <p className="text-red-400 text-xs font-semibold mb-3">
+      Time is currently reverted to {formatRevertedTo(revertedTo)}
+    </p>
+  ) : !blocked ? (
+    <p className="text-green-400 text-xs font-semibold uppercase tracking-wide mb-3">Normal time</p>
+  ) : null;
+
+  const eventLines = (instant: string) => {
+    const list = events[toIso(instant)];
+    if (list === undefined) return <p className="text-white/40 text-xs mt-1">Reading the sky…</p>;
+    if (list === null) return <p className="text-white/40 text-xs mt-1">Couldn&rsquo;t read the sky right now.</p>;
+    if (list.length === 0) return <p className="text-white/40 text-xs mt-1">No merchant was in town then.</p>;
+    return list.map((event) => (
+      <p key={`${event.kind}|${event.key}`} className="text-xs mt-1" style={{ color: merchantEventColor(event) }}>
+        {describeMerchantEvent(event)}
+      </p>
+    ));
+  };
+
+  // Every copy's own time -- the one chosen is the one Timewarp spends.
+  const copyList = (
+    <div className="mb-4 text-left">
+      <p className="text-white/50 text-[11px] uppercase tracking-wide mb-1">
+        {copies.length > 1 ? 'Choose a time' : `This ${relic.name} was bought`}
+      </p>
+      <div role={copies.length > 1 ? 'radiogroup' : undefined} className="flex flex-col gap-2">
+        {copies.map((copy, i) => {
+          const selected = copy === chosen;
+          const body = (
+            <>
+              <p className="text-sm font-semibold">{formatExact(copy.created_at)}</p>
+              {eventLines(copy.created_at)}
+            </>
+          );
+          return copies.length > 1 ? (
+            <button
+              key={`${copy.id}|${copy.created_at}|${i}`}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => setChosenIndex(i)}
+              className={`w-full text-left rounded-lg p-3 border transition-colors cursor-pointer ${
+                selected ? 'bg-purple-900/40 border-purple-400' : 'bg-black/30 border-white/10 hover:border-white/30'
+              }`}
+            >
+              {body}
+            </button>
+          ) : (
+            <div key={`${copy.id}|${copy.created_at}|${i}`} className="bg-black/30 border border-white/10 rounded-lg p-3">
+              {body}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 
@@ -145,6 +221,7 @@ export default function RevertTimeModal({ relic, blocked, blockedUntil, onClose,
         <h2 id="revert-time-heading" className="text-lg font-bold mb-1">
           Turn Back Time
         </h2>
+        {status}
 
         {blocked ? (
           <>
@@ -159,10 +236,10 @@ export default function RevertTimeModal({ relic, blocked, blockedUntil, onClose,
                 {formatCountdown(secondsUntilAvailable)}
               </p>
             )}
-            {/* Blocked from using it right now, but the player can still
-                see what THIS copy would have reverted time to -- the
+            {/* Blocked from using them right now, but the player can still
+                see what each copy would have reverted time to -- the
                 information doesn't depend on being able to act on it. */}
-            {boughtAt}
+            {copyList}
             <button
               type="button"
               onClick={onClose}
@@ -188,7 +265,7 @@ export default function RevertTimeModal({ relic, blocked, blockedUntil, onClose,
           <>
             <p className="text-white/80 text-sm mt-3 mb-4">
               This sacrifices 1 {relic.name} and cannot be undone. The sky will turn back to{' '}
-              {formatExact(revertToDate)} for everyone for 1 hour, and every merchant who was in
+              {formatExact(chosen.created_at)} for everyone for 1 hour, and every merchant who was in
               town then will be back.
             </p>
             <div className="flex gap-3 justify-center">
@@ -215,7 +292,7 @@ export default function RevertTimeModal({ relic, blocked, blockedUntil, onClose,
               Sacrifice this {relic.name} to bring back the merchants of the moment it was bought,
               for everyone, for 1 hour.
             </p>
-            {boughtAt}
+            {copyList}
             <p className="text-white/60 text-xs mb-4">
               Using it will turn the sky back to that exact moment for everyone, for 1 hour.
             </p>
@@ -225,7 +302,7 @@ export default function RevertTimeModal({ relic, blocked, blockedUntil, onClose,
                 onClick={() => setPhase('confirming')}
                 className="px-5 py-2 rounded-lg bg-purple-700/80 text-purple-200 border border-purple-500 font-bold hover:bg-purple-600/80 transition-colors cursor-pointer"
               >
-                Turn Back Time
+                Timewarp
               </button>
               <button
                 type="button"

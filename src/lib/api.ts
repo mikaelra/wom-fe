@@ -183,9 +183,12 @@ export async function purchaseMerchantOffer(
 export async function revertMerchantTime(
   token: string,
   relic: string,
+  /** Which copy -- each turns time back to its own purchase instant. null
+   *  or omitted is the newest. */
+  copyId: number | null = null,
 ): Promise<z.infer<typeof MerchantRevertTimeResponseSchema>> {
   return request('/merchant/revert_time', MerchantRevertTimeResponseSchema, {
-    body: { token, relic },
+    body: copyId === null ? { token, relic } : { token, relic, copy_id: copyId },
     defaultErrorMessage: 'Failed to revert time.',
   });
 }

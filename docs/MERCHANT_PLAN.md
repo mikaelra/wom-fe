@@ -155,8 +155,14 @@ There is one sky, so there is one revert (`merchant_time_reverts` row
 it for everyone for an hour to the instant that copy was bought, and every
 trigger is evaluated **there**: whatever was live then is live again. A
 Paper bought under a conjunction that fell on a full moon brings back both
-merchants. The revert popup asks `GET /merchant/sky_events?at=` for that
-instant and lists each event ("Full moon in Aries", "Conjunction between
+merchants. The popup (opened by clicking the relic in the Inventory; the
+card itself carries no revert button or time status any more) shows where
+time stands ("Normal time" / "Time is currently reverted to …"), every copy
+the player owns with its own purchase instant — each turns time back to its
+own moment, and the player chooses which (`copy_id` on
+`/merchant/revert_time`; the newest if omitted) — and its **Timewarp**
+button. For each copy's instant it asks `GET /merchant/sky_events?at=` and
+lists each event ("Full moon in Aries", "Conjunction between
 Mercury and Jupiter in Libra") so the player knows who comes back. A copy
 bought during a revert is dated to the reverted instant, and outside one
 explicitly to now — so its own later revert lands on the events it came
@@ -164,8 +170,9 @@ from.
 
 ### 5.4 The frontend
 
-- One globe marker per merchant (`MerchantMarker`). The full moon's stays
-  purple with a dark outline and one light. A conjunction's text is the
+- One globe marker per merchant (`MerchantMarker`). The full moon's text
+  stays purple with a dark outline, and its light on the ground is the same
+  pool-and-rim as a conjunction's, both purple. A conjunction's text is the
   **bigger planet's colour inside and the other's outside** (outline and
   glow; `lib/merchant.ts` `merchantMarkerColors`, sized by
   `PLANET_RADIUS_KM`). Its light on the ground is concentric: a pool

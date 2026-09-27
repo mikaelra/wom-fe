@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
-import RevertTimeModal from '@/components/merchant/RevertTimeModal';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import RevertTimeModal, { formatRevertedTo } from '@/components/merchant/RevertTimeModal';
 import { getMerchantSkyEvents, revertMerchantTime } from '@/lib/api';
 import { ApiError, setStoredAccountToken } from '@/lib/http';
 import { blendPlanetColors, FULL_MOON_MERCHANT_COLOR } from '@/lib/merchant';
@@ -36,7 +36,11 @@ beforeEach(() => {
   setStoredAccountToken('sess-1');
 });
 
-const openConfirm = () => act(() => screen.getByRole('button', { name: 'Turn Back Time' }).click());
+/** The date part formatExact renders -- enough to find the confirm text. */
+const formatExactFor = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+const openConfirm = () => act(() => screen.getByRole('button', { name: 'Timewarp' }).click());
 const confirm = () => act(() => screen.getByRole('button', { name: 'Yes, turn back time' }).click());
 
 const renderModal = (props: Partial<Parameters<typeof RevertTimeModal>[0]> = {}) =>
@@ -45,6 +49,8 @@ const renderModal = (props: Partial<Parameters<typeof RevertTimeModal>[0]> = {})
       relic={STONE}
       blocked={false}
       blockedUntil={null}
+      revertedTo={null}
+      statusKnown
       onClose={vi.fn()}
       onReverted={vi.fn()}
       {...props}
@@ -57,7 +63,7 @@ describe('RevertTimeModal', () => {
 
     expect(screen.getByText('This Stone of Vitality was bought')).toBeInTheDocument();
     expect(await screen.findByText('Full moon in Aries')).toBeInTheDocument();
-    expect(mockedSkyEvents).toHaveBeenCalledWith(STONE.newest_copy_created_at);
+    expect(mockedSkyEvents).toHaveBeenCalledWith(new Date(STONE.newest_copy_created_at).toISOString());
     expect(mockedRevert).not.toHaveBeenCalled();
   });
 
@@ -91,7 +97,7 @@ describe('RevertTimeModal', () => {
     renderModal();
 
     expect(await screen.findByText('Couldn’t read the sky right now.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Turn Back Time' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Timewarp' })).toBeInTheDocument();
   });
 
   it('Cancel calls onClose without calling the API', () => {
@@ -120,7 +126,7 @@ describe('RevertTimeModal', () => {
     openConfirm();
     act(() => screen.getByRole('button', { name: 'Back' }).click());
 
-    expect(screen.getByRole('button', { name: 'Turn Back Time' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Timewarp' })).toBeInTheDocument();
     expect(mockedRevert).not.toHaveBeenCalled();
   });
 
@@ -136,7 +142,7 @@ describe('RevertTimeModal', () => {
     confirm();
 
     await waitFor(() => expect(onReverted).toHaveBeenCalled());
-    expect(mockedRevert).toHaveBeenCalledWith('sess-1', 'Stone of Vitality');
+    expect(mockedRevert).toHaveBeenCalledWith('sess-1', 'Stone of Vitality', null);
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -151,7 +157,7 @@ describe('RevertTimeModal', () => {
     confirm();
 
     await waitFor(() => expect(onReverted).toHaveBeenCalled());
-    expect(mockedRevert).toHaveBeenCalledWith('sess-1', 'Paper');
+    expect(mockedRevert).toHaveBeenCalledWith('sess-1', 'Paper', null);
   });
 
   it('asks to log in rather than calling the API without a session', async () => {
@@ -191,7 +197,7 @@ describe('RevertTimeModal', () => {
       // can floor the countdown to 4:59 instead of 5:00, so match the
       // format rather than an exact value.
       expect(screen.getByText(/^[45]:\d{2}$/)).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Turn Back Time' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Timewarp' })).not.toBeInTheDocument();
       expect(mockedRevert).not.toHaveBeenCalled();
     });
 
@@ -202,7 +208,7 @@ describe('RevertTimeModal', () => {
     });
 
     it('still shows this copy\'s own purchase instant and events even though the action is blocked', async () => {
-      renderModal({ blocked: true, blockedUntil: until() });
+      renderModal({ blocked: true, blockedUntil: until(), revertedTo: '2026-09-11T21:00:00+00:00' });
 
       expect(screen.getByText('This Stone of Vitality was bought')).toBeInTheDocument();
       expect(await screen.findByText('Full moon in Aries')).toBeInTheDocument();
@@ -215,6 +221,77 @@ describe('RevertTimeModal', () => {
       act(() => screen.getByRole('button', { name: 'Close' }).click());
 
       expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  describe('where time stands (moved here from the inventory card)', () => {
+    it('says Normal time when nobody has reverted', () => {
+      renderModal();
+      expect(screen.getByText('Normal time')).toBeInTheDocument();
+    });
+
+    it('says what time is reverted to, in red, while someone has', () => {
+      renderModal({
+        blocked: true,
+        blockedUntil: new Date(Date.now() + 42 * 60_000).toISOString(),
+        revertedTo: '2026-09-11T21:00:00+00:00',
+      });
+      expect(screen.getByText(`Time is currently reverted to ${formatRevertedTo('2026-09-11T21:00:00+00:00')}`))
+        .toHaveClass('text-red-400');
+      expect(screen.queryByText('Normal time')).not.toBeInTheDocument();
+    });
+
+    it('says nothing until the merchant poll has answered', () => {
+      renderModal({ statusKnown: false });
+      expect(screen.queryByText('Normal time')).not.toBeInTheDocument();
+      expect(screen.queryByText(/reverted to/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('choosing which copy\'s time', () => {
+    const PAPERS: Relic = {
+      ...PAPER,
+      count: 2,
+      copies: [
+        { id: 42, created_at: '2028-10-03T12:00:00+00:00' },
+        { id: 41, created_at: '2026-11-16T06:00:00+00:00' },
+      ],
+    };
+
+    it('lists every copy\'s time with its own events, newest chosen', async () => {
+      mockedSkyEvents.mockImplementation(async (at: string) =>
+        at.startsWith('2028') ? [FULL_MOON_EVENT, MERCURY_JUPITER_EVENT] : [],
+      );
+      renderModal({ relic: PAPERS });
+
+      expect(screen.getByText('Choose a time')).toBeInTheDocument();
+      const options = screen.getAllByRole('radio');
+      expect(options).toHaveLength(2);
+      expect(options[0]).toHaveAttribute('aria-checked', 'true');
+      expect(options[1]).toHaveAttribute('aria-checked', 'false');
+      expect(await within(options[0]).findByText('Full moon in Aries')).toBeInTheDocument();
+      expect(await within(options[1]).findByText('No merchant was in town then.')).toBeInTheDocument();
+    });
+
+    it('timewarps with the copy the player chose', async () => {
+      mockedRevert.mockResolvedValue({ ok: true, expires_at: 'x', revert_to_date: 'y', events: [] });
+      const onReverted = vi.fn();
+      renderModal({ relic: PAPERS, onReverted });
+
+      act(() => screen.getAllByRole('radio')[1].click());
+      expect(screen.getAllByRole('radio')[1]).toHaveAttribute('aria-checked', 'true');
+      openConfirm();
+      expect(screen.getByText(new RegExp(formatExactFor('2026-11-16T06:00:00+00:00')))).toBeInTheDocument();
+      confirm();
+
+      await waitFor(() => expect(onReverted).toHaveBeenCalled());
+      expect(mockedRevert).toHaveBeenCalledWith('sess-1', 'Paper', 41);
+    });
+
+    it('asks the sky about a copy\'s time as ISO, whatever form it came in', async () => {
+      renderModal({ relic: { ...STONE, newest_copy_created_at: 'Tue, 03 Oct 2028 12:00:00 GMT' } });
+
+      await waitFor(() => expect(mockedSkyEvents).toHaveBeenCalledWith('2028-10-03T12:00:00.000Z'));
     });
   });
 
@@ -235,6 +312,6 @@ describe('RevertTimeModal', () => {
     act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
 
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Turn Back Time' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Timewarp' })).toBeInTheDocument();
   });
 });

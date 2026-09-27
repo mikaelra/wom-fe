@@ -452,52 +452,56 @@ describe('InventoryPage', () => {
       mockedGetPlayerRelics.mockResolvedValue({ relics: [stoneRelic] });
     });
 
-    // The button (and the model, docs/MERCHANT_PLAN.md §7) now opens a
-    // confirmation popup rather than calling the API directly -- this
-    // walks through both of its confirm steps.
-    const openModalAndConfirm = () => act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Revert Time (1h)' }));
+    // The model is the one way into the Timewarp popup (the card's own
+    // button and status text moved into it) -- this walks through both of
+    // its confirm steps.
+    const openPopup = () => act(async () => {
+      fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the turn back time popup'));
       await flush();
-      fireEvent.click(screen.getByRole('button', { name: 'Turn Back Time' }));
+    });
+    const openModalAndConfirm = () => act(async () => {
+      fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the turn back time popup'));
+      await flush();
+      fireEvent.click(screen.getByRole('button', { name: 'Timewarp' }));
       await flush();
       fireEvent.click(screen.getByRole('button', { name: 'Yes, turn back time' }));
       await flush();
     });
 
-    it('shows a Revert Time button on the Stone of Vitality card', async () => {
-      render(<InventoryPage />);
-      await flush();
-
-      expect(screen.getByRole('button', { name: 'Revert Time (1h)' })).toBeInTheDocument();
-    });
-
-    it('shows green "Normal time" once the offer has loaded and nobody has reverted', async () => {
+    it('has no Revert Time button or time status on the card itself', async () => {
       mockedGetMerchantOffer.mockResolvedValue(merchantState({ offers: [stoneOffer()] }));
       render(<InventoryPage />);
       await flush();
 
-      expect(screen.getByText('Normal time')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Revert Time (1h)' })).not.toBeInTheDocument();
+      expect(screen.queryByText('Normal time')).not.toBeInTheDocument();
     });
 
-    it('shows nothing (no red or green status) while the offer has not loaded yet', async () => {
+    it('shows green "Normal time" in the popup once the offer has loaded and nobody has reverted', async () => {
+      mockedGetMerchantOffer.mockResolvedValue(merchantState({ offers: [stoneOffer()] }));
+      render(<InventoryPage />);
+      await flush();
+      await openPopup();
+
+      expect(within(screen.getByRole('dialog')).getByText('Normal time')).toBeInTheDocument();
+    });
+
+    it('shows no time status in the popup while the offer has not loaded yet, but still offers Timewarp', async () => {
       mockedGetMerchantOffer.mockReturnValue(new Promise(() => {})); // never resolves
       render(<InventoryPage />);
       await flush();
+      await openPopup();
 
       expect(screen.queryByText('Normal time')).not.toBeInTheDocument();
       expect(screen.queryByText(/reverted to/)).not.toBeInTheDocument();
       // The action itself is still offered while we don't yet know better.
-      expect(screen.getByRole('button', { name: 'Revert Time (1h)' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Timewarp' })).toBeInTheDocument();
     });
 
     it('opening the popup does not call the API by itself', async () => {
       render(<InventoryPage />);
       await flush();
-
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Revert Time (1h)' }));
-        await flush();
-      });
+      await openPopup();
 
       expect(screen.getByText('This Stone of Vitality was bought')).toBeInTheDocument();
       expect(mockedRevertMerchantTime).not.toHaveBeenCalled();
@@ -516,7 +520,7 @@ describe('InventoryPage', () => {
 
       await openModalAndConfirm();
 
-      expect(mockedRevertMerchantTime).toHaveBeenCalledWith('sess-1', 'Stone of Vitality');
+      expect(mockedRevertMerchantTime).toHaveBeenCalledWith('sess-1', 'Stone of Vitality', null);
       expect(mockedGetInventory).toHaveBeenCalledTimes(1);
     });
 
@@ -548,12 +552,14 @@ describe('InventoryPage', () => {
       mockedGetPlayerRelics.mockResolvedValue({ relics: [paperRelic] });
     });
 
-    it('gives the Paper card the same model popup and Revert Time button', async () => {
+    it('gives the Paper card the same model popup, and reads "For writing on"', async () => {
+      mockedGetPlayerRelics.mockResolvedValue({ relics: [{ ...paperRelic, flavour_text: 'For writing on' }] });
       render(<InventoryPage />);
       await flush();
 
       expect(screen.getByLabelText('Paper -- open the turn back time popup')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Revert Time (1h)' })).toBeInTheDocument();
+      expect(screen.getByText('For writing on')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Revert Time (1h)' })).not.toBeInTheDocument();
     });
 
     it('sacrifices the Paper once both confirm steps are taken', async () => {
@@ -564,15 +570,15 @@ describe('InventoryPage', () => {
       await flush();
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: 'Revert Time (1h)' }));
+        fireEvent.click(screen.getByLabelText('Paper -- open the turn back time popup'));
         await flush();
-        fireEvent.click(screen.getByRole('button', { name: 'Turn Back Time' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Timewarp' }));
         await flush();
         fireEvent.click(screen.getByRole('button', { name: 'Yes, turn back time' }));
         await flush();
       });
 
-      expect(mockedRevertMerchantTime).toHaveBeenCalledWith('sess-1', 'Paper');
+      expect(mockedRevertMerchantTime).toHaveBeenCalledWith('sess-1', 'Paper', null);
     });
   });
 
@@ -592,9 +598,13 @@ describe('InventoryPage', () => {
       }));
     });
 
-    it('shows red text with the reverted-to instant (device-local) and a countdown, instead of the Revert Time button', async () => {
+    it('shows red text with the reverted-to instant (device-local) and a countdown in the popup', async () => {
       render(<InventoryPage />);
       await flush();
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the turn back time popup'));
+        await flush();
+      });
 
       // Same formatting the production code uses (device-local time/date,
       // no explicit timeZone) -- this checks the right data flows through
@@ -606,7 +616,7 @@ describe('InventoryPage', () => {
         screen.getByText(`Time is currently reverted to ${time} ${revertedTo.getDate()}. ${month}`),
       ).toBeInTheDocument();
       expect(screen.getByText('42:00')).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Revert Time (1h)' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Timewarp' })).not.toBeInTheDocument();
     });
 
     it('clicking the model still opens the popup, explaining the block with its own countdown', async () => {
@@ -621,7 +631,7 @@ describe('InventoryPage', () => {
       const dialog = within(screen.getByRole('dialog'));
       expect(dialog.getByText('Someone has already turned back time.')).toBeInTheDocument();
       expect(dialog.getByText('42:00')).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Turn Back Time' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Timewarp' })).not.toBeInTheDocument();
       expect(mockedRevertMerchantTime).not.toHaveBeenCalled();
     });
   });
