@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PREVIEW_TO, MARKERS_IN_MS, MARKERS_OUT_MS, MARKER_EVENTS_VAR, MARKER_OPACITY_VAR,
   SCRUB_END_MS, SPIN_UP_MS, TIMEWARP_DURATION_MS, TIMEWARP_TEST_MOMENTS,
-  applyMarkerLabelFade, parseTimewarp, scrubDate, timewarpFrame, timewarpParamFor,
+  applyMarkerLabelFade, parseTimewarp, scrubDate, timewarpColorsFor, timewarpFrame, timewarpParamFor,
 } from '@/lib/timewarpFx';
 import { FULL_MOON_MERCHANT_COLOR } from '@/lib/merchant';
 
@@ -165,5 +165,19 @@ describe('TIMEWARP_TEST_MOMENTS', () => {
     const three = TIMEWARP_TEST_MOMENTS.find((m) => m.label.startsWith('Three'))!;
     // Mercury, Mars and Saturn, each once.
     expect(parseTimewarp(three.value, three.to)!.colors).toEqual(['#ff0000', '#a16300', '#db9504']);
+  });
+});
+
+describe('timewarpColorsFor', () => {
+  it('is every colour of a moment\'s events, each once', () => {
+    expect(timewarpColorsFor([
+      { kind: 'full_moon', key: '' },
+      { kind: 'conjunction', key: 'Mercury-Jupiter' },
+    ])).toEqual([FULL_MOON_MERCHANT_COLOR, '#db9504', '#008296']);
+  });
+
+  it('is nothing without events, so the clock can fall back', () => {
+    expect(timewarpColorsFor([])).toEqual([]);
+    expect(timewarpColorsFor([null, undefined])).toEqual([]);
   });
 });

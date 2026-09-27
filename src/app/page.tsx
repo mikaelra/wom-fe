@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import WorldClock from '@/components/worldmap/WorldClock';
 import TimewarpPanel from '@/components/worldmap/TimewarpPanel';
-import { parseTimewarp, timewarpParamFor } from '@/lib/timewarpFx';
+import { parseTimewarp, timewarpColorsFor, timewarpParamFor } from '@/lib/timewarpFx';
 import { subscribe } from '@/lib/socket';
 import { useTimewarpFx, type TimewarpRun } from '@/lib/useTimewarpFx';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
@@ -198,6 +198,7 @@ export default function Page() {
             revertToDate={revertToDate ?? null}
             skyDate={merchant?.sky_date ?? null}
             skyDateReceivedAt={merchantReceivedAt}
+            warpColors={timewarpColorsFor(merchantOffers.map((o) => o.event))}
           />
         }
       />

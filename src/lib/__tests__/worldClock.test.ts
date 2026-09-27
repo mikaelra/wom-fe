@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatWorldClock, worldClockReading } from '@/lib/worldClock';
+import { formatWorldClock, warpBands, worldClockReading } from '@/lib/worldClock';
 
 // Built from local parts, so the expected strings hold in any timezone
 // the tests run in -- the clock is on the viewer's own clock by design.
@@ -77,5 +77,25 @@ describe('worldClockReading', () => {
     expect(worldClockReading({
       reverted: true, revertToDate: null, skyDate: null, skyDateReceivedAt: NOW, now: NOW,
     })!.warped).toBe(false);
+  });
+});
+
+describe('warpBands', () => {
+  it('is nothing for no colour or one -- that is just the text colour', () => {
+    expect(warpBands([])).toBeNull();
+    expect(warpBands(['#a855f7'])).toBeNull();
+  });
+
+  it('splits two colours into even, hard-edged horizontal bands, top and bottom', () => {
+    expect(warpBands(['#ff0000', '#008296'])).toBe(
+      'linear-gradient(to bottom, #ff0000 0.00%, #ff0000 50.00%, #008296 50.00%, #008296 100.00%)',
+    );
+  });
+
+  it('gives each more colour its own equal band', () => {
+    const three = warpBands(['#a855f7', '#db9504', '#008296'])!;
+    expect(three).toContain('#a855f7 0.00%, #a855f7 33.33%');
+    expect(three).toContain('#db9504 33.33%, #db9504 66.67%');
+    expect(three).toContain('#008296 66.67%, #008296 100.00%');
   });
 });

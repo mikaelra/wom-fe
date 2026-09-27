@@ -108,6 +108,17 @@ export function parseTimewarp(value: string | null, to: string | null): Timewarp
   };
 }
 
+/** A moment's timewarp colours from its events -- every colour, each once
+ *  (the full moon's purple, each conjunction's two planets). Empty when
+ *  there are no events to colour it by. */
+export function timewarpColorsFor(
+  events: readonly ({ kind: string; key: string } | null | undefined)[],
+): string[] {
+  const real = events.filter((e): e is { kind: string; key: string } => !!e);
+  if (real.length === 0) return [];
+  return parseTimewarp(timewarpParamFor(real), null)!.colors;
+}
+
 /** The `?timewarp` value for the events a timewarp brought back -- what the
  *  inventory sends the player home with. */
 export function timewarpParamFor(events: readonly { kind: string; key: string }[]): string {

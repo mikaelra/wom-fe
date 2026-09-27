@@ -57,3 +57,17 @@ export function worldClockReading({
         : { date: new Date(now), warped: false };
   return Number.isNaN(reading.date.getTime()) ? null : reading;
 }
+
+/**
+ * The timewarped clock's paint: the moment's colours as even, hard-edged
+ * horizontal bands down the digits (CSS, drawn through the text) -- purple
+ * alone for a full moon, a conjunction's two planets top and bottom, one
+ * more band for each more colour. null for a single colour, which is just
+ * the text colour.
+ */
+export function warpBands(colors: readonly string[]): string | null {
+  if (colors.length < 2) return null;
+  const step = 100 / colors.length;
+  const stops = colors.flatMap((c, i) => [`${c} ${(i * step).toFixed(2)}%`, `${c} ${((i + 1) * step).toFixed(2)}%`]);
+  return `linear-gradient(to bottom, ${stops.join(', ')})`;
+}
