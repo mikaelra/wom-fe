@@ -26,9 +26,10 @@ count.
 - **Seasons**: season countdown on the stats and My AI pages, and a seasons
   overlay (Hall of Records) on the stats page (#376, #377).
 - **Merchants** (`docs/MERCHANT_PLAN.md`): globe encounters tied to the sky —
-  the Stone of Vitality at full moon, Paper at planetary conjunctions — with
-  stacked markers, a merchant scene, and a world clock on the globe and city
-  screens (#381, #392).
+  Paper at the full moon, the Stone of Vitality at planetary conjunctions
+  (which one sells what is set by wom-be) — with stacked markers, a merchant
+  scene, a Timewarp popup that rewinds the sky for everyone, and a world clock
+  on the globe and city screens (#381, #392).
 - **Privacy Policy** page (#333).
 - **Music and sound**: background music with music/SFX toggles and levels,
   resource/pickup/instakill sounds, paused when the tab is backgrounded

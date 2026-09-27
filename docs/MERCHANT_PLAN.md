@@ -14,6 +14,13 @@ later changes nothing about that). Same mechanism, different trigger and item โ€
 reuse is the point of everything below. Paper's second use, upgrading to
 an Artifact in a trade (`docs/MARKET_PLAN.md` ยง1B), is the next PR.
 
+> **Current state (2026-09-27): the triggers are swapped.** wom-be migration
+> `c7d2e4f1a8b3` moved each offer to the other event: **Paper (3 coins) is
+> now sold at the full moon, and the Stone of Vitality (5 coins) at every
+> planetary conjunction.** Each offer kept its own item, price and trade
+> history; only the event that summons it changed. The phase descriptions
+> above and the sections below record the original assignment.
+
 ---
 
 ## 1. The one idea
