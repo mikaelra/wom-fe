@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getMerchantSkyEvents, revertMerchantTime, type MerchantEvent } from '@/lib/api';
 import { getStoredAccountToken, ApiError } from '@/lib/http';
 import { timewarpEventLabels } from '@/lib/merchant';
+import { formatWorldClock } from '@/lib/worldClock';
 import { useCountdown } from '@/lib/useCountdown';
 import type { Relic } from '@/types/game';
 
@@ -39,16 +40,6 @@ function formatExact(iso: string): string {
   return `${date} at ${time}`;
 }
 
-// "Time is currently reverted to 14:32 26. sep", read off the viewer's own
-// device clock/timezone (no explicit `timeZone`, so it adjusts itself per
-// viewer). Moved here from the inventory card along with the status line.
-export function formatRevertedTo(iso: string): string {
-  const d = new Date(iso);
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  const month = d.toLocaleDateString(undefined, { month: 'short' }).toLowerCase();
-  return `${time} ${d.getDate()}. ${month}`;
-}
-
 /** An instant as ISO 8601, whatever form it arrived in -- the relic list's
  *  own timestamps come back RFC 1123 ("Tue, 03 Oct 2028 12:00:00 GMT"),
  *  which /merchant/sky_events does not read. */
@@ -72,9 +63,9 @@ export function formatCountdown(totalSeconds: number): string {
  * player owns with the instant it was bought and every event that was
  * live then ("Full moon", "Conjunction") -- each copy turns time back to
  * its own moment, so
- * the player picks which -- and the Timewarp action. If someone has
- * already reverted time the action is blocked outright, with the reason
- * and a countdown, rather than letting the player hit a 409.
+ * the player picks which -- and the Timewarp action. For a minute after
+ * anyone timewarps, the Timewarp button is disabled and shows the time
+ * left, rather than letting the player hit a 409.
  */
 export default function RevertTimeModal({
   relic, reverted, revertedTo, blocked, blockedUntil, statusKnown, onClose, onReverted,
@@ -154,11 +145,14 @@ export default function RevertTimeModal({
   // Where time stands right now -- moved here from the inventory card.
   const status = !statusKnown ? null : reverted && revertedTo ? (
     <p className="text-red-400 text-xs font-semibold mb-3">
-      Time is currently reverted to {formatRevertedTo(revertedTo)}
+      Someone has currently warped time to {formatWorldClock(new Date(revertedTo))}.
     </p>
   ) : !reverted ? (
     <p className="text-green-400 text-xs font-semibold uppercase tracking-wide mb-3">Normal time</p>
   ) : null;
+  // Someone timewarped within the last minute: Timewarp waits, showing how
+  // long for, and comes back on its own when the countdown runs out.
+  const locked = blocked && secondsUntilAvailable !== null && secondsUntilAvailable > 0;
 
   const eventLines = (instant: string) => {
     const list = events[toIso(instant)];
@@ -219,36 +213,14 @@ export default function RevertTimeModal({
         className="bg-gray-900 border border-purple-500/40 rounded-xl shadow-2xl max-w-sm w-full p-6 relative text-white text-center"
       >
         <h2 id="revert-time-heading" className="text-lg font-bold mb-1">
-          Turn Back Time
+          {relic.name}
         </h2>
+        {relic.flavour_text && <p className="text-white/50 text-xs mb-4">{relic.flavour_text}</p>}
+
+        <h3 className="text-base font-bold mb-1">Time Warp</h3>
         {status}
 
-        {blocked ? (
-          <>
-            <p className="text-red-400 text-sm font-semibold mt-3 mb-1">
-              Someone has just turned back time.
-            </p>
-            <p className="text-white/60 text-sm mb-4">
-              Anyone can timewarp again a minute after it began.
-            </p>
-            {secondsUntilAvailable !== null && secondsUntilAvailable > 0 && (
-              <p className="text-purple-300 font-mono text-2xl font-bold mb-4">
-                {formatCountdown(secondsUntilAvailable)}
-              </p>
-            )}
-            {/* Blocked from using them right now, but the player can still
-                see what each copy would have reverted time to -- the
-                information doesn't depend on being able to act on it. */}
-            {copyList}
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2 rounded-lg bg-white/10 text-white border border-white/20 font-semibold hover:bg-white/20 transition-colors cursor-pointer"
-            >
-              Close
-            </button>
-          </>
-        ) : phase === 'error' ? (
+        {phase === 'error' ? (
           <>
             <p className="text-red-400 text-sm font-semibold mt-3 mb-4">{error}</p>
             <button
@@ -288,10 +260,6 @@ export default function RevertTimeModal({
           </>
         ) : (
           <>
-            <p className="text-white/60 text-xs mb-4">
-              Sacrifice this {relic.name} to bring back the merchants of the moment it was bought,
-              for everyone, for 1 hour.
-            </p>
             {copyList}
             <p className="text-white/60 text-xs mb-4">
               Using it will turn the sky back to that exact moment for everyone, for 1 hour.
@@ -300,9 +268,11 @@ export default function RevertTimeModal({
               <button
                 type="button"
                 onClick={() => setPhase('confirming')}
-                className="px-5 py-2 rounded-lg bg-purple-700/80 text-purple-200 border border-purple-500 font-bold hover:bg-purple-600/80 transition-colors cursor-pointer"
+                disabled={locked}
+                aria-label={locked ? `Timewarp available in ${formatCountdown(secondsUntilAvailable!)}` : undefined}
+                className="px-5 py-2 rounded-lg bg-purple-700/80 text-purple-200 border border-purple-500 font-bold hover:bg-purple-600/80 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-700/80"
               >
-                Timewarp
+                {locked ? formatCountdown(secondsUntilAvailable!) : 'Timewarp'}
               </button>
               <button
                 type="button"

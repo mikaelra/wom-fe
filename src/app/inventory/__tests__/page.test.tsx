@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { merchantState, revertedState, stoneOffer } from '@/lib/__tests__/merchantFixtures';
+import { formatWorldClock } from '@/lib/worldClock';
 import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import InventoryPage from '@/app/inventory/page';
 import {
@@ -493,7 +494,7 @@ describe('InventoryPage', () => {
       await openPopup();
 
       expect(screen.queryByText('Normal time')).not.toBeInTheDocument();
-      expect(screen.queryByText(/reverted to/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/warped time to/)).not.toBeInTheDocument();
       // The action itself is still offered while we don't yet know better.
       expect(screen.getByRole('button', { name: 'Timewarp' })).toBeInTheDocument();
     });
@@ -606,9 +607,8 @@ describe('InventoryPage', () => {
       });
 
       const dialog = within(screen.getByRole('dialog'));
-      expect(dialog.getByText(/Time is currently reverted to/)).toBeInTheDocument();
+      expect(dialog.getByText(/Someone has currently warped time to/)).toBeInTheDocument();
       expect(dialog.getByRole('button', { name: 'Timewarp' })).toBeEnabled();
-      expect(dialog.queryByText('Someone has just turned back time.')).not.toBeInTheDocument();
     });
   });
 
@@ -639,13 +639,11 @@ describe('InventoryPage', () => {
       // Same formatting the production code uses (device-local time/date,
       // no explicit timeZone) -- this checks the right data flows through
       // to the card, not a fixed string that would only hold in one TZ.
-      const revertedTo = new Date('2026-09-11T21:00:00+00:00');
-      const time = revertedTo.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-      const month = revertedTo.toLocaleDateString(undefined, { month: 'short' }).toLowerCase();
       expect(
-        screen.getByText(`Time is currently reverted to ${time} ${revertedTo.getDate()}. ${month}`),
+        screen.getByText(`Someone has currently warped time to ${formatWorldClock(new Date('2026-09-11T21:00:00+00:00'))}.`),
       ).toBeInTheDocument();
-      expect(screen.getByText('42:00')).toBeInTheDocument();
+      // No lock reported (an older backend) holds Timewarp off for the whole revert.
+      expect(screen.getByRole('button', { name: 'Timewarp available in 42:00' })).toBeDisabled();
       expect(screen.queryByRole('button', { name: 'Timewarp' })).not.toBeInTheDocument();
     });
 
@@ -659,8 +657,7 @@ describe('InventoryPage', () => {
       });
 
       const dialog = within(screen.getByRole('dialog'));
-      expect(dialog.getByText('Someone has just turned back time.')).toBeInTheDocument();
-      expect(dialog.getByText('42:00')).toBeInTheDocument();
+      expect(dialog.getByRole('button', { name: 'Timewarp available in 42:00' })).toHaveTextContent('42:00');
       expect(screen.queryByRole('button', { name: 'Timewarp' })).not.toBeInTheDocument();
       expect(mockedRevertMerchantTime).not.toHaveBeenCalled();
     });
