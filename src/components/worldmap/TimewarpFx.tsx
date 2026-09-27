@@ -20,6 +20,12 @@ import { timewarpFxState } from '@/lib/timewarpFx';
 /** How strong the colour spots get at full glow (halved from 0.85 after a
  *  first look in dev). */
 const SPOT_OPACITY = 0.425;
+/** Colours whose layer is set apart from SPOT_OPACITY, by eye in dev:
+ *  Saturn's brown (lib/merchant.ts PLANET_COLOR) covers too much of the
+ *  globe at the common value. */
+const SPOT_OPACITY_BY_COLOR: Record<string, number> = {
+  '#a16300': 0.04, // Saturn
+};
 const MAX_CRACKLE_SEGS = 1500;
 /** Space between one colour's layer and the next, as a share of the
  *  globe's radius -- close, so the layers read as one weather. */
@@ -122,7 +128,7 @@ function SpotLayer({ color, radius, index }: { color: string; radius: number; in
     if (!mesh) return;
     mesh.rotation.y += delta * character.spinSpeed * (0.4 + 2.2 * timewarpFxState.spin);
     material.uniforms.uTime.value += delta;
-    material.uniforms.uOpacity.value = SPOT_OPACITY * timewarpFxState.glow;
+    material.uniforms.uOpacity.value = (SPOT_OPACITY_BY_COLOR[color.toLowerCase()] ?? SPOT_OPACITY) * timewarpFxState.glow;
   });
 
   return (
