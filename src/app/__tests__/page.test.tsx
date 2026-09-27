@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { merchantState, paperOffer, revertedState, stoneOffer } from '@/lib/__tests__/merchantFixtures';
 import { FULL_MOON_MERCHANT_COLOR } from '@/lib/merchant';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { CSSProperties, ReactNode } from 'react';
 import Page from '@/app/page';
 import {
@@ -18,8 +18,9 @@ import type { City } from '@/lib/cities';
 import * as socketModule from '@/lib/socket';
 
 const push = vi.fn();
+const replace = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, replace }),
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -95,15 +96,21 @@ let cityClickHandler: ((city: City) => void) | undefined;
 let lastSkyRevertKey: string | null | undefined;
 let lastMerchantMarkers: { key: string; color: string; outline: string | null; label: string; bodies: string[] }[] = [];
 let merchantClickHandler: ((key: string) => void) | undefined;
+let lastTimewarpColors: string[] | null | undefined;
+let skyReadyHandler: (() => void) | undefined;
 vi.mock('@/components/worldmap/WorldMap', () => ({
   default: ({
-    onCityClick, skyRevertKey, merchantMarkers, onMerchantClick,
+    onCityClick, skyRevertKey, merchantMarkers, onMerchantClick, timewarpColors, onSkyReady,
   }: {
     onCityClick: (city: City) => void;
     skyRevertKey?: string | null;
     merchantMarkers?: { key: string; color: string; outline: string | null; label: string; bodies: string[] }[];
     onMerchantClick?: (key: string) => void;
+    timewarpColors?: string[] | null;
+    onSkyReady?: () => void;
   }) => {
+    lastTimewarpColors = timewarpColors;
+    skyReadyHandler = onSkyReady;
     cityClickHandler = onCityClick;
     lastSkyRevertKey = skyRevertKey;
     lastMerchantMarkers = merchantMarkers ?? [];
@@ -282,6 +289,61 @@ describe('Page (merchant markers)', () => {
     act(() => merchantClickHandler!(lastMerchantMarkers[1].key));
 
     expect(await screen.findByTestId('merchant-scene')).toHaveTextContent('The Merchant: Paper');
+  });
+});
+
+// The timewarp animation (lib/timewarpFx.ts): `?timewarp` previews it with
+// controls to replay; `&play=1` is a player arriving from a real timewarp.
+describe('Page (?timewarp)', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+    replace.mockClear();
+  });
+
+  it('plays nothing on a plain visit, and shows no preview controls', async () => {
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    expect(lastTimewarpColors).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
+  });
+
+  it('previews: shows the controls and plays once the whole sky is up', async () => {
+    window.history.replaceState(null, '', '/?timewarp=Mars-Jupiter');
+    render(<Page />);
+    await waitForWorldMap();
+
+    expect(screen.getByRole('group', { name: 'Timewarp preview' })).toBeInTheDocument();
+    // Not before the sky is ready.
+    expect(lastTimewarpColors).toBeNull();
+
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#ff0000', '#008296']));
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('replays with the colours of the button pressed', async () => {
+    window.history.replaceState(null, '', '/?timewarp');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual([FULL_MOON_MERCHANT_COLOR]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Conjunction' }));
+
+    // The panel starts on Mercury and Jupiter.
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#db9504', '#008296']));
+  });
+
+  it('plays a real timewarp without the controls, and takes the parameters off the URL', async () => {
+    window.history.replaceState(null, '', '/?timewarp=full_moon&to=2028-10-03T12%3A00%3A00Z&play=1');
+    render(<Page />);
+    await waitForWorldMap();
+
+    expect(replace).toHaveBeenCalledWith('/');
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual([FULL_MOON_MERCHANT_COLOR]));
   });
 });
 

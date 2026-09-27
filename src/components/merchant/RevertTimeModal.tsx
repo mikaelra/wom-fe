@@ -25,10 +25,10 @@ type Props = {
    *  world's clock before that. */
   statusKnown: boolean;
   onClose: () => void;
-  /** Called once the sacrifice actually succeeds -- the caller reloads the
-   *  inventory and shows its own success toast, same as every other
-   *  inventory action (equip, trade-up, spin). */
-  onReverted: () => void;
+  /** Called once the sacrifice actually succeeds, with what the server
+   *  said -- the instant time warped to and the events live there, which
+   *  the caller takes the player home to watch (lib/timewarpFx.ts). */
+  onReverted: (result: { revert_to_date: string; events: { kind: string; key: string }[] }) => void;
 };
 
 type Phase = 'preview' | 'confirming' | 'reverting' | 'error';
@@ -129,8 +129,8 @@ export default function RevertTimeModal({
       return;
     }
     revertMerchantTime(token, relic.name, chosen.id)
-      .then(() => {
-        onReverted();
+      .then((result) => {
+        onReverted(result);
         onClose();
       })
       .catch((e: unknown) => {

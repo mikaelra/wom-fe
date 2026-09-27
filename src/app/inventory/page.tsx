@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { timewarpParamFor } from '@/lib/timewarpFx';
 import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel, skinThumbnailUrl, skinUrl, sortSkins } from '@/lib/frogSkins';
@@ -42,7 +44,8 @@ function groupWheels(wheels: WheelEntry[]): WheelGroup[] {
 }
 
 export default function InventoryPage() {
-  const { showError, showSuccess } = useToast();
+  const router = useRouter();
+  const { showError } = useToast();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [equippedSkin, setEquippedSkin] = useState(DEFAULT_SKIN);
@@ -64,7 +67,6 @@ export default function InventoryPage() {
     reverted,
     revertLockedUntil,
     revertToDate,
-    refresh: refreshMerchantOffer,
   } = useMerchantOffer();
   const secondsLocked = useCountdown(revertLockedUntil);
   const revertLocked = reverted && secondsLocked !== null && secondsLocked > 0;
@@ -171,10 +173,14 @@ export default function InventoryPage() {
   // list/count, and re-poll the offer immediately so the card's own
   // "already reverted" state/countdown appears without waiting out the
   // rest of useMerchantOffer's minute-long poll interval.
-  const handleReverted = () => {
-    showSuccess('Time reverted -- the merchants of that moment are back for an hour.');
-    load();
-    refreshMerchantOffer();
+  // A timewarp takes the player home to watch it happen: the sky running
+  // back to the moment they warped to, in that moment's colours
+  // (lib/timewarpFx.ts). `play` marks it as the real thing, not a preview.
+  const handleReverted = (result: { revert_to_date: string; events: { kind: string; key: string }[] }) => {
+    router.push(
+      `/?timewarp=${encodeURIComponent(timewarpParamFor(result.events))}` +
+        `&to=${encodeURIComponent(result.revert_to_date)}&play=1`,
+    );
   };
 
   // Equip, or unequip by sending "". Unequipping needs no ownership check

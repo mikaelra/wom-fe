@@ -6,6 +6,9 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import WorldClock from '@/components/worldmap/WorldClock';
+import TimewarpPanel from '@/components/worldmap/TimewarpPanel';
+import { parseTimewarp } from '@/lib/timewarpFx';
+import { useTimewarpFx, type TimewarpRun } from '@/lib/useTimewarpFx';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import type { City } from '@/lib/cities';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
@@ -76,6 +79,42 @@ export default function Page() {
   );
   const openMerchant = merchantOffers.find((o) => merchantKey(o) === openMerchantKey) ?? null;
 
+  // The timewarp animation (lib/timewarpFx.ts). `?timewarp` on its own is
+  // a preview, with controls to replay it; `&play=1` is a player arriving
+  // from the inventory right after timewarping, which plays once and then
+  // takes the parameters off the URL. Read from window rather than
+  // useSearchParams, which would have to be wrapped in a Suspense boundary
+  // on this page.
+  const [timewarpPreview, setTimewarpPreview] = useState(false);
+  const [timewarpRun, setTimewarpRun] = useState<TimewarpRun | null>(null);
+  const [timewarpRunId, setTimewarpRunId] = useState(0);
+  const [skyReady, setSkyReady] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const spec = parseTimewarp(params.get('timewarp'), params.get('to'));
+    if (!spec) return;
+    if (params.get('play')) {
+      setTimewarpRun({ spec, from: 'sky', hold: false });
+      router.replace('/');
+    } else {
+      setTimewarpPreview(true);
+      setTimewarpRun({ spec, from: 'now', hold: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- read the arrival URL once
+  const playPreview = useCallback((value: string) => {
+    const to = new URLSearchParams(window.location.search).get('to');
+    const spec = parseTimewarp(value, to);
+    if (!spec) return;
+    setTimewarpRun({ spec, from: 'now', hold: true });
+    setTimewarpRunId((n) => n + 1);
+  }, []);
+  // Waits for the whole sky to be up, so the animation has something to
+  // act on.
+  const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
+    skyReady ? timewarpRun : null,
+    timewarpRunId,
+  );
+
   useEffect(() => {
     const raf = requestAnimationFrame(() => setSceneReady(true));
     return () => cancelAnimationFrame(raf);
@@ -133,10 +172,16 @@ export default function Page() {
             onCityClick={handleCityClick}
             merchantMarkers={merchantMarkers}
             onMerchantClick={setOpenMerchantKey}
-            skyRevertKey={merchant?.sky_date ?? null}
+            // The timewarp's step too: each one moves the sky's instant, and
+            // the planets have to be redrawn where it now has them.
+            skyRevertKey={timewarpStep ? `${merchant?.sky_date ?? ''}|${timewarpStep}` : merchant?.sky_date ?? null}
+            timewarpColors={timewarpPlaying && timewarpRun ? timewarpRun.spec.colors : null}
+            onSkyReady={() => setSkyReady(true)}
           />
         </Canvas>
       )}
+
+      {timewarpPreview && <TimewarpPanel onPlay={playPreview} />}
 
       {enteringCity && (
         <CityLoadingScreen

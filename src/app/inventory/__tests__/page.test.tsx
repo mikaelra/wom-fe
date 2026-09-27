@@ -9,6 +9,9 @@ import {
 } from '@/lib/api';
 import { setStoredAccountToken, ApiError } from '@/lib/http';
 
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mockPush }) }));
+
 vi.mock('@/lib/api', () => ({
   getInventory: vi.fn(),
   equipSkin: vi.fn(),
@@ -508,24 +511,32 @@ describe('InventoryPage', () => {
       expect(mockedRevertMerchantTime).not.toHaveBeenCalled();
     });
 
-    it('calls the API only once both confirm steps are taken, and refreshes the inventory', async () => {
+    it('calls the API only once both confirm steps are taken, then takes the player home to watch', async () => {
+      mockPush.mockClear();
       mockedRevertMerchantTime.mockResolvedValue({
         ok: true,
         expires_at: '2026-09-25T21:00:00+00:00',
-        revert_to_date: '2026-09-11T21:00:00+00:00',
-        events: [],
+        revert_to_date: '2028-10-03T12:00:00+00:00',
+        events: [
+          { kind: 'full_moon', key: '', bodies: ['Moon'], sign: 'Aries', at: 'x' },
+          { kind: 'conjunction', key: 'Mercury-Jupiter', bodies: ['Mercury', 'Jupiter'], sign: 'Libra', at: 'y' },
+        ],
       });
       render(<InventoryPage />);
       await flush();
-      mockedGetInventory.mockClear();
 
       await openModalAndConfirm();
 
       expect(mockedRevertMerchantTime).toHaveBeenCalledWith('sess-1', 'Stone of Vitality', null);
-      expect(mockedGetInventory).toHaveBeenCalledTimes(1);
+      // Home, with the timewarp to play: both events' colours, the moment
+      // warped to, and `play` so it is the real thing rather than a preview.
+      expect(mockPush).toHaveBeenCalledWith(
+        '/?timewarp=full_moon%2CMercury-Jupiter&to=2028-10-03T12%3A00%3A00%2B00%3A00&play=1',
+      );
     });
 
-    it('shows the error inside the popup and does not refresh the inventory when the API call fails', async () => {
+    it('shows the error inside the popup and stays put when the API call fails', async () => {
+      mockPush.mockClear();
       mockedRevertMerchantTime.mockRejectedValue(
         new ApiError(409, 'Someone has already turned back time.', 'already_reverted'),
       );
@@ -536,6 +547,7 @@ describe('InventoryPage', () => {
       await openModalAndConfirm();
 
       expect(mockedGetInventory).not.toHaveBeenCalled();
+      expect(mockPush).not.toHaveBeenCalled();
       expect(screen.getByText('Someone has already turned back time.')).toBeInTheDocument();
     });
   });
