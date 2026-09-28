@@ -35,7 +35,15 @@ import {
   tradeUp,
   verifyLoginCode,
 } from '@/lib/api';
-import { ApiError, getStoredAccountToken, getStoredToken, setStoredAccountToken, setStoredToken } from '@/lib/http';
+import {
+  ApiError,
+  getStoredAccountToken,
+  getStoredRankedTicket,
+  getStoredToken,
+  setStoredAccountToken,
+  setStoredRankedTicket,
+  setStoredToken,
+} from '@/lib/http';
 
 const jsonResponse = (data: unknown, status = 200) =>
   ({
@@ -96,32 +104,73 @@ describe('createLobby', () => {
   });
 });
 
+/** A Map-backed window.localStorage for the node project, where the ranked
+ *  ticket helpers otherwise no-op. vi.unstubAllGlobals() removes it. */
+function stubLocalStorage() {
+  const store = new Map<string, string>();
+  vi.stubGlobal('window', {
+    localStorage: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    },
+  });
+}
+
+const POST_JSON = {
+  method: 'POST',
+  headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+};
+
 describe('joinRankedQueue', () => {
-  it('posts name and returns the queue status', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ status: 'queued' }));
+  it('posts the name and stores the ranked ticket it gets back', async () => {
+    stubLocalStorage();
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'queued', ticket: 'tkt-1' }));
 
     const result = await joinRankedQueue('Alice');
 
-    expect(result).toEqual({ status: 'queued' });
+    expect(result).toEqual({ status: 'queued', ticket: 'tkt-1' });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/join`, {
-      method: 'POST',
-      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      ...POST_JSON,
       body: JSON.stringify({ name: 'Alice' }),
     });
+    expect(getStoredRankedTicket('Alice')).toBe('tkt-1');
+    expect(getStoredRankedTicket('Bob')).toBeNull();
+  });
+
+  it('sends the stored ticket and the account session when there are any', async () => {
+    stubLocalStorage();
+    setStoredRankedTicket('Alice', 'tkt-1');
+    setStoredAccountToken('acct-1');
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'queued', ticket: 'tkt-1' }));
+
+    await joinRankedQueue('Alice');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/join`, {
+      ...POST_JSON,
+      body: JSON.stringify({ name: 'Alice', ticket: 'tkt-1', token: 'acct-1' }),
+    });
+  });
+
+  it('still parses a response without a ticket', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'queued' }));
+
+    await expect(joinRankedQueue('Alice')).resolves.toEqual({ status: 'queued' });
   });
 });
 
 describe('leaveRankedQueue', () => {
-  it('posts name and returns was_queued', async () => {
+  it('posts the name with its ranked ticket and returns was_queued', async () => {
+    stubLocalStorage();
+    setStoredRankedTicket('Alice', 'tkt-1');
     fetchMock.mockResolvedValue(jsonResponse({ status: 'left', was_queued: true }));
 
     const result = await leaveRankedQueue('Alice');
 
     expect(result).toEqual({ status: 'left', was_queued: true });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/leave`, {
-      method: 'POST',
-      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Alice' }),
+      ...POST_JSON,
+      body: JSON.stringify({ name: 'Alice', ticket: 'tkt-1' }),
     });
   });
 });
@@ -150,7 +199,9 @@ describe('getRankedProfile', () => {
 });
 
 describe('getActiveRankedLobby', () => {
-  it('GETs whether the player has a currently unfinished ranked match', async () => {
+  it('POSTs the name and ranked ticket to ask for an unfinished ranked match', async () => {
+    stubLocalStorage();
+    setStoredRankedTicket('Alice', 'tkt-1');
     fetchMock.mockResolvedValue(
       jsonResponse({
         lobby_id: 'RNKD',
@@ -168,21 +219,31 @@ describe('getActiveRankedLobby', () => {
       ranked_countdown_deadline: '2026-01-01T00:00:00Z',
       started: false,
     });
-    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active/Alice`, {
-      method: 'GET',
-      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) },
-      body: undefined,
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active`, {
+      ...POST_JSON,
+      body: JSON.stringify({ name: 'Alice', ticket: 'tkt-1' }),
     });
   });
 
-  it('URL-encodes the player name', async () => {
+  it('uses the account session when there is no ticket', async () => {
+    setStoredAccountToken('acct-1');
     fetchMock.mockResolvedValue(
       jsonResponse({ lobby_id: null, token: null, ranked_countdown_deadline: null, started: false }),
     );
 
     await getActiveRankedLobby('A B');
 
-    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active/A%20B`, expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active`, {
+      ...POST_JSON,
+      body: JSON.stringify({ name: 'A B', token: 'acct-1' }),
+    });
+  });
+
+  it('answers "no match" without asking when it has nothing to prove who we are', async () => {
+    const result = await getActiveRankedLobby('Alice');
+
+    expect(result).toEqual({ lobby_id: null, token: null, ranked_countdown_deadline: null, started: false });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

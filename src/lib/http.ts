@@ -131,6 +131,38 @@ export function setStoredAccountToken(token: string | null | undefined): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Ranked ticket (wom-be docs/PROTOCOL.md, "Ranked tickets").
+//
+// Ranked is open to guests, so the backend can't take a bare name as proof
+// of who is asking: /ranked/queue/join hands back a secret ticket for the
+// name, and leaving the queue, /ranked/active and the join_ranked_queue
+// room all want it back. localStorage, not sessionStorage, because the
+// "return to match" check runs on a fresh page load. Stored with its name
+// so a ticket is never sent on behalf of a different one.
+// ---------------------------------------------------------------------------
+
+const RANKED_TICKET_KEY = 'wom_ranked_ticket';
+
+export function getStoredRankedTicket(name: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(RANKED_TICKET_KEY) ?? 'null');
+    return stored && stored.name === name && typeof stored.ticket === 'string' ? stored.ticket : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredRankedTicket(name: string, ticket: string | null | undefined): void {
+  if (typeof window === 'undefined') return;
+  if (ticket) {
+    window.localStorage.setItem(RANKED_TICKET_KEY, JSON.stringify({ name, ticket }));
+  } else {
+    window.localStorage.removeItem(RANKED_TICKET_KEY);
+  }
+}
+
 type RequestOpts = {
   /** JSON body. Its presence also selects the method: POST if set, GET otherwise. */
   body?: unknown;

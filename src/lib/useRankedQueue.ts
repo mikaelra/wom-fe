@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSocket, subscribe, subscribeConnect } from '@/lib/socket';
 import { setStoredToken } from '@/lib/http';
-import { getActiveRankedLobby, joinRankedQueue, leaveRankedQueue } from '@/lib/api';
+import { getActiveRankedLobby, joinRankedQueue, leaveRankedQueue, rankedCredentials } from '@/lib/api';
 
 export type RankedQueueStatus = 'idle' | 'searching';
 
@@ -125,7 +125,6 @@ export function useRankedQueue() {
       enteredRef.current = false;
       setStatus('searching');
 
-      getSocket().emit('join_ranked_queue', { name });
       stopListening();
       unsubscribeRef.current = subscribe('ranked_match_found', ({ lobby_id, token }) => {
         enterMatch(lobby_id, token);
@@ -135,7 +134,7 @@ export function useRankedQueue() {
       unsubscribeConnectRef.current = subscribeConnect(() => {
         const queuedName = queuedNameRef.current;
         if (queuedName && !enteredRef.current) {
-          getSocket().emit('join_ranked_queue', { name: queuedName });
+          getSocket().emit('join_ranked_queue', { name: queuedName, ...rankedCredentials(queuedName) });
         }
       });
 
@@ -159,6 +158,13 @@ export function useRankedQueue() {
         stopListening();
         setStatus('idle');
         throw err;
+      }
+      // After the REST join, not before: the queue room needs the ranked
+      // ticket that join hands out (wom-be only lets the ticket holder, or
+      // the account owner, listen for this name's match). A match found in
+      // the moment between the two is picked up by layer 2's poll.
+      if (!enteredRef.current) {
+        getSocket().emit('join_ranked_queue', { name, ...rankedCredentials(name) });
       }
     },
     [enterMatch, stopListening]

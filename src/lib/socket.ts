@@ -84,8 +84,10 @@ export interface ClientToServerEvents {
   }) => void;
   submit_deny_target: (payload: { lobby_id: string; target: string }) => void;
   send_message: (payload: { lobby_id: string; message: string }) => void;
-  join_ranked_queue: (payload: { name: string }) => void;
-  join_ai_ranked_queue: (payload: { name: string }) => void;
+  // Both rooms receive a lobby session token, so joining takes proof: the
+  // ranked ticket or the account session (wom-be docs/PROTOCOL.md).
+  join_ranked_queue: (payload: { name: string; ticket?: string; token?: string }) => void;
+  join_ai_ranked_queue: (payload: { token: string }) => void;
   // No payload and no token: a watcher is deliberately NOT in the lobby,
   // and asking must never put them in it.
   watch_bossfight: () => void;

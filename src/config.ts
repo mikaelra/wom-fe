@@ -38,7 +38,11 @@ export const BUILD_NUMBER = process.env.NEXT_PUBLIC_BUILD_NUMBER || "0";
 // convention, not by any shared source. Sent on every request/connection so
 // the backend can recognize and reject a client it no longer supports (see
 // lib/http.ts and lib/socket.ts) instead of failing in some less legible way.
-export const PROTOCOL_VERSION = 2;
+// v3: ranked tickets (wom-be docs/PROTOCOL.md). wom-be refuses ranked
+// queue joins from clients declaring < 3, since an older build never reads
+// or sends the ticket -- which is how an installed store build learns it
+// must update to play ranked instead of silently missing its match.
+export const PROTOCOL_VERSION = 3;
 
 // --- Data controller identity (docs/LEGAL_COMPLIANCE_PLAN.md §2.1) ---
 

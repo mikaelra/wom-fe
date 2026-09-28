@@ -104,7 +104,7 @@ describe('useBotRankedQueue', () => {
       await result.current.startQueue('Alice', 'acct-tok');
     });
 
-    expect(socket.__emit).toHaveBeenCalledWith('join_ai_ranked_queue', { name: 'Alice' });
+    expect(socket.__emit).toHaveBeenCalledWith('join_ai_ranked_queue', { token: 'acct-tok' });
     expect(mockedJoin).toHaveBeenCalledWith('acct-tok');
     expect(result.current.status).toBe('searching');
   });
@@ -189,7 +189,7 @@ describe('useBotRankedQueue', () => {
         socket.__fireConnect();
       });
 
-      expect(socket.__emit).toHaveBeenCalledWith('join_ai_ranked_queue', { name: 'Alice' });
+      expect(socket.__emit).toHaveBeenCalledWith('join_ai_ranked_queue', { token: 'acct-tok' });
     });
 
     it('does not re-join once the match has been entered', async () => {
@@ -208,7 +208,7 @@ describe('useBotRankedQueue', () => {
         socket.__fireConnect();
       });
 
-      expect(socket.__emit).not.toHaveBeenCalledWith('join_ai_ranked_queue', { name: 'Alice' });
+      expect(socket.__emit).not.toHaveBeenCalledWith('join_ai_ranked_queue', { token: 'acct-tok' });
     });
   });
 
