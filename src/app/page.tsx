@@ -54,6 +54,7 @@ export default function Page() {
     receivedAt: merchantReceivedAt,
     reverted,
     revertToDate,
+    revertExpiresAt,
     refresh: refreshMerchantOffer,
   } = useMerchantOffer();
   // Which merchant's scene is open, by `offer_id|event_key` -- a key rather
@@ -124,11 +125,35 @@ export default function Page() {
     refreshMerchantOffer();
   }), []); // eslint-disable-line react-hooks/exhaustive-deps -- one subscription for the page's life
 
+  // A timewarp's hour running out: the same animation in the same colours,
+  // from the warped sky forward to now. The poll is asked right away so
+  // the sky it hands back to at the end is now's, with now's merchants.
+  const lastTimewarpEnd = useRef<string | null>(null);
+  useEffect(() => subscribe('timewarp_end', (payload) => {
+    if (payload.ended_at === lastTimewarpEnd.current) return;
+    lastTimewarpEnd.current = payload.ended_at;
+    const spec = parseTimewarp(timewarpParamFor(payload.events), new Date().toISOString());
+    if (!spec) return;
+    setTimewarpPreview(false);
+    setTimewarpRun({ spec, from: 'sky', hold: false, ending: true });
+    setTimewarpRunId((n) => n + 1);
+    refreshMerchantOffer();
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps -- one subscription for the page's life
+
   const playPreview = useCallback((value: string, momentTo?: string) => {
     const to = momentTo ?? new URLSearchParams(window.location.search).get('to');
     const spec = parseTimewarp(value, to);
     if (!spec) return;
     setTimewarpRun({ spec, from: 'now', hold: true });
+    setTimewarpRunId((n) => n + 1);
+  }, []);
+  // A preview of a timewarp's hour running out: what `timewarp_end` plays,
+  // from the moment warped to forward to now, handing the sky back to now.
+  const playPreviewEnd = useCallback((value: string, momentTo?: string) => {
+    const spec = parseTimewarp(value, new Date().toISOString());
+    const from = parseTimewarp(value, momentTo ?? new URLSearchParams(window.location.search).get('to'));
+    if (!spec || !from) return;
+    setTimewarpRun({ spec, from: from.to, hold: false, ending: true });
     setTimewarpRunId((n) => n + 1);
   }, []);
   // A preview shows the merchants of the moment it warps to -- one for each
@@ -138,7 +163,7 @@ export default function Page() {
   // the merchant poll brings the new moment's own.
   const merchantMarkers = useMemo(
     () =>
-      timewarpPreview && timewarpRun
+      timewarpPreview && timewarpRun && !timewarpRun.ending
         ? timewarpRun.spec.events.map((e, i) => ({
           key: `${PREVIEW_MERCHANT_PREFIX}${i}`,
           bodies: e.bodies,
@@ -198,6 +223,7 @@ export default function Page() {
             revertToDate={revertToDate ?? null}
             skyDate={merchant?.sky_date ?? null}
             skyDateReceivedAt={merchantReceivedAt}
+            revertExpiresAt={revertExpiresAt}
             warpColors={timewarpColorsFor(merchantOffers.map((o) => o.event))}
           />
         }
@@ -228,7 +254,7 @@ export default function Page() {
         </Canvas>
       )}
 
-      {timewarpPreview && <TimewarpPanel onPlay={playPreview} />}
+      {timewarpPreview && <TimewarpPanel onPlay={playPreview} onPlayEnd={playPreviewEnd} />}
 
       {enteringCity && (
         <CityLoadingScreen

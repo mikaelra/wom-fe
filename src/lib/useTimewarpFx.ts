@@ -15,11 +15,15 @@ export const SCRUB_STEP_MS = 66;
 export interface TimewarpRun {
   spec: TimewarpSpec;
   /** Where the sky runs from. A real timewarp starts from the sky as it
-   *  stands; a preview from the real now, so every replay travels. */
-  from: 'sky' | 'now';
+   *  stands; a preview from the real now, so every replay travels; a
+   *  preview of a timewarp's end from the moment it had warped to. */
+  from: 'sky' | 'now' | Date;
   /** Stay at `to` when done (a preview, to look at where it ended) rather
    *  than handing the sky back to the merchant poll's instant. */
   hold: boolean;
+  /** A timewarp's hour running out: the way back to now. The pins it
+   *  hands back to are now's merchants, not the warped moment's. */
+  ending?: boolean;
 }
 
 /**
@@ -33,7 +37,7 @@ export function useTimewarpFx(run: TimewarpRun | null, runId: number): { playing
 
   useEffect(() => {
     if (!run) return;
-    const from = run.from === 'now' ? new Date() : getSky().date;
+    const from = run.from instanceof Date ? run.from : run.from === 'now' ? new Date() : getSky().date;
     const start = performance.now();
     let lastScrub = -Infinity;
     let raf = 0;

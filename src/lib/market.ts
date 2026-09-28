@@ -60,7 +60,8 @@ export function recentChat(
 export type MarketItemInput = {
   // 'ai_credits' is a fungible balance -- `quantity` is the credit count,
   // no skin/relic_id/wheel_kind.
-  item_type: 'skin' | 'relic' | 'wheel' | 'ai_credits';
+  // 'artifact' is always quantity 1 and never moves (see artifactTradeProblem).
+  item_type: 'skin' | 'relic' | 'wheel' | 'ai_credits' | 'artifact';
   skin?: string;
   relic_id?: number;
   wheel_kind?: string;
@@ -79,6 +80,7 @@ export function itemKey(item: {
   if (item.item_type === 'skin') return `skin:${item.skin}`;
   if (item.item_type === 'relic') return `relic:${item.relic_id}`;
   if (item.item_type === 'ai_credits') return 'ai_credits';
+  if (item.item_type === 'artifact') return 'artifact';
   return `wheel:${item.wheel_kind}`;
 }
 
@@ -90,6 +92,7 @@ export function itemName(
   if (item.item_type === 'skin') return capitalize(skinLabel(item.skin ?? ''));
   if (item.item_type === 'wheel') return wheelKindLabel(item.wheel_kind ?? '');
   if (item.item_type === 'ai_credits') return 'AI credits';
+  if (item.item_type === 'artifact') return 'Artifact';
   const relic = catalog?.relics.find((r) => r.id === item.relic_id);
   return relic?.name ?? `Relic #${item.relic_id}`;
 }
@@ -156,4 +159,99 @@ export function mergeItemInputs(items: MarketItemInput[]): MarketItemInput[] {
 
 export function listingIsMine(listing: MarketListing, myPlayerId: number | null): boolean {
   return myPlayerId != null && listing.seller_player_id === myPlayerId;
+}
+
+/** Paper -> Artifact (wom-be docs/MARKET_PLAN.md §1B). An Artifact on a
+ *  trade is not handed over: its holder keeps it, and one Paper from the
+ *  other side is consumed to give that side an Artifact of its own. So a
+ *  trade carrying an Artifact needs a Paper opposite it, and can carry
+ *  only one Artifact. Mirrors wom-be domain/market.py's validate_craft;
+ *  returns why a crafted trade can't be posted, or null. */
+export function artifactTradeProblem(
+  give: Pick<MarketItemInput, 'item_type' | 'relic_id'>[],
+  want: Pick<MarketItemInput, 'item_type' | 'relic_id'>[],
+  paperRelicId: number | null | undefined,
+): string | null {
+  const hasArtifact = (side: typeof give) => side.some((i) => i.item_type === 'artifact');
+  const hasPaper = (side: typeof give) =>
+    paperRelicId != null && side.some((i) => i.item_type === 'relic' && i.relic_id === paperRelicId);
+  if (hasArtifact(give) && hasArtifact(want)) return "An Artifact can't be on both sides of a trade.";
+  if (hasArtifact(give) && !hasPaper(want)) return 'Offering your Artifact needs a Paper on the other side.';
+  if (hasArtifact(want) && !hasPaper(give)) return 'Asking for an Artifact needs a Paper on your side.';
+  return null;
+}
+
+/** Shown in red to the Artifact's holder as they agree to a Transcribe. */
+export const TRANSCRIBE_HOLDER_NOTE =
+  'You do NOT lose your Artifact or gain the Paper. You only transcribe their Paper into an Artifact.';
+
+/** What a trade is called. An Artifact against a Paper is a Transcribe --
+ *  the Artifact is copied onto the Paper, nothing is handed over -- and a
+ *  trade carrying one alongside anything else is a Transcribe and Trade.
+ *  "Only those" means the Artifact plus the one Paper it consumes; a
+ *  second Paper swaps like any item, so it makes a Transcribe and Trade. */
+export type TradeName = 'Trade' | 'Transcribe' | 'Transcribe and Trade';
+
+/** Accepts both the wire shape (nullable relic_id) and the craft input. */
+type NamedItem = { item_type: string; relic_id?: number | null; quantity: number };
+
+export function tradeName(
+  give: NamedItem[],
+  want: NamedItem[],
+  paperRelicId: number | null | undefined,
+): TradeName {
+  const isArtifact = (i: NamedItem) => i.item_type === 'artifact';
+  const isPaper = (i: NamedItem) =>
+    paperRelicId != null && i.item_type === 'relic' && i.relic_id === paperRelicId;
+  const artifactSide = give.some(isArtifact) ? give : want.some(isArtifact) ? want : null;
+  if (!artifactSide) return 'Trade';
+  const paperSide = artifactSide === give ? want : give;
+  if (!paperSide.some(isPaper)) return 'Trade';
+  const count = (side: NamedItem[]) => side.reduce((n, i) => n + i.quantity, 0);
+  const rest = count(artifactSide) - 1 + count(paperSide) - 1;
+  return rest === 0 ? 'Transcribe' : 'Transcribe and Trade';
+}
+
+/** The name mid-sentence: "Accept trade", "Accept Transcribe". */
+export function tradeNoun(name: TradeName): string {
+  return name === 'Trade' ? 'trade' : name;
+}
+
+/** The past tense, for receipts: "traded with", "transcribed with". */
+export function tradeNamePast(name: TradeName): string {
+  if (name === 'Transcribe') return 'transcribed';
+  if (name === 'Transcribe and Trade') return 'transcribed and traded';
+  return 'traded';
+}
+
+/** A row marked in the discoverers list, and what it's marked with. */
+export type LedgerMark = { ordinal: number; label: string };
+
+/** "#n" -- which copy of its source a copy is: the number after the last
+ *  "#" of its origin label ("{source holder}#{n}"; a name may itself
+ *  contain "#"). null for an original, or an origin with no number. */
+export function copyMark(origin: string | null | undefined): string | null {
+  const n = origin?.slice(origin.lastIndexOf('#') + 1);
+  return origin?.includes('#') && n && /^\d+$/.test(n) ? `#${n}` : null;
+}
+
+/** The viewer's marks in the discoverers list: their own find "(you)",
+ *  and -- for a transcribed copy -- the row it traces back to, marked with
+ *  its place among everything descended from it (wom-be origin_mark):
+ *  Oni -> Skoober -> Blimkin reads "#2 Oni #2" for Blimkin. Both at once
+ *  for a copy holder who went on to find one at the Well. A backend
+ *  without origin_order falls back to the copy's own number. */
+export function ledgerMarks(
+  artifact: {
+    ordinal?: number | null;
+    origin?: string | null;
+    origin_ordinal?: number | null;
+    origin_order?: number | null;
+  } | null | undefined,
+): LedgerMark[] {
+  const marks: LedgerMark[] = [];
+  if (artifact?.ordinal != null) marks.push({ ordinal: artifact.ordinal, label: '(you)' });
+  const mark = artifact?.origin_order != null ? `#${artifact.origin_order}` : copyMark(artifact?.origin);
+  if (artifact?.origin_ordinal != null && mark) marks.push({ ordinal: artifact.origin_ordinal, label: mark });
+  return marks;
 }

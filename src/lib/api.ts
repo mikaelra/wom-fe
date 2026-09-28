@@ -48,6 +48,7 @@ import {
   LogOutResponseSchema,
   ClaimPendingWheelResponseSchema,
   ArtifactLedgerResponseSchema,
+  ArtifactTranscribedToResponseSchema,
   EquipCosmeticResponseSchema,
   InventoryResponseSchema,
   EquipSkinResponseSchema,
@@ -196,7 +197,7 @@ export async function revertMerchantTime(
 ): Promise<z.infer<typeof MerchantRevertTimeResponseSchema>> {
   return request('/merchant/revert_time', MerchantRevertTimeResponseSchema, {
     body: copyId === null ? { token, relic } : { token, relic, copy_id: copyId },
-    defaultErrorMessage: 'Failed to revert time.',
+    defaultErrorMessage: 'Timewarp failed.',
   });
 }
 
@@ -439,6 +440,16 @@ export async function claimPendingArtifact(
   });
 }
 
+/** One Artifact this one was transcribed to (wom-be MARKET_PLAN.md §1B). */
+export type TranscribedEntry = {
+  id?: number;
+  name: string;
+  origin: string;
+  copy_number?: number;
+  transcribed_count?: number;
+  at: string | null;
+};
+
 export async function getInventory(
   token: string
 ): Promise<{
@@ -447,7 +458,15 @@ export async function getInventory(
   skins: { skin: string; count: number }[];
   wheels: { id: number; kind: string }[];
   equipped_cosmetic?: string | null;
-  artifact?: { ordinal: number; discovered_at: string | null; cosmetic: string } | null;
+  artifact?: {
+    ordinal: number | null;
+    discovered_at: string | null;
+    cosmetic: string;
+    origin?: string | null;
+    origin_ordinal?: number | null;
+    origin_order?: number | null;
+    reproduced_to?: TranscribedEntry[];
+  } | null;
   ai_credits?: number;
 }> {
   return request('/inventory', InventoryResponseSchema, {
@@ -479,6 +498,18 @@ export async function equipCosmetic(
  *  answers 403 otherwise, which callers should treat as "sealed" rather than
  *  as a failure. Keyset-paginated on ordinal: pass the last ordinal seen as
  *  `after`. */
+/** Who another Artifact was transcribed to -- following the list down a
+ *  chain (wom-be routes/artifacts.py). */
+export async function getArtifactTranscribedTo(
+  token: string,
+  artifactId: number,
+): Promise<{ name: string; transcribed_to: TranscribedEntry[] }> {
+  return request('/artifacts/transcribed_to', ArtifactTranscribedToResponseSchema, {
+    body: { token, artifact_id: artifactId },
+    defaultErrorMessage: 'Failed to load who it was transcribed to.',
+  });
+}
+
 export async function getArtifactLedger(
   token: string,
   after = 0,
@@ -775,7 +806,7 @@ export async function createMarketListing(
 export async function acceptMarketListing(
   token: string,
   listingId: number,
-): Promise<{ listing: MarketListing }> {
+): Promise<{ listing: MarketListing; reproduced?: { to: string; origin: string | null } }> {
   try {
     return await request(`/market/listings/${listingId}/accept`, MarketMutationResponseSchema, {
       body: { token },

@@ -75,6 +75,20 @@ describe('useTimewarpFx', () => {
     expect(getSky().date).toEqual(TO);
   });
 
+  it("runs from a given moment -- a preview of a timewarp's end, forward to now", () => {
+    const from = new Date('2026-04-20T11:20:17Z');
+    const now = new Date();
+    const r = run({ from, spec: { ...run().spec, to: now }, ending: true });
+    renderHook(() => useTimewarpFx(r, 0));
+
+    advance(SPIN_UP_MS);
+    expect(Math.abs(getSky().date.getTime() - from.getTime())).toBeLessThan(1000);
+    advance((SCRUB_END_MS - SPIN_UP_MS) / 2);
+    const midway = getSky().date.getTime();
+    expect(midway).toBeGreaterThan(from.getTime());
+    expect(midway).toBeLessThan(now.getTime());
+  });
+
   it('holds at `to` when done, for a preview, until let go', () => {
     const r = run({ hold: true });
     const { unmount } = renderHook(() => useTimewarpFx(r, 0));

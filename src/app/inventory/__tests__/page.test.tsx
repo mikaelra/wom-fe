@@ -460,15 +460,15 @@ describe('InventoryPage', () => {
     // button and status text moved into it) -- this walks through both of
     // its confirm steps.
     const openPopup = () => act(async () => {
-      fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the turn back time popup'));
+      fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the Timewarp popup'));
       await flush();
     });
     const openModalAndConfirm = () => act(async () => {
-      fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the turn back time popup'));
+      fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the Timewarp popup'));
       await flush();
       fireEvent.click(screen.getByRole('button', { name: 'Timewarp' }));
       await flush();
-      fireEvent.click(screen.getByRole('button', { name: 'Yes, turn back time' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, timewarp' }));
       await flush();
     });
 
@@ -570,7 +570,7 @@ describe('InventoryPage', () => {
       render(<InventoryPage />);
       await flush();
 
-      expect(screen.getByLabelText('Paper -- open the turn back time popup')).toBeInTheDocument();
+      expect(screen.getByLabelText('Paper -- open the Timewarp popup')).toBeInTheDocument();
       expect(screen.getByText('For writing on')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Revert Time (1h)' })).not.toBeInTheDocument();
     });
@@ -583,11 +583,11 @@ describe('InventoryPage', () => {
       await flush();
 
       await act(async () => {
-        fireEvent.click(screen.getByLabelText('Paper -- open the turn back time popup'));
+        fireEvent.click(screen.getByLabelText('Paper -- open the Timewarp popup'));
         await flush();
         fireEvent.click(screen.getByRole('button', { name: 'Timewarp' }));
         await flush();
-        fireEvent.click(screen.getByRole('button', { name: 'Yes, turn back time' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Yes, timewarp' }));
         await flush();
       });
 
@@ -614,12 +614,12 @@ describe('InventoryPage', () => {
       await flush();
 
       await act(async () => {
-        fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the turn back time popup'));
+        fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the Timewarp popup'));
         await flush();
       });
 
       const dialog = within(screen.getByRole('dialog'));
-      expect(dialog.getByText(/Someone has currently warped time to/)).toBeInTheDocument();
+      expect(dialog.getByText(/Someone has timewarped to/)).toBeInTheDocument();
       expect(dialog.getByRole('button', { name: 'Timewarp' })).toBeEnabled();
     });
   });
@@ -644,7 +644,7 @@ describe('InventoryPage', () => {
       render(<InventoryPage />);
       await flush();
       await act(async () => {
-        fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the turn back time popup'));
+        fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the Timewarp popup'));
         await flush();
       });
 
@@ -652,7 +652,7 @@ describe('InventoryPage', () => {
       // no explicit timeZone) -- this checks the right data flows through
       // to the card, not a fixed string that would only hold in one TZ.
       expect(
-        screen.getByText(`Someone has currently warped time to ${formatWorldClock(new Date('2026-09-11T21:00:00+00:00'))}.`),
+        screen.getByText(`Someone has timewarped to ${formatWorldClock(new Date('2026-09-11T21:00:00+00:00'))}.`),
       ).toBeInTheDocument();
       // No lock reported (an older backend) holds Timewarp off for the whole revert.
       expect(screen.getByRole('button', { name: 'Timewarp available in 42:00' })).toBeDisabled();
@@ -664,7 +664,7 @@ describe('InventoryPage', () => {
       await flush();
 
       await act(async () => {
-        fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the turn back time popup'));
+        fireEvent.click(screen.getByLabelText('Stone of Vitality -- open the Timewarp popup'));
         await flush();
       });
 

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { timewarpParamFor } from '@/lib/timewarpFx';
-import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules } from '@/lib/api';
+import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules, type TranscribedEntry } from '@/lib/api';
+import { ledgerMarks } from '@/lib/market';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel, skinThumbnailUrl, skinUrl, sortSkins } from '@/lib/frogSkins';
 import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
@@ -25,7 +26,16 @@ import { CONSUMABLE_RELIC_NAMES, type Relic } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
 
 type SkinEntry = { skin: string; count: number };
-type ArtifactEntry = { ordinal: number; discovered_at: string | null; cosmetic: string };
+type ArtifactEntry = {
+  // Null on a reproduced copy (wom-be docs/MARKET_PLAN.md §1B).
+  ordinal: number | null;
+  discovered_at: string | null;
+  cosmetic: string;
+  origin?: string | null;
+  origin_ordinal?: number | null;
+  origin_order?: number | null;
+  reproduced_to?: TranscribedEntry[];
+};
 type WheelEntry = { id: number; kind: string };
 // One button per distinct wheel kind, not one per row -- id is an arbitrary
 // representative of the group (any wheel of that kind spins the same way).
@@ -311,7 +321,7 @@ export default function InventoryPage() {
                       className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
                     >
                       {/* A merchant relic's model (Stone of Vitality,
-                          Paper) is also the "turn back time" entry point -- same affordance as the
+                          Paper) is also the Timewarp entry point -- same affordance as the
                           Artifact card below (click the model, get a
                           popup), rather than a click target that does
                           nothing. Every other relic keeps a plain,
@@ -320,7 +330,7 @@ export default function InventoryPage() {
                         <button
                           type="button"
                           onClick={() => setRevertRelic(relic)}
-                          aria-label={`${relic.name} -- open the turn back time popup`}
+                          aria-label={`${relic.name} -- open the Timewarp popup`}
                           className="w-16 h-16 overflow-hidden bg-transparent border-0 p-0 cursor-pointer"
                         >
                           <RelicCoin relicName={relic.name} />
@@ -462,7 +472,11 @@ export default function InventoryPage() {
                   <button
                     type="button"
                     onClick={() => setShowLedger(true)}
-                    aria-label={`Artifact number ${artifact.ordinal}, open the discovery ledger`}
+                    aria-label={
+                      artifact.ordinal != null
+                        ? `Artifact number ${artifact.ordinal}, open the discovery ledger`
+                        : 'Artifact, open the discovery ledger'
+                    }
                     className="w-28 h-28 shrink-0 bg-transparent border-0 p-0 cursor-pointer"
                   >
                     {artifactUrl ? (
@@ -485,6 +499,11 @@ export default function InventoryPage() {
                     <p className="text-xs text-white/50 mt-1">
                       {cosmeticDescription(artifact.cosmetic)}
                     </p>
+                    {/* Paper -> Artifact: a copy names where it came from.
+                        Who it was transcribed to is a tab in the ledger. */}
+                    {artifact.origin && (
+                      <p className="text-xs text-white/40 mt-1">Origin: {artifact.origin}</p>
+                    )}
                     <div className="mt-3 flex items-center justify-center sm:justify-start gap-2 flex-wrap">
                       {equippedCosmetic === artifact.cosmetic ? (
                         <>
@@ -526,7 +545,8 @@ export default function InventoryPage() {
 
       {showLedger && (
         <ArtifactLedgerModal
-          highlightOrdinal={artifact?.ordinal ?? null}
+          marks={ledgerMarks(artifact)}
+          transcribedTo={artifact?.reproduced_to ?? []}
           onClose={() => setShowLedger(false)}
         />
       )}

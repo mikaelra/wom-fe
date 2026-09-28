@@ -339,3 +339,39 @@ describe('Socket.IO payload schemas', () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe('Paper -> Artifact shapes (wom-be MARKET_PLAN.md §1B)', () => {
+  it('reads a reproduced copy in the inventory: no ordinal, an origin, who it went to', async () => {
+    const { InventoryResponseSchema } = await import('@/lib/schemas');
+    const parsed = InventoryResponseSchema.parse({
+      equipped_skin: 'frog_green_v1',
+      skins: [],
+      wheels: [],
+      artifact: {
+        ordinal: null,
+        discovered_at: '2026-09-27T12:00:00Z',
+        cosmetic: 'artifact_v1',
+        origin: 'Alice#1',
+        reproduced_to: [{ name: 'Cleo', origin: 'Bob#1', at: '2026-09-27T13:00:00Z' }],
+      },
+    });
+    expect(parsed.artifact?.ordinal).toBeNull();
+    expect(parsed.artifact?.origin).toBe('Alice#1');
+    expect(parsed.artifact?.reproduced_to?.[0].name).toBe('Cleo');
+  });
+
+  it('reads an Artifact on a trade and a reproduction on accept', async () => {
+    const { MarketMutationResponseSchema } = await import('@/lib/schemas');
+    const item = { item_type: 'artifact', skin: null, relic_id: null, wheel_kind: null, quantity: 1 };
+    const parsed = MarketMutationResponseSchema.parse({
+      success: true,
+      listing: {
+        id: 1, kind: 'quick', status: 'fulfilled', seller_player_id: 2, seller_name: 'Bob',
+        created_at: 'x', expires_at: 'y', give: [item], want: [],
+      },
+      reproduced: { to: 'Alice', origin: 'Bob#1' },
+    });
+    expect(parsed.listing.give[0].item_type).toBe('artifact');
+    expect(parsed.reproduced?.to).toBe('Alice');
+  });
+});
