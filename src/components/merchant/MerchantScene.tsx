@@ -209,7 +209,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
               {/* The merchant on what he sells -- in the same type as his
                   quote at the top. */}
               {MERCHANT_ITEM_LINES[offer.item_name] && (
-                <p className="text-amber-100/60 text-[11px] mb-1">&ldquo;{MERCHANT_ITEM_LINES[offer.item_name]}&rdquo;</p>
+                <p className="text-amber-100/60 text-[11px] mb-1">{MERCHANT_ITEM_LINES[offer.item_name]}</p>
               )}
               <p className="text-white/60 text-sm mb-4">
                 {offer.cost_hades_coins} Hades&rsquo; Coin{offer.cost_hades_coins === 1 ? '' : 's'}

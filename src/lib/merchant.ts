@@ -156,8 +156,8 @@ export const MERCHANT_QUOTES: Readonly<Record<'full_moon' | 'conjunction', reado
 /** What the merchant says about a relic he sells, under its name in his
  *  scene. The user's own lines; an item without one shows nothing. */
 export const MERCHANT_ITEM_LINES: Readonly<Record<string, string>> = {
-  Paper: 'One could write something on this.',
-  'Stone of Vitality': 'A stone which exudes vitality.',
+  Paper: 'One could write something on this',
+  'Stone of Vitality': 'A stone which exudes vitality',
 };
 
 /** One of the merchant's quotes, at random -- `random` for tests. */

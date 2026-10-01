@@ -29,7 +29,7 @@ describe('MerchantScene', () => {
 
     expect(screen.getByText('Stone of Vitality')).toBeInTheDocument();
     // His line about it, between its name and its price.
-    const line = screen.getByText('“A stone which exudes vitality.”');
+    const line = screen.getByText('A stone which exudes vitality');
     expect(line.previousElementSibling).toHaveTextContent('Stone of Vitality');
     expect(line.nextElementSibling).toHaveTextContent('5 Hades’ Coins');
     expect(screen.queryByText(/One could write/)).not.toBeInTheDocument();
@@ -137,7 +137,7 @@ describe('MerchantScene', () => {
       expect(screen.getByText('Hildegard von Bingen')).toBeInTheDocument();
       expect(screen.getByText('Paper')).toBeInTheDocument();
       // He says something about it, between its name and its price.
-      const line = screen.getByText('“One could write something on this.”');
+      const line = screen.getByText('One could write something on this');
       expect(line.previousElementSibling).toHaveTextContent('Paper');
       expect(line.nextElementSibling).toHaveTextContent('3 Hades’ Coins');
       expect(screen.getByRole('button', { name: /Trade for 3/ })).toBeEnabled();
