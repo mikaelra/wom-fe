@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONJUNCTION_COLOR, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine, timewarpEventLabels,
-  merchantMarkerLabel, merchantModelFor, merchantSkyBodies, meanDirection, skyToGlobeLocal,
+  merchantMarkerLabel, merchantModelFor, merchantNameFor, merchantSkyBodies, meanDirection, skyToGlobeLocal,
   PLANET_COLOR, REVERT_RELIC_NAMES, merchantMarkerColors, PLANET_RADIUS_KM, sphereDrop,
 } from '@/lib/merchant';
 import { bodyColorHex } from '@/lib/astrology';
@@ -42,6 +42,18 @@ describe('merchantMarkerLabel', () => {
   it('drops the article', () => {
     expect(merchantMarkerLabel('The Merchant')).toBe('Merchant');
     expect(merchantMarkerLabel('Merchant')).toBe('Merchant');
+  });
+
+  it('leaves a merchant\'s own name as it is', () => {
+    expect(merchantMarkerLabel('John Dee')).toBe('John Dee');
+    expect(merchantMarkerLabel('Hildegard von Bingen')).toBe('Hildegard von Bingen');
+  });
+});
+
+describe('merchantNameFor', () => {
+  it('is John Dee at the full moon and Hildegard von Bingen at a conjunction', () => {
+    expect(merchantNameFor('full_moon')).toBe('John Dee');
+    expect(merchantNameFor('conjunction')).toBe('Hildegard von Bingen');
   });
 });
 

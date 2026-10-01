@@ -93,7 +93,7 @@ describe('MerchantScene', () => {
     act(() => screen.getByRole('button', { name: /Trade for 5/ }).click());
 
     await waitFor(() =>
-      expect(screen.getByText('Log in to trade with The Merchant.')).toBeInTheDocument(),
+      expect(screen.getByText('Log in to trade with John Dee.')).toBeInTheDocument(),
     );
     expect(mockedPurchase).not.toHaveBeenCalled();
   });
@@ -107,7 +107,7 @@ describe('MerchantScene', () => {
   it('says a revert brought him when time is turned back', () => {
     render(<MerchantScene offer={stoneOffer({ reverted: true })} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
 
-    expect(screen.getByText('Someone timewarped to bring The Merchant here')).toBeInTheDocument();
+    expect(screen.getByText('Someone timewarped to bring John Dee here')).toBeInTheDocument();
   });
 
   describe('the Merchant at a conjunction', () => {
@@ -116,7 +116,7 @@ describe('MerchantScene', () => {
     it('sells Paper for 3, staging the Paper model', () => {
       render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
 
-      expect(screen.getByText('The Merchant')).toBeInTheDocument();
+      expect(screen.getByText('Hildegard von Bingen')).toBeInTheDocument();
       expect(screen.getByText('Paper')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Trade for 3/ })).toBeEnabled();
       const models = screen.getAllByTestId('merchant-model').map((el) => el.getAttribute('data-url'));

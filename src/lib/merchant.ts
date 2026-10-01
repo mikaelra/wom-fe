@@ -118,13 +118,21 @@ export function merchantArrivalLine(triggerKind: string): string {
 }
 
 /** Which model stands behind the counter: the Merchant at the full moon,
- *  the Lady Merchant at a conjunction. Still both "The Merchant" by name. */
+ *  the Lady Merchant at a conjunction. */
 export function merchantModelFor(triggerKind: string): 'merchant_v1' | 'lady_merchant_v1' {
   return triggerKind === 'conjunction' ? 'lady_merchant_v1' : 'merchant_v1';
 }
 
-/** The marker's label: "Merchant" -- the merchant's name without
- *  its article, short enough to float over the globe. */
+/** Who comes for a kind of event: John Dee at the full moon, Hildegard
+ *  von Bingen at a conjunction. The real offers carry their own
+ *  merchant_name (wom-be merchant_offers); this is for a timewarp
+ *  preview's merchants, which have no offer behind them. */
+export function merchantNameFor(triggerKind: string): string {
+  return triggerKind === 'conjunction' ? 'Hildegard von Bingen' : 'John Dee';
+}
+
+/** The marker's label: the merchant's name without any leading article
+ *  ("The Merchant" floated as "Merchant"). */
 export function merchantMarkerLabel(merchantName: string): string {
   return merchantName.replace(/^The\s+/i, '');
 }
