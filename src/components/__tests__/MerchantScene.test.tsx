@@ -104,10 +104,23 @@ describe('MerchantScene', () => {
     expect(screen.getByText('Appears around the full moon')).toBeInTheDocument();
   });
 
-  it('says a revert brought him when time is turned back', () => {
+  it('has John Dee say one of his lines when a timewarp brought him', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
     render(<MerchantScene offer={stoneOffer({ reverted: true })} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
 
-    expect(screen.getByText('Someone timewarped to bring John Dee here')).toBeInTheDocument();
+    expect(screen.getByText('John Dee')).toBeInTheDocument();
+    expect(screen.getByText('“The All is Mind”')).toBeInTheDocument();
+    expect(screen.queryByText('Appears around the full moon')).not.toBeInTheDocument();
+  });
+
+  it('has Hildegard von Bingen say one of hers at a conjunction', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    render(<MerchantScene offer={paperOffer({ reverted: true })} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
+
+    expect(screen.getByText('Hildegard von Bingen')).toBeInTheDocument();
+    expect(screen.getByText('“there is the music of heaven in all things”')).toBeInTheDocument();
   });
 
   describe('the Merchant at a conjunction', () => {

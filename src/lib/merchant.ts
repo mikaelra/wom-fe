@@ -123,18 +123,35 @@ export function merchantModelFor(triggerKind: string): 'merchant_v1' | 'lady_mer
   return triggerKind === 'conjunction' ? 'lady_merchant_v1' : 'merchant_v1';
 }
 
-/** Who comes for a kind of event: John Dee at the full moon, Hildegard
- *  von Bingen at a conjunction. The real offers carry their own
- *  merchant_name (wom-be merchant_offers); this is for a timewarp
- *  preview's merchants, which have no offer behind them. */
-export function merchantNameFor(triggerKind: string): string {
-  return triggerKind === 'conjunction' ? 'Hildegard von Bingen' : 'John Dee';
-}
+/** Every merchant's marker on the globe says just this. His name -- John
+ *  Dee, Hildegard von Bingen (wom-be merchant_offers) -- is for when you
+ *  click it, at the top of his scene. */
+export const MERCHANT_MARKER_LABEL = 'Merchant';
 
-/** The marker's label: the merchant's name without any leading article
- *  ("The Merchant" floated as "Merchant"). */
-export function merchantMarkerLabel(merchantName: string): string {
-  return merchantName.replace(/^The\s+/i, '');
+/** What the merchant says in his scene when a timewarp brought him: John
+ *  Dee at the full moon, Hildegard von Bingen at a conjunction. Word for
+ *  word as given. */
+export const MERCHANT_QUOTES: Readonly<Record<'full_moon' | 'conjunction', readonly string[]>> = {
+  full_moon: [
+    'The All is Mind',
+    'the heavenly realm can be reached through great effort',
+    "did you know that i'm the great-great-great-father of science?",
+    'i wish kelly would stop saying he can make gold',
+    'angel magic is best magic',
+    'elizabeth is just the best',
+    "money or knowledge? i just know that i'm in severe debt after all these books i've bought...",
+  ],
+  conjunction: [
+    'love is the water which waters the soul of your body',
+    'there is the music of heaven in all things',
+    'all thing carries The Word',
+  ],
+};
+
+/** One of the merchant's quotes, at random -- `random` for tests. */
+export function merchantQuote(triggerKind: string, random: () => number = Math.random): string {
+  const quotes = MERCHANT_QUOTES[triggerKind === 'conjunction' ? 'conjunction' : 'full_moon'];
+  return quotes[Math.min(quotes.length - 1, Math.floor(random() * quotes.length))];
 }
 
 /**

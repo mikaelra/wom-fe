@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONJUNCTION_COLOR, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine, timewarpEventLabels,
-  merchantMarkerLabel, merchantModelFor, merchantNameFor, merchantSkyBodies, meanDirection, skyToGlobeLocal,
+  MERCHANT_MARKER_LABEL, MERCHANT_QUOTES, merchantQuote, merchantModelFor, merchantSkyBodies, meanDirection, skyToGlobeLocal,
   PLANET_COLOR, REVERT_RELIC_NAMES, merchantMarkerColors, PLANET_RADIUS_KM, sphereDrop,
 } from '@/lib/merchant';
 import { bodyColorHex } from '@/lib/astrology';
@@ -38,22 +38,35 @@ describe('timewarpEventLabels', () => {
   });
 });
 
-describe('merchantMarkerLabel', () => {
-  it('drops the article', () => {
-    expect(merchantMarkerLabel('The Merchant')).toBe('Merchant');
-    expect(merchantMarkerLabel('Merchant')).toBe('Merchant');
-  });
-
-  it('leaves a merchant\'s own name as it is', () => {
-    expect(merchantMarkerLabel('John Dee')).toBe('John Dee');
-    expect(merchantMarkerLabel('Hildegard von Bingen')).toBe('Hildegard von Bingen');
+describe('MERCHANT_MARKER_LABEL', () => {
+  it('is just "Merchant", whoever he is', () => {
+    expect(MERCHANT_MARKER_LABEL).toBe('Merchant');
   });
 });
 
-describe('merchantNameFor', () => {
-  it('is John Dee at the full moon and Hildegard von Bingen at a conjunction', () => {
-    expect(merchantNameFor('full_moon')).toBe('John Dee');
-    expect(merchantNameFor('conjunction')).toBe('Hildegard von Bingen');
+describe('merchantQuote', () => {
+  it('is one of John Dee\'s at the full moon', () => {
+    expect(merchantQuote('full_moon', () => 0)).toBe('The All is Mind');
+    expect(merchantQuote('full_moon', () => 0.999)).toBe(
+      "money or knowledge? i just know that i'm in severe debt after all these books i've bought...",
+    );
+  });
+
+  it('is one of Hildegard von Bingen\'s at a conjunction', () => {
+    expect(merchantQuote('conjunction', () => 0)).toBe('love is the water which waters the soul of your body');
+    expect(merchantQuote('conjunction', () => 0.5)).toBe('there is the music of heaven in all things');
+  });
+
+  it('can say every one of their lines', () => {
+    for (const kind of ['full_moon', 'conjunction'] as const) {
+      const n = MERCHANT_QUOTES[kind].length;
+      const said = new Set(Array.from({ length: n }, (_, i) => merchantQuote(kind, () => i / n)));
+      expect([...said]).toEqual([...MERCHANT_QUOTES[kind]]);
+    }
+  });
+
+  it('stays in range even if random() returns 1', () => {
+    expect(merchantQuote('conjunction', () => 1)).toBe('all thing carries The Word');
   });
 });
 

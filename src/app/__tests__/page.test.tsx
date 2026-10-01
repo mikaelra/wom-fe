@@ -265,9 +265,9 @@ describe('Page (merchant markers)', () => {
 
     await waitFor(() => expect(lastMerchantMarkers).toHaveLength(2));
     const [moon, conj] = lastMerchantMarkers;
-    expect(moon).toMatchObject({ label: 'John Dee', color: FULL_MOON_MERCHANT_COLOR, outline: null });
+    expect(moon).toMatchObject({ label: 'Merchant', color: FULL_MOON_MERCHANT_COLOR, outline: null });
     // Jupiter is the bigger planet: its colour inside, Mercury's outside.
-    expect(conj).toMatchObject({ label: 'Hildegard von Bingen', color: '#008296', outline: '#db9504' });
+    expect(conj).toMatchObject({ label: 'Merchant', color: '#008296', outline: '#db9504' });
     // Each stands under its own sky: the Moon, and the conjunction's planets.
     expect(moon.bodies).toEqual(['Moon']);
     expect(conj.bodies).toEqual(['Mercury', 'Jupiter']);
@@ -331,7 +331,7 @@ describe('Page (?timewarp)', () => {
 
     await waitFor(() => expect(lastMerchantMarkers.map((m) => m.bodies)).toEqual([['Mars', 'Jupiter']]));
     // Jupiter is the bigger planet: its colour inside, Mars' outside.
-    expect(lastMerchantMarkers[0]).toMatchObject({ label: 'Hildegard von Bingen', color: '#008296', outline: '#ff0000' });
+    expect(lastMerchantMarkers[0]).toMatchObject({ label: 'Merchant', color: '#008296', outline: '#ff0000' });
   });
 
   it('opens nothing when a preview merchant is clicked', async () => {

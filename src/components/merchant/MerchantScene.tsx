@@ -7,7 +7,7 @@ import { relicModelUrl } from '@/components/RelicCoin';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
-import { merchantArrivalLine, merchantModelFor } from '@/lib/merchant';
+import { merchantArrivalLine, merchantModelFor, merchantQuote } from '@/lib/merchant';
 
 // The merchant's box at its original 160px, scaled 2.3x then another 1.5x
 // per Mikael's asks -- kept as a constant since the clip wrapper's height
@@ -58,6 +58,9 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
   const [buying, setBuying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bought, setBought] = useState(false);
+  // Brought by a timewarp, he says one of his lines -- picked once, as the
+  // scene opens, so it doesn't change under the player while it's open.
+  const [quote] = useState(() => merchantQuote(offer.trigger_kind));
   const reducedMotion = usePrefersReducedMotion();
   const relicBox = RELIC_BOX_PX * (RELIC_SCALE[offer.item_name] ?? 1);
   // The old Merchant at the full moon, the Lady Merchant at a conjunction.
@@ -101,7 +104,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
         <div className="px-5 pt-5 text-center">
           <p className="text-amber-200/80 text-xs font-bold tracking-widest uppercase">{offer.merchant_name}</p>
           <p className="text-amber-100/60 text-[11px] mt-0.5">
-            {offer.reverted ? `Someone timewarped to bring ${offer.merchant_name} here` : merchantArrivalLine(offer.trigger_kind)}
+            {offer.reverted ? `“${quote}”` : merchantArrivalLine(offer.trigger_kind)}
           </p>
         </div>
 

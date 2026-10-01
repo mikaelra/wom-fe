@@ -13,7 +13,7 @@ import { useTimewarpRun } from '@/lib/useTimewarpRun';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import type { City } from '@/lib/cities';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
-import { merchantMarkerColors, merchantMarkerLabel, merchantNameFor, merchantSkyBodies } from '@/lib/merchant';
+import { MERCHANT_MARKER_LABEL, merchantMarkerColors, merchantSkyBodies } from '@/lib/merchant';
 import { getStoredAccountToken } from '@/lib/http';
 
 const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
@@ -77,7 +77,7 @@ export default function Page() {
         key: merchantKey(o),
         bodies: merchantSkyBodies(o.event),
         ...(({ fill, outline }) => ({ color: fill, outline }))(merchantMarkerColors(o.event)),
-        label: merchantMarkerLabel(o.merchant_name),
+        label: MERCHANT_MARKER_LABEL,
       })),
     [merchantOffers],
   );
@@ -109,7 +109,7 @@ export default function Page() {
           ...(({ fill, outline }) => ({ color: fill, outline }))(
             merchantMarkerColors({ kind: e.kind, key: e.key, bodies: e.bodies, sign: '', at: '' }),
           ),
-          label: merchantMarkerLabel(merchantNameFor(e.kind)),
+          label: MERCHANT_MARKER_LABEL,
         }))
         : realMerchantMarkers,
     [timewarpPreview, timewarpRun, realMerchantMarkers],
