@@ -9,6 +9,7 @@ import Temple from '@/components/temple';
 import Senate from '@/components/city/Senate';
 import Market from '@/components/city/Market';
 import CitySky, { useCitySky } from '@/components/city/CitySky';
+import TimewarpFx from '@/components/worldmap/TimewarpFx';
 import Signpost, { type SignpostArm } from '@/components/city/Signpost';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
 import CompassMarks from '@/components/city/CompassMarks';
@@ -69,6 +70,9 @@ export const EYE: [number, number, number] = [0, LAND_LEVEL + EYE_HEIGHT, 0];
 /** How far the camera sits from the pin. Small enough to read as rotating in
  *  place, large enough to keep OrbitControls' maths well-conditioned. */
 const EYE_RADIUS = 0.01;
+/** The timewarp's weather overhead: inside the sphere the Sun, the Moon
+ *  and the planets are placed on, so the buildings stand in front of it. */
+const TIMEWARP_DOME_R = SKY_R * 0.9;
 /** Start pose: offset along +Z of the pin, so the default view looks toward
  *  -Z -- where the signpost and both buildings stand. */
 export const CITY_CAMERA: [number, number, number] = [EYE[0], EYE[1], EYE[2] + EYE_RADIUS];
@@ -188,6 +192,10 @@ export interface CitySceneProps {
   /** Fired once the scene is genuinely on screen, so the loading curtain
    *  knows when to lift. */
   onReady?: () => void;
+  /** While a timewarp plays (lib/timewarpFx.ts), its colours: the same
+   *  clouds and lightning the globe wears, over the city's sky. null
+   *  otherwise. */
+  timewarpColors?: string[] | null;
 }
 
 /**
@@ -384,6 +392,7 @@ export default function CityScene({
   onMarket,
   presence,
   onReady,
+  timewarpColors = null,
 }: CitySceneProps) {
   // The city's primary RANKED arm doesn't queue -- it walks the camera over
   // to the fork signpost between the two Senates, where you pick PLAYERS or
@@ -518,6 +527,12 @@ export default function CityScene({
   return (
     <>
       <CitySky date={date} realLat={realLat} realLng={realLng} eye={EYE} seaLevel={SEA_LEVEL} />
+
+      {timewarpColors && timewarpColors.length > 0 && (
+        <group position={EYE}>
+          <TimewarpFx colors={timewarpColors} radius={TIMEWARP_DOME_R} dome />
+        </group>
+      )}
 
       {/* Outside the <Suspense> below: the labels are DOM, not a model, and
           must not wait on a texture to start naming what you look at. */}

@@ -36,6 +36,9 @@ const MAX_CRACKLE_SEGS = 1500;
 const LAYER_GAP = 0.008;
 /** Lightning sources per colour, each striking from its own spot. */
 const BOLTS_PER_COLOR = 3;
+/** Under the city's dome, how high above the horizon a bolt strikes from
+ *  at the lowest, as the up-component of its direction. */
+const DOME_MIN_BOLT_Y = 0.15;
 
 // Value noise and fbm over 3D -- procedural, so each layer's spots are its
 // own (a seed per layer) and nothing repeats across the globe the way a
@@ -74,7 +77,7 @@ const NOISE_GLSL = `
  * under it -- where two colours' spots overlap, the outer one shows rather
  * than a blend of both.
  */
-function SpotLayer({ color, radius, index }: { color: string; radius: number; index: number }) {
+function SpotLayer({ color, radius, index, dome }: { color: string; radius: number; index: number; dome: boolean }) {
   const meshRef = useRef<THREE.Mesh>(null);
   // Per-layer character, fixed for the layer's life.
   const character = useMemo(() => {
@@ -125,7 +128,9 @@ function SpotLayer({ color, radius, index }: { color: string; radius: number; in
       }`,
     transparent: true,
     depthWrite: false,
-  }), [color, character]);
+    // Seen from inside in the city, so it is the inner face that shows.
+    side: dome ? THREE.BackSide : THREE.FrontSide,
+  }), [color, character, dome]);
   useEffect(() => () => material.dispose(), [material]);
 
   useFrame((_, delta) => {
@@ -136,7 +141,9 @@ function SpotLayer({ color, radius, index }: { color: string; radius: number; in
     // then by its own speed: what shows on screen is that speed, either way
     // round. Relative to the globe alone, a layer turning the camera's way
     // looked nearly still.
-    mesh.rotation.y += skyStep() + delta * character.spinSpeed * (0.4 + 2.2 * timewarpFxState.spin);
+    // Under the city's dome the camera does not turn with the sky, so the
+    // layer's own speed is all there is.
+    mesh.rotation.y += (dome ? 0 : skyStep()) + delta * character.spinSpeed * (0.4 + 2.2 * timewarpFxState.spin);
     material.uniforms.uTime.value += delta;
     material.uniforms.uOpacity.value = (SPOT_OPACITY_BY_COLOR[color.toLowerCase()] ?? SPOT_OPACITY) * timewarpFxState.glow;
   });
@@ -145,15 +152,20 @@ function SpotLayer({ color, radius, index }: { color: string; radius: number; in
     // Each colour at its own height, so the layers stack in a fixed order.
     // Untilted: it spins about Y, which is the Earth's axis in this scene
     // (celestial north; the globe itself turns about it too).
-    <mesh ref={meshRef} material={material} renderOrder={10 + index}>
-      <sphereGeometry args={[radius * (1.05 + LAYER_GAP * index), 96, 48]} />
+    // Under the dome, drawn before the sky's own bodies (renderOrder below
+    // theirs), so the Sun, the Moon and the planets still show through
+    // the weather as they run through time.
+    <mesh ref={meshRef} material={material} renderOrder={dome ? -10 + index : 10 + index}>
+      <sphereGeometry args={[dome ? radius * (1 - LAYER_GAP * index) : radius * (1.05 + LAYER_GAP * index), 96, 48]} />
     </mesh>
   );
 }
 
 /** One colour's lightning: bursts of branching crackle from a fresh random
  *  spot on the globe each time, fading between bursts. */
-function Lightning({ color, radius, seedOffset }: { color: string; radius: number; seedOffset: number }) {
+function Lightning({ color, radius, seedOffset, dome }: {
+  color: string; radius: number; seedOffset: number; dome: boolean;
+}) {
   const buf = useMemo(() => new Float32Array(MAX_CRACKLE_SEGS * 6), []);
   const lastBurst = useRef(-Infinity);
   const peak = useRef(0.8);
@@ -182,8 +194,12 @@ function Lightning({ color, radius, seedOffset }: { color: string; radius: numbe
     if (t - lastBurst.current > 0.06 + 0.07 * Math.random()) {
       lastBurst.current = t;
       peak.current = 0.5 + Math.random() * 0.5;
-      epicenter.randomDirection().multiplyScalar(radius);
-      const count = buildCrackles(epicenter, radius * 1.02, (Math.random() * 0x7fffffff) | 0, buf);
+      epicenter.randomDirection();
+      // Under the dome, only from the sky overhead -- not from under the
+      // ground or the sea.
+      if (dome) epicenter.y = DOME_MIN_BOLT_Y + Math.abs(epicenter.y) * (1 - DOME_MIN_BOLT_Y);
+      epicenter.normalize().multiplyScalar(radius);
+      const count = buildCrackles(epicenter, radius * (dome ? 0.98 : 1.02), (Math.random() * 0x7fffffff) | 0, buf);
       geometry.setDrawRange(0, count);
       (geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
     }
@@ -194,11 +210,15 @@ function Lightning({ color, radius, seedOffset }: { color: string; radius: numbe
   return <primitive object={lines} />;
 }
 
-export default function TimewarpFx({ colors, radius }: { colors: string[]; radius: number }) {
+/**
+ * Wrapped around the globe by default. `dome`: the same weather seen from
+ * inside instead -- the city's sky, a sphere of `radius` around the eye.
+ */
+export default function TimewarpFx({ colors, radius, dome = false }: { colors: string[]; radius: number; dome?: boolean }) {
   return (
     <group>
       {colors.map((c, i) => (
-        <SpotLayer key={`spots|${c}|${i}`} color={c} radius={radius} index={i} />
+        <SpotLayer key={`spots|${c}|${i}`} color={c} radius={radius} index={i} dome={dome} />
       ))}
       {colors.flatMap((c, i) =>
         Array.from({ length: BOLTS_PER_COLOR }, (_, j) => (
@@ -207,6 +227,7 @@ export default function TimewarpFx({ colors, radius }: { colors: string[]; radiu
             color={c}
             radius={radius}
             seedOffset={(i * BOLTS_PER_COLOR + j) * 0.37}
+            dome={dome}
           />
         )),
       )}

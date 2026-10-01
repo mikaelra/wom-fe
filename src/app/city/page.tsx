@@ -6,7 +6,11 @@ import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import CityOverlay from '@/components/city/CityOverlay';
 import WorldClock from '@/components/worldmap/WorldClock';
+import TimewarpPanel from '@/components/worldmap/TimewarpPanel';
 import { timewarpColorsFor } from '@/lib/timewarpFx';
+import { useTimewarpFx } from '@/lib/useTimewarpFx';
+import { useTimewarpRun } from '@/lib/useTimewarpRun';
+import { getSky } from '@/lib/astrology';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import AuthGatePopup from '@/components/AuthGatePopup';
 import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
@@ -52,10 +56,36 @@ function CityPageContent() {
   // clobber.
   const {
     merchant, offers: merchantOffers, receivedAt: merchantReceivedAt, reverted, revertToDate, revertExpiresAt,
+    refresh: refreshMerchantOffer,
   } = useMerchantOffer();
   const skyMoved = !tOverridden && !!merchant?.sky_date;
-  const skyDate = skyMoved ? new Date(merchant!.sky_date!) : resolvedSkyDate;
-  const skyOverridden = tOverridden || skyMoved;
+  const restingSkyDate = skyMoved ? new Date(merchant!.sky_date!) : resolvedSkyDate;
+
+  // The loading curtain lifts on the scene's own signal, never on a timer --
+  // except as a last resort, below.
+  const [sceneReady, setSceneReady] = useState(false);
+  const handleReady = useCallback(() => setSceneReady(true), []);
+
+  // The timewarp plays here too, not only on the globe (lib/useTimewarpRun.ts):
+  // anyone's, pushed by the server, or a `?timewarp` preview. Once the scene
+  // is up, so there is a sky for it to act on. While it plays -- or while a
+  // preview holds where it ended -- the city's sky is the animation's
+  // instant (getSky(), which lib/useTimewarpFx.ts runs through time), so
+  // the real Sun, Moon and planets travel to the moment warped to. After
+  // that it is the merchant poll's sky_date again, as before.
+  const {
+    preview: timewarpPreview, run: timewarpRun, runId: timewarpRunId, playPreview, playPreviewEnd,
+  } = useTimewarpRun({
+    onArrival: () => router.replace(`/city?id=${encodeURIComponent(searchParams.get('id') ?? '')}`),
+    refreshMerchantOffer,
+  });
+  const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
+    sceneReady ? timewarpRun : null,
+    timewarpRunId,
+  );
+  const warping = timewarpPlaying || (!!timewarpRun?.hold && timewarpStep > 0);
+  const skyDate = warping ? getSky().date : restingSkyDate;
+  const skyOverridden = tOverridden || skyMoved || warping;
 
   // The city had no music call of its own -- WorldMapOverlay and
   // LobbyOverlay were the only two screens that ever started a track -- so
@@ -65,10 +95,6 @@ function CityPageContent() {
     playMusic(CITY_MUSIC);
   }, []);
 
-  // The loading curtain lifts on the scene's own signal, never on a timer --
-  // except as a last resort, below.
-  const [sceneReady, setSceneReady] = useState(false);
-  const handleReady = useCallback(() => setSceneReady(true), []);
   useEffect(() => {
     // Safety net. A stalled texture must never leave the player staring at a
     // permanent curtain with a working scene hidden behind it; showing a
@@ -151,6 +177,7 @@ function CityPageContent() {
           onMarket={() => router.push('/market')}
           presence={presence}
           onReady={handleReady}
+          timewarpColors={timewarpPlaying && timewarpRun ? timewarpRun.spec.colors : null}
         />
       </Canvas>
       <CityOverlay
@@ -166,6 +193,8 @@ function CityPageContent() {
           />
         }
       />
+
+      {timewarpPreview && <TimewarpPanel onPlay={playPreview} onPlayEnd={playPreviewEnd} />}
 
       <CityLoadingScreen
         title={city.actionLabel ?? city.name}

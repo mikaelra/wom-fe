@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { merchantState, revertedState } from '@/lib/__tests__/merchantFixtures';
 import { formatWorldClock } from '@/lib/worldClock';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -15,10 +15,11 @@ import * as socketModule from '@/lib/socket';
 import { findCity } from '@/lib/cities';
 
 const push = vi.fn();
+const replace = vi.fn();
 let searchId: string | null = 'athens';
 let searchT: string | null = null;
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, replace }),
   useSearchParams: () => ({
     get: (k: string) => (k === 'id' ? searchId : k === 't' ? searchT : null),
   }),
@@ -119,11 +120,12 @@ let marketHandler: (() => void) | undefined;
 let botRankedHandler: (() => void) | undefined;
 let lastCoords: { realLat: number; realLng: number } | undefined;
 let lastDate: Date | undefined;
+let lastTimewarpColors: string[] | null | undefined;
 vi.mock('@/components/city/CityScene', () => ({
   default: ({
     onBossfight, bossfightSublabel, onRanked, onBotRanked, rankedLabel, rankedSublabel,
     botRankedLabel, botRankedSublabel,
-    onBackToEarth, onMarket, onReady, realLat, realLng, date,
+    onBackToEarth, onMarket, onReady, realLat, realLng, date, timewarpColors,
   }: {
     onBossfight: () => void; bossfightSublabel?: string | null;
     onRanked: () => void; onBotRanked: () => void;
@@ -134,6 +136,7 @@ vi.mock('@/components/city/CityScene', () => ({
     onReady?: () => void;
     realLat: number; realLng: number;
     date: Date;
+    timewarpColors?: string[] | null;
   }) => {
     bossfightHandler = onBossfight;
     lastSublabel = bossfightSublabel;
@@ -150,6 +153,7 @@ vi.mock('@/components/city/CityScene', () => ({
     marketHandler = onMarket;
     lastCoords = { realLat, realLng };
     lastDate = date;
+    lastTimewarpColors = timewarpColors;
     return <div data-testid="city-scene" />;
   },
   CITY_CAMERA: [0, 5, 0.01],
@@ -196,6 +200,8 @@ const clickRanked = async () => {
 
 beforeEach(() => {
   push.mockClear();
+  replace.mockClear();
+  lastTimewarpColors = undefined;
   searchId = 'athens';
   searchT = null;
   bossfightHandler = undefined;
@@ -775,5 +781,67 @@ describe('CityPage canvas stacking', () => {
   it('still lets the canvas fill the scene', () => {
     renderCity();
     expect(screen.getByTestId('canvas-container')).toHaveStyle({ position: 'absolute' });
+  });
+});
+
+// The timewarp plays in the city too (lib/useTimewarpRun.ts), not only on
+// the globe: the same clouds and lightning over the city's sky, and the
+// city's own Sun, Moon and planets running through time to the moment.
+describe('CityPage (timewarp)', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
+  const JUPITER_SATURN = {
+    revert_to_date: '2040-10-31T11:54:11+00:00',
+    events: [{ kind: 'conjunction', key: 'Jupiter-Saturn', bodies: ['Jupiter', 'Saturn'], sign: 'Libra', at: 'x' }],
+  };
+
+  it('plays nothing on a plain visit, and shows no preview controls', async () => {
+    renderCity();
+    await waitForScene();
+    act(() => readyHandler!());
+    expect(lastTimewarpColors).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
+  });
+
+  it('plays anyone\'s timewarp once the scene is up, running the city\'s sky to the moment', async () => {
+    renderCity();
+    await waitForScene();
+    const pollsBefore = vi.mocked(getMerchantOffer).mock.calls.length;
+
+    act(() => socket.__fireSubscribeEvent('timewarp', JUPITER_SATURN));
+    // Not before there is a sky to act on.
+    expect(lastTimewarpColors).toBeNull();
+    await waitFor(() => expect(vi.mocked(getMerchantOffer).mock.calls.length).toBeGreaterThan(pollsBefore));
+
+    act(() => readyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#008296', '#a16300']));
+    // Past the spin-up, the city's sky is on its way to 2040.
+    const now = Date.now();
+    await waitFor(
+      () => expect(lastDate!.getTime()).toBeGreaterThan(now + 365 * 24 * 3600 * 1000),
+      { timeout: 4000 },
+    );
+  });
+
+  it('previews ?timewarp with the controls', async () => {
+    window.history.replaceState(null, '', '/city?id=athens&timewarp=Mars-Jupiter');
+    renderCity();
+    await waitForScene();
+
+    expect(screen.getByRole('group', { name: 'Timewarp preview' })).toBeInTheDocument();
+    act(() => readyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#ff0000', '#008296']));
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('plays an arrival with &play=1 and takes the parameters off the URL, staying in the city', async () => {
+    window.history.replaceState(null, '', '/city?id=athens&timewarp=full_moon&to=2028-10-03T12%3A00%3A00Z&play=1');
+    renderCity();
+    await waitForScene();
+
+    expect(replace).toHaveBeenCalledWith('/city?id=athens');
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
   });
 });
