@@ -46,15 +46,13 @@ describe('MERCHANT_MARKER_LABEL', () => {
 
 describe('merchantQuote', () => {
   it('is one of John Dee\'s at the full moon', () => {
-    expect(merchantQuote('full_moon', () => 0)).toBe('The All is Mind');
-    expect(merchantQuote('full_moon', () => 0.999)).toBe(
-      "money or knowledge? i just know that i'm in severe debt after all these books i've bought...",
-    );
+    expect(merchantQuote('full_moon', () => 0)).toBe('The All is Mind.');
+    expect(merchantQuote('full_moon', () => 0.999)).toBe('Tomatoes is a fruit.');
   });
 
   it('is one of Hildegard von Bingen\'s at a conjunction', () => {
-    expect(merchantQuote('conjunction', () => 0)).toBe('love is the water which waters the soul of your body');
-    expect(merchantQuote('conjunction', () => 0.5)).toBe('there is the music of heaven in all things');
+    expect(merchantQuote('conjunction', () => 0)).toBe('Love is the water which waters the soul of your body.');
+    expect(merchantQuote('conjunction', () => 0.5)).toBe('Modern life lacks softness.');
   });
 
   it('can say every one of their lines', () => {
@@ -65,8 +63,14 @@ describe('merchantQuote', () => {
     }
   });
 
+  it('starts every line with a capital and ends it with punctuation', () => {
+    for (const q of [...MERCHANT_QUOTES.full_moon, ...MERCHANT_QUOTES.conjunction]) {
+      expect(q).toMatch(/^[A-Z].*[.?!]$/);
+    }
+  });
+
   it('stays in range even if random() returns 1', () => {
-    expect(merchantQuote('conjunction', () => 1)).toBe('all thing carries The Word');
+    expect(merchantQuote('conjunction', () => 1)).toBe('Wisdom is not putting tomatoes in a fruit salad.');
   });
 });
 

@@ -110,7 +110,7 @@ describe('MerchantScene', () => {
     random.mockRestore();
 
     expect(screen.getByText('John Dee')).toBeInTheDocument();
-    expect(screen.getByText('“The All is Mind”')).toBeInTheDocument();
+    expect(screen.getByText('“The All is Mind.”')).toBeInTheDocument();
     expect(screen.queryByText('Appears around the full moon')).not.toBeInTheDocument();
   });
 
@@ -120,7 +120,7 @@ describe('MerchantScene', () => {
     random.mockRestore();
 
     expect(screen.getByText('Hildegard von Bingen')).toBeInTheDocument();
-    expect(screen.getByText('“there is the music of heaven in all things”')).toBeInTheDocument();
+    expect(screen.getByText('“Modern life lacks softness.”')).toBeInTheDocument();
   });
 
   describe('the Merchant at a conjunction', () => {

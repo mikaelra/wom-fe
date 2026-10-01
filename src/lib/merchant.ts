@@ -129,22 +129,27 @@ export function merchantModelFor(triggerKind: string): 'merchant_v1' | 'lady_mer
 export const MERCHANT_MARKER_LABEL = 'Merchant';
 
 /** What the merchant says in his scene when a timewarp brought him: John
- *  Dee at the full moon, Hildegard von Bingen at a conjunction. Word for
- *  word as given. */
+ *  Dee at the full moon, Hildegard von Bingen at a conjunction. The
+ *  user's own lines -- don't reword them. */
 export const MERCHANT_QUOTES: Readonly<Record<'full_moon' | 'conjunction', readonly string[]>> = {
   full_moon: [
-    'The All is Mind',
-    'the heavenly realm can be reached through great effort',
-    "did you know that i'm the great-great-great-father of science?",
-    'i wish kelly would stop saying he can make gold',
-    'angel magic is best magic',
-    'elizabeth is just the best',
-    "money or knowledge? i just know that i'm in severe debt after all these books i've bought...",
+    'The All is Mind.',
+    'The heavenly realm can be reached through great effort.',
+    "Did you know that I'm the great-great-great-father of science?",
+    'I wish Kelly would stop saying he can make gold.',
+    'Angel magic is best magic.',
+    'Elizabeth is just the best.',
+    "Money or knowledge? I just know that I'm in severe debt after all these books I've bought...",
+    'Tomatoes is a fruit.',
   ],
   conjunction: [
-    'love is the water which waters the soul of your body',
-    'there is the music of heaven in all things',
-    'all thing carries The Word',
+    'Love is the water which waters the soul of your body.',
+    'There is the music of heaven in all things.',
+    'All things carries The Word.',
+    'Modern life lacks softness.',
+    'Nurture is power.',
+    'Wisdom through experience.',
+    'Wisdom is not putting tomatoes in a fruit salad.',
   ],
 };
 
