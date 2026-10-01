@@ -80,8 +80,9 @@ function CityPageContent() {
     refreshMerchantOffer,
   });
   const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
-    sceneReady ? timewarpRun : null,
+    timewarpRun,
     timewarpRunId,
+    sceneReady,
   );
   const warping = timewarpPlaying || (!!timewarpRun?.hold && timewarpStep > 0);
   const skyDate = warping ? getSky().date : restingSkyDate;
