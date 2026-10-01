@@ -63,7 +63,8 @@ describe('useTimewarpRun', () => {
     window.history.replaceState(null, '', '/?timewarp=full_moon&to=2028-10-03T12%3A00%3A00Z&play=1');
     const { result } = renderRun();
     expect(result.current.preview).toBe(false);
-    expect(result.current.run).toMatchObject({ from: 'sky', hold: false });
+    // Its merchants are already the moment warped to's: hidden until the end.
+    expect(result.current.run).toMatchObject({ from: 'sky', hold: false, markersHidden: true });
     expect(onArrival).toHaveBeenCalledTimes(1);
 
     // The server's broadcast of that same timewarp does not replay it.

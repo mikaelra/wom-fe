@@ -55,7 +55,7 @@ export function useTimewarpRun({
     if (!spec) return;
     if (params.get('play')) {
       lastTimewarpTo.current = spec.to.getTime();
-      setRun({ spec, from: 'sky', hold: false });
+      setRun({ spec, from: 'sky', hold: false, markersHidden: true });
       onArrival();
     } else {
       setPreview(true);

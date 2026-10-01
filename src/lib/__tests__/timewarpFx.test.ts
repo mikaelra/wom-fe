@@ -121,6 +121,15 @@ describe('the pins during a timewarp', () => {
     expect(timewarpFrame(TIMEWARP_DURATION_MS).markers).toBe(1);
   });
 
+  it('stay hidden from the start when they are already the moment warped to\'s, and only come in at the end', () => {
+    expect(timewarpFrame(0, true).markers).toBe(0);
+    expect(timewarpFrame(MARKERS_OUT_MS / 2, true).markers).toBe(0);
+    expect(timewarpFrame(TIMEWARP_DURATION_MS - MARKERS_IN_MS - 1, true).markers).toBe(0);
+    expect(timewarpFrame(TIMEWARP_DURATION_MS - MARKERS_IN_MS / 2, true).markers)
+      .toBe(timewarpFrame(TIMEWARP_DURATION_MS - MARKERS_IN_MS / 2).markers);
+    expect(timewarpFrame(TIMEWARP_DURATION_MS, true).markers).toBe(1);
+  });
+
   it('fade their DOM labels through CSS variables, and take no clicks while gone', () => {
     // A stand-in element: these tests run without a DOM.
     const props = new Map<string, string>();

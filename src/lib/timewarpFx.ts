@@ -145,8 +145,10 @@ export interface TimewarpFrame {
   done: boolean;
 }
 
-/** Where the animation is `elapsed` ms in. */
-export function timewarpFrame(elapsed: number): TimewarpFrame {
+/** Where the animation is `elapsed` ms in. `markersHidden`: the pins are
+ *  hidden from the start rather than leaving -- they are already the
+ *  moment warped to's, so they only come in at the end. */
+export function timewarpFrame(elapsed: number, markersHidden = false): TimewarpFrame {
   const end = TIMEWARP_DURATION_MS;
   const spin = elapsed < SPIN_UP_MS
     ? smooth(elapsed / SPIN_UP_MS)
@@ -156,7 +158,7 @@ export function timewarpFrame(elapsed: number): TimewarpFrame {
   const scrub = smooth((elapsed - SPIN_UP_MS) / (SCRUB_END_MS - SPIN_UP_MS));
   const glow = elapsed < 700 ? smooth(elapsed / 700) : 1 - smooth((elapsed - (end - 1200)) / 1200);
   const markers = elapsed < end - MARKERS_IN_MS
-    ? 1 - smooth(elapsed / MARKERS_OUT_MS)
+    ? (markersHidden ? 0 : 1 - smooth(elapsed / MARKERS_OUT_MS))
     : smooth((elapsed - (end - MARKERS_IN_MS)) / MARKERS_IN_MS);
   return { spin, scrub, glow, markers, done: elapsed >= end };
 }

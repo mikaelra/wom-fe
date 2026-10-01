@@ -121,8 +121,9 @@ export default function Page() {
   // Waits for the whole sky to be up, so the animation has something to
   // act on.
   const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
-    skyReady ? timewarpRun : null,
+    timewarpRun,
     timewarpRunId,
+    skyReady,
   );
 
   useEffect(() => {
