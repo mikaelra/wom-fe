@@ -7,7 +7,7 @@ import { relicModelUrl } from '@/components/RelicCoin';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
-import { merchantArrivalLine, merchantModelFor, merchantQuote } from '@/lib/merchant';
+import { MERCHANT_ITEM_LINES, merchantArrivalLine, merchantModelFor, merchantQuote } from '@/lib/merchant';
 
 // The merchant's box at its original 160px, scaled 2.3x then another 1.5x
 // per Mikael's asks -- kept as a constant since the clip wrapper's height
@@ -206,6 +206,11 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
           ) : (
             <>
               <p className="text-amber-100 font-semibold mb-1">{offer.item_name}</p>
+              {/* The merchant on what he sells -- in the same type as his
+                  quote at the top. */}
+              {MERCHANT_ITEM_LINES[offer.item_name] && (
+                <p className="text-amber-100/60 text-[11px] mb-1">&ldquo;{MERCHANT_ITEM_LINES[offer.item_name]}&rdquo;</p>
+              )}
               <p className="text-white/60 text-sm mb-4">
                 {offer.cost_hades_coins} Hades&rsquo; Coin{offer.cost_hades_coins === 1 ? '' : 's'}
               </p>

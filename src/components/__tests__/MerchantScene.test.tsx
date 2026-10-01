@@ -28,6 +28,11 @@ describe('MerchantScene', () => {
     render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
 
     expect(screen.getByText('Stone of Vitality')).toBeInTheDocument();
+    // His line about it, between its name and its price.
+    const line = screen.getByText('“A stone which exudes vitality.”');
+    expect(line.previousElementSibling).toHaveTextContent('Stone of Vitality');
+    expect(line.nextElementSibling).toHaveTextContent('5 Hades’ Coins');
+    expect(screen.queryByText(/One could write/)).not.toBeInTheDocument();
     expect(screen.getByText((_, el) => el?.textContent === "5 Hades’ Coins")).toBeInTheDocument();
     expect(mockedPurchase).not.toHaveBeenCalled();
   });
@@ -131,6 +136,10 @@ describe('MerchantScene', () => {
 
       expect(screen.getByText('Hildegard von Bingen')).toBeInTheDocument();
       expect(screen.getByText('Paper')).toBeInTheDocument();
+      // He says something about it, between its name and its price.
+      const line = screen.getByText('“One could write something on this.”');
+      expect(line.previousElementSibling).toHaveTextContent('Paper');
+      expect(line.nextElementSibling).toHaveTextContent('3 Hades’ Coins');
       expect(screen.getByRole('button', { name: /Trade for 3/ })).toBeEnabled();
       const models = screen.getAllByTestId('merchant-model').map((el) => el.getAttribute('data-url'));
       expect(models).toContain('/models/relics/paper_v1.glb');
