@@ -288,7 +288,7 @@ describe('Page (merchant markers)', () => {
 
     act(() => merchantClickHandler!(lastMerchantMarkers[1].key));
 
-    expect(await screen.findByTestId('merchant-scene')).toHaveTextContent('The Merchant: Paper');
+    expect(await screen.findByTestId('merchant-scene')).toHaveTextContent('Hildegard von Bingen: Paper');
   });
 });
 

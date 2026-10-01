@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONJUNCTION_COLOR, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine, timewarpEventLabels,
-  merchantMarkerLabel, merchantModelFor, merchantSkyBodies, meanDirection, skyToGlobeLocal,
+  MERCHANT_MARKER_LABEL, MERCHANT_QUOTES, merchantQuote, merchantModelFor, merchantSkyBodies, meanDirection, skyToGlobeLocal,
   PLANET_COLOR, REVERT_RELIC_NAMES, merchantMarkerColors, PLANET_RADIUS_KM, sphereDrop,
 } from '@/lib/merchant';
 import { bodyColorHex } from '@/lib/astrology';
@@ -38,10 +38,39 @@ describe('timewarpEventLabels', () => {
   });
 });
 
-describe('merchantMarkerLabel', () => {
-  it('drops the article', () => {
-    expect(merchantMarkerLabel('The Merchant')).toBe('Merchant');
-    expect(merchantMarkerLabel('Merchant')).toBe('Merchant');
+describe('MERCHANT_MARKER_LABEL', () => {
+  it('is just "Merchant", whoever he is', () => {
+    expect(MERCHANT_MARKER_LABEL).toBe('Merchant');
+  });
+});
+
+describe('merchantQuote', () => {
+  it('is one of John Dee\'s at the full moon', () => {
+    expect(merchantQuote('full_moon', () => 0)).toBe('The All is Mind.');
+    expect(merchantQuote('full_moon', () => 0.999)).toBe('Tomatoes is a fruit.');
+  });
+
+  it('is one of Hildegard von Bingen\'s at a conjunction', () => {
+    expect(merchantQuote('conjunction', () => 0)).toBe('Love is the water which waters the soul of your body.');
+    expect(merchantQuote('conjunction', () => 0.5)).toBe('Modern life lacks softness.');
+  });
+
+  it('can say every one of their lines', () => {
+    for (const kind of ['full_moon', 'conjunction'] as const) {
+      const n = MERCHANT_QUOTES[kind].length;
+      const said = new Set(Array.from({ length: n }, (_, i) => merchantQuote(kind, () => i / n)));
+      expect([...said]).toEqual([...MERCHANT_QUOTES[kind]]);
+    }
+  });
+
+  it('starts every line with a capital and ends it with punctuation', () => {
+    for (const q of [...MERCHANT_QUOTES.full_moon, ...MERCHANT_QUOTES.conjunction]) {
+      expect(q).toMatch(/^[A-Z].*[.?!]$/);
+    }
+  });
+
+  it('stays in range even if random() returns 1', () => {
+    expect(merchantQuote('conjunction', () => 1)).toBe('Wisdom is not putting tomatoes in a fruit salad.');
   });
 });
 

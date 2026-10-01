@@ -118,15 +118,52 @@ export function merchantArrivalLine(triggerKind: string): string {
 }
 
 /** Which model stands behind the counter: the Merchant at the full moon,
- *  the Lady Merchant at a conjunction. Still both "The Merchant" by name. */
+ *  the Lady Merchant at a conjunction. */
 export function merchantModelFor(triggerKind: string): 'merchant_v1' | 'lady_merchant_v1' {
   return triggerKind === 'conjunction' ? 'lady_merchant_v1' : 'merchant_v1';
 }
 
-/** The marker's label: "Merchant" -- the merchant's name without
- *  its article, short enough to float over the globe. */
-export function merchantMarkerLabel(merchantName: string): string {
-  return merchantName.replace(/^The\s+/i, '');
+/** Every merchant's marker on the globe says just this. His name -- John
+ *  Dee, Hildegard von Bingen (wom-be merchant_offers) -- is for when you
+ *  click it, at the top of his scene. */
+export const MERCHANT_MARKER_LABEL = 'Merchant';
+
+/** What the merchant says in his scene when a timewarp brought him: John
+ *  Dee at the full moon, Hildegard von Bingen at a conjunction. The
+ *  user's own lines -- don't reword them. */
+export const MERCHANT_QUOTES: Readonly<Record<'full_moon' | 'conjunction', readonly string[]>> = {
+  full_moon: [
+    'The All is Mind.',
+    'The heavenly realm can be reached through great effort.',
+    "Did you know that I'm the great-great-great-father of science?",
+    'I wish Kelly would stop saying he can make gold.',
+    'Angel magic is best magic.',
+    'Elizabeth is just the best.',
+    "Money or knowledge? I just know that I'm in severe debt after all these books I've bought...",
+    'Tomatoes is a fruit.',
+  ],
+  conjunction: [
+    'Love is the water which waters the soul of your body.',
+    'There is the music of heaven in all things.',
+    'All things carries The Word.',
+    'Modern life lacks softness.',
+    'Nurture is power.',
+    'Wisdom through experience.',
+    'Wisdom is not putting tomatoes in a fruit salad.',
+  ],
+};
+
+/** What the merchant says about a relic he sells, under its name in his
+ *  scene. The user's own lines; an item without one shows nothing. */
+export const MERCHANT_ITEM_LINES: Readonly<Record<string, string>> = {
+  Paper: 'One could write something on this',
+  'Stone of Vitality': 'A stone which exudes vitality',
+};
+
+/** One of the merchant's quotes, at random -- `random` for tests. */
+export function merchantQuote(triggerKind: string, random: () => number = Math.random): string {
+  const quotes = MERCHANT_QUOTES[triggerKind === 'conjunction' ? 'conjunction' : 'full_moon'];
+  return quotes[Math.min(quotes.length - 1, Math.floor(random() * quotes.length))];
 }
 
 /**

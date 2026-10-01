@@ -11,11 +11,11 @@ export const MERCURY_JUPITER_EVENT: MerchantEvent = {
   at: '2028-10-03T12:46:50Z',
 };
 
-/** The full moon's Merchant, in town and unbought. */
+/** The full moon's Merchant (John Dee), in town and unbought. */
 export function stoneOffer(over: Partial<MerchantOffer> = {}): MerchantOffer {
   return {
     offer_id: 1,
-    merchant_name: 'The Merchant',
+    merchant_name: 'John Dee',
     item_name: 'Stone of Vitality',
     cost_hades_coins: 5,
     trigger_kind: 'full_moon',
@@ -32,11 +32,11 @@ export function stoneOffer(over: Partial<MerchantOffer> = {}): MerchantOffer {
   };
 }
 
-/** A conjunction's Merchant, selling Paper, in town and unbought. */
+/** A conjunction's Merchant (Hildegard von Bingen), selling Paper, in town and unbought. */
 export function paperOffer(over: Partial<MerchantOffer> = {}): MerchantOffer {
   return stoneOffer({
     offer_id: 3,
-    merchant_name: 'The Merchant',
+    merchant_name: 'Hildegard von Bingen',
     item_name: 'Paper',
     cost_hades_coins: 3,
     trigger_kind: 'conjunction',
