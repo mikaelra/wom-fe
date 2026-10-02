@@ -3,6 +3,7 @@ import { act, render, screen } from '@testing-library/react';
 import LoadingMark from '@/components/loading/LoadingMark';
 import LoadingState from '@/components/loading/LoadingState';
 import LoadingOverlay from '@/components/loading/LoadingOverlay';
+import NoLoadingOverlay from '@/components/loading/NoLoadingOverlay';
 import { beginRequest, isScreenLoading, resetLoadingTracker } from '@/lib/loadingTracker';
 import { BACKGROUND_LOADING_DELAY_MS } from '@/lib/useLoadingOverlay';
 import { LOADING_LOOP_MS } from '@/lib/useMinimumLoading';
@@ -34,7 +35,7 @@ describe('LoadingState', () => {
 });
 
 describe('LoadingOverlay', () => {
-  it('covers the screen in grey at once for a screen waiting on content, for at least one whole loop', () => {
+  it('covers the screen, half grey at first, at once for a screen waiting on content, for at least one whole loop', () => {
     vi.useFakeTimers();
     const { rerender } = render(
       <>
@@ -44,7 +45,7 @@ describe('LoadingOverlay', () => {
     );
     const el = overlay();
     expect(el).toBeInTheDocument();
-    expect(el).toHaveStyle({ background: 'grey' });
+    expect(el).toHaveStyle({ background: 'rgba(128, 128, 128, 0.5)' });
     expect(el).toHaveClass('fixed', 'inset-0');
 
     // content arrives quickly: the animation still plays its whole turn
@@ -93,5 +94,25 @@ describe('LoadingOverlay', () => {
       vi.advanceTimersByTime(BACKGROUND_LOADING_DELAY_MS);
     });
     expect(overlay()).not.toBeInTheDocument();
+  });
+});
+
+describe('NoLoadingOverlay', () => {
+  it('keeps the overlay away while mounted (live lobbies)', () => {
+    const { rerender } = render(
+      <>
+        <LoadingOverlay />
+        <NoLoadingOverlay />
+        <LoadingState label="Loading lobby…" />
+      </>
+    );
+    expect(overlay()).not.toBeInTheDocument();
+    rerender(
+      <>
+        <LoadingOverlay />
+        <LoadingState label="Loading lobby…" />
+      </>
+    );
+    expect(overlay()).toBeInTheDocument();
   });
 });

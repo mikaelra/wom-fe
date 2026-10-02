@@ -169,7 +169,7 @@ export default function Page() {
           />
         }
       />
-      <AssetLoadingReporter />
+      <AssetLoadingReporter gradual />
       {sceneReady && (
         <Canvas
           camera={{ position: [0, 3, 10.5], fov: 50 }}

@@ -18,7 +18,6 @@ import { useToast } from '@/components/Toast';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { CITY_PATH } from '@/lib/cities';
 import { isLobbyGoneError } from '@/lib/lobbyErrors';
-import LoadingState from '@/components/loading/LoadingState';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -549,7 +548,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   if (!state) {
     return (
-      <LoadingState label={loadingText} />
+      <div className={`min-h-screen flex items-center justify-center ${theme.loadingBgClass}`}>
+        <p className={`${theme.loadingTextClass} text-lg`}>{loadingText}</p>
+      </div>
     );
   }
 

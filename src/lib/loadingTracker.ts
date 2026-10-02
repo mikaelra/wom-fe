@@ -7,15 +7,22 @@
 //   - API calls -- every backend request goes through http.ts request(),
 //     which brackets itself with beginRequest()/end (polls opt out);
 //   - 3D assets -- a scene's <AssetLoadingReporter> mirrors three's loading
-//     manager (models, textures) into setAssetsLoading().
-//   API calls and assets are "background" waits: the overlay only shows for
-//   them once they last a moment (see useLoadingOverlay).
+//     manager (models, textures) into setAssetsLoading(), with how much of
+//     the scene has loaded so far (the overlay's grey fades with it).
+//   API calls are "background" waits: the overlay only shows for them once
+//   they last a moment (see useLoadingOverlay).
+//
+// A page can switch the overlay off entirely while it is mounted
+// (<NoLoadingOverlay>, e.g. live lobbies, where it would get in the way).
 //
 // A plain module-level store (subscribe + snapshot) rather than React
 // context, so request() can report without being a component.
 
 let requests = 0;
 let assetsLoading = false;
+let assetProgress = 1;
+let assetsGradual = false;
+let suppressed = 0;
 let screens = 0;
 const listeners = new Set<() => void>();
 
@@ -48,10 +55,48 @@ export function requestsInFlight(): number {
   return requests;
 }
 
-export function setAssetsLoading(active: boolean): void {
-  if (assetsLoading === active) return;
+/** A scene's 3D assets started / stopped loading; `progress` is how much of
+ *  them has loaded, 0..1 (defaults: 0 when starting, 1 when done). `gradual`
+ *  marks a scene whose loading screen fades as it renders (the earth). */
+export function setAssetsLoading(active: boolean, progress = active ? 0 : 1, gradual = false): void {
+  const p = Math.min(1, Math.max(0, progress));
+  if (assetsLoading === active && assetProgress === p && assetsGradual === gradual) return;
   assetsLoading = active;
+  assetProgress = p;
+  assetsGradual = gradual;
   emit();
+}
+
+/** Whether the scene loading now fades its loading screen as it renders. */
+export function isAssetsGradual(): boolean {
+  return assetsGradual;
+}
+
+/** Switch the loading overlay off while the caller is mounted; returns the
+ *  release. */
+export function suppressLoadingOverlay(): () => void {
+  suppressed += 1;
+  emit();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    suppressed -= 1;
+    emit();
+  };
+}
+
+export function isOverlaySuppressed(): boolean {
+  return suppressed > 0;
+}
+
+export function isAssetsLoading(): boolean {
+  return assetsLoading;
+}
+
+/** How much of the scene's assets has loaded, 0..1 (1 when nothing loads). */
+export function assetLoadProgress(): number {
+  return assetProgress;
 }
 
 /** A screen is waiting for its content; returns the release. */
@@ -67,9 +112,9 @@ export function claimLoadingScreen(): () => void {
   };
 }
 
-/** True while an API call or 3D assets are loading. */
+/** True while an API call is in flight. */
 export function isBackgroundLoading(): boolean {
-  return requests > 0 || assetsLoading;
+  return requests > 0;
 }
 
 /** True while a <LoadingState> (a screen waiting for its content) is up. */
@@ -81,6 +126,9 @@ export function isScreenLoading(): boolean {
 export function resetLoadingTracker(): void {
   requests = 0;
   assetsLoading = false;
+  assetProgress = 1;
+  assetsGradual = false;
+  suppressed = 0;
   screens = 0;
   emit();
 }

@@ -126,10 +126,10 @@ afterEach(() => {
 });
 
 describe('loading state', () => {
-  it('shows the loading mark, labelled with the config loading text, when there is no state yet', () => {
+  it('shows the config loading text when there is no state yet', () => {
     mockedUseLobbyConnection.mockReturnValue({ state: null, connectionStatus: 'connecting' });
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
-    expect(screen.getByRole('status', { name: 'Loading lobby…' })).toBeInTheDocument();
+    expect(screen.getByText('Loading lobby…')).toBeInTheDocument();
   });
 });
 
