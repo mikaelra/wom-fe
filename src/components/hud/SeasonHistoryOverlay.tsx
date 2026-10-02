@@ -100,7 +100,7 @@ export default function SeasonHistoryOverlay({
           {error ? (
             <p className="text-red-400 text-sm">{error}</p>
           ) : !history ? (
-            <LoadingState size={40} className="py-2" />
+            <LoadingState />
           ) : entries.length === 0 ? (
             <p className="text-white/60 text-sm">No ranked seasons yet.</p>
           ) : (

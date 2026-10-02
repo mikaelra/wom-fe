@@ -549,7 +549,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   if (!state) {
     return (
-      <LoadingState label={loadingText} className={`min-h-screen ${theme.loadingBgClass}`} />
+      <LoadingState label={loadingText} />
     );
   }
 

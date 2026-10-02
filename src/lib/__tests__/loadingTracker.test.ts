@@ -3,6 +3,7 @@ import {
   beginRequest,
   claimLoadingScreen,
   isBackgroundLoading,
+  isScreenLoading,
   requestsInFlight,
   resetLoadingTracker,
   setAssetsLoading,
@@ -40,13 +41,14 @@ describe('loadingTracker', () => {
     expect(isBackgroundLoading()).toBe(false);
   });
 
-  it('stays quiet while a loading screen already shows', () => {
+  it('tracks screens waiting for content separately from background loading', () => {
     beginRequest();
     const release = claimLoadingScreen();
-    expect(isBackgroundLoading()).toBe(false);
-    release();
-    release();
+    expect(isScreenLoading()).toBe(true);
     expect(isBackgroundLoading()).toBe(true);
+    release();
+    release();
+    expect(isScreenLoading()).toBe(false);
   });
 
   it('notifies subscribers on every change, and stops after unsubscribing', () => {

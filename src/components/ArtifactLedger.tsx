@@ -111,7 +111,7 @@ export default function ArtifactLedger({
     }
   };
 
-  if (loading) return <LoadingState size={40} className={`py-2 ${className}`} label="Loading the ledger…" />;
+  if (loading) return <LoadingState label="Loading the ledger…" />;
   if (error) return <p className={`text-red-400 text-sm ${className}`}>{error}</p>;
 
   if (sealed) {

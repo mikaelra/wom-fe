@@ -2,14 +2,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import LoadingMark from '@/components/loading/LoadingMark';
 import LoadingState from '@/components/loading/LoadingState';
-import GlobalLoadingIndicator from '@/components/loading/GlobalLoadingIndicator';
-import { beginRequest, isBackgroundLoading, resetLoadingTracker } from '@/lib/loadingTracker';
-import { BACKGROUND_LOADING_DELAY_MS } from '@/lib/useBackgroundLoading';
+import LoadingOverlay from '@/components/loading/LoadingOverlay';
+import { beginRequest, isScreenLoading, resetLoadingTracker } from '@/lib/loadingTracker';
+import { BACKGROUND_LOADING_DELAY_MS } from '@/lib/useLoadingOverlay';
+import { LOADING_LOOP_MS } from '@/lib/useMinimumLoading';
 
 afterEach(() => {
   resetLoadingTracker();
   vi.useRealTimers();
 });
+
+const overlay = () => screen.queryByRole('status', { name: 'Loading' });
 
 describe('LoadingMark', () => {
   it('renders a labelled canvas at the asked size (drawing is skipped without a 2D context)', () => {
@@ -21,50 +24,74 @@ describe('LoadingMark', () => {
 });
 
 describe('LoadingState', () => {
-  it('is a labelled status, and hides the corner mark while it is shown', () => {
-    beginRequest();
+  it('leaves a labelled status for screen readers and claims the screen while mounted', () => {
     const { unmount } = render(<LoadingState label="Loading lobby…" />);
     expect(screen.getByRole('status', { name: 'Loading lobby…' })).toBeInTheDocument();
-    expect(isBackgroundLoading()).toBe(false);
+    expect(isScreenLoading()).toBe(true);
     unmount();
-    expect(isBackgroundLoading()).toBe(true);
+    expect(isScreenLoading()).toBe(false);
   });
 });
 
-describe('GlobalLoadingIndicator', () => {
-  it('appears once a request has run past the delay, and goes when it ends', () => {
+describe('LoadingOverlay', () => {
+  it('covers the screen in grey at once for a screen waiting on content, for at least one whole loop', () => {
     vi.useFakeTimers();
-    render(<GlobalLoadingIndicator />);
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    const { rerender } = render(
+      <>
+        <LoadingOverlay />
+        <LoadingState label="Loading shop" />
+      </>
+    );
+    const el = overlay();
+    expect(el).toBeInTheDocument();
+    expect(el).toHaveStyle({ background: 'grey' });
+    expect(el).toHaveClass('fixed', 'inset-0');
 
+    // content arrives quickly: the animation still plays its whole turn
+    rerender(<LoadingOverlay />);
+    act(() => {
+      vi.advanceTimersByTime(LOADING_LOOP_MS - 50);
+    });
+    expect(overlay()).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(overlay()).not.toBeInTheDocument();
+  });
+
+  it('shows for an API call only once it has run past the delay', () => {
+    vi.useFakeTimers();
+    render(<LoadingOverlay />);
+    let end = () => {};
+    act(() => {
+      end = beginRequest();
+    });
+    expect(overlay()).not.toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(BACKGROUND_LOADING_DELAY_MS);
+    });
+    expect(overlay()).toBeInTheDocument();
+    act(() => end());
+    act(() => {
+      vi.advanceTimersByTime(LOADING_LOOP_MS);
+    });
+    expect(overlay()).not.toBeInTheDocument();
+  });
+
+  it('never shows for a quick API call', () => {
+    vi.useFakeTimers();
+    render(<LoadingOverlay />);
     let end = () => {};
     act(() => {
       end = beginRequest();
     });
     act(() => {
+      vi.advanceTimersByTime(BACKGROUND_LOADING_DELAY_MS - 50);
+    });
+    act(() => end());
+    act(() => {
       vi.advanceTimersByTime(BACKGROUND_LOADING_DELAY_MS);
     });
-    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
-
-    act(() => end());
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
-  });
-
-  it('stays hidden while a loading state is already on screen', () => {
-    vi.useFakeTimers();
-    render(
-      <>
-        <GlobalLoadingIndicator />
-        <LoadingState label="Loading shop" />
-      </>
-    );
-    act(() => {
-      beginRequest();
-    });
-    act(() => {
-      vi.advanceTimersByTime(BACKGROUND_LOADING_DELAY_MS * 2);
-    });
-    expect(screen.getAllByRole('status')).toHaveLength(1);
-    expect(screen.getByRole('status', { name: 'Loading shop' })).toBeInTheDocument();
+    expect(overlay()).not.toBeInTheDocument();
   });
 });

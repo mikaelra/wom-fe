@@ -202,12 +202,11 @@ function CityPageContent() {
 
       <CityLoadingScreen
         title={city.actionLabel ?? city.name}
-        accent={city.color}
         done={sceneReady}
       />
 
       {loading && (
-        <LoadingState size={128} className="fixed inset-0 z-50 bg-black/70 pointer-events-none" />
+        <LoadingState />
       )}
 
       {gateOpen && (

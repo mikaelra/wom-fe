@@ -169,6 +169,8 @@ type RequestOpts = {
   body?: unknown;
   /** Used only when a non-ok response body has no {error} field. */
   defaultErrorMessage?: string;
+  /** Background polling: don't raise the loading overlay for this call. */
+  quiet?: boolean;
 };
 
 /**
@@ -190,8 +192,8 @@ export async function request<S extends z.ZodTypeAny>(
   opts: RequestOpts = {}
 ): Promise<z.infer<S>> {
   // In flight until the response is read and parsed (or anything fails), so
-  // the global loading indicator covers the whole wait.
-  const done = beginRequest();
+  // the loading overlay covers the whole wait. Polls opt out (quiet).
+  const done = opts.quiet ? () => {} : beginRequest();
   try {
     return await requestInner(path, schema, opts);
   } finally {

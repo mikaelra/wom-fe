@@ -1,12 +1,15 @@
-// What the app is waiting on right now, for the global loading indicator
-// (<GlobalLoadingIndicator>, the small loading mark in the corner):
+// What the app is waiting on right now, for the loading overlay
+// (<LoadingOverlay>: the loading animation in the middle of the screen over
+// a grey background):
 //
+//   - screens -- a page, scene or panel whose content isn't there yet renders
+//     <LoadingState>, which claims the screen while mounted (shown at once);
 //   - API calls -- every backend request goes through http.ts request(),
-//     which brackets itself with beginRequest()/end;
+//     which brackets itself with beginRequest()/end (polls opt out);
 //   - 3D assets -- a scene's <AssetLoadingReporter> mirrors three's loading
-//     manager (models, textures) into setAssetsLoading();
-//   - screens that already show a big loading mark (<LoadingScreen>) claim
-//     the screen while mounted, so the corner mark never doubles up on one.
+//     manager (models, textures) into setAssetsLoading().
+//   API calls and assets are "background" waits: the overlay only shows for
+//   them once they last a moment (see useLoadingOverlay).
 //
 // A plain module-level store (subscribe + snapshot) rather than React
 // context, so request() can report without being a component.
@@ -51,7 +54,7 @@ export function setAssetsLoading(active: boolean): void {
   emit();
 }
 
-/** A full loading screen is showing; returns the release. */
+/** A screen is waiting for its content; returns the release. */
 export function claimLoadingScreen(): () => void {
   screens += 1;
   emit();
@@ -64,9 +67,14 @@ export function claimLoadingScreen(): () => void {
   };
 }
 
-/** True while something is loading that no loading screen already shows. */
+/** True while an API call or 3D assets are loading. */
 export function isBackgroundLoading(): boolean {
-  return (requests > 0 || assetsLoading) && screens === 0;
+  return requests > 0 || assetsLoading;
+}
+
+/** True while a <LoadingState> (a screen waiting for its content) is up. */
+export function isScreenLoading(): boolean {
+  return screens > 0;
 }
 
 /** Test hook: forget all state. */

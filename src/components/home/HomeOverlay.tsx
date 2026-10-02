@@ -244,7 +244,7 @@ export default function HomeOverlay() {
             <h3 className="text-xl font-bold mb-4">Your relics</h3>
             <ul className="list-disc pl-6 mb-4">
               {relicsLoading ? (
-                <LoadingState size={40} className="py-2" label="Loading relics" />
+                <LoadingState label="Loading relics" />
               ) : relics.length > 0 ? (
                 relics.map((relic) => (
                   <li key={String(relic.id)}>

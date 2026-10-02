@@ -201,7 +201,6 @@ export default function Page() {
       {enteringCity && (
         <CityLoadingScreen
           title={enteringCity.actionLabel ?? enteringCity.name}
-          accent={enteringCity.color}
         />
       )}
 
