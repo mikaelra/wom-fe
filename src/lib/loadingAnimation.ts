@@ -9,12 +9,12 @@
 //
 //   1. outfold -- the logo (dots and dotted edges removed) copies each spoke
 //      and swings the copy round the spoke tip onto the dotted edge's place:
-//      a cube.
+//      a cube. The whole figure spins up and down while it does.
 //   2. spin    -- the cube spins about the axis we look along: linear rev up,
 //      top speed, linear rev down, ending where it started. A trail of fading
 //      copies lags behind it (the "etterslep" from alkymistene's Merkabah).
-//   3. infold  -- the swung lines fold back into the center: the start frame
-//      again, so the loop is seamless.
+//   3. infold  -- the swung lines fold back into the center, spinning up and
+//      down again: the start frame again, so the loop is seamless.
 //
 // Coordinates are the spec's: world units, x right / y down, center at 0.
 
@@ -23,7 +23,14 @@ import specJson from './loadingAnimationSpec.json';
 export type Point = readonly [number, number];
 export type Segment = readonly [x0: number, y0: number, x1: number, y1: number];
 
-type Hold = { holdBefore: number; duration: number; holdAfter: number; speed: number };
+type Fold = {
+  holdBefore: number;
+  duration: number;
+  holdAfter: number;
+  speed: number;
+  /** Degrees the whole figure turns during the fold (spun up, then down). */
+  spin: number;
+};
 
 export type LoadingAnimationSpec = {
   color: string;
@@ -35,16 +42,17 @@ export type LoadingAnimationSpec = {
   swing: { tip: Point; corner: Point }[];
   /** The hexagon edges that are always drawn. */
   edges: [Point, Point][];
-  outfold: Hold;
+  outfold: Fold;
   spin: { up: number; top: number; down: number; topSpeed: number; direction: number; speed: number };
-  infold: Hold;
+  infold: Fold;
   trail: { seconds: number; echoes: number; gain: number };
 };
 
 export const LOADING_SPEC = specJson as unknown as LoadingAnimationSpec;
 
 /** The pose at one instant: how far the copies have swung out (0 = logo,
- *  1 = cube) and how far the figure has spun, in degrees (cumulative). */
+ *  1 = cube) and how far the figure has spun so far in the loop, in degrees
+ *  (cumulative across the phases). */
 export type Pose = { progress: number; spin: number };
 
 export function smoothstep(t: number): number {
@@ -73,20 +81,37 @@ export function spinAngle(spec: LoadingAnimationSpec, t: number): number {
   return angle + w * (t - (t * t) / (2 * down));
 }
 
+/** Degrees turned `u` (0..1) through a fold of `total` degrees: speed ramps
+ *  linearly up to the midpoint and back down, so it starts and ends still. */
+export function foldSpin(u: number, total: number): number {
+  return total * (u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) ** 2);
+}
+
 type Step = { seconds: number; pose: (u: number) => Pose };
 
 function steps(spec: LoadingAnimationSpec): Step[] {
   const { outfold: o, infold: i } = spec;
   const spin = spinDuration(spec);
+  const a1 = o.spin;
+  const a2 = a1 + spinAngle(spec, spin);
   return [
     { seconds: o.holdBefore / o.speed, pose: () => ({ progress: 0, spin: 0 }) },
-    { seconds: o.duration / o.speed, pose: (u) => ({ progress: smoothstep(u), spin: 0 }) },
-    { seconds: o.holdAfter / o.speed, pose: () => ({ progress: 1, spin: 0 }) },
-    { seconds: spin, pose: (u) => ({ progress: 1, spin: spinAngle(spec, u * spin) }) },
-    { seconds: i.holdBefore / i.speed, pose: () => ({ progress: 1, spin: 0 }) },
-    { seconds: i.duration / i.speed, pose: (u) => ({ progress: 1 - smoothstep(u), spin: 0 }) },
-    { seconds: i.holdAfter / i.speed, pose: () => ({ progress: 0, spin: 0 }) },
+    { seconds: o.duration / o.speed, pose: (u) => ({ progress: smoothstep(u), spin: foldSpin(u, o.spin) }) },
+    { seconds: o.holdAfter / o.speed, pose: () => ({ progress: 1, spin: a1 }) },
+    { seconds: spin, pose: (u) => ({ progress: 1, spin: a1 + spinAngle(spec, u * spin) }) },
+    { seconds: i.holdBefore / i.speed, pose: () => ({ progress: 1, spin: a2 }) },
+    { seconds: i.duration / i.speed, pose: (u) => ({ progress: 1 - smoothstep(u), spin: a2 + foldSpin(u, i.spin) }) },
+    { seconds: i.holdAfter / i.speed, pose: () => ({ progress: 0, spin: a2 + i.spin }) },
   ];
+}
+
+function poseIn(all: Step[], t: number): Pose {
+  let rest = t;
+  for (const step of all) {
+    if (rest < step.seconds) return step.pose(rest / step.seconds);
+    rest -= step.seconds;
+  }
+  return all[all.length - 1].pose(1);
 }
 
 /** Seconds one loop lasts. */
@@ -96,22 +121,15 @@ export function loopDuration(spec: LoadingAnimationSpec): number {
 
 /** The pose `t` seconds into the loop (wraps, so any t >= 0 works). */
 export function poseAt(spec: LoadingAnimationSpec, t: number): Pose {
-  const all = steps(spec);
-  let rest = ((t % loopDuration(spec)) + loopDuration(spec)) % loopDuration(spec);
-  for (const step of all) {
-    if (rest < step.seconds) return step.pose(rest / step.seconds);
-    rest -= step.seconds;
-  }
-  return all[all.length - 1].pose(1);
+  const loop = loopDuration(spec);
+  return poseIn(steps(spec), ((t % loop) + loop) % loop);
 }
 
-/** Cumulative spin degrees at loop time `t`: 0 before the spin, the full
- *  spin after it; times before 0 count as 0. Unlike poseAt this does not
- *  wrap, so the trail can look back past the spin's end. */
+/** Cumulative spin degrees at loop time `t`. Unlike poseAt this does not
+ *  wrap: times before 0 count as 0 (the trail never reaches into the
+ *  previous loop) and times past the end as the loop's full turn. */
 export function spinAt(spec: LoadingAnimationSpec, t: number): number {
-  const s = steps(spec);
-  const start = s[0].seconds + s[1].seconds + s[2].seconds;
-  return spinAngle(spec, Math.min(Math.max(t - start, 0), spinDuration(spec)));
+  return poseIn(steps(spec), Math.max(t, 0)).spin;
 }
 
 /** Strength of each trail copy: copy 0 (the sharp figure) at 1, the rest

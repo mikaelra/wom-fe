@@ -1,5 +1,5 @@
 {
-  "generatedBy": "wom-tools/animation-generation/loading_animation.py (v8)",
+  "generatedBy": "wom-tools/animation-generation/loading_animation.py (v9)",
   "color": "#ff0000",
   "lineRadius": 0.06604,
   "extent": 1.096575,
@@ -75,7 +75,8 @@
     "holdBefore": 0.5,
     "duration": 1.0,
     "holdAfter": 1.0,
-    "speed": 3.0
+    "speed": 3.0,
+    "spin": 120.0
   },
   "spin": {
     "up": 1.0,
@@ -89,7 +90,8 @@
     "holdBefore": 1.0,
     "duration": 1.0,
     "holdAfter": 0.5,
-    "speed": 4.845
+    "speed": 4.845,
+    "spin": 120.0
   },
   "trail": {
     "seconds": 0.54,

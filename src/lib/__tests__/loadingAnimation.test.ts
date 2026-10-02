@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LOADING_SPEC,
   echoWeights,
+  foldSpin,
   echoesAt,
   loopDuration,
   poseAt,
@@ -48,28 +49,49 @@ describe('timing', () => {
 describe('poses', () => {
   it.each([
     [0.0, 0.0, 0.0],
-    [0.25, 0.15625, 0.0],
-    [0.3, 0.352, 0.0],
-    [0.7, 1.0, 0.0],
-    [0.9, 1.0, 18.77922],
-    [1.1, 1.0, 285.12],
-    [1.4, 1.0, 708.341355],
-    [1.5, 1.0, 720.0],
-    [1.7, 0.896958198, 720.0],
-    [1.9, 0.0, 720.0],
+    [0.2, 0.028, 2.4],
+    [0.25, 0.15625, 15.0],
+    [0.3, 0.352, 38.4],
+    [0.7, 1.0, 120.0],
+    [0.9, 1.0, 138.77922],
+    [1.1, 1.0, 405.12],
+    [1.4, 1.0, 828.341355],
+    [1.5, 1.0, 840.0],
+    [1.7, 0.896958198, 849.50424],
+    [1.9, 0.0, 960.0],
   ])('at %s s: swing %s, spin %s deg', (t, progress, spin) => {
     expect(poseAt(LOADING_SPEC, t).progress).toBeCloseTo(progress, 6);
     expect(spinAt(LOADING_SPEC, t)).toBeCloseTo(spin, 4);
+    expect(poseAt(LOADING_SPEC, t).spin).toBeCloseTo(spin, 4);
   });
 
   it('loops seamlessly: the end of one loop is the start of the next', () => {
     const loop = loopDuration(LOADING_SPEC);
-    expect(poseAt(LOADING_SPEC, loop - 1e-9)).toEqual(poseAt(LOADING_SPEC, 0));
+    // same swing, and a turn that looks the same (the figure repeats every 120 deg)
+    const end = poseAt(LOADING_SPEC, loop - 1e-9);
+    const start = poseAt(LOADING_SPEC, 0);
+    expect(end.progress).toBe(start.progress);
+    expect((end.spin - start.spin) % 120).toBeCloseTo(0, 6);
     expect(poseAt(LOADING_SPEC, loop + 0.3).progress).toBeCloseTo(poseAt(LOADING_SPEC, 0.3).progress, 9);
   });
 
-  it('treats times before the loop as still', () => {
+  it('treats times before the loop as still, and past it as the full turn', () => {
     expect(spinAt(LOADING_SPEC, -1)).toBe(0);
+    expect(spinAt(LOADING_SPEC, loopDuration(LOADING_SPEC) + 5)).toBeCloseTo(960, 6);
+  });
+
+  it('turns a whole number of thirds over the loop, so it restarts where it began', () => {
+    const total = spinAt(LOADING_SPEC, loopDuration(LOADING_SPEC));
+    expect(total % 120).toBeCloseTo(0, 6);
+  });
+
+  it('spins each fold up from still and back down to still', () => {
+    expect(foldSpin(0, 120)).toBe(0);
+    expect(foldSpin(0.5, 120)).toBe(60);
+    expect(foldSpin(1, 120)).toBe(120);
+    const du = 1e-4;
+    expect(foldSpin(du, 120) - foldSpin(0, 120)).toBeLessThan(1e-3);
+    expect(foldSpin(1, 120) - foldSpin(1 - du, 120)).toBeLessThan(1e-3);
   });
 });
 
@@ -85,12 +107,14 @@ describe('trail', () => {
 
   it.each([
     [0.0, 0],
-    [0.7, 0],
+    [0.2, 23],
+    [0.3, 23],
+    [0.7, 15],
     [0.9, 23],
     [1.1, 23],
     [1.5, 21],
-    [1.7, 13],
-    [1.9, 4],
+    [1.7, 23],
+    [1.9, 22],
   ])('at %s s draws %s trail copies besides the sharp figure', (t, copies) => {
     const echoes = echoesAt(LOADING_SPEC, t);
     expect(echoes).toHaveLength(1 + copies);
