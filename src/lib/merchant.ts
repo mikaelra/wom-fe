@@ -164,6 +164,7 @@ export const MERCHANT_QUOTES: Readonly<Record<'full_moon' | 'conjunction', reado
  *  scene. The user's own lines; an item without one shows nothing. */
 export const MERCHANT_ITEM_LINES: Readonly<Record<string, string>> = {
   Paper: 'One could write something on this',
+  Pen: 'For writing with',
   'Stone of Vitality': 'A stone which exudes vitality',
 };
 

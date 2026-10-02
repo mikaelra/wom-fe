@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONJUNCTION_COLOR, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine, timewarpEventLabels,
-  MERCHANT_MARKER_LABEL, MERCHANT_QUOTES, merchantQuote, merchantModelFor, merchantSkyBodies, meanDirection, skyToGlobeLocal,
+  MERCHANT_ITEM_LINES, MERCHANT_MARKER_LABEL, MERCHANT_QUOTES, merchantQuote, merchantModelFor, merchantSkyBodies, meanDirection, skyToGlobeLocal,
   PLANET_COLOR, REVERT_RELIC_NAMES, merchantMarkerColors, PLANET_RADIUS_KM, sphereDrop,
 } from '@/lib/merchant';
 import { bodyColorHex } from '@/lib/astrology';
@@ -104,6 +104,10 @@ describe('John Dee at the new moon', () => {
     expect(MERCHANT_QUOTES.full_moon).toContain(merchantQuote('new_moon', () => 0));
     expect(merchantMarkerColors(newMoon)).toEqual({ fill: FULL_MOON_MERCHANT_COLOR, outline: null });
     expect(merchantSkyBodies(newMoon)).toEqual(['Moon']);
+  });
+
+  it('says what the Pen is for under it', () => {
+    expect(MERCHANT_ITEM_LINES.Pen).toBe('For writing with');
   });
 });
 
