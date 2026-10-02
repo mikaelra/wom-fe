@@ -151,6 +151,7 @@ export type BossfightRosterPlayer = BossfightRoster['players'][number];
 
 export async function getBossfightRoster(): Promise<BossfightRoster> {
   return request('/get_bossfight_roster', BossfightRosterResponseSchema, {
+    quiet: true, // polled
     defaultErrorMessage: 'Failed to fetch the bossfight roster',
   });
 }
@@ -272,6 +273,7 @@ export async function getActiveRankedLobby(
     return { lobby_id: null, token: null, ranked_countdown_deadline: null, started: false };
   }
   return request('/ranked/active', RankedActiveResponseSchema, {
+    quiet: true, // polled
     body: { name: playerName, ...credentials },
     defaultErrorMessage: 'Failed to check for an active ranked match.',
   });
@@ -595,6 +597,7 @@ export async function forgotUsername(email: string): Promise<{ success: boolean 
 
 export async function checkClaimVerified(name: string, email: string): Promise<{ verified: boolean }> {
   const data = await request('/check_claim_verified', CheckClaimVerifiedResponseSchema, {
+    quiet: true, // polled
     body: { name, email },
     defaultErrorMessage: 'Failed to check verification status.',
   });
@@ -644,6 +647,7 @@ export async function getOrderStatus(
   orderId: string | number,
 ): Promise<{ status: string; product: string; fulfilled: boolean }> {
   return request('/shop/order', OrderStatusResponseSchema, {
+    quiet: true, // polled
     body: { token, order_id: orderId },
     defaultErrorMessage: 'Failed to check the order.',
   });
@@ -909,6 +913,7 @@ export async function getActiveBotRankedLobby(
   started: boolean;
 }> {
   return request('/my_ai/bot_ranked/active', MyAiBotRankedActiveResponseSchema, {
+    quiet: true, // polled
     body: { token: accountToken },
     defaultErrorMessage: 'Failed to check for an active bot-ranked match.',
   });

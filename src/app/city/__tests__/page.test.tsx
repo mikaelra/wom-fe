@@ -372,21 +372,20 @@ describe('CityPage (loading curtain)', () => {
     // temple.glb, the Senate, the mountain and the Milky Way texture all
     // load behind a Suspense that used to fall back to null -- i.e. to an
     // empty dark screen with no sign that anything was coming.
-    expect(screen.getByText('ENTERING')).toBeInTheDocument();
-    expect(screen.getByText('GREECE')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Entering GREECE' })).toBeInTheDocument();
   });
 
   it('lifts once the scene signals it is on screen', async () => {
     renderCity();
     await waitFor(() => expect(readyHandler).toBeDefined());
-    expect(screen.getByText('ENTERING')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Entering GREECE' })).toBeInTheDocument();
 
     // The real scene calls this from a useFrame, two drawn frames after its
     // models resolve -- Suspense resolving only means they are parsed.
     act(() => { readyHandler!(); });
 
     // It fades before it unmounts, so this is not synchronous.
-    await waitFor(() => expect(screen.queryByText('ENTERING')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('status', { name: 'Entering GREECE' })).not.toBeInTheDocument());
   });
 
   // The 20s "the scene never reported" fallback is deliberately NOT tested
@@ -490,7 +489,7 @@ describe('CityPage (entering the bossfight)', () => {
     await clickBossfight();
 
     expect(await screen.findByText('Bossfight is full')).toBeInTheDocument();
-    expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading' })).not.toBeInTheDocument();
     expect(push).not.toHaveBeenCalledWith(expect.stringContaining('/lobby'));
   });
 });

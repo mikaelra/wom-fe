@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { getSeasonHistory } from '@/lib/api';
 import type { SeasonHistoryEntry } from '@/lib/schemas';
 import RankBadge from '@/components/hud/RankBadge';
+import LoadingState from '@/components/loading/LoadingState';
 
 type Ladder = 'human' | 'ai';
 
@@ -99,7 +100,7 @@ export default function SeasonHistoryOverlay({
           {error ? (
             <p className="text-red-400 text-sm">{error}</p>
           ) : !history ? (
-            <p className="text-white/60 text-sm">Loading…</p>
+            <LoadingState />
           ) : entries.length === 0 ? (
             <p className="text-white/60 text-sm">No ranked seasons yet.</p>
           ) : (

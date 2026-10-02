@@ -7,6 +7,7 @@ import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
 import { APP_VERSION, BUILD_NUMBER } from '@/config';
 import { CITY_PATH } from '@/lib/cities';
 import AudioSettingsPanel from '@/components/audio/AudioSettingsPanel';
+import LoadingState from '@/components/loading/LoadingState';
 
 const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
@@ -121,7 +122,7 @@ export default function SettingsPage() {
         </div>
 
         {loading ? (
-          <p className="text-white/70">Loading…</p>
+          <LoadingState />
         ) : loadError ? (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <p className="text-red-400 mb-3">{loadError}</p>

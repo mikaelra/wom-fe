@@ -9,6 +9,7 @@ import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 import { skinUrl } from '@/lib/frogSkins';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { CITY_PATH } from '@/lib/cities';
+import LoadingState from '@/components/loading/LoadingState';
 
 function formatPrice(cents: number, currency: string): string {
   try {
@@ -206,7 +207,7 @@ export default function ShopPage() {
         </div>
 
         {loading ? (
-          <p className="text-white/70">Loading…</p>
+          <LoadingState />
         ) : loadError ? (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <p className="text-red-400">{loadError}</p>
