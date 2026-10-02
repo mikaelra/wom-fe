@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BACKEND_URL, PROTOCOL_VERSION } from '@/config';
+import { beginRequest } from '@/lib/loadingTracker';
 
 /** A non-2xx HTTP response. Carries the server's {error} message when the
  *  body had one, or a per-call fallback string otherwise. `code` is the
@@ -187,6 +188,21 @@ export async function request<S extends z.ZodTypeAny>(
   path: string,
   schema: S,
   opts: RequestOpts = {}
+): Promise<z.infer<S>> {
+  // In flight until the response is read and parsed (or anything fails), so
+  // the global loading indicator covers the whole wait.
+  const done = beginRequest();
+  try {
+    return await requestInner(path, schema, opts);
+  } finally {
+    done();
+  }
+}
+
+async function requestInner<S extends z.ZodTypeAny>(
+  path: string,
+  schema: S,
+  opts: RequestOpts
 ): Promise<z.infer<S>> {
   const res = await fetch(`${BACKEND_URL}${path}`, {
     method: opts.body !== undefined ? 'POST' : 'GET',

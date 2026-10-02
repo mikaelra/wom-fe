@@ -13,6 +13,7 @@ import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { LobbyState } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
 import { cameraSpinCookie, readCameraSpin } from '@/lib/cameraSpinPref';
+import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
 
 const LobbyScene = dynamic(() => import('@/components/lobby/LobbyScene'), { ssr: false });
 
@@ -164,6 +165,7 @@ function LobbyPageContent() {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100dvh', overflow: 'hidden' }}>
+      <AssetLoadingReporter />
       <Canvas
         camera={{ position: [33, 26, 33], fov: BASE_FOV }}
         // Cap resolution at 2x — rendering at DPR 3 on phones triples the pixel

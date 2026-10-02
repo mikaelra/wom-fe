@@ -490,7 +490,7 @@ describe('CityPage (entering the bossfight)', () => {
     await clickBossfight();
 
     expect(await screen.findByText('Bossfight is full')).toBeInTheDocument();
-    expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading' })).not.toBeInTheDocument();
     expect(push).not.toHaveBeenCalledWith(expect.stringContaining('/lobby'));
   });
 });

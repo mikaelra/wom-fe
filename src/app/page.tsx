@@ -15,6 +15,7 @@ import type { City } from '@/lib/cities';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { MERCHANT_MARKER_LABEL, merchantMarkerColors, merchantSkyBodies } from '@/lib/merchant';
 import { getStoredAccountToken } from '@/lib/http';
+import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
 
 const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
 
@@ -168,6 +169,7 @@ export default function Page() {
           />
         }
       />
+      <AssetLoadingReporter />
       {sceneReady && (
         <Canvas
           camera={{ position: [0, 3, 10.5], fov: 50 }}

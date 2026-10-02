@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useProgress } from '@react-three/drei';
+import LoadingMark from '@/components/loading/LoadingMark';
+import { claimLoadingScreen } from '@/lib/loadingTracker';
 
 /**
  * The curtain between the GREECE sword and standing in Athens.
@@ -20,11 +21,9 @@ import { useProgress } from '@react-three/drei';
  * Rendering the same component in both places makes those two waits read as
  * one continuous transition rather than as a stall, a flash and a pop.
  *
- * The bar is drei's `useProgress`, which watches three's DefaultLoadingManager
- * and is therefore only meaningful while something is actually in flight --
- * on the world-map half, and on a second visit where every asset is already
- * cached, nothing loads at all, so it falls back to an indeterminate sweep
- * rather than sitting at a fake 100%.
+ * The wait itself shows the game's loading mark (<LoadingMark>), and while
+ * the curtain is up it claims the screen so the small corner loading mark
+ * doesn't double up on it.
  */
 
 /** Must match the opacity transition below, so the node is removed only
@@ -41,8 +40,12 @@ export default function CityLoadingScreen({
   /** Flip to true when the scene is ready; the curtain fades and unmounts. */
   done?: boolean;
 }) {
-  const { active, progress } = useProgress();
   const [gone, setGone] = useState(false);
+
+  useEffect(() => {
+    if (gone) return;
+    return claimLoadingScreen();
+  }, [gone]);
 
   useEffect(() => {
     if (!done) return;
@@ -72,18 +75,7 @@ export default function CityLoadingScreen({
         {title}
       </h1>
 
-      <div className="mt-2 h-[3px] w-56 overflow-hidden rounded-full bg-white/10">
-        {active ? (
-          <div
-            className="h-full rounded-full transition-[width] duration-200 ease-out"
-            style={{ width: `${Math.max(4, progress)}%`, background: accent }}
-          />
-        ) : (
-          // Nothing is loading (cached assets, or the world-map half), so
-          // there is no honest percentage to show -- sweep instead.
-          <div className="city-loading-sweep h-full w-1/3 rounded-full" style={{ background: accent }} />
-        )}
-      </div>
+      <LoadingMark size={96} label={`Entering ${title}`} className="mt-2" />
     </div>
   );
 }

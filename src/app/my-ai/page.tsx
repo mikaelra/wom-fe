@@ -24,6 +24,7 @@ import type {
 } from '@/lib/schemas';
 import { CITY_PATH } from '@/lib/cities';
 import SeasonTimer from '@/components/hud/SeasonTimer';
+import LoadingState from '@/components/loading/LoadingState';
 
 const KNOBS: { key: Exclude<keyof MyAiKnobs, 'action_split'>; label: string; low: string; high: string }[] = [
   { key: 'greed', label: 'Greed', low: 'heals', high: 'hoards coin' },
@@ -176,7 +177,7 @@ export default function MyAiPage() {
     <Shell>
       {loadError && <p className="text-red-400 mb-4">{loadError}</p>}
       {!status ? (
-        <p className="text-white/60">Loading…</p>
+        <LoadingState />
       ) : (
         <div className="space-y-8">
           {/* --- toggle + credits + rank --- */}

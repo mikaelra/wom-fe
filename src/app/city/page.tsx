@@ -25,6 +25,8 @@ import { useBossfightRoster } from '@/lib/useBossfightRoster';
 import { useCityPresence } from '@/lib/useCityPresence';
 import { bossfightSignSublabel } from '@/lib/bossfightSign';
 import { playMusic, CITY_MUSIC } from '@/lib/music';
+import LoadingState from '@/components/loading/LoadingState';
+import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
 
 const CityScene = dynamic(() => import('@/components/city/CityScene'), { ssr: false });
 
@@ -141,6 +143,7 @@ function CityPageContent() {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100dvh', overflow: 'hidden', background: '#070b15' }}>
+      <AssetLoadingReporter />
       <Canvas
         camera={{ position: CITY_CAMERA, fov: CITY_FOV }}
         // Same DPR cap as the lobby: rendering at DPR 3 on phones triples
@@ -204,9 +207,7 @@ function CityPageContent() {
       />
 
       {loading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 pointer-events-none">
-          <p className="text-white text-2xl font-bold tracking-widest animate-pulse">Loading...</p>
-        </div>
+        <LoadingState size={128} className="fixed inset-0 z-50 bg-black/70 pointer-events-none" />
       )}
 
       {gateOpen && (

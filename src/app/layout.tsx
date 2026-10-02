@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
+import GlobalLoadingIndicator from "@/components/loading/GlobalLoadingIndicator";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,6 +49,7 @@ export default function RootLayout({
       >
         <ToastProvider>
           <ErrorBoundary>{children}</ErrorBoundary>
+          <GlobalLoadingIndicator />
         </ToastProvider>
       </body>
     </html>

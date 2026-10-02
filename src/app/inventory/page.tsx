@@ -24,6 +24,7 @@ import { useCountdown } from '@/lib/useCountdown';
 import { REVERT_RELIC_NAMES } from '@/lib/merchant';
 import { CONSUMABLE_RELIC_NAMES, type Relic } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
+import LoadingState from '@/components/loading/LoadingState';
 
 type SkinEntry = { skin: string; count: number };
 type ArtifactEntry = {
@@ -260,7 +261,7 @@ export default function InventoryPage() {
         </div>
 
         {loading ? (
-          <p className="text-white/70">Loading…</p>
+          <LoadingState />
         ) : pendingClaim ? (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <p className="text-white/70 mb-3">
