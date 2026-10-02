@@ -10,7 +10,7 @@ electron/
   main.js       window + custom app:// scheme serving out/ + lifecycle
   preload.js    contextBridge → window.wom (isSteam flag, getSteamInfo())
   steam.js      steamworks.js wrapper; a no-op when Steam isn't running
-  resources/    electron-builder buildResources (icons, entitlements) — TODO
+  resources/    electron-builder buildResources: icon.png / icon.ico (generated, see ../branding/README.md)
 ```
 
 Uploading to Steam: see [`../steam/README.md`](../steam/README.md) and
