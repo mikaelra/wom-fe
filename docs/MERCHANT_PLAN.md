@@ -8,7 +8,12 @@ Coins.
 **Now (since wom-be c7d2e4f1a8b3):** the full moon's Merchant (the man,
 `merchant_v1`) sells **Paper** and a conjunction's (the Lady Merchant,
 `lady_merchant_v1`) sells **Stone of Vitality** -- the reverse of how
-Phases 1-2 below first shipped.
+Phases 1-2 below first shipped. Since wom-be f4c8a2e6b1d9, John Dee comes
+at the **new moon** too, selling **Pen** for 3 Hades' Coins: transcribing
+an Artifact in the market takes a Paper and a Pen, and uses up both
+(`docs/MARKET_PLAN.md` §1B in wom-be). The new moon is the real ephemeris
+(astronomy-engine), live ±24h like the full moon; a Pen timewarps like
+the other relics, back to the new moon it was bought under.
 
 Phase 1: **Stone of Vitality**, a relic that starts the player with 15 HP
 instead of 10, sold by **The Merchant** for 5 Hades' Coins, once per full
@@ -221,6 +226,7 @@ from.
 ```
 docker exec -w /app game_backend python -m engine.dev_clock 2026-11-16T06:00:00Z  # Mars–Jupiter in Leo
 docker exec -w /app game_backend python -m engine.dev_clock 2028-10-03T12:00:00Z  # Mercury–Jupiter in Libra on the full moon in Aries
+docker exec -w /app game_backend python -m engine.dev_clock 2026-10-10T12:00:00Z  # new moon in Libra: John Dee with Pen
 docker exec -w /app game_backend python -m engine.dev_clock --clear
 ```
 

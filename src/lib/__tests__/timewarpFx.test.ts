@@ -60,6 +60,15 @@ describe('timewarpParamFor', () => {
     ])).toBe('full_moon,Mercury-Jupiter');
   });
 
+  it('names the new moon, which a Pen brings back, in John Dee\'s purple', () => {
+    const value = timewarpParamFor([{ kind: 'new_moon', key: '' }]);
+    expect(value).toBe('new_moon');
+    expect(parseTimewarp(value, null)).toMatchObject({
+      colors: [FULL_MOON_MERCHANT_COLOR],
+      events: [{ kind: 'new_moon', key: '', bodies: ['Moon'] }],
+    });
+  });
+
   it('is the full moon for nothing at all', () => {
     expect(timewarpParamFor([])).toBe('full_moon');
   });
@@ -155,7 +164,7 @@ describe('the pins during a timewarp', () => {
 
 describe('TIMEWARP_TEST_MOMENTS', () => {
   it('covers every pair of planets once', () => {
-    const pairs = TIMEWARP_TEST_MOMENTS.filter((m) => !m.value.includes(',') && m.value !== 'full_moon');
+    const pairs = TIMEWARP_TEST_MOMENTS.filter((m) => !m.value.includes(',') && !m.value.endsWith('_moon'));
     expect(pairs.map((m) => m.value).sort()).toEqual([
       'Jupiter-Saturn', 'Mars-Jupiter', 'Mars-Saturn', 'Mercury-Jupiter', 'Mercury-Mars',
       'Mercury-Saturn', 'Mercury-Venus', 'Venus-Jupiter', 'Venus-Mars', 'Venus-Saturn',

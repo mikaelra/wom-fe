@@ -25,6 +25,14 @@ describe('timewarpEventLabels', () => {
     ]);
   });
 
+  it('names the new moon in John Dee\'s purple', () => {
+    const newMoon = { ...FULL_MOON_EVENT, kind: 'new_moon' };
+    expect(timewarpEventLabels([MERCURY_JUPITER_EVENT, newMoon])).toEqual([
+      { text: 'New moon', color: FULL_MOON_MERCHANT_COLOR },
+      { text: 'Conjunction', color: CONJUNCTION_COLOR },
+    ]);
+  });
+
   it('names two conjunctions at one moment once', () => {
     const other = { ...MERCURY_JUPITER_EVENT, key: 'Venus-Mars', bodies: ['Venus', 'Mars'] };
     expect(timewarpEventLabels([MERCURY_JUPITER_EVENT, other])).toEqual([
@@ -76,14 +84,26 @@ describe('merchantQuote', () => {
 
 describe('REVERT_RELIC_NAMES', () => {
   it('is what each merchant sells', () => {
-    expect([...REVERT_RELIC_NAMES]).toEqual(['Stone of Vitality', 'Paper']);
+    expect([...REVERT_RELIC_NAMES]).toEqual(['Stone of Vitality', 'Paper', 'Pen']);
   });
 });
 
 describe('merchantArrivalLine', () => {
   it('is by what summons him, never the particular event', () => {
     expect(merchantArrivalLine('full_moon')).toBe('Appears around the full moon');
+    expect(merchantArrivalLine('new_moon')).toBe('Appears around the new moon');
     expect(merchantArrivalLine('conjunction')).toBe('Appears around conjunctions');
+  });
+});
+
+describe('John Dee at the new moon', () => {
+  const newMoon = { ...FULL_MOON_EVENT, kind: 'new_moon' };
+
+  it('is the same man as at the full moon: model, quotes, colour, and under the Moon', () => {
+    expect(merchantModelFor('new_moon')).toBe('merchant_v1');
+    expect(MERCHANT_QUOTES.full_moon).toContain(merchantQuote('new_moon', () => 0));
+    expect(merchantMarkerColors(newMoon)).toEqual({ fill: FULL_MOON_MERCHANT_COLOR, outline: null });
+    expect(merchantSkyBodies(newMoon)).toEqual(['Moon']);
   });
 });
 

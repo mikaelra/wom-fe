@@ -45,7 +45,7 @@ type Props = {
 
 /**
  * A merchant's scene (docs/MERCHANT_PLAN.md) -- the Merchant, with the
- * relic he sells: Stone of Vitality at a full moon, Paper at a conjunction. Deliberately
+ * relic he sells: Paper at a full moon, Pen at a new moon, Stone of Vitality at a conjunction. Deliberately
  * simple, per the doc: a CSS wooden-logs backdrop and a plain wooden crate
  * standing in for real prop art, with the real merchant_v1.glb and
  * stone_of_vitality_v1.glb models staged over it -- Merchant behind the

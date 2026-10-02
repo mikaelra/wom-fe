@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ARTIFACT_NEEDS_HINT,
   artifactTradeProblem,
   clampCoins,
+  hasPaperAndPen,
   TRANSCRIBE_HOLDER_NOTE,
   tradeName,
   tradeNoun,
@@ -110,7 +112,7 @@ export default function CraftOfferModal({
       max: MAX_AI_CREDITS_PER_ITEM,
     };
     // Nor is the Artifact -- always askable, one at most (wom-be
-    // docs/MARKET_PLAN.md §1B); it needs a Paper on your side.
+    // docs/MARKET_PLAN.md §1B); it needs a Paper and a Pen on your side.
     const artifact: Line = {
       input: { item_type: 'artifact', quantity: 1 },
       label: 'Artifact',
@@ -119,16 +121,15 @@ export default function CraftOfferModal({
     return [aiCredits, ...skins, ...relics, ...wheels, artifact];
   }, [catalog]);
 
-  // The Artifact is asked for with a Paper: it shows up in the picker once
-  // a Paper is on your side -- and only for someone without one, since an
-  // account holds one Artifact.
-  const paperOnGive = give.some(
-    (l) => l.input.item_type === 'relic' && l.input.relic_id === catalog.paper_relic_id,
-  );
+  // The Artifact is asked for with a Paper and a Pen. It is always in the
+  // picker, so the option isn't hidden, but greyed out with what it needs
+  // until both are on your side -- and only for someone without one, since
+  // an account holds one Artifact.
+  const writingOnGive = hasPaperAndPen(give.map((l) => l.input), catalog);
   const ownsArtifact = owned.some((o) => o.input.item_type === 'artifact');
   const wantMatches = catalogLines.filter(
     (l) =>
-      (l.input.item_type !== 'artifact' || (paperOnGive && !ownsArtifact)) &&
+      (l.input.item_type !== 'artifact' || !ownsArtifact) &&
       l.label.toLowerCase().includes(wantSearch.trim().toLowerCase()),
   );
 
@@ -166,11 +167,11 @@ export default function CraftOfferModal({
   const artifactProblem = artifactTradeProblem(
     give.map((l) => l.input),
     want.map((l) => l.input),
-    catalog.paper_relic_id,
+    catalog,
   );
 
   const noun = tradeNoun(
-    tradeName(give.map((l) => l.input), want.map((l) => l.input), catalog.paper_relic_id),
+    tradeName(give.map((l) => l.input), want.map((l) => l.input), catalog),
   );
 
   const canProceed =
@@ -277,16 +278,22 @@ export default function CraftOfferModal({
                     return (
                       <div key={type} className="w-full flex flex-wrap gap-1">
                         <CategoryHeader label={label} />
-                        {rows.map((l) => (
-                          <button
-                            key={itemKey(l.input)}
-                            type="button"
-                            onClick={() => addTo('want', l)}
-                            className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs hover:bg-white/10 transition-colors cursor-pointer"
-                          >
-                            {l.label}
-                          </button>
-                        ))}
+                        {rows.map((l) => {
+                          const locked = l.input.item_type === 'artifact' && !writingOnGive;
+                          return (
+                            <button
+                              key={itemKey(l.input)}
+                              type="button"
+                              disabled={locked}
+                              title={locked ? ARTIFACT_NEEDS_HINT : undefined}
+                              onClick={() => addTo('want', l)}
+                              className="px-2 py-1 rounded-md bg-white/5 border border-white/10 text-xs hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white/5"
+                            >
+                              {l.label}
+                              {locked && <span className="ml-1 text-white/60">({ARTIFACT_NEEDS_HINT})</span>}
+                            </button>
+                          );
+                        })}
                       </div>
                     );
                   })}

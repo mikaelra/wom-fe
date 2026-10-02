@@ -574,8 +574,10 @@ export const MarketCatalogResponseSchema = z.object({
   relics: z.array(z.object({ id: z.number().int(), name: z.string() })),
   wheel_kinds: z.array(z.string()),
   coin_relic_id: z.number().int(),
-  // Which relic is Paper -- an Artifact on a trade needs one opposite it.
+  // Which relics are Paper and Pen -- an Artifact on a trade needs both
+  // opposite it.
   paper_relic_id: z.number().int().nullable().optional(),
+  pen_relic_id: z.number().int().nullable().optional(),
   terms_version: z.string(),
   terms_text: z.string(),
 });

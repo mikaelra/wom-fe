@@ -9,7 +9,7 @@ import { useCountdown } from '@/lib/useCountdown';
 import type { Relic } from '@/types/game';
 
 type Props = {
-  /** A merchant relic -- Stone of Vitality or Paper. */
+  /** A merchant relic -- Stone of Vitality, Paper or Pen. */
   relic: Relic;
   /** Whether time is turned back right now, and to when -- the status line. */
   reverted: boolean;
@@ -55,7 +55,7 @@ export function formatCountdown(totalSeconds: number): string {
 }
 
 /**
- * Clicking a merchant relic's model (Stone of Vitality, Paper) in the
+ * Clicking a merchant relic's model (Stone of Vitality, Paper, Pen) in the
  * Inventory opens this -- mirrors ArtifactLedgerModal being what clicking
  * your artifact opens.
  *
