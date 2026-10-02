@@ -2,7 +2,16 @@
 
 The World of Mythos logo: a cube seen corner-on — three solid spokes, an
 outer hexagon alternating solid and two-piece dotted edges, and a dot in
-each face. Red (`#ff0000`); opaque icons sit on `#111111`.
+each face. Opaque icons sit on `#111111`.
+
+Each platform has its own color:
+
+| Platform | Color |
+|---|---|
+| Web (favicons, website's iPhone home-screen icon) | red `#ff0000` |
+| iOS app | yellow `#ffff00` |
+| Steam / Electron | blue `#0000ff` |
+| Google Play | red `#ff0000` (not decided yet) |
 
 **Every file here and the in-app copies below are generated — don't edit
 them by hand.** Source: `wom-tools/animation-generation/wom_logo.py`
