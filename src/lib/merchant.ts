@@ -113,15 +113,6 @@ export function timewarpEventLabels(events: readonly MerchantEvent[]): { text: s
   return labels;
 }
 
-/** The line under the merchant's name in his scene -- by what summons
- *  him, never the particular event: "Appears around the full moon",
- *  "Appears around the new moon", "Appears around conjunctions". */
-export function merchantArrivalLine(triggerKind: string): string {
-  if (triggerKind === 'conjunction') return 'Appears around conjunctions';
-  if (triggerKind === 'new_moon') return 'Appears around the new moon';
-  return 'Appears around the full moon';
-}
-
 /** Which model stands behind the counter: the Merchant (John Dee) at the
  *  full and new moon, the Lady Merchant at a conjunction. */
 export function merchantModelFor(triggerKind: string): 'merchant_v1' | 'lady_merchant_v1' {
@@ -133,7 +124,7 @@ export function merchantModelFor(triggerKind: string): 'merchant_v1' | 'lady_mer
  *  click it, at the top of his scene. */
 export const MERCHANT_MARKER_LABEL = 'Merchant';
 
-/** What the merchant says in his scene when a timewarp brought him: John
+/** What the merchant says in his scene, under his name: John
  *  Dee at the full moon (and the new moon -- he is the same man, so
  *  merchantQuote gives him the same lines), Hildegard von Bingen at a
  *  conjunction. The

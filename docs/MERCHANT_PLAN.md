@@ -208,8 +208,9 @@ from.
   planets. The globe stays put and the sky turns around it
   (`lib/skyDrift.ts` shares how far), so the markers move with the sky,
   re-placed every frame. (This replaced a seeded random spot.)
-- The scene's line is by what summons him, never the particular event:
-  "Appears around the full moon" / "Appears around conjunctions".
+- Under his name in the scene, the merchant always says one of his quotes
+  (`MERCHANT_QUOTES`: John Dee's at the full and new moon, Hildegard's at a
+  conjunction), picked as the scene opens.
 - `MerchantScene` stages whichever relic the merchant sells; Paper's model is
   `public/models/relics/paper_v1.glb` (`pergament_v1` with its textures
   resized 2048 → 1024: 6.6 MB → 0.7 MB).

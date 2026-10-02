@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CONJUNCTION_COLOR, FULL_MOON_MERCHANT_COLOR, merchantArrivalLine, timewarpEventLabels,
+  CONJUNCTION_COLOR, FULL_MOON_MERCHANT_COLOR, timewarpEventLabels,
   MERCHANT_ITEM_LINES, MERCHANT_MARKER_LABEL, MERCHANT_QUOTES, merchantQuote, merchantModelFor, merchantSkyBodies, meanDirection, skyToGlobeLocal,
   PLANET_COLOR, REVERT_RELIC_NAMES, merchantMarkerColors, PLANET_RADIUS_KM, sphereDrop,
 } from '@/lib/merchant';
@@ -85,14 +85,6 @@ describe('merchantQuote', () => {
 describe('REVERT_RELIC_NAMES', () => {
   it('is what each merchant sells', () => {
     expect([...REVERT_RELIC_NAMES]).toEqual(['Stone of Vitality', 'Paper', 'Pen']);
-  });
-});
-
-describe('merchantArrivalLine', () => {
-  it('is by what summons him, never the particular event', () => {
-    expect(merchantArrivalLine('full_moon')).toBe('Appears around the full moon');
-    expect(merchantArrivalLine('new_moon')).toBe('Appears around the new moon');
-    expect(merchantArrivalLine('conjunction')).toBe('Appears around conjunctions');
   });
 });
 

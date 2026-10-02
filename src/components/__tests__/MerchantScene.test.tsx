@@ -103,10 +103,23 @@ describe('MerchantScene', () => {
     expect(mockedPurchase).not.toHaveBeenCalled();
   });
 
-  it('says he appears around the full moon', () => {
+  it('has John Dee say one of his lines, timewarp or not', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
     render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
 
-    expect(screen.getByText('Appears around the full moon')).toBeInTheDocument();
+    expect(screen.getByText('“The All is Mind.”')).toBeInTheDocument();
+    expect(screen.queryByText(/Appears around/)).not.toBeInTheDocument();
+  });
+
+  it('has John Dee say one of his lines at the new moon too', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+    render(<MerchantScene offer={{ ...OFFER, trigger_kind: 'new_moon', item_name: 'Pen' }} token="t"
+      onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
+
+    expect(screen.getByText('“The All is Mind.”')).toBeInTheDocument();
+    expect(screen.getByText('For writing with')).toBeInTheDocument();
   });
 
   it('has John Dee say one of his lines when a timewarp brought him', () => {
@@ -116,7 +129,6 @@ describe('MerchantScene', () => {
 
     expect(screen.getByText('John Dee')).toBeInTheDocument();
     expect(screen.getByText('“The All is Mind.”')).toBeInTheDocument();
-    expect(screen.queryByText('Appears around the full moon')).not.toBeInTheDocument();
   });
 
   it('has Hildegard von Bingen say one of hers at a conjunction', () => {
@@ -172,10 +184,12 @@ describe('MerchantScene', () => {
       expect(parseFloat(paperBox.style.left)).toBe(stone.left - 60);
     });
 
-    it('says he appears around conjunctions -- never the particular one', () => {
+    it('says one of her lines -- never the particular conjunction', () => {
+      const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
       render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      random.mockRestore();
 
-      expect(screen.getByText('Appears around conjunctions')).toBeInTheDocument();
+      expect(screen.getByText('“Modern life lacks softness.”')).toBeInTheDocument();
       expect(screen.queryByText(/Mercury|Jupiter|Libra/)).not.toBeInTheDocument();
     });
 
