@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { LOADING_SPEC, echoesAt, poseAt, segmentsAt } from '@/lib/loadingAnimation';
+import { useEffect, useRef, useState } from 'react';
+import { LOADING_SPEC, echoesAt, pickLoadingColor, poseAt, segmentsAt } from '@/lib/loadingAnimation';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 
 /**
@@ -12,10 +12,14 @@ import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
  * Trail copies are added together ('lighter'), each at its own strength, the
  * same way the design renders them. With reduced motion it holds still on
  * the first frame.
+ *
+ * Without a `color` it plays in one of the spec's colours (red, yellow,
+ * blue), picked at random each time it mounts -- so each time loading
+ * shows, since the overlay unmounts it in between.
  */
 export default function LoadingMark({
   size = 96,
-  color = LOADING_SPEC.color,
+  color: colorProp,
   label = 'Loading',
   className = '',
 }: {
@@ -27,6 +31,8 @@ export default function LoadingMark({
   className?: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const [randomColor] = useState(() => pickLoadingColor(LOADING_SPEC));
+  const color = colorProp ?? randomColor;
   const reducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {

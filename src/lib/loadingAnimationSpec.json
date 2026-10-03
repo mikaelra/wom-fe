@@ -1,6 +1,11 @@
 {
-  "generatedBy": "wom-tools/animation-generation/loading_animation.py (v9)",
+  "generatedBy": "wom-tools/animation-generation/loading_animation.py (v10)",
   "color": "#ff0000",
+  "colors": [
+    "#ff0000",
+    "#ffff00",
+    "#0000ff"
+  ],
   "lineRadius": 0.06604,
   "extent": 1.096575,
   "center": [
@@ -96,6 +101,7 @@
   "trail": {
     "seconds": 0.54,
     "echoes": 24,
-    "gain": 1.0
+    "gain": 1.0,
+    "maxDegrees": 60.0
   }
 }

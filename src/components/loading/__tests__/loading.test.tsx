@@ -22,6 +22,42 @@ describe('LoadingMark', () => {
     expect(canvas.tagName).toBe('CANVAS');
     expect(canvas).toHaveStyle({ width: '40px', height: '40px' });
   });
+
+  it('plays in a colour picked at random as it mounts, unless one is given', () => {
+    const strokes: string[] = [];
+    const ctx = new Proxy({} as Record<string, unknown>, {
+      get: (target, key) => (key in target ? target[key as string] : () => {}),
+      set: (target, key, value) => {
+        if (key === 'strokeStyle') strokes.push(value as string);
+        target[key as string] = value;
+        return true;
+      },
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    let scheduled = false;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      if (!scheduled) {
+        scheduled = true;
+        cb(0);
+      }
+      return 1;
+    });
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+
+    const { unmount } = render(<LoadingMark />);
+    expect(strokes.at(-1)).toBe('#0000ff');
+    unmount();
+
+    random.mockReturnValue(0.5);
+    scheduled = false;
+    render(<LoadingMark />);
+    expect(strokes.at(-1)).toBe('#ffff00');
+
+    scheduled = false;
+    render(<LoadingMark color="#ff0000" />);
+    expect(strokes.at(-1)).toBe('#ff0000');
+    vi.restoreAllMocks();
+  });
 });
 
 describe('LoadingState', () => {
