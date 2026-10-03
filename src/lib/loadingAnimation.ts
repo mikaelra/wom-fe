@@ -2,7 +2,7 @@
 // <LoadingMark> draws whatever this says.
 //
 // The motion is designed in wom-tools (animation-generation/
-// loading_animation.py, the "v8" loop) and exported as plain data into
+// loading_animation.py, the "v10" loop) and exported as plain data into
 // loadingAnimationSpec.json -- regenerate that file there rather than editing
 // it here, so the frontend always plays exactly what was signed off. This
 // module is a port of that script's timeline:
@@ -12,7 +12,8 @@
 //      a cube. The whole figure spins up and down while it does.
 //   2. spin    -- the cube spins about the axis we look along: linear rev up,
 //      top speed, linear rev down, ending where it started. A trail of fading
-//      copies lags behind it (the "etterslep" from alkymistene's Merkabah).
+//      copies lags behind it (the "etterslep" from alkymistene's Merkabah),
+//      reaching back at most trail.maxDegrees.
 //   3. infold  -- the swung lines fold back into the center, spinning up and
 //      down again: the start frame again, so the loop is seamless.
 //
@@ -34,6 +35,8 @@ type Fold = {
 
 export type LoadingAnimationSpec = {
   color: string;
+  /** What the game plays it in: one picked at random each time it appears. */
+  colors?: string[];
   lineRadius: number;
   /** Half-width of the square view, in world units. */
   extent: number;
@@ -45,7 +48,10 @@ export type LoadingAnimationSpec = {
   outfold: Fold;
   spin: { up: number; top: number; down: number; topSpeed: number; direction: number; speed: number };
   infold: Fold;
-  trail: { seconds: number; echoes: number; gain: number };
+  /** maxDegrees caps how far back the trail reaches (v10): under half the
+   *  figure's 120 deg symmetry, so the copies never wrap round onto poses
+   *  that look like the start. Absent: the trail is time-spaced, as before. */
+  trail: { seconds: number; echoes: number; gain: number; maxDegrees?: number };
 };
 
 export const LOADING_SPEC = specJson as unknown as LoadingAnimationSpec;
@@ -143,21 +149,33 @@ export function echoWeights(spec: LoadingAnimationSpec): number[] {
 export type Echo = { spin: number; weight: number };
 
 /** The copies to draw at loop time `t` (wrapped into one loop): the sharp
- *  figure first, then every trail copy whose angle differs from it -- copy i
- *  shows the spin from i * trail / (count - 1) seconds ago. When nothing has
- *  moved for a trail's length this is just the sharp figure. */
+ *  figure first, then every trail copy whose angle differs from it. With
+ *  trail.maxDegrees the copies are spaced evenly in angle over what the
+ *  figure turned in the last trail.seconds, capped at maxDegrees; without
+ *  it copy i shows the spin from i * trail / (count - 1) seconds ago. When
+ *  nothing has moved for a trail's length this is just the sharp figure. */
 export function echoesAt(spec: LoadingAnimationSpec, t: number): Echo[] {
   const loop = loopDuration(spec);
   const now = ((t % loop) + loop) % loop;
   const weights = echoWeights(spec);
-  const lag = weights.length > 1 ? spec.trail.seconds / (weights.length - 1) : 0;
+  const last = weights.length - 1;
   const sharp = spinAt(spec, now);
+  const max = spec.trail.maxDegrees;
+  const swept = max === undefined ? 0 : Math.max(-max, Math.min(max, sharp - spinAt(spec, now - spec.trail.seconds)));
+  const lag = last > 0 ? spec.trail.seconds / last : 0;
   const out: Echo[] = [{ spin: sharp, weight: 1 }];
   for (let i = 1; i < weights.length; i++) {
-    const past = spinAt(spec, now - i * lag);
+    const past = max === undefined ? spinAt(spec, now - i * lag) : sharp - (swept * i) / last;
     if (Math.abs(past - sharp) > 1e-9) out.push({ spin: past, weight: weights[i] });
   }
   return out;
+}
+
+/** One of the spec's colours at random -- the colour for one showing of the
+ *  animation. The spec's own colour when it lists none. */
+export function pickLoadingColor(spec: LoadingAnimationSpec, random: () => number = Math.random): string {
+  const colors = spec.colors?.length ? spec.colors : [spec.color];
+  return colors[Math.min(colors.length - 1, Math.floor(random() * colors.length))];
 }
 
 function rotate(p: Point, pivot: Point, angle: number): [number, number] {

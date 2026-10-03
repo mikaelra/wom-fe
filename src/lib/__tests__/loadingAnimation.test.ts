@@ -4,6 +4,7 @@ import {
   echoWeights,
   foldSpin,
   echoesAt,
+  pickLoadingColor,
   loopDuration,
   poseAt,
   segmentsAt,
@@ -109,12 +110,12 @@ describe('trail', () => {
     [0.0, 0],
     [0.2, 23],
     [0.3, 23],
-    [0.7, 15],
+    [0.7, 23],
     [0.9, 23],
     [1.1, 23],
-    [1.5, 21],
+    [1.5, 23],
     [1.7, 23],
-    [1.9, 22],
+    [1.9, 23],
   ])('at %s s draws %s trail copies besides the sharp figure', (t, copies) => {
     const echoes = echoesAt(LOADING_SPEC, t);
     expect(echoes).toHaveLength(1 + copies);
@@ -125,6 +126,29 @@ describe('trail', () => {
   it('wraps times past the loop', () => {
     const loop = loopDuration(LOADING_SPEC);
     expect(echoesAt(LOADING_SPEC, loop + 0.9)).toHaveLength(24);
+  });
+
+  it('never reaches back further than maxDegrees, spacing the copies evenly', () => {
+    const max = LOADING_SPEC.trail.maxDegrees!;
+    expect(max).toBe(60);
+    const loop = loopDuration(LOADING_SPEC);
+    for (let t = 0; t < loop; t += 0.01) {
+      const echoes = echoesAt(LOADING_SPEC, t);
+      const spins = echoes.map((e) => e.spin);
+      const reach = Math.max(...spins) - Math.min(...spins);
+      expect(reach).toBeLessThanOrEqual(max + 1e-9);
+      if (echoes.length === 24) {
+        const step = spins[0] - spins[1];
+        spins.forEach((s, i) => expect(s).toBeCloseTo(spins[0] - i * step, 9));
+      }
+    }
+  });
+
+  it('spaces the copies in time when the spec has no maxDegrees', () => {
+    const old = { ...LOADING_SPEC, trail: { ...LOADING_SPEC.trail, maxDegrees: undefined } };
+    const lag = old.trail.seconds / 23;
+    const echoes = echoesAt(old, 1.1);
+    expect(echoes[1].spin).toBeCloseTo(spinAt(old, 1.1 - lag), 9);
   });
 
   it('is just the sharp figure with a one-copy trail', () => {
@@ -165,5 +189,19 @@ describe('segments', () => {
     ];
     const segs = segmentsAt(LOADING_SPEC, 0.5, 30);
     expected.forEach((row, i) => row.forEach((v, j) => expect(segs[i][j]).toBeCloseTo(v, 5)));
+  });
+});
+
+describe('pickLoadingColor', () => {
+  it('picks red, yellow or blue by the random number', () => {
+    expect(LOADING_SPEC.colors).toEqual(['#ff0000', '#ffff00', '#0000ff']);
+    expect(pickLoadingColor(LOADING_SPEC, () => 0)).toBe('#ff0000');
+    expect(pickLoadingColor(LOADING_SPEC, () => 0.5)).toBe('#ffff00');
+    expect(pickLoadingColor(LOADING_SPEC, () => 0.999)).toBe('#0000ff');
+    expect(pickLoadingColor(LOADING_SPEC, () => 1)).toBe('#0000ff');
+  });
+
+  it('falls back to the spec colour when it lists none', () => {
+    expect(pickLoadingColor({ ...LOADING_SPEC, colors: undefined }, () => 0.7)).toBe(LOADING_SPEC.color);
   });
 });
