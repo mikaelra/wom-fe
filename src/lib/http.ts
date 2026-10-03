@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BACKEND_URL, PROTOCOL_VERSION } from '@/config';
+import { beginRequest } from '@/lib/loadingTracker';
 
 /** A non-2xx HTTP response. Carries the server's {error} message when the
  *  body had one, or a per-call fallback string otherwise. `code` is the
@@ -168,6 +169,8 @@ type RequestOpts = {
   body?: unknown;
   /** Used only when a non-ok response body has no {error} field. */
   defaultErrorMessage?: string;
+  /** Background polling: don't raise the loading overlay for this call. */
+  quiet?: boolean;
 };
 
 /**
@@ -187,6 +190,21 @@ export async function request<S extends z.ZodTypeAny>(
   path: string,
   schema: S,
   opts: RequestOpts = {}
+): Promise<z.infer<S>> {
+  // In flight until the response is read and parsed (or anything fails), so
+  // the loading overlay covers the whole wait. Polls opt out (quiet).
+  const done = opts.quiet ? () => {} : beginRequest();
+  try {
+    return await requestInner(path, schema, opts);
+  } finally {
+    done();
+  }
+}
+
+async function requestInner<S extends z.ZodTypeAny>(
+  path: string,
+  schema: S,
+  opts: RequestOpts
 ): Promise<z.infer<S>> {
   const res = await fetch(`${BACKEND_URL}${path}`, {
     method: opts.body !== undefined ? 'POST' : 'GET',

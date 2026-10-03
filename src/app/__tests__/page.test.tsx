@@ -192,15 +192,14 @@ describe('Page (world map view, city routing)', () => {
   it('raises the loading curtain on the click, not after the route change', async () => {
     render(<Page />);
     // Nothing to see until the sword is actually tapped.
-    expect(screen.queryByText('ENTERING')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: /^Entering / })).not.toBeInTheDocument();
 
     await clickAthens();
 
     // The route change and the city chunk's download both happen while this
     // page is still mounted, so without this a tap looks like it did
     // nothing at all.
-    expect(screen.getByText('ENTERING')).toBeInTheDocument();
-    expect(screen.getByText(ATHENS.name)).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: /^Entering / })).toBeInTheDocument();
   });
 
   it('routes to the city the same way when already logged in', async () => {

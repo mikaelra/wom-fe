@@ -104,8 +104,9 @@ the iPhone 14 from a TestFlight build.
 
 ## Not done yet
 
-- **App icon / launch screen art.** Capacitor ships placeholders under
-  `ios/App/App/Assets.xcassets/`.
+- **Launch screen art.** `ios/App/App/Assets.xcassets/Splash.imageset` is still
+  the Capacitor placeholder. (The app icon is the real logo — see
+  `../branding/README.md`.)
 - **Safe-area insets** for the notch / Dynamic Island — the HUD needs
   `env(safe-area-inset-*)` (§7.3).
 - **Audio unlock on first tap** — `src/lib/sounds.ts` needs an explicit

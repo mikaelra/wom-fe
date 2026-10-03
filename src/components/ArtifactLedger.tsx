@@ -6,6 +6,7 @@ import { getArtifactLedger } from '@/lib/api';
 import { ApiError, getStoredAccountToken } from '@/lib/http';
 import { discoveryGapMs, formatDiscoveryGap } from '@/lib/artifactLedger';
 import type { LedgerMark } from '@/lib/market';
+import LoadingState from '@/components/loading/LoadingState';
 
 type Entry = { ordinal: number; finder_name: string; discovered_at: string | null };
 
@@ -110,7 +111,7 @@ export default function ArtifactLedger({
     }
   };
 
-  if (loading) return <p className={`text-white/60 text-sm ${className}`}>Loading the ledger…</p>;
+  if (loading) return <LoadingState label="Loading the ledger…" />;
   if (error) return <p className={`text-red-400 text-sm ${className}`}>{error}</p>;
 
   if (sealed) {

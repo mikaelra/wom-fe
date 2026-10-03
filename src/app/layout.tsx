@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
+import LoadingOverlay from "@/components/loading/LoadingOverlay";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,7 +27,8 @@ export const metadata: Metadata = {
   // here in the repo -- confirmed live. icon.png/apple-icon.png are
   // rendered PNGs of the same source art (public/wom.svg) for iOS and any
   // other SVG-favicon holdout; icon.svg keeps the crisp vector version for
-  // browsers that do support it.
+  // browsers that do support it. All of them are generated -- see
+  // branding/README.md.
 };
 
 export const viewport: Viewport = {
@@ -47,6 +49,7 @@ export default function RootLayout({
       >
         <ToastProvider>
           <ErrorBoundary>{children}</ErrorBoundary>
+          <LoadingOverlay />
         </ToastProvider>
       </body>
     </html>
