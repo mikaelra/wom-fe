@@ -6,7 +6,7 @@ type Vec3 = readonly [number, number, number];
 
 /**
  * The sky bodies a merchant stands under on the globe: the Moon for the
- * full moon's, the two planets for a conjunction's. Anything else (an
+ * full or new moon's, the two planets for a conjunction's. Anything else (an
  * event from a backend that predates events) stands under the Moon.
  */
 export function merchantSkyBodies(event: MerchantEvent | null | undefined): string[] {
@@ -49,9 +49,10 @@ export interface MerchantEvent {
 
 /** The relics that can be sacrificed to turn back time -- what each
  *  merchant sells (wom-be domain/merchant.py REVERT_RELIC_NAMES). */
-export const REVERT_RELIC_NAMES: ReadonlySet<string> = new Set(['Stone of Vitality', 'Paper']);
+export const REVERT_RELIC_NAMES: ReadonlySet<string> = new Set(['Stone of Vitality', 'Paper', 'Pen']);
 
-/** The full-moon Merchant's colour -- the purple his marker always had. */
+/** John Dee's colour -- the purple his marker always had, at the full
+ *  moon and the new moon alike. */
 export const FULL_MOON_MERCHANT_COLOR = '#a855f7';
 
 // The planets' identity colours (astrology.ts BASE_COLOR), duplicated
@@ -79,8 +80,8 @@ const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 /**
  * A merchant marker's colours on the globe. A conjunction's text is the
  * bigger planet's colour inside and the other's outside (its outline and
- * glow), and its light is the bigger planet's. The full moon's stays
- * purple with the dark outline it always had (`outline` null).
+ * glow), and its light is the bigger planet's. John Dee's (full or new
+ * moon) stays purple with the dark outline it always had (`outline` null).
  */
 export function merchantMarkerColors(
   event: MerchantEvent | null | undefined,
@@ -100,25 +101,20 @@ export const CONJUNCTION_COLOR = '#fb923c';
 
 /**
  * What the Timewarp popup lists for one copy's instant: just the kinds of
- * event live then -- "Full moon" in the Merchant's purple, "Conjunction"
- * in orange -- each once, full moon first, whatever the planets or signs.
+ * event live then -- "Full moon" / "New moon" in John Dee's purple,
+ * "Conjunction" in orange -- each once, the moon first, whatever the
+ * planets or signs.
  */
 export function timewarpEventLabels(events: readonly MerchantEvent[]): { text: string; color: string }[] {
   const labels: { text: string; color: string }[] = [];
   if (events.some((e) => e.kind === 'full_moon')) labels.push({ text: 'Full moon', color: FULL_MOON_MERCHANT_COLOR });
+  if (events.some((e) => e.kind === 'new_moon')) labels.push({ text: 'New moon', color: FULL_MOON_MERCHANT_COLOR });
   if (events.some((e) => e.kind === 'conjunction')) labels.push({ text: 'Conjunction', color: CONJUNCTION_COLOR });
   return labels;
 }
 
-/** The line under the merchant's name in his scene -- by what summons
- *  him, never the particular event: "Appears around the full moon",
- *  "Appears around conjunctions". */
-export function merchantArrivalLine(triggerKind: string): string {
-  return triggerKind === 'conjunction' ? 'Appears around conjunctions' : 'Appears around the full moon';
-}
-
-/** Which model stands behind the counter: the Merchant at the full moon,
- *  the Lady Merchant at a conjunction. */
+/** Which model stands behind the counter: the Merchant (John Dee) at the
+ *  full and new moon, the Lady Merchant at a conjunction. */
 export function merchantModelFor(triggerKind: string): 'merchant_v1' | 'lady_merchant_v1' {
   return triggerKind === 'conjunction' ? 'lady_merchant_v1' : 'merchant_v1';
 }
@@ -128,8 +124,10 @@ export function merchantModelFor(triggerKind: string): 'merchant_v1' | 'lady_mer
  *  click it, at the top of his scene. */
 export const MERCHANT_MARKER_LABEL = 'Merchant';
 
-/** What the merchant says in his scene when a timewarp brought him: John
- *  Dee at the full moon, Hildegard von Bingen at a conjunction. The
+/** What the merchant says in his scene, under his name: John
+ *  Dee at the full moon (and the new moon -- he is the same man, so
+ *  merchantQuote gives him the same lines), Hildegard von Bingen at a
+ *  conjunction. The
  *  user's own lines -- don't reword them. */
 export const MERCHANT_QUOTES: Readonly<Record<'full_moon' | 'conjunction', readonly string[]>> = {
   full_moon: [
@@ -157,6 +155,7 @@ export const MERCHANT_QUOTES: Readonly<Record<'full_moon' | 'conjunction', reado
  *  scene. The user's own lines; an item without one shows nothing. */
 export const MERCHANT_ITEM_LINES: Readonly<Record<string, string>> = {
   Paper: 'One could write something on this',
+  Pen: 'For writing with',
   'Stone of Vitality': 'A stone which exudes vitality',
 };
 

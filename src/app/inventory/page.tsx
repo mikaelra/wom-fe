@@ -65,8 +65,8 @@ export default function InventoryPage() {
   const [relics, setRelics] = useState<Relic[]>([]);
   const [aiCredits, setAiCredits] = useState(0);
   const [equipping, setEquipping] = useState<string | null>(null);
-  // docs/MERCHANT_PLAN.md §7 -- the merchant relic (Stone of Vitality or
-  // Paper) currently open in the "turn back time" confirmation popup, or
+  // docs/MERCHANT_PLAN.md §7 -- the merchant relic (Stone of Vitality,
+  // Paper or Pen) currently open in the "turn back time" confirmation popup, or
   // null when it's closed.
   const [revertRelic, setRevertRelic] = useState<Relic | null>(null);
   // Polled the same way the globe learns it, so the Timewarp popup can

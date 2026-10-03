@@ -40,6 +40,7 @@ export const TIMEWARP_PLANETS = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'
  */
 export const TIMEWARP_TEST_MOMENTS: readonly { label: string; to: string; value: string }[] = [
   { label: 'Full moon (2026-10-26)', to: '2026-10-26T05:00:00Z', value: 'full_moon' },
+  { label: 'New moon (2026-10-10)', to: '2026-10-10T15:50:36Z', value: 'new_moon' },
   { label: 'Mercury–Venus (2026-10-07)', to: '2026-10-07T00:05:52Z', value: 'Mercury-Venus' },
   { label: 'Mars–Jupiter (2026-11-16)', to: '2026-11-16T06:21:58Z', value: 'Mars-Jupiter' },
   { label: 'Mercury–Saturn (2027-04-19)', to: '2027-04-19T13:01:48Z', value: 'Mercury-Saturn' },
@@ -67,14 +68,15 @@ export interface TimewarpSpec {
   to: Date;
   /** The events it names, in order: what a preview puts a merchant for
    *  on the globe at the end, standing under its Moon or conjunction. */
-  events: { kind: 'full_moon' | 'conjunction'; key: string; bodies: string[] }[];
+  events: { kind: 'full_moon' | 'new_moon' | 'conjunction'; key: string; bodies: string[] }[];
 }
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 
 /**
  * What a `?timewarp` asks for. `value` is the parameter itself: "" or
- * "full_moon" for the full moon, "Mars-Jupiter" for a conjunction, both
+ * "full_moon" for the full moon, "new_moon" for the new moon,
+ * "Mars-Jupiter" for a conjunction, both
  * comma-separated for a moment that had both. null when there is no
  * `?timewarp` at all.
  */
@@ -84,9 +86,9 @@ export function parseTimewarp(value: string | null, to: string | null): Timewarp
   const events: TimewarpSpec['events'] = [];
   const add = (c: string) => { if (!colors.includes(c)) colors.push(c); };
   for (const part of value.split(',').map((p) => p.trim()).filter(Boolean)) {
-    if (part === 'full_moon') {
+    if (part === 'full_moon' || part === 'new_moon') {
       add(FULL_MOON_MERCHANT_COLOR);
-      if (!events.some((e) => e.kind === 'full_moon')) events.push({ kind: 'full_moon', key: '', bodies: ['Moon'] });
+      if (!events.some((e) => e.kind === part)) events.push({ kind: part, key: '', bodies: ['Moon'] });
       continue;
     }
     const [a, b] = part.split('-');
@@ -124,6 +126,7 @@ export function timewarpColorsFor(
 export function timewarpParamFor(events: readonly { kind: string; key: string }[]): string {
   const parts: string[] = [];
   if (events.some((e) => e.kind === 'full_moon')) parts.push('full_moon');
+  if (events.some((e) => e.kind === 'new_moon')) parts.push('new_moon');
   for (const e of events) if (e.kind === 'conjunction' && e.key) parts.push(e.key);
   return parts.join(',') || 'full_moon';
 }

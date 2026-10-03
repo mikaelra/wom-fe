@@ -220,7 +220,7 @@ export default function MarketPage() {
       if (!token) return;
       await createMarketListing(token, payload);
       setCraft(null);
-      toast.showSuccess(`${tradeName(payload.give, payload.want, catalog?.paper_relic_id)} posted.`);
+      toast.showSuccess(`${tradeName(payload.give, payload.want, catalog)} posted.`);
       refetch();
       void reloadPlayer();
     },
@@ -231,7 +231,7 @@ export default function MarketPage() {
     if (!token || !acceptTarget) return;
     const res = await acceptMarketListing(token, acceptTarget.id);
     setAcceptTarget(null);
-    const name = tradeName(acceptTarget.give, acceptTarget.want, catalog?.paper_relic_id);
+    const name = tradeName(acceptTarget.give, acceptTarget.want, catalog);
     toast.showSuccess(
       res.reproduced
         ? `${name} complete — ${res.reproduced.to} received an Artifact.`
@@ -246,7 +246,7 @@ export default function MarketPage() {
       if (!token) return;
       try {
         await cancelMarketListing(token, listing.id);
-        toast.showSuccess(`${tradeName(listing.give, listing.want, catalog?.paper_relic_id)} removed.`);
+        toast.showSuccess(`${tradeName(listing.give, listing.want, catalog)} removed.`);
         refetch();
         void reloadPlayer();  // the items it held are back in the picker
       } catch (e) {
@@ -265,7 +265,7 @@ export default function MarketPage() {
     return {
       give: fmt(acceptTarget.give),
       want: fmt(acceptTarget.want),
-      name: tradeName(acceptTarget.give, acceptTarget.want, catalog?.paper_relic_id),
+      name: tradeName(acceptTarget.give, acceptTarget.want, catalog),
     };
   }, [acceptTarget, catalog]);
 

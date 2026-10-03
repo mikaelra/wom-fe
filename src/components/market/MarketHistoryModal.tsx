@@ -85,7 +85,7 @@ export default function MarketHistoryModal({
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-white/90">
                     <span className="text-white/40">
-                      {tradeNamePast(tradeName(t.gave, t.got, catalog?.paper_relic_id))} with{' '}
+                      {tradeNamePast(tradeName(t.gave, t.got, catalog))} with{' '}
                     </span>
                     <span className="font-semibold text-sky-400/90">{t.counterparty_name}</span>
                   </span>

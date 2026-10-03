@@ -7,7 +7,7 @@ import { relicModelUrl } from '@/components/RelicCoin';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
-import { MERCHANT_ITEM_LINES, merchantArrivalLine, merchantModelFor, merchantQuote } from '@/lib/merchant';
+import { MERCHANT_ITEM_LINES, merchantModelFor, merchantQuote } from '@/lib/merchant';
 
 // The merchant's box at its original 160px, scaled 2.3x then another 1.5x
 // per Mikael's asks -- kept as a constant since the clip wrapper's height
@@ -45,7 +45,7 @@ type Props = {
 
 /**
  * A merchant's scene (docs/MERCHANT_PLAN.md) -- the Merchant, with the
- * relic he sells: Stone of Vitality at a full moon, Paper at a conjunction. Deliberately
+ * relic he sells: Paper at a full moon, Pen at a new moon, Stone of Vitality at a conjunction. Deliberately
  * simple, per the doc: a CSS wooden-logs backdrop and a plain wooden crate
  * standing in for real prop art, with the real merchant_v1.glb and
  * stone_of_vitality_v1.glb models staged over it -- Merchant behind the
@@ -58,8 +58,8 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
   const [buying, setBuying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bought, setBought] = useState(false);
-  // Brought by a timewarp, he says one of his lines -- picked once, as the
-  // scene opens, so it doesn't change under the player while it's open.
+  // He says one of his lines -- picked once, as the scene opens, so it
+  // doesn't change under the player while it's open.
   const [quote] = useState(() => merchantQuote(offer.trigger_kind));
   const reducedMotion = usePrefersReducedMotion();
   const relicBox = RELIC_BOX_PX * (RELIC_SCALE[offer.item_name] ?? 1);
@@ -104,7 +104,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
         <div className="px-5 pt-5 text-center">
           <p className="text-amber-200/80 text-xs font-bold tracking-widest uppercase">{offer.merchant_name}</p>
           <p className="text-amber-100/60 text-[11px] mt-0.5">
-            {offer.reverted ? `“${quote}”` : merchantArrivalLine(offer.trigger_kind)}
+            {`“${quote}”`}
           </p>
         </div>
 
