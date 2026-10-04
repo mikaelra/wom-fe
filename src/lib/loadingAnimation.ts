@@ -2,14 +2,16 @@
 // <LoadingMark> draws whatever this says.
 //
 // The motion is designed in wom-tools (animation-generation/
-// loading_animation.py, the "v10" loop) and exported as plain data into
+// loading_animation.py, the "v11" loop) and exported as plain data into
 // loadingAnimationSpec.json -- regenerate that file there rather than editing
 // it here, so the frontend always plays exactly what was signed off. This
 // module is a port of that script's timeline:
 //
 //   1. outfold -- the logo (dots and dotted edges removed) copies each spoke
 //      and swings the copy round the spoke tip onto the dotted edge's place:
-//      a cube. The whole figure spins up and down while it does.
+//      a cube. The whole figure spins up and down while it does. Or (v11,
+//      startFoldedOut) it starts on the bare hexagon, and a copy of each of
+//      those edges swings round the spoke tip into the center instead.
 //   2. spin    -- the cube spins about the axis we look along: linear rev up,
 //      top speed, linear rev down, ending where it started. A trail of fading
 //      copies lags behind it (the "etterslep" from alkymistene's Merkabah),
@@ -37,6 +39,9 @@ export type LoadingAnimationSpec = {
   color: string;
   /** What the game plays it in: one picked at random each time it appears. */
   colors?: string[];
+  /** The starts picked from at random the same way: false the logo's center
+   *  lines swinging out (v10), true the bare hexagon folding them in (v11). */
+  startsFoldedOut?: boolean[];
   lineRadius: number;
   /** Half-width of the square view, in world units. */
   extent: number;
@@ -171,11 +176,19 @@ export function echoesAt(spec: LoadingAnimationSpec, t: number): Echo[] {
   return out;
 }
 
+const pick = <T,>(items: readonly T[], random: () => number): T =>
+  items[Math.min(items.length - 1, Math.floor(random() * items.length))];
+
 /** One of the spec's colours at random -- the colour for one showing of the
  *  animation. The spec's own colour when it lists none. */
 export function pickLoadingColor(spec: LoadingAnimationSpec, random: () => number = Math.random): string {
-  const colors = spec.colors?.length ? spec.colors : [spec.color];
-  return colors[Math.min(colors.length - 1, Math.floor(random() * colors.length))];
+  return pick(spec.colors?.length ? spec.colors : [spec.color], random);
+}
+
+/** One of the spec's starts at random (see startsFoldedOut); the logo's
+ *  center lines when it lists none. */
+export function pickLoadingStart(spec: LoadingAnimationSpec, random: () => number = Math.random): boolean {
+  return pick(spec.startsFoldedOut?.length ? spec.startsFoldedOut : [false], random);
 }
 
 function rotate(p: Point, pivot: Point, angle: number): [number, number] {
@@ -186,20 +199,30 @@ function rotate(p: Point, pivot: Point, angle: number): [number, number] {
   return [pivot[0] + c * x - s * y, pivot[1] + s * x + c * y];
 }
 
-/** The figure's line segments at swing `progress`, spun `spinDegrees`. */
-export function segmentsAt(spec: LoadingAnimationSpec, progress: number, spinDegrees: number): Segment[] {
+/** The figure's line segments at swing `progress`, spun `spinDegrees`.
+ *  `startFoldedOut` is v11's start: the hexagon's swung edges are always
+ *  drawn and the copies swing from them into the center, rather than the
+ *  center lines always drawn and the copies swinging out of them. */
+export function segmentsAt(
+  spec: LoadingAnimationSpec,
+  progress: number,
+  spinDegrees: number,
+  startFoldedOut = false,
+): Segment[] {
   const { center } = spec;
   const lines: [Point, Point][] = [
-    ...spec.swing.map(({ tip }) => [center, tip] as [Point, Point]),
+    ...spec.swing.map(({ tip, corner }) => (startFoldedOut ? [tip, corner] : [center, tip]) as [Point, Point]),
     ...spec.edges,
   ];
   for (const { tip, corner } of spec.swing) {
     // The spoke's copy runs tip -> center; its free end swings round the tip
-    // (the shortest way) until it points at the corner.
-    const a0 = Math.atan2(center[1] - tip[1], center[0] - tip[0]);
-    const a1 = Math.atan2(corner[1] - tip[1], corner[0] - tip[0]);
+    // (the shortest way) until it points at the corner -- or from the corner
+    // to the center, for startFoldedOut.
+    const [from, to] = startFoldedOut ? [corner, center] : [center, corner];
+    const a0 = Math.atan2(from[1] - tip[1], from[0] - tip[0]);
+    const a1 = Math.atan2(to[1] - tip[1], to[0] - tip[0]);
     const delta = ((((a1 - a0 + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI;
-    lines.push([tip, rotate(center, tip, delta * progress)]);
+    lines.push([tip, rotate(from, tip, delta * progress)]);
   }
   const turn = (spec.spin.direction * spinDegrees * Math.PI) / 180;
   return lines.map(([a, b]) => {

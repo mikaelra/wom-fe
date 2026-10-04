@@ -56,6 +56,16 @@ describe('LoadingMark', () => {
     scheduled = false;
     render(<LoadingMark color="#ff0000" />);
     expect(strokes.at(-1)).toBe('#ff0000');
+
+    // the start is picked too: with every random number high, the hexagon
+    // start's first frame touches nothing at the center
+    const moves: [number, number][] = [];
+    (ctx as Record<string, unknown>).moveTo = (x: number, y: number) => moves.push([x, y]);
+    random.mockReturnValue(0.9);
+    scheduled = false;
+    render(<LoadingMark />);
+    expect(moves.length).toBeGreaterThan(0);
+    expect(moves.some(([x, y]) => Math.hypot(x, y) < 1e-6)).toBe(false);
     vi.restoreAllMocks();
   });
 });

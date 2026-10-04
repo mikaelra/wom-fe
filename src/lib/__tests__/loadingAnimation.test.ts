@@ -5,6 +5,7 @@ import {
   foldSpin,
   echoesAt,
   pickLoadingColor,
+  pickLoadingStart,
   loopDuration,
   poseAt,
   segmentsAt,
@@ -189,6 +190,46 @@ describe('segments', () => {
     ];
     const segs = segmentsAt(LOADING_SPEC, 0.5, 30);
     expected.forEach((row, i) => row.forEach((v, j) => expect(segs[i][j]).toBeCloseTo(v, 5)));
+  });
+});
+
+describe('segments, starting folded out (v11)', () => {
+  it('starts on the bare hexagon: nothing reaches the center, the copies lie on the swung edges', () => {
+    const segs = segmentsAt(LOADING_SPEC, 0, 0, true);
+    expect(segs).toHaveLength(9);
+    const touchesCenter = (x: number, y: number) => Math.hypot(x, y) < 1e-6;
+    expect(segs.some(([x0, y0, x1, y1]) => touchesCenter(x0, y0) || touchesCenter(x1, y1))).toBe(false);
+    LOADING_SPEC.swing.forEach(({ tip, corner }, i) => {
+      expect(segs[i]).toEqual([tip[0], tip[1], corner[0], corner[1]]);
+      expect(segs[6 + i][2]).toBeCloseTo(corner[0], 9);
+      expect(segs[6 + i][3]).toBeCloseTo(corner[1], 9);
+    });
+  });
+
+  it('folds each copy into the center at full progress: the cube', () => {
+    const segs = segmentsAt(LOADING_SPEC, 1, 0, true);
+    for (let i = 6; i < 9; i++) {
+      expect(segs[i][2]).toBeCloseTo(0, 5);
+      expect(segs[i][3]).toBeCloseTo(0, 5);
+    }
+  });
+
+  it('matches the Python v11 frame a quarter in, spun 30 degrees', () => {
+    const copies = [
+      [-0.942809, -0.0, -0.276142, -0.666667], [0.471405, 0.816497, -0.439279, 0.57248],
+      [0.471405, -0.816497, 0.715421, 0.094187],
+    ];
+    const segs = segmentsAt(LOADING_SPEC, 0.25, 30, true);
+    copies.forEach((row, i) => row.forEach((v, j) => expect(segs[6 + i][j]).toBeCloseTo(v, 5)));
+  });
+});
+
+describe('pickLoadingStart', () => {
+  it('picks the logo start or the hexagon start by the random number', () => {
+    expect(LOADING_SPEC.startsFoldedOut).toEqual([false, true]);
+    expect(pickLoadingStart(LOADING_SPEC, () => 0.2)).toBe(false);
+    expect(pickLoadingStart(LOADING_SPEC, () => 0.7)).toBe(true);
+    expect(pickLoadingStart({ ...LOADING_SPEC, startsFoldedOut: undefined }, () => 0.7)).toBe(false);
   });
 });
 
