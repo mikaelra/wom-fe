@@ -1,5 +1,5 @@
 {
-  "generatedBy": "wom-tools/animation-generation/loading_animation.py (v11)",
+  "generatedBy": "wom-tools/animation-generation/loading_animation.py (v12)",
   "color": "#ff0000",
   "colors": [
     "#ff0000",
@@ -10,6 +10,19 @@
     false,
     true
   ],
+  "rainbow": {
+    "chance": 0.9,
+    "colors": [
+      "#ff0000",
+      "#ff8000",
+      "#ffff00",
+      "#00ff00",
+      "#0000ff",
+      "#8000ff",
+      "#ff0000"
+    ],
+    "trailMaxDegrees": 100.0
+  },
   "lineRadius": 0.06604,
   "extent": 1.096575,
   "center": [

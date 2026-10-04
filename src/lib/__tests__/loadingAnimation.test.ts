@@ -6,13 +6,19 @@ import {
   echoesAt,
   pickLoadingColor,
   pickLoadingStart,
+  pickLoadingVariant,
   loopDuration,
+  rainbowColorAt,
+  rainbowEchoColors,
+  rainbowSpec,
   poseAt,
   segmentsAt,
   smoothstep,
   spinAngle,
   spinAt,
   spinDuration,
+  spinWindow,
+  timeOfSpin,
 } from '@/lib/loadingAnimation';
 
 // Expected values below come from the Python original
@@ -244,5 +250,84 @@ describe('pickLoadingColor', () => {
 
   it('falls back to the spec colour when it lists none', () => {
     expect(pickLoadingColor({ ...LOADING_SPEC, colors: undefined }, () => 0.7)).toBe(LOADING_SPEC.color);
+  });
+});
+
+describe('the rainbow (v12)', () => {
+  it('runs round the rainbow through the spin and is red either side, as in Python', () => {
+    const [start, end] = spinWindow(LOADING_SPEC);
+    expect(start).toBeCloseTo(0.8333333333333333, 9);
+    expect(end).toBeCloseTo(1.4525283797729618, 9);
+    expect(rainbowColorAt(LOADING_SPEC, 0.2)).toBe('#ff0000');
+    expect(rainbowColorAt(LOADING_SPEC, 1.0190918472652217)).toBe('rgb(255, 230, 0)');
+    expect(rainbowColorAt(LOADING_SPEC, 1.2977296181630547)).toBe('rgb(64, 0, 255)');
+    expect(rainbowColorAt(LOADING_SPEC, 1.5525283797729619)).toBe('#ff0000');
+    // wraps into the loop
+    expect(rainbowColorAt(LOADING_SPEC, 1.0190918472652217 + loopDuration(LOADING_SPEC))).toBe('rgb(255, 230, 0)');
+    expect(rainbowColorAt({ ...LOADING_SPEC, rainbow: undefined }, 1.1)).toBe('#ff0000');
+  });
+
+  it('finds when the figure was at an echo angle, as in Python', () => {
+    const t = 1.1429308565531475;
+    expect(spinAt(LOADING_SPEC, t)).toBeCloseTo(480, 6);
+    expect(timeOfSpin(LOADING_SPEC, 430, t)).toBeCloseTo(1.1142644193035172, 6);
+  });
+
+  it('colours each echo as the figure was when it was there, the sharp one as now', () => {
+    const spec = rainbowSpec(LOADING_SPEC);
+    const t = 1.1429308565531475;
+    const echoes = echoesAt(spec, t);
+    const colors = rainbowEchoColors(spec, t, echoes);
+    expect(colors).toHaveLength(echoes.length);
+    expect(colors[0]).toBe(rainbowColorAt(spec, t));
+    expect(colors[1]).toBe(rainbowColorAt(spec, timeOfSpin(spec, echoes[1].spin, t)));
+    expect(new Set(colors).size).toBeGreaterThan(1);
+  });
+
+  it('has a bigger trail than the six', () => {
+    expect(LOADING_SPEC.trail.maxDegrees).toBe(60);
+    expect(rainbowSpec(LOADING_SPEC).trail.maxDegrees).toBe(100);
+    const spread = (s: typeof LOADING_SPEC) => {
+      const e = echoesAt(s, 1.1429308565531475);
+      return e[0].spin - e[e.length - 1].spin;
+    };
+    expect(spread(rainbowSpec(LOADING_SPEC))).toBeGreaterThan(spread(LOADING_SPEC));
+    const plain = { ...LOADING_SPEC, rainbow: undefined };
+    expect(rainbowSpec(plain)).toBe(plain);
+  });
+});
+
+describe('pickLoadingVariant', () => {
+  it('is the rainbow 90% of the time, either start; one of the six the rest', () => {
+    const seq = (...values: number[]) => () => values.shift() ?? 0;
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.1, 0.2))).toEqual({ rainbow: true, color: '#ff0000', startFoldedOut: false });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.89, 0.7))).toEqual({ rainbow: true, color: '#ff0000', startFoldedOut: true });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.9, 0.5, 0.2))).toEqual({ rainbow: false, color: '#ffff00', startFoldedOut: false });
+    expect(pickLoadingVariant({ ...LOADING_SPEC, rainbow: undefined }, seq(0.1, 0.7))).toEqual({
+      rainbow: false,
+      color: '#ff0000',
+      startFoldedOut: true,
+    });
+  });
+
+  it('comes out 45% / 45% / 10% over many showings', () => {
+    // a seeded generator (mulberry32), so the run is the same every time
+    let seed = 42;
+    const random = () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+    const counts = { centre: 0, outer: 0, six: 0 };
+    for (let i = 0; i < 20000; i++) {
+      const v = pickLoadingVariant(LOADING_SPEC, random);
+      if (!v.rainbow) counts.six++;
+      else if (v.startFoldedOut) counts.outer++;
+      else counts.centre++;
+    }
+    expect(counts.six / 20000).toBeCloseTo(0.1, 1);
+    expect(counts.centre / 20000).toBeCloseTo(0.45, 1);
+    expect(counts.outer / 20000).toBeCloseTo(0.45, 1);
   });
 });
