@@ -7,7 +7,7 @@ import NoLoadingOverlay from '@/components/loading/NoLoadingOverlay';
 import { beginRequest, isScreenLoading, resetLoadingTracker } from '@/lib/loadingTracker';
 import { BACKGROUND_LOADING_DELAY_MS } from '@/lib/useLoadingOverlay';
 import { LOADING_LOOP_MS } from '@/lib/useMinimumLoading';
-import { LOADING_SPEC, spinWindow } from '@/lib/loadingAnimation';
+import { LOADING_SPEC, spinWindow, wheelColorAt } from '@/lib/loadingAnimation';
 
 afterEach(() => {
   resetLoadingTracker();
@@ -24,7 +24,7 @@ describe('LoadingMark', () => {
     expect(canvas).toHaveStyle({ width: '40px', height: '40px' });
   });
 
-  it('plays a variant picked at random as it mounts: the rainbow, or a colour unless one is given', () => {
+  it('plays a variant picked at random as it mounts: the wheel, the rainbow, or a colour unless one is given', () => {
     const strokes: string[] = [];
     const ctx = new Proxy({} as Record<string, unknown>, {
       get: (target, key) => (key in target ? target[key as string] : () => {}),
@@ -35,6 +35,8 @@ describe('LoadingMark', () => {
       },
     });
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    // a fixed clock, so the drawn frame is exactly `at` into the loop
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
     let scheduled = false;
     let at = 0;
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -44,15 +46,15 @@ describe('LoadingMark', () => {
       }
       return 1;
     });
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.95);
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.99);
 
-    // past the rainbow's chance: one of the six, here blue
+    // past the wheel's and the rainbow's share: one of the six, here blue
     const { unmount } = render(<LoadingMark />);
     expect(strokes.at(-1)).toBe('#0000ff');
     unmount();
 
     // the rainbow: mid-spin it is no longer red
-    random.mockReturnValue(0.5);
+    random.mockReturnValue(0.85);
     const [start, end] = spinWindow(LOADING_SPEC);
     at = ((start + end) / 2) * 1000;
     scheduled = false;
@@ -60,6 +62,16 @@ describe('LoadingMark', () => {
     expect(strokes.at(-1)).toMatch(/^rgb\(/);
     expect(strokes.at(-1)).not.toBe('rgb(255, 0, 0)');
     rainbow.unmount();
+
+    // the wheel: the sharp figure (the frame's first stroke) in its colour
+    // at that time; the trail behind it in earlier colours
+    random.mockReturnValue(0.5);
+    scheduled = false;
+    const first = strokes.length;
+    const wheel = render(<LoadingMark />);
+    expect(strokes[first]).toBe(wheelColorAt(LOADING_SPEC, (start + end) / 2));
+    expect(strokes.at(-1)).not.toBe(strokes[first]);
+    wheel.unmount();
 
     scheduled = false;
     render(<LoadingMark color="#ffff00" />);
@@ -69,7 +81,7 @@ describe('LoadingMark', () => {
     // start's first frame touches nothing at the center
     const moves: [number, number][] = [];
     (ctx as Record<string, unknown>).moveTo = (x: number, y: number) => moves.push([x, y]);
-    random.mockReturnValue(0.95);
+    random.mockReturnValue(0.99);
     at = 0;
     scheduled = false;
     render(<LoadingMark />);
