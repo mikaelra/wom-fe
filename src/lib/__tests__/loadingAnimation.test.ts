@@ -12,6 +12,7 @@ import {
   echoColors,
   specFor,
   wheelColorAt,
+  v14ColorAt,
   poseAt,
   segmentsAt,
   smoothstep,
@@ -318,7 +319,7 @@ describe('the wheel (v13)', () => {
 describe('pickLoadingVariant', () => {
   it('picks the wheel, the rainbow or one of the six by the mix, then a start', () => {
     const seq = (...values: number[]) => () => values.shift() ?? 0;
-    expect(LOADING_SPEC.mix).toEqual({ wheel: 0.8, rainbow: 0.15, classic: 0.05 });
+    expect(LOADING_SPEC.mix).toEqual({ wheel: 0.8, rainbow: 0.15, classic: 0.05, v14: 0 });
     expect(pickLoadingVariant(LOADING_SPEC, seq(0.1, 0.7))).toEqual({ kind: 'wheel', color: '#ff0000', startFoldedOut: true });
     expect(pickLoadingVariant(LOADING_SPEC, seq(0.85, 0.2))).toEqual({ kind: 'rainbow', color: '#ff0000', startFoldedOut: false });
     expect(pickLoadingVariant(LOADING_SPEC, seq(0.97, 0.5, 0.2))).toEqual({ kind: 'classic', color: '#ffff00', startFoldedOut: false });
@@ -351,5 +352,59 @@ describe('pickLoadingVariant', () => {
     expect(counts.b / 20000).toBeCloseTo(0.4, 1);
     expect(counts.rainbow / 20000).toBeCloseTo(0.15, 1);
     expect(counts.six / 20000).toBeCloseTo(0.05, 1);
+  });
+});
+
+describe('v14 (14a then 14b)', () => {
+  const v14 = specFor(LOADING_SPEC, 'v14');
+  const rgb = (c: number[]) => `rgb(${c.map(Math.round).join(', ')})`;
+
+  it('plays both halves as one loop, as in Python', () => {
+    expect(v14.layout).toBe('v14');
+    expect(v14.trail.maxDegrees).toBe(100);
+    expect(loopDuration(v14)).toBeCloseTo(2.587719298245614, 9);
+    expect(poseAt(v14, 0.1)).toEqual({ progress: 0, spin: 0 });
+    expect(poseAt(v14, 0.5).spin).toBeCloseTo(120, 6);
+    expect(poseAt(v14, 1.0).spin).toBeCloseTo(237.370125, 4);
+    expect(poseAt(v14, 1.7).spin).toBeCloseTo(1091.64, 4);
+    const late = poseAt(v14, 2.4);
+    expect(late.progress).toBeCloseTo(0.3657324352499993, 6);
+    expect(late.spin).toBeCloseTo(1639.75434, 4);
+  });
+
+  it('goes once round the colour wheel per half, red at each join, as in Python', () => {
+    expect(v14ColorAt(v14, 0.1)).toBe(rgb([255, 105.334, 0]));
+    expect(v14ColorAt(v14, 0.5)).toBe(rgb([0, 255, 16.668]));
+    expect(v14ColorAt(v14, 1.0)).toBe(rgb([33.336, 0, 255]));
+    expect(v14ColorAt(v14, 1.453)).toBe(rgb([255, 0.636, 0]));
+    expect(v14ColorAt(v14, 1.7)).toBe(rgb([176.46, 255, 0]));
+    expect(v14ColorAt(v14, 2.4)).toBe(rgb([255, 0, 253.006]));
+    expect(v14ColorAt(v14, 0)).toBe('rgb(255, 0, 0)');
+  });
+
+  it('starts on the center lines alone and unfolds them into the cube, as in Python', () => {
+    const python = [
+      [0.0, 0.0, -0.816497, -0.471405],
+      [-0.816497, -0.471405, 0.094187, -0.227388],
+      [-0.816497, -0.471405, -0.14983, 0.195262],
+      [0.0, 0.0, 0.0, 0.942809],
+      [0.0, 0.942809, -0.244017, 0.032125],
+      [0.0, 0.942809, 0.244017, 0.032125],
+      [0.0, 0.0, 0.816497, -0.471405],
+      [0.816497, -0.471405, 0.14983, 0.195262],
+      [0.816497, -0.471405, -0.094187, -0.227388],
+    ];
+    segmentsAt(v14, 0.25, 0).forEach((seg, i) => seg.forEach((v, k) => expect(v).toBeCloseTo(python[i][k], 5)));
+    // at 0 every line touches the center (the copies lie on the spokes); at
+    // 1 only the three spokes do, and the copies end on the hexagon corners
+    const touches = (segs: readonly (readonly number[])[]) =>
+      segs.filter(([x0, y0, x1, y1]) => Math.hypot(x0, y0) < 1e-9 || Math.hypot(x1, y1) < 1e-9).length;
+    expect(touches(segmentsAt(v14, 0, 0))).toBe(9);
+    expect(touches(segmentsAt(v14, 1, 0))).toBe(3);
+  });
+
+  it('is never picked while its share of the mix is 0', () => {
+    expect(LOADING_SPEC.mix?.v14).toBe(0);
+    expect(pickLoadingVariant({ ...LOADING_SPEC, mix: { v14: 1 } }, () => 0.5).kind).toBe('v14');
   });
 });

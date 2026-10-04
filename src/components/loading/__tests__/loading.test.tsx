@@ -7,7 +7,7 @@ import NoLoadingOverlay from '@/components/loading/NoLoadingOverlay';
 import { beginRequest, isScreenLoading, resetLoadingTracker } from '@/lib/loadingTracker';
 import { BACKGROUND_LOADING_DELAY_MS } from '@/lib/useLoadingOverlay';
 import { LOADING_LOOP_MS } from '@/lib/useMinimumLoading';
-import { LOADING_SPEC, spinWindow, wheelColorAt } from '@/lib/loadingAnimation';
+import { LOADING_SPEC, specFor, spinWindow, v14ColorAt, wheelColorAt } from '@/lib/loadingAnimation';
 
 afterEach(() => {
   resetLoadingTracker();
@@ -76,6 +76,16 @@ describe('LoadingMark', () => {
     scheduled = false;
     render(<LoadingMark color="#ffff00" />);
     expect(strokes.at(-1)).toBe('#ffff00');
+
+    // v14: its colour, when the mix gives it every showing
+    const mix = LOADING_SPEC.mix;
+    LOADING_SPEC.mix = { v14: 1 };
+    scheduled = false;
+    const firstV14 = strokes.length;
+    const v14 = render(<LoadingMark />);
+    expect(strokes[firstV14]).toBe(v14ColorAt(specFor(LOADING_SPEC, 'v14'), (start + end) / 2));
+    v14.unmount();
+    LOADING_SPEC.mix = mix;
 
     // the start is picked too: with every random number high, the hexagon
     // start's first frame touches nothing at the center

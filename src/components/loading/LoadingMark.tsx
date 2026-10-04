@@ -10,6 +10,7 @@ import {
   rainbowColorAt,
   segmentsAt,
   specFor,
+  v14ColorAt,
   wheelColorAt,
 } from '@/lib/loadingAnimation';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
@@ -27,7 +28,8 @@ import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
  * unmounts it in between -- it picks a variant at random by the spec's
  * mix: the wheel (v13, the hue once round the colour wheel per loop), the
  * rainbow (v12, red with the spin running round the rainbow) or one of the
- * spec's colours (red, yellow, blue); and either start (the logo's center
+ * spec's colours (red, yellow, blue), or v14 (14a then 14b, the center
+ * lines alone unfolding into the cube and back); and either start (the logo's center
  * lines swinging out, or the bare hexagon folding them in). A `color` plays
  * that colour alone; `startFoldedOut` fixes the start.
  */
@@ -61,7 +63,7 @@ export default function LoadingMark({
     canvas.width = Math.round(size * dpr);
     canvas.height = Math.round(size * dpr);
     const spec = specFor(LOADING_SPEC, kind);
-    const colorAt = { wheel: wheelColorAt, rainbow: rainbowColorAt, classic: undefined }[kind];
+    const colorAt = { wheel: wheelColorAt, rainbow: rainbowColorAt, v14: v14ColorAt, classic: undefined }[kind];
     const scale = canvas.width / 2 / spec.extent;
 
     const draw = (t: number) => {
