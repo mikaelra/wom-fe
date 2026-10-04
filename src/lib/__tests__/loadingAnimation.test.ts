@@ -9,8 +9,9 @@ import {
   pickLoadingVariant,
   loopDuration,
   rainbowColorAt,
-  rainbowEchoColors,
-  rainbowSpec,
+  echoColors,
+  specFor,
+  wheelColorAt,
   poseAt,
   segmentsAt,
   smoothstep,
@@ -274,10 +275,10 @@ describe('the rainbow (v12)', () => {
   });
 
   it('colours each echo as the figure was when it was there, the sharp one as now', () => {
-    const spec = rainbowSpec(LOADING_SPEC);
+    const spec = specFor(LOADING_SPEC, 'rainbow');
     const t = 1.1429308565531475;
     const echoes = echoesAt(spec, t);
-    const colors = rainbowEchoColors(spec, t, echoes);
+    const colors = echoColors(spec, t, echoes, rainbowColorAt);
     expect(colors).toHaveLength(echoes.length);
     expect(colors[0]).toBe(rainbowColorAt(spec, t));
     expect(colors[1]).toBe(rainbowColorAt(spec, timeOfSpin(spec, echoes[1].spin, t)));
@@ -286,31 +287,50 @@ describe('the rainbow (v12)', () => {
 
   it('has a bigger trail than the six', () => {
     expect(LOADING_SPEC.trail.maxDegrees).toBe(60);
-    expect(rainbowSpec(LOADING_SPEC).trail.maxDegrees).toBe(100);
+    expect(specFor(LOADING_SPEC, 'rainbow').trail.maxDegrees).toBe(100);
+    expect(specFor(LOADING_SPEC, 'classic')).toBe(LOADING_SPEC);
     const spread = (s: typeof LOADING_SPEC) => {
       const e = echoesAt(s, 1.1429308565531475);
       return e[0].spin - e[e.length - 1].spin;
     };
-    expect(spread(rainbowSpec(LOADING_SPEC))).toBeGreaterThan(spread(LOADING_SPEC));
+    expect(spread(specFor(LOADING_SPEC, 'rainbow'))).toBeGreaterThan(spread(LOADING_SPEC));
     const plain = { ...LOADING_SPEC, rainbow: undefined };
-    expect(rainbowSpec(plain)).toBe(plain);
+    expect(specFor(plain, 'rainbow')).toBe(plain);
+  });
+});
+
+describe('the wheel (v13)', () => {
+  it('runs once round the colour wheel over the loop from red, as in Python', () => {
+    const loop = loopDuration(LOADING_SPEC);
+    expect(wheelColorAt(LOADING_SPEC, 0)).toBe('rgb(255, 0, 0)');
+    expect(wheelColorAt(LOADING_SPEC, 0.3)).toBe('rgb(255, 233, 0)');
+    expect(wheelColorAt(LOADING_SPEC, 1.2)).toBe('rgb(0, 87, 255)');
+    expect(wheelColorAt(LOADING_SPEC, 1.7)).toBe('rgb(255, 0, 209)');
+    expect(wheelColorAt(LOADING_SPEC, loop + 0.3)).toBe('rgb(255, 233, 0)');
+    expect(wheelColorAt(LOADING_SPEC, loop - 1e-9)).toBe('rgb(255, 0, 0)');
+  });
+
+  it('has the rainbow’s trail', () => {
+    expect(specFor(LOADING_SPEC, 'wheel').trail.maxDegrees).toBe(100);
   });
 });
 
 describe('pickLoadingVariant', () => {
-  it('is the rainbow 90% of the time, either start; one of the six the rest', () => {
+  it('picks the wheel, the rainbow or one of the six by the mix, then a start', () => {
     const seq = (...values: number[]) => () => values.shift() ?? 0;
-    expect(pickLoadingVariant(LOADING_SPEC, seq(0.1, 0.2))).toEqual({ rainbow: true, color: '#ff0000', startFoldedOut: false });
-    expect(pickLoadingVariant(LOADING_SPEC, seq(0.89, 0.7))).toEqual({ rainbow: true, color: '#ff0000', startFoldedOut: true });
-    expect(pickLoadingVariant(LOADING_SPEC, seq(0.9, 0.5, 0.2))).toEqual({ rainbow: false, color: '#ffff00', startFoldedOut: false });
-    expect(pickLoadingVariant({ ...LOADING_SPEC, rainbow: undefined }, seq(0.1, 0.7))).toEqual({
-      rainbow: false,
+    expect(LOADING_SPEC.mix).toEqual({ wheel: 0.8, rainbow: 0.15, classic: 0.05 });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.1, 0.7))).toEqual({ kind: 'wheel', color: '#ff0000', startFoldedOut: true });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.85, 0.2))).toEqual({ kind: 'rainbow', color: '#ff0000', startFoldedOut: false });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.97, 0.5, 0.2))).toEqual({ kind: 'classic', color: '#ffff00', startFoldedOut: false });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(1, 0, 0))).toEqual({ kind: 'classic', color: '#ff0000', startFoldedOut: false });
+    expect(pickLoadingVariant({ ...LOADING_SPEC, mix: undefined }, seq(0.1, 0.7))).toEqual({
+      kind: 'classic',
       color: '#ff0000',
       startFoldedOut: true,
     });
   });
 
-  it('comes out 45% / 45% / 10% over many showings', () => {
+  it('comes out 13a 40% / 13b 40% / rainbow 15% / the six 5% over many showings', () => {
     // a seeded generator (mulberry32), so the run is the same every time
     let seed = 42;
     const random = () => {
@@ -319,15 +339,17 @@ describe('pickLoadingVariant', () => {
       x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
       return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
     };
-    const counts = { centre: 0, outer: 0, six: 0 };
+    const counts = { a: 0, b: 0, rainbow: 0, six: 0 };
     for (let i = 0; i < 20000; i++) {
       const v = pickLoadingVariant(LOADING_SPEC, random);
-      if (!v.rainbow) counts.six++;
-      else if (v.startFoldedOut) counts.outer++;
-      else counts.centre++;
+      if (v.kind === 'classic') counts.six++;
+      else if (v.kind === 'rainbow') counts.rainbow++;
+      else if (v.startFoldedOut) counts.a++;
+      else counts.b++;
     }
-    expect(counts.six / 20000).toBeCloseTo(0.1, 1);
-    expect(counts.centre / 20000).toBeCloseTo(0.45, 1);
-    expect(counts.outer / 20000).toBeCloseTo(0.45, 1);
+    expect(counts.a / 20000).toBeCloseTo(0.4, 1);
+    expect(counts.b / 20000).toBeCloseTo(0.4, 1);
+    expect(counts.rainbow / 20000).toBeCloseTo(0.15, 1);
+    expect(counts.six / 20000).toBeCloseTo(0.05, 1);
   });
 });

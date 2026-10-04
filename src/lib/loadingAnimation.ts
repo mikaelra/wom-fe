@@ -2,7 +2,7 @@
 // <LoadingMark> draws whatever this says.
 //
 // The motion is designed in wom-tools (animation-generation/
-// loading_animation.py, the "v12" loop) and exported as plain data into
+// loading_animation.py, the "v13" loop) and exported as plain data into
 // loadingAnimationSpec.json -- regenerate that file there rather than editing
 // it here, so the frontend always plays exactly what was signed off. This
 // module is a port of that script's timeline:
@@ -21,7 +21,11 @@
 //
 // v12, the rainbow: red through phases 1 and 3, and through the spin the
 // colour runs round rainbow.colors; its trail reaches further back
-// (rainbow.trailMaxDegrees). Played rainbow.chance of the time.
+// (rainbow.trailMaxDegrees).
+//
+// v13, the wheel: the hue runs once round the colour wheel over the whole
+// loop, from red, with the rainbow's bigger trail. Each showing picks the
+// wheel, the rainbow or one of the six earlier variants by `mix`.
 //
 // Coordinates are the spec's: world units, x right / y down, center at 0.
 
@@ -29,6 +33,9 @@ import specJson from './loadingAnimationSpec.json';
 
 export type Point = readonly [number, number];
 export type Segment = readonly [x0: number, y0: number, x1: number, y1: number];
+
+export const LOADING_KINDS = ['wheel', 'rainbow', 'classic'] as const;
+export type LoadingKind = (typeof LOADING_KINDS)[number];
 
 type Fold = {
   holdBefore: number;
@@ -46,10 +53,14 @@ export type LoadingAnimationSpec = {
   /** The starts picked from at random the same way: false the logo's center
    *  lines swinging out (v10), true the bare hexagon folding them in (v11). */
   startsFoldedOut?: boolean[];
+  /** How often each showing plays the wheel, the rainbow or one of the six
+   *  (classic: a colour from `colors`), each with a start from startsFoldedOut. */
+  mix?: Record<LoadingKind, number>;
   /** v12: the colour runs round `colors` (evenly, in time) through the spin
-   *  and is `color` the rest of the loop, with a trail capped at
-   *  trailMaxDegrees. Played `chance` of the time, the six others the rest. */
-  rainbow?: { chance: number; colors: string[]; trailMaxDegrees: number };
+   *  and is `color` the rest of the loop, with a trail capped at trailMaxDegrees. */
+  rainbow?: { colors: string[]; trailMaxDegrees: number };
+  /** v13: the hue once round the colour wheel over the loop, from red. */
+  wheel?: { trailMaxDegrees: number };
   lineRadius: number;
   /** Half-width of the square view, in world units. */
   extent: number;
@@ -223,18 +234,38 @@ export function rainbowColorAt(spec: LoadingAnimationSpec, t: number): string {
   return `rgb(${mix.join(', ')})`;
 }
 
-/** The colours of echoesAt(spec, t)'s copies in the rainbow: each the colour
- *  the figure had when it was there (the sharp figure, now's). */
-export function rainbowEchoColors(spec: LoadingAnimationSpec, t: number, echoes: Echo[]): string[] {
+/** The wheel's colour at loop time `t` (wraps): the hue once round the
+ *  colour wheel over the loop, from red, at full saturation and brightness. */
+export function wheelColorAt(spec: LoadingAnimationSpec, t: number): string {
   const loop = loopDuration(spec);
-  const now = ((t % loop) + loop) % loop;
-  return echoes.map((echo, i) => rainbowColorAt(spec, i === 0 ? now : timeOfSpin(spec, echo.spin, now)));
+  const h = ((((t % loop) + loop) % loop) / loop) * 6;
+  const f = (n: number) => {
+    const k = (n + h) % 6;
+    return Math.round(255 * (1 - Math.max(0, Math.min(k, 4 - k, 1))));
+  };
+  return `rgb(${f(5)}, ${f(3)}, ${f(1)})`;
 }
 
-/** The spec as the rainbow plays it: its trail cap in place of the six's. */
-export function rainbowSpec(spec: LoadingAnimationSpec): LoadingAnimationSpec {
-  if (!spec.rainbow) return spec;
-  return { ...spec, trail: { ...spec.trail, maxDegrees: spec.rainbow.trailMaxDegrees } };
+/** The colours of echoesAt(spec, t)'s copies when the colour runs with time
+ *  (`colorAt`, the rainbow's or the wheel's): each the colour the figure had
+ *  when it was there, the sharp figure now's. */
+export function echoColors(
+  spec: LoadingAnimationSpec,
+  t: number,
+  echoes: Echo[],
+  colorAt: (spec: LoadingAnimationSpec, t: number) => string,
+): string[] {
+  const loop = loopDuration(spec);
+  const now = ((t % loop) + loop) % loop;
+  return echoes.map((echo, i) => colorAt(spec, i === 0 ? now : timeOfSpin(spec, echo.spin, now)));
+}
+
+/** The spec as `kind` plays it: the rainbow and the wheel with their own
+ *  (bigger) trail cap in place of the six's. */
+export function specFor(spec: LoadingAnimationSpec, kind: LoadingKind): LoadingAnimationSpec {
+  const own = kind === 'classic' ? undefined : spec[kind];
+  if (!own) return spec;
+  return { ...spec, trail: { ...spec.trail, maxDegrees: own.trailMaxDegrees } };
 }
 
 const pick = <T,>(items: readonly T[], random: () => number): T =>
@@ -293,13 +324,24 @@ export function segmentsAt(
   });
 }
 
-/** One showing of the animation. */
-export type LoadingVariant = { rainbow: boolean; color: string; startFoldedOut: boolean };
+/** One showing of the animation: the wheel (v13), the rainbow (v12) or one
+ *  of the six earlier single-colour ones (`color`). */
+export type LoadingVariant = { kind: LoadingKind; color: string; startFoldedOut: boolean };
 
-/** The variant for one showing: the rainbow rainbow.chance of the time,
- *  otherwise one of the spec's colours; either way one of its starts. */
+/** The variant for one showing: the kind by spec.mix (classic when it has
+ *  none), a colour from the spec's if classic, and one of its starts. */
 export function pickLoadingVariant(spec: LoadingAnimationSpec, random: () => number = Math.random): LoadingVariant {
-  const rainbow = spec.rainbow !== undefined && random() < spec.rainbow.chance;
-  const color = rainbow ? spec.color : pickLoadingColor(spec, random);
-  return { rainbow, color, startFoldedOut: pickLoadingStart(spec, random) };
+  let kind: LoadingKind = 'classic';
+  if (spec.mix) {
+    let r = random();
+    for (const k of LOADING_KINDS) {
+      if (r < spec.mix[k]) {
+        kind = k;
+        break;
+      }
+      r -= spec.mix[k];
+    }
+  }
+  const color = kind === 'classic' ? pickLoadingColor(spec, random) : spec.color;
+  return { kind, color, startFoldedOut: pickLoadingStart(spec, random) };
 }

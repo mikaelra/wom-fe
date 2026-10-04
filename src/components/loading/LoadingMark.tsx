@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   LOADING_SPEC,
+  echoColors,
   echoesAt,
   pickLoadingVariant,
   poseAt,
-  rainbowEchoColors,
-  rainbowSpec,
+  rainbowColorAt,
   segmentsAt,
+  specFor,
+  wheelColorAt,
 } from '@/lib/loadingAnimation';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 
@@ -22,12 +24,12 @@ import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
  * the first frame.
  *
  * Each time it mounts -- so each time loading shows, since the overlay
- * unmounts it in between -- it picks a variant at random: the rainbow (v12,
- * red with the spin running round the rainbow) 90% of the time, otherwise
- * one of the spec's colours (red, yellow, blue); and either start (the
- * logo's center lines swinging out, or the bare hexagon folding them in).
- * A `color` plays that colour, never the rainbow; `startFoldedOut` fixes
- * the start.
+ * unmounts it in between -- it picks a variant at random by the spec's
+ * mix: the wheel (v13, the hue once round the colour wheel per loop), the
+ * rainbow (v12, red with the spin running round the rainbow) or one of the
+ * spec's colours (red, yellow, blue); and either start (the logo's center
+ * lines swinging out, or the bare hexagon folding them in). A `color` plays
+ * that colour alone; `startFoldedOut` fixes the start.
  */
 export default function LoadingMark({
   size = 96,
@@ -46,7 +48,7 @@ export default function LoadingMark({
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [variant] = useState(() => pickLoadingVariant(LOADING_SPEC));
-  const rainbow = colorProp === undefined && variant.rainbow;
+  const kind = colorProp === undefined ? variant.kind : 'classic';
   const color = colorProp ?? variant.color;
   const startFoldedOut = startProp ?? variant.startFoldedOut;
   const reducedMotion = usePrefersReducedMotion();
@@ -58,7 +60,8 @@ export default function LoadingMark({
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.round(size * dpr);
     canvas.height = Math.round(size * dpr);
-    const spec = rainbow ? rainbowSpec(LOADING_SPEC) : LOADING_SPEC;
+    const spec = specFor(LOADING_SPEC, kind);
+    const colorAt = { wheel: wheelColorAt, rainbow: rainbowColorAt, classic: undefined }[kind];
     const scale = canvas.width / 2 / spec.extent;
 
     const draw = (t: number) => {
@@ -70,7 +73,7 @@ export default function LoadingMark({
       ctx.globalCompositeOperation = 'lighter';
       const { progress } = poseAt(spec, t);
       const echoes = echoesAt(spec, t);
-      const colors = rainbow ? rainbowEchoColors(spec, t, echoes) : echoes.map(() => color);
+      const colors = colorAt ? echoColors(spec, t, echoes, colorAt) : echoes.map(() => color);
       for (const [i, echo] of echoes.entries()) {
         ctx.strokeStyle = colors[i];
         ctx.globalAlpha = Math.min(1, echo.weight);
@@ -95,7 +98,7 @@ export default function LoadingMark({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [size, color, rainbow, startFoldedOut, reducedMotion]);
+  }, [size, color, kind, startFoldedOut, reducedMotion]);
 
   return (
     <canvas
