@@ -5,8 +5,17 @@
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** "14:03 03.10.2028", on the viewer's own clock (local timezone). */
-export function formatWorldClock(date: Date): string {
+/** "14:03 03.10.2028", on the viewer's own clock (local timezone), or on
+ *  `timeZone`'s (an IANA zone) when given -- the city scene shows Greece's. */
+export function formatWorldClock(date: Date, timeZone?: string): string {
+  if (timeZone) {
+    const parts: Record<string, string> = {};
+    const dtf = new Intl.DateTimeFormat('en-GB', {
+      timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+    });
+    for (const p of dtf.formatToParts(date)) parts[p.type] = p.value;
+    return `${parts.hour}:${parts.minute} ${parts.day}.${parts.month}.${parts.year}`;
+  }
   return (
     `${pad(date.getHours())}:${pad(date.getMinutes())} ` +
     `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
