@@ -25,12 +25,12 @@ import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
  * the first frame.
  *
  * Each time it mounts -- so each time loading shows, since the overlay
- * unmounts it in between -- it picks a variant at random by the spec's
- * mix: the wheel (v13, the hue once round the colour wheel per loop), the
- * rainbow (v12, red with the spin running round the rainbow) or one of the
- * spec's colours (red, yellow, blue), or v14 (14a then 14b, the center
- * lines alone unfolding into the cube and back); and either start (the logo's center
- * lines swinging out, or the bare hexagon folding them in). A `color` plays
+ * unmounts it in between -- it picks a version at random by the spec's
+ * mix (the golden mean, newest first): v14 (the center lines alone
+ * unfolding into the cube and back), v13 (the wheel, the hue once round the
+ * colour wheel per loop), v12 (the rainbow, red with the spin running round
+ * the rainbow), v11 or v10 (in red, yellow or blue, from the bare hexagon or
+ * the logo's center lines). A `color` plays
  * that colour alone; `startFoldedOut` fixes the start.
  */
 export default function LoadingMark({
@@ -50,7 +50,8 @@ export default function LoadingMark({
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [variant] = useState(() => pickLoadingVariant(LOADING_SPEC));
-  const kind = colorProp === undefined ? variant.kind : 'classic';
+  // a given colour plays the single-colour figure
+  const kind = colorProp === undefined ? variant.kind : 'v10';
   const color = colorProp ?? variant.color;
   const startFoldedOut = startProp ?? variant.startFoldedOut;
   const reducedMotion = usePrefersReducedMotion();
@@ -63,7 +64,7 @@ export default function LoadingMark({
     canvas.width = Math.round(size * dpr);
     canvas.height = Math.round(size * dpr);
     const spec = specFor(LOADING_SPEC, kind);
-    const colorAt = { wheel: wheelColorAt, rainbow: rainbowColorAt, v14: v14ColorAt, classic: undefined }[kind];
+    const colorAt = { v14: v14ColorAt, wheel: wheelColorAt, rainbow: rainbowColorAt, v11: undefined, v10: undefined }[kind];
     const scale = canvas.width / 2 / spec.extent;
 
     const draw = (t: number) => {

@@ -24,13 +24,14 @@
 // (rainbow.trailMaxDegrees).
 //
 // v13, the wheel: the hue runs once round the colour wheel over the whole
-// loop, from red, with the rainbow's bigger trail. Each showing picks the
-// wheel, the rainbow or one of the six earlier variants by `mix`.
+// loop, from red, with the rainbow's bigger trail.
 //
 // v14: 14a then 14b as one loop -- the center lines alone (no hexagon) each
 // send two copies round their tip, one each way, onto the hexagon: the cube,
 // which spins; then it spins again and the copies fold back into the center
 // lines. The hue goes once round the colour wheel per half, red at each join.
+//
+// Each showing picks a version by `mix` (the golden mean, newest first).
 //
 // Coordinates are the spec's: world units, x right / y down, center at 0.
 
@@ -39,8 +40,11 @@ import specJson from './loadingAnimationSpec.json';
 export type Point = readonly [number, number];
 export type Segment = readonly [x0: number, y0: number, x1: number, y1: number];
 
-export const LOADING_KINDS = ['wheel', 'rainbow', 'classic', 'v14'] as const;
+/** The versions, newest first: v14, v13 (the wheel), v12 (the rainbow), and
+ *  the single-colour v11 (hexagon start) and v10 (center-lines start). */
+export const LOADING_KINDS = ['v14', 'wheel', 'rainbow', 'v11', 'v10'] as const;
 export type LoadingKind = (typeof LOADING_KINDS)[number];
+const SINGLE_COLOUR: readonly LoadingKind[] = ['v11', 'v10'];
 
 type Fold = {
   holdBefore: number;
@@ -58,8 +62,9 @@ export type LoadingAnimationSpec = {
   /** The starts picked from at random the same way: false the logo's center
    *  lines swinging out (v10), true the bare hexagon folding them in (v11). */
   startsFoldedOut?: boolean[];
-  /** How often each showing plays the wheel, the rainbow or one of the six
-   *  (classic: a colour from `colors`), each with a start from startsFoldedOut. */
+  /** How often each showing plays each version: by the golden mean, newest
+   *  first (each 1/phi of what the newer ones leave). v11 and v10 play in a
+   *  colour from `colors`; the wheel and the rainbow from either start. */
   mix?: Partial<Record<LoadingKind, number>>;
   /** v12: the colour runs round `colors` (evenly, in time) through the spin
    *  and is `color` the rest of the loop, with a trail capped at trailMaxDegrees. */
@@ -298,7 +303,7 @@ export function echoColors(
 /** The spec as `kind` plays it: the rainbow and the wheel with their own
  *  (bigger) trail cap in place of the six's. */
 export function specFor(spec: LoadingAnimationSpec, kind: LoadingKind): LoadingAnimationSpec {
-  const own = kind === 'classic' ? undefined : spec[kind];
+  const own = SINGLE_COLOUR.includes(kind) ? undefined : spec[kind as 'v14' | 'wheel' | 'rainbow'];
   if (!own) return spec;
   return {
     ...spec,
@@ -381,14 +386,15 @@ function swungFrom(tip: Point, from: Point, to: Point, progress: number): [numbe
   return rotate(from, tip, delta * progress);
 }
 
-/** One showing of the animation: the wheel (v13), the rainbow (v12) or one
- *  of the six earlier single-colour ones (`color`). */
+/** One showing of the animation: which version, in what colour (v11/v10),
+ *  from which start. */
 export type LoadingVariant = { kind: LoadingKind; color: string; startFoldedOut: boolean };
 
-/** The variant for one showing: the kind by spec.mix (classic when it has
- *  none), a colour from the spec's if classic, and one of its starts. */
+/** The variant for one showing: the version by spec.mix (the oldest when it
+ *  has none), a colour from the spec's for v11/v10, and its start -- v11's
+ *  the hexagon, v10's the center lines, the others' either. */
 export function pickLoadingVariant(spec: LoadingAnimationSpec, random: () => number = Math.random): LoadingVariant {
-  let kind: LoadingKind = 'classic';
+  let kind: LoadingKind = 'v10';
   if (spec.mix) {
     let r = random();
     for (const k of LOADING_KINDS) {
@@ -400,6 +406,8 @@ export function pickLoadingVariant(spec: LoadingAnimationSpec, random: () => num
       r -= share;
     }
   }
-  const color = kind === 'classic' ? pickLoadingColor(spec, random) : spec.color;
-  return { kind, color, startFoldedOut: pickLoadingStart(spec, random) };
+  const single = SINGLE_COLOUR.includes(kind);
+  const color = single ? pickLoadingColor(spec, random) : spec.color;
+  const startFoldedOut = single ? kind === 'v11' : pickLoadingStart(spec, random);
+  return { kind, color, startFoldedOut };
 }

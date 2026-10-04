@@ -289,7 +289,8 @@ describe('the rainbow (v12)', () => {
   it('has a bigger trail than the six', () => {
     expect(LOADING_SPEC.trail.maxDegrees).toBe(60);
     expect(specFor(LOADING_SPEC, 'rainbow').trail.maxDegrees).toBe(100);
-    expect(specFor(LOADING_SPEC, 'classic')).toBe(LOADING_SPEC);
+    expect(specFor(LOADING_SPEC, 'v10')).toBe(LOADING_SPEC);
+    expect(specFor(LOADING_SPEC, 'v11')).toBe(LOADING_SPEC);
     const spread = (s: typeof LOADING_SPEC) => {
       const e = echoesAt(s, 1.1429308565531475);
       return e[0].spin - e[e.length - 1].spin;
@@ -317,21 +318,35 @@ describe('the wheel (v13)', () => {
 });
 
 describe('pickLoadingVariant', () => {
-  it('picks the wheel, the rainbow or one of the six by the mix, then a start', () => {
+  it('shares the loads by the golden mean, newest first', () => {
+    const phi = (1 + Math.sqrt(5)) / 2;
+    const mix = LOADING_SPEC.mix ?? {};
+    expect(Object.keys(mix)).toEqual(['v14', 'wheel', 'rainbow', 'v11', 'v10']);
+    let left = 1;
+    for (const kind of ['v14', 'wheel', 'rainbow', 'v11'] as const) {
+      expect(mix[kind]).toBeCloseTo(left / phi, 5);
+      left -= left / phi;
+    }
+    expect(mix.v10).toBeCloseTo(left, 5);
+  });
+
+  it('picks the version by the mix, then a colour (v11/v10) and a start', () => {
     const seq = (...values: number[]) => () => values.shift() ?? 0;
-    expect(LOADING_SPEC.mix).toEqual({ wheel: 0.8, rainbow: 0.15, classic: 0.05, v14: 0 });
-    expect(pickLoadingVariant(LOADING_SPEC, seq(0.1, 0.7))).toEqual({ kind: 'wheel', color: '#ff0000', startFoldedOut: true });
-    expect(pickLoadingVariant(LOADING_SPEC, seq(0.85, 0.2))).toEqual({ kind: 'rainbow', color: '#ff0000', startFoldedOut: false });
-    expect(pickLoadingVariant(LOADING_SPEC, seq(0.97, 0.5, 0.2))).toEqual({ kind: 'classic', color: '#ffff00', startFoldedOut: false });
-    expect(pickLoadingVariant(LOADING_SPEC, seq(1, 0, 0))).toEqual({ kind: 'classic', color: '#ff0000', startFoldedOut: false });
-    expect(pickLoadingVariant({ ...LOADING_SPEC, mix: undefined }, seq(0.1, 0.7))).toEqual({
-      kind: 'classic',
-      color: '#ff0000',
-      startFoldedOut: true,
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.1, 0.7))).toEqual({ kind: 'v14', color: '#ff0000', startFoldedOut: true });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.7, 0.2))).toEqual({ kind: 'wheel', color: '#ff0000', startFoldedOut: false });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.9, 0.7))).toEqual({ kind: 'rainbow', color: '#ff0000', startFoldedOut: true });
+    // v11 always from the hexagon, v10 always from the center lines
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.96, 0.5))).toEqual({ kind: 'v11', color: '#ffff00', startFoldedOut: true });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.99, 0.9))).toEqual({ kind: 'v10', color: '#0000ff', startFoldedOut: false });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(1, 0))).toEqual({ kind: 'v10', color: '#ff0000', startFoldedOut: false });
+    expect(pickLoadingVariant({ ...LOADING_SPEC, mix: undefined }, seq(0.5))).toEqual({
+      kind: 'v10',
+      color: '#ffff00',
+      startFoldedOut: false,
     });
   });
 
-  it('comes out 13a 40% / 13b 40% / rainbow 15% / the six 5% over many showings', () => {
+  it('comes out 61.8% / 23.6% / 9.0% / 3.4% / 2.1% over many showings', () => {
     // a seeded generator (mulberry32), so the run is the same every time
     let seed = 42;
     const random = () => {
@@ -340,18 +355,17 @@ describe('pickLoadingVariant', () => {
       x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
       return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
     };
-    const counts = { a: 0, b: 0, rainbow: 0, six: 0 };
-    for (let i = 0; i < 20000; i++) {
+    const runs = 50000;
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < runs; i++) {
       const v = pickLoadingVariant(LOADING_SPEC, random);
-      if (v.kind === 'classic') counts.six++;
-      else if (v.kind === 'rainbow') counts.rainbow++;
-      else if (v.startFoldedOut) counts.a++;
-      else counts.b++;
+      counts[v.kind] = (counts[v.kind] ?? 0) + 1;
     }
-    expect(counts.a / 20000).toBeCloseTo(0.4, 1);
-    expect(counts.b / 20000).toBeCloseTo(0.4, 1);
-    expect(counts.rainbow / 20000).toBeCloseTo(0.15, 1);
-    expect(counts.six / 20000).toBeCloseTo(0.05, 1);
+    expect(counts.v14 / runs).toBeCloseTo(0.618, 1);
+    expect(counts.wheel / runs).toBeCloseTo(0.236, 1);
+    expect(counts.rainbow / runs).toBeCloseTo(0.09, 1);
+    expect(Math.abs(counts.v11 / runs - 0.0344)).toBeLessThan(0.005);
+    expect(Math.abs(counts.v10 / runs - 0.0213)).toBeLessThan(0.005);
   });
 });
 
@@ -403,8 +417,7 @@ describe('v14 (14a then 14b)', () => {
     expect(touches(segmentsAt(v14, 1, 0))).toBe(3);
   });
 
-  it('is never picked while its share of the mix is 0', () => {
-    expect(LOADING_SPEC.mix?.v14).toBe(0);
+  it('is the one picked when the mix gives it every showing', () => {
     expect(pickLoadingVariant({ ...LOADING_SPEC, mix: { v14: 1 } }, () => 0.5).kind).toBe('v14');
   });
 });
