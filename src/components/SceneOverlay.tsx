@@ -683,7 +683,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           theme's own `backLabel` (a string, so it cannot carry a second link
           of its own) -- hence the temple being spelled out here rather than
           coming through the theme with it. */}
-      <div className="absolute top-4 left-4 pointer-events-auto z-20 flex items-center gap-2">
+      <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-4 pointer-events-auto z-20 flex items-center gap-2">
         <Link href="/" className={`${theme.backLinkClass} no-underline text-2xl drop-shadow-md`} aria-label="Back to Home">
           {backLabel}
         </Link>
@@ -705,8 +705,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         <div
           className={
             orientation === 'portrait'
-              ? 'absolute top-56 inset-x-4 px-4 z-20'
-              : 'absolute top-28 left-4 w-1/2 max-w-xs px-4 z-20'
+              ? 'absolute top-[calc(env(safe-area-inset-top)+14rem)] inset-x-4 px-4 z-20'
+              : 'absolute top-[calc(env(safe-area-inset-top)+7rem)] left-4 w-1/2 max-w-xs px-4 z-20'
           }
         >
           <div className={`bg-black/80 backdrop-blur-sm rounded-xl border ${theme.panelBorderClass} p-3 text-white text-sm ${actionCue}`}>
@@ -721,8 +721,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       <div
         className={
           orientation === 'portrait'
-            ? 'absolute top-12 right-4 w-[85%] max-w-2xl px-4 pointer-events-auto z-20'
-            : 'absolute top-12 right-4 w-1/2 max-w-2xl px-4 pointer-events-auto z-20'
+            ? 'absolute top-[calc(env(safe-area-inset-top)+3rem)] right-4 w-[85%] max-w-2xl px-4 pointer-events-auto z-20'
+            : 'absolute top-[calc(env(safe-area-inset-top)+3rem)] right-4 w-1/2 max-w-2xl px-4 pointer-events-auto z-20'
         }
       >
         <div className={`bg-black/80 backdrop-blur-sm rounded-xl border ${theme.panelBorderClass} p-3 sm:p-4 text-white`}>

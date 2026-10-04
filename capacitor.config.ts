@@ -31,10 +31,11 @@ const config: CapacitorConfig = {
   },
 
   ios: {
-    // Draw under the status bar / home indicator; the app's own HUD handles
-    // safe-area insets (docs/MOBILE_AND_STEAM_PLAN.md §7.3 -- still TODO in app
-    // code, tracked there).
-    contentInset: 'always',
+    // Draw under the status bar / home indicator: the app fills the whole
+    // screen, with the iPhone's clock and wifi drawn over it. 'always' inset
+    // the web view below them instead. layout.tsx's viewport-fit=cover makes
+    // env(safe-area-inset-*) live, and the HUD pads with it (SceneTopBar etc.).
+    contentInset: 'never',
     // The game talks to a fixed backend origin over CORS; it is not an
     // app-bound-domains deployment.
     limitsNavigationsToAppBoundDomains: false,

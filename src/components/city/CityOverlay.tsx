@@ -44,7 +44,7 @@ export default function CityOverlay({
           readout below says so, which is the part that is not scaffolding.
           It renders nothing at all on the live sky. */}
       {skyClock && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 text-center pointer-events-none">
+        <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-1/2 -translate-x-1/2 z-10 text-center pointer-events-none">
           <p className="text-xs text-amber-300/90 mt-1 tracking-widest drop-shadow font-mono">
             SKY AT {skyClock} ATHENS
           </p>
