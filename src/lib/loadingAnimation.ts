@@ -2,7 +2,7 @@
 // <LoadingMark> draws whatever this says.
 //
 // The motion is designed in wom-tools (animation-generation/
-// loading_animation.py, the "v11" loop) and exported as plain data into
+// loading_animation.py, the "v12" loop) and exported as plain data into
 // loadingAnimationSpec.json -- regenerate that file there rather than editing
 // it here, so the frontend always plays exactly what was signed off. This
 // module is a port of that script's timeline:
@@ -18,6 +18,10 @@
 //      reaching back at most trail.maxDegrees.
 //   3. infold  -- the swung lines fold back into the center, spinning up and
 //      down again: the start frame again, so the loop is seamless.
+//
+// v12, the rainbow: red through phases 1 and 3, and through the spin the
+// colour runs round rainbow.colors; its trail reaches further back
+// (rainbow.trailMaxDegrees). Played rainbow.chance of the time.
 //
 // Coordinates are the spec's: world units, x right / y down, center at 0.
 
@@ -42,6 +46,10 @@ export type LoadingAnimationSpec = {
   /** The starts picked from at random the same way: false the logo's center
    *  lines swinging out (v10), true the bare hexagon folding them in (v11). */
   startsFoldedOut?: boolean[];
+  /** v12: the colour runs round `colors` (evenly, in time) through the spin
+   *  and is `color` the rest of the loop, with a trail capped at
+   *  trailMaxDegrees. Played `chance` of the time, the six others the rest. */
+  rainbow?: { chance: number; colors: string[]; trailMaxDegrees: number };
   lineRadius: number;
   /** Half-width of the square view, in world units. */
   extent: number;
@@ -136,6 +144,14 @@ export function poseAt(spec: LoadingAnimationSpec, t: number): Pose {
   return poseIn(steps(spec), ((t % loop) + loop) % loop);
 }
 
+/** [start, end) seconds of the spin phase in the loop. */
+export function spinWindow(spec: LoadingAnimationSpec): [number, number] {
+  const start = steps(spec)
+    .slice(0, 3)
+    .reduce((sum, s) => sum + s.seconds, 0);
+  return [start, start + spinDuration(spec)];
+}
+
 /** Cumulative spin degrees at loop time `t`. Unlike poseAt this does not
  *  wrap: times before 0 count as 0 (the trail never reaches into the
  *  previous loop) and times past the end as the loop's full turn. */
@@ -174,6 +190,51 @@ export function echoesAt(spec: LoadingAnimationSpec, t: number): Echo[] {
     if (Math.abs(past - sharp) > 1e-9) out.push({ spin: past, weight: weights[i] });
   }
   return out;
+}
+
+/** The time in [t - trail.seconds, t] the figure had turned `degrees` (an
+ *  echo's angle; spin only ever grows within a loop, so bisect). */
+export function timeOfSpin(spec: LoadingAnimationSpec, degrees: number, t: number): number {
+  let lo = Math.max(t - spec.trail.seconds, 0);
+  let hi = t;
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    if (spinAt(spec, mid) < degrees) lo = mid;
+    else hi = mid;
+  }
+  return hi;
+}
+
+const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+/** The rainbow's colour at loop time `t` (wraps): spec.color outside the
+ *  spin, running round rainbow.colors through it. */
+export function rainbowColorAt(spec: LoadingAnimationSpec, t: number): string {
+  const loop = loopDuration(spec);
+  const now = ((t % loop) + loop) % loop;
+  const [start, end] = spinWindow(spec);
+  const stops = spec.rainbow?.colors ?? [];
+  if (stops.length < 2 || !(start < now && now < end)) return spec.color;
+  const x = ((now - start) / (end - start)) * (stops.length - 1);
+  const i = Math.min(Math.floor(x), stops.length - 2);
+  const a = channels(stops[i]);
+  const b = channels(stops[i + 1]);
+  const mix = a.map((v, k) => Math.round(v + (b[k] - v) * (x - i)));
+  return `rgb(${mix.join(', ')})`;
+}
+
+/** The colours of echoesAt(spec, t)'s copies in the rainbow: each the colour
+ *  the figure had when it was there (the sharp figure, now's). */
+export function rainbowEchoColors(spec: LoadingAnimationSpec, t: number, echoes: Echo[]): string[] {
+  const loop = loopDuration(spec);
+  const now = ((t % loop) + loop) % loop;
+  return echoes.map((echo, i) => rainbowColorAt(spec, i === 0 ? now : timeOfSpin(spec, echo.spin, now)));
+}
+
+/** The spec as the rainbow plays it: its trail cap in place of the six's. */
+export function rainbowSpec(spec: LoadingAnimationSpec): LoadingAnimationSpec {
+  if (!spec.rainbow) return spec;
+  return { ...spec, trail: { ...spec.trail, maxDegrees: spec.rainbow.trailMaxDegrees } };
 }
 
 const pick = <T,>(items: readonly T[], random: () => number): T =>
@@ -230,4 +291,15 @@ export function segmentsAt(
     const [x1, y1] = turn ? rotate(b, center, turn) : b;
     return [x0, y0, x1, y1] as const;
   });
+}
+
+/** One showing of the animation. */
+export type LoadingVariant = { rainbow: boolean; color: string; startFoldedOut: boolean };
+
+/** The variant for one showing: the rainbow rainbow.chance of the time,
+ *  otherwise one of the spec's colours; either way one of its starts. */
+export function pickLoadingVariant(spec: LoadingAnimationSpec, random: () => number = Math.random): LoadingVariant {
+  const rainbow = spec.rainbow !== undefined && random() < spec.rainbow.chance;
+  const color = rainbow ? spec.color : pickLoadingColor(spec, random);
+  return { rainbow, color, startFoldedOut: pickLoadingStart(spec, random) };
 }

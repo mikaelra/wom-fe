@@ -7,6 +7,7 @@ import NoLoadingOverlay from '@/components/loading/NoLoadingOverlay';
 import { beginRequest, isScreenLoading, resetLoadingTracker } from '@/lib/loadingTracker';
 import { BACKGROUND_LOADING_DELAY_MS } from '@/lib/useLoadingOverlay';
 import { LOADING_LOOP_MS } from '@/lib/useMinimumLoading';
+import { LOADING_SPEC, spinWindow } from '@/lib/loadingAnimation';
 
 afterEach(() => {
   resetLoadingTracker();
@@ -23,7 +24,7 @@ describe('LoadingMark', () => {
     expect(canvas).toHaveStyle({ width: '40px', height: '40px' });
   });
 
-  it('plays in a colour picked at random as it mounts, unless one is given', () => {
+  it('plays a variant picked at random as it mounts: the rainbow, or a colour unless one is given', () => {
     const strokes: string[] = [];
     const ctx = new Proxy({} as Record<string, unknown>, {
       get: (target, key) => (key in target ? target[key as string] : () => {}),
@@ -35,33 +36,41 @@ describe('LoadingMark', () => {
     });
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
     let scheduled = false;
+    let at = 0;
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
       if (!scheduled) {
         scheduled = true;
-        cb(0);
+        cb(performance.now() + at);
       }
       return 1;
     });
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.95);
 
+    // past the rainbow's chance: one of the six, here blue
     const { unmount } = render(<LoadingMark />);
     expect(strokes.at(-1)).toBe('#0000ff');
     unmount();
 
+    // the rainbow: mid-spin it is no longer red
     random.mockReturnValue(0.5);
+    const [start, end] = spinWindow(LOADING_SPEC);
+    at = ((start + end) / 2) * 1000;
     scheduled = false;
-    render(<LoadingMark />);
-    expect(strokes.at(-1)).toBe('#ffff00');
+    const rainbow = render(<LoadingMark />);
+    expect(strokes.at(-1)).toMatch(/^rgb\(/);
+    expect(strokes.at(-1)).not.toBe('rgb(255, 0, 0)');
+    rainbow.unmount();
 
     scheduled = false;
-    render(<LoadingMark color="#ff0000" />);
-    expect(strokes.at(-1)).toBe('#ff0000');
+    render(<LoadingMark color="#ffff00" />);
+    expect(strokes.at(-1)).toBe('#ffff00');
 
     // the start is picked too: with every random number high, the hexagon
     // start's first frame touches nothing at the center
     const moves: [number, number][] = [];
     (ctx as Record<string, unknown>).moveTo = (x: number, y: number) => moves.push([x, y]);
-    random.mockReturnValue(0.9);
+    random.mockReturnValue(0.95);
+    at = 0;
     scheduled = false;
     render(<LoadingMark />);
     expect(moves.length).toBeGreaterThan(0);

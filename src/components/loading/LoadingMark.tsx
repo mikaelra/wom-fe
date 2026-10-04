@@ -1,7 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { LOADING_SPEC, echoesAt, pickLoadingColor, pickLoadingStart, poseAt, segmentsAt } from '@/lib/loadingAnimation';
+import {
+  LOADING_SPEC,
+  echoesAt,
+  pickLoadingVariant,
+  poseAt,
+  rainbowEchoColors,
+  rainbowSpec,
+  segmentsAt,
+} from '@/lib/loadingAnimation';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 
 /**
@@ -13,11 +21,13 @@ import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
  * same way the design renders them. With reduced motion it holds still on
  * the first frame.
  *
- * Without a `color` it plays in one of the spec's colours (red, yellow,
- * blue), picked at random each time it mounts -- so each time loading
- * shows, since the overlay unmounts it in between. Its start (the logo's
- * center lines swinging out, or the bare hexagon folding them in) is
- * picked the same way, unless `startFoldedOut` is given: six in all.
+ * Each time it mounts -- so each time loading shows, since the overlay
+ * unmounts it in between -- it picks a variant at random: the rainbow (v12,
+ * red with the spin running round the rainbow) 90% of the time, otherwise
+ * one of the spec's colours (red, yellow, blue); and either start (the
+ * logo's center lines swinging out, or the bare hexagon folding them in).
+ * A `color` plays that colour, never the rainbow; `startFoldedOut` fixes
+ * the start.
  */
 export default function LoadingMark({
   size = 96,
@@ -35,10 +45,10 @@ export default function LoadingMark({
   className?: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const [randomColor] = useState(() => pickLoadingColor(LOADING_SPEC));
-  const [randomStart] = useState(() => pickLoadingStart(LOADING_SPEC));
-  const color = colorProp ?? randomColor;
-  const startFoldedOut = startProp ?? randomStart;
+  const [variant] = useState(() => pickLoadingVariant(LOADING_SPEC));
+  const rainbow = colorProp === undefined && variant.rainbow;
+  const color = colorProp ?? variant.color;
+  const startFoldedOut = startProp ?? variant.startFoldedOut;
   const reducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
@@ -48,21 +58,24 @@ export default function LoadingMark({
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.round(size * dpr);
     canvas.height = Math.round(size * dpr);
-    const scale = canvas.width / 2 / LOADING_SPEC.extent;
+    const spec = rainbow ? rainbowSpec(LOADING_SPEC) : LOADING_SPEC;
+    const scale = canvas.width / 2 / spec.extent;
 
     const draw = (t: number) => {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(scale, 0, 0, scale, canvas.width / 2, canvas.height / 2);
       ctx.lineCap = 'round';
-      ctx.lineWidth = 2 * LOADING_SPEC.lineRadius;
-      ctx.strokeStyle = color;
+      ctx.lineWidth = 2 * spec.lineRadius;
       ctx.globalCompositeOperation = 'lighter';
-      const { progress } = poseAt(LOADING_SPEC, t);
-      for (const echo of echoesAt(LOADING_SPEC, t)) {
+      const { progress } = poseAt(spec, t);
+      const echoes = echoesAt(spec, t);
+      const colors = rainbow ? rainbowEchoColors(spec, t, echoes) : echoes.map(() => color);
+      for (const [i, echo] of echoes.entries()) {
+        ctx.strokeStyle = colors[i];
         ctx.globalAlpha = Math.min(1, echo.weight);
         ctx.beginPath();
-        for (const [x0, y0, x1, y1] of segmentsAt(LOADING_SPEC, progress, echo.spin, startFoldedOut)) {
+        for (const [x0, y0, x1, y1] of segmentsAt(spec, progress, echo.spin, startFoldedOut)) {
           ctx.moveTo(x0, y0);
           ctx.lineTo(x1, y1);
         }
@@ -82,7 +95,7 @@ export default function LoadingMark({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [size, color, startFoldedOut, reducedMotion]);
+  }, [size, color, rainbow, startFoldedOut, reducedMotion]);
 
   return (
     <canvas
