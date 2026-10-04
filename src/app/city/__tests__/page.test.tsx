@@ -332,7 +332,9 @@ describe('CityPage world clock (under Rules, as on the Earth screen)', () => {
 
     const clock = await screen.findByRole('timer', { name: 'Timewarped time' });
     expect((clock.querySelector('span') as HTMLElement).style.backgroundImage).toContain('rgb(248, 113, 113)');
-    expect(clock).toHaveTextContent(formatWorldClock(new Date('2028-10-03T12:00:00Z')));
+    // Greece's time, whatever the viewer's timezone: 12:00 UTC is 15:00 in Athens (EEST)
+    expect(clock).toHaveTextContent('15:00 03.10.2028');
+    expect(clock).toHaveTextContent(formatWorldClock(new Date('2028-10-03T12:00:00Z'), 'Europe/Athens'));
   });
 });
 

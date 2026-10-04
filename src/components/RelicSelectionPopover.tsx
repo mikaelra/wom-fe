@@ -59,7 +59,11 @@ export default function RelicSelectionPopover({
 }: RelicSelectionPopoverProps) {
   const [open, setOpen] = useState(false);
   const [armed, setArmed] = useState(false);
-  const [relics, setRelics] = useState<Relic[]>([]);
+  const [ownedRelics, setRelics] = useState<Relic[]>([]);
+  // Only the relics that do something in battle (wom-be sockets/utils.py
+  // consume_selected_relics: Hades' Coin and Stone of Vitality) -- the
+  // rest (Paper, Pen, the Artifact, ...) would be spent for nothing.
+  const relics = ownedRelics.filter((r) => r.name in RELIC_SELECT_CAPTION);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   // The coin badge never shows the cooldown up front -- a freshly-selected
   // relic should just look normal. It only reveals once the player actually
