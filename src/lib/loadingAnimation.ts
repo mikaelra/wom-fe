@@ -24,8 +24,14 @@
 // (rainbow.trailMaxDegrees).
 //
 // v13, the wheel: the hue runs once round the colour wheel over the whole
-// loop, from red, with the rainbow's bigger trail. Each showing picks the
-// wheel, the rainbow or one of the six earlier variants by `mix`.
+// loop, from red, with the rainbow's bigger trail.
+//
+// v14: 14a then 14b as one loop -- the center lines alone (no hexagon) each
+// send two copies round their tip, one each way, onto the hexagon: the cube,
+// which spins; then it spins again and the copies fold back into the center
+// lines. The hue goes once round the colour wheel per half, red at each join.
+//
+// Each showing picks a version by `mix` (the golden mean, newest first).
 //
 // Coordinates are the spec's: world units, x right / y down, center at 0.
 
@@ -34,8 +40,11 @@ import specJson from './loadingAnimationSpec.json';
 export type Point = readonly [number, number];
 export type Segment = readonly [x0: number, y0: number, x1: number, y1: number];
 
-export const LOADING_KINDS = ['wheel', 'rainbow', 'classic'] as const;
+/** The versions, newest first: v14, v13 (the wheel), v12 (the rainbow), and
+ *  the single-colour v11 (hexagon start) and v10 (center-lines start). */
+export const LOADING_KINDS = ['v14', 'wheel', 'rainbow', 'v11', 'v10'] as const;
 export type LoadingKind = (typeof LOADING_KINDS)[number];
+const SINGLE_COLOUR: readonly LoadingKind[] = ['v11', 'v10'];
 
 type Fold = {
   holdBefore: number;
@@ -53,14 +62,19 @@ export type LoadingAnimationSpec = {
   /** The starts picked from at random the same way: false the logo's center
    *  lines swinging out (v10), true the bare hexagon folding them in (v11). */
   startsFoldedOut?: boolean[];
-  /** How often each showing plays the wheel, the rainbow or one of the six
-   *  (classic: a colour from `colors`), each with a start from startsFoldedOut. */
-  mix?: Record<LoadingKind, number>;
+  /** How often each showing plays each version: by the golden mean, newest
+   *  first (each 1/phi of what the newer ones leave). v11 and v10 play in a
+   *  colour from `colors`; the wheel and the rainbow from either start. */
+  mix?: Partial<Record<LoadingKind, number>>;
   /** v12: the colour runs round `colors` (evenly, in time) through the spin
    *  and is `color` the rest of the loop, with a trail capped at trailMaxDegrees. */
   rainbow?: { colors: string[]; trailMaxDegrees: number };
   /** v13: the hue once round the colour wheel over the loop, from red. */
   wheel?: { trailMaxDegrees: number };
+  /** v14: 14a then 14b as one loop (see the top of this file). */
+  v14?: { trailMaxDegrees: number };
+  /** Set by specFor for v14: its timeline and figure in place of the others'. */
+  layout?: 'v14';
   lineRadius: number;
   /** Half-width of the square view, in world units. */
   extent: number;
@@ -124,6 +138,20 @@ function steps(spec: LoadingAnimationSpec): Step[] {
   const spin = spinDuration(spec);
   const a1 = o.spin;
   const a2 = a1 + spinAngle(spec, spin);
+  if (spec.layout === 'v14') {
+    // 14a: unfold and spin; 14b: spin again (on from 14a's angle) and fold back
+    const b2 = a2 + spinAngle(spec, spin);
+    return [
+      { seconds: o.holdBefore / o.speed, pose: () => ({ progress: 0, spin: 0 }) },
+      { seconds: o.duration / o.speed, pose: (u) => ({ progress: smoothstep(u), spin: foldSpin(u, o.spin) }) },
+      { seconds: o.holdAfter / o.speed, pose: () => ({ progress: 1, spin: a1 }) },
+      { seconds: spin, pose: (u) => ({ progress: 1, spin: a1 + spinAngle(spec, u * spin) }) },
+      { seconds: spin, pose: (u) => ({ progress: 1, spin: a2 + spinAngle(spec, u * spin) }) },
+      { seconds: i.holdBefore / i.speed, pose: () => ({ progress: 1, spin: b2 }) },
+      { seconds: i.duration / i.speed, pose: (u) => ({ progress: 1 - smoothstep(u), spin: b2 + foldSpin(u, i.spin) }) },
+      { seconds: i.holdAfter / i.speed, pose: () => ({ progress: 0, spin: b2 + i.spin }) },
+    ];
+  }
   return [
     { seconds: o.holdBefore / o.speed, pose: () => ({ progress: 0, spin: 0 }) },
     { seconds: o.duration / o.speed, pose: (u) => ({ progress: smoothstep(u), spin: foldSpin(u, o.spin) }) },
@@ -246,6 +274,18 @@ export function wheelColorAt(spec: LoadingAnimationSpec, t: number): string {
   return `rgb(${f(5)}, ${f(3)}, ${f(1)})`;
 }
 
+/** v14's colour at loop time `t` (wraps): the hue once round the colour
+ *  wheel through 14a and again through 14b, red at each join. */
+export function v14ColorAt(spec: LoadingAnimationSpec, t: number): string {
+  const loop = loopDuration(spec);
+  const now = ((t % loop) + loop) % loop;
+  const half = steps(spec)
+    .slice(0, 4)
+    .reduce((sum, s) => sum + s.seconds, 0);
+  const u = now < half ? now / half : (now - half) / (loop - half);
+  return wheelColorAt(spec, u * loop);
+}
+
 /** The colours of echoesAt(spec, t)'s copies when the colour runs with time
  *  (`colorAt`, the rainbow's or the wheel's): each the colour the figure had
  *  when it was there, the sharp figure now's. */
@@ -263,9 +303,13 @@ export function echoColors(
 /** The spec as `kind` plays it: the rainbow and the wheel with their own
  *  (bigger) trail cap in place of the six's. */
 export function specFor(spec: LoadingAnimationSpec, kind: LoadingKind): LoadingAnimationSpec {
-  const own = kind === 'classic' ? undefined : spec[kind];
+  const own = SINGLE_COLOUR.includes(kind) ? undefined : spec[kind as 'v14' | 'wheel' | 'rainbow'];
   if (!own) return spec;
-  return { ...spec, trail: { ...spec.trail, maxDegrees: own.trailMaxDegrees } };
+  return {
+    ...spec,
+    trail: { ...spec.trail, maxDegrees: own.trailMaxDegrees },
+    ...(kind === 'v14' ? { layout: 'v14' as const } : {}),
+  };
 }
 
 const pick = <T,>(items: readonly T[], random: () => number): T =>
@@ -302,6 +346,24 @@ export function segmentsAt(
   startFoldedOut = false,
 ): Segment[] {
   const { center } = spec;
+  const turn = (spec.spin.direction * spinDegrees * Math.PI) / 180;
+  const spun = (lines: [Point, Point][]): Segment[] =>
+    lines.map(([a, b]) => {
+      const [x0, y0] = turn ? rotate(a, center, turn) : a;
+      const [x1, y1] = turn ? rotate(b, center, turn) : b;
+      return [x0, y0, x1, y1] as const;
+    });
+  if (spec.layout === 'v14') {
+    // each spoke and two copies swinging round its tip, from the center, one
+    // to each hexagon corner beside it (each edge runs from a tip)
+    return spun(
+      spec.swing.flatMap(({ tip, corner }, k) => [
+        [center, tip] as [Point, Point],
+        [tip, swungFrom(tip, center, corner, progress)] as [Point, Point],
+        [tip, swungFrom(tip, center, spec.edges[k][1], progress)] as [Point, Point],
+      ]),
+    );
+  }
   const lines: [Point, Point][] = [
     ...spec.swing.map(({ tip, corner }) => (startFoldedOut ? [tip, corner] : [center, tip]) as [Point, Point]),
     ...spec.edges,
@@ -311,37 +373,41 @@ export function segmentsAt(
     // (the shortest way) until it points at the corner -- or from the corner
     // to the center, for startFoldedOut.
     const [from, to] = startFoldedOut ? [corner, center] : [center, corner];
-    const a0 = Math.atan2(from[1] - tip[1], from[0] - tip[0]);
-    const a1 = Math.atan2(to[1] - tip[1], to[0] - tip[0]);
-    const delta = ((((a1 - a0 + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI;
-    lines.push([tip, rotate(from, tip, delta * progress)]);
+    lines.push([tip, swungFrom(tip, from, to, progress)]);
   }
-  const turn = (spec.spin.direction * spinDegrees * Math.PI) / 180;
-  return lines.map(([a, b]) => {
-    const [x0, y0] = turn ? rotate(a, center, turn) : a;
-    const [x1, y1] = turn ? rotate(b, center, turn) : b;
-    return [x0, y0, x1, y1] as const;
-  });
+  return spun(lines);
 }
 
-/** One showing of the animation: the wheel (v13), the rainbow (v12) or one
- *  of the six earlier single-colour ones (`color`). */
+/** `from` swung round `tip` toward `to` (the shortest way), `progress` of the way. */
+function swungFrom(tip: Point, from: Point, to: Point, progress: number): [number, number] {
+  const a0 = Math.atan2(from[1] - tip[1], from[0] - tip[0]);
+  const a1 = Math.atan2(to[1] - tip[1], to[0] - tip[0]);
+  const delta = ((((a1 - a0 + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI;
+  return rotate(from, tip, delta * progress);
+}
+
+/** One showing of the animation: which version, in what colour (v11/v10),
+ *  from which start. */
 export type LoadingVariant = { kind: LoadingKind; color: string; startFoldedOut: boolean };
 
-/** The variant for one showing: the kind by spec.mix (classic when it has
- *  none), a colour from the spec's if classic, and one of its starts. */
+/** The variant for one showing: the version by spec.mix (the oldest when it
+ *  has none), a colour from the spec's for v11/v10, and its start -- v11's
+ *  the hexagon, v10's the center lines, the others' either. */
 export function pickLoadingVariant(spec: LoadingAnimationSpec, random: () => number = Math.random): LoadingVariant {
-  let kind: LoadingKind = 'classic';
+  let kind: LoadingKind = 'v10';
   if (spec.mix) {
     let r = random();
     for (const k of LOADING_KINDS) {
-      if (r < spec.mix[k]) {
+      const share = spec.mix[k] ?? 0;
+      if (r < share) {
         kind = k;
         break;
       }
-      r -= spec.mix[k];
+      r -= share;
     }
   }
-  const color = kind === 'classic' ? pickLoadingColor(spec, random) : spec.color;
-  return { kind, color, startFoldedOut: pickLoadingStart(spec, random) };
+  const single = SINGLE_COLOUR.includes(kind);
+  const color = single ? pickLoadingColor(spec, random) : spec.color;
+  const startFoldedOut = single ? kind === 'v11' : pickLoadingStart(spec, random);
+  return { kind, color, startFoldedOut };
 }

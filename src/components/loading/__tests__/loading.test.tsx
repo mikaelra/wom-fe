@@ -7,7 +7,7 @@ import NoLoadingOverlay from '@/components/loading/NoLoadingOverlay';
 import { beginRequest, isScreenLoading, resetLoadingTracker } from '@/lib/loadingTracker';
 import { BACKGROUND_LOADING_DELAY_MS } from '@/lib/useLoadingOverlay';
 import { LOADING_LOOP_MS } from '@/lib/useMinimumLoading';
-import { LOADING_SPEC, spinWindow, wheelColorAt } from '@/lib/loadingAnimation';
+import { LOADING_SPEC, specFor, spinWindow, v14ColorAt, wheelColorAt } from '@/lib/loadingAnimation';
 
 afterEach(() => {
   resetLoadingTracker();
@@ -24,7 +24,7 @@ describe('LoadingMark', () => {
     expect(canvas).toHaveStyle({ width: '40px', height: '40px' });
   });
 
-  it('plays a variant picked at random as it mounts: the wheel, the rainbow, or a colour unless one is given', () => {
+  it('plays a version picked at random as it mounts, or a given colour', () => {
     const strokes: string[] = [];
     const ctx = new Proxy({} as Record<string, unknown>, {
       get: (target, key) => (key in target ? target[key as string] : () => {}),
@@ -48,13 +48,13 @@ describe('LoadingMark', () => {
     });
     const random = vi.spyOn(Math, 'random').mockReturnValue(0.99);
 
-    // past the wheel's and the rainbow's share: one of the six, here blue
+    // the oldest share: v10, here in blue
     const { unmount } = render(<LoadingMark />);
     expect(strokes.at(-1)).toBe('#0000ff');
     unmount();
 
     // the rainbow: mid-spin it is no longer red
-    random.mockReturnValue(0.85);
+    random.mockReturnValue(0.9);
     const [start, end] = spinWindow(LOADING_SPEC);
     at = ((start + end) / 2) * 1000;
     scheduled = false;
@@ -65,7 +65,7 @@ describe('LoadingMark', () => {
 
     // the wheel: the sharp figure (the frame's first stroke) in its colour
     // at that time; the trail behind it in earlier colours
-    random.mockReturnValue(0.5);
+    random.mockReturnValue(0.7);
     scheduled = false;
     const first = strokes.length;
     const wheel = render(<LoadingMark />);
@@ -77,11 +77,20 @@ describe('LoadingMark', () => {
     render(<LoadingMark color="#ffff00" />);
     expect(strokes.at(-1)).toBe('#ffff00');
 
-    // the start is picked too: with every random number high, the hexagon
-    // start's first frame touches nothing at the center
+    // v14: its colour, when the mix gives it every showing
+    const mix = LOADING_SPEC.mix;
+    LOADING_SPEC.mix = { v14: 1 };
+    scheduled = false;
+    const firstV14 = strokes.length;
+    const v14 = render(<LoadingMark />);
+    expect(strokes[firstV14]).toBe(v14ColorAt(specFor(LOADING_SPEC, 'v14'), (start + end) / 2));
+    v14.unmount();
+    LOADING_SPEC.mix = mix;
+
+    // v11 plays from the hexagon: its first frame touches nothing at the center
     const moves: [number, number][] = [];
     (ctx as Record<string, unknown>).moveTo = (x: number, y: number) => moves.push([x, y]);
-    random.mockReturnValue(0.99);
+    random.mockReturnValue(0.97);
     at = 0;
     scheduled = false;
     render(<LoadingMark />);
