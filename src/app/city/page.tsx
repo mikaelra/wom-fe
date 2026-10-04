@@ -15,7 +15,7 @@ import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import AuthGatePopup from '@/components/AuthGatePopup';
 import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
 import { findCity } from '@/lib/cities';
-import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
+import { ATHENS_TZ, resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
@@ -194,6 +194,7 @@ function CityPageContent() {
             skyDateReceivedAt={merchantReceivedAt}
             revertExpiresAt={revertExpiresAt}
             warpColors={timewarpColorsFor(merchantOffers.map((o) => o.event))}
+            timeZone={ATHENS_TZ}
           />
         }
       />
