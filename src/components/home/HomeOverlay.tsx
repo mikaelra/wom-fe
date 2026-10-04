@@ -182,7 +182,7 @@ export default function HomeOverlay() {
   return (
     <>
       {/* Top-left: rules + back button + auth + relics */}
-      <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
+      <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-4 flex flex-col gap-2 z-20">
         <button
           type="button"
           onClick={() => setShowRules(true)}

@@ -342,7 +342,7 @@ export function renderPreGame({
     <>
       {/* Home, and beside it the city. flex+gap so the two icons sit as a
           pair rather than butting straight up against each other. */}
-      <div className="absolute top-4 left-4 z-20 pointer-events-auto flex items-center gap-2">
+      <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-4 z-20 pointer-events-auto flex items-center gap-2">
         <Link href="/" className="text-white/90 no-underline text-2xl drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" aria-label="Back to Home">
           🌍
         </Link>
@@ -351,7 +351,7 @@ export function renderPreGame({
         </Link>
       </div>
 
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-2">
+      <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-2">
         {state.boss_fight && boss ? (
           <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
             <p className="font-bold">{boss.name}</p>
@@ -526,7 +526,7 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
           at top-4 left-4 in both the pre-game overlay (renderPreGame below)
           and SceneOverlay's own in-round back button, so this one row here
           covers both without duplicating it in each render path. */}
-      <div className="absolute top-16 left-4 z-20 pointer-events-auto flex items-center gap-2">
+      <div className="absolute top-[calc(env(safe-area-inset-top)+4rem)] left-4 z-20 pointer-events-auto flex items-center gap-2">
         <MusicToggleButton />
         <SfxToggleButton />
       </div>
