@@ -1,10 +1,14 @@
 {
-  "generatedBy": "wom-tools/animation-generation/loading_animation.py (v10)",
+  "generatedBy": "wom-tools/animation-generation/loading_animation.py (v11)",
   "color": "#ff0000",
   "colors": [
     "#ff0000",
     "#ffff00",
     "#0000ff"
+  ],
+  "startsFoldedOut": [
+    false,
+    true
   ],
   "lineRadius": 0.06604,
   "extent": 1.096575,
