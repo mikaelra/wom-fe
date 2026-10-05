@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, useGLTF } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import Senate from '@/components/city/Senate';
@@ -12,6 +12,7 @@ import { LAND_LEVEL, SEA_LEVEL } from '@/lib/cityLayout';
 import { BAY_FLARE, BAY_HALF_WIDTH, bayDockLength } from '@/lib/cityTerrain';
 import { ARENA } from '@/lib/rankedArena';
 import {
+  findModellingModel,
   gridSizeFor,
   orbitCameraPosition,
   orbitFraming,
@@ -67,7 +68,36 @@ interface Props {
   onMeasure?: (m: MeasuredModel) => void;
 }
 
+/**
+ * A finished model file rather than a procedural component. Cloned, so the
+ * wireframe flag pushed onto its materials never leaks into the useGLTF
+ * cache that the game itself will load the same file from.
+ */
+function GlbModel({ url }: { url: string }) {
+  const { scene } = useGLTF(url);
+  const model = useMemo(() => {
+    const copy = scene.clone(true);
+    copy.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.material = Array.isArray(mesh.material)
+        ? mesh.material.map((m) => m.clone())
+        : mesh.material.clone();
+    });
+    return copy;
+  }, [scene]);
+  return <primitive object={model} />;
+}
+
 function ModelBody({ modelId }: { modelId: ModellingModelId }) {
+  const glb = findModellingModel(modelId).glb;
+  if (glb) {
+    return (
+      <Suspense fallback={null}>
+        <GlbModel url={glb} />
+      </Suspense>
+    );
+  }
   switch (modelId) {
     case 'ranked':
       // The arena's own dimensions, not a scaled city Senate -- see
@@ -89,6 +119,8 @@ function ModelBody({ modelId }: { modelId: ModellingModelId }) {
       return <Senate />;
     case 'bay':
       return <Bay />;
+    default:
+      return null;
   }
 }
 
@@ -240,6 +272,9 @@ export default function ModellingScene({
     onMeasure?.({ width: next.size.x, height: next.size.y, depth: next.size.z });
     // A hot-swapped mesh arrives with its own fresh material.
     applyMaterialFlags();
+    // A .glb loads after mount, so the layout effect above measured an
+    // empty group and never framed it. Frame it once, on its arrival only.
+    if (!prev) refit();
   });
 
   const framing = box

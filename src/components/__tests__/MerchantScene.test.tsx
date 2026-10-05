@@ -184,6 +184,21 @@ describe('MerchantScene', () => {
       expect(parseFloat(paperBox.style.left)).toBe(stone.left - 60);
     });
 
+    it('stages the Pen at 4x the Stone\'s size too, same centre', () => {
+      const { unmount } = render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const stoneBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
+      const stone = { bottom: stoneBox.style.bottom, left: parseFloat(stoneBox.style.left) };
+      unmount();
+
+      render(<MerchantScene offer={{ ...OFFER, trigger_kind: 'new_moon', item_name: 'Pen' }} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const penBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
+
+      expect(penBox.style.width).toBe('160px');
+      expect(penBox.style.height).toBe('160px');
+      expect(penBox.style.bottom).toBe(stone.bottom);
+      expect(parseFloat(penBox.style.left)).toBe(stone.left - 60);
+    });
+
     it('says one of her lines -- never the particular conjunction', () => {
       const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
       render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);

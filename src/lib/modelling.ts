@@ -12,7 +12,7 @@
  * test could catch has to sit outside one.
  */
 
-export type ModellingModelId = 'ranked' | 'market' | 'senate-city' | 'bay';
+export type ModellingModelId = 'ranked' | 'market' | 'senate-city' | 'bay' | 'pen';
 
 export interface ModellingModel {
   id: ModellingModelId;
@@ -23,6 +23,11 @@ export interface ModellingModel {
   accent: string;
   /** One line under the button saying what you are looking at. */
   blurb: string;
+  /** A finished model file (Meshy, via wom-tools/model-generation) shown
+   *  instead of a procedural component. Served from public/. */
+  glb?: string;
+  /** Meshy's own render of that model, shown beside the controls. */
+  thumbnail?: string;
 }
 
 export const MODELLING_MODELS: readonly ModellingModel[] = [
@@ -49,6 +54,14 @@ export const MODELLING_MODELS: readonly ModellingModel[] = [
     label: 'Bay',
     accent: '#f2c230',
     blurb: 'Quay, pier and a boat leaving for the sea, at the head of the inlet in the city’s south-west corner. +Z is out to sea.',
+  },
+  {
+    id: 'pen',
+    label: 'Pen',
+    accent: '#9fb8ff',
+    blurb: 'Meshy feather quill for the new-moon Pen (public/models/relics/pen_v1.glb), texture cut to 1024 -- the model the new-moon merchant stages.',
+    glb: '/models/relics/pen_v1.glb',
+    thumbnail: '/models/relics/pen_v1.thumbnail.png',
   },
 ] as const;
 
