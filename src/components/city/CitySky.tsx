@@ -20,6 +20,7 @@ import {
 
 export { horizonToScene } from '@/lib/citySkyGeometry';
 import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
+import { useGameTextures } from '@/lib/useGameTextures';
 import {
   milkyWayQuaternion, milkyWayTexturePath, orientMilkyWayTexture,
 } from '@/lib/milkyWay';
@@ -212,7 +213,7 @@ export function useCitySky(
 function MilkyWay({ frame, eye, opacity }: {
   frame: LocalFrame; eye: readonly [number, number, number]; opacity: number;
 }) {
-  const tex = useTexture(milkyWayTexturePath(IS_NATIVE_BUILD));
+  const [tex] = useGameTextures([milkyWayTexturePath(IS_NATIVE_BUILD)]);
   useMemo(() => orientMilkyWayTexture(tex), [tex]);
 
   const quaternion = useMemo(() => {

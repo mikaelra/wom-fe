@@ -43,9 +43,12 @@ export function milkyWayQuaternion(): THREE.Quaternion {
   return twist.multiply(base);
 }
 
-/** Web build gets the small JPEG; the native bundle carries the big PNG. */
+/**
+ * Web build gets the small JPEG; the native bundle carries the full 8000x4000
+ * panorama as KTX2 (see lib/ktx2Textures.ts for why not the source PNG).
+ */
 export function milkyWayTexturePath(isNative: boolean): string {
-  return isNative ? '/textures/stars/MilkyWay-extreme.png' : '/textures/stars/MilkyWay-HD.jpg';
+  return isNative ? '/textures/stars/MilkyWay-extreme.ktx2' : '/textures/stars/MilkyWay-HD.jpg';
 }
 
 /** Un-mirrors the panorama on a BackSide sphere, whose UVs flip it. */
