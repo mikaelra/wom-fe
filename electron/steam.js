@@ -9,11 +9,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app } = require('electron');
 
-// Placeholder app id. 480 is Valve's public test app ("Spacewar") -- it lets
-// the Steam overlay, friends and achievements plumbing initialise before we
-// have a real app id, which does not exist until Steam Direct is paid and
-// Valve assigns one (§10.2). Override with WOM_STEAM_APPID once that lands.
-const APP_ID = Number(process.env.WOM_STEAM_APPID || 480);
+// World of Mythos's Steam app id. Achievements, Steam Wallet purchases and
+// the login ticket the backend checks (wom-be routes/steam_auth.py) all
+// belong to it. WOM_STEAM_APPID=480 (Valve's "Spacewar" test app) still
+// works for poking at the overlay without the real app.
+const APP_ID = Number(process.env.WOM_STEAM_APPID || 4913070);
+
+// Must match wom-be's config.STEAM_TICKET_IDENTITY: the backend checks the
+// ticket was issued for it.
+const TICKET_IDENTITY = 'wom-backend';
 
 const STEAM_DISABLED = process.env.WOM_STEAM === '0';
 
@@ -105,6 +109,22 @@ function getPlayerName() {
   }
 }
 
+/**
+ * A Web API auth ticket for the signed-in user, hex-encoded, for the
+ * backend to check with Steam (ISteamUserAuth/AuthenticateUserTicket).
+ * Null when Steam is off or the ticket couldn't be issued.
+ */
+async function getAuthTicket() {
+  if (!client) return null;
+  try {
+    const ticket = await client.auth.getAuthTicketForWebApi(TICKET_IDENTITY);
+    return ticket.getBytes().toString('hex');
+  } catch (err) {
+    console.warn('[steam] auth ticket failed:', err.message);
+    return null;
+  }
+}
+
 function shutdown() {
   // steamworks.js has no explicit shutdown; the process exit handles it.
   client = null;
@@ -117,5 +137,6 @@ module.exports = {
   isEnabled,
   getSteamId,
   getPlayerName,
+  getAuthTicket,
   shutdown,
 };

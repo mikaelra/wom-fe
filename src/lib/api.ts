@@ -65,6 +65,7 @@ import {
   ShopProductsResponseSchema,
   CheckoutResponseSchema,
   ApplePrepareResponseSchema,
+  SteamAuthResponseSchema,
   AppleVerifyResponseSchema,
   OrderStatusResponseSchema,
   WheelTablesResponseSchema,
@@ -95,7 +96,9 @@ export type ShopProduct = {
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
   const data = await request('/create_lobby', CreateLobbyResponseSchema, {
-    body: { name, email },
+    // account_token: a Steam player has no email; their account session is
+    // what proves the name is theirs (wom-be routes/steam_auth.py).
+    body: { name, email, account_token: getStoredAccountToken() ?? undefined },
     defaultErrorMessage: 'Create lobby failed',
   });
   setStoredToken(data.lobby_id, data.token);
@@ -116,7 +119,7 @@ export async function joinLobby(joinCode: string, name: string, email: string): 
       reject(new Error(data.message));
     });
 
-    getSocket().emit('join_lobby', { lobby_id: joinCode, name, email });
+    getSocket().emit('join_lobby', { lobby_id: joinCode, name, email, account_token: getStoredAccountToken() ?? undefined });
   });
 }
 
@@ -130,7 +133,7 @@ export async function getBossfightLobby(playerName: string): Promise<{ lobby_id:
   // the token from their original join, so don't clobber it.
   if (data.token) setStoredToken(data.lobby_id, data.token);
   const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
-  getSocket().emit('join_lobby', { lobby_id: data.lobby_id, name: playerName, email });
+  getSocket().emit('join_lobby', { lobby_id: data.lobby_id, name: playerName, email, account_token: getStoredAccountToken() ?? undefined });
   return data;
 }
 
@@ -641,6 +644,30 @@ export async function postCheckout(
   return request('/shop/checkout', CheckoutResponseSchema, {
     body: { token, product, confirm_duplicate: confirmDuplicate, quantity },
     defaultErrorMessage: 'Failed to start checkout.',
+  });
+}
+
+/** Log in with a Steam auth ticket (src/lib/steamAccount.ts). */
+export async function postSteamLogin(ticket: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/steam', SteamAuthResponseSchema, {
+    body: { ticket },
+    defaultErrorMessage: 'Steam login failed.',
+  });
+}
+
+/** A new account for this Steam account ("Play now"). */
+export async function postSteamCreate(ticket: string, name: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/steam/create', SteamAuthResponseSchema, {
+    body: { ticket, name },
+    defaultErrorMessage: 'Could not create the account.',
+  });
+}
+
+/** This Steam account logs into the logged-in account from now on. */
+export async function postSteamLink(ticket: string, token: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/steam/link', SteamAuthResponseSchema, {
+    body: { ticket, token },
+    defaultErrorMessage: 'Could not link your Steam account.',
   });
 }
 

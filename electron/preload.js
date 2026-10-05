@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld('wom', {
   // Steam identity as optional.
   getSteamInfo: () => ipcRenderer.invoke('wom:steam-info'),
 
+  // Resolves to a hex Web API auth ticket for the backend's Steam login
+  // (src/lib/steamAccount.ts), or null when Steam is off.
+  getSteamTicket: () => ipcRenderer.invoke('wom:steam-ticket'),
+
   // Closes the game (the exit prompt on the globe, src/components/ExitGamePrompt.tsx).
   quit: () => ipcRenderer.send('wom:quit'),
 });

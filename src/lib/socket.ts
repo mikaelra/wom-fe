@@ -65,7 +65,8 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
-  join_lobby: (payload: { lobby_id: string; name: string; email: string }) => void;
+  // account_token: a Steam player's name is proven by their account session (no email).
+  join_lobby: (payload: { lobby_id: string; name: string; email: string; account_token?: string }) => void;
   // token is nullable, not just string, because a reconnect can legitimately
   // race this call ahead of the session token being set (see SceneOverlay's
   // rejoin() -- the backend just responds "invalid session token" in that
