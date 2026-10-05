@@ -16,6 +16,7 @@ import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { MERCHANT_MARKER_LABEL, merchantMarkerColors, merchantSkyBodies } from '@/lib/merchant';
 import { getStoredAccountToken } from '@/lib/http';
 import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
+import ExitGamePrompt from '@/components/ExitGamePrompt';
 
 const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
 
@@ -212,6 +213,9 @@ export default function Page() {
           onPurchased={refreshMerchantOffer}
         />
       )}
+
+      {/* Steam client only: Escape on the globe offers to exit the game. */}
+      <ExitGamePrompt disabled={!!openMerchant || !!enteringCity || !!timewarpPreview} />
     </div>
   );
 }
