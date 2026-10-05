@@ -29,10 +29,10 @@ const TABLE_TOP_Y = STAGE_H - TABLE_LEG_HEIGHT - TABLE_THICKNESS;
 const STONE_BOTTOM = STAGE_H - TABLE_TOP_Y;
 
 // The relic on the table: its box's size and the x it is centred on. Paper
-// is staged 4x the Stone's size, per Mikael's ask.
+// and Pen are staged 4x the Stone's size, per Mikael's ask.
 const RELIC_BOX_PX = 40;
 const RELIC_CENTER_X = 96 + RELIC_BOX_PX / 2;
-const RELIC_SCALE: Record<string, number> = { Paper: 4 };
+const RELIC_SCALE: Record<string, number> = { Paper: 4, Pen: 4 };
 
 type Props = {
   offer: MerchantOffer;
