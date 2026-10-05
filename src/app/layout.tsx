@@ -18,17 +18,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "World of Mythos",
   description: "World of Mythos",
-  // No manual `icons` entry here -- src/app/icon.svg, icon.png, and
-  // apple-icon.png (Next's file-based icon convention) are auto-detected
-  // and take care of it. That's deliberate, not an oversight: the old setup
-  // pointed every browser at /wom.svg alone, but iOS Safari doesn't render
-  // SVG favicons at all (browser tab or "Add to Home Screen"), which is
-  // why the logo was invisible on phones despite the artwork being right
-  // here in the repo -- confirmed live. icon.png/apple-icon.png are
-  // rendered PNGs of the same source art (public/wom.svg) for iOS and any
-  // other SVG-favicon holdout; icon.svg keeps the crisp vector version for
-  // browsers that do support it. All of them are generated -- see
-  // branding/README.md.
+  // No manual `icons` entry here -- src/app/icon.png and apple-icon.png
+  // (Next's file-based icon convention) are auto-detected and take care of
+  // it. Both are PNGs on purpose: iOS Safari doesn't render SVG favicons at
+  // all (browser tab or "Add to Home Screen"), and the logo is a picture
+  // (the frog in front of the loading animation), not vector art. All of
+  // them are generated -- see branding/README.md.
 };
 
 export const viewport: Viewport = {
