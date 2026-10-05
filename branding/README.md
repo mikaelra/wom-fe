@@ -10,7 +10,7 @@ Each platform has its own color:
 |---|---|
 | Web (favicons, website's iPhone home-screen icon) | red `#ff0000` |
 | iOS app | yellow `#ffff00` |
-| Steam / Electron | blue `#0000ff` |
+| Steam / Electron | blue `#0000ff` on white |
 | Google Play | red `#ff0000` (not decided yet) |
 
 **Every file here and the in-app copies below are generated — don't edit
