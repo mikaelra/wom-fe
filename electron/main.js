@@ -5,7 +5,7 @@
 // serves `out/` over a custom scheme, and wires Steam.
 'use strict';
 
-const { app, BrowserWindow, shell, protocol, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, protocol, ipcMain, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 
@@ -52,11 +52,15 @@ function registerAppProtocol() {
 }
 
 function createWindow() {
+  // The minimum size can never be bigger than the screen: on a small
+  // display (a Surface Go at 2x scale is 900x600) a 960 minimum pushes the
+  // fullscreen window past the right edge and clips the UI.
+  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
   const win = new BrowserWindow({
-    width: 1280,
-    height: 720,
-    minWidth: 960,
-    minHeight: 540,
+    width: Math.min(1280, screenW),
+    height: Math.min(720, screenH),
+    minWidth: Math.min(960, screenW),
+    minHeight: Math.min(540, screenH),
     backgroundColor: '#070b15',
     show: false,
     autoHideMenuBar: true,
