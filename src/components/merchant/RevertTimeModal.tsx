@@ -7,6 +7,7 @@ import { timewarpEventLabels } from '@/lib/merchant';
 import { formatWorldClock } from '@/lib/worldClock';
 import { useCountdown } from '@/lib/useCountdown';
 import type { Relic } from '@/types/game';
+import RelicCoin from '@/components/RelicCoin';
 
 type Props = {
   /** A merchant relic -- Stone of Vitality, Paper or Pen. */
@@ -215,6 +216,11 @@ export default function RevertTimeModal({
         <h2 id="revert-time-heading" className="text-lg font-bold mb-1">
           {relic.name}
         </h2>
+        {/* The relic's picture from its inventory card, at 1.5x that card's
+            64px (w-16) -- the Pen's thumbnail, the others' model. */}
+        <div className="w-24 h-24 mx-auto mb-2 overflow-hidden" data-testid="revert-relic-picture">
+          <RelicCoin relicName={relic.name} />
+        </div>
         {relic.flavour_text && <p className="text-white/50 text-xs mb-4">{relic.flavour_text}</p>}
 
         <h3 className="text-base font-bold mb-1">Time Warp</h3>
