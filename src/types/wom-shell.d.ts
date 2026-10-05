@@ -23,6 +23,8 @@ declare global {
         playerName: string | null;
         appId: number;
       }>;
+      /** Closes the game window and exits. */
+      quit(): void;
     };
   }
 }

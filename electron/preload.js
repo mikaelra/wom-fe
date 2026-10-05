@@ -14,4 +14,7 @@ contextBridge.exposeInMainWorld('wom', {
   // when the Steam client is not running or WOM_STEAM=0 -- callers must treat
   // Steam identity as optional.
   getSteamInfo: () => ipcRenderer.invoke('wom:steam-info'),
+
+  // Closes the game (the exit prompt on the globe, src/components/ExitGamePrompt.tsx).
+  quit: () => ipcRenderer.send('wom:quit'),
 });
