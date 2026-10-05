@@ -64,6 +64,8 @@ import {
   WellProfileResponseSchema,
   ShopProductsResponseSchema,
   CheckoutResponseSchema,
+  ApplePrepareResponseSchema,
+  AppleVerifyResponseSchema,
   OrderStatusResponseSchema,
   WheelTablesResponseSchema,
   TradeUpRulesResponseSchema,
@@ -639,6 +641,29 @@ export async function postCheckout(
   return request('/shop/checkout', CheckoutResponseSchema, {
     body: { token, product, confirm_duplicate: confirmDuplicate, quantity },
     defaultErrorMessage: 'Failed to start checkout.',
+  });
+}
+
+/** The iOS app's shop (src/lib/appleShop.ts): what may be sold in this App
+ *  Store country, and the token StoreKit stamps on the purchase. */
+export async function postApplePrepare(
+  token: string,
+  storefront?: string
+): Promise<z.infer<typeof ApplePrepareResponseSchema>> {
+  return request('/shop/apple/prepare', ApplePrepareResponseSchema, {
+    body: { token, storefront },
+    defaultErrorMessage: 'Failed to load the shop.',
+  });
+}
+
+/** Hand a StoreKit purchase's signed transaction to the backend to grant. */
+export async function postAppleVerify(
+  token: string,
+  signedTransaction: string
+): Promise<z.infer<typeof AppleVerifyResponseSchema>> {
+  return request('/shop/apple/verify', AppleVerifyResponseSchema, {
+    body: { token, signed_transaction: signedTransaction },
+    defaultErrorMessage: 'Failed to deliver the purchase.',
   });
 }
 

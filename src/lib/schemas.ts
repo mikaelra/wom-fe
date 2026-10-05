@@ -462,6 +462,27 @@ export const CheckoutResponseSchema = z.object({
   order_id: z.number().int(),
 });
 
+// POST /shop/apple/prepare -- the iOS app's shop (StoreKit): the player's
+// appAccountToken and the products sellable in their App Store country.
+export const ApplePrepareResponseSchema = z.object({
+  app_account_token: z.string(),
+  products: z.array(
+    z.object({
+      product: z.string(),
+      apple_product_id: z.string(),
+      kind: z.string(),
+      max_quantity: z.number().int(),
+    })
+  ),
+});
+
+// POST /shop/apple/verify -- a StoreKit purchase checked and granted.
+export const AppleVerifyResponseSchema = z.object({
+  status: z.literal('fulfilled'),
+  order_id: z.number().int(),
+  product: z.string(),
+});
+
 // POST /shop/order -- one order's fulfillment status, polled by
 // /shop/success. `fulfilled` is the only "done" state; anything else
 // means keep waiting.
