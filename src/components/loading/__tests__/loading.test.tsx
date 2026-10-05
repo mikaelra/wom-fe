@@ -34,7 +34,7 @@ describe('LoadingMark', () => {
         return true;
       },
     });
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as never);
     // a fixed clock, so the drawn frame is exactly `at` into the loop
     vi.spyOn(performance, 'now').mockReturnValue(1000);
     let scheduled = false;

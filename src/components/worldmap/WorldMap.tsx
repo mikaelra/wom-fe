@@ -23,6 +23,8 @@ import {
   type BodyAspect, type AspectBody,
 } from '@/lib/astrology';
 import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
+import { earthTexturePaths } from '@/lib/ktx2Textures';
+import { useGameTextures } from '@/lib/useGameTextures';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
@@ -179,8 +181,8 @@ const jupiterTexturePath = (): string => '/textures/jupiter/jupiter2_1k.jpg';
 // ignores alpha so nothing is lost) at 4000x2000 -- kept small since every
 // web visitor downloads it over the network. Native (Capacitor) / Steam
 // (Electron) builds bundle their assets locally instead of fetching them,
-// and are a paid product, so they use the full-resolution source PNG
-// (8000x4000, MilkyWay-extreme.png -- MilkyWay-Stars.png is the same shot
+// and are a paid product, so they use the full-resolution panorama
+// (8000x4000, MilkyWay-extreme.png as KTX2 -- MilkyWay-Stars.png is the same shot
 // but with a survey reference grid/star-name overlay baked in, not a game
 // asset) for the extra visual value. See docs/MOBILE_AND_STEAM_PLAN.md.
 
@@ -201,10 +203,8 @@ useTexture.preload(jupiterTexturePath());
 // ── Real starfield ─────────────────────────────────────────────────────────
 
 const Starfield = memo(function Starfield() {
-  const [circleTex, milkyWayTex] = useTexture([
-    '/textures/stars/circle.png',
-    milkyWayTexturePath(IS_NATIVE_BUILD),
-  ]);
+  const circleTex = useTexture('/textures/stars/circle.png');
+  const [milkyWayTex] = useGameTextures([milkyWayTexturePath(IS_NATIVE_BUILD)]);
 
   // BackSide sphere UVs mirror the panorama left/right; this un-flips it.
   useMemo(() => orientMilkyWayTexture(milkyWayTex), [milkyWayTex]);
@@ -1066,18 +1066,14 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
 
   // Web always uses 1k earth textures (downloaded over the network by every
   // visitor). Native (Capacitor) / Steam (Electron) builds bundle assets
-  // locally and are a paid product, so they use the full 4k tier instead --
-  // extreme-res exists on disk too but is missing the earthmap/bump/lights
-  // files (only spec + cloud-alpha), so high-res/4k is the highest complete
-  // tier available. Cloud textures are the same file in both folders, so
-  // always pulled from high-res regardless of tier.
-  const earthDir = IS_NATIVE_BUILD ? 'high-res' : 'low-res';
-  const earthSuffix = IS_NATIVE_BUILD ? '4k' : '1k';
-  const [earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans] = useTexture([
-    `/textures/earth/${earthDir}/00_earthmap${earthSuffix}.jpg`,
-    `/textures/earth/${earthDir}/02_earthspec${earthSuffix}.jpg`,
-    `/textures/earth/${earthDir}/01_earthbump${earthSuffix}.jpg`,
-    `/textures/earth/${earthDir}/03_earthlights${earthSuffix}.jpg`,
+  // locally and are a paid product, so they get the full 4k tier -- as KTX2,
+  // which stays GPU-compressed (lib/ktx2Textures.ts). extreme-res exists on
+  // disk too but is missing the earthmap/bump/lights files (only spec +
+  // cloud-alpha), so high-res/4k is the highest complete tier available.
+  // Cloud textures are the same file in both folders, so always pulled from
+  // high-res regardless of tier.
+  const [earthMap, specularMap, bumpMap, lightsMap] = useGameTextures(earthTexturePaths(IS_NATIVE_BUILD));
+  const [cloudsMap, cloudsTrans] = useTexture([
     '/textures/earth/high-res/04_earthcloudmap.jpg',
     '/textures/earth/high-res/05_earthcloudmaptrans.jpg',
   ]);
