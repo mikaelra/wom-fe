@@ -7,6 +7,7 @@ import LoadingOverlay from "@/components/loading/LoadingOverlay";
 import AppleTransactionSync from "@/components/shop/AppleTransactionSync";
 import SteamWelcome from "@/components/steam/SteamWelcome";
 import AgePrompt from "@/components/AgePrompt";
+import MoonNotifications from "@/components/MoonNotifications";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,6 +52,7 @@ export default function RootLayout({
           <AppleTransactionSync />
           <SteamWelcome />
           <AgePrompt />
+          <MoonNotifications />
         </ToastProvider>
       </body>
     </html>
