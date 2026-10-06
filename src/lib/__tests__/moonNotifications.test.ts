@@ -26,7 +26,7 @@ describe('moonNotificationSchedule', () => {
     const list = moonNotificationSchedule(now, 30);
     // Mercury-Venus (exact 2026-10-07 00:05Z) arrived 2026-10-06 00:05Z: already here.
     expect(list.map((n) => n.title)).toEqual(['New moon', 'Full moon']);
-    expect(list[0].body).toBe('John Dee has arrived.');
+    expect(list[0].body).toBe('A merchant has arrived');
     const arrival = Date.parse('2026-10-09T15:50:36Z');
     expect(list[0].at.getTime()).toBeGreaterThanOrEqual(arrival - 1000 * 60);
     expect(list[0].at.getTime() - arrival).toBeLessThan(13 * 3600 * 1000);
@@ -35,7 +35,7 @@ describe('moonNotificationSchedule', () => {
   it('covers half a year by default', () => {
     const list = moonNotificationSchedule(now);
     expect(list.length).toBeGreaterThanOrEqual(12);
-    expect(list.some((n) => n.body === 'Hildegard von Bingen has arrived.')).toBe(true);
+    expect(list.some((n) => n.title === 'Conjunction')).toBe(true);
   });
 });
 

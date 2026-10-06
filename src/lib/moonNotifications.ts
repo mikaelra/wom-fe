@@ -20,11 +20,11 @@ const MAX_PENDING = 60;
 const EARLIEST_HOUR = 9;
 const LATEST_HOUR = 21;
 
-// Placeholder wording -- to be replaced with the user's own.
+// The user's wording.
 const TEXT: Record<SkyEventKind, { title: string; body: string }> = {
-  full_moon: { title: 'Full moon', body: 'John Dee has arrived.' },
-  new_moon: { title: 'New moon', body: 'John Dee has arrived.' },
-  conjunction: { title: 'Conjunction', body: 'Hildegard von Bingen has arrived.' },
+  full_moon: { title: 'Full moon', body: 'A merchant has arrived' },
+  new_moon: { title: 'New moon', body: 'A merchant has arrived' },
+  conjunction: { title: 'Conjunction', body: 'A merchant has arrived' },
 };
 
 export interface MoonNotification {
