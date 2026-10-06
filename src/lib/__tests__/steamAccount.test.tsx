@@ -40,9 +40,26 @@ describe('steamSignIn', () => {
     expect(login).not.toHaveBeenCalled();
   });
 
-  it('does nothing when someone is already logged in', async () => {
+  it('checks in with Steam when someone is already logged in', async () => {
     setStoredAccountToken('existing');
+    link.mockResolvedValue({ status: 'ok', name: 'Oni' });
     expect(await steamSignIn(shell())).toEqual({ status: 'skipped' });
+    expect(link).toHaveBeenCalledWith('abc', 'existing');
+    expect(login).not.toHaveBeenCalled();
+    expect(getStoredAccountToken()).toBe('existing');
+  });
+
+  it('stays quiet when that check-in is refused', async () => {
+    setStoredAccountToken('existing');
+    link.mockRejectedValue(new ApiError(409, 'linked elsewhere', 'linked_to_other_steam'));
+    expect(await steamSignIn(shell())).toEqual({ status: 'skipped' });
+    expect(getStoredAccountToken()).toBe('existing');
+  });
+
+  it('skips the check-in when Steam gives no ticket', async () => {
+    setStoredAccountToken('existing');
+    expect(await steamSignIn(shell(null))).toEqual({ status: 'skipped' });
+    expect(link).not.toHaveBeenCalled();
   });
 
   it('does nothing when Steam gives no ticket', async () => {
