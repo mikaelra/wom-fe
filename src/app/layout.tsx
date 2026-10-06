@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/Toast";
 import LoadingOverlay from "@/components/loading/LoadingOverlay";
 import AppleTransactionSync from "@/components/shop/AppleTransactionSync";
 import SteamWelcome from "@/components/steam/SteamWelcome";
+import AgePrompt from "@/components/AgePrompt";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,6 +50,7 @@ export default function RootLayout({
           <LoadingOverlay />
           <AppleTransactionSync />
           <SteamWelcome />
+          <AgePrompt />
         </ToastProvider>
       </body>
     </html>
