@@ -42,8 +42,17 @@ export type SteamSignIn =
 
 /** Sign in with the Steam account unless someone is already logged in. */
 export async function steamSignIn(w: ShellWindow | undefined = globalThis.window): Promise<SteamSignIn> {
-  if (!isSteamClient(w) || getStoredAccountToken()) return { status: 'skipped' };
+  if (!isSteamClient(w)) return { status: 'skipped' };
+  const token = getStoredAccountToken();
   const t = await ticket(w);
+  if (token) {
+    // Already logged in: check in with this Steam account, which links it
+    // to the account if it isn't yet and lets the backend award Steam
+    // achievements (wom-be routes/steam_auth.py). Nothing to show if it
+    // can't (linked to another Steam account, Steam off, offline).
+    if (t) await postSteamLink(t, token).catch(() => undefined);
+    return { status: 'skipped' };
+  }
   if (!t) return { status: 'skipped' };
   const data = await postSteamLogin(t);
   if (data.status === 'ok' && data.name && data.session_token) {
