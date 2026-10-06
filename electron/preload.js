@@ -19,6 +19,15 @@ contextBridge.exposeInMainWorld('wom', {
   // (src/lib/steamAccount.ts), or null when Steam is off.
   getSteamTicket: () => ipcRenderer.invoke('wom:steam-ticket'),
 
+  // Calls `listener({ orderId, authorized })` when the player answers a
+  // Steam Wallet purchase dialog (src/lib/steamShop.ts). Returns an
+  // unsubscribe function.
+  onSteamPurchaseAnswer: (listener) => {
+    const wrapped = (_event, answer) => listener(answer);
+    ipcRenderer.on('wom:steam-microtxn', wrapped);
+    return () => ipcRenderer.removeListener('wom:steam-microtxn', wrapped);
+  },
+
   // Closes the game (the exit prompt on the globe, src/components/ExitGamePrompt.tsx).
   quit: () => ipcRenderer.send('wom:quit'),
 });

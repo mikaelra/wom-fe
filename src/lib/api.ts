@@ -67,6 +67,8 @@ import {
   ApplePrepareResponseSchema,
   SteamAuthResponseSchema,
   AppleVerifyResponseSchema,
+  SteamFinalizeResponseSchema,
+  SteamInitResponseSchema,
   OrderStatusResponseSchema,
   WheelTablesResponseSchema,
   TradeUpRulesResponseSchema,
@@ -691,6 +693,32 @@ export async function postAppleVerify(
   return request('/shop/apple/verify', AppleVerifyResponseSchema, {
     body: { token, signed_transaction: signedTransaction },
     defaultErrorMessage: 'Failed to deliver the purchase.',
+  });
+}
+
+/** Start a Steam Wallet purchase in the Steam build (src/lib/steamShop.ts). */
+export async function postSteamInit(
+  token: string,
+  product: string,
+  quantity: number,
+  confirmDuplicate: boolean,
+  language: string
+): Promise<z.infer<typeof SteamInitResponseSchema>> {
+  return request('/shop/steam/init', SteamInitResponseSchema, {
+    body: { token, product, quantity, confirm_duplicate: confirmDuplicate, language },
+    defaultErrorMessage: 'Failed to start the purchase.',
+  });
+}
+
+/** Pass on the player's answer to Steam's purchase dialog. */
+export async function postSteamFinalize(
+  token: string,
+  orderId: number,
+  authorized: boolean
+): Promise<z.infer<typeof SteamFinalizeResponseSchema>> {
+  return request('/shop/steam/finalize', SteamFinalizeResponseSchema, {
+    body: { token, order_id: orderId, authorized },
+    defaultErrorMessage: 'Failed to complete the purchase.',
   });
 }
 

@@ -492,6 +492,19 @@ export const AppleVerifyResponseSchema = z.object({
   product: z.string(),
 });
 
+// POST /shop/steam/init -- a Steam Wallet purchase started; Steam is
+// showing the player its approval dialog for this order.
+export const SteamInitResponseSchema = z.object({
+  order_id: z.number().int(),
+});
+
+// POST /shop/steam/finalize -- "fulfilled" once charged and granted,
+// "cancelled" when the player declined.
+export const SteamFinalizeResponseSchema = z.object({
+  status: z.string(),
+  product: z.string(),
+});
+
 // POST /shop/order -- one order's fulfillment status, polled by
 // /shop/success. `fulfilled` is the only "done" state; anything else
 // means keep waiting.

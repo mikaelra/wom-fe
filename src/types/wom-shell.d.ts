@@ -26,6 +26,9 @@ declare global {
       /** A hex Web API auth ticket for the backend's Steam login, or null
        *  when Steam is off. */
       getSteamTicket(): Promise<string | null>;
+      /** Calls `listener` when the player answers a Steam Wallet purchase
+       *  dialog; orderId is the backend's order id. Returns an unsubscribe. */
+      onSteamPurchaseAnswer(listener: (answer: { orderId: string; authorized: boolean }) => void): () => void;
       /** Closes the game window and exits. */
       quit(): void;
     };

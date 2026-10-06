@@ -11,6 +11,8 @@ import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { CITY_PATH } from '@/lib/cities';
 import LoadingState from '@/components/loading/LoadingState';
 import { buyWithApple, isIosApp, loadAppleShop, type AppleShop, type BuyOutcome } from '@/lib/appleShop';
+import { isSteamClient } from '@/lib/steamShell';
+import { buyWithSteam, type SteamBuyOutcome } from '@/lib/steamShop';
 
 function formatPrice(cents: number, currency: string): string {
   try {
@@ -49,6 +51,13 @@ const APPLE_NOTICES: Record<BuyOutcome, string | null> = {
   refused: null,
 };
 
+// The same after a Steam Wallet purchase (Steam build).
+const STEAM_NOTICES: Record<SteamBuyOutcome, string | null> = {
+  fulfilled: 'Added to your inventory.',
+  retry: 'Payment received — it will show up in your inventory shortly.',
+  cancelled: null,
+};
+
 export default function ShopPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -69,6 +78,8 @@ export default function ShopPage() {
   const [appleShop, setAppleShop] = useState<AppleShop | null>(null);
   const [appleUnverified, setAppleUnverified] = useState(false);
   const [productNotices, setProductNotices] = useState<Record<string, string>>({});
+  // Inside the Steam build the shop sells through the Steam Wallet (src/lib/steamShop.ts).
+  const [steamApp, setSteamApp] = useState(false);
   const appleFor = (productId: string) => appleShop?.products.find((p) => p.product === productId);
   const maxQty = (product: ShopProduct) => (ios ? (appleFor(product.id)?.maxQuantity ?? 1) : maxQuantityFor(product));
   const hasPicker = (product: ShopProduct) => maxQty(product) > 1;
@@ -131,6 +142,7 @@ export default function ShopPage() {
     setLoggedIn(!!getStoredAccountToken());
     const inIosApp = isIosApp();
     setIos(inIosApp);
+    setSteamApp(isSteamClient());
     getShopProducts()
       .then(async (data) => {
         setProducts(data.products);
@@ -222,9 +234,21 @@ export default function ShopPage() {
       return;
     }
     setProductErrors((prev) => ({ ...prev, [product.id]: '' }));
+    setProductNotices((prev) => ({ ...prev, [product.id]: '' }));
     setBuying(product.id);
     try {
       const quantity = hasQuantityPicker(product) ? (quantities[product.id] ?? 1) : undefined;
+      if (steamApp) {
+        const outcome = await buyWithSteam(token, product.id, quantity ?? 1, confirmDuplicate);
+        setBuying(null);
+        setDuplicateConfirm((prev) => {
+          const next = new Set(prev);
+          next.delete(product.id);
+          return next;
+        });
+        setProductNotices((prev) => ({ ...prev, [product.id]: STEAM_NOTICES[outcome] ?? '' }));
+        return;
+      }
       const { checkout_url } = await postCheckout(token, product.id, confirmDuplicate, quantity);
       window.location.href = checkout_url;
       // No finally-reset of `buying` on this path -- the page is navigating
@@ -468,7 +492,7 @@ export default function ShopPage() {
                         onClick={() => handleBuy(product)}
                         className="flex-1 px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-bold hover:bg-amber-600/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                       >
-                        {buying === product.id ? (ios ? 'Buying…' : 'Starting checkout…') : 'Buy'}
+                        {buying === product.id ? (ios || steamApp ? 'Buying…' : 'Starting checkout…') : 'Buy'}
                       </button>
                     </div>
                   )}
