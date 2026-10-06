@@ -7,6 +7,7 @@ import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
 import { APP_VERSION, BUILD_NUMBER } from '@/config';
 import { CITY_PATH } from '@/lib/cities';
 import AudioSettingsPanel from '@/components/audio/AudioSettingsPanel';
+import DeleteAccountPanel from '@/components/settings/DeleteAccountPanel';
 import LoadingState from '@/components/loading/LoadingState';
 
 const ALWAYS_VERIFY_EXPLANATION =
@@ -192,6 +193,10 @@ export default function SettingsPage() {
             and no reason a logged-out player should be unable to turn the
             music down. */}
         <AudioSettingsPanel />
+
+        {/* Also outside the gate: a Steam account has no email but can
+            still delete itself. */}
+        <DeleteAccountPanel />
 
         {/* First question in any store support ticket is "which build are
             you on" (docs/MOBILE_AND_STEAM_PLAN.md §4.2). */}

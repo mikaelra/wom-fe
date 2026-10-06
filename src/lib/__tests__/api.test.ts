@@ -29,6 +29,8 @@ import {
   leaveRankedQueue,
   logInUser,
   logOut,
+  deleteAccount,
+  affirmAge,
   postCheckout,
   resolveAccountSession,
   spinWheel,
@@ -485,6 +487,33 @@ describe('logOut', () => {
   it('is a no-op success when there is no token to revoke', async () => {
     await expect(logOut(null)).resolves.toEqual({ success: true });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('deleteAccount', () => {
+  it('posts the typed name and logs this browser out', async () => {
+    setStoredAccountToken('sess-1');
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'deleted' }));
+    await deleteAccount('sess-1', 'Toad');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: 'sess-1', confirm_name: 'Toad' });
+    expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/account/delete`);
+    expect(getStoredAccountToken()).toBeNull();
+  });
+
+  it("passes on the backend's refusal and stays logged in", async () => {
+    setStoredAccountToken('sess-1');
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Finish or leave your current game first.', code: 'in_game' }, 409));
+    await expect(deleteAccount('sess-1', 'Toad')).rejects.toThrow('Finish or leave your current game first.');
+    expect(getStoredAccountToken()).toBe('sess-1');
+  });
+});
+
+describe('affirmAge', () => {
+  it('posts the token', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ age_affirmed: true }));
+    await affirmAge('sess-1');
+    expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/account/age`);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: 'sess-1' });
   });
 });
 
