@@ -125,6 +125,24 @@ async function getAuthTicket() {
   }
 }
 
+/**
+ * Calls `handler({ orderId, authorized })` whenever the player answers a
+ * Steam Wallet purchase dialog (MicroTxnAuthorizationResponse) -- the game
+ * passes it on to the backend (src/lib/steamShop.ts). orderId is our
+ * orders.id, as a string. No-op when Steam is off.
+ */
+function onMicroTxnAuthorization(handler) {
+  if (!client) return;
+  try {
+    client.callback.register(client.callback.SteamCallback.MicroTxnAuthorizationResponse, (value) => {
+      if (value.app_id !== APP_ID) return;
+      handler({ orderId: String(value.order_id), authorized: !!value.authorized });
+    });
+  } catch (err) {
+    console.warn('[steam] could not listen for purchase answers:', err.message);
+  }
+}
+
 function shutdown() {
   // steamworks.js has no explicit shutdown; the process exit handles it.
   client = null;
@@ -138,5 +156,6 @@ module.exports = {
   getSteamId,
   getPlayerName,
   getAuthTicket,
+  onMicroTxnAuthorization,
   shutdown,
 };

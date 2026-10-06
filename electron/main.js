@@ -116,8 +116,7 @@ if (steam.restartAppIfNecessary()) {
 
     // The renderer asks for Steam identity through this channel (see
     // electron/preload.js -> window.wom): who is signed in, and a login
-    // ticket for the backend. Achievements and rich presence get their own
-    // channels when they land.
+    // ticket for the backend. (Achievements are unlocked by the backend.)
     ipcMain.on('wom:quit', () => app.quit());
     ipcMain.handle('wom:steam-ticket', () => steam.getAuthTicket());
     ipcMain.handle('wom:steam-info', () => ({
@@ -131,6 +130,12 @@ if (steam.restartAppIfNecessary()) {
     // Steam overlay needs (in-process-gpu, disable-direct-composition), which
     // are ignored once the GPU process has started.
     steam.init();
+
+    // The player's answer to a Steam Wallet purchase dialog, passed to the
+    // game (electron/preload.js onSteamPurchaseAnswer).
+    steam.onMicroTxnAuthorization((answer) => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('wom:steam-microtxn', answer);
+    });
 
     app.whenReady().then(() => {
       registerAppProtocol();
