@@ -190,6 +190,17 @@ export const ResolveAccountSessionResponseSchema = z.object({
   email: z.string().nullable(),
   always_verify_email: z.boolean(),
   email_verified: z.boolean(),
+  // Whether the player has confirmed they're 18+ (or have guardian
+  // consent), as the Terms require. Older backends leave it out.
+  age_affirmed: z.boolean().optional(),
+});
+
+export const DeleteAccountResponseSchema = z.object({
+  status: z.literal('deleted'),
+});
+
+export const AgeAffirmResponseSchema = z.object({
+  age_affirmed: z.boolean(),
 });
 
 export const LogOutResponseSchema = z.object({

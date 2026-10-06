@@ -45,6 +45,8 @@ import {
   ConfirmEmailVerificationResponseSchema,
   ForgotUsernameResponseSchema,
   ResolveAccountSessionResponseSchema,
+  DeleteAccountResponseSchema,
+  AgeAffirmResponseSchema,
   LogOutResponseSchema,
   ClaimPendingWheelResponseSchema,
   ArtifactLedgerResponseSchema,
@@ -618,10 +620,36 @@ export async function checkClaimVerified(name: string, email: string): Promise<{
 
 export async function resolveAccountSession(
   token: string
-): Promise<{ name: string; email: string | null; always_verify_email: boolean; email_verified: boolean }> {
+): Promise<{
+  name: string;
+  email: string | null;
+  always_verify_email: boolean;
+  email_verified: boolean;
+  age_affirmed?: boolean;
+}> {
   return request('/resolve_account_session', ResolveAccountSessionResponseSchema, {
     body: { token },
     defaultErrorMessage: 'Invalid or expired session.',
+  });
+}
+
+/** Delete the logged-in account for good (wom-be routes/account.py). The
+ *  player confirms by typing their exact name. On success this browser is
+ *  logged out too -- the backend has already revoked every session. */
+export async function deleteAccount(token: string, confirmName: string): Promise<void> {
+  await request('/account/delete', DeleteAccountResponseSchema, {
+    body: { token, confirm_name: confirmName },
+    defaultErrorMessage: 'Could not delete your account.',
+  });
+  setStoredAccountToken(null);
+}
+
+/** Record that the player confirmed they're 18 or older (or have guardian
+ *  consent). */
+export async function affirmAge(token: string): Promise<void> {
+  await request('/account/age', AgeAffirmResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Could not save your answer.',
   });
 }
 
