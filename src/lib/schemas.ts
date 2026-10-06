@@ -462,6 +462,15 @@ export const CheckoutResponseSchema = z.object({
   order_id: z.number().int(),
 });
 
+// POST /auth/steam, /auth/steam/create, /auth/steam/link -- logging in with
+// the Steam account in the Steam build (src/lib/steamAccount.ts). "new" means
+// this Steam account has no World of Mythos account yet.
+export const SteamAuthResponseSchema = z.object({
+  status: z.enum(['ok', 'new']),
+  name: z.string().optional(),
+  session_token: z.string().optional(),
+});
+
 // POST /shop/apple/prepare -- the iOS app's shop (StoreKit): the player's
 // appAccountToken and the products sellable in their App Store country.
 export const ApplePrepareResponseSchema = z.object({

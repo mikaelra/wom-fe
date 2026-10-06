@@ -115,9 +115,11 @@ if (steam.restartAppIfNecessary()) {
     });
 
     // The renderer asks for Steam identity through this channel (see
-    // electron/preload.js -> window.wom). Kept read-only for now; achievements
-    // and rich presence get their own channels when they land.
+    // electron/preload.js -> window.wom): who is signed in, and a login
+    // ticket for the backend. Achievements and rich presence get their own
+    // channels when they land.
     ipcMain.on('wom:quit', () => app.quit());
+    ipcMain.handle('wom:steam-ticket', () => steam.getAuthTicket());
     ipcMain.handle('wom:steam-info', () => ({
       enabled: steam.isEnabled(),
       steamId: steam.getSteamId(),

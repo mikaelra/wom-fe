@@ -23,6 +23,9 @@ declare global {
         playerName: string | null;
         appId: number;
       }>;
+      /** A hex Web API auth ticket for the backend's Steam login, or null
+       *  when Steam is off. */
+      getSteamTicket(): Promise<string | null>;
       /** Closes the game window and exits. */
       quit(): void;
     };

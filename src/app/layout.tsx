@@ -5,6 +5,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
 import LoadingOverlay from "@/components/loading/LoadingOverlay";
 import AppleTransactionSync from "@/components/shop/AppleTransactionSync";
+import SteamWelcome from "@/components/steam/SteamWelcome";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,6 +48,7 @@ export default function RootLayout({
           <ErrorBoundary>{children}</ErrorBoundary>
           <LoadingOverlay />
           <AppleTransactionSync />
+          <SteamWelcome />
         </ToastProvider>
       </body>
     </html>

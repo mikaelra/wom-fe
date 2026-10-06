@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getSocket, subscribe } from '@/lib/socket';
-import { getStoredToken } from '@/lib/http';
+import { getStoredAccountToken, getStoredToken } from '@/lib/http';
 import type { LobbyState, ChatMessage } from '@/types/game';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
@@ -67,7 +67,7 @@ export function useLobbyConnection(
     // own owner.
     const rejoin = () => {
       const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
-      sock.emit('join_lobby', { lobby_id: lobbyId, name: playerName, email });
+      sock.emit('join_lobby', { lobby_id: lobbyId, name: playerName, email, account_token: getStoredAccountToken() ?? undefined });
       sock.emit('join_room', { lobby_id: lobbyId, token: getStoredToken(lobbyId) });
     };
 
