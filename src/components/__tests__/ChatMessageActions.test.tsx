@@ -43,9 +43,14 @@ describe('ChatMessageActions', () => {
     expect(getMutedPlayers().has('Toad')).toBe(false);
   });
 
-  it('offers Report only when logged in', () => {
+  it('reports without an account too', async () => {
+    report.mockResolvedValue(undefined);
     open();
-    expect(screen.queryByRole('button', { name: 'Report' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Report' }));
+    fireEvent.change(screen.getByLabelText(/wrong with this message/), { target: { value: 'Rude.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send report' }));
+    expect(await screen.findByText('Report sent.')).toBeTruthy();
+    expect(report).toHaveBeenCalledWith(null, expect.objectContaining({ reportedName: 'Toad' }));
   });
 
   it('sends a report once something is written', async () => {

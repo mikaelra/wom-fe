@@ -20,6 +20,7 @@ import { CITY_PATH } from '@/lib/cities';
 import { isLobbyGoneError } from '@/lib/lobbyErrors';
 import ChatMessageActions, { MutedMark, type ChatTarget } from '@/components/chat/ChatMessageActions';
 import { getMutedPlayers, useMutedPlayers, hideMuted } from '@/lib/chatMute';
+import { useChatText } from '@/lib/chatFilter';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -167,6 +168,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [messagesHidden, setMessagesHidden] = useState(false);
   const [playerListCollapsed, setPlayerListCollapsed] = useState(false);
   const muted = useMutedPlayers();
+  const chatText = useChatText();
   const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
   const messagesRef = useRef<HTMLUListElement>(null);
   const [chatInput, setChatInput] = useState('');
@@ -627,7 +629,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                     >
                       {muted.has(m.sender) && <MutedMark />}
                       <span className="text-blue-300 font-semibold">{m.sender}: </span>
-                      <span className="text-gray-200">{m.message}</span>
+                      <span className="text-gray-200">{chatText(m.message)}</span>
                     </div>
                   ))}
                   <div ref={chatEndRef} />
@@ -978,7 +980,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                   >
                     {muted.has(m.sender) && <MutedMark />}
                     <span className="text-blue-300 font-semibold">{m.sender}: </span>
-                    <span className="text-gray-200">{m.message}</span>
+                    <span className="text-gray-200">{chatText(m.message)}</span>
                   </div>
                 ))}
                 <div ref={chatEndRef} />

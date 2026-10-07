@@ -654,9 +654,10 @@ export async function affirmAge(token: string): Promise<void> {
   });
 }
 
-/** Report another player's chat message (wom-be routes/chat_report.py). */
+/** Report another player's chat message (wom-be routes/chat_report.py).
+ *  `token` is null for a player without an account. */
 export async function reportChatMessage(
-  token: string,
+  token: string | null,
   report: { reportedName: string; message: string; context: 'lobby' | 'market'; complaint: string },
 ): Promise<void> {
   await request('/chat/report', ChatReportResponseSchema, {

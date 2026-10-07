@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { recentChat, type MarketChatEntry } from '@/lib/market';
 import type { MarketFrogs } from '@/lib/schemas';
 import { useMutedPlayers, hideMuted } from '@/lib/chatMute';
+import { useChatText } from '@/lib/chatFilter';
 import ChatMessageActions, { MutedMark, type ChatTarget } from '@/components/chat/ChatMessageActions';
 
 /** Local wall-clock "HH:MM" for a chat line, or "" if the timestamp
@@ -55,6 +56,7 @@ export default function MarketChatPanel({
   }, []);
 
   const muted = useMutedPlayers();
+  const chatText = useChatText();
   const visible = useMemo(() => hideMuted(recentChat(messages, nowMs), muted), [messages, nowMs, muted]);
   const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
   // Your own lines can't be muted or reported.
@@ -142,7 +144,7 @@ export default function MarketChatPanel({
               {muted.has(m.sender) && <><MutedMark /> </>}
               <span className="text-emerald-400/90 font-semibold">{m.sender}</span>
               <span className="text-white/40"> · </span>
-              <span className="text-white/85 break-words">{m.message}</span>
+              <span className="text-white/85 break-words">{chatText(m.message)}</span>
             </div>
             <time
               dateTime={m.timestamp}

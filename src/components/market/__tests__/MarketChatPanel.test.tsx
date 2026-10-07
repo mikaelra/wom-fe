@@ -124,4 +124,13 @@ describe('MarketChatPanel · Frogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Unmute' }));
     expect(screen.getByText('older')).toBeInTheDocument();
   });
+
+  it('stars out bad words unless the filter is off', () => {
+    const { unmount } = renderPanel([msg(1, 'what the shit')]);
+    expect(screen.getByText('what the ****')).toBeInTheDocument();
+    unmount();
+    localStorage.setItem('wom_chat_filter', 'off');
+    renderPanel([msg(1, 'what the shit')]);
+    expect(screen.getByText('what the shit')).toBeInTheDocument();
+  });
 });

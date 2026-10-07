@@ -3,14 +3,16 @@
 import { useState } from 'react';
 import { reportChatMessage } from '@/lib/api';
 import { setMuted, useMutedPlayers } from '@/lib/chatMute';
+import { useChatText } from '@/lib/chatFilter';
 import { getStoredAccountToken } from '@/lib/http';
 
 // What tapping another player's chat message (lobby or market) opens: Mute
 // (Unmute, on a muted player's message) or Report. Mute hides their
 // messages on this device (lib/chatMute.ts).
 // Report asks what is wrong and sends it to wom-be (POST /chat/report),
-// where it is counted in the weekly stats email; it needs an account, so it
-// isn't offered to a player who isn't logged in.
+// where it is counted in the weekly stats email. Offered to everyone who can
+// chat -- lobby chat is open without an account, and the backend takes a
+// report without one.
 
 export type ChatTarget = { sender: string; message: string };
 
@@ -34,6 +36,7 @@ export default function ChatMessageActions({
   const [complaint, setComplaint] = useState('');
   const [error, setError] = useState('');
   const muted = useMutedPlayers();
+  const chatText = useChatText();
 
   if (!target) return null;
   const isMuted = muted.has(target.sender);
@@ -47,7 +50,6 @@ export default function ChatMessageActions({
   };
 
   const send = async () => {
-    if (!token) return;
     setPhase('sending');
     setError('');
     try {
@@ -76,7 +78,7 @@ export default function ChatMessageActions({
     >
       <div className="bg-gray-900 border border-white/20 text-white p-5 rounded-xl shadow-2xl max-w-sm w-full mx-4">
         <p className="font-bold">{target.sender}</p>
-        <p className="text-sm text-white/70 mt-1 break-words">{target.message}</p>
+        <p className="text-sm text-white/70 mt-1 break-words">{chatText(target.message)}</p>
 
         {phase === 'menu' && (
           <div className="flex gap-3 mt-5">
@@ -90,15 +92,13 @@ export default function ChatMessageActions({
             >
               {isMuted ? 'Unmute' : 'Mute'}
             </button>
-            {token && (
-              <button
-                type="button"
-                onClick={() => setPhase('report')}
-                className={`${button} flex-1 bg-red-900/60 hover:bg-red-800/70 border border-red-700/60`}
-              >
-                Report
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setPhase('report')}
+              className={`${button} flex-1 bg-red-900/60 hover:bg-red-800/70 border border-red-700/60`}
+            >
+              Report
+            </button>
           </div>
         )}
 
