@@ -18,7 +18,8 @@ import { getStoredAccountToken } from '@/lib/http';
 import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
 import ExitGamePrompt from '@/components/ExitGamePrompt';
 import HudToggle from '@/components/worldmap/HudToggle';
-import { useHudHidden } from '@/lib/hudHidden';
+import LoadingMark from '@/components/loading/LoadingMark';
+import { useHudHidden, useHudLoadingMark } from '@/lib/hudHidden';
 
 const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
 
@@ -45,6 +46,7 @@ export default function Page() {
   // become interactive before the WebGL context initialises.
   const [sceneReady, setSceneReady] = useState(false);
   const hudHidden = useHudHidden();
+  const hudLoadingMark = useHudLoadingMark();
 
   // Set once the city route has been asked for but this page is still
   // mounted. Never cleared: the only way out is the navigation itself, and
@@ -174,6 +176,13 @@ export default function Page() {
         }
       />}
       <HudToggle />
+      {/* With the HUD hidden, a tap on the globe loops the loading animation
+          where the loading screen shows it (lib/hudHidden.ts). */}
+      {hudLoadingMark && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center pointer-events-none">
+          <LoadingMark size={128} />
+        </div>
+      )}
       <AssetLoadingReporter />
       {sceneReady && (
         <Canvas

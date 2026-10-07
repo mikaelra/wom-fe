@@ -25,7 +25,7 @@ import {
 import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
 import { earthTexturePaths } from '@/lib/ktx2Textures';
 import { useGameTextures } from '@/lib/useGameTextures';
-import { useHudHidden } from '@/lib/hudHidden';
+import { toggleHudLoadingMark, useHudHidden } from '@/lib/hudHidden';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
@@ -1120,7 +1120,15 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
   useFrame(() => { if (cloudsRef.current) cloudsRef.current.rotation.y += 0.000075; });
 
   return (
-    <group rotation={[0, earthRot, 0]}>
+    <group
+      rotation={[0, earthRot, 0]}
+      // With the HUD hidden, a tap on the globe (not the end of a drag to
+      // turn it) turns the loading animation on and off (lib/hudHidden.ts).
+      onClick={hudHidden ? (e) => {
+        e.stopPropagation();
+        if (e.delta <= 4) toggleHudLoadingMark();
+      } : undefined}
+    >
       <mesh geometry={geo}>
         <meshPhongMaterial
           map={earthMap}
