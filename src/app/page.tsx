@@ -174,7 +174,7 @@ export default function Page() {
         }
       />}
       <HudToggle />
-      <AssetLoadingReporter gradual />
+      <AssetLoadingReporter />
       {sceneReady && (
         <Canvas
           camera={{ position: [0, 3, 10.5], fov: 50 }}

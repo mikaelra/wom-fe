@@ -411,3 +411,23 @@ export function pickLoadingVariant(spec: LoadingAnimationSpec, random: () => num
   const startFoldedOut = single ? kind === 'v11' : pickLoadingStart(spec, random);
   return { kind, color, startFoldedOut };
 }
+
+function sameVariant(a: LoadingVariant, b: LoadingVariant): boolean {
+  return a.kind === b.kind && a.color === b.color && a.startFoldedOut === b.startFoldedOut;
+}
+
+/** The variant for the next loop after `previous`: drawn by the same odds
+ *  as pickLoadingVariant, but never `previous` again -- drawing again on a
+ *  repeat keeps every other variant's odds relative to one another. Gives
+ *  up after `tries` repeats (only possible when the spec allows nothing
+ *  else) and keeps the last draw. */
+export function pickNextLoadingVariant(
+  spec: LoadingAnimationSpec,
+  previous: LoadingVariant,
+  random: () => number = Math.random,
+  tries = 100,
+): LoadingVariant {
+  let next = pickLoadingVariant(spec, random);
+  for (let i = 1; i < tries && sameVariant(next, previous); i++) next = pickLoadingVariant(spec, random);
+  return next;
+}
