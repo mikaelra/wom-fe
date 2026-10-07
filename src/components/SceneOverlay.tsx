@@ -18,6 +18,9 @@ import { useToast } from '@/components/Toast';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import { CITY_PATH } from '@/lib/cities';
 import { isLobbyGoneError } from '@/lib/lobbyErrors';
+import ChatMessageActions, { MutedMark, type ChatTarget } from '@/components/chat/ChatMessageActions';
+import { getMutedPlayers, useMutedPlayers, hideMuted } from '@/lib/chatMute';
+import { useChatText } from '@/lib/chatFilter';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -164,6 +167,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const [messagesOverflow, setMessagesOverflow] = useState(false);
   const [messagesHidden, setMessagesHidden] = useState(false);
   const [playerListCollapsed, setPlayerListCollapsed] = useState(false);
+  const muted = useMutedPlayers();
+  const chatText = useChatText();
+  const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
   const messagesRef = useRef<HTMLUListElement>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatExpanded, setChatExpanded] = useState(false);
@@ -192,7 +198,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
 
   const orientation = useOrientation();
   const { state, connectionStatus } = useLobbyConnection(lobbyId, playerName, {
-    onChatMessage: () => {
+    onChatMessage: (msg) => {
+      if (getMutedPlayers().has(msg.sender)) return;
       if (!chatExpandedRef.current) setUnreadChat(true);
     },
     onError: (message) => {
@@ -610,13 +617,19 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             className="fixed pointer-events-auto z-50"
             style={{ bottom: '4%', left: '1%' }}
           >
+            <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
             {chatExpanded && (
               <div className="absolute bottom-14 left-0 w-72 max-w-[85vw] bg-black/85 backdrop-blur-sm rounded-xl border border-white/20 flex flex-col mb-1">
                 <div className="overflow-y-auto max-h-52 px-3 py-2 space-y-1">
-                  {(state.chat ?? []).map((m, i) => (
-                    <div key={i} className="text-xs leading-tight break-words">
+                  {hideMuted(state.chat ?? [], muted).map((m, i) => (
+                    <div
+                      key={i}
+                      className={`text-xs leading-tight break-words ${m.sender !== playerName ? 'cursor-pointer hover:bg-white/10 rounded' : ''} ${muted.has(m.sender) ? 'opacity-50' : ''}`}
+                      onClick={m.sender !== playerName ? () => setChatTarget(m) : undefined}
+                    >
+                      {muted.has(m.sender) && <MutedMark />}
                       <span className="text-blue-300 font-semibold">{m.sender}: </span>
-                      <span className="text-gray-200">{m.message}</span>
+                      <span className="text-gray-200">{chatText(m.message)}</span>
                     </div>
                   ))}
                   <div ref={chatEndRef} />
@@ -809,6 +822,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                     <span className={`truncate min-w-0 ${p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}`}>
                       {p.name}
                     </span>
+                    {muted.has(p.name) && <MutedMark />}
                   </li>
                 ))}
               </ul>
@@ -830,6 +844,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                       <span className={`truncate min-w-0 ${p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}`}>
                         {p.name}
                       </span>
+                      {muted.has(p.name) && <MutedMark />}
                     </li>
                   ))}
                 </ul>
@@ -953,13 +968,19 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           className="fixed pointer-events-auto z-50"
           style={{ bottom: '4%', left: '1%' }}
         >
+          <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
           {chatExpanded && (
             <div className="absolute bottom-14 left-0 w-72 max-w-[85vw] bg-black/85 backdrop-blur-sm rounded-xl border border-white/20 flex flex-col mb-1">
               <div className="overflow-y-auto max-h-52 px-3 py-2 space-y-1">
-                {(state?.chat ?? []).map((m, i) => (
-                  <div key={i} className="text-xs leading-tight break-words">
+                {hideMuted(state?.chat ?? [], muted).map((m, i) => (
+                  <div
+                    key={i}
+                    className={`text-xs leading-tight break-words ${m.sender !== playerName ? 'cursor-pointer hover:bg-white/10 rounded' : ''} ${muted.has(m.sender) ? 'opacity-50' : ''}`}
+                    onClick={m.sender !== playerName ? () => setChatTarget(m) : undefined}
+                  >
+                    {muted.has(m.sender) && <MutedMark />}
                     <span className="text-blue-300 font-semibold">{m.sender}: </span>
-                    <span className="text-gray-200">{m.message}</span>
+                    <span className="text-gray-200">{chatText(m.message)}</span>
                   </div>
                 ))}
                 <div ref={chatEndRef} />

@@ -31,6 +31,7 @@ import {
   logOut,
   deleteAccount,
   affirmAge,
+  reportChatMessage,
   postCheckout,
   resolveAccountSession,
   spinWheel,
@@ -514,6 +515,24 @@ describe('affirmAge', () => {
     await affirmAge('sess-1');
     expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/account/age`);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: 'sess-1' });
+  });
+});
+
+describe('reportChatMessage', () => {
+  it('posts the report', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'reported' }));
+    await reportChatMessage('sess-1', { reportedName: 'Toad', message: 'rude', context: 'lobby', complaint: 'Rude.' });
+    expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/chat/report`);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      token: 'sess-1', reported_name: 'Toad', message: 'rude', context: 'lobby', complaint: 'Rude.',
+    });
+  });
+
+  it("throws the backend's refusal", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Write what is wrong with the message.', code: 'complaint_required' }, 400));
+    await expect(
+      reportChatMessage('sess-1', { reportedName: 'Toad', message: 'rude', context: 'lobby', complaint: ' ' }),
+    ).rejects.toThrow('Write what is wrong with the message.');
   });
 });
 
