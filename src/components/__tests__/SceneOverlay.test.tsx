@@ -496,6 +496,33 @@ describe('chat panel', () => {
     expect(screen.queryByPlaceholderText('Chat…')).not.toBeInTheDocument();
   });
 
+  it('hides muted players\' messages and unread badge, marks them, and opens Mute / Report on others\' lines', () => {
+    localStorage.setItem('wom_muted_players', '["Bob"]');
+    const now = new Date().toISOString();
+    mockConnection({
+      ...baseState,
+      players: [basePlayer, { ...basePlayer, name: 'Bob' }, { ...basePlayer, name: 'Cy' }],
+      chat: [
+        { sender: 'Bob', message: 'muted line', timestamp: now },
+        { sender: 'Cy', message: 'cy line', timestamp: now },
+        { sender: 'Alice', message: 'my line', timestamp: now },
+      ],
+    });
+    render(<SceneOverlay lobbyId="AAAA" config={{ ...chatConfig, showPlayerList: true }} />);
+    act(() => {
+      capturedConnectionOptions?.onChatMessage?.({ sender: 'Bob', message: 'x', timestamp: now });
+    });
+    expect(document.querySelector('.bg-orange-500')).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText('Muted')).toHaveLength(1);
+
+    fireEvent.click(screen.getByLabelText('Toggle chat'));
+    expect(screen.queryByText('muted line')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('my line'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('cy line'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   it('toggles open and sends a message via the ↵ button (pre-game)', () => {
     const preGameState: LobbyState = { ...baseState, round: 0 };
     mockConnection(preGameState);

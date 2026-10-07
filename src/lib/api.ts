@@ -47,6 +47,7 @@ import {
   ResolveAccountSessionResponseSchema,
   DeleteAccountResponseSchema,
   AgeAffirmResponseSchema,
+  ChatReportResponseSchema,
   LogOutResponseSchema,
   ClaimPendingWheelResponseSchema,
   ArtifactLedgerResponseSchema,
@@ -650,6 +651,23 @@ export async function affirmAge(token: string): Promise<void> {
   await request('/account/age', AgeAffirmResponseSchema, {
     body: { token },
     defaultErrorMessage: 'Could not save your answer.',
+  });
+}
+
+/** Report another player's chat message (wom-be routes/chat_report.py). */
+export async function reportChatMessage(
+  token: string,
+  report: { reportedName: string; message: string; context: 'lobby' | 'market'; complaint: string },
+): Promise<void> {
+  await request('/chat/report', ChatReportResponseSchema, {
+    body: {
+      token,
+      reported_name: report.reportedName,
+      message: report.message,
+      context: report.context,
+      complaint: report.complaint,
+    },
+    defaultErrorMessage: 'Could not send the report.',
   });
 }
 

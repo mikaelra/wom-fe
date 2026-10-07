@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { setMuted } from '@/lib/chatMute';
 import MarketChatPanel from '@/components/market/MarketChatPanel';
 import type { MarketChatEntry } from '@/lib/market';
 import type { MarketFrogs } from '@/lib/schemas';
@@ -18,6 +19,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  localStorage.clear();
 });
 
 const noop = vi.fn();
@@ -94,5 +96,25 @@ describe('MarketChatPanel · Frogs', () => {
     openFrogs();
 
     expect(screen.getByText('Nobody in the market right now.')).toBeInTheDocument();
+  });
+
+  it('hides muted players\' messages and marks them in the Frogs list', () => {
+    act(() => setMuted('Bo', true));
+    renderPanel([msg(1, 'from bo'), { ...msg(1, 'from toad'), sender: 'Toad' }], { count: 2, names: ['Bo', 'Toad'] });
+    expect(screen.queryByText('from bo')).toBeNull();
+    expect(screen.getByText('from toad')).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Frogs/));
+    expect(screen.getAllByLabelText('Muted')).toHaveLength(1);
+  });
+
+  it('opens Mute / Report on someone else\'s message, not your own', () => {
+    localStorage.setItem('playerName', 'Me');
+    renderPanel([{ ...msg(1, 'mine'), sender: 'Me' }, msg(1, 'theirs')]);
+    fireEvent.click(screen.getByText('mine'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByText('theirs'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Mute' }));
+    expect(screen.queryByText('theirs')).toBeNull();
   });
 });

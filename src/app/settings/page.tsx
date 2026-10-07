@@ -8,6 +8,7 @@ import { APP_VERSION, BUILD_NUMBER } from '@/config';
 import { CITY_PATH } from '@/lib/cities';
 import AudioSettingsPanel from '@/components/audio/AudioSettingsPanel';
 import DeleteAccountPanel from '@/components/settings/DeleteAccountPanel';
+import MutedPlayersPanel from '@/components/settings/MutedPlayersPanel';
 import LoadingState from '@/components/loading/LoadingState';
 
 const ALWAYS_VERIFY_EXPLANATION =
@@ -196,6 +197,7 @@ export default function SettingsPage() {
 
         {/* Also outside the gate: a Steam account has no email but can
             still delete itself. */}
+        <MutedPlayersPanel />
         <DeleteAccountPanel />
 
         {/* First question in any store support ticket is "which build are

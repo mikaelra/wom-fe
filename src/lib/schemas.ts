@@ -203,6 +203,10 @@ export const AgeAffirmResponseSchema = z.object({
   age_affirmed: z.boolean(),
 });
 
+export const ChatReportResponseSchema = z.object({
+  status: z.literal('reported'),
+});
+
 export const LogOutResponseSchema = z.object({
   success: z.boolean(),
 });
