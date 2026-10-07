@@ -1,7 +1,8 @@
-// Muted players: their chat messages (lobby and market) are hidden, and a
+// Muted players: their chat messages (lobby and market) are hidden but for
+// their latest, which stays (dimmed) so it can be tapped to unmute; and a
 // mute symbol shows beside them in the player lists. Kept on this device
-// only, by name -- the backend never hears about it. Unmuted from
-// Settings -> Muted players.
+// only, by name -- the backend never hears about it. Unmuted from that
+// message, or Settings -> Muted players.
 
 import { useSyncExternalStore } from 'react';
 
@@ -61,7 +62,14 @@ export function useMutedPlayers(): ReadonlySet<string> {
   return useSyncExternalStore(subscribe, getMutedPlayers, () => EMPTY);
 }
 
-/** Chat messages without the muted players' ones. */
-export function withoutMuted<T extends { sender: string }>(messages: readonly T[], muted: ReadonlySet<string>): T[] {
-  return muted.size ? messages.filter((m) => !muted.has(m.sender)) : [...messages];
+/** Chat messages with each muted player's reduced to their latest one --
+ *  left in place (shown dimmed, with the mute symbol) so it can be tapped
+ *  to unmute them. */
+export function hideMuted<T extends { sender: string }>(messages: readonly T[], muted: ReadonlySet<string>): T[] {
+  if (!muted.size) return [...messages];
+  const latest = new Map<string, number>();
+  messages.forEach((m, i) => {
+    if (muted.has(m.sender)) latest.set(m.sender, i);
+  });
+  return messages.filter((m, i) => !muted.has(m.sender) || latest.get(m.sender) === i);
 }

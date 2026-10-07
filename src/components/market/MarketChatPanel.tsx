@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { recentChat, type MarketChatEntry } from '@/lib/market';
 import type { MarketFrogs } from '@/lib/schemas';
-import { useMutedPlayers, withoutMuted } from '@/lib/chatMute';
+import { useMutedPlayers, hideMuted } from '@/lib/chatMute';
 import ChatMessageActions, { MutedMark, type ChatTarget } from '@/components/chat/ChatMessageActions';
 
 /** Local wall-clock "HH:MM" for a chat line, or "" if the timestamp
@@ -55,7 +55,7 @@ export default function MarketChatPanel({
   }, []);
 
   const muted = useMutedPlayers();
-  const visible = useMemo(() => withoutMuted(recentChat(messages, nowMs), muted), [messages, nowMs, muted]);
+  const visible = useMemo(() => hideMuted(recentChat(messages, nowMs), muted), [messages, nowMs, muted]);
   const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
   // Your own lines can't be muted or reported.
   const [ownName, setOwnName] = useState('');
@@ -135,10 +135,11 @@ export default function MarketChatPanel({
         {visible.map((m, i) => (
           <div
             key={`${m.timestamp}-${i}`}
-            className={`flex gap-2 leading-snug ${m.sender !== ownName ? 'cursor-pointer hover:bg-white/5 rounded' : ''}`}
+            className={`flex gap-2 leading-snug ${m.sender !== ownName ? 'cursor-pointer hover:bg-white/5 rounded' : ''} ${muted.has(m.sender) ? 'opacity-50' : ''}`}
             onClick={m.sender !== ownName ? () => setChatTarget(m) : undefined}
           >
             <div className="min-w-0 flex-1">
+              {muted.has(m.sender) && <><MutedMark /> </>}
               <span className="text-emerald-400/90 font-semibold">{m.sender}</span>
               <span className="text-white/40"> · </span>
               <span className="text-white/85 break-words">{m.message}</span>

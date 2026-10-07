@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { reportChatMessage } from '@/lib/api';
-import { setMuted } from '@/lib/chatMute';
+import { setMuted, useMutedPlayers } from '@/lib/chatMute';
 import { getStoredAccountToken } from '@/lib/http';
 
 // What tapping another player's chat message (lobby or market) opens: Mute
-// or Report. Mute hides their messages on this device (lib/chatMute.ts).
+// (Unmute, on a muted player's message) or Report. Mute hides their
+// messages on this device (lib/chatMute.ts).
 // Report asks what is wrong and sends it to wom-be (POST /chat/report),
 // where it is counted in the weekly stats email; it needs an account, so it
 // isn't offered to a player who isn't logged in.
@@ -32,8 +33,10 @@ export default function ChatMessageActions({
   const [phase, setPhase] = useState<Phase>('menu');
   const [complaint, setComplaint] = useState('');
   const [error, setError] = useState('');
+  const muted = useMutedPlayers();
 
   if (!target) return null;
+  const isMuted = muted.has(target.sender);
   const token = getStoredAccountToken();
 
   const close = () => {
@@ -80,12 +83,12 @@ export default function ChatMessageActions({
             <button
               type="button"
               onClick={() => {
-                setMuted(target.sender, true);
+                setMuted(target.sender, !isMuted);
                 close();
               }}
               className={`${button} flex-1 bg-white/10 hover:bg-white/20 border border-white/20`}
             >
-              Mute
+              {isMuted ? 'Unmute' : 'Mute'}
             </button>
             {token && (
               <button

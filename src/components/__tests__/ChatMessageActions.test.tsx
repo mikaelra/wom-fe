@@ -4,7 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 vi.mock('@/lib/api', () => ({ reportChatMessage: vi.fn() }));
 
 import { reportChatMessage } from '@/lib/api';
-import { getMutedPlayers } from '@/lib/chatMute';
+import { getMutedPlayers, setMuted } from '@/lib/chatMute';
 import { setStoredAccountToken } from '@/lib/http';
 import ChatMessageActions from '@/components/chat/ChatMessageActions';
 
@@ -34,6 +34,13 @@ describe('ChatMessageActions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mute' }));
     expect(getMutedPlayers().has('Toad')).toBe(true);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('on a muted player\'s message, offers Unmute', () => {
+    setMuted('Toad', true);
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Unmute' }));
+    expect(getMutedPlayers().has('Toad')).toBe(false);
   });
 
   it('offers Report only when logged in', () => {

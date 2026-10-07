@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { getMutedPlayers, setMuted, useMutedPlayers, withoutMuted } from '@/lib/chatMute';
+import { getMutedPlayers, hideMuted, setMuted, useMutedPlayers } from '@/lib/chatMute';
 
 afterEach(() => {
   localStorage.clear();
@@ -51,9 +51,13 @@ describe('chatMute', () => {
     expect(result.current.has('Zed')).toBe(true);
   });
 
-  it('withoutMuted drops the muted senders only', () => {
-    const msgs = [{ sender: 'Bo', message: 'a' }, { sender: 'Toad', message: 'b' }];
-    expect(withoutMuted(msgs, new Set())).toEqual(msgs);
-    expect(withoutMuted(msgs, new Set(['Bo']))).toEqual([{ sender: 'Toad', message: 'b' }]);
+  it('hideMuted keeps only the latest line of each muted player, in place', () => {
+    const msgs = [
+      { sender: 'Bo', message: 'a' }, { sender: 'Toad', message: 'b' },
+      { sender: 'Bo', message: 'c' }, { sender: 'Toad', message: 'd' },
+    ];
+    expect(hideMuted(msgs, new Set())).toEqual(msgs);
+    expect(hideMuted(msgs, new Set(['Bo']))).toEqual([msgs[1], msgs[2], msgs[3]]);
+    expect(hideMuted(msgs, new Set(['Bo', 'Toad']))).toEqual([msgs[2], msgs[3]]);
   });
 });

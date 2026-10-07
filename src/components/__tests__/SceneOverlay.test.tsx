@@ -496,7 +496,7 @@ describe('chat panel', () => {
     expect(screen.queryByPlaceholderText('Chat…')).not.toBeInTheDocument();
   });
 
-  it('hides muted players\' messages and unread badge, marks them, and opens Mute / Report on others\' lines', () => {
+  it('keeps only a muted player\'s latest line, hides their unread badge, marks them, and opens Mute / Report on others\' lines', () => {
     localStorage.setItem('wom_muted_players', '["Bob"]');
     const now = new Date().toISOString();
     mockConnection({
@@ -504,6 +504,7 @@ describe('chat panel', () => {
       players: [basePlayer, { ...basePlayer, name: 'Bob' }, { ...basePlayer, name: 'Cy' }],
       chat: [
         { sender: 'Bob', message: 'muted line', timestamp: now },
+        { sender: 'Bob', message: 'bob latest', timestamp: now },
         { sender: 'Cy', message: 'cy line', timestamp: now },
         { sender: 'Alice', message: 'my line', timestamp: now },
       ],
@@ -517,6 +518,7 @@ describe('chat panel', () => {
 
     fireEvent.click(screen.getByLabelText('Toggle chat'));
     expect(screen.queryByText('muted line')).not.toBeInTheDocument();
+    expect(screen.getByText('bob latest')).toBeInTheDocument();
     fireEvent.click(screen.getByText('my line'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('cy line'));

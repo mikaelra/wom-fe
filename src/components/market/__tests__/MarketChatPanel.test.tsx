@@ -98,23 +98,30 @@ describe('MarketChatPanel · Frogs', () => {
     expect(screen.getByText('Nobody in the market right now.')).toBeInTheDocument();
   });
 
-  it('hides muted players\' messages and marks them in the Frogs list', () => {
+  it('keeps only a muted player\'s latest line, marked, and marks them in the Frogs list', () => {
     act(() => setMuted('Bo', true));
-    renderPanel([msg(1, 'from bo'), { ...msg(1, 'from toad'), sender: 'Toad' }], { count: 2, names: ['Bo', 'Toad'] });
-    expect(screen.queryByText('from bo')).toBeNull();
+    renderPanel(
+      [msg(2, 'old bo'), msg(1, 'latest bo'), { ...msg(1, 'from toad'), sender: 'Toad' }],
+      { count: 2, names: ['Bo', 'Toad'] },
+    );
+    expect(screen.queryByText('old bo')).toBeNull();
+    expect(screen.getByText('latest bo')).toBeInTheDocument();
     expect(screen.getByText('from toad')).toBeInTheDocument();
-    fireEvent.click(screen.getByText(/Frogs/));
     expect(screen.getAllByLabelText('Muted')).toHaveLength(1);
+    fireEvent.click(screen.getByText(/Frogs/));
+    expect(screen.getAllByLabelText('Muted')).toHaveLength(2);
   });
 
-  it('opens Mute / Report on someone else\'s message, not your own', () => {
+  it('opens Mute / Report on someone else\'s message, not your own, and unmutes from the kept line', () => {
     localStorage.setItem('playerName', 'Me');
-    renderPanel([{ ...msg(1, 'mine'), sender: 'Me' }, msg(1, 'theirs')]);
+    renderPanel([{ ...msg(1, 'mine'), sender: 'Me' }, msg(2, 'older'), msg(1, 'theirs')]);
     fireEvent.click(screen.getByText('mine'));
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(screen.getByText('theirs'));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Mute' }));
-    expect(screen.queryByText('theirs')).toBeNull();
+    expect(screen.queryByText('older')).toBeNull();
+    fireEvent.click(screen.getByText('theirs'));
+    fireEvent.click(screen.getByRole('button', { name: 'Unmute' }));
+    expect(screen.getByText('older')).toBeInTheDocument();
   });
 });
