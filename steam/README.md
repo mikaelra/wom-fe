@@ -29,7 +29,11 @@ The templates hold no IDs. `steam-upload.sh` renders concrete VDFs into
 3. **Installation → General**: launch options per OS (executable name is
    pinned via `executableName` in `../electron-builder.yml`) —
    - Windows: executable `world-of-mythos.exe`, OS `windows`
-   - Linux: executable `world-of-mythos`, OS `linux`
+   - Linux: executable `world-of-mythos.sh`, OS `Linux + SteamOS` — the
+     wrapper in `../electron/linux/`, not the binary: started by Steam, the
+     binary crashes on the Steam overlay (LD_PRELOADed into Chromium's zygote)
+     and on Wayland inside Steam's runtime container. The script strips the
+     overlay and forces X11.
 4. **Publish** those changes (depots/launch options aren't live until published).
 5. An account with **Edit App Metadata** + **Publish App Changes To Steam** for
    the app. The account you created the Steamworks partner site with already

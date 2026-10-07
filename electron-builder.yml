@@ -29,6 +29,7 @@ directories:
 # (~800 MB of webpack/babel/sentry/sharp the shell never loads).
 files:
   - electron/**/*
+  - '!electron/linux/**'
   - out/**/*
   - package.json
   - '!**/steam_appid.txt'
@@ -64,3 +65,9 @@ linux:
     - target: AppImage
       arch: [x64]
   category: Game
+  # The Steam Linux launch option is this script, not the binary: it drops the
+  # Steam overlay from LD_PRELOAD and forces X11, either of which otherwise
+  # crashes Electron under Steam. See the script.
+  extraFiles:
+    - from: electron/linux/world-of-mythos.sh
+      to: world-of-mythos.sh
