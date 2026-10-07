@@ -3,8 +3,8 @@
 // text), the merchants' markers and the planets' labels are gone, leaving
 // just the globe and the sky -- for screenshots and store art. While it is
 // on, a tap on the globe turns the loading animation on and off in the
-// middle of the screen, looping for as long as it is on, at the size the
-// Sun has on screen (reportSunScreenSize, from the sky, every frame) -- so
+// middle of the screen, looping for as long as it is on, half the size the
+// Earth has on screen (reportHudMarkSize, from the sky, every frame) -- so
 // it grows and shrinks with the zoom. Only for the current visit: a reload
 // brings the HUD back.
 
@@ -12,8 +12,8 @@ import { useSyncExternalStore } from 'react';
 
 let hidden = false;
 let loadingMark = false;
-let sunPx = 0;
-const sunSizeListeners = new Set<(px: number) => void>();
+let markPx = 0;
+const markSizeListeners = new Set<(px: number) => void>();
 const listeners = new Set<() => void>();
 
 export function isHudHidden(): boolean {
@@ -26,7 +26,7 @@ export function setHudHidden(next: boolean): void {
   // The loading animation belongs to the hidden HUD: back with the HUD, it goes.
   if (!next) {
     loadingMark = false;
-    sunPx = 0;
+    markPx = 0;
   }
   listeners.forEach((l) => l());
 }
@@ -40,26 +40,27 @@ export function isHudLoadingMarkOn(): boolean {
 export function toggleHudLoadingMark(): void {
   if (!hidden) return;
   loadingMark = !loadingMark;
-  sunPx = 0;
+  markPx = 0;
   listeners.forEach((l) => l());
 }
 
-/** The Sun's diameter on screen, CSS px -- 0 until the sky first reports it. */
-export function sunScreenSize(): number {
-  return sunPx;
+/** The no-HUD loading animation's size, CSS px: half the Earth's diameter
+ *  on screen -- 0 until the sky first reports it. */
+export function hudMarkSize(): number {
+  return markPx;
 }
 
 /** From the sky, every frame while the loading animation is on. Listeners
  *  hear of changes of half a pixel or more, without a React render. */
-export function reportSunScreenSize(px: number): void {
-  if (Math.abs(px - sunPx) < 0.5) return;
-  sunPx = px;
-  sunSizeListeners.forEach((l) => l(px));
+export function reportHudMarkSize(px: number): void {
+  if (Math.abs(px - markPx) < 0.5) return;
+  markPx = px;
+  markSizeListeners.forEach((l) => l(px));
 }
 
-export function subscribeSunScreenSize(listener: (px: number) => void): () => void {
-  sunSizeListeners.add(listener);
-  return () => sunSizeListeners.delete(listener);
+export function subscribeHudMarkSize(listener: (px: number) => void): () => void {
+  markSizeListeners.add(listener);
+  return () => markSizeListeners.delete(listener);
 }
 
 function subscribe(listener: () => void): () => void {
