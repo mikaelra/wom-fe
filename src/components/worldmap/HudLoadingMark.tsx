@@ -2,33 +2,38 @@
 
 import { useEffect, useRef } from 'react';
 import LoadingMark from '@/components/loading/LoadingMark';
-import { subscribeHudMarkSize, hudMarkSize } from '@/lib/hudHidden';
+import { hudMarkPlacement, subscribeHudMark, type HudMarkPlacement } from '@/lib/hudHidden';
 
 /** Drawn this big and scaled down, so it stays sharp when zoomed in close. */
 const DRAWN_PX = 512;
 
-// The no-HUD loading animation (lib/hudHidden.ts): in the middle of the
-// screen, where the loading screen shows it, half the Earth's size on screen.
-// The size comes from the sky every frame and is set on the element
-// directly, so following the zoom never re-renders anything. Hidden until
-// the first size arrives.
+// The no-HUD loading animation (lib/hudHidden.ts): over the Sun, half the
+// Earth's size on screen. Where and how big come from the sky every frame
+// and are set on the element directly, so following the Sun and the zoom
+// never re-renders anything. Hidden until the first report, and while the
+// Sun is behind the camera.
 export default function HudLoadingMark() {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const apply = (px: number) => {
+    const apply = ({ x, y, size, visible }: HudMarkPlacement) => {
       const el = ref.current;
       if (!el) return;
-      el.style.transform = `scale(${px / DRAWN_PX})`;
-      el.style.opacity = px > 0 ? '1' : '0';
+      el.style.transform = `translate(${x - DRAWN_PX / 2}px, ${y - DRAWN_PX / 2}px) scale(${size / DRAWN_PX})`;
+      el.style.opacity = visible && size > 0 ? '1' : '0';
     };
-    apply(hudMarkSize());
-    return subscribeHudMarkSize(apply);
+    apply(hudMarkPlacement());
+    return subscribeHudMark(apply);
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center pointer-events-none">
-      <div ref={ref} data-testid="hud-loading-mark" style={{ opacity: 0, transformOrigin: 'center' }}>
+    <div className="fixed inset-0 z-[1000] overflow-hidden pointer-events-none">
+      <div
+        ref={ref}
+        data-testid="hud-loading-mark"
+        className="absolute left-0 top-0"
+        style={{ opacity: 0, transformOrigin: 'center', width: DRAWN_PX, height: DRAWN_PX }}
+      >
         <LoadingMark size={DRAWN_PX} />
       </div>
     </div>

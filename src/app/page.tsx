@@ -177,7 +177,7 @@ export default function Page() {
       />}
       <HudToggle />
       {/* With the HUD hidden, a tap on the globe loops the loading animation
-          where the loading screen shows it, half the Earth's size (lib/hudHidden.ts). */}
+          over the Sun, half the Earth's size (lib/hudHidden.ts). */}
       {hudLoadingMark && <HudLoadingMark />}
       <AssetLoadingReporter />
       {sceneReady && (

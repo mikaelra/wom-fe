@@ -3,17 +3,23 @@
 // text), the merchants' markers and the planets' labels are gone, leaving
 // just the globe and the sky -- for screenshots and store art. While it is
 // on, a tap on the globe turns the loading animation on and off in the
-// middle of the screen, looping for as long as it is on, half the size the
-// Earth has on screen (reportHudMarkSize, from the sky, every frame) -- so
-// it grows and shrinks with the zoom. Only for the current visit: a reload
+// Sun, looping for as long as it is on, half the size the Earth has on
+// screen (reportHudMark, from the sky, every frame) -- so it follows the
+// Sun across the screen and grows and shrinks with the zoom. Only for the current visit: a reload
 // brings the HUD back.
 
 import { useSyncExternalStore } from 'react';
 
 let hidden = false;
 let loadingMark = false;
-let markPx = 0;
-const markSizeListeners = new Set<(px: number) => void>();
+/** Where and how big the no-HUD loading animation is drawn, CSS px: centred
+ *  on the Sun on screen (x, y from the top left), half the Earth's diameter
+ *  on screen across (size), and `visible` false with the Sun behind the
+ *  camera. size 0 until the sky first reports. */
+export type HudMarkPlacement = { x: number; y: number; size: number; visible: boolean };
+const UNPLACED: HudMarkPlacement = { x: 0, y: 0, size: 0, visible: false };
+let markPlacement: HudMarkPlacement = UNPLACED;
+const markListeners = new Set<(p: HudMarkPlacement) => void>();
 const listeners = new Set<() => void>();
 
 export function isHudHidden(): boolean {
@@ -26,7 +32,7 @@ export function setHudHidden(next: boolean): void {
   // The loading animation belongs to the hidden HUD: back with the HUD, it goes.
   if (!next) {
     loadingMark = false;
-    markPx = 0;
+    markPlacement = UNPLACED;
   }
   listeners.forEach((l) => l());
 }
@@ -40,27 +46,30 @@ export function isHudLoadingMarkOn(): boolean {
 export function toggleHudLoadingMark(): void {
   if (!hidden) return;
   loadingMark = !loadingMark;
-  markPx = 0;
+  markPlacement = UNPLACED;
   listeners.forEach((l) => l());
 }
 
-/** The no-HUD loading animation's size, CSS px: half the Earth's diameter
- *  on screen -- 0 until the sky first reports it. */
-export function hudMarkSize(): number {
-  return markPx;
+export function hudMarkPlacement(): HudMarkPlacement {
+  return markPlacement;
 }
 
 /** From the sky, every frame while the loading animation is on. Listeners
- *  hear of changes of half a pixel or more, without a React render. */
-export function reportHudMarkSize(px: number): void {
-  if (Math.abs(px - markPx) < 0.5) return;
-  markPx = px;
-  markSizeListeners.forEach((l) => l(px));
+ *  hear of moves or size changes of half a pixel or more, and of the Sun
+ *  going behind the camera or coming back, without a React render. */
+export function reportHudMark(next: HudMarkPlacement): void {
+  const p = markPlacement;
+  if (
+    p.visible === next.visible
+    && Math.abs(p.x - next.x) < 0.5 && Math.abs(p.y - next.y) < 0.5 && Math.abs(p.size - next.size) < 0.5
+  ) return;
+  markPlacement = next;
+  markListeners.forEach((l) => l(next));
 }
 
-export function subscribeHudMarkSize(listener: (px: number) => void): () => void {
-  markSizeListeners.add(listener);
-  return () => markSizeListeners.delete(listener);
+export function subscribeHudMark(listener: (p: HudMarkPlacement) => void): () => void {
+  markListeners.add(listener);
+  return () => markListeners.delete(listener);
 }
 
 function subscribe(listener: () => void): () => void {
