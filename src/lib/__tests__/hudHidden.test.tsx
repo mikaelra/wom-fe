@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import {
-  isHudHidden, isHudLoadingMarkOn, reportHudMark, setHudHidden, subscribeHudMark, hudMarkPlacement,
+  isHudHidden, isHudLoadingMarkOn, reportHudMarkSize, setHudHidden, subscribeHudMarkSize, hudMarkSize,
   toggleHudLoadingMark, useHudHidden, useHudLoadingMark,
 } from '@/lib/hudHidden';
 
@@ -34,25 +34,23 @@ describe('hudHidden', () => {
     expect(result.current).toBe(false);
   });
 
-  it("passes where and how big to draw it on to listeners, ignoring sub-pixel jitter, and forgets it when switched off", () => {
-    const at = (x: number, size: number, visible = true) => ({ x, y: 100, size, visible });
+  it("passes the animation's size on to listeners, ignoring sub-pixel jitter, and forgets it when switched off", () => {
     const heard: number[] = [];
-    const off = subscribeHudMark((p) => heard.push(p.visible ? p.x : -1));
+    const off = subscribeHudMarkSize((px) => heard.push(px));
     setHudHidden(true);
     toggleHudLoadingMark();
-    reportHudMark(at(40, 200));
-    reportHudMark(at(40.2, 200.3));
-    reportHudMark(at(80, 200));
-    reportHudMark(at(80, 200, false));
-    expect(heard).toEqual([40, 80, -1]);
-    expect(hudMarkPlacement()).toEqual(at(80, 200, false));
+    reportHudMarkSize(40);
+    reportHudMarkSize(40.2);
+    reportHudMarkSize(80);
+    expect(heard).toEqual([40, 80]);
+    expect(hudMarkSize()).toBe(80);
     toggleHudLoadingMark();
-    expect(hudMarkPlacement().size).toBe(0);
-    reportHudMark(at(50, 200));
+    expect(hudMarkSize()).toBe(0);
+    reportHudMarkSize(50);
     setHudHidden(false);
-    expect(hudMarkPlacement().size).toBe(0);
+    expect(hudMarkSize()).toBe(0);
     off();
-    reportHudMark(at(90, 200));
-    expect(heard).toEqual([40, 80, -1, 50]);
+    reportHudMarkSize(90);
+    expect(heard).toEqual([40, 80, 50]);
   });
 });
