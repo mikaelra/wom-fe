@@ -25,6 +25,7 @@ import {
 import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
 import { earthTexturePaths } from '@/lib/ktx2Textures';
 import { useGameTextures } from '@/lib/useGameTextures';
+import { useHudHidden } from '@/lib/hudHidden';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
@@ -912,6 +913,7 @@ const PlanetSprites = memo(function PlanetSprites({
   // getSky() read) when a revert starts or ends despite `phase` staying
   // put. See the WorldMapProps comment on skyRevertKey.
   void skyRevertKey;
+  const hudHidden = useHudHidden();
   const groupRef = useRef<THREE.Group>(null);
   const sky = getSky();
   const aspects = useMemo(() => computeAspects(sky), [sky]);
@@ -1039,7 +1041,7 @@ const PlanetSprites = memo(function PlanetSprites({
       {/* Inside the drifting group, so labels ride with their bodies. The
           globe occludes: a planet on the far side must not be named through
           the Earth (§7.2). */}
-      <SkyLabels bodies={labelBodies} occluder={GLOBE_OCCLUDER} offset={PLANET_LABEL_OFFSET} />
+      {!hudHidden && <SkyLabels bodies={labelBodies} occluder={GLOBE_OCCLUDER} offset={PLANET_LABEL_OFFSET} />}
     </group>
   );
 });
@@ -1057,6 +1059,7 @@ interface GlobeProps {
 
 function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
+  const hudHidden = useHudHidden();
 
   // Epicenter for the crackle effect — Athens on the globe surface
   const athensEpicenter = useMemo(() => {
@@ -1138,8 +1141,9 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
       <mesh geometry={geo} material={moonFresnelMat} scale={1.018} />
 
       {/* The pins -- Greece's sword and the merchants -- leave while a
-          timewarp spins the globe and fade slowly back at the end. */}
-      <TimewarpFade>
+          timewarp spins the globe and fade slowly back at the end. Gone
+          altogether while the HUD is hidden (lib/hudHidden.ts). */}
+      {!hudHidden && <TimewarpFade>
       {CITIES.map((city) => (
         <CityMarker
           key={city.id}
@@ -1164,7 +1168,7 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
 
       {/* Crackle electricity radiating from the sword's impact point */}
       <GlobeCrackleEffect epicenter={athensEpicenter} radius={GLOBE_RADIUS} />
-      </TimewarpFade>
+      </TimewarpFade>}
     </group>
   );
 }

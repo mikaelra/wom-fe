@@ -17,6 +17,8 @@ import { MERCHANT_MARKER_LABEL, merchantMarkerColors, merchantSkyBodies } from '
 import { getStoredAccountToken } from '@/lib/http';
 import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
 import ExitGamePrompt from '@/components/ExitGamePrompt';
+import HudToggle from '@/components/worldmap/HudToggle';
+import { useHudHidden } from '@/lib/hudHidden';
 
 const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
 
@@ -42,6 +44,7 @@ export default function Page() {
   // Defer Canvas mount by one paint frame so the UI controls render and
   // become interactive before the WebGL context initialises.
   const [sceneReady, setSceneReady] = useState(false);
+  const hudHidden = useHudHidden();
 
   // Set once the city route has been asked for but this page is still
   // mounted. Never cleared: the only way out is the navigation itself, and
@@ -158,7 +161,7 @@ export default function Page() {
 
   return (
     <div style={{ width: '100%', height: '100dvh', position: 'relative', overflow: 'hidden', background: '#070b15' }}>
-      <WorldMapOverlay
+      {!hudHidden && <WorldMapOverlay
         clock={
           <WorldClock
             reverted={reverted}
@@ -169,7 +172,8 @@ export default function Page() {
             warpColors={timewarpColorsFor(merchantOffers.map((o) => o.event))}
           />
         }
-      />
+      />}
+      <HudToggle />
       <AssetLoadingReporter gradual />
       {sceneReady && (
         <Canvas
