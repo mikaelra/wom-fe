@@ -2,8 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   beginRequest,
   claimLoadingScreen,
-  assetLoadProgress,
-  isAssetsGradual,
   isAssetsLoading,
   isOverlaySuppressed,
   isBackgroundLoading,
@@ -39,19 +37,12 @@ describe('loadingTracker', () => {
     expect(requestsInFlight()).toBe(1);
   });
 
-  it('tracks 3D asset loading and how much has loaded, apart from API calls', () => {
-    expect(assetLoadProgress()).toBe(1);
+  it('tracks 3D asset loading apart from API calls', () => {
     setAssetsLoading(true);
     expect(isAssetsLoading()).toBe(true);
-    expect(assetLoadProgress()).toBe(0);
     expect(isBackgroundLoading()).toBe(false);
-    setAssetsLoading(true, 0.4);
-    expect(assetLoadProgress()).toBe(0.4);
-    setAssetsLoading(true, 7);
-    expect(assetLoadProgress()).toBe(1);
     setAssetsLoading(false);
     expect(isAssetsLoading()).toBe(false);
-    expect(assetLoadProgress()).toBe(1);
   });
 
   it('tracks screens waiting for content separately from background loading', () => {
@@ -62,13 +53,6 @@ describe('loadingTracker', () => {
     release();
     release();
     expect(isScreenLoading()).toBe(false);
-  });
-
-  it('remembers whether the scene loading fades its loading screen (the earth)', () => {
-    setAssetsLoading(true, 0.2, true);
-    expect(isAssetsGradual()).toBe(true);
-    setAssetsLoading(false);
-    expect(isAssetsGradual()).toBe(false);
   });
 
   it('can be switched off by pages, until each switch-off is released', () => {

@@ -111,7 +111,7 @@ describe('LoadingState', () => {
 });
 
 describe('LoadingOverlay', () => {
-  it('covers the screen, half grey at first, at once for a screen waiting on content, for at least one whole loop', () => {
+  it('covers the screen, with no background, at once for a screen waiting on content, for at least one whole loop', () => {
     vi.useFakeTimers();
     const { rerender } = render(
       <>
@@ -121,7 +121,7 @@ describe('LoadingOverlay', () => {
     );
     const el = overlay();
     expect(el).toBeInTheDocument();
-    expect(el).toHaveStyle({ background: 'rgba(128, 128, 128, 0.5)' });
+    expect(el?.getAttribute('style')).toBeNull();
     expect(el).toHaveClass('fixed', 'inset-0');
 
     // content arrives quickly: the animation still plays its whole turn

@@ -8,11 +8,7 @@ import {
   suppressLoadingOverlay,
 } from '@/lib/loadingTracker';
 import {
-  BACKDROP_RISE_MS,
-  BACKDROP_START_OPACITY,
   BACKGROUND_LOADING_DELAY_MS,
-  backdropOpacity,
-  useLoadingBackdrop,
   useLoadingOverlay,
 } from '@/lib/useLoadingOverlay';
 
@@ -73,72 +69,5 @@ describe('useLoadingOverlay switched off', () => {
     expect(result.current).toBe(false);
     act(() => release());
     expect(result.current).toBe(true);
-  });
-});
-
-describe('backdropOpacity', () => {
-  it('fades the earth scene as it loads', () => {
-    expect(backdropOpacity(true, false, 0, 0)).toBe(1);
-    expect(backdropOpacity(true, false, 0.25, 9999)).toBe(0.75);
-    expect(backdropOpacity(true, false, 1, 0)).toBe(0);
-    expect(backdropOpacity(true, false, 3, 0)).toBe(0);
-  });
-
-  it('starts everything else half grey and climbs to opaque while loading goes on', () => {
-    expect(backdropOpacity(false, false, 0, 0)).toBe(BACKDROP_START_OPACITY);
-    expect(backdropOpacity(false, true, 0, BACKDROP_RISE_MS / 2)).toBeCloseTo(0.75, 9);
-    expect(backdropOpacity(false, false, 0.9, BACKDROP_RISE_MS)).toBe(1);
-    expect(backdropOpacity(false, false, 0, BACKDROP_RISE_MS * 3)).toBe(1);
-  });
-
-  it('treats the earth like the others while a screen waits on content', () => {
-    expect(backdropOpacity(true, true, 0.8, 0)).toBe(BACKDROP_START_OPACITY);
-  });
-});
-
-describe('useLoadingBackdrop', () => {
-  it('fades with the earth scene load, never thickens again, and resets when hidden', () => {
-    const { result, rerender } = renderHook(({ visible }) => useLoadingBackdrop(visible), {
-      initialProps: { visible: true },
-    });
-    act(() => setAssetsLoading(true, 0, true));
-    expect(result.current).toBe(1);
-    act(() => setAssetsLoading(true, 0.6, true));
-    expect(result.current).toBeCloseTo(0.4, 9);
-    act(() => setAssetsLoading(true, 0.3, true)); // more loads queued: the raw fraction dips
-    expect(result.current).toBeCloseTo(0.4, 9);
-    act(() => setAssetsLoading(false));
-    expect(result.current).toBe(0); // all in: clear while the loop finishes
-
-    rerender({ visible: false });
-    rerender({ visible: true });
-    expect(result.current).toBe(BACKDROP_START_OPACITY);
-  });
-
-  it('climbs from half grey only while things are still loading in', () => {
-    vi.useFakeTimers();
-    const { result } = renderHook(() => useLoadingBackdrop(true));
-    expect(result.current).toBe(BACKDROP_START_OPACITY);
-    let release = () => {};
-    act(() => {
-      release = claimLoadingScreen();
-    });
-    act(() => {
-      vi.advanceTimersByTime(BACKDROP_RISE_MS / 2);
-    });
-    const halfway = result.current;
-    expect(halfway).toBeGreaterThan(0.7);
-    expect(halfway).toBeLessThan(0.8);
-    act(() => release());
-    act(() => {
-      vi.advanceTimersByTime(BACKDROP_RISE_MS);
-    });
-    expect(result.current).toBe(halfway); // nothing left loading: holds its level
-
-    act(() => setAssetsLoading(true, 0)); // a non-earth scene's assets
-    act(() => {
-      vi.advanceTimersByTime(BACKDROP_RISE_MS);
-    });
-    expect(result.current).toBe(1);
   });
 });

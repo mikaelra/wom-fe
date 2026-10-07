@@ -20,8 +20,6 @@
 
 let requests = 0;
 let assetsLoading = false;
-let assetProgress = 1;
-let assetsGradual = false;
 let suppressed = 0;
 let screens = 0;
 const listeners = new Set<() => void>();
@@ -55,21 +53,11 @@ export function requestsInFlight(): number {
   return requests;
 }
 
-/** A scene's 3D assets started / stopped loading; `progress` is how much of
- *  them has loaded, 0..1 (defaults: 0 when starting, 1 when done). `gradual`
- *  marks a scene whose loading screen fades as it renders (the earth). */
-export function setAssetsLoading(active: boolean, progress = active ? 0 : 1, gradual = false): void {
-  const p = Math.min(1, Math.max(0, progress));
-  if (assetsLoading === active && assetProgress === p && assetsGradual === gradual) return;
+/** A scene's 3D assets started / stopped loading. */
+export function setAssetsLoading(active: boolean): void {
+  if (assetsLoading === active) return;
   assetsLoading = active;
-  assetProgress = p;
-  assetsGradual = gradual;
   emit();
-}
-
-/** Whether the scene loading now fades its loading screen as it renders. */
-export function isAssetsGradual(): boolean {
-  return assetsGradual;
 }
 
 /** Switch the loading overlay off while the caller is mounted; returns the
@@ -92,11 +80,6 @@ export function isOverlaySuppressed(): boolean {
 
 export function isAssetsLoading(): boolean {
   return assetsLoading;
-}
-
-/** How much of the scene's assets has loaded, 0..1 (1 when nothing loads). */
-export function assetLoadProgress(): number {
-  return assetProgress;
 }
 
 /** A screen is waiting for its content; returns the release. */
@@ -126,8 +109,6 @@ export function isScreenLoading(): boolean {
 export function resetLoadingTracker(): void {
   requests = 0;
   assetsLoading = false;
-  assetProgress = 1;
-  assetsGradual = false;
   suppressed = 0;
   screens = 0;
   emit();

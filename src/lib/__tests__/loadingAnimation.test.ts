@@ -7,6 +7,7 @@ import {
   pickLoadingColor,
   pickLoadingStart,
   pickLoadingVariant,
+  pickNextLoadingVariant,
   loopDuration,
   rainbowColorAt,
   echoColors,
@@ -419,5 +420,36 @@ describe('v14 (14a then 14b)', () => {
 
   it('is the one picked when the mix gives it every showing', () => {
     expect(pickLoadingVariant({ ...LOADING_SPEC, mix: { v14: 1 } }, () => 0.5).kind).toBe('v14');
+  });
+});
+
+describe('pickNextLoadingVariant', () => {
+  const seq = (...values: number[]) => () => values.shift() ?? 0;
+  const blue = { kind: 'v10', color: '#0000ff', startFoldedOut: false } as const;
+
+  it('draws by the usual odds when that gives a different version', () => {
+    expect(pickNextLoadingVariant(LOADING_SPEC, blue, seq(0.1, 0.7))).toEqual({
+      kind: 'v14', color: '#ff0000', startFoldedOut: true,
+    });
+  });
+
+  it('draws again rather than show the same version twice in a row', () => {
+    // first draw is blue v10 again, the second is the wheel
+    expect(pickNextLoadingVariant(LOADING_SPEC, blue, seq(0.99, 0.9, 0.7, 0.2))).toEqual({
+      kind: 'wheel', color: '#ff0000', startFoldedOut: false,
+    });
+  });
+
+  it('never repeats the previous version over many draws', () => {
+    let prev = pickLoadingVariant(LOADING_SPEC);
+    for (let i = 0; i < 500; i++) {
+      const next = pickNextLoadingVariant(LOADING_SPEC, prev);
+      expect(next).not.toEqual(prev);
+      prev = next;
+    }
+  });
+
+  it('gives up and keeps the draw when nothing else is possible', () => {
+    expect(pickNextLoadingVariant(LOADING_SPEC, blue, () => 0.99, 3)).toEqual({ ...blue, startFoldedOut: false });
   });
 });
