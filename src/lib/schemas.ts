@@ -358,6 +358,9 @@ export const SpinWheelResponseSchema = z.object({
 export const RankedProfileResponseSchema = z.object({
   tier: z.string().nullable(),
   ranked_games_played: z.number().int(),
+  // Principality's leaderboard number (docs/RANK_SYSTEM_PLAN.md §5); null
+  // below Principality, absent from a backend that predates it.
+  principality_rank: z.number().int().nullable().optional(),
 });
 
 // POST /ranked/queue/join, /ranked/queue/leave (docs/RANK_SYSTEM_PLAN.md §6).
