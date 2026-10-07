@@ -18,7 +18,7 @@ import { getStoredAccountToken } from '@/lib/http';
 import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
 import ExitGamePrompt from '@/components/ExitGamePrompt';
 import HudToggle from '@/components/worldmap/HudToggle';
-import LoadingMark from '@/components/loading/LoadingMark';
+import SunSizedLoadingMark from '@/components/worldmap/SunSizedLoadingMark';
 import { useHudHidden, useHudLoadingMark } from '@/lib/hudHidden';
 
 const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
@@ -177,12 +177,8 @@ export default function Page() {
       />}
       <HudToggle />
       {/* With the HUD hidden, a tap on the globe loops the loading animation
-          where the loading screen shows it (lib/hudHidden.ts). */}
-      {hudLoadingMark && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center pointer-events-none">
-          <LoadingMark size={128} />
-        </div>
-      )}
+          where the loading screen shows it, the Sun's size (lib/hudHidden.ts). */}
+      {hudLoadingMark && <SunSizedLoadingMark />}
       <AssetLoadingReporter />
       {sceneReady && (
         <Canvas

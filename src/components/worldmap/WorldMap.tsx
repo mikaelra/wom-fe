@@ -25,7 +25,7 @@ import {
 import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
 import { earthTexturePaths } from '@/lib/ktx2Textures';
 import { useGameTextures } from '@/lib/useGameTextures';
-import { toggleHudLoadingMark, useHudHidden } from '@/lib/hudHidden';
+import { isHudLoadingMarkOn, reportSunScreenSize, toggleHudLoadingMark, useHudHidden } from '@/lib/hudHidden';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
@@ -444,12 +444,15 @@ function MoonBody({
 // No change in this pass -- the Sun's own appearance never changes
 // (docs/ASPECTS_PLAN.md §1.4); it only amplifies other bodies' auras.
 
+/** The Sun's radius -- its body; the glow shells reach further out. */
+const SUN_R = 2;
+
 function SunBody({ position }: { position: THREE.Vector3 }) {
   const sunMap = useTexture('/textures/sun/sunmap.jpg');
   return (
     <group position={position}>
       <mesh>
-        <sphereGeometry args={[2, 32, 32]} />
+        <sphereGeometry args={[SUN_R, 32, 32]} />
         <meshBasicMaterial color={0xfff7c2} />
       </mesh>
       <mesh>
@@ -936,11 +939,20 @@ const PlanetSprites = memo(function PlanetSprites({
   // The group starts unturned on every mount; so does the shared count,
   // rather than carrying a previous visit's turn for its first frame.
   useEffect(() => { skyDrift.angle = 0; }, []);
-  useFrame(() => {
+  const sunWorld = useMemo(() => new THREE.Vector3(), []);
+  useFrame((state) => {
     if (!groupRef.current) return;
     groupRef.current.rotation.y += skyStep();
     // Shared, so a merchant marker can stand under a body in this sky.
     skyDrift.angle = groupRef.current.rotation.y;
+    // The no-HUD loading animation is drawn the Sun's size on screen
+    // (lib/hudHidden.ts): its diameter, 2 * SUN_R, seen from the camera.
+    if (isHudLoadingMarkOn()) {
+      groupRef.current.localToWorld(sunWorld.copy(posSun));
+      const camera = state.camera as THREE.PerspectiveCamera;
+      const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * camera.position.distanceTo(sunWorld);
+      reportSunScreenSize((SUN_R / halfHeight) * state.size.height);
+    }
   });
 
   // Only bodies that have actually been revealed get a label -- otherwise a
