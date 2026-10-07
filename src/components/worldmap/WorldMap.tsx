@@ -25,11 +25,13 @@ import {
 import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
 import { earthTexturePaths } from '@/lib/ktx2Textures';
 import { useGameTextures } from '@/lib/useGameTextures';
-import { useHudHidden } from '@/lib/hudHidden';
+import { isHudLoadingMarkOn, reportHudMark, toggleHudLoadingMark, useHudHidden } from '@/lib/hudHidden';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
 const PLANET_R = 46;
+/** The no-HUD loading animation's size, as a fraction of the Earth's on screen. */
+const HUD_MARK_EARTH_FRACTION = 0.5;
 /** The globe, as something that can hide a body from the gaze labels. */
 const GLOBE_OCCLUDER = { center: new THREE.Vector3(0, 0, 0), radius: 2.5 };
 const RAD = Math.PI / 180;
@@ -936,11 +938,29 @@ const PlanetSprites = memo(function PlanetSprites({
   // The group starts unturned on every mount; so does the shared count,
   // rather than carrying a previous visit's turn for its first frame.
   useEffect(() => { skyDrift.angle = 0; }, []);
-  useFrame(() => {
+  const sunOnScreen = useMemo(() => new THREE.Vector3(), []);
+  useFrame((state) => {
     if (!groupRef.current) return;
     groupRef.current.rotation.y += skyStep();
     // Shared, so a merchant marker can stand under a body in this sky.
     skyDrift.angle = groupRef.current.rotation.y;
+    // The no-HUD loading animation (lib/hudHidden.ts) is drawn over the Sun,
+    // half the Earth's size on screen. The globe sits at the origin; its
+    // outline is the sphere's true silhouette, asin(R / distance) off
+    // centre, so the size stays right with the camera in close.
+    if (isHudLoadingMarkOn()) {
+      const camera = state.camera as THREE.PerspectiveCamera;
+      const distance = Math.max(camera.position.length(), GLOBE_RADIUS * 1.0001);
+      const earthRadiusPx = (Math.tan(Math.asin(GLOBE_RADIUS / distance))
+        / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) * (state.size.height / 2);
+      groupRef.current.localToWorld(sunOnScreen.copy(posSun)).project(camera);
+      reportHudMark({
+        x: ((sunOnScreen.x + 1) / 2) * state.size.width,
+        y: ((1 - sunOnScreen.y) / 2) * state.size.height,
+        size: HUD_MARK_EARTH_FRACTION * 2 * earthRadiusPx,
+        visible: sunOnScreen.z < 1,
+      });
+    }
   });
 
   // Only bodies that have actually been revealed get a label -- otherwise a
@@ -1120,7 +1140,15 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
   useFrame(() => { if (cloudsRef.current) cloudsRef.current.rotation.y += 0.000075; });
 
   return (
-    <group rotation={[0, earthRot, 0]}>
+    <group
+      rotation={[0, earthRot, 0]}
+      // With the HUD hidden, a tap on the globe (not the end of a drag to
+      // turn it) turns the loading animation on and off (lib/hudHidden.ts).
+      onClick={hudHidden ? (e) => {
+        e.stopPropagation();
+        if (e.delta <= 4) toggleHudLoadingMark();
+      } : undefined}
+    >
       <mesh geometry={geo}>
         <meshPhongMaterial
           map={earthMap}
