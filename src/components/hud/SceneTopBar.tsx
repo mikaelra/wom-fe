@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { logOut, getInventory } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinThumbnailUrl } from '@/lib/frogSkins';
+import { steamPersonaName } from '@/lib/steamAccount';
 import RopedButton from '@/components/hud/RopedButton';
 import RulesModal from '@/components/lobby/RulesModal';
 import MusicToggleButton from '@/components/audio/MusicToggleButton';
@@ -35,6 +36,9 @@ export default function SceneTopBar({
 } = {}) {
   const router = useRouter();
   const [loggedInName, setLoggedInName] = useState('');
+  // In the Steam build the chip shows the Steam account's name rather than
+  // the game name; null everywhere else.
+  const [steamName, setSteamName] = useState<string | null>(null);
   // The account's equipped skin, once known; null shows no avatar at all.
   const [equippedSkin, setEquippedSkin] = useState<string | null>(null);
   // True while the real equipped skin is being fetched -- see the avatar
@@ -55,6 +59,13 @@ export default function SceneTopBar({
     if (typeof window !== 'undefined') {
       setLoggedInName(localStorage.getItem('playerName') || '');
     }
+    let cancelled = false;
+    steamPersonaName().then((name) => {
+      if (!cancelled) setSteamName(name);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Same skin the user-menu button's avatar shows -- see the Inventory
@@ -229,7 +240,8 @@ export default function SceneTopBar({
                   )}
                 </span>
                 )}
-                <span>{loggedInName}</span>
+                {/* Steam names run to 32 characters; the chip is a fixed 163px. */}
+                <span className="max-w-[6rem] truncate">{steamName || loggedInName}</span>
                 <span className="text-white/70 text-xs">{showUserMenu ? '▲' : '▼'}</span>
               </RopedButton>
               {showUserMenu && (

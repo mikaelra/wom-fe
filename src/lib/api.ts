@@ -47,6 +47,8 @@ import {
   ResolveAccountSessionResponseSchema,
   DeleteAccountResponseSchema,
   AgeAffirmResponseSchema,
+  ConnectionsResponseSchema,
+  ConnectWebResponseSchema,
   ChatReportResponseSchema,
   LogOutResponseSchema,
   ClaimPendingWheelResponseSchema,
@@ -588,6 +590,12 @@ export async function confirmEmailVerification(
     // login -- store the session so e.g. a claim_wheel redirect into
     // /inventory actually shows something instead of "log in first".
     if (data.session_token) setStoredAccountToken(data.session_token);
+    // A connect_web link opens in a browser that has never seen this
+    // account: remember who is logged in, as the login page does.
+    if (data.name && data.email) {
+      localStorage.setItem('playerName', data.name);
+      localStorage.setItem('playerEmail', data.email);
+    }
     return data;
   } catch (e) {
     if (e instanceof ApiError) {
@@ -654,6 +662,23 @@ export async function affirmAge(token: string): Promise<void> {
   });
 }
 
+/** Settings -> Connections: where else the logged-in account plays. */
+export async function getConnections(token: string): Promise<z.infer<typeof ConnectionsResponseSchema>> {
+  return request('/account/connections', ConnectionsResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Could not load your connections.',
+  });
+}
+
+/** Email a link that lets this account log in on the web too (an account
+ *  without an email -- one made on Steam). */
+export async function connectWeb(token: string, email: string): Promise<void> {
+  await request('/account/connect_web', ConnectWebResponseSchema, {
+    body: { token, email },
+    defaultErrorMessage: 'Could not send the email.',
+  });
+}
+
 /** Report another player's chat message (wom-be routes/chat_report.py).
  *  `token` is null for a player without an account. */
 export async function reportChatMessage(
@@ -696,26 +721,40 @@ export async function postCheckout(
   });
 }
 
+// Each Steam call also sends the Steam account's name (steamName), which the
+// backend keeps for Settings -> Connections on other devices.
+
 /** Log in with a Steam auth ticket (src/lib/steamAccount.ts). */
-export async function postSteamLogin(ticket: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+export async function postSteamLogin(
+  ticket: string,
+  steamName: string | null = null
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
   return request('/auth/steam', SteamAuthResponseSchema, {
-    body: { ticket },
+    body: { ticket, steam_name: steamName },
     defaultErrorMessage: 'Steam login failed.',
   });
 }
 
 /** A new account for this Steam account ("Play now"). */
-export async function postSteamCreate(ticket: string, name: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+export async function postSteamCreate(
+  ticket: string,
+  name: string,
+  steamName: string | null = null
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
   return request('/auth/steam/create', SteamAuthResponseSchema, {
-    body: { ticket, name },
+    body: { ticket, name, steam_name: steamName },
     defaultErrorMessage: 'Could not create the account.',
   });
 }
 
 /** This Steam account logs into the logged-in account from now on. */
-export async function postSteamLink(ticket: string, token: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+export async function postSteamLink(
+  ticket: string,
+  token: string,
+  steamName: string | null = null
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
   return request('/auth/steam/link', SteamAuthResponseSchema, {
-    body: { ticket, token },
+    body: { ticket, token, steam_name: steamName },
     defaultErrorMessage: 'Could not link your Steam account.',
   });
 }

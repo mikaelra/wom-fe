@@ -31,6 +31,8 @@ import {
   logOut,
   deleteAccount,
   affirmAge,
+  connectWeb,
+  getConnections,
   reportChatMessage,
   postCheckout,
   resolveAccountSession,
@@ -414,6 +416,17 @@ describe('confirmEmailVerification', () => {
     expect(getStoredAccountToken()).toBe('sess-3');
   });
 
+  it('remembers who a connect_web link logged in', async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', { setItem: (k: string, v: string) => void store.set(k, v) });
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, purpose: 'connect_web', session_token: 'sess-5', name: 'Toad', email: 'toad@example.com' }),
+    );
+    await confirmEmailVerification('tok');
+    expect(store.get('playerName')).toBe('Toad');
+    expect(store.get('playerEmail')).toBe('toad@example.com');
+  });
+
   it.each([
     [404, 'Invalid or expired link.'],
     [409, 'Name already claimed by a different email.'],
@@ -515,6 +528,25 @@ describe('affirmAge', () => {
     await affirmAge('sess-1');
     expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/account/age`);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: 'sess-1' });
+  });
+});
+
+describe('getConnections', () => {
+  it('posts the token and returns each connection', async () => {
+    const body = { steam: { name: 'Gaben' }, web: null };
+    fetchMock.mockResolvedValue(jsonResponse(body));
+    await expect(getConnections('sess-1')).resolves.toEqual(body);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/account/connections`);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: 'sess-1' });
+  });
+});
+
+describe('connectWeb', () => {
+  it('posts the token and the email', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'sent' }));
+    await connectWeb('sess-1', 'toad@example.com');
+    expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/account/connect_web`);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: 'sess-1', email: 'toad@example.com' });
   });
 });
 

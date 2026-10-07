@@ -73,7 +73,8 @@ export default function PrivacyPage() {
               your email address. Email is used to verify the account and to log you in;
               once an account has made a purchase, every login on a new device needs a
               one-time code sent to that address. If you play through Steam, we store your
-              Steam account ID instead, which is how Steam logs you in.
+              Steam account ID, which is how Steam logs you in, and your Steam name, which
+              we show you in Settings.
             </p>
             <p>
               <strong className="text-white">Session tokens.</strong> Random strings that
