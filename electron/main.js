@@ -5,7 +5,7 @@
 // serves `out/` over a custom scheme, and wires Steam.
 'use strict';
 
-const { app, BrowserWindow, shell, protocol, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, protocol, ipcMain, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 
@@ -52,11 +52,15 @@ function registerAppProtocol() {
 }
 
 function createWindow() {
+  // The minimum size can never be bigger than the screen: on a small
+  // display (a Surface Go at 2x scale is 900x600) a 960 minimum pushes the
+  // fullscreen window past the right edge and clips the UI.
+  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
   const win = new BrowserWindow({
-    width: 1280,
-    height: 720,
-    minWidth: 960,
-    minHeight: 540,
+    width: Math.min(1280, screenW),
+    height: Math.min(720, screenH),
+    minWidth: Math.min(960, screenW),
+    minHeight: Math.min(540, screenH),
     backgroundColor: '#070b15',
     show: false,
     autoHideMenuBar: true,
@@ -111,8 +115,10 @@ if (steam.restartAppIfNecessary()) {
     });
 
     // The renderer asks for Steam identity through this channel (see
-    // electron/preload.js -> window.wom). Kept read-only for now; achievements
-    // and rich presence get their own channels when they land.
+    // electron/preload.js -> window.wom): who is signed in, and a login
+    // ticket for the backend. (Achievements are unlocked by the backend.)
+    ipcMain.on('wom:quit', () => app.quit());
+    ipcMain.handle('wom:steam-ticket', () => steam.getAuthTicket());
     ipcMain.handle('wom:steam-info', () => ({
       enabled: steam.isEnabled(),
       steamId: steam.getSteamId(),
@@ -124,6 +130,12 @@ if (steam.restartAppIfNecessary()) {
     // Steam overlay needs (in-process-gpu, disable-direct-composition), which
     // are ignored once the GPU process has started.
     steam.init();
+
+    // The player's answer to a Steam Wallet purchase dialog, passed to the
+    // game (electron/preload.js onSteamPurchaseAnswer).
+    steam.onMicroTxnAuthorization((answer) => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send('wom:steam-microtxn', answer);
+    });
 
     app.whenReady().then(() => {
       registerAppProtocol();

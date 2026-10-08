@@ -130,6 +130,32 @@ export const SIGNPOST_POSITION: [number, number, number] = [0, LAND_LEVEL, -11];
 export const MARKET_POSITION: [number, number, number] = [17, LAND_LEVEL, 13];
 
 /**
+ * The Bay -- the south-west / back-left quadrant (-X, +Z) that MARKET_POSITION
+ * above held clear for a later building. It sits diagonally opposite the two
+ * Senates, between the temple and the Market.
+ *
+ * Not a building on the plateau but the head of an inlet: lib/cityTerrain.ts
+ * carves a channel of open water from here out to the sea along
+ * BAY_DIRECTION, and components/city/Bay.tsx stands a quay at its head with a
+ * pier running out over the water. So the model's own +Z is "out to sea",
+ * and BAY_ROTATION_Y turns that onto the south-west bearing.
+ *
+ * The head is 26 units out -- the Market's ~21-unit remove plus the quay's
+ * depth, which lies landward of the head and would otherwise crowd the
+ * viewer's own clearing.
+ */
+export const BAY_DIRECTION: readonly [number, number] = [-Math.SQRT1_2, Math.SQRT1_2];
+export const BAY_HEAD_DISTANCE = 26;
+export const BAY_POSITION: [number, number, number] = [
+  BAY_DIRECTION[0] * BAY_HEAD_DISTANCE,
+  LAND_LEVEL,
+  BAY_DIRECTION[1] * BAY_HEAD_DISTANCE,
+];
+/** Turns the model's +Z (seaward) onto BAY_DIRECTION: a Y-rotation by θ
+ *  takes +Z to (sin θ, cos θ). */
+export const BAY_ROTATION_Y = Math.atan2(BAY_DIRECTION[0], BAY_DIRECTION[1]);
+
+/**
  * The campfire, between the viewer and the signpost.
  *
  * Close enough to the post to light its arms (3 units), far enough forward

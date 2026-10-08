@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { timewarpParamFor } from '@/lib/timewarpFx';
+import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules, type TranscribedEntry } from '@/lib/api';
+import { ledgerMarks } from '@/lib/market';
 import { getStoredAccountToken } from '@/lib/http';
-import { skinColor, skinLabel, skinThumbnailUrl, skinUrl } from '@/lib/frogSkins';
+import { skinColor, skinLabel, skinThumbnailUrl, skinUrl, sortSkins } from '@/lib/frogSkins';
 import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
@@ -12,35 +15,34 @@ import WheelSpinModal from '@/components/WheelSpinModal';
 import TradeUpModal from '@/components/TradeUpModal';
 import RelicCoin from '@/components/RelicCoin';
 import ArtifactLedgerModal from '@/components/ArtifactLedgerModal';
-import RevertTimeModal, { formatCountdown } from '@/components/merchant/RevertTimeModal';
+import RevertTimeModal from '@/components/merchant/RevertTimeModal';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { useToast } from '@/components/Toast';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { useCountdown } from '@/lib/useCountdown';
+import { REVERT_RELIC_NAMES } from '@/lib/merchant';
 import { CONSUMABLE_RELIC_NAMES, type Relic } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
+import LoadingState from '@/components/loading/LoadingState';
 
 type SkinEntry = { skin: string; count: number };
-type ArtifactEntry = { ordinal: number; discovered_at: string | null; cosmetic: string };
+type ArtifactEntry = {
+  // Null on a reproduced copy (wom-be docs/MARKET_PLAN.md §1B).
+  ordinal: number | null;
+  discovered_at: string | null;
+  cosmetic: string;
+  origin?: string | null;
+  origin_ordinal?: number | null;
+  origin_order?: number | null;
+  reproduced_to?: TranscribedEntry[];
+};
 type WheelEntry = { id: number; kind: string };
 // One button per distinct wheel kind, not one per row -- id is an arbitrary
 // representative of the group (any wheel of that kind spins the same way).
 type WheelGroup = { kind: string; id: number; count: number };
 
 const DEFAULT_SKIN = 'frog_green_v1';
-
-// docs/MERCHANT_PLAN.md §7 -- "time is currently reverted to 14:32 26.
-// sep", read off the viewer's own device clock/timezone. toLocaleTimeString
-// and getDate()/toLocaleDateString are local-timezone by construction (no
-// explicit `timeZone` option), so this already adjusts itself per viewer
-// without any extra work.
-function formatRevertedTo(iso: string): string {
-  const d = new Date(iso);
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  const month = d.toLocaleDateString(undefined, { month: 'short' }).toLowerCase();
-  return `${time} ${d.getDate()}. ${month}`;
-}
 
 function groupWheels(wheels: WheelEntry[]): WheelGroup[] {
   const groups = new Map<string, WheelGroup>();
@@ -53,7 +55,8 @@ function groupWheels(wheels: WheelEntry[]): WheelGroup[] {
 }
 
 export default function InventoryPage() {
-  const { showError, showSuccess } = useToast();
+  const router = useRouter();
+  const { showError } = useToast();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [equippedSkin, setEquippedSkin] = useState(DEFAULT_SKIN);
@@ -62,15 +65,22 @@ export default function InventoryPage() {
   const [relics, setRelics] = useState<Relic[]>([]);
   const [aiCredits, setAiCredits] = useState(0);
   const [equipping, setEquipping] = useState<string | null>(null);
-  // docs/MERCHANT_PLAN.md §7 -- the Stone of Vitality currently open in the
-  // "turn back time" confirmation popup, or null when it's closed.
+  // docs/MERCHANT_PLAN.md §7 -- the merchant relic (Stone of Vitality,
+  // Paper or Pen) currently open in the "turn back time" confirmation popup, or
+  // null when it's closed.
   const [revertRelic, setRevertRelic] = useState<Relic | null>(null);
-  // Polled the same way the globe learns it, so the card can show "someone
-  // already reverted" + a countdown before the player even opens the
-  // popup, not just once they've clicked through and hit a 409.
-  const { offer: merchantOffer, refresh: refreshMerchantOffer } = useMerchantOffer();
-  const revertBlocked = merchantOffer?.reverted ?? false;
-  const secondsUntilRevertAvailable = useCountdown(revertBlocked ? merchantOffer?.revert_expires_at : null);
+  // Polled the same way the globe learns it, so the Timewarp popup can
+  // show where time stands -- and block with a countdown if someone has
+  // timewarped within the last minute -- before the player tries, not
+  // after a 409.
+  const {
+    merchant,
+    reverted,
+    revertLockedUntil,
+    revertToDate,
+  } = useMerchantOffer();
+  const secondsLocked = useCountdown(revertLockedUntil);
+  const revertLocked = reverted && secondsLocked !== null && secondsLocked > 0;
   // The Artifacts category. `artifact` is null for almost every account --
   // that is the point of it, and the empty state carries the weight.
   const [equippedCosmetic, setEquippedCosmetic] = useState<string | null>(null);
@@ -174,10 +184,14 @@ export default function InventoryPage() {
   // list/count, and re-poll the offer immediately so the card's own
   // "already reverted" state/countdown appears without waiting out the
   // rest of useMerchantOffer's minute-long poll interval.
-  const handleReverted = () => {
-    showSuccess('Time reverted -- the Merchant is back for an hour.');
-    load();
-    refreshMerchantOffer();
+  // A timewarp takes the player home to watch it happen: the sky running
+  // back to the moment they warped to, in that moment's colours
+  // (lib/timewarpFx.ts). `play` marks it as the real thing, not a preview.
+  const handleReverted = (result: { revert_to_date: string; events: { kind: string; key: string }[] }) => {
+    router.push(
+      `/?timewarp=${encodeURIComponent(timewarpParamFor(result.events))}` +
+        `&to=${encodeURIComponent(result.revert_to_date)}&play=1`,
+    );
   };
 
   // Equip, or unequip by sending "". Unequipping needs no ownership check
@@ -219,7 +233,7 @@ export default function InventoryPage() {
 
   // Green is always owned implicitly -- no skin_items row needed for it
   // (docs/MONETIZATION_PLAN.md §3.1).
-  const ownedSkins: SkinEntry[] = [{ skin: DEFAULT_SKIN, count: 1 }, ...skins];
+  const ownedSkins: SkinEntry[] = sortSkins([{ skin: DEFAULT_SKIN, count: 1 }, ...skins], (e) => e.skin);
   const wheelGroups = groupWheels(wheels);
 
   return (
@@ -247,7 +261,7 @@ export default function InventoryPage() {
         </div>
 
         {loading ? (
-          <p className="text-white/70">Loading…</p>
+          <LoadingState />
         ) : pendingClaim ? (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <p className="text-white/70 mb-3">
@@ -307,17 +321,17 @@ export default function InventoryPage() {
                       key={String(relic.id)}
                       className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
                     >
-                      {/* Stone of Vitality's model is also the "turn back
-                          time" entry point -- same affordance as the
+                      {/* A merchant relic's model (Stone of Vitality,
+                          Paper) is also the Timewarp entry point -- same affordance as the
                           Artifact card below (click the model, get a
                           popup), rather than a click target that does
                           nothing. Every other relic keeps a plain,
                           non-interactive coin. */}
-                      {relic.name === 'Stone of Vitality' ? (
+                      {REVERT_RELIC_NAMES.has(relic.name) ? (
                         <button
                           type="button"
                           onClick={() => setRevertRelic(relic)}
-                          aria-label="Stone of Vitality -- open the turn back time popup"
+                          aria-label={`${relic.name} -- open the Timewarp popup`}
                           className="w-16 h-16 overflow-hidden bg-transparent border-0 p-0 cursor-pointer"
                         >
                           <RelicCoin relicName={relic.name} />
@@ -337,49 +351,6 @@ export default function InventoryPage() {
                         <p className="text-xs text-white/50 text-center">{relic.flavour_text}</p>
                       )}
                       {relic.count > 1 && <p className="text-xs text-white/50">×{relic.count}</p>}
-                      {/* docs/MERCHANT_PLAN.md §7 -- sacrifices one copy to
-                          force the Merchant back for everyone for an hour.
-                          A standalone action, not tied to starting a
-                          match, so it lives on this card rather than in
-                          the pre-match relic picker. The status line (red
-                          vs. green) is only shown once merchantOffer has
-                          actually loaded -- there's nothing honest to say
-                          about the world's clock before that. Blocked
-                          outright, with a visible reason and a countdown,
-                          while someone else's revert is still running --
-                          rather than only finding that out after clicking
-                          through and hitting a 409. */}
-                      {relic.name === 'Stone of Vitality' && (
-                        <div className="mt-1 text-center">
-                          {merchantOffer && (
-                            revertBlocked && merchantOffer.revert_to_date ? (
-                              <p className="text-red-400 text-[10px] font-semibold">
-                                Time is currently reverted to {formatRevertedTo(merchantOffer.revert_to_date)}
-                              </p>
-                            ) : !revertBlocked ? (
-                              <p className="text-green-400 text-[10px] font-semibold uppercase tracking-wide">
-                                Normal time
-                              </p>
-                            ) : null
-                          )}
-                          {revertBlocked ? (
-                            secondsUntilRevertAvailable !== null && secondsUntilRevertAvailable > 0 && (
-                              <p className="text-white/50 text-[10px] font-mono">
-                                {formatCountdown(secondsUntilRevertAvailable)}
-                              </p>
-                            )
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setRevertRelic(relic)}
-                              title="Sacrifice one Stone of Vitality to bring the Merchant back for everyone for an hour."
-                              className="mt-1 text-[10px] uppercase tracking-wide text-purple-300 border border-purple-400/40 rounded px-1.5 py-0.5 hover:bg-purple-400/10 transition-colors cursor-pointer"
-                            >
-                              Revert Time (1h)
-                            </button>
-                          )}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -502,7 +473,11 @@ export default function InventoryPage() {
                   <button
                     type="button"
                     onClick={() => setShowLedger(true)}
-                    aria-label={`Artifact number ${artifact.ordinal}, open the discovery ledger`}
+                    aria-label={
+                      artifact.ordinal != null
+                        ? `Artifact number ${artifact.ordinal}, open the discovery ledger`
+                        : 'Artifact, open the discovery ledger'
+                    }
                     className="w-28 h-28 shrink-0 bg-transparent border-0 p-0 cursor-pointer"
                   >
                     {artifactUrl ? (
@@ -525,6 +500,11 @@ export default function InventoryPage() {
                     <p className="text-xs text-white/50 mt-1">
                       {cosmeticDescription(artifact.cosmetic)}
                     </p>
+                    {/* Paper -> Artifact: a copy names where it came from.
+                        Who it was transcribed to is a tab in the ledger. */}
+                    {artifact.origin && (
+                      <p className="text-xs text-white/40 mt-1">Origin: {artifact.origin}</p>
+                    )}
                     <div className="mt-3 flex items-center justify-center sm:justify-start gap-2 flex-wrap">
                       {equippedCosmetic === artifact.cosmetic ? (
                         <>
@@ -566,7 +546,8 @@ export default function InventoryPage() {
 
       {showLedger && (
         <ArtifactLedgerModal
-          highlightOrdinal={artifact?.ordinal ?? null}
+          marks={ledgerMarks(artifact)}
+          transcribedTo={artifact?.reproduced_to ?? []}
           onClose={() => setShowLedger(false)}
         />
       )}
@@ -574,7 +555,11 @@ export default function InventoryPage() {
       {revertRelic && (
         <RevertTimeModal
           relic={revertRelic}
-          offer={merchantOffer}
+          reverted={reverted}
+          blocked={revertLocked}
+          blockedUntil={revertLockedUntil}
+          revertedTo={revertToDate ?? null}
+          statusKnown={merchant !== null}
           onClose={() => setRevertRelic(null)}
           onReverted={handleReverted}
         />

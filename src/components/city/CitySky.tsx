@@ -7,6 +7,7 @@ import { STAR_CATALOG } from '@/components/worldmap/starCatalog';
 import CityMoon from '@/components/city/CityMoon';
 // `Sky` is aliased: drei's atmospheric <Sky> component owns that name here.
 import { computeSky, computeAspects, type AspectBody, type Sky as SkySnapshot } from '@/lib/astrology';
+import { cityAura } from '@/lib/cityAura';
 import {
   localFrame, horizonOf, horizonOfRaDec, nightness, twilightBand, apparentMagnitude,
   type HorizonPos, type LocalFrame,
@@ -18,7 +19,8 @@ import {
 } from '@/lib/seaGlitter';
 
 export { horizonToScene } from '@/lib/citySkyGeometry';
-import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
+import { useHdTextures } from '@/lib/hdTextures';
+import { useGameTextures } from '@/lib/useGameTextures';
 import {
   milkyWayQuaternion, milkyWayTexturePath, orientMilkyWayTexture,
 } from '@/lib/milkyWay';
@@ -107,6 +109,12 @@ export interface CityBodyPlacement {
   position: [number, number, number];
   horizon: HorizonPos;
   color: string;
+  /** The conjunction glow: a nearby body's colour bleeding in, as on the
+   *  globe (lib/cityAura.ts). The body's own colour, and strength 0, when
+   *  nothing is near it. */
+  auraColor: string;
+  aspectStrength: number;
+  aspectInfluence: number;
   /** 0 to 1: how far the body has emerged from the twilight, which is now a
    *  function of its own apparent magnitude rather than one threshold for
    *  everything. Deliberately not what the gaze labels read: they go by
@@ -172,6 +180,10 @@ export function useCitySky(
         position: horizonToScene(horizon, SKY_R, eye),
         horizon,
         color: `#${aspects[body].color.getHexString()}`,
+        auraColor: `#${aspects[body].auraColor.getHexString()}`,
+        // The Sun gives light rather than taking colour (astrology.ts).
+        aspectStrength: body === 'Sun' ? 0 : aspects[body].strength,
+        aspectInfluence: body === 'Sun' ? 0 : aspects[body].influence,
         visibility,
         magnitude,
       };
@@ -201,7 +213,7 @@ export function useCitySky(
 function MilkyWay({ frame, eye, opacity }: {
   frame: LocalFrame; eye: readonly [number, number, number]; opacity: number;
 }) {
-  const tex = useTexture(milkyWayTexturePath(IS_NATIVE_BUILD));
+  const [tex] = useGameTextures([milkyWayTexturePath(useHdTextures())]);
   useMemo(() => orientMilkyWayTexture(tex), [tex]);
 
   const quaternion = useMemo(() => {
@@ -496,6 +508,22 @@ export default function CitySky({
         // Brighter planets are drawn bigger as well as sooner, so Venus
         // reads as Venus rather than as one more dot.
         const size = BODY_SIZE[p.body] * BODY_SIZE_BOOST * magnitudeSizeFactor(p.magnitude) * BODY_INTENSITY;
+        // The conjunction glow, behind the halo: another body's colour
+        // bleeding in when one is near, as on the globe. Nothing is drawn
+        // when no conjunction is working on this body.
+        const aura = cityAura(size, HALO_SIZE, { strength: p.aspectStrength, influence: p.aspectInfluence });
+        const auraSprite = aura.opacity > 0 && (
+          <sprite scale={[aura.scale, aura.scale, 1]}>
+            <spriteMaterial
+              map={glow}
+              color={p.auraColor}
+              transparent
+              opacity={p.visibility * aura.opacity * BODY_INTENSITY}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+            />
+          </sprite>
+        );
         // The Moon is the one body with a face to show. A soft sprite is
         // right for a point of light and wrong for a disc you can resolve:
         // drawn like the others it was a featureless blob, telling apart
@@ -513,6 +541,7 @@ export default function CitySky({
                 />
               </Suspense>
               <group position={p.position}>
+                {auraSprite}
                 <sprite scale={[size * HALO_SIZE, size * HALO_SIZE, 1]}>
                   <spriteMaterial
                     map={glow}
@@ -531,6 +560,7 @@ export default function CitySky({
           <group key={p.body} position={p.position}>
             {/* Halo first: wider and much fainter, additively blended, so a
                 bright body sits in its own glow. */}
+            {auraSprite}
             <sprite scale={[size * HALO_SIZE, size * HALO_SIZE, 1]}>
               <spriteMaterial
                 map={glow}

@@ -1,0 +1,136 @@
+{
+  "generatedBy": "wom-tools/animation-generation/loading_animation.py (v14a)",
+  "color": "#ff0000",
+  "colors": [
+    "#ff0000",
+    "#ffff00",
+    "#0000ff"
+  ],
+  "startsFoldedOut": [
+    false,
+    true
+  ],
+  "mix": {
+    "v14": 0.618034,
+    "wheel": 0.236068,
+    "rainbow": 0.09017,
+    "v11": 0.034442,
+    "v10": 0.021286
+  },
+  "rainbow": {
+    "colors": [
+      "#ff0000",
+      "#ff8000",
+      "#ffff00",
+      "#00ff00",
+      "#0000ff",
+      "#8000ff",
+      "#ff0000"
+    ],
+    "trailMaxDegrees": 100.0
+  },
+  "wheel": {
+    "trailMaxDegrees": 100.0
+  },
+  "v14": {
+    "trailMaxDegrees": 100.0
+  },
+  "lineRadius": 0.06604,
+  "extent": 1.096575,
+  "center": [
+    0.0,
+    0.0
+  ],
+  "swing": [
+    {
+      "tip": [
+        -0.816497,
+        -0.471405
+      ],
+      "corner": [
+        -0.0,
+        -0.942809
+      ]
+    },
+    {
+      "tip": [
+        0.0,
+        0.942809
+      ],
+      "corner": [
+        -0.816497,
+        0.471405
+      ]
+    },
+    {
+      "tip": [
+        0.816497,
+        -0.471405
+      ],
+      "corner": [
+        0.816497,
+        0.471405
+      ]
+    }
+  ],
+  "edges": [
+    [
+      [
+        -0.816497,
+        -0.471405
+      ],
+      [
+        -0.816497,
+        0.471405
+      ]
+    ],
+    [
+      [
+        0.0,
+        0.942809
+      ],
+      [
+        0.816497,
+        0.471405
+      ]
+    ],
+    [
+      [
+        0.816497,
+        -0.471405
+      ],
+      [
+        -0.0,
+        -0.942809
+      ]
+    ]
+  ],
+  "outfold": {
+    "holdBefore": 0.5,
+    "duration": 1.0,
+    "holdAfter": 1.0,
+    "speed": 3.0,
+    "spin": 120.0
+  },
+  "spin": {
+    "up": 1.0,
+    "top": 1.0,
+    "down": 1.0,
+    "topSpeed": 360.0,
+    "direction": -1,
+    "speed": 4.845
+  },
+  "infold": {
+    "holdBefore": 1.0,
+    "duration": 1.0,
+    "holdAfter": 0.5,
+    "speed": 4.845,
+    "spin": 120.0
+  },
+  "trail": {
+    "seconds": 0.54,
+    "echoes": 24,
+    "gain": 1.0,
+    "maxDegrees": 60.0
+  }
+}

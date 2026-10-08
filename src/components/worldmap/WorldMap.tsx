@@ -6,24 +6,32 @@ import { OrbitControls, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
 import CityMarker from './CityMarker';
-import MerchantMarker from './MerchantMarker';
+import MerchantMarker, { type MerchantMarkerSpec } from './MerchantMarker';
+import { skyDrift, skyStep } from '@/lib/skyDrift';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import {
   milkyWayQuaternion, milkyWayTexturePath, orientMilkyWayTexture,
 } from '@/lib/milkyWay';
 import GlobeCrackleEffect from './GlobeCrackleEffect';
+import TimewarpFx from './TimewarpFx';
+import TimewarpFade from './TimewarpFade';
 import { CITIES, latLngToVec3, type City } from '@/lib/cities';
 import { STAR_CATALOG } from './starCatalog';
 import {
   getSky, computeAspects, raDecToVec3,
   type BodyAspect, type AspectBody,
 } from '@/lib/astrology';
-import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
+import { useHdTextures } from '@/lib/hdTextures';
+import { earthTexturePaths } from '@/lib/ktx2Textures';
+import { useGameTextures } from '@/lib/useGameTextures';
+import { isHudLoadingMarkOn, reportHudMarkSize, toggleHudLoadingMark, useHudHidden } from '@/lib/hudHidden';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
 const PLANET_R = 46;
+/** The no-HUD loading animation's size, as a fraction of the Earth's on screen. */
+const HUD_MARK_EARTH_FRACTION = 0.5;
 /** The globe, as something that can hide a body from the gaze labels. */
 const GLOBE_OCCLUDER = { center: new THREE.Vector3(0, 0, 0), radius: 2.5 };
 const RAD = Math.PI / 180;
@@ -172,14 +180,13 @@ function makeMoonFresnelMat(aspect: Pick<BodyAspect, 'auraColor' | 'strength'>) 
 
 const jupiterTexturePath = (): string => '/textures/jupiter/jupiter2_1k.jpg';
 
-// Web: a JPEG re-encode of the source PNG (12 MB → ~0.6 MB, the material
-// ignores alpha so nothing is lost) at 4000x2000 -- kept small since every
-// web visitor downloads it over the network. Native (Capacitor) / Steam
-// (Electron) builds bundle their assets locally instead of fetching them,
-// and are a paid product, so they use the full-resolution source PNG
-// (8000x4000, MilkyWay-extreme.png -- MilkyWay-Stars.png is the same shot
-// but with a survey reference grid/star-name overlay baked in, not a game
-// asset) for the extra visual value. See docs/MOBILE_AND_STEAM_PLAN.md.
+// Without HD: a JPEG re-encode of the source PNG (12 MB → ~0.6 MB, the
+// material ignores alpha so nothing is lost) at 4000x2000 -- kept small since
+// every web visitor downloads it over the network. With HD (lib/hdTextures.ts:
+// the paid apps, and web accounts that have paid): the full-resolution
+// panorama (8000x4000, assets-src/.../MilkyWay-extreme.png as KTX2 --
+// MilkyWay-Stars.png is the same shot but with a survey reference
+// grid/star-name overlay baked in, not a game asset).
 
 // Preload async textures early so they are likely cached by the time their
 // phase is reached.
@@ -198,10 +205,8 @@ useTexture.preload(jupiterTexturePath());
 // ── Real starfield ─────────────────────────────────────────────────────────
 
 const Starfield = memo(function Starfield() {
-  const [circleTex, milkyWayTex] = useTexture([
-    '/textures/stars/circle.png',
-    milkyWayTexturePath(IS_NATIVE_BUILD),
-  ]);
+  const circleTex = useTexture('/textures/stars/circle.png');
+  const [milkyWayTex] = useGameTextures([milkyWayTexturePath(useHdTextures())]);
 
   // BackSide sphere UVs mirror the panorama left/right; this un-flips it.
   useMemo(() => orientMilkyWayTexture(milkyWayTex), [milkyWayTex]);
@@ -253,7 +258,7 @@ const Starfield = memo(function Starfield() {
 
   const groupRef = useRef<THREE.Group>(null);
   useFrame(() => {
-    if (groupRef.current) groupRef.current.rotation.y -= 0.0002;
+    if (groupRef.current) groupRef.current.rotation.y += skyStep();
   });
 
   const milkyWayRef = useRef<THREE.Mesh>(null);
@@ -647,9 +652,7 @@ function VenusBody({ position, aspect }: { position: THREE.Vector3; aspect: Body
 // (docs/ASPECTS_PLAN.md §4.4), so wiring influence in here would be a
 // permanent no-op.
 
-const _sunDriftQ  = new THREE.Quaternion();
 const _sunDriftAx = new THREE.Vector3(0, 1, 0);
-const SKY_DRIFT   = -0.0002;
 
 function SunLight() {
   const lightRef = useRef<THREE.DirectionalLight>(null);
@@ -664,8 +667,11 @@ function SunLight() {
   // light stays aligned with the sun sprite's world position.
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -691,8 +697,11 @@ function VenusLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -718,8 +727,11 @@ function JupiterLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -745,8 +757,11 @@ function MercuryLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -772,8 +787,11 @@ function MarsLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -799,8 +817,11 @@ function SaturnLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -830,8 +851,11 @@ function MoonLight() {
 
   useFrame(() => {
     if (lightRef.current) {
-      _sunDriftQ.setFromAxisAngle(_sunDriftAx, SKY_DRIFT);
-      lightRef.current.position.applyQuaternion(_sunDriftQ);
+      // Placed from the sky's whole turn, not stepped along with it: a step
+      // is lost every time the sky changes (initPos resets the position),
+      // which after a timewarp's spin left the Sun lighting the Moon from
+      // the wrong side -- a phase where there should be a full moon.
+      lightRef.current.position.copy(initPos).applyAxisAngle(_sunDriftAx, skyDrift.angle);
     }
   });
 
@@ -890,6 +914,7 @@ const PlanetSprites = memo(function PlanetSprites({
   // getSky() read) when a revert starts or ends despite `phase` staying
   // put. See the WorldMapProps comment on skyRevertKey.
   void skyRevertKey;
+  const hudHidden = useHudHidden();
   const groupRef = useRef<THREE.Group>(null);
   const sky = getSky();
   const aspects = useMemo(() => computeAspects(sky), [sky]);
@@ -909,7 +934,26 @@ const PlanetSprites = memo(function PlanetSprites({
   const posJup  = useMemo(() => sky.dir.Jupiter.clone().multiplyScalar(JUPITER_BODY_R), [sky]);
   const posSat  = useMemo(() => sky.dir.Saturn.clone().multiplyScalar(SATURN_BODY_R), [sky]);
 
-  useFrame(() => { if (groupRef.current) groupRef.current.rotation.y -= 0.0002; });
+  // The group starts unturned on every mount; so does the shared count,
+  // rather than carrying a previous visit's turn for its first frame.
+  useEffect(() => { skyDrift.angle = 0; }, []);
+  useFrame((state) => {
+    if (!groupRef.current) return;
+    groupRef.current.rotation.y += skyStep();
+    // Shared, so a merchant marker can stand under a body in this sky.
+    skyDrift.angle = groupRef.current.rotation.y;
+    // The no-HUD loading animation is drawn half the Earth's size on screen
+    // (lib/hudHidden.ts). The globe sits at the origin; its outline is the
+    // sphere's true silhouette, asin(R / distance) off centre, so this stays
+    // right with the camera in close.
+    if (isHudLoadingMarkOn()) {
+      const camera = state.camera as THREE.PerspectiveCamera;
+      const distance = Math.max(camera.position.length(), GLOBE_RADIUS * 1.0001);
+      const earthRadiusPx = (Math.tan(Math.asin(GLOBE_RADIUS / distance))
+        / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) * (state.size.height / 2);
+      reportHudMarkSize(HUD_MARK_EARTH_FRACTION * 2 * earthRadiusPx);
+    }
+  });
 
   // Only bodies that have actually been revealed get a label -- otherwise a
   // name could fade in over empty space during the staggered load.
@@ -1009,7 +1053,7 @@ const PlanetSprites = memo(function PlanetSprites({
       {/* Inside the drifting group, so labels ride with their bodies. The
           globe occludes: a planet on the far side must not be named through
           the Earth (§7.2). */}
-      <SkyLabels bodies={labelBodies} occluder={GLOBE_OCCLUDER} offset={PLANET_LABEL_OFFSET} />
+      {!hudHidden && <SkyLabels bodies={labelBodies} occluder={GLOBE_OCCLUDER} offset={PLANET_LABEL_OFFSET} />}
     </group>
   );
 });
@@ -1021,12 +1065,13 @@ interface GlobeProps {
   onReady?: () => void;
   /** docs/MERCHANT_PLAN.md -- where to draw the ??? this trigger period, or
    * null to draw nothing (no active/available offer right now). */
-  merchantMarkerLatLng?: { lat: number; lng: number } | null;
-  onMerchantClick?: () => void;
+  merchantMarkers?: readonly MerchantMarkerSpec[];
+  onMerchantClick?: (key: string) => void;
 }
 
-function Globe({ onCityClick, onReady, merchantMarkerLatLng, onMerchantClick }: GlobeProps) {
+function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
+  const hudHidden = useHudHidden();
 
   // Epicenter for the crackle effect — Athens on the globe surface
   const athensEpicenter = useMemo(() => {
@@ -1034,20 +1079,14 @@ function Globe({ onCityClick, onReady, merchantMarkerLatLng, onMerchantClick }: 
     return new THREE.Vector3(x, y, z);
   }, []);
 
-  // Web always uses 1k earth textures (downloaded over the network by every
-  // visitor). Native (Capacitor) / Steam (Electron) builds bundle assets
-  // locally and are a paid product, so they use the full 4k tier instead --
-  // extreme-res exists on disk too but is missing the earthmap/bump/lights
-  // files (only spec + cloud-alpha), so high-res/4k is the highest complete
-  // tier available. Cloud textures are the same file in both folders, so
-  // always pulled from high-res regardless of tier.
-  const earthDir = IS_NATIVE_BUILD ? 'high-res' : 'low-res';
-  const earthSuffix = IS_NATIVE_BUILD ? '4k' : '1k';
-  const [earthMap, specularMap, bumpMap, lightsMap, cloudsMap, cloudsTrans] = useTexture([
-    `/textures/earth/${earthDir}/00_earthmap${earthSuffix}.jpg`,
-    `/textures/earth/${earthDir}/02_earthspec${earthSuffix}.jpg`,
-    `/textures/earth/${earthDir}/01_earthbump${earthSuffix}.jpg`,
-    `/textures/earth/${earthDir}/03_earthlights${earthSuffix}.jpg`,
+  // 1k earth textures without HD (downloaded over the network by every web
+  // visitor); with HD (lib/hdTextures.ts) the full 4k tier -- as KTX2, which
+  // stays GPU-compressed (lib/ktx2Textures.ts). assets-src/.../extreme-res is
+  // missing the earthmap/bump/lights files (only spec + cloud-alpha), so 4k
+  // is the highest complete tier available. Cloud textures are the same file
+  // in both tiers, so always pulled from high-res regardless.
+  const [earthMap, specularMap, bumpMap, lightsMap] = useGameTextures(earthTexturePaths(useHdTextures()));
+  const [cloudsMap, cloudsTrans] = useTexture([
     '/textures/earth/high-res/04_earthcloudmap.jpg',
     '/textures/earth/high-res/05_earthcloudmaptrans.jpg',
   ]);
@@ -1091,7 +1130,15 @@ function Globe({ onCityClick, onReady, merchantMarkerLatLng, onMerchantClick }: 
   useFrame(() => { if (cloudsRef.current) cloudsRef.current.rotation.y += 0.000075; });
 
   return (
-    <group rotation={[0, earthRot, 0]}>
+    <group
+      rotation={[0, earthRot, 0]}
+      // With the HUD hidden, a tap on the globe (not the end of a drag to
+      // turn it) turns the loading animation on and off (lib/hudHidden.ts).
+      onClick={hudHidden ? (e) => {
+        e.stopPropagation();
+        if (e.delta <= 4) toggleHudLoadingMark();
+      } : undefined}
+    >
       <mesh geometry={geo}>
         <meshPhongMaterial
           map={earthMap}
@@ -1111,6 +1158,10 @@ function Globe({ onCityClick, onReady, merchantMarkerLatLng, onMerchantClick }: 
 
       <mesh geometry={geo} material={moonFresnelMat} scale={1.018} />
 
+      {/* The pins -- Greece's sword and the merchants -- leave while a
+          timewarp spins the globe and fade slowly back at the end. Gone
+          altogether while the HUD is hidden (lib/hudHidden.ts). */}
+      {!hudHidden && <TimewarpFade>
       {CITIES.map((city) => (
         <CityMarker
           key={city.id}
@@ -1120,17 +1171,22 @@ function Globe({ onCityClick, onReady, merchantMarkerLatLng, onMerchantClick }: 
         />
       ))}
 
-      {merchantMarkerLatLng && onMerchantClick && (
+      {onMerchantClick && merchantMarkers.map((m) => (
         <MerchantMarker
-          lat={merchantMarkerLatLng.lat}
-          lng={merchantMarkerLatLng.lng}
+          key={m.key}
+          bodies={m.bodies}
+          globeRotationY={earthRot}
+          color={m.color}
+          outline={m.outline}
+          label={m.label}
           globeRadius={GLOBE_RADIUS}
-          onClick={onMerchantClick}
+          onClick={() => onMerchantClick(m.key)}
         />
-      )}
+      ))}
 
       {/* Crackle electricity radiating from the sword's impact point */}
       <GlobeCrackleEffect epicenter={athensEpicenter} radius={GLOBE_RADIUS} />
+      </TimewarpFade>}
     </group>
   );
 }
@@ -1178,7 +1234,7 @@ function CameraRig({
 
     if (paused) return;
 
-    _driftQ.setFromAxisAngle(_yAxis, SKY_DRIFT);
+    _driftQ.setFromAxisAngle(_yAxis, skyStep());
     camera.position.applyQuaternion(_driftQ);
     camera.up.applyQuaternion(_driftQ).normalize();
   });
@@ -1200,19 +1256,27 @@ function CameraRig({
 
 interface WorldMapProps {
   onCityClick: (city: City) => void;
-  merchantMarkerLatLng?: { lat: number; lng: number } | null;
-  onMerchantClick?: () => void;
-  // docs/MERCHANT_PLAN.md §7: the current revert's revert_to_date (or null
-  // when nothing is reverted) -- PlanetSprites is memoized on `phase` alone
+  /** One per merchant in town (docs/MERCHANT_PLAN.md) -- a full moon and a
+   *  conjunction at once are two. */
+  merchantMarkers?: readonly MerchantMarkerSpec[];
+  onMerchantClick?: (key: string) => void;
+  // docs/MERCHANT_PLAN.md §7: the instant the sky is drawn at when it
+  // isn't now -- a revert's, or the dev clock's -- or null. PlanetSprites is memoized on `phase` alone
   // so it stops re-rendering once the reveal animation finishes, and passing
   // this through as a second prop is what makes it pick a revert back up
   // (and drop it again once the revert ends) without giving up that
   // memoization the rest of the time.
   skyRevertKey?: string | null;
+  /** While a timewarp animation plays, its colours -- the clouds and
+   *  electricity around the globe (TimewarpFx). null otherwise. */
+  timewarpColors?: string[] | null;
+  /** Called once every planet and the stars have appeared -- when there
+   *  is a whole sky for a timewarp animation to act on. */
+  onSkyReady?: () => void;
 }
 
 export default function WorldMap({
-  onCityClick, merchantMarkerLatLng, onMerchantClick, skyRevertKey = null,
+  onCityClick, merchantMarkers, onMerchantClick, skyRevertKey = null, timewarpColors = null, onSkyReady,
 }: WorldMapProps) {
   const [phase, setPhase] = useState(0);
   // Flips to true once Globe signals its textures have finished loading.
@@ -1221,6 +1285,11 @@ export default function WorldMap({
 
   // Phase 1: mount the Globe immediately.
   useEffect(() => { setPhase(1); }, []);
+
+  // Phase 9 is the last reveal: the whole sky is up.
+  useEffect(() => {
+    if (phase >= 9) onSkyReady?.();
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps -- once per phase, not per callback identity
 
   // Phases 2-9: stagger planets then stars, starting only after the Globe is ready.
   useEffect(() => {
@@ -1261,9 +1330,15 @@ export default function WorldMap({
           <Globe
             onCityClick={onCityClick}
             onReady={() => setGlobeReady(true)}
-            merchantMarkerLatLng={merchantMarkerLatLng}
+            merchantMarkers={merchantMarkers}
             onMerchantClick={onMerchantClick}
           />
+        </Suspense>
+      )}
+
+      {timewarpColors && timewarpColors.length > 0 && (
+        <Suspense fallback={null}>
+          <TimewarpFx colors={timewarpColors} radius={GLOBE_RADIUS} />
         </Suspense>
       )}
 

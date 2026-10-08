@@ -12,6 +12,8 @@ import { getStoredToken } from '@/lib/http';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { LobbyState } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
+import { cameraSpinCookie, readCameraSpin } from '@/lib/cameraSpinPref';
+import NoLoadingOverlay from '@/components/loading/NoLoadingOverlay';
 
 const LobbyScene = dynamic(() => import('@/components/lobby/LobbyScene'), { ssr: false });
 
@@ -57,6 +59,18 @@ function LobbyPageContent() {
 
   // Join form state (used when not logged in)
   const [previewState, setPreviewState] = useState<LobbyState | null>(null);
+
+  // The camera spin choice is remembered in a cookie (cameraSpinPref.ts),
+  // read after mount so the server render and first client render agree.
+  useEffect(() => {
+    setSpinEnabled(readCameraSpin(document.cookie));
+  }, []);
+  const toggleSpin = useCallback(() => {
+    setSpinEnabled((v) => {
+      document.cookie = cameraSpinCookie(!v);
+      return !v;
+    });
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -151,6 +165,8 @@ function LobbyPageContent() {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100dvh', overflow: 'hidden' }}>
+      {/* Live lobbies: the loading overlay would get in the way of play. */}
+      <NoLoadingOverlay />
       <Canvas
         camera={{ position: [33, 26, 33], fov: BASE_FOV }}
         // Cap resolution at 2x — rendering at DPR 3 on phones triples the pixel
@@ -183,7 +199,7 @@ function LobbyPageContent() {
           onActionChange={setSharedAction}
           onResourceChange={setSharedResource}
           spinEnabled={spinEnabled}
-          onToggleSpin={() => setSpinEnabled((v) => !v)}
+          onToggleSpin={toggleSpin}
           cameraMoved={cameraMoved}
           onResetCamera={handleResetCamera}
           instakillActive={instakillActive}

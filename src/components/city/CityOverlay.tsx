@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import SceneTopBar from '@/components/hud/SceneTopBar';
 
 /**
@@ -15,8 +16,11 @@ export default function CityOverlay({
   /** Athens wall-clock time being viewed, when ?t= overrode the real one.
    *  Null while the sky is live -- there is nothing to say then. */
   skyClock,
+  /** The world clock, drawn under the Rules button (components/worldmap/WorldClock). */
+  clock,
 }: {
   skyClock?: string | null;
+  clock?: ReactNode;
 }) {
   return (
     <>
@@ -27,7 +31,7 @@ export default function CityOverlay({
           The way back to Earth is NOT here: it is a sign on the signpost,
           under the Bossfight arm, so leaving the city is a thing in the
           world rather than a button floating over it. */}
-      <SceneTopBar />
+      <SceneTopBar belowRules={clock} />
 
       {/* No city nameplate. The scene says where you are far better than a
           caption does -- the temple, the signpost and the sky over Greece
@@ -40,7 +44,7 @@ export default function CityOverlay({
           readout below says so, which is the part that is not scaffolding.
           It renders nothing at all on the live sky. */}
       {skyClock && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 text-center pointer-events-none">
+        <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-1/2 -translate-x-1/2 z-10 text-center pointer-events-none">
           <p className="text-xs text-amber-300/90 mt-1 tracking-widest drop-shadow font-mono">
             SKY AT {skyClock} ATHENS
           </p>

@@ -90,7 +90,9 @@ export function useBotRankedQueue() {
       enteredRef.current = false;
       setStatus('searching');
 
-      getSocket().emit('join_ai_ranked_queue', { name });
+      // The room is joined by account session, never by name: it receives
+      // this player's lobby token (wom-be sockets/ai_ranked.py).
+      getSocket().emit('join_ai_ranked_queue', { token: accountToken });
       stopListening();
       unsubscribeRef.current = subscribe('ai_ranked_match_found', ({ lobby_id, token }) => {
         enterMatch(lobby_id, token);
@@ -98,9 +100,9 @@ export function useBotRankedQueue() {
 
       // Layer 1: a reconnect drops the queue room, so re-join it.
       unsubscribeConnectRef.current = subscribeConnect(() => {
-        const queuedName = queuedNameRef.current;
-        if (queuedName && !enteredRef.current) {
-          getSocket().emit('join_ai_ranked_queue', { name: queuedName });
+        const token = tokenRef.current;
+        if (token && !enteredRef.current) {
+          getSocket().emit('join_ai_ranked_queue', { token });
         }
       });
 

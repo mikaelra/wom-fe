@@ -194,6 +194,13 @@ function baseColorHex(body: Exclude<AspectBody, 'Sun'>, mercuryRetrograde: boole
   return body === 'Mercury' && mercuryRetrograde ? MERCURY_RETRO_COLOR : BASE_COLOR[body];
 }
 
+/** A body's own identity colour, as the globe draws it with no aspect or
+ *  retrograde in play -- what the conjunction merchant's marker and its
+ *  revert-popup line are coloured from (lib/merchant.ts PLANET_COLOR). */
+export function bodyColorHex(body: Exclude<AspectBody, 'Sun'>): number {
+  return BASE_COLOR[body];
+}
+
 // Per-body, optional: only the Moon has one today. Kept separate from the
 // generic Sun amplification below so it can be extended to other bodies, or
 // dropped, without touching that maths.
@@ -318,9 +325,23 @@ let cached: Sky | null = null;
 // time". null means no revert is active, i.e. the ordinary live sky.
 let revertOverride: Date | null = null;
 
+// While a timewarp animation runs (lib/useTimewarpFx.ts) it drives the sky
+// through time itself, ahead of any revert override; null otherwise.
+let fxOverride: Date | null = null;
+
 export function getSky(): Sky {
-  if (!cached) cached = computeSky(revertOverride ?? new Date());
+  if (!cached) cached = computeSky(fxOverride ?? revertOverride ?? new Date());
   return cached;
+}
+
+/** Called by the timewarp animation as it runs the sky through time, and
+ *  with null when it ends -- the sky then falls back to whatever the revert
+ *  override says, which the merchant poll kept up to date meanwhile. */
+export function setSkyFxOverride(date: Date | null): void {
+  const changed = (date?.getTime() ?? null) !== (fxOverride?.getTime() ?? null);
+  if (!changed) return;
+  fxOverride = date;
+  cached = null;
 }
 
 /** Called by whatever is polling /merchant/offer once it knows whether a
@@ -333,7 +354,8 @@ export function setSkyRevertOverride(date: Date | null): void {
   const changed = (date?.getTime() ?? null) !== (revertOverride?.getTime() ?? null);
   if (!changed) return;
   revertOverride = date;
-  cached = null;
+  // A running timewarp animation owns the sky; this takes effect after it.
+  if (!fxOverride) cached = null;
 }
 
 /** Test-only: clears the getSky() singleton (and any revert override) so
@@ -342,6 +364,7 @@ export function setSkyRevertOverride(date: Date | null): void {
 export function _resetSkyCache(): void {
   cached = null;
   revertOverride = null;
+  fxOverride = null;
 }
 
 // ── Aspects ─────────────────────────────────────────────────────────────

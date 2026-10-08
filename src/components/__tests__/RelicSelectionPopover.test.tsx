@@ -72,6 +72,36 @@ describe('RelicSelectionPopover: unselected state', () => {
     expect(screen.getByText('You have no relics yet.')).toBeInTheDocument();
   });
 
+  it('lists only relics that do something in battle -- not Paper, Pen or the Artifact', async () => {
+    mockedGetPlayerRelics.mockResolvedValue({
+      relics: [
+        { id: COIN_RELIC_ID, boss_id: 6, created_at: '', newest_copy_created_at: '', name: "Hades' Coin", power_category: 'MONETARY', count: 3 },
+        { id: 10, boss_id: null, created_at: '', newest_copy_created_at: '', name: 'Paper', power_category: 'KNOWLEDGE', count: 2 },
+        { id: 11, boss_id: null, created_at: '', newest_copy_created_at: '', name: 'Pen', power_category: 'KNOWLEDGE', count: 4 },
+        { id: 12, boss_id: null, created_at: '', newest_copy_created_at: '', name: 'Artifact', power_category: 'KNOWLEDGE', count: 5 },
+      ],
+    });
+    render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[]} onToggle={vi.fn()} />);
+    await openPopover();
+
+    expect(screen.getByText('×3')).toBeInTheDocument();
+    expect(screen.queryByText('×2')).not.toBeInTheDocument();
+    expect(screen.queryByText('×4')).not.toBeInTheDocument();
+    expect(screen.queryByText('×5')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('shows the empty state when only non-battle relics are owned', async () => {
+    mockedGetPlayerRelics.mockResolvedValue({
+      relics: [{ id: 10, boss_id: null, created_at: '', newest_copy_created_at: '', name: 'Paper', power_category: 'KNOWLEDGE', count: 2 }],
+    });
+    render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[]} onToggle={vi.fn()} />);
+    await openPopover();
+
+    expect(screen.queryByText('×2')).not.toBeInTheDocument();
+    expect(screen.getByText('You have no relics yet.')).toBeInTheDocument();
+  });
+
   it('selecting a relic calls onToggle, closes the popover, and does NOT show a cooldown overlay', async () => {
     const onToggle = vi.fn();
     render(<RelicSelectionPopover playerName="Alice" selectedRelicIds={[]} onToggle={onToggle} />);

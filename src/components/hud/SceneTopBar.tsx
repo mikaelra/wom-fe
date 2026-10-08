@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logOut, getInventory } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinThumbnailUrl } from '@/lib/frogSkins';
+import { steamPersonaName } from '@/lib/steamAccount';
 import RopedButton from '@/components/hud/RopedButton';
 import RulesModal from '@/components/lobby/RulesModal';
 import MusicToggleButton from '@/components/audio/MusicToggleButton';
@@ -27,18 +28,27 @@ import SfxToggleButton from '@/components/audio/SfxToggleButton';
  * walk between scenes is exactly what locked decision 4 rules out.
  */
 
-const DEFAULT_SKIN = 'frog_green_v1';
-
-export default function SceneTopBar() {
+export default function SceneTopBar({
+  belowRules,
+}: {
+  /** Drawn directly under the Rules button -- the Earth screen's clock. */
+  belowRules?: ReactNode;
+} = {}) {
   const router = useRouter();
   const [loggedInName, setLoggedInName] = useState('');
-  const [equippedSkin, setEquippedSkin] = useState(DEFAULT_SKIN);
-  // True until the real equipped skin is known -- see the avatar span
-  // below, which shows a plain blinking-green placeholder instead of
-  // DEFAULT_SKIN's frog thumbnail while this is true (bug list 260916:
-  // showing a specific frog before swapping to the real skin read as
-  // "your skin is a frog" for that moment, not "still loading").
-  const [skinLoading, setSkinLoading] = useState(true);
+  // In the Steam build the chip shows the Steam account's name rather than
+  // the game name; null everywhere else.
+  const [steamName, setSteamName] = useState<string | null>(null);
+  // The account's equipped skin, once known; null shows no avatar at all.
+  const [equippedSkin, setEquippedSkin] = useState<string | null>(null);
+  // True while the real equipped skin is being fetched -- see the avatar
+  // span below, which shows a plain blinking-green placeholder meanwhile
+  // (bug list 260916: showing a specific frog before swapping to the real
+  // skin read as "your skin is a frog" for that moment, not "still
+  // loading"). Only ever true with an account to fetch it for: a name
+  // chosen without a verified account has no skin, so no avatar -- it used
+  // to blink here forever.
+  const [skinLoading, setSkinLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showRules, setShowRules] = useState(false);
@@ -49,11 +59,18 @@ export default function SceneTopBar() {
     if (typeof window !== 'undefined') {
       setLoggedInName(localStorage.getItem('playerName') || '');
     }
+    let cancelled = false;
+    steamPersonaName().then((name) => {
+      if (!cancelled) setSteamName(name);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Same skin the user-menu button's avatar shows -- see the Inventory
   // page's own equippedSkin fetch, which this mirrors. A failure here just
-  // leaves the button on DEFAULT_SKIN rather than blocking anything.
+  // leaves the button without an avatar rather than blocking anything.
   useEffect(() => {
     const token = getStoredAccountToken();
     if (!token) return;
@@ -86,8 +103,8 @@ export default function SceneTopBar() {
     // State update only -- a location.reload() here would tear down and
     // re-initialise the entire WebGL scene just to swap the top-bar button.
     setLoggedInName('');
-    setEquippedSkin(DEFAULT_SKIN);
-    setSkinLoading(true);
+    setEquippedSkin(null);
+    setSkinLoading(false);
     setShowUserMenu(false);
   };
 
@@ -145,6 +162,7 @@ export default function SceneTopBar() {
           >
             Rules
           </RopedButton>
+          {belowRules}
           <MusicToggleButton />
           {/* The sound-effects toggle was only ever rendered in the lobby
               (LobbyOverlay), so every screen carrying this bar -- the city
@@ -203,15 +221,16 @@ export default function SceneTopBar() {
                 ariaLabel="Open user menu"
                 textClassName="flex items-center gap-2 text-white font-semibold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
               >
+                {(skinLoading || equippedSkin) && (
                 <span
                   className={
                     skinLoading
                       ? 'w-7 h-7 rounded-full border border-white/20 overflow-hidden shrink-0 avatar-loading-blink'
                       : 'w-7 h-7 rounded-full border border-white/20 overflow-hidden shrink-0'
                   }
-                  style={skinLoading ? undefined : { background: skinColor(equippedSkin) }}
+                  style={skinLoading || !equippedSkin ? undefined : { background: skinColor(equippedSkin) }}
                 >
-                  {!skinLoading && (
+                  {!skinLoading && equippedSkin && (
                     // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets, not remote/user content
                     <img
                       src={skinThumbnailUrl(equippedSkin)}
@@ -220,7 +239,9 @@ export default function SceneTopBar() {
                     />
                   )}
                 </span>
-                <span>{loggedInName}</span>
+                )}
+                {/* Steam names run to 32 characters; the chip is a fixed 163px. */}
+                <span className="max-w-[6rem] truncate">{steamName || loggedInName}</span>
                 <span className="text-white/70 text-xs">{showUserMenu ? '▲' : '▼'}</span>
               </RopedButton>
               {showUserMenu && (

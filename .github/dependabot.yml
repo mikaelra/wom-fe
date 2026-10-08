@@ -14,3 +14,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+
+  # fastlane (iOS build pipeline) -- Gemfile at the repo root
+  - package-ecosystem: "bundler"
+    directory: "/"
+    schedule:
+      interval: "weekly"

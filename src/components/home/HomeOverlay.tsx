@@ -15,6 +15,7 @@ import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { Relic } from '@/types/game';
 import { useToast } from '@/components/Toast';
 import RulesModal from '@/components/lobby/RulesModal';
+import LoadingState from '@/components/loading/LoadingState';
 
 const buttonBase =
   'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
@@ -181,7 +182,7 @@ export default function HomeOverlay() {
   return (
     <>
       {/* Top-left: rules + back button + auth + relics */}
-      <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
+      <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-4 flex flex-col gap-2 z-20">
         <button
           type="button"
           onClick={() => setShowRules(true)}
@@ -243,7 +244,7 @@ export default function HomeOverlay() {
             <h3 className="text-xl font-bold mb-4">Your relics</h3>
             <ul className="list-disc pl-6 mb-4">
               {relicsLoading ? (
-                <p className="text-black/60">Loading...</p>
+                <LoadingState label="Loading relics" />
               ) : relics.length > 0 ? (
                 relics.map((relic) => (
                   <li key={String(relic.id)}>

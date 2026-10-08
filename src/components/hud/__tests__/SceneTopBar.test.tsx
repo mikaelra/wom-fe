@@ -62,12 +62,40 @@ describe('SceneTopBar avatar loading placeholder', () => {
     expect(avatarSpan(container).querySelector('img')).not.toBeNull();
   });
 
-  it('stops blinking and falls back to the default skin if the fetch fails', async () => {
+  it('stops blinking and shows no avatar if the fetch fails', async () => {
     mockedGetInventory.mockRejectedValue(new Error('offline'));
     const { container } = render(<SceneTopBar />);
     await screen.findByText('Alice');
 
-    await waitFor(() => expect(avatarSpan(container).className).not.toContain('avatar-loading-blink'));
-    expect(avatarSpan(container).querySelector('img')).not.toBeNull();
+    await waitFor(() => expect(mockedGetInventory).toHaveBeenCalled());
+    await waitFor(() => expect(avatarSpan(container)).toBeNull());
+  });
+
+  it('shows no avatar at all -- no endless blink -- for a chosen name without a verified account', async () => {
+    setStoredAccountToken(null);
+    const { container } = render(<SceneTopBar />);
+    await screen.findByText('Alice');
+
+    expect(avatarSpan(container)).toBeNull();
+    expect(container.querySelector('.avatar-loading-blink')).toBeNull();
+    expect(mockedGetInventory).not.toHaveBeenCalled();
+  });
+});
+
+describe('SceneTopBar belowRules', () => {
+  it('draws what it is given directly under the Rules button', async () => {
+    mockedGetInventory.mockResolvedValue(inventory());
+    render(<SceneTopBar belowRules={<div data-testid="clock">12:00</div>} />);
+
+    const clock = await screen.findByTestId('clock');
+    const rules = screen.getByRole('button', { name: 'Rules' });
+    expect(rules.nextElementSibling).toBe(clock);
+  });
+
+  it('draws nothing extra without it', async () => {
+    mockedGetInventory.mockResolvedValue(inventory());
+    render(<SceneTopBar />);
+    await screen.findByRole('button', { name: 'Rules' });
+    expect(screen.queryByTestId('clock')).not.toBeInTheDocument();
   });
 });

@@ -15,11 +15,24 @@ const COIN_MODEL_URL = '/models/well/rewards/gold-ld.glb';
 // reason).
 const RELIC_MODEL_URLS: Record<string, string> = {
   'Stone of Vitality': '/models/relics/stone_of_vitality_v1.glb',
+  // pergament_v1 (add-pergament-item-model), textures resized 2048 -> 1024:
+  // it is drawn at relic-card size, and that took it from 6.6 MB to 0.7.
+  Paper: '/models/relics/paper_v1.glb',
+  // Meshy feather quill (wom-tools/model-generation), texture resized
+  // 2048 -> 1024 for the same reason: 3.1 MB to 0.45.
+  Pen: '/models/relics/pen_v1.glb',
+};
+
+// Relics whose inventory card shows a flat picture instead of the spinning
+// model -- the model is kept for where the relic is staged large (the
+// merchant's counter, via relicModelUrl).
+const RELIC_THUMBNAIL_URLS: Record<string, string> = {
+  Pen: '/models/relics/pen_v1.thumbnail.png',
 };
 
 // Exported for callers that need the raw model url without the rest of
-// this component (e.g. MerchantScene.tsx, which stages the Stone of
-// Vitality model itself rather than in a standard relic-card box).
+// this component (e.g. MerchantScene.tsx, which stages the relic a
+// merchant sells itself rather than in a standard relic-card box).
 export function relicModelUrl(relicName?: string): string {
   return (relicName && RELIC_MODEL_URLS[relicName]) || COIN_MODEL_URL;
 }
@@ -29,6 +42,11 @@ export function relicModelUrl(relicName?: string): string {
 // browsers' concurrent-WebGL-context limits. Revisit with a shared/View-based
 // canvas if that stops being true.
 export default function RelicCoin({ relicName }: { relicName?: string } = {}) {
+  const thumbnail = relicName && RELIC_THUMBNAIL_URLS[relicName];
+  if (thumbnail) {
+    // eslint-disable-next-line @next/next/no-img-element -- a small static file from public/, same as the inventory's skin previews
+    return <img src={thumbnail} alt={relicName} className="w-full h-full object-contain" draggable={false} />;
+  }
   return <SpinningModelViewer url={relicModelUrl(relicName)} targetSize={1.1} spinSpeed={0.8} />;
 }
 

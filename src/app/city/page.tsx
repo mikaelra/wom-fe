@@ -5,11 +5,17 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import CityOverlay from '@/components/city/CityOverlay';
+import WorldClock from '@/components/worldmap/WorldClock';
+import TimewarpPanel from '@/components/worldmap/TimewarpPanel';
+import { timewarpColorsFor } from '@/lib/timewarpFx';
+import { useTimewarpFx } from '@/lib/useTimewarpFx';
+import { useTimewarpRun } from '@/lib/useTimewarpRun';
+import { getSky } from '@/lib/astrology';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import AuthGatePopup from '@/components/AuthGatePopup';
 import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
 import { findCity } from '@/lib/cities';
-import { resolveCityTime, formatAthensClock } from '@/lib/cityTime';
+import { ATHENS_TZ, resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { useEnterBossfight } from '@/lib/useEnterBossfight';
 import { useEnterRanked } from '@/lib/useEnterRanked';
@@ -19,6 +25,8 @@ import { useBossfightRoster } from '@/lib/useBossfightRoster';
 import { useCityPresence } from '@/lib/useCityPresence';
 import { bossfightSignSublabel } from '@/lib/bossfightSign';
 import { playMusic, CITY_MUSIC } from '@/lib/music';
+import LoadingState from '@/components/loading/LoadingState';
+import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
 
 const CityScene = dynamic(() => import('@/components/city/CityScene'), { ssr: false });
 
@@ -42,15 +50,45 @@ function CityPageContent() {
   // ?t= lets you look at a sky that is not the one currently overhead --
   // "02:00" is 2am Athens tonight (docs/CITY_SCENE_PLAN.md §6.6).
   const { date: resolvedSkyDate, overridden: tOverridden } = resolveCityTime(searchParams.get('t'));
-  // docs/MERCHANT_PLAN.md §7: while a revert is active, the city's sky
-  // rewinds to the same instant the globe's does (getSky()'s own revert
-  // override, wired in useMerchantOffer) -- an explicit ?t= still wins,
-  // since that's a deliberate debug request, not something a revert should
-  // silently clobber.
-  const { offer: merchantOffer } = useMerchantOffer();
-  const reverted = !tOverridden && !!merchantOffer?.reverted && !!merchantOffer.revert_to_date;
-  const skyDate = reverted ? new Date(merchantOffer!.revert_to_date!) : resolvedSkyDate;
-  const skyOverridden = tOverridden || reverted;
+  // docs/MERCHANT_PLAN.md §7: while the sky is somewhere other than now --
+  // a revert, or the dev clock -- the city's sky follows it to the same
+  // instant the globe's does (getSky()'s own override, wired in
+  // useMerchantOffer). An explicit ?t= still wins, since that's a
+  // deliberate debug request, not something a revert should silently
+  // clobber.
+  const {
+    merchant, offers: merchantOffers, receivedAt: merchantReceivedAt, reverted, revertToDate, revertExpiresAt,
+    refresh: refreshMerchantOffer,
+  } = useMerchantOffer();
+  const skyMoved = !tOverridden && !!merchant?.sky_date;
+  const restingSkyDate = skyMoved ? new Date(merchant!.sky_date!) : resolvedSkyDate;
+
+  // The loading curtain lifts on the scene's own signal, never on a timer --
+  // except as a last resort, below.
+  const [sceneReady, setSceneReady] = useState(false);
+  const handleReady = useCallback(() => setSceneReady(true), []);
+
+  // The timewarp plays here too, not only on the globe (lib/useTimewarpRun.ts):
+  // anyone's, pushed by the server, or a `?timewarp` preview. Once the scene
+  // is up, so there is a sky for it to act on. While it plays -- or while a
+  // preview holds where it ended -- the city's sky is the animation's
+  // instant (getSky(), which lib/useTimewarpFx.ts runs through time), so
+  // the real Sun, Moon and planets travel to the moment warped to. After
+  // that it is the merchant poll's sky_date again, as before.
+  const {
+    preview: timewarpPreview, run: timewarpRun, runId: timewarpRunId, playPreview, playPreviewEnd,
+  } = useTimewarpRun({
+    onArrival: () => router.replace(`/city?id=${encodeURIComponent(searchParams.get('id') ?? '')}`),
+    refreshMerchantOffer,
+  });
+  const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
+    timewarpRun,
+    timewarpRunId,
+    sceneReady,
+  );
+  const warping = timewarpPlaying || (!!timewarpRun?.hold && timewarpStep > 0);
+  const skyDate = warping ? getSky().date : restingSkyDate;
+  const skyOverridden = tOverridden || skyMoved || warping;
 
   // The city had no music call of its own -- WorldMapOverlay and
   // LobbyOverlay were the only two screens that ever started a track -- so
@@ -60,10 +98,6 @@ function CityPageContent() {
     playMusic(CITY_MUSIC);
   }, []);
 
-  // The loading curtain lifts on the scene's own signal, never on a timer --
-  // except as a last resort, below.
-  const [sceneReady, setSceneReady] = useState(false);
-  const handleReady = useCallback(() => setSceneReady(true), []);
   useEffect(() => {
     // Safety net. A stalled texture must never leave the player staring at a
     // permanent curtain with a working scene hidden behind it; showing a
@@ -109,6 +143,7 @@ function CityPageContent() {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100dvh', overflow: 'hidden', background: '#070b15' }}>
+      <AssetLoadingReporter />
       <Canvas
         camera={{ position: CITY_CAMERA, fov: CITY_FOV }}
         // Same DPR cap as the lobby: rendering at DPR 3 on phones triples
@@ -146,20 +181,33 @@ function CityPageContent() {
           onMarket={() => router.push('/market')}
           presence={presence}
           onReady={handleReady}
+          timewarpColors={timewarpPlaying && timewarpRun ? timewarpRun.spec.colors : null}
         />
       </Canvas>
-      <CityOverlay skyClock={skyOverridden ? formatAthensClock(skyDate) : null} />
+      <CityOverlay
+        skyClock={skyOverridden ? formatAthensClock(skyDate) : null}
+        clock={
+          <WorldClock
+            reverted={reverted}
+            revertToDate={revertToDate ?? null}
+            skyDate={merchant?.sky_date ?? null}
+            skyDateReceivedAt={merchantReceivedAt}
+            revertExpiresAt={revertExpiresAt}
+            warpColors={timewarpColorsFor(merchantOffers.map((o) => o.event))}
+            timeZone={ATHENS_TZ}
+          />
+        }
+      />
+
+      {timewarpPreview && <TimewarpPanel onPlay={playPreview} onPlayEnd={playPreviewEnd} />}
 
       <CityLoadingScreen
         title={city.actionLabel ?? city.name}
-        accent={city.color}
         done={sceneReady}
       />
 
       {loading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 pointer-events-none">
-          <p className="text-white text-2xl font-bold tracking-widest animate-pulse">Loading...</p>
-        </div>
+        <LoadingState />
       )}
 
       {gateOpen && (

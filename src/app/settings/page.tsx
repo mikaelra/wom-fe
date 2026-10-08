@@ -7,6 +7,12 @@ import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
 import { APP_VERSION, BUILD_NUMBER } from '@/config';
 import { CITY_PATH } from '@/lib/cities';
 import AudioSettingsPanel from '@/components/audio/AudioSettingsPanel';
+import DeleteAccountPanel from '@/components/settings/DeleteAccountPanel';
+import MutedPlayersPanel from '@/components/settings/MutedPlayersPanel';
+import ChatFilterPanel from '@/components/settings/ChatFilterPanel';
+import ConnectionsPanel from '@/components/settings/ConnectionsPanel';
+import HdTexturesPanel from '@/components/settings/HdTexturesPanel';
+import LoadingState from '@/components/loading/LoadingState';
 
 const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
@@ -121,7 +127,7 @@ export default function SettingsPage() {
         </div>
 
         {loading ? (
-          <p className="text-white/70">Loading…</p>
+          <LoadingState />
         ) : loadError ? (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <p className="text-red-400 mb-3">{loadError}</p>
@@ -191,6 +197,14 @@ export default function SettingsPage() {
             and no reason a logged-out player should be unable to turn the
             music down. */}
         <AudioSettingsPanel />
+        <HdTexturesPanel />
+
+        {/* Also outside the gate: a Steam account has no email but can
+            still connect the web version and delete itself. */}
+        <ConnectionsPanel />
+        <ChatFilterPanel />
+        <MutedPlayersPanel />
+        <DeleteAccountPanel />
 
         {/* First question in any store support ticket is "which build are
             you on" (docs/MOBILE_AND_STEAM_PLAN.md §4.2). */}
