@@ -27,6 +27,9 @@ describe('HdTexturesPanel', () => {
     fireEvent.click(box);
     expect(box.checked).toBe(true);
     expect(getHdPreference()).toBe(true);
+    expect(screen.getByText(
+      'Load HD textures. Will start to load on entering earth or city scene. Warning: 41 megabytes gets downloaded.',
+    )).toBeTruthy();
   });
 
   it('says how to unlock it on the web without HD', async () => {
@@ -41,6 +44,7 @@ describe('HdTexturesPanel', () => {
     render(<HdTexturesPanel />);
     const box = screen.getByRole('checkbox', { name: 'HD textures' }) as HTMLInputElement;
     expect(box.checked).toBe(true);
+    expect(screen.getByText('Load HD textures.')).toBeTruthy();
     fireEvent.click(box);
     expect(getHdPreference()).toBe(false);
   });

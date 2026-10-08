@@ -1,8 +1,9 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BASIS_TRANSCODER_PATH, earthTexturePaths, isKtx2 } from '@/lib/ktx2Textures';
 import { milkyWayTexturePath } from '@/lib/milkyWay';
+import { HD_DOWNLOAD_MB } from '@/lib/hdTextures';
 
 describe('ktx2Textures', () => {
   it('recognises .ktx2 urls regardless of case', () => {
@@ -42,6 +43,15 @@ describe('ktx2Textures', () => {
     for (const url of [...earthTexturePaths(false), milkyWayTexturePath(false)]) {
       expect(existsSync(path.join(process.cwd(), 'public', url))).toBe(true);
     }
+  });
+
+  it('warns about the size HD really downloads, and every hd/ file is one the scenes load', () => {
+    const used = [...earthTexturePaths(true), milkyWayTexturePath(true)].sort();
+    const onDisk = readdirSync('hd', { recursive: true, encoding: 'utf8' })
+      .filter((f) => f.endsWith('.ktx2')).map((f) => `/hd/${f}`).sort();
+    expect(onDisk).toEqual(used);
+    const bytes = used.reduce((n, url) => n + statSync(path.join(process.cwd(), url)).size, 0);
+    expect(Math.round(bytes / 1e6)).toBe(HD_DOWNLOAD_MB);
   });
 
   it('serves the basis transcoder from the app itself, not a CDN', () => {

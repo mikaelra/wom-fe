@@ -15,6 +15,11 @@ import { getStoredAccountToken } from '@/lib/http';
 //
 // A scene picks its tier once, when it mounts (useHdTextures), so turning
 // HD on or off takes effect the next time the globe or the city loads.
+//
+// On the web each file is downloaded once, ever: kept in the browser's
+// Cache Storage (hdSources), shared by the globe and the city, and reused
+// on every later visit -- not left to the HTTP cache, which a 27 MB
+// response fetched with an Authorization header does not reliably keep.
 
 const PREFERENCE_KEY = 'hdTextures';
 
@@ -98,4 +103,76 @@ export function hdRequestHeaders(): Record<string, string> {
 /** True for a path served from hd/. */
 export function isHdTexturePath(url: string): boolean {
   return url.startsWith('/hd/');
+}
+
+/** What turning HD on downloads on the web, in megabytes (hd/'s .ktx2
+ *  files; a test keeps this in step with them). */
+export const HD_DOWNLOAD_MB = 41;
+
+// Bump when a file in hd/ changes, so browsers drop the old copies.
+const HD_CACHE = 'wom-hd-v1';
+
+async function hdCache(): Promise<Cache | null> {
+  if (typeof caches === 'undefined') return null; // plain http (dev), old browsers
+  try {
+    for (const name of await caches.keys()) {
+      if (name.startsWith('wom-hd-') && name !== HD_CACHE) await caches.delete(name);
+    }
+    return await caches.open(HD_CACHE);
+  } catch {
+    return null;
+  }
+}
+
+async function hdBlob(url: string): Promise<Blob> {
+  const cache = await hdCache();
+  const hit = await cache?.match(url).catch(() => undefined);
+  if (hit) return hit.blob();
+  const res = await fetch(url, { headers: hdRequestHeaders() });
+  if (!res.ok) throw new Error(`HD texture ${url}: HTTP ${res.status}`);
+  if (cache) await cache.put(url, res.clone()).catch(() => undefined); // full disk: just not kept
+  return res.blob();
+}
+
+// url -> what the loader should load. One entry per file for the page's
+// life, so the globe and the city share one download, even one still under way.
+const sources = new Map<string, Promise<string>>();
+const settledSources = new Map<string, Promise<string[]>>();
+
+/**
+ * The urls a texture loader should load for these. On the web an HD file
+ * becomes an object URL for the copy in Cache Storage, downloaded first if
+ * it is not there yet; everything else (and every file in the paid apps,
+ * which carry hd/ themselves) loads as is. The same promise for the same
+ * urls, as use() needs.
+ */
+export function hdSources(urls: string[]): Promise<string[]> {
+  const key = urls.join('|');
+  let all = settledSources.get(key);
+  if (!all) {
+    if (IS_NATIVE_BUILD || !urls.some(isHdTexturePath)) {
+      all = Object.assign(Promise.resolve(urls), { status: 'fulfilled', value: urls });
+    } else {
+      all = Promise.all(urls.map((url) => {
+        if (!isHdTexturePath(url)) return url;
+        let src = sources.get(url);
+        if (!src) {
+          src = hdBlob(url).then((b) => URL.createObjectURL(b));
+          // A failed download is retried by the next scene, not remembered.
+          src.catch(() => sources.delete(url));
+          sources.set(url, src);
+        }
+        return src;
+      }));
+      all.catch(() => settledSources.delete(key));
+    }
+    settledSources.set(key, all);
+  }
+  return all;
+}
+
+/** Test seam: forget the downloads. */
+export function resetHdSourcesForTests(): void {
+  sources.clear();
+  settledSources.clear();
 }
