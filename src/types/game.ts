@@ -147,6 +147,11 @@ export const RelicSchema = z.object({
   // §7). Stone of Vitality's revert confirmation reads this to show
   // exactly which moment time will turn back to before the player commits.
   newest_copy_created_at: z.string(),
+  // A merchant relic's (Stone of Vitality, Paper) every owned copy, newest
+  // first, with its purchase instant in ISO -- each turns time back to its
+  // own moment, and the Timewarp popup lets the player choose which.
+  // Absent on other relics, and from a backend that predates it.
+  copies: z.array(z.object({ id: z.number(), created_at: z.string() })).optional(),
 });
 
 // Relics that get spent (one copy consumed) when selected pre-match,

@@ -204,24 +204,20 @@ export function screenAngleOf(slice: Slice, rotation: number): number {
   return mod((slice.startAngle + slice.endAngle) / 2 + rotation, TWO_PI);
 }
 
-// The boundary (slice edge / peg) currently nearest the fixed pointer, for
-// peg-crossing detection. Deliberately does not assume a uniform slice
-// angle (§3.5.3 allows per-color widths) -- it just scans for the nearest
-// endAngle to wherever the pointer currently sits in wheel-local space.
-export function boundaryIndexAt(slices: Slice[], rotation: number): number {
+// Index of the slice currently under the fixed pointer, for peg-crossing
+// detection: it changes exactly when a slice edge (peg) passes the
+// pointer, so the flapper is kicked at the peg. (The nearest-boundary
+// index this replaced changed halfway between pegs instead, so the
+// flapper rocked in the middle of a slice.) Deliberately does not assume
+// a uniform slice angle (§3.5.3 allows per-color widths).
+export function sliceIndexAt(slices: Slice[], rotation: number): number {
   const pointerLocalAngle = mod(-rotation, TWO_PI);
-  let bestIndex = 0;
-  let bestDistance = Infinity;
-  slices.forEach((slice, i) => {
-    const boundary = mod(slice.endAngle, TWO_PI);
-    const raw = Math.abs(boundary - pointerLocalAngle);
-    const distance = Math.min(raw, TWO_PI - raw);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestIndex = i;
-    }
-  });
-  return bestIndex;
+  for (let i = 0; i < slices.length; i++) {
+    const start = mod(slices[i].startAngle, TWO_PI);
+    const width = slices[i].endAngle - slices[i].startAngle;
+    if (mod(pointerLocalAngle - start, TWO_PI) < width) return i;
+  }
+  return slices.length - 1;
 }
 
 export type TargetRotation = {

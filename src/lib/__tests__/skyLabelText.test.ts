@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { GLYPH, conjunctionNote, horizonNote, labelDetail } from '@/lib/skyLabelText';
+import { GLYPH, conjunctionNote, labelDetail } from '@/lib/skyLabelText';
 import { ORB, type AspectBody, type Sky } from '@/lib/astrology';
 
 const RAD = Math.PI / 180;
@@ -38,21 +38,6 @@ describe('GLYPH', () => {
   it('names every body the aspect maths knows about', () => {
     for (const b of BODIES) expect(GLYPH[b]).toBeTruthy();
     expect(Object.keys(GLYPH)).toHaveLength(BODIES.length);
-  });
-});
-
-describe('horizonNote', () => {
-  it('reads as altitude then compass point', () => {
-    expect(horizonNote({ altitude: 23.6, azimuth: 112 })).toBe('24° ESE');
-  });
-
-  it('wraps azimuth back around to north', () => {
-    expect(horizonNote({ altitude: 10, azimuth: 350 })).toBe('10° N');
-    expect(horizonNote({ altitude: 10, azimuth: -10 })).toBe('10° N');
-  });
-
-  it('stays total below the horizon, where the city never shows it', () => {
-    expect(horizonNote({ altitude: -4.4, azimuth: 180 })).toBe('-4° S');
   });
 });
 
@@ -98,25 +83,20 @@ describe('labelDetail', () => {
     expect(labelDetail(buildSky(), 'Jupiter')).toBeNull();
   });
 
-  it('opens with where the body stands when a horizon is supplied', () => {
-    const detail = labelDetail(buildSky(), 'Jupiter', { altitude: 31.2, azimuth: 205 });
-    expect(detail).toBe('31° SSW');
-  });
-
-  it('omits the horizon on the world map, which has no single observer', () => {
+  it('never names where the body stands -- no altitude or compass point', () => {
     const sky = buildSky({}, { mercuryRetrograde: true });
     expect(labelDetail(sky, 'Mercury')).toBe('RETROGRADE');
   });
 
-  it('joins several notes in reading order: place, then state, then aspect', () => {
+  it('joins several notes in reading order: state, then aspect', () => {
     const sky = buildSky({ Mercury: BASELINE.Venus + 3 }, { mercuryRetrograde: true });
-    expect(labelDetail(sky, 'Mercury', { altitude: 12, azimuth: 90 }))
-      .toBe(`12° E  ·  RETROGRADE  ·  ☌ ${GLYPH.Venus} 3.0°`);
+    expect(labelDetail(sky, 'Mercury'))
+      .toBe(`RETROGRADE  ·  ☌ ${GLYPH.Venus} 3.0°`);
   });
 
-  it('gives the Moon its illuminated fraction', () => {
+  it('does not give the Moon its illuminated fraction', () => {
     const sky = buildSky({}, { moonPhaseFraction: 0.675 });
-    expect(labelDetail(sky, 'Moon')).toBe('68% LIT');
+    expect(labelDetail(sky, 'Moon')).toBeNull();
   });
 
   it('marks Mercury retrograde only when it is', () => {

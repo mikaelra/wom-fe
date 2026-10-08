@@ -67,6 +67,8 @@ import {
 } from '@/lib/sceneConstants';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
+import { useMutedPlayers } from '@/lib/chatMute';
+import { useChatText } from '@/lib/chatFilter';
 
 
 // ── Sea & sky tuning ────────────────────────────────────────────────────────
@@ -1174,18 +1176,21 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   // bubbleTick forces a re-evaluation when the next bubble expires — previously
   // bubbles lingered until some unrelated state update happened to re-render.
   const [bubbleTick, setBubbleTick] = useState(0);
+  const muted = useMutedPlayers();
+  const chatText = useChatText();
   const chatBubbles = useMemo(() => {
     const now = Date.now();
     const map = new Map<string, string>();
     for (const msg of state?.chat ?? []) {
+      if (muted.has(msg.sender)) continue;
       const age = now - new Date(msg.timestamp).getTime();
       if (age < CHAT_BUBBLE_DURATION_MS) {
-        map.set(msg.sender, msg.message);
+        map.set(msg.sender, chatText(msg.message));
       }
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.chat, bubbleTick]);
+  }, [state?.chat, bubbleTick, muted, chatText]);
 
   useEffect(() => {
     const now = Date.now();
@@ -1362,6 +1367,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
               actionCue={actionCue}
               instakillActive={instakillVisualActive}
               chatBubble={chatBubbles.get(player.name)}
+              muted={muted.has(player.name)}
               showOwnActions={isOwnPlayer && showActionButtonsLook && !showDeadPose}
               currentAction={currentAction}
               onDefend={handleDefend}

@@ -7,7 +7,7 @@ export const metadata = { title: 'Privacy Policy — World of Mythos' };
 // Last substantive revision. Bump this in the same commit as any change to
 // the text below -- GDPR Art. 12 expects players to be able to tell whether
 // the policy they read is the one in force.
-const LAST_UPDATED = '2 September 2026';
+const LAST_UPDATED = '7 October 2026';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -49,7 +49,8 @@ export default function PrivacyPage() {
           <p>
             This policy explains what World of Mythos collects about you, why, who else
             sees it, and how to get it back or get it deleted. It covers the game at
-            worldofmythos.net and any packaged build of the same game.
+            worldofmythos.net and any packaged build of the same game, including the iOS
+            app and the Steam version.
           </p>
 
           <Section title="Who is responsible">
@@ -71,7 +72,9 @@ export default function PrivacyPage() {
               <strong className="text-white">Account details.</strong> Your player name and
               your email address. Email is used to verify the account and to log you in;
               once an account has made a purchase, every login on a new device needs a
-              one-time code sent to that address.
+              one-time code sent to that address. If you play through Steam, we store your
+              Steam account ID, which is how Steam logs you in, and your Steam name, which
+              we show you in Settings.
             </p>
             <p>
               <strong className="text-white">Session tokens.</strong> Random strings that
@@ -85,8 +88,14 @@ export default function PrivacyPage() {
             </p>
             <p>
               <strong className="text-white">Chat messages.</strong> Messages you send in a
-              lobby are stored on our server so they can be delivered and shown in the
-              game.
+              lobby or the market are stored on our server so they can be delivered and
+              shown in the game.
+            </p>
+            <p>
+              <strong className="text-white">Chat reports.</strong> If you report a chat
+              message, we store the message, the name of the player who sent it, what you
+              wrote in the report, and your account if you are logged in. Reports are used
+              only to deal with abuse.
             </p>
             <p>
               <strong className="text-white">Purchase records.</strong> What you bought,
@@ -114,7 +123,8 @@ export default function PrivacyPage() {
             </p>
             <p>
               <strong className="text-white">To keep the game working and fair</strong>{' '}
-              (legitimate interests). Error tracking, and investigating abuse or cheating.
+              (legitimate interests). Error tracking, chat reports, and investigating abuse or
+              cheating.
             </p>
           </Section>
 
@@ -133,6 +143,15 @@ export default function PrivacyPage() {
                 <strong className="text-white">Stripe</strong> — payments. You enter card
                 details on Stripe&apos;s own hosted checkout page, so card numbers never reach
                 us. Stripe returns only a result and a reference.
+              </li>
+              <li>
+                <strong className="text-white">Apple</strong> — purchases in the iOS app.
+                Apple handles the payment; we receive a signed record of what was bought.
+              </li>
+              <li>
+                <strong className="text-white">Valve (Steam)</strong> — logging in with Steam,
+                Steam Wallet purchases, and Steam achievements. Steam tells us your Steam
+                account ID; we tell Steam which achievements you have earned.
               </li>
               <li>
                 <strong className="text-white">Resend</strong> — sending verification and
@@ -157,7 +176,7 @@ export default function PrivacyPage() {
             <p>
               <strong className="text-white">Account, gameplay, and chat data</strong> is kept
               for as long as your account exists, and is deleted or anonymised when you ask
-              us to delete the account.
+              us to delete the account. Chat reports you made are deleted with your account.
             </p>
             <p>
               <strong className="text-white">Purchase and payment records</strong> are kept
@@ -197,8 +216,11 @@ export default function PrivacyPage() {
             <p>
               We do not use tracking or advertising cookies. The game stores a few things
               locally in your browser so it can work at all: your session tokens, your player
-              name and email so you don&apos;t have to retype them, and your sound settings.
-              Clearing your browser storage logs you out and resets those preferences.
+              name and email so you don&apos;t have to retype them, your sound and chat filter
+              settings, and the players you have muted. Clearing your browser storage logs you
+              out and resets those preferences. In the iOS app, notifications about the
+              merchants are worked out and scheduled on your phone; nothing about them is
+              sent to us.
             </p>
           </Section>
 

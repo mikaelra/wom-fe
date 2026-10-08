@@ -86,7 +86,7 @@ describe('MyAiPage', () => {
   it('toggles the AI on and shows the queue reason', async () => {
     render(<MyAiPage />);
     fireEvent.click(await screen.findByRole('button', { name: /AI is OFF/i }));
-    expect(await screen.findByText(/plays bot-ranked games while you're away/i)).toBeInTheDocument();
+    expect(await screen.findByText(/plays bot-ranked games at your chosen pace, even while you play/i)).toBeInTheDocument();
     expect(toggleMyAi).toHaveBeenCalledWith('tok', true);
   });
 

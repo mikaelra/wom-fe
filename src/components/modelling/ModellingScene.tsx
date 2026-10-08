@@ -1,14 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, useGLTF } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import Senate from '@/components/city/Senate';
 import Market from '@/components/city/Market';
+import Bay from '@/components/city/Bay';
+import { LAND_LEVEL, SEA_LEVEL } from '@/lib/cityLayout';
+import { BAY_FLARE, BAY_HALF_WIDTH, bayDockLength } from '@/lib/cityTerrain';
 import { ARENA } from '@/lib/rankedArena';
 import {
+  findModellingModel,
   gridSizeFor,
   orbitCameraPosition,
   orbitFraming,
@@ -64,7 +68,36 @@ interface Props {
   onMeasure?: (m: MeasuredModel) => void;
 }
 
+/**
+ * A finished model file rather than a procedural component. Cloned, so the
+ * wireframe flag pushed onto its materials never leaks into the useGLTF
+ * cache that the game itself will load the same file from.
+ */
+function GlbModel({ url }: { url: string }) {
+  const { scene } = useGLTF(url);
+  const model = useMemo(() => {
+    const copy = scene.clone(true);
+    copy.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.material = Array.isArray(mesh.material)
+        ? mesh.material.map((m) => m.clone())
+        : mesh.material.clone();
+    });
+    return copy;
+  }, [scene]);
+  return <primitive object={model} />;
+}
+
 function ModelBody({ modelId }: { modelId: ModellingModelId }) {
+  const glb = findModellingModel(modelId).glb;
+  if (glb) {
+    return (
+      <Suspense fallback={null}>
+        <GlbModel url={glb} />
+      </Suspense>
+    );
+  }
   switch (modelId) {
     case 'ranked':
       // The arena's own dimensions, not a scaled city Senate -- see
@@ -84,7 +117,38 @@ function ModelBody({ modelId }: { modelId: ModellingModelId }) {
       return <Market />;
     case 'senate-city':
       return <Senate />;
+    case 'bay':
+      return <Bay />;
+    default:
+      return null;
   }
+}
+
+/**
+ * Water for the Bay to stand in, outside the measured group so the readout
+ * stays the model's own size. The Bay is the one model that is half sea --
+ * its pilings and boat mean nothing on a bare grid -- and this is the
+ * channel lib/cityTerrain.ts cuts for it, out to where its docks end.
+ */
+function SandboxWater() {
+  const shape = useMemo(() => {
+    const t = bayDockLength();
+    const far = BAY_HALF_WIDTH + BAY_FLARE * t;
+    // Shape y becomes -Z once laid flat, so +Z (out to sea) is drawn as -y.
+    const s = new THREE.Shape();
+    s.moveTo(-BAY_HALF_WIDTH, 0);
+    s.lineTo(BAY_HALF_WIDTH, 0);
+    s.lineTo(far, -t);
+    s.lineTo(-far, -t);
+    s.closePath();
+    return s;
+  }, []);
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, SEA_LEVEL - LAND_LEVEL, 0]}>
+      <shapeGeometry args={[shape]} />
+      <meshStandardMaterial color="#2e6f8e" transparent opacity={0.72} roughness={0.25} depthWrite={false} />
+    </mesh>
+  );
 }
 
 interface Measurement {
@@ -208,6 +272,9 @@ export default function ModellingScene({
     onMeasure?.({ width: next.size.x, height: next.size.y, depth: next.size.z });
     // A hot-swapped mesh arrives with its own fresh material.
     applyMaterialFlags();
+    // A .glb loads after mount, so the layout effect above measured an
+    // empty group and never framed it. Frame it once, on its arrival only.
+    if (!prev) refit();
   });
 
   const framing = box
@@ -245,6 +312,8 @@ export default function ModellingScene({
       <group ref={groupRef}>
         <ModelBody modelId={modelId} />
       </group>
+
+      {modelId === 'bay' && <SandboxWater />}
 
       {/* A one-unit grid, so a dimension can be read straight off the floor
           -- the reason this is a grid and not the city's terrain. */}

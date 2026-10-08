@@ -14,6 +14,7 @@ vi.mock('@/lib/api', () => ({
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
   getActiveRankedLobby: vi.fn(),
+  rankedCredentials: (name: string) => ({ ticket: `ticket-for-${name}` }),
 }));
 
 vi.mock('@/lib/http', () => ({
@@ -105,9 +106,38 @@ describe('useRankedQueue', () => {
       await result.current.startQueue('Alice');
     });
 
-    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice', ticket: 'ticket-for-Alice' });
     expect(mockedJoin).toHaveBeenCalledWith('Alice');
     expect(result.current.status).toBe('searching');
+  });
+
+  it('joins the queue room only once the REST join has handed out the ticket', async () => {
+    let resolveJoin: (v: { status: string }) => void = () => {};
+    mockedJoin.mockReturnValue(new Promise((r) => { resolveJoin = r; }));
+    const { result } = renderHook(() => useRankedQueue());
+
+    let started: Promise<void> = Promise.resolve();
+    act(() => {
+      started = result.current.startQueue('Alice');
+    });
+    expect(socket.__emit).not.toHaveBeenCalledWith('join_ranked_queue', expect.anything());
+
+    await act(async () => {
+      resolveJoin({ status: 'queued' });
+      await started;
+    });
+    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice', ticket: 'ticket-for-Alice' });
+  });
+
+  it('never joins the queue room when the REST join fails', async () => {
+    mockedJoin.mockRejectedValue(new Error('That name is already in ranked.'));
+    const { result } = renderHook(() => useRankedQueue());
+
+    await act(async () => {
+      await expect(result.current.startQueue('Alice')).rejects.toThrow();
+    });
+
+    expect(socket.__emit).not.toHaveBeenCalledWith('join_ranked_queue', expect.anything());
   });
 
   it('lands the matched player via join_room and navigates to the lobby', async () => {
@@ -194,7 +224,7 @@ describe('useRankedQueue', () => {
         socket.__fireConnect();
       });
 
-      expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+      expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice', ticket: 'ticket-for-Alice' });
     });
 
     it('does not re-join the queue room after cancelling', async () => {
@@ -233,7 +263,7 @@ describe('useRankedQueue', () => {
         socket.__fireConnect();
       });
 
-      expect(socket.__emit).not.toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+      expect(socket.__emit).not.toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice', ticket: 'ticket-for-Alice' });
     });
   });
 

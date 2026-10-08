@@ -3,6 +3,11 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastProvider } from "@/components/Toast";
+import LoadingOverlay from "@/components/loading/LoadingOverlay";
+import AppleTransactionSync from "@/components/shop/AppleTransactionSync";
+import SteamWelcome from "@/components/steam/SteamWelcome";
+import AgePrompt from "@/components/AgePrompt";
+import MoonNotifications from "@/components/MoonNotifications";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,16 +22,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "World of Mythos",
   description: "World of Mythos",
-  // No manual `icons` entry here -- src/app/icon.svg, icon.png, and
-  // apple-icon.png (Next's file-based icon convention) are auto-detected
-  // and take care of it. That's deliberate, not an oversight: the old setup
-  // pointed every browser at /wom.svg alone, but iOS Safari doesn't render
-  // SVG favicons at all (browser tab or "Add to Home Screen"), which is
-  // why the logo was invisible on phones despite the artwork being right
-  // here in the repo -- confirmed live. icon.png/apple-icon.png are
-  // rendered PNGs of the same source art (public/wom.svg) for iOS and any
-  // other SVG-favicon holdout; icon.svg keeps the crisp vector version for
-  // browsers that do support it.
+  // No manual `icons` entry here -- src/app/icon.png and apple-icon.png
+  // (Next's file-based icon convention) are auto-detected and take care of
+  // it. Both are PNGs on purpose: iOS Safari doesn't render SVG favicons at
+  // all (browser tab or "Add to Home Screen"), and the logo is a picture
+  // (the frog in front of the loading animation), not vector art. All of
+  // them are generated -- see branding/README.md.
 };
 
 export const viewport: Viewport = {
@@ -47,6 +48,11 @@ export default function RootLayout({
       >
         <ToastProvider>
           <ErrorBoundary>{children}</ErrorBoundary>
+          <LoadingOverlay />
+          <AppleTransactionSync />
+          <SteamWelcome />
+          <AgePrompt />
+          <MoonNotifications />
         </ToastProvider>
       </body>
     </html>

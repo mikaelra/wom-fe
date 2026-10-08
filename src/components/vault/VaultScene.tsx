@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
 
 const ICOSAHEDRON_RADIUS = 4;
 const CAMERA_START_Z = 9;
@@ -34,41 +35,43 @@ function Scene() {
 
   return (
     <>
-      <ambientLight intensity={0.15} />
-      {/* Outer blue directional light to illuminate the outside faces */}
-      <directionalLight position={[5, 5, 8]} intensity={1.2} color="#4488ff" />
-      {/* Inner gold point light to illuminate the inside once camera enters */}
-      <pointLight position={[0, 0, 0]} intensity={3} color="#ffd700" distance={10} decay={2} />
+        <ambientLight intensity={0.15} />
+        {/* Outer blue directional light to illuminate the outside faces */}
+        <directionalLight position={[5, 5, 8]} intensity={1.2} color="#4488ff" />
+        {/* Inner gold point light to illuminate the inside once camera enters */}
+        <pointLight position={[0, 0, 0]} intensity={3} color="#ffd700" distance={10} decay={2} />
 
-      {/* Blue outer surface (front faces visible from outside) */}
-      <mesh>
-        <icosahedronGeometry args={[ICOSAHEDRON_RADIUS, 1]} />
-        <meshStandardMaterial
-          color="#1a55dd"
-          side={THREE.FrontSide}
-          metalness={0.3}
-          roughness={0.5}
-        />
-      </mesh>
+        {/* Blue outer surface (front faces visible from outside) */}
+        <mesh>
+          <icosahedronGeometry args={[ICOSAHEDRON_RADIUS, 1]} />
+          <meshStandardMaterial
+            color="#1a55dd"
+            side={THREE.FrontSide}
+            metalness={0.3}
+            roughness={0.5}
+          />
+        </mesh>
 
-      {/* Gold inner surface (back faces visible from inside) */}
-      <mesh>
-        <icosahedronGeometry args={[ICOSAHEDRON_RADIUS, 1]} />
-        <meshStandardMaterial
-          color="#ffd700"
-          side={THREE.BackSide}
-          metalness={0.8}
-          roughness={0.15}
-          emissive="#a85e00"
-          emissiveIntensity={0.4}
-        />
-      </mesh>
+        {/* Gold inner surface (back faces visible from inside) */}
+        <mesh>
+          <icosahedronGeometry args={[ICOSAHEDRON_RADIUS, 1]} />
+          <meshStandardMaterial
+            color="#ffd700"
+            side={THREE.BackSide}
+            metalness={0.8}
+            roughness={0.15}
+            emissive="#a85e00"
+            emissiveIntensity={0.4}
+          />
+        </mesh>
     </>
   );
 }
 
 export default function VaultScene() {
   return (
+    <>
+    <AssetLoadingReporter />
     <Canvas
       style={{
         position: 'absolute',
@@ -88,5 +91,6 @@ export default function VaultScene() {
     >
       <Scene />
     </Canvas>
+    </>
   );
 }

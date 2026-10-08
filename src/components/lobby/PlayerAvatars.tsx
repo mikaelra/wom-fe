@@ -330,6 +330,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   actionCue,
   instakillActive,
   chatBubble,
+  muted = false,
   isBoss,
   bossHp,
   bossMaxHp,
@@ -375,6 +376,8 @@ export const PlayerWithName = memo(function PlayerWithName({
    *  Attack button(s) -- see globals.css' instakill-flame. */
   instakillActive?: boolean;
   chatBubble?: string;
+  /** Muted from chat (lib/chatMute.ts): a mute symbol beside the name. */
+  muted?: boolean;
   isBoss?: boolean;
   bossHp?: number;
   bossMaxHp?: number;
@@ -565,6 +568,7 @@ export const PlayerWithName = memo(function PlayerWithName({
               {name}
               {isWinner && ' 👑'}
               {isDead && ' ☠️'}
+              {muted && ' 🔇'}
             </div>
 
             {/* Lobby-wait controls: kick (admin, other players only), relic pick

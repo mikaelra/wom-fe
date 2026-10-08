@@ -42,7 +42,7 @@ const IMPULSE_K1 = 0.05;
 const IMPULSE_MIN = 3;
 const IMPULSE_MAX = 14;
 
-// Call once per frame when boundaryIndexAt's result changed (never more
+// Call once per frame when sliceIndexAt's result changed (never more
 // than once per frame, per §3.5.5's crossing-detection rule) with the
 // number of boundaries crossed since the last frame and the wheel's signed
 // angular velocity. Direction follows the surface travel at the pointer.

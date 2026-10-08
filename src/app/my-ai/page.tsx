@@ -24,6 +24,7 @@ import type {
 } from '@/lib/schemas';
 import { CITY_PATH } from '@/lib/cities';
 import SeasonTimer from '@/components/hud/SeasonTimer';
+import LoadingState from '@/components/loading/LoadingState';
 
 const KNOBS: { key: Exclude<keyof MyAiKnobs, 'action_split'>; label: string; low: string; high: string }[] = [
   { key: 'greed', label: 'Greed', low: 'heals', high: 'hoards coin' },
@@ -76,9 +77,8 @@ function formatEnded(iso: string): string {
 function reasonText(reason: string): string {
   return (
     {
-      queued: 'Your AI is on. It plays bot-ranked games while you\'re away.',
+      queued: 'Your AI is on. It plays bot-ranked games at your chosen pace, even while you play.',
       no_credits: "No credits — your AI can't play. Finish a ranked or bot-ranked game, or buy a pack.",
-      owner_idle: 'Your AI plays in the gaps between your own games.',
       already_queued: 'Your AI is already on.',
       toggled_off: 'Your AI is off.',
     }[reason] ?? reason
@@ -176,7 +176,7 @@ export default function MyAiPage() {
     <Shell>
       {loadError && <p className="text-red-400 mb-4">{loadError}</p>}
       {!status ? (
-        <p className="text-white/60">Loading…</p>
+        <LoadingState />
       ) : (
         <div className="space-y-8">
           {/* --- toggle + credits + rank --- */}
@@ -208,11 +208,9 @@ export default function MyAiPage() {
           {toggleNote && <p className="text-white/70 text-sm -mt-4">{toggleNote}</p>}
           {status.enabled && status.queue.queued && (
             <p className="text-white/60 text-sm -mt-6">
-              {status.queue.playing
-                ? `Playing while you're away · ${status.queue.games_played ?? 0} game${
-                    (status.queue.games_played ?? 0) === 1 ? '' : 's'
-                  } this session`
-                : 'Standing by — starts when you go idle'}
+              {`Playing at your pace · ${status.queue.games_played ?? 0} game${
+                (status.queue.games_played ?? 0) === 1 ? '' : 's'
+              } this session`}
             </p>
           )}
 

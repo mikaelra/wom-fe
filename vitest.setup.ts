@@ -36,3 +36,10 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   };
 }
+
+// jsdom has no canvas: its getContext() logs "not implemented" on every call.
+// Return null quietly instead -- canvas drawers (the loading mark) already
+// skip drawing when there is no context.
+if (typeof HTMLCanvasElement !== 'undefined') {
+  HTMLCanvasElement.prototype.getContext = (() => null) as typeof HTMLCanvasElement.prototype.getContext;
+}
