@@ -204,9 +204,16 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
       {/* No raw rating number shown -- only the derived tier, once there is
           one (rankedResult.tier_after is null while still hidden during
           placements, docs/RANK_SYSTEM_PLAN.md §4/§5). */}
-      {rankedResult?.tier_after && (
+      {/* Getting Principality: the loading mark's figure, big, with the new
+          leaderboard number, in place of the small badge. */}
+      {rankedResult?.tier_after === 'Principality' && rankedResult.promoted === true ? (
+        <div className="mb-3 flex flex-col items-center gap-1">
+          <RankBadge tier="Principality" playerName={playerName} size="lg" />
+          <span className="text-green-400 font-semibold">Ranked up!</span>
+        </div>
+      ) : rankedResult?.tier_after && (
         <p className="mb-2 flex items-center justify-center gap-2 flex-wrap">
-          <RankBadge tier={rankedResult.tier_after} />
+          <RankBadge tier={rankedResult.tier_after} playerName={playerName} />
           {/* tier_before is only ever null here on the game-10 debut reveal
               (docs/RANK_SYSTEM_PLAN.md §5) -- promoted stays null too since
               the backend has nothing to compare against, so this and the
