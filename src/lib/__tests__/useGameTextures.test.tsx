@@ -14,7 +14,6 @@ vi.mock('@react-three/fiber', () => {
     extend({
       setTranscoderPath: (p: string) => configured.push(`path:${p}`),
       detectSupport: (r: { name: string }) => configured.push(`gl:${r.name}`),
-      setRequestHeader: (h: Record<string, string>) => configured.push(`headers:${JSON.stringify(h)}`),
     });
     loaderCalls.push({ urls, configured });
     return urls.map(makeTex);
@@ -26,7 +25,10 @@ vi.mock('@react-three/drei', () => ({
   useTexture: (urls: string[]) => urls.map(() => ({ kind: 'image' })),
 }));
 vi.mock('three/examples/jsm/loaders/KTX2Loader.js', () => ({ KTX2Loader: class {} }));
-vi.mock('@/lib/http', () => ({ getStoredAccountToken: () => 'tok' }));
+vi.mock('@/lib/hdTextures', () => ({
+  hdSources: (urls: string[]) => Object.assign(Promise.resolve(urls.map((u) => u.replace('/hd/', 'blob:'))),
+    { status: 'fulfilled', value: urls.map((u) => u.replace('/hd/', 'blob:')) }),
+}));
 
 import { useGameTextures, useKtx2Textures } from '@/lib/useGameTextures';
 
@@ -41,9 +43,9 @@ describe('useKtx2Textures', () => {
     expect(loaderCalls[0].configured).toEqual(['path:/basis/', 'gl:gl']);
   });
 
-  it('says whose account is asking for an HD texture', () => {
+  it("loads what hdSources hands it -- the browser's own copy of an HD file", () => {
     renderHook(() => useKtx2Textures(['/hd/stars/sky.ktx2']));
-    expect(loaderCalls[0].configured).toContain('headers:{"Authorization":"Bearer tok"}');
+    expect(loaderCalls[0].urls).toEqual(['blob:stars/sky.ktx2']);
   });
 
   it('drops the cache entry and disposes the textures on unmount', () => {

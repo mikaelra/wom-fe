@@ -16,8 +16,8 @@ vi.mock('@/lib/api', () => ({
 }));
 
 import {
-  getHdPreference, hdPreferred, hdRequestHeaders, hdUnlocked, isHdTexturePath,
-  resetHdUnlockedForTests, setHdPreference, useHdTextures,
+  getHdPreference, hdPreferred, hdRequestHeaders, hdSources, hdUnlocked, isHdTexturePath,
+  resetHdSourcesForTests, resetHdUnlockedForTests, setHdPreference, useHdTextures,
 } from '@/lib/hdTextures';
 
 function Scene() {
@@ -28,6 +28,7 @@ beforeEach(() => {
   Object.assign(state, { native: false, token: 'tok', hd: true, calls: 0 });
   localStorage.clear();
   resetHdUnlockedForTests();
+  resetHdSourcesForTests();
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -124,5 +125,78 @@ describe('fetching', () => {
   it('knows the HD paths', () => {
     expect(isHdTexturePath('/hd/stars/x.ktx2')).toBe(true);
     expect(isHdTexturePath('/textures/stars/x.jpg')).toBe(false);
+  });
+});
+
+describe('hdSources', () => {
+  // A minimal Cache Storage: one store per name, keyed by url.
+  function fakeCaches(stores: Map<string, Map<string, Response>>) {
+    return {
+      keys: async () => [...stores.keys()],
+      delete: async (name: string) => stores.delete(name),
+      open: async (name: string) => {
+        if (!stores.has(name)) stores.set(name, new Map());
+        const store = stores.get(name)!;
+        return {
+          match: async (url: string) => store.get(url)?.clone(),
+          put: async (url: string, res: Response) => { store.set(url, res); },
+        };
+      },
+    };
+  }
+
+  let downloads: string[];
+  beforeEach(() => {
+    downloads = [];
+    let n = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      downloads.push(`${url} ${JSON.stringify(init.headers)}`);
+      return url.includes('missing') ? new Response('', { status: 403 }) : new Response(`bytes of ${url}`);
+    }));
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => `blob:${++n}` }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('leaves everything as is in the paid apps and for non-HD files', async () => {
+    state.native = true;
+    expect(await hdSources(['/hd/a.ktx2'])).toEqual(['/hd/a.ktx2']);
+    state.native = false;
+    expect(await hdSources(['/textures/a.jpg'])).toEqual(['/textures/a.jpg']);
+    expect(downloads).toEqual([]);
+  });
+
+  it('downloads each HD file once for the globe and the city, even while under way', async () => {
+    vi.stubGlobal('caches', fakeCaches(new Map()));
+    const globe = hdSources(['/hd/sky.ktx2', '/hd/earth.ktx2']);
+    const city = hdSources(['/hd/sky.ktx2']);
+    expect(hdSources(['/hd/sky.ktx2'])).toBe(city); // the same promise for use()
+    const [g, c] = await Promise.all([globe, city]);
+    expect(c[0]).toBe(g[0]);
+    expect(downloads).toEqual([
+      '/hd/sky.ktx2 {"Authorization":"Bearer tok"}',
+      '/hd/earth.ktx2 {"Authorization":"Bearer tok"}',
+    ]);
+  });
+
+  it('keeps the files for later visits, and drops an older version of them', async () => {
+    const stores = new Map([['wom-hd-v0', new Map<string, Response>()]]);
+    vi.stubGlobal('caches', fakeCaches(stores));
+    await hdSources(['/hd/sky.ktx2']);
+    expect([...stores.keys()]).toEqual(['wom-hd-v1']);
+    resetHdSourcesForTests(); // a new page load
+    await hdSources(['/hd/sky.ktx2']);
+    expect(downloads).toHaveLength(1);
+  });
+
+  it('still works where there is no Cache Storage', async () => {
+    vi.stubGlobal('caches', undefined);
+    expect(await hdSources(['/hd/sky.ktx2'])).toEqual(['blob:1']);
+  });
+
+  it('does not remember a refused download', async () => {
+    vi.stubGlobal('caches', fakeCaches(new Map()));
+    await expect(hdSources(['/hd/missing.ktx2'])).rejects.toThrow(/403/);
+    await expect(hdSources(['/hd/missing.ktx2'])).rejects.toThrow(/403/);
+    expect(downloads).toHaveLength(2);
   });
 });

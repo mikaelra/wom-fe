@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
-import { hdPreferred, hdUnlocked, setHdPreference } from '@/lib/hdTextures';
+import { HD_DOWNLOAD_MB, hdPreferred, hdUnlocked, setHdPreference } from '@/lib/hdTextures';
 
 // Settings -> Graphics: HD textures on or off (lib/hdTextures.ts). In the
 // paid apps the toggle is always there and starts on. On the web it is there
@@ -39,7 +39,9 @@ export default function HdTexturesPanel() {
             <span className="text-base font-semibold">HD textures</span>
           </label>
           <p className="text-sm text-white/70 mt-3 leading-relaxed">
-            Sharper Earth and Milky Way. Takes effect the next time the globe or the city loads.
+            {IS_NATIVE_BUILD
+              ? 'Load HD textures.' // bundled in the app: nothing to download
+              : `Load HD textures. Will start to load on entering earth or city scene. Warning: ${HD_DOWNLOAD_MB} megabytes gets downloaded.`}
           </p>
         </>
       ) : (
