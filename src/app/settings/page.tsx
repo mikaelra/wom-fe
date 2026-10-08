@@ -10,6 +10,7 @@ import AudioSettingsPanel from '@/components/audio/AudioSettingsPanel';
 import DeleteAccountPanel from '@/components/settings/DeleteAccountPanel';
 import MutedPlayersPanel from '@/components/settings/MutedPlayersPanel';
 import ChatFilterPanel from '@/components/settings/ChatFilterPanel';
+import ConnectionsPanel from '@/components/settings/ConnectionsPanel';
 import LoadingState from '@/components/loading/LoadingState';
 
 const ALWAYS_VERIFY_EXPLANATION =
@@ -197,7 +198,8 @@ export default function SettingsPage() {
         <AudioSettingsPanel />
 
         {/* Also outside the gate: a Steam account has no email but can
-            still delete itself. */}
+            still connect the web version and delete itself. */}
+        <ConnectionsPanel />
         <ChatFilterPanel />
         <MutedPlayersPanel />
         <DeleteAccountPanel />

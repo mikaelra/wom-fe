@@ -8,7 +8,13 @@ vi.mock('@/lib/api', () => ({
 
 import { postSteamCreate, postSteamLink, postSteamLogin } from '@/lib/api';
 import { ApiError, getStoredAccountToken, setStoredAccountToken } from '@/lib/http';
-import { completePendingSteamLink, createSteamAccount, startSteamLink, steamSignIn } from '@/lib/steamAccount';
+import {
+  completePendingSteamLink,
+  createSteamAccount,
+  startSteamLink,
+  steamPersonaName,
+  steamSignIn,
+} from '@/lib/steamAccount';
 
 const login = vi.mocked(postSteamLogin);
 const create = vi.mocked(postSteamCreate);
@@ -44,7 +50,7 @@ describe('steamSignIn', () => {
     setStoredAccountToken('existing');
     link.mockResolvedValue({ status: 'ok', name: 'Oni' });
     expect(await steamSignIn(shell())).toEqual({ status: 'skipped' });
-    expect(link).toHaveBeenCalledWith('abc', 'existing');
+    expect(link).toHaveBeenCalledWith('abc', 'existing', 'Gaben');
     expect(login).not.toHaveBeenCalled();
     expect(getStoredAccountToken()).toBe('existing');
   });
@@ -73,7 +79,7 @@ describe('steamSignIn', () => {
     localStorage.setItem('playerEmail', 'old@example.com');
     login.mockResolvedValue({ status: 'ok', name: 'Toad', session_token: 'sess' });
     expect(await steamSignIn(shell())).toEqual({ status: 'signed-in', name: 'Toad' });
-    expect(login).toHaveBeenCalledWith('abc');
+    expect(login).toHaveBeenCalledWith('abc', 'Gaben');
     expect(getStoredAccountToken()).toBe('sess');
     expect(localStorage.getItem('playerName')).toBe('Toad');
     expect(localStorage.getItem('playerEmail')).toBeNull();
@@ -91,7 +97,7 @@ describe('createSteamAccount', () => {
   it('creates and logs in', async () => {
     create.mockResolvedValue({ status: 'ok', name: 'Toad', session_token: 'sess' });
     await createSteamAccount('Toad', shell());
-    expect(create).toHaveBeenCalledWith('abc', 'Toad');
+    expect(create).toHaveBeenCalledWith('abc', 'Toad', 'Gaben');
     expect(getStoredAccountToken()).toBe('sess');
   });
 
@@ -117,7 +123,7 @@ describe('completePendingSteamLink', () => {
     setStoredAccountToken('sess');
     link.mockResolvedValue({ status: 'ok', name: 'Toad' });
     expect(await completePendingSteamLink(shell())).toBeNull();
-    expect(link).toHaveBeenCalledWith('abc', 'sess');
+    expect(link).toHaveBeenCalledWith('abc', 'sess', 'Gaben');
     expect(localStorage.getItem('steamLinkPending')).toBeNull();
   });
 
@@ -137,5 +143,21 @@ describe('completePendingSteamLink', () => {
     link.mockRejectedValue(new Error('offline'));
     startSteamLink();
     expect(await completePendingSteamLink(shell())).toBe('Could not link your Steam account.');
+  });
+});
+
+describe('steamPersonaName', () => {
+  it("is the Steam client's name for the player", async () => {
+    expect(await steamPersonaName(shell())).toBe('Gaben');
+  });
+
+  it('is null outside the Steam client', async () => {
+    expect(await steamPersonaName({} as Pick<Window, 'wom'>)).toBeNull();
+  });
+
+  it('is null when the Steam client cannot say', async () => {
+    const w = shell();
+    vi.mocked(w.wom!.getSteamInfo).mockRejectedValue(new Error('no steam'));
+    expect(await steamPersonaName(w)).toBeNull();
   });
 });

@@ -203,6 +203,17 @@ export const AgeAffirmResponseSchema = z.object({
   age_affirmed: z.boolean(),
 });
 
+// POST /account/connections -- Settings -> Connections: each way into the
+// account, null while not connected.
+export const ConnectionsResponseSchema = z.object({
+  steam: z.object({ name: z.string().nullable() }).nullable(),
+  web: z.object({ email: z.string() }).nullable(),
+});
+
+export const ConnectWebResponseSchema = z.object({
+  status: z.literal('sent'),
+});
+
 export const ChatReportResponseSchema = z.object({
   status: z.literal('reported'),
 });
@@ -250,6 +261,9 @@ export const ConfirmEmailVerificationResponseSchema = z.object({
   purpose: z.string(),
   relic_name: z.string().nullable().optional(),
   session_token: z.string().optional(),
+  // connect_web only: the account the link logged this browser into.
+  name: z.string().optional(),
+  email: z.string().optional(),
 });
 
 export const ForgotUsernameResponseSchema = z.object({
