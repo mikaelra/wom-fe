@@ -1,4 +1,4 @@
-// GPU-compressed (KTX2) copies of the native build's big textures.
+// GPU-compressed (KTX2) copies of the big HD textures.
 //
 // The iOS app's WebView is killed by jetsam at ~2 GB (JetsamEvent
 // 2026-10-04: com.apple.WebKit.WebContent at 1970 MB, reason=highwater, the
@@ -9,8 +9,9 @@
 // full resolution at roughly a quarter of the memory. The paid apps keep the
 // full-resolution art; only its encoding changes.
 //
-// The web build keeps its small JPEGs (every visitor downloads them), so
-// these paths are native-only. Regenerate with scripts/encode-ktx2.sh.
+// Who gets them is lib/hdTextures.ts: the paid apps, and web accounts that
+// have paid. Everyone else gets the small JPEGs. Regenerate with
+// scripts/encode-ktx2.sh.
 
 /** Where KTX2Loader fetches basis_transcoder.{js,wasm} -- copied from three. */
 export const BASIS_TRANSCODER_PATH = '/basis/';
@@ -20,13 +21,13 @@ export function isKtx2(url: string): boolean {
 }
 
 /** Earth surface maps, in the order the globe consumes them: map, spec, bump, lights. */
-export function earthTexturePaths(isNative: boolean): [string, string, string, string] {
-  if (isNative) {
+export function earthTexturePaths(hd: boolean): [string, string, string, string] {
+  if (hd) {
     return [
-      '/textures/earth/high-res/00_earthmap4k.ktx2',
-      '/textures/earth/high-res/02_earthspec4k.ktx2',
-      '/textures/earth/high-res/01_earthbump4k.ktx2',
-      '/textures/earth/high-res/03_earthlights4k.ktx2',
+      '/hd/earth/00_earthmap4k.ktx2',
+      '/hd/earth/02_earthspec4k.ktx2',
+      '/hd/earth/01_earthbump4k.ktx2',
+      '/hd/earth/03_earthlights4k.ktx2',
     ];
   }
   return [

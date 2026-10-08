@@ -4,6 +4,7 @@ import { useTexture } from '@react-three/drei';
 import type * as THREE from 'three';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { BASIS_TRANSCODER_PATH, isKtx2 } from '@/lib/ktx2Textures';
+import { hdRequestHeaders, isHdTexturePath } from '@/lib/hdTextures';
 
 /**
  * KTX2 textures, transcoded for this GPU (ASTC on iPhone, BC7 on desktop).
@@ -19,6 +20,8 @@ export function useKtx2Textures(urls: string[]): THREE.Texture[] {
   const textures = useLoader(KTX2Loader, urls, (loader) => {
     loader.setTranscoderPath(BASIS_TRANSCODER_PATH);
     loader.detectSupport(gl);
+    // On the web the HD files are served only to an account that has HD.
+    if (urls.some(isHdTexturePath)) loader.setRequestHeader(hdRequestHeaders());
   }) as THREE.Texture[];
 
   const key = urls.join('|');
@@ -32,9 +35,9 @@ export function useKtx2Textures(urls: string[]): THREE.Texture[] {
 
 /**
  * useTexture for JPEG/PNG urls, useKtx2Textures for .ktx2 ones. Callers pass
- * one kind per call -- the native build's paths are all KTX2 and the web's all
- * JPEG (lib/ktx2Textures.ts), fixed at build time, so the hook called here
- * never changes between renders.
+ * one kind per call -- the HD paths are all KTX2 and the others all JPEG
+ * (lib/ktx2Textures.ts), chosen once when the scene mounts
+ * (lib/hdTextures.ts), so the hook called here never changes between renders.
  */
 export function useGameTextures(urls: string[]): THREE.Texture[] {
   const ktx2 = urls.every(isKtx2);
