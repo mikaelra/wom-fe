@@ -22,6 +22,7 @@ public class WomStoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "finish", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "unfinished", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "storefront", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "appTransaction", returnType: CAPPluginReturnPromise),
     ]
 
     private var updates: Task<Void, Never>?
@@ -141,6 +142,25 @@ public class WomStoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 transactions.append(self.payload(result))
             }
             call.resolve(["transactions": transactions])
+        }
+    }
+
+    /// Apple's signed record of this Apple account getting the app, which
+    /// the app logs in with (src/lib/appleAccount.ts, wom-be
+    /// routes/apple_auth.py). No sign-in sheet; iOS 16 and later -- older
+    /// phones log in with email.
+    @objc func appTransaction(_ call: CAPPluginCall) {
+        guard #available(iOS 16.0, *) else {
+            call.reject("Needs iOS 16")
+            return
+        }
+        Task {
+            do {
+                let result = try await AppTransaction.shared
+                call.resolve(["jws": result.jwsRepresentation])
+            } catch {
+                call.reject(error.localizedDescription)
+            }
         }
     }
 

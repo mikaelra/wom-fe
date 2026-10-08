@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { logOut, getInventory } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinThumbnailUrl } from '@/lib/frogSkins';
-import { steamPersonaName } from '@/lib/steamAccount';
+import { steamNameToShow } from '@/lib/displayName';
 import RopedButton from '@/components/hud/RopedButton';
 import RulesModal from '@/components/lobby/RulesModal';
 import MusicToggleButton from '@/components/audio/MusicToggleButton';
@@ -36,8 +36,8 @@ export default function SceneTopBar({
 } = {}) {
   const router = useRouter();
   const [loggedInName, setLoggedInName] = useState('');
-  // In the Steam build the chip shows the Steam account's name rather than
-  // the game name; null everywhere else.
+  // The Steam account's name, when this device shows it rather than the
+  // game name (Settings -> Connections, src/lib/displayName.ts); else null.
   const [steamName, setSteamName] = useState<string | null>(null);
   // The account's equipped skin, once known; null shows no avatar at all.
   const [equippedSkin, setEquippedSkin] = useState<string | null>(null);
@@ -60,7 +60,7 @@ export default function SceneTopBar({
       setLoggedInName(localStorage.getItem('playerName') || '');
     }
     let cancelled = false;
-    steamPersonaName().then((name) => {
+    steamNameToShow().then((name) => {
       if (!cancelled) setSteamName(name);
     });
     return () => {

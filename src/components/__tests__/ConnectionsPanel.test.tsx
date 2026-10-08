@@ -63,9 +63,38 @@ describe('ConnectionsPanel', () => {
     get.mockResolvedValue({ steam: null, web: null });
     connect.mockRejectedValue(new Error('Invalid email format.'));
     render(<ConnectionsPanel />);
-    expect(await screen.findByText('Not connected')).toBeTruthy();
+    expect((await screen.findAllByText('Not connected')).length).toBe(2);
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'nope@x' } });
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
     expect(await screen.findByText('Invalid email format.')).toBeTruthy();
+  });
+
+  it('shows a connected Apple account', async () => {
+    setStoredAccountToken('sess');
+    get.mockResolvedValue({ steam: null, apple: {}, web: null });
+    render(<ConnectionsPanel />);
+    expect(await screen.findByText('✓ Connected')).toBeTruthy();
+  });
+
+  it('offers no name choice without a Steam name', async () => {
+    setStoredAccountToken('sess');
+    get.mockResolvedValue({ steam: null, apple: {}, web: { email: 'toad@example.com' } });
+    render(<ConnectionsPanel />);
+    await screen.findByText('✓ toad@example.com');
+    expect(screen.queryByText('Name shown')).toBeNull();
+  });
+
+  it('picks which name the top bar shows on this device', async () => {
+    setStoredAccountToken('sess');
+    localStorage.setItem('playerName', 'Toad');
+    get.mockResolvedValue({ steam: { name: 'Gaben' }, apple: null, web: { email: 'toad@example.com' } });
+    render(<ConnectionsPanel />);
+    const web = (await screen.findByLabelText(/Web name/)) as HTMLInputElement;
+    const steam = screen.getByLabelText(/Steam name/) as HTMLInputElement;
+    expect(screen.getByText('(Toad)')).toBeTruthy();
+    expect(web.checked).toBe(true); // the web version's default
+    fireEvent.click(steam);
+    expect(steam.checked).toBe(true);
+    expect(localStorage.getItem('shownName')).toBe('steam');
   });
 });

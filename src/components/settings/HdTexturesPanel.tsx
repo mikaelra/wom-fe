@@ -6,9 +6,9 @@ import { HD_DOWNLOAD_MB, hdPreferred, hdUnlocked, setHdPreference } from '@/lib/
 
 // Settings -> Graphics: HD textures on or off (lib/hdTextures.ts). In the
 // paid apps the toggle is always there and starts on. On the web it is there
-// once the account has HD -- today by being connected to a Steam account
-// that owns the game -- and starts off; before that the panel says how to
-// get it.
+// once the account has HD -- by being connected to a Steam account that
+// owns the game, or to the Apple account that bought the iOS app -- and
+// starts off; before that the panel says how to get it.
 
 export default function HdTexturesPanel() {
   const [unlocked, setUnlocked] = useState<boolean | null>(IS_NATIVE_BUILD ? true : null);
@@ -46,8 +46,8 @@ export default function HdTexturesPanel() {
         </>
       ) : (
         <p className="text-sm text-white/70 mt-3 leading-relaxed">
-          HD textures come with the game on Steam. Log in to this account in the Steam version to
-          unlock them here.
+          HD textures come with the game on Steam and iPhone. Log in to this account in the Steam
+          version or the iPhone app to unlock them here.
         </p>
       )}
     </div>
