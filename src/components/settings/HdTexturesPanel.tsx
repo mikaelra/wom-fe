@@ -41,7 +41,7 @@ export default function HdTexturesPanel() {
           <p className="text-sm text-white/70 mt-3 leading-relaxed">
             {IS_NATIVE_BUILD
               ? 'Load HD textures.' // bundled in the app: nothing to download
-              : `Load HD textures. Will start to load on entering earth or city scene. Warning: ${HD_DOWNLOAD_MB} megabytes gets downloaded.`}
+              : `Load HD textures (${HD_DOWNLOAD_MB}mb). Will start to load on entering earth or city scene.`}
           </p>
         </>
       ) : (

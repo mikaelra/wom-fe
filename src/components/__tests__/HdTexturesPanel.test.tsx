@@ -28,7 +28,7 @@ describe('HdTexturesPanel', () => {
     expect(box.checked).toBe(true);
     expect(getHdPreference()).toBe(true);
     expect(screen.getByText(
-      'Load HD textures. Will start to load on entering earth or city scene. Warning: 41 megabytes gets downloaded.',
+      'Load HD textures (41mb). Will start to load on entering earth or city scene.',
     )).toBeTruthy();
   });
 
