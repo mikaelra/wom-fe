@@ -210,6 +210,10 @@ export const ConnectionsResponseSchema = z.object({
   web: z.object({ email: z.string() }).nullable(),
 });
 
+export const EntitlementsResponseSchema = z.object({
+  hd: z.boolean(),
+});
+
 export const ConnectWebResponseSchema = z.object({
   status: z.literal('sent'),
 });

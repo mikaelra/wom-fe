@@ -48,6 +48,7 @@ import {
   DeleteAccountResponseSchema,
   AgeAffirmResponseSchema,
   ConnectionsResponseSchema,
+  EntitlementsResponseSchema,
   ConnectWebResponseSchema,
   ChatReportResponseSchema,
   LogOutResponseSchema,
@@ -669,6 +670,15 @@ export async function getConnections(token: string): Promise<z.infer<typeof Conn
   return request('/account/connections', ConnectionsResponseSchema, {
     body: { token },
     defaultErrorMessage: 'Could not load your connections.',
+  });
+}
+
+/** What the logged-in account has paid for beyond items -- HD textures on
+ *  the web (lib/hdTextures.ts). */
+export async function getEntitlements(token: string): Promise<z.infer<typeof EntitlementsResponseSchema>> {
+  return request('/account/entitlements', EntitlementsResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Could not load your account.',
   });
 }
 

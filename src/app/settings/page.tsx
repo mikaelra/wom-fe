@@ -11,6 +11,7 @@ import DeleteAccountPanel from '@/components/settings/DeleteAccountPanel';
 import MutedPlayersPanel from '@/components/settings/MutedPlayersPanel';
 import ChatFilterPanel from '@/components/settings/ChatFilterPanel';
 import ConnectionsPanel from '@/components/settings/ConnectionsPanel';
+import HdTexturesPanel from '@/components/settings/HdTexturesPanel';
 import LoadingState from '@/components/loading/LoadingState';
 
 const ALWAYS_VERIFY_EXPLANATION =
@@ -196,6 +197,7 @@ export default function SettingsPage() {
             and no reason a logged-out player should be unable to turn the
             music down. */}
         <AudioSettingsPanel />
+        <HdTexturesPanel />
 
         {/* Also outside the gate: a Steam account has no email but can
             still connect the web version and delete itself. */}

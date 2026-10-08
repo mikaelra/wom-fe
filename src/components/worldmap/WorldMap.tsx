@@ -22,7 +22,7 @@ import {
   getSky, computeAspects, raDecToVec3,
   type BodyAspect, type AspectBody,
 } from '@/lib/astrology';
-import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
+import { useHdTextures } from '@/lib/hdTextures';
 import { earthTexturePaths } from '@/lib/ktx2Textures';
 import { useGameTextures } from '@/lib/useGameTextures';
 import { isHudLoadingMarkOn, reportHudMarkSize, toggleHudLoadingMark, useHudHidden } from '@/lib/hudHidden';
@@ -180,14 +180,13 @@ function makeMoonFresnelMat(aspect: Pick<BodyAspect, 'auraColor' | 'strength'>) 
 
 const jupiterTexturePath = (): string => '/textures/jupiter/jupiter2_1k.jpg';
 
-// Web: a JPEG re-encode of the source PNG (12 MB → ~0.6 MB, the material
-// ignores alpha so nothing is lost) at 4000x2000 -- kept small since every
-// web visitor downloads it over the network. Native (Capacitor) / Steam
-// (Electron) builds bundle their assets locally instead of fetching them,
-// and are a paid product, so they use the full-resolution panorama
-// (8000x4000, MilkyWay-extreme.png as KTX2 -- MilkyWay-Stars.png is the same shot
-// but with a survey reference grid/star-name overlay baked in, not a game
-// asset) for the extra visual value. See docs/MOBILE_AND_STEAM_PLAN.md.
+// Without HD: a JPEG re-encode of the source PNG (12 MB → ~0.6 MB, the
+// material ignores alpha so nothing is lost) at 4000x2000 -- kept small since
+// every web visitor downloads it over the network. With HD (lib/hdTextures.ts:
+// the paid apps, and web accounts that have paid): the full-resolution
+// panorama (8000x4000, assets-src/.../MilkyWay-extreme.png as KTX2 --
+// MilkyWay-Stars.png is the same shot but with a survey reference
+// grid/star-name overlay baked in, not a game asset).
 
 // Preload async textures early so they are likely cached by the time their
 // phase is reached.
@@ -207,7 +206,7 @@ useTexture.preload(jupiterTexturePath());
 
 const Starfield = memo(function Starfield() {
   const circleTex = useTexture('/textures/stars/circle.png');
-  const [milkyWayTex] = useGameTextures([milkyWayTexturePath(IS_NATIVE_BUILD)]);
+  const [milkyWayTex] = useGameTextures([milkyWayTexturePath(useHdTextures())]);
 
   // BackSide sphere UVs mirror the panorama left/right; this un-flips it.
   useMemo(() => orientMilkyWayTexture(milkyWayTex), [milkyWayTex]);
@@ -1080,15 +1079,13 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
     return new THREE.Vector3(x, y, z);
   }, []);
 
-  // Web always uses 1k earth textures (downloaded over the network by every
-  // visitor). Native (Capacitor) / Steam (Electron) builds bundle assets
-  // locally and are a paid product, so they get the full 4k tier -- as KTX2,
-  // which stays GPU-compressed (lib/ktx2Textures.ts). extreme-res exists on
-  // disk too but is missing the earthmap/bump/lights files (only spec +
-  // cloud-alpha), so high-res/4k is the highest complete tier available.
-  // Cloud textures are the same file in both folders, so always pulled from
-  // high-res regardless of tier.
-  const [earthMap, specularMap, bumpMap, lightsMap] = useGameTextures(earthTexturePaths(IS_NATIVE_BUILD));
+  // 1k earth textures without HD (downloaded over the network by every web
+  // visitor); with HD (lib/hdTextures.ts) the full 4k tier -- as KTX2, which
+  // stays GPU-compressed (lib/ktx2Textures.ts). assets-src/.../extreme-res is
+  // missing the earthmap/bump/lights files (only spec + cloud-alpha), so 4k
+  // is the highest complete tier available. Cloud textures are the same file
+  // in both tiers, so always pulled from high-res regardless.
+  const [earthMap, specularMap, bumpMap, lightsMap] = useGameTextures(earthTexturePaths(useHdTextures()));
   const [cloudsMap, cloudsTrans] = useTexture([
     '/textures/earth/high-res/04_earthcloudmap.jpg',
     '/textures/earth/high-res/05_earthcloudmaptrans.jpg',
