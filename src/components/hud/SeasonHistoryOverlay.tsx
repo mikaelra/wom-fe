@@ -114,7 +114,13 @@ export default function SeasonHistoryOverlay({
                     {entry.season}
                     {entry.current && <span className="text-white/50"> (current)</span>}
                   </span>
-                  <RankBadge tier={entry.tier} />
+                  {/* Only the current human-ladder season has a live Principality
+                      number; past seasons and the bot ladder show the tier alone. */}
+                  <RankBadge
+                    tier={entry.tier}
+                    placement={entry.current && ladder === 'human' ? undefined : null}
+                    playerName={playerName}
+                  />
                 </li>
               ))}
             </ul>

@@ -34,6 +34,7 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [tier, setTier] = useState<string | null>(null);
+  const [principalityRank, setPrincipalityRank] = useState<number | null>(null);
   const [rankedGamesPlayed, setRankedGamesPlayed] = useState(0);
   const [wellWins, setWellWins] = useState(0);
   const [wellRewards, setWellRewards] = useState<
@@ -60,6 +61,7 @@ export default function StatsPage() {
     Promise.all([
       getRankedProfile(name).then((data) => {
         setTier(data.tier);
+        setPrincipalityRank(data.principality_rank ?? null);
         setRankedGamesPlayed(data.ranked_games_played);
       }),
       getWellProfile(name).then((data) => {
@@ -165,7 +167,7 @@ export default function StatsPage() {
               </div>
               {tier ? (
                 <>
-                  <RankBadge tier={tier} className="text-base px-3 py-1" />
+                  <RankBadge tier={tier} placement={principalityRank} className="text-base px-3 py-1" />
                   <SeasonTimer className="text-sm mt-3" />
                 </>
               ) : (

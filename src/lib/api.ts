@@ -254,7 +254,9 @@ export async function leaveRankedQueue(playerName: string): Promise<{ status: st
   });
 }
 
-export async function getRankedProfile(playerName: string): Promise<{ tier: string | null; ranked_games_played: number }> {
+export async function getRankedProfile(
+  playerName: string,
+): Promise<{ tier: string | null; ranked_games_played: number; principality_rank?: number | null }> {
   return request(`/ranked/profile/${encodeURIComponent(playerName)}`, RankedProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch ranked profile.',
   });
