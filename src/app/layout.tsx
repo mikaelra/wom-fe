@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/Toast";
 import LoadingOverlay from "@/components/loading/LoadingOverlay";
 import AppleTransactionSync from "@/components/shop/AppleTransactionSync";
 import SteamWelcome from "@/components/steam/SteamWelcome";
+import AppleWelcome from "@/components/account/AppleWelcome";
 import AgePrompt from "@/components/AgePrompt";
 import MoonNotifications from "@/components/MoonNotifications";
 
@@ -51,6 +52,7 @@ export default function RootLayout({
           <LoadingOverlay />
           <AppleTransactionSync />
           <SteamWelcome />
+          <AppleWelcome />
           <AgePrompt />
           <MoonNotifications />
         </ToastProvider>

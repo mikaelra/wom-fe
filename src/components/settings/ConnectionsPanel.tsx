@@ -3,14 +3,18 @@
 import { useEffect, useState } from 'react';
 import { connectWeb, getConnections } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
+import { setShownNamePreference, shownName, type ShownName } from '@/lib/displayName';
 
 // Settings -> Connections: the ways into this account (wom-be
 // routes/account.py /account/connections), one row each. Steam is the Steam
-// account the Steam build logs in with; Web is email login, which the web
-// version and the iOS app use. An account made on Steam has no email, so its
+// account the Steam build logs in with; Apple is the Apple account the iOS
+// app logs in with (src/lib/appleAccount.ts); Web is email login, which the
+// web version uses. An account made on Steam or iPhone has no email, so its
 // Web row asks for one: the backend emails a link, and opening it in a
 // browser adds the email and logs that browser in. A later device type is
-// one more row. Shows nothing without a logged-in account.
+// one more row. With a Steam account connected, the player also picks which
+// name the top bar shows on this device (src/lib/displayName.ts). Shows
+// nothing without a logged-in account.
 
 type Connections = Awaited<ReturnType<typeof getConnections>>;
 
@@ -33,10 +37,14 @@ export default function ConnectionsPanel() {
   const [sending, setSending] = useState(false);
   const [sentTo, setSentTo] = useState('');
   const [error, setError] = useState('');
+  const [gameName, setGameName] = useState('');
+  const [shown, setShown] = useState<ShownName>('web');
 
   useEffect(() => {
     const t = getStoredAccountToken();
     setToken(t);
+    setGameName(localStorage.getItem('playerName') || '');
+    setShown(shownName());
     if (!t) return;
     getConnections(t)
       .then(setConnections)
@@ -58,13 +66,19 @@ export default function ConnectionsPanel() {
     }
   };
 
-  const { steam, web } = connections;
+  const { steam, apple, web } = connections;
+
+  const pickShown = (which: ShownName) => {
+    setShownNamePreference(which);
+    setShown(which);
+  };
 
   return (
     <div className="bg-black/40 border border-white/10 rounded-xl p-6 mt-6">
       <h2 className="text-base font-semibold">Connections</h2>
       <ul className="mt-3 space-y-3">
         <Row label="Steam">{steam ? <span className="break-all">✓ {steam.name || 'Connected'}</span> : 'Not connected'}</Row>
+        <Row label="Apple">{apple ? '✓ Connected' : 'Not connected'}</Row>
         <Row label="Web">
           {web ? (
             <span className="break-all">✓ {web.email}</span>
@@ -96,6 +110,30 @@ export default function ConnectionsPanel() {
           )}
         </Row>
       </ul>
+      {steam?.name && (
+        <fieldset className="mt-4">
+          <legend className="font-semibold">Name shown</legend>
+          {(
+            [
+              ['web', 'Web name', gameName],
+              ['steam', 'Steam name', steam.name],
+            ] as const
+          ).map(([which, label, value]) => (
+            <label key={which} className="flex items-center gap-3 mt-2 cursor-pointer select-none">
+              <input
+                type="radio"
+                name="shown-name"
+                checked={shown === which}
+                onChange={() => pickShown(which)}
+                className="w-4 h-4 accent-amber-500 cursor-pointer"
+              />
+              <span className="text-sm">
+                {label} <span className="text-white/60 break-all">({value})</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
     </div>
   );
 }

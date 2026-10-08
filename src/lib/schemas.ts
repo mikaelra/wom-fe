@@ -207,6 +207,8 @@ export const AgeAffirmResponseSchema = z.object({
 // account, null while not connected.
 export const ConnectionsResponseSchema = z.object({
   steam: z.object({ name: z.string().nullable() }).nullable(),
+  // Optional while a backend from before the iOS app's Apple login may answer.
+  apple: z.object({}).nullable().optional(),
   web: z.object({ email: z.string() }).nullable(),
 });
 

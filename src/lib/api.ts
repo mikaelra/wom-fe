@@ -771,6 +771,39 @@ export async function postSteamLink(
   });
 }
 
+// The iOS app logs in with its signed AppTransaction (src/lib/appleAccount.ts,
+// wom-be routes/apple_auth.py); the answers are the Steam calls' answers.
+
+/** Log in with the Apple account the iOS app was got with. */
+export async function postAppleLogin(appTransaction: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/apple', SteamAuthResponseSchema, {
+    body: { app_transaction: appTransaction },
+    defaultErrorMessage: 'Apple login failed.',
+  });
+}
+
+/** A new account for this Apple account ("Play now"). */
+export async function postAppleCreate(
+  appTransaction: string,
+  name: string
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/apple/create', SteamAuthResponseSchema, {
+    body: { app_transaction: appTransaction, name },
+    defaultErrorMessage: 'Could not create the account.',
+  });
+}
+
+/** This Apple account logs into the logged-in account from now on. */
+export async function postAppleLink(
+  appTransaction: string,
+  token: string
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/apple/link', SteamAuthResponseSchema, {
+    body: { app_transaction: appTransaction, token },
+    defaultErrorMessage: 'Could not link your Apple account.',
+  });
+}
+
 /** The iOS app's shop (src/lib/appleShop.ts): what may be sold in this App
  *  Store country, and the token StoreKit stamps on the purchase. */
 export async function postApplePrepare(
