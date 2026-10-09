@@ -163,6 +163,7 @@ export default function TextLobby({
   const chatText = useChatText();
   const [chatInput, setChatInput] = useState('');
   const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
   const chat = useMemo(() => hideMuted(state?.chat ?? [], muted), [state?.chat, muted]);
 
   const emit = getSocket();
@@ -432,40 +433,52 @@ export default function TextLobby({
             </div>
           )}
 
-          <div className={`${card} mt-6`}>
-            <h3 className="font-semibold text-xl text-gray-800 mb-4">Chat</h3>
-            <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
-            <ul className="space-y-1 text-gray-700 mb-3">
-              {chat.map((m, i) => (
-                <li
-                  key={i}
-                  className={`break-words ${m.sender !== playerName ? 'cursor-pointer hover:bg-gray-100 rounded' : ''}`}
-                  onClick={m.sender !== playerName ? () => setChatTarget(m) : undefined}
-                >
-                  {muted.has(m.sender) && <MutedMark />}
-                  <span className="font-semibold">{m.sender}: </span>
-                  {chatText(m.message)}
-                </li>
-              ))}
-            </ul>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                maxLength={200}
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-                placeholder="Chat…"
-                aria-label="Chat"
-                className="flex-1 border border-gray-300 rounded-lg p-2 bg-white text-gray-900 min-w-0"
-              />
-              <button type="button" onClick={sendChat} style={choiceStyle(false)}>
-                Send
-              </button>
-            </div>
-          </div>
         </div>
       </div>
+
+      {/* Chat: a link in the bottom-left corner that opens it, so it takes
+          no room on a phone screen until it's wanted. */}
+      {chatOpen && (
+        <div className="fixed bottom-14 left-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-white p-4 rounded-xl shadow-xl border border-gray-200">
+          <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
+          <ul className="space-y-1 text-gray-700 mb-3 max-h-60 overflow-y-auto">
+            {chat.map((m, i) => (
+              <li
+                key={i}
+                className={`break-words ${m.sender !== playerName ? 'cursor-pointer hover:bg-gray-100 rounded' : ''}`}
+                onClick={m.sender !== playerName ? () => setChatTarget(m) : undefined}
+              >
+                {muted.has(m.sender) && <MutedMark />}
+                <span className="font-semibold">{m.sender}: </span>
+                {chatText(m.message)}
+              </li>
+            ))}
+          </ul>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              maxLength={200}
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendChat()}
+              placeholder="Chat…"
+              aria-label="Chat message"
+              autoFocus
+              className="flex-1 border border-gray-300 rounded-lg p-2 bg-white text-gray-900 min-w-0"
+            />
+            <button type="button" onClick={sendChat} style={choiceStyle(false)}>
+              Send
+            </button>
+          </div>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => setChatOpen((o) => !o)}
+        className="fixed bottom-4 left-4 z-40 text-blue-600 underline text-lg font-semibold bg-transparent border-none cursor-pointer"
+      >
+        Chat
+      </button>
 
       {gameOver && state?.boss_fight && myPlayer?.pending_relic_nudge && !dismissed.relic && (
         <BossSignupNudge lobbyId={lobbyId} playerName={playerName} onDismiss={dismiss('relic')} />

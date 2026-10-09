@@ -126,12 +126,16 @@ describe('TextLobby', () => {
     }
   });
 
-  it('chats', async () => {
+  it('chats behind the Chat link', async () => {
     await show(lobby({ chat: [{ sender: 'Toad', message: 'hi', timestamp: '' }] }));
+    expect(screen.queryByText('hi')).toBeNull();
+    fireEvent.click(screen.getByText('Chat'));
     expect(screen.getByText('hi')).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('Chat'), { target: { value: ' gg ' } });
+    fireEvent.change(screen.getByLabelText('Chat message'), { target: { value: ' gg ' } });
     fireEvent.click(screen.getByText('Send'));
     expect(emit).toHaveBeenCalledWith('send_message', { lobby_id: 'ABCD', message: 'gg' });
+    fireEvent.click(screen.getByText('Chat'));
+    expect(screen.queryByText('hi')).toBeNull();
   });
 
   it('ends with the winner and the prizes', async () => {
