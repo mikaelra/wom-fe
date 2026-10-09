@@ -82,6 +82,7 @@ describe('TextLobby', () => {
     expect(screen.queryByText('Wolf')).toBeNull(); // and on any scroll
     expect(screen.getByLabelText('Back to Home').getAttribute('href')).toBe('/');
     expect(screen.getByLabelText('Go to the city')).toBeTruthy();
+    expect(screen.getByText('Toad').closest('li')!.textContent!.endsWith('❌')).toBe(true); // kick on the right
     fireEvent.click(screen.getByTitle('Kick player'));
     expect(emit).toHaveBeenCalledWith('kick_player', { lobby_id: 'ABCD', target: 'Toad' });
   });

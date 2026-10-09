@@ -370,17 +370,9 @@ export default function TextLobby({
             <ul className="list-disc pl-6 text-gray-200 space-y-2">
               {state?.players.map((p) => (
                 <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
-                  {/* Every mark goes in front of the name; the player's own
-                      (skin thumbnail or bot emoji) right before it. */}
-                  {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
-                    <span
-                      className="text-red-500 text-sm cursor-pointer"
-                      title="Kick player"
-                      onClick={() => emit.emit('kick_player', { lobby_id: lobbyId, target: p.name })}
-                    >
-                      ❌
-                    </span>
-                  )}
+                  {/* Every mark goes in front of the name, the player's own
+                      (skin thumbnail or bot emoji) right before it -- all but
+                      the admin's kick, at the end of the line. */}
                   {p.hp <= 0 && <span className="text-red-500">☠️</span>}
                   {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
                     <span className="text-yellow-500">👑</span>
@@ -396,6 +388,15 @@ export default function TextLobby({
                   {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
                   <PlayerThumbnail player={p} />
                   <span className="font-medium">{p.name}</span>
+                  {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
+                    <span
+                      className="ml-auto text-red-500 text-sm cursor-pointer"
+                      title="Kick player"
+                      onClick={() => emit.emit('kick_player', { lobby_id: lobbyId, target: p.name })}
+                    >
+                      ❌
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
