@@ -93,6 +93,28 @@ describe('TextLobby', () => {
     expect(row.textContent).toBe('☠️✅🐺Wolf 1'); // dead, so no kick ❌
   });
 
+  it('waits for the game to start with counting dots, then shows the round', async () => {
+    vi.useFakeTimers();
+    try {
+      conn.state = lobby();
+      const { rerender } = render(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+      const line = () => screen.getByText(/Waiting for game to start|Round:/).textContent;
+      expect(line()).toBe('🌀 Waiting for game to start');
+      act(() => vi.advanceTimersByTime(500));
+      expect(line()).toBe('🌀 Waiting for game to start.');
+      act(() => vi.advanceTimersByTime(1000));
+      expect(line()).toBe('🌀 Waiting for game to start...');
+      act(() => vi.advanceTimersByTime(500));
+      expect(line()).toBe('🌀 Waiting for game to start');
+      expect(screen.queryByText(/Your Name/)).toBeNull();
+      conn.state = lobby({ round: 3 });
+      rerender(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+      expect(line()).toBe('🌀 Round: 3');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('offers only the relics that do something in battle, folded away until opened', async () => {
     await show(lobby({ players: [player('Oni', { admin: true, selected_relic_ids: [1] }), player('Toad')] }));
     const heading = await screen.findByText(/Relics/);

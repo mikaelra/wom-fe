@@ -87,6 +87,22 @@ function useSecondsUntil(iso: string | null | undefined): number | null {
   return seconds;
 }
 
+/** "Waiting for game to start" with its dots counting up -- none, one,
+ *  two, three -- and round again; held in a fixed-width slot so the words
+ *  don't shift as they change. */
+function WaitingForStart() {
+  const [dots, setDots] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setDots((d) => (d + 1) % 4), 500);
+    return () => clearInterval(interval);
+  }, []);
+  return (
+    <>
+      Waiting for game to start<span className="inline-block w-[1.5ch] text-left">{'.'.repeat(dots)}</span>
+    </>
+  );
+}
+
 /** Before a player's name, the size of an emoji: their skin's thumbnail,
  *  or a bot's emoji (lib/playerThumbnail.ts). */
 function PlayerThumbnail({ player }: { player: Player }) {
@@ -362,8 +378,9 @@ export default function TextLobby({
           )}
           {rankedStartsIn !== null && <p className="mb-3 text-lg text-gray-300 font-medium">Match starts in {rankedStartsIn}s</p>}
           <h2 className="text-3xl font-extrabold text-white mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
-          <p className="mb-3 text-lg text-gray-300 font-medium">🌀 Round: {state?.round ?? '?'}</p>
-          <p className="mb-6 text-lg text-gray-300 font-medium">🦹‍♂️ Your Name: {playerName}</p>
+          <p className="mb-6 text-lg text-gray-300 font-medium">
+            🌀 {gameStarted ? `Round: ${round}` : <WaitingForStart />}
+          </p>
 
           <div className={card}>
             <h3 className="font-semibold text-xl text-gray-100 mb-4">Players in Lobby</h3>
