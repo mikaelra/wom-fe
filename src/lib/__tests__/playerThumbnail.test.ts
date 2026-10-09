@@ -10,7 +10,7 @@ describe('playerMark', () => {
   });
 
   it('is an emoji for every bot', () => {
-    expect(playerMark({ ...human, bot: true, boss: true })).toEqual({ emoji: '👿' });
+    expect(playerMark({ ...human, bot: true, boss: true })).toEqual({ emoji: '👹' });
     expect(playerMark({ ...human, bot: true, lost_soul: true })).toEqual({ emoji: '👻' });
     expect(playerMark({ ...human, bot: true, bot_type: 'TURTLE' })).toEqual({ emoji: '🐢' });
     expect(playerMark({ ...human, bot: true, bot_type: 'SHEEP' })).toEqual({ emoji: '🐑' });
