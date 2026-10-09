@@ -158,10 +158,18 @@ export const BAY_ROTATION_Y = Math.atan2(BAY_DIRECTION[0], BAY_DIRECTION[1]);
 /**
  * The campfire, between the viewer and the signpost.
  *
- * Close enough to the post to light its arms (3 units), far enough forward
+ * Close enough to the post to light its arms (~3.4 units), far enough forward
  * that its light falls on the faces you read rather than their backs.
  */
-export const CAMPFIRE_POSITION: [number, number, number] = [0, LAND_LEVEL, -8];
+/** Half a unit east-south-east of where it stood: bearing 112.5 deg
+ *  clockwise from north, with north -Z and east +X. */
+const CAMPFIRE_NUDGE = 0.5;
+const CAMPFIRE_NUDGE_BEARING = (112.5 * Math.PI) / 180;
+export const CAMPFIRE_POSITION: [number, number, number] = [
+  CAMPFIRE_NUDGE * Math.sin(CAMPFIRE_NUDGE_BEARING),
+  LAND_LEVEL,
+  -8 - CAMPFIRE_NUDGE * Math.cos(CAMPFIRE_NUDGE_BEARING),
+];
 
 /** Distance from the viewer, who stands at the origin in x/z. */
 export function groundDistance(position: readonly [number, number, number]): number {
