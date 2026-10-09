@@ -22,7 +22,7 @@ import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import { useLobbyGame } from '@/lib/useLobbyGame';
-import { playerThumbnailUrl } from '@/lib/playerThumbnail';
+import { playerMark } from '@/lib/playerThumbnail';
 import type { Player, Relic } from '@/types/game';
 
 // A match as text (Settings -> Graphics -> Text mode, src/lib/textMode.ts):
@@ -87,15 +87,17 @@ function useSecondsUntil(iso: string | null | undefined): number | null {
   return seconds;
 }
 
-/** A player's model as a picture the size of an emoji, before their name.
- *  Hidden when there is no picture for it. */
+/** Before a player's name, the size of an emoji: their skin's thumbnail,
+ *  or a bot's emoji (lib/playerThumbnail.ts). */
 function PlayerThumbnail({ player }: { player: Player }) {
   const [missing, setMissing] = useState(false);
+  const mark = playerMark(player);
+  if ('emoji' in mark) return <span>{mark.emoji}</span>;
   if (missing) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets
     <img
-      src={playerThumbnailUrl(player)}
+      src={mark.url}
       alt=""
       width={20}
       height={20}
