@@ -17,7 +17,7 @@
     "dist:steam": "npm run build:native && electron-builder",
     "steam:upload": "scripts/steam-upload.sh",
     "cap:sync": "cap sync ios",
-    "ios:sync": "npm run build:native && cap sync ios"
+    "ios:sync": "npm run build:native && node scripts/prune-native-models.mjs && cap sync ios"
   },
   "dependencies": {
     "@capacitor/core": "8.5.1",
