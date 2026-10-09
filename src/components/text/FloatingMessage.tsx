@@ -25,8 +25,8 @@ export default function FloatingMessage({ message, onDone }: { message: string; 
         visible ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
       }`}
     >
-      <div className="bg-white text-gray-700 px-6 py-6 rounded-2xl shadow-2xl max-w-3xl w-full mx-4 text-center font-sans space-y-6 border-2 border-gray-300">
-        <h3 className="font-semibold text-2xl text-gray-800">Round Messages</h3>
+      <div className="bg-gray-900 text-gray-100 px-6 py-6 rounded-2xl shadow-2xl max-w-3xl w-full mx-4 text-center font-sans space-y-6 border-2 border-gray-600">
+        <h3 className="font-semibold text-2xl text-gray-100">Round Messages</h3>
         <div className="text-lg sm:text-xl whitespace-pre-line">{message}</div>
       </div>
     </div>

@@ -10,6 +10,7 @@ import ChatMessageActions, { MutedMark, type ChatTarget } from '@/components/cha
 import MusicToggleButton from '@/components/audio/MusicToggleButton';
 import SfxToggleButton from '@/components/audio/SfxToggleButton';
 import { BOT_TYPES } from '@/components/lobby/LobbyOverlay';
+import { CITY_PATH } from '@/lib/cities';
 import { RELIC_BADGE_EMOJI, RELIC_SELECT_CAPTION } from '@/components/RelicSelectionPopover';
 import { useToast } from '@/components/Toast';
 import { getPlayerRelics } from '@/lib/api';
@@ -38,21 +39,25 @@ const RESOURCES = [
 ];
 const ACTIONS = ['attack', 'defend', 'well'];
 
+// Tjuvpakk's choice buttons, dark, and narrow enough that a section's three
+// sit on one line on a phone (they share the row: flex 1).
 const choiceStyle = (selected: boolean) => ({
-  padding: '5px 12px',
-  margin: '3px',
-  border: '2px solid black',
+  flex: 1,
+  padding: '6px 4px',
+  border: '2px solid #9ca3af',
   borderRadius: '5px',
-  backgroundColor: selected ? 'crimson' : '#ddd',
-  color: selected ? 'white' : 'black',
+  backgroundColor: selected ? 'crimson' : '#374151',
+  color: 'white',
   fontWeight: 'bold' as const,
+  fontSize: '15px',
+  whiteSpace: 'nowrap' as const,
   cursor: 'pointer',
 });
 
 const bigButton = (backgroundColor: string) => ({
   padding: '10px 20px',
-  margin: '10px',
-  border: '2px solid black',
+  margin: '6px',
+  border: '2px solid #9ca3af',
   borderRadius: '8px',
   backgroundColor,
   color: 'white',
@@ -60,7 +65,10 @@ const bigButton = (backgroundColor: string) => ({
   cursor: 'pointer',
 });
 
-const card = 'w-full mb-6 bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200';
+const homeButton =
+  'bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors';
+
+const card = 'w-full mb-4 bg-gray-900 border border-white/10 p-4 rounded-xl';
 
 /** Whole seconds until an ISO time, never below zero; null without one. */
 function useSecondsUntil(iso: string | null | undefined): number | null {
@@ -76,6 +84,47 @@ function useSecondsUntil(iso: string | null | undefined): number | null {
     return () => clearInterval(interval);
   }, [iso]);
   return seconds;
+}
+
+/**
+ * "Add Bot", which opens into one button per bot type -- picking one adds
+ * it and closes the list; so does any scroll.
+ */
+function AddBotMenu({ onAdd }: { onAdd: (botType: string) => void }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    // Capture: the page scrolls inside the lobby page's own container.
+    document.addEventListener('scroll', close, true);
+    return () => document.removeEventListener('scroll', close, true);
+  }, [open]);
+
+  return (
+    <div className="flex flex-col items-center">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} style={bigButton('gray')}>
+        🤖 Add Bot
+      </button>
+      {open && (
+        <div className="flex flex-wrap justify-center">
+          {BOT_TYPES.map(({ type, label }) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => {
+                onAdd(type);
+                setOpen(false);
+              }}
+              style={{ ...bigButton('#4b5563'), padding: '6px 12px' }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -113,12 +162,12 @@ function RelicPicker({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between font-semibold text-xl text-gray-800 bg-transparent border-none cursor-pointer"
+        className="w-full flex items-center justify-between font-semibold text-xl text-gray-100 bg-transparent border-none cursor-pointer"
       >
         <span>
           Relics {chosen.map((r) => RELIC_BADGE_EMOJI[r.name]).join(' ')}
         </span>
-        <span className="text-gray-500 text-sm">{open ? '▲' : '▼'}</span>
+        <span className="text-gray-400 text-sm">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div className="flex flex-wrap gap-3 mt-4">
@@ -230,8 +279,8 @@ export default function TextLobby({
 
   if (connectionStatus === 'disconnected') {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 p-4">
-        <p className="text-lg text-gray-800">Connection lost. Please refresh.</p>
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#070b15] p-4">
+        <p className="text-lg text-gray-100">Connection lost. Please refresh.</p>
       </div>
     );
   }
@@ -262,33 +311,42 @@ export default function TextLobby({
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 p-4 sm:p-8 text-gray-900">
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#070b15] p-4 pt-20 sm:p-8 sm:pt-20 text-gray-100">
+      {/* Home, and beside it the city -- the same pair as the other pages'. */}
+      <span className="emoji-pair absolute top-4 left-4 z-20 inline-flex items-center gap-2">
+        <Link href="/" aria-label="Back to Home" className={homeButton}>
+          🌍
+        </Link>
+        <Link href={CITY_PATH} aria-label="Go to the city" className={homeButton}>
+          🏛️
+        </Link>
+      </span>
       <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
         <MusicToggleButton />
         <SfxToggleButton />
       </div>
       <div className="relative z-10 min-h-screen w-full flex items-center justify-center">
-        <div className="w-full max-w-3xl flex flex-col items-center justify-center rounded-2xl shadow-xl bg-white/80 backdrop-blur-sm transition-all duration-300 p-4">
+        <div className="w-full max-w-3xl flex flex-col items-center justify-center rounded-2xl bg-gray-950/80 transition-all duration-300 p-3">
           {state?.boss_fight && enemy && (
-            <div className="bg-red-200 p-4 rounded mb-4">
+            <div className="bg-red-950/70 border border-red-800 p-4 rounded mb-4">
               <h2 className="text-2xl font-bold text-center">{enemy.name}</h2>
-              <p className="text-center text-gray-500">{enemy.title} </p>
+              <p className="text-center text-gray-400">{enemy.title} </p>
               <p className="text-center">HP: {enemy.hp}</p>
               {bossStartsIn !== null && (
-                <p className="text-center text-gray-500">
+                <p className="text-center text-gray-400">
                   ⏳ Boss-fight starts in {Math.floor(bossStartsIn / 60)}m {bossStartsIn % 60}s
                 </p>
               )}
             </div>
           )}
-          {rankedStartsIn !== null && <p className="mb-3 text-lg text-gray-600 font-medium">Match starts in {rankedStartsIn}s</p>}
-          <h2 className="text-3xl font-extrabold text-gray-900 mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
-          <p className="mb-3 text-lg text-gray-600 font-medium">🌀 Round: {state?.round ?? '?'}</p>
-          <p className="mb-6 text-lg text-gray-600 font-medium">🦹‍♂️ Your Name: {playerName}</p>
+          {rankedStartsIn !== null && <p className="mb-3 text-lg text-gray-300 font-medium">Match starts in {rankedStartsIn}s</p>}
+          <h2 className="text-3xl font-extrabold text-white mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
+          <p className="mb-3 text-lg text-gray-300 font-medium">🌀 Round: {state?.round ?? '?'}</p>
+          <p className="mb-6 text-lg text-gray-300 font-medium">🦹‍♂️ Your Name: {playerName}</p>
 
           <div className={card}>
-            <h3 className="font-semibold text-xl text-gray-800 mb-4">Players in Lobby</h3>
-            <ul className="list-disc pl-6 text-gray-700 space-y-2">
+            <h3 className="font-semibold text-xl text-gray-100 mb-4">Players in Lobby</h3>
+            <ul className="list-disc pl-6 text-gray-200 space-y-2">
               {state?.players.map((p) => (
                 <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
                   {p.hp <= 0 && <span className="text-red-500">☠️</span>}
@@ -320,20 +378,11 @@ export default function TextLobby({
           </div>
 
           {isAdmin && round === 0 && (
-            <div className="flex flex-wrap justify-center">
+            <div className="flex flex-wrap justify-center items-start">
               <button type="button" onClick={() => emit.emit('start_game', { lobby_id: lobbyId })} style={bigButton('goldenrod')}>
                 🚀 Start Game
               </button>
-              {BOT_TYPES.map(({ type, label }) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => emit.emit('add_dummy', { lobby_id: lobbyId, bot_type: type })}
-                  style={bigButton('gray')}
-                >
-                  🤖 Add {label} Bot
-                </button>
-              ))}
+              <AddBotMenu onAdd={(type) => emit.emit('add_dummy', { lobby_id: lobbyId, bot_type: type })} />
             </div>
           )}
 
@@ -355,8 +404,8 @@ export default function TextLobby({
 
           {myPlayer && !myPlayer.spectator && (
             <div className={card}>
-              <h3 className="font-semibold text-xl text-gray-800 mb-4">Your Stats</h3>
-              <p className="text-gray-700 flex gap-4">
+              <h3 className="font-semibold text-xl text-gray-100 mb-4">Your Stats</h3>
+              <p className="text-gray-200 flex gap-4">
                 <span>
                   ❤ <span className="font-semibold text-red-500">{myPlayer.hp}</span>
                 </span>
@@ -373,8 +422,8 @@ export default function TextLobby({
           {!gameOver && !isDenied && isAlive && gameStarted && !myPlayer?.spectator && (
             <div className={card}>
               <div>
-                <h4 className="font-semibold text-lg text-gray-800 mb-3">Choose Resource</h4>
-                <div className="flex flex-wrap gap-3">
+                <h4 className="font-semibold text-lg text-gray-100 mb-3">Choose Resource</h4>
+                <div className="flex gap-2">
                   {RESOURCES.map((res) => (
                     <button key={res.id} type="button" onClick={() => submitResource(res.id)} style={choiceStyle(resource === res.id)}>
                       {res.label}
@@ -382,28 +431,29 @@ export default function TextLobby({
                   ))}
                 </div>
               </div>
-              <div className="mb-6">
-                <h4 className="font-semibold text-lg text-gray-800 mb-3">Choose Action</h4>
-                <div className="flex flex-wrap gap-3">
+              <div className="mt-4">
+                <h4 className="font-semibold text-lg text-gray-100 mb-3">Choose Action</h4>
+                <div className="flex gap-2">
                   {ACTIONS.map((act) => (
                     <button key={act} type="button" onClick={() => submitAction(act)} style={choiceStyle(action === act)}>
                       {act.toUpperCase()}
                     </button>
                   ))}
-                  {action === 'attack' && (
+                </div>
+                {action === 'attack' && (
                     <select
                       value={target}
                       onChange={(e) => submitTarget(e.target.value)}
                       aria-label="Select target"
                       style={{
-                        padding: '5px',
-                        border: '2px solid black',
+                        padding: '6px',
+                        border: '2px solid #9ca3af',
                         borderRadius: '5px',
-                        backgroundColor: 'white',
-                        color: 'black',
+                        backgroundColor: '#1f2937',
+                        color: 'white',
                         fontSize: '16px',
-                        margin: '10px 0',
-                        width: '33%',
+                        marginTop: '10px',
+                        width: '100%',
                       }}
                     >
                       <option value="">Select target</option>
@@ -414,7 +464,6 @@ export default function TextLobby({
                       ))}
                     </select>
                   )}
-                </div>
               </div>
             </div>
           )}
@@ -430,8 +479,8 @@ export default function TextLobby({
               floatingMessages.length > 0 ? 'opacity-0 duration-0' : 'opacity-100 duration-1000'
             }`}
           >
-            <h3 className="font-semibold text-xl text-gray-800 mb-4 px-6">Round Messages</h3>
-            <ul className="list-disc pl-6 text-gray-700 bg-white p-6 rounded-xl shadow-sm space-y-2">
+            <h3 className="font-semibold text-xl text-gray-100 mb-4 px-6">Round Messages</h3>
+            <ul className="list-disc pl-6 text-gray-200 bg-gray-900 border border-white/10 p-4 rounded-xl space-y-2">
               {messages.map((m, i) => (
                 <li key={i} className="py-1">
                   {Array.isArray(m) ? m.join(' ') : m}
@@ -441,11 +490,11 @@ export default function TextLobby({
           </div>
 
           {isPendingDenyChooser && (
-            <div className="w-full bg-yellow-50 border border-yellow-200 p-6 mt-6 rounded-xl shadow-sm">
-              <h3 className="font-semibold text-lg text-yellow-800 mb-4">🛑 Choose someone to deny next round</h3>
+            <div className="w-full bg-yellow-950/60 border border-yellow-700 p-4 mt-4 rounded-xl">
+              <h3 className="font-semibold text-lg text-yellow-300 mb-4">🛑 Choose someone to deny next round</h3>
               <div className="flex gap-4 items-center">
                 <select
-                  className="border border-gray-200 rounded-lg p-2.5 bg-white text-gray-700 flex-1"
+                  className="border border-gray-600 rounded-lg p-2.5 bg-gray-800 text-white flex-1"
                   value={denyTarget}
                   onChange={(e) => setDenyTarget(e.target.value)}
                   aria-label="Select player"
@@ -461,7 +510,7 @@ export default function TextLobby({
                   type="button"
                   disabled={!denyTarget}
                   onClick={() => emit.emit('submit_deny_target', { lobby_id: lobbyId, target: denyTarget })}
-                  style={{ ...choiceStyle(false), padding: '10px 20px', margin: '5px' }}
+                  style={{ ...choiceStyle(false), flex: 'none', padding: '10px 20px' }}
                 >
                   Deny
                 </button>
@@ -470,9 +519,9 @@ export default function TextLobby({
           )}
 
           {gameOver && (
-            <div className="w-full bg-green-50 border border-green-200 text-green-800 p-6 rounded-xl mt-6 text-center shadow-sm">
+            <div className="w-full bg-green-950/60 border border-green-700 text-green-300 p-4 rounded-xl mt-4 text-center">
               <p className="text-xl font-semibold mb-3">🎉 Game Over! {state?.winner} has won the game!</p>
-              <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200">
+              <Link href="/" className="text-blue-400 hover:text-blue-300 font-medium transition-colors duration-200">
                 ← Back to Home
               </Link>
             </div>
@@ -484,13 +533,13 @@ export default function TextLobby({
       {/* Chat: a link in the bottom-left corner that opens it, so it takes
           no room on a phone screen until it's wanted. */}
       {chatOpen && (
-        <div className="fixed bottom-14 left-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-white p-4 rounded-xl shadow-xl border border-gray-200">
+        <div className="fixed bottom-14 left-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-gray-900 p-4 rounded-xl shadow-xl border border-gray-700">
           <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
-          <ul className="space-y-1 text-gray-700 mb-3 max-h-60 overflow-y-auto">
+          <ul className="space-y-1 text-gray-200 mb-3 max-h-60 overflow-y-auto">
             {chat.map((m, i) => (
               <li
                 key={i}
-                className={`break-words ${m.sender !== playerName ? 'cursor-pointer hover:bg-gray-100 rounded' : ''}`}
+                className={`break-words ${m.sender !== playerName ? 'cursor-pointer hover:bg-white/10 rounded' : ''}`}
                 onClick={m.sender !== playerName ? () => setChatTarget(m) : undefined}
               >
                 {muted.has(m.sender) && <MutedMark />}
@@ -509,9 +558,9 @@ export default function TextLobby({
               placeholder="Chat…"
               aria-label="Chat message"
               autoFocus
-              className="flex-1 border border-gray-300 rounded-lg p-2 bg-white text-gray-900 min-w-0"
+              className="flex-1 border border-gray-600 rounded-lg p-2 bg-gray-800 text-white min-w-0"
             />
-            <button type="button" onClick={sendChat} style={choiceStyle(false)}>
+            <button type="button" onClick={sendChat} style={{ ...choiceStyle(false), flex: 'none', padding: '6px 12px' }}>
               Send
             </button>
           </div>
@@ -520,7 +569,7 @@ export default function TextLobby({
       <button
         type="button"
         onClick={() => setChatOpen((o) => !o)}
-        className="fixed bottom-4 left-4 z-40 text-blue-600 underline text-lg font-semibold bg-transparent border-none cursor-pointer"
+        className="fixed bottom-4 left-4 z-40 text-blue-400 underline text-lg font-semibold bg-transparent border-none cursor-pointer"
       >
         Chat
       </button>

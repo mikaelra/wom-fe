@@ -72,8 +72,16 @@ describe('TextLobby', () => {
     expect(screen.getByText('✅')).toBeTruthy();
     fireEvent.click(screen.getByText('🚀 Start Game'));
     expect(emit).toHaveBeenCalledWith('start_game', { lobby_id: 'ABCD' });
-    fireEvent.click(screen.getByText('🤖 Add Wolf Bot'));
+    expect(screen.queryByText('Wolf')).toBeNull();
+    fireEvent.click(screen.getByText('🤖 Add Bot'));
+    fireEvent.click(screen.getByText('Wolf'));
     expect(emit).toHaveBeenCalledWith('add_dummy', { lobby_id: 'ABCD', bot_type: 'WOLF' });
+    expect(screen.queryByText('Wolf')).toBeNull(); // closes once one is picked
+    fireEvent.click(screen.getByText('🤖 Add Bot'));
+    fireEvent.scroll(document);
+    expect(screen.queryByText('Wolf')).toBeNull(); // and on any scroll
+    expect(screen.getByLabelText('Back to Home').getAttribute('href')).toBe('/');
+    expect(screen.getByLabelText('Go to the city')).toBeTruthy();
     fireEvent.click(screen.getByTitle('Kick player'));
     expect(emit).toHaveBeenCalledWith('kick_player', { lobby_id: 'ABCD', target: 'Toad' });
   });
