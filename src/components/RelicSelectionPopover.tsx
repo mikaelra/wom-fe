@@ -21,7 +21,7 @@ const RELIC_SELECT_HELP: Record<string, string> = {
 
 // The compact badge (selected-but-collapsed state) shows one glyph in place
 // of the full 3D model -- name-keyed for the same reason as RELIC_SELECT_HELP.
-const RELIC_BADGE_EMOJI: Record<string, string> = {
+export const RELIC_BADGE_EMOJI: Record<string, string> = {
   "Hades' Coin": '🪙',
   'Stone of Vitality': '🪨',
 };
@@ -30,7 +30,7 @@ const DEFAULT_RELIC_BADGE_EMOJI = '💠';
 // Short version of RELIC_SELECT_HELP for the caption under the icon/count
 // in the open popover -- that one's a full sentence meant for a
 // hover/tooltip title, this is meant to fit under a compact card.
-const RELIC_SELECT_CAPTION: Record<string, string> = {
+export const RELIC_SELECT_CAPTION: Record<string, string> = {
   "Hades' Coin": 'Start the game with 1 coin',
   'Stone of Vitality': 'Start the game with 15 HP',
 };

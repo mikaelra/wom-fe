@@ -247,7 +247,7 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
 // doesn't name one of BOT_TYPES, which this deliberately relies on rather
 // than duplicating the random choice here.
 const RANDOM_BOT_TYPE = '';
-const BOT_TYPES: { type: string; label: string }[] = [
+export const BOT_TYPES: { type: string; label: string }[] = [
   { type: 'TURTLE', label: 'Turtle' },
   { type: 'SHEEP', label: 'Sheep' },
   { type: 'WOLF', label: 'Wolf' },
