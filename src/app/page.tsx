@@ -20,11 +20,13 @@ import ExitGamePrompt from '@/components/ExitGamePrompt';
 import HudToggle from '@/components/worldmap/HudToggle';
 import HudLoadingMark from '@/components/worldmap/HudLoadingMark';
 import { useHudHidden, useHudLoadingMark } from '@/lib/hudHidden';
+import { useTextMode } from '@/lib/textMode';
 
 const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
 
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
 const MerchantScene = dynamic(() => import('@/components/merchant/MerchantScene'), { ssr: false });
+const TextHome = dynamic(() => import('@/components/text/TextHome'), { ssr: false });
 
 /**
  * The world map — the game's home screen (docs/CITY_SCENE_PLAN.md §4.4).
@@ -45,7 +47,9 @@ export default function Page() {
   // Defer Canvas mount by one paint frame so the UI controls render and
   // become interactive before the WebGL context initialises.
   const [sceneReady, setSceneReady] = useState(false);
-  const hudHidden = useHudHidden();
+  // Text mode (lib/textMode.ts): no globe, its markers as text (TextHome).
+  const textMode = useTextMode();
+  const hudHidden = useHudHidden() && textMode === false;
   const hudLoadingMark = useHudLoadingMark();
 
   // Set once the city route has been asked for but this page is still
@@ -175,12 +179,19 @@ export default function Page() {
           />
         }
       />}
-      <HudToggle />
+      {textMode && (
+        <TextHome
+          offers={merchantOffers}
+          onEnterCity={handleCityClick}
+          onOpenMerchant={(o) => setOpenMerchantKey(merchantKey(o))}
+        />
+      )}
+      {textMode === false && <HudToggle />}
       {/* With the HUD hidden, a tap on the globe loops the loading animation
           where the loading screen shows it, half the Earth's size (lib/hudHidden.ts). */}
       {hudLoadingMark && <HudLoadingMark />}
       <AssetLoadingReporter />
-      {sceneReady && (
+      {sceneReady && textMode === false && (
         <Canvas
           camera={{ position: [0, 3, 10.5], fov: 50 }}
           // Same containment as the city's canvas, for the same reason: the
@@ -220,6 +231,7 @@ export default function Page() {
           token={getStoredAccountToken()}
           onClose={() => setOpenMerchantKey(null)}
           onPurchased={refreshMerchantOffer}
+          textOnly={!!textMode}
         />
       )}
 

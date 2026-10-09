@@ -27,8 +27,10 @@ import { bossfightSignSublabel } from '@/lib/bossfightSign';
 import { playMusic, CITY_MUSIC } from '@/lib/music';
 import LoadingState from '@/components/loading/LoadingState';
 import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
+import { useTextMode } from '@/lib/textMode';
 
 const CityScene = dynamic(() => import('@/components/city/CityScene'), { ssr: false });
+const TextCity = dynamic(() => import('@/components/text/TextCity'), { ssr: false });
 
 // A query param rather than /city/[id]: a dynamic path segment cannot be
 // statically exported for the native build (docs/MOBILE_AND_STEAM_PLAN.md
@@ -125,6 +127,8 @@ function CityPageContent() {
   // How busy each of the three buildings is right now, for the "N playing"
   // / "N in market" signs floating over them (wom-be `city_presence`).
   const presence = useCityPresence();
+  // Text mode (lib/textMode.ts): no scene, its signposts as text (TextCity).
+  const textMode = useTextMode();
 
   if (!city) {
     return (
@@ -143,7 +147,24 @@ function CityPageContent() {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100dvh', overflow: 'hidden', background: '#070b15' }}>
-      <AssetLoadingReporter />
+      {textMode === false && <AssetLoadingReporter />}
+      {textMode && (
+        <TextCity
+          onBossfight={enterBossfight}
+          bossfightSublabel={bossfightSublabel}
+          bossfightPlaying={roster.players.filter((p) => !p.bot).length}
+          onRanked={ranked.enterRanked}
+          rankedLabel={ranked.label}
+          rankedSublabel={ranked.sublabel}
+          onBotRanked={botRanked.enterBotRanked}
+          botRankedLabel={botRanked.label}
+          botRankedSublabel={botRanked.sublabel}
+          presence={presence}
+          onMarket={() => router.push('/market')}
+          onBackToEarth={() => router.push('/')}
+        />
+      )}
+      {textMode === false && (
       <Canvas
         camera={{ position: CITY_CAMERA, fov: CITY_FOV }}
         // Same DPR cap as the lobby: rendering at DPR 3 on phones triples
@@ -184,6 +205,7 @@ function CityPageContent() {
           timewarpColors={timewarpPlaying && timewarpRun ? timewarpRun.spec.colors : null}
         />
       </Canvas>
+      )}
       <CityOverlay
         skyClock={skyOverridden ? formatAthensClock(skyDate) : null}
         clock={
@@ -201,9 +223,11 @@ function CityPageContent() {
 
       {timewarpPreview && <TimewarpPanel onPlay={playPreview} onPlayEnd={playPreviewEnd} />}
 
+      {/* Up until text mode is known, so the 3D city never flashes; text
+          mode has nothing to wait for. */}
       <CityLoadingScreen
         title={city.actionLabel ?? city.name}
-        done={sceneReady}
+        done={textMode === true || sceneReady}
       />
 
       {loading && (
