@@ -78,12 +78,39 @@ describe('TextLobby', () => {
     expect(emit).toHaveBeenCalledWith('kick_player', { lobby_id: 'ABCD', target: 'Toad' });
   });
 
-  it('offers only the relics that do something in battle', async () => {
-    await show(lobby());
-    const coin = await screen.findByText(/Start the game with 1 coin/);
+  it('offers only the relics that do something in battle, folded away until opened', async () => {
+    await show(lobby({ players: [player('Oni', { admin: true, selected_relic_ids: [1] }), player('Toad')] }));
+    const heading = await screen.findByText(/Relics/);
+    expect(screen.queryByText(/Start the game with 1 coin/)).toBeNull();
+    expect(heading.textContent).toContain('🪙'); // what is picked shows while folded
+    fireEvent.click(heading);
+    const coin = screen.getByText(/Start the game with 1 coin/);
     expect(screen.queryByText(/Paper/)).toBeNull();
     fireEvent.click(coin);
     expect(emit).toHaveBeenCalledWith('toggle_relic_selection', { lobby_id: 'ABCD', relic_id: 1 });
+  });
+
+  it('folds the relics away again once scrolled out of sight', async () => {
+    let report: ((entries: { isIntersecting: boolean }[]) => void) | null = null;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(cb: (entries: { isIntersecting: boolean }[]) => void) {
+          report = cb;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    try {
+      await show(lobby());
+      fireEvent.click(await screen.findByText(/Relics/));
+      expect(screen.getByText(/Start the game with 1 coin/)).toBeTruthy();
+      act(() => report?.([{ isIntersecting: false }]));
+      expect(screen.queryByText(/Start the game with 1 coin/)).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('sends the round choices over the socket', async () => {

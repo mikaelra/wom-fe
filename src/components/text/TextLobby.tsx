@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import FloatingMessage from '@/components/text/FloatingMessage';
 import BossSignupNudge from '@/components/BossSignupNudge';
@@ -76,6 +76,64 @@ function useSecondsUntil(iso: string | null | undefined): number | null {
     return () => clearInterval(interval);
   }, [iso]);
   return seconds;
+}
+
+/**
+ * Picking relics to bring into the match, folded away under its heading
+ * until opened -- and folded away again once scrolled out of sight, so it
+ * takes no room on a phone screen when not in use.
+ */
+function RelicPicker({
+  relics,
+  selectedIds,
+  onToggle,
+}: {
+  relics: Relic[];
+  selectedIds: number[];
+  onToggle: (id: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!open || !el || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) setOpen(false);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [open]);
+
+  const chosen = relics.filter((r) => selectedIds.includes(Number(r.id)));
+
+  return (
+    <div ref={ref} className={`${card} !p-4`}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between font-semibold text-xl text-gray-800 bg-transparent border-none cursor-pointer"
+      >
+        <span>
+          Relics {chosen.map((r) => RELIC_BADGE_EMOJI[r.name]).join(' ')}
+        </span>
+        <span className="text-gray-500 text-sm">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="flex flex-wrap gap-3 mt-4">
+          {relics.map((r) => {
+            const id = Number(r.id);
+            return (
+              <button key={id} type="button" onClick={() => onToggle(id)} style={choiceStyle(selectedIds.includes(id))}>
+                {RELIC_BADGE_EMOJI[r.name]} {RELIC_SELECT_CAPTION[r.name]} (×{r.count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function flatten(messages: (string | string[])[]): string {
@@ -280,24 +338,11 @@ export default function TextLobby({
           )}
 
           {round === 0 && myPlayer && !myPlayer.spectator && relics.length > 0 && (
-            <div className={card}>
-              <h3 className="font-semibold text-xl text-gray-800 mb-4">Relics</h3>
-              <div className="flex flex-wrap gap-3">
-                {relics.map((r) => {
-                  const id = Number(r.id);
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => emit.emit('toggle_relic_selection', { lobby_id: lobbyId, relic_id: id })}
-                      style={choiceStyle(selectedRelicIds.includes(id))}
-                    >
-                      {RELIC_BADGE_EMOJI[r.name]} {RELIC_SELECT_CAPTION[r.name]} (×{r.count})
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <RelicPicker
+              relics={relics}
+              selectedIds={selectedRelicIds}
+              onToggle={(id) => emit.emit('toggle_relic_selection', { lobby_id: lobbyId, relic_id: id })}
+            />
           )}
 
           {floatingMessages.map((msg, idx) => (
