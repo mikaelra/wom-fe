@@ -27,7 +27,7 @@
     "@react-three/fiber": "^9.3.0",
     "@sentry/nextjs": "^10.67.0",
     "astronomy-engine": "^2.1.19",
-    "next": "^16.2.11",
+    "next": "^16.4.0",
     "obscenity": "0.4.6",
     "qrcode.react": "^4.2.0",
     "react": "19.1.0",
