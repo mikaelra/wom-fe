@@ -22,7 +22,8 @@ import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import { useLobbyGame } from '@/lib/useLobbyGame';
-import type { Relic } from '@/types/game';
+import { playerThumbnailUrl } from '@/lib/playerThumbnail';
+import type { Player, Relic } from '@/types/game';
 
 // A match as text (Settings -> Graphics -> Text mode, src/lib/textMode.ts):
 // Tjuvpakk's lobby page, kept as it was, on World of Mythos's socket. The
@@ -84,6 +85,24 @@ function useSecondsUntil(iso: string | null | undefined): number | null {
     return () => clearInterval(interval);
   }, [iso]);
   return seconds;
+}
+
+/** A player's model as a picture the size of an emoji, before their name.
+ *  Hidden when there is no picture for it. */
+function PlayerThumbnail({ player }: { player: Player }) {
+  const [missing, setMissing] = useState(false);
+  if (missing) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets
+    <img
+      src={playerThumbnailUrl(player)}
+      alt=""
+      width={20}
+      height={20}
+      className="inline-block w-5 h-5 rounded-full object-cover"
+      onError={() => setMissing(true)}
+    />
+  );
 }
 
 /**
@@ -354,6 +373,7 @@ export default function TextLobby({
                     <span className="text-yellow-500">👑</span>
                   )}
                   {p.spectator && <span className="text-yellow-500">👁</span>}
+                  <PlayerThumbnail player={p} />
                   <span className="font-medium">{p.name}</span>
                   {muted.has(p.name) && <span>🔇</span>}
                   {!gameStarted &&
