@@ -86,6 +86,12 @@ describe('TextLobby', () => {
     expect(emit).toHaveBeenCalledWith('kick_player', { lobby_id: 'ABCD', target: 'Toad' });
   });
 
+  it('puts every mark in front of the name, the bot emoji or skin right before it', async () => {
+    await show(lobby({ readyPlayers: ['Wolf 1'], players: [player('Oni', { admin: true }), player('Wolf 1', { bot: true, bot_type: 'WOLF', hp: 0 })] }));
+    const row = screen.getByText('Wolf 1').closest('li')!;
+    expect(row.textContent).toBe('☠️✅🐺Wolf 1'); // dead, so no kick ❌
+  });
+
   it('offers only the relics that do something in battle, folded away until opened', async () => {
     await show(lobby({ players: [player('Oni', { admin: true, selected_relic_ids: [1] }), player('Toad')] }));
     const heading = await screen.findByText(/Relics/);

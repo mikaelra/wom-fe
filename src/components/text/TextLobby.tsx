@@ -370,30 +370,32 @@ export default function TextLobby({
             <ul className="list-disc pl-6 text-gray-200 space-y-2">
               {state?.players.map((p) => (
                 <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
-                  {p.hp <= 0 && <span className="text-red-500">☠️</span>}
-                  {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
-                    <span className="text-yellow-500">👑</span>
-                  )}
-                  {p.spectator && <span className="text-yellow-500">👁</span>}
-                  <PlayerThumbnail player={p} />
-                  <span className="font-medium">{p.name}</span>
-                  {muted.has(p.name) && <span>🔇</span>}
-                  {!gameStarted &&
-                    (p.selected_relic_ids ?? []).map((id) => {
-                      const relic = relics.find((r) => Number(r.id) === id);
-                      return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
-                    })}
+                  {/* Every mark goes in front of the name; the player's own
+                      (skin thumbnail or bot emoji) right before it. */}
                   {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
                     <span
-                      className="ml-2 text-red-500 text-sm cursor-pointer"
+                      className="text-red-500 text-sm cursor-pointer"
                       title="Kick player"
                       onClick={() => emit.emit('kick_player', { lobby_id: lobbyId, target: p.name })}
                     >
                       ❌
                     </span>
                   )}
+                  {p.hp <= 0 && <span className="text-red-500">☠️</span>}
+                  {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
+                    <span className="text-yellow-500">👑</span>
+                  )}
+                  {p.spectator && <span className="text-yellow-500">👁</span>}
+                  {muted.has(p.name) && <span>🔇</span>}
+                  {!gameStarted &&
+                    (p.selected_relic_ids ?? []).map((id) => {
+                      const relic = relics.find((r) => Number(r.id) === id);
+                      return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
+                    })}
                   {state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>}
                   {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
+                  <PlayerThumbnail player={p} />
+                  <span className="font-medium">{p.name}</span>
                 </li>
               ))}
             </ul>
