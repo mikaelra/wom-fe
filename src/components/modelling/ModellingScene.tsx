@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import Senate from '@/components/city/Senate';
 import Market from '@/components/city/Market';
 import Bay from '@/components/city/Bay';
+import CarvedSignpost from '@/components/city/CarvedSignpost';
 import { LAND_LEVEL, SEA_LEVEL } from '@/lib/cityLayout';
 import { BAY_FLARE, BAY_HALF_WIDTH, bayDockLength } from '@/lib/cityTerrain';
 import { ARENA } from '@/lib/rankedArena';
@@ -119,6 +120,8 @@ function ModelBody({ modelId }: { modelId: ModellingModelId }) {
       return <Senate />;
     case 'bay':
       return <Bay />;
+    case 'signpost':
+      return <CarvedSignpost />;
     default:
       return null;
   }

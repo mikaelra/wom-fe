@@ -108,12 +108,16 @@ const ROTATE_SPEED = -0.35;
 
 const BOSSFIGHT_COLOR = '#4da6ff';
 const RANKED_COLOR = '#ff6666';
-/** Green, matching Market.tsx's awning: the right arm and the building it
- *  pairs with read as one colour from a distance, like the temple/Senate. */
-const MARKET_COLOR = '#5fd88a';
-const LIT_MARKET = '#eafff2';
-/** Parchment rather than a third saturated hue: the way out is not a third
- *  destination competing with the two fights. */
+/** Parchment yellow, matching Market.tsx's accent light: the right arm and
+ *  the building it pairs with read as one colour from a distance, like the
+ *  temple/Senate. (Was green; swapped with EARTH's parchment.) */
+const MARKET_COLOR = '#e8d9a0';
+const LIT_MARKET = '#fffbea';
+/** Green: the way back to the world map. (Was parchment; swapped with the
+ *  Market's green.) */
+const EARTH_COLOR = '#5fd88a';
+/** Parchment rather than a third saturated hue: the fork's way back to the
+ *  city is not a third destination competing with the two fights. */
 const BACK_COLOR = '#e8d9a0';
 
 /**
@@ -472,7 +476,7 @@ export default function CityScene({
   const arms: SignpostArm[] = [
     {
       side: 'left',
-      label: 'BOSSFIGHT',
+      label: 'HADES',
       sublabel: bossfightSublabel,
       color: BOSSFIGHT_COLOR,
       onActivate: onBossfight,
@@ -518,8 +522,8 @@ export default function CityScene({
       // the way back to the world map is no lesser a place to go.
       side: 'left',
       tier: 1,
-      label: '\u{1F30D} EARTH',
-      color: BACK_COLOR,
+      label: 'EARTH',
+      color: EARTH_COLOR,
       onActivate: onBackToEarth,
     },
   ];
