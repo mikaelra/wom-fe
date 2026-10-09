@@ -39,15 +39,15 @@ describe('TextCity', () => {
     onBackToEarth: vi.fn(),
   });
 
-  it('shows each place with its caption, and goes there', () => {
+  it('shows HADES, RANKED, EARTH and MARKET, with what is going on over them', () => {
     const p = props();
     render(<TextCity {...p} />);
     expect(screen.getByText(/BOSSFIGHT IN 2:05/)).toBeTruthy();
-    expect(screen.getByText(/SEARCHING/)).toBeTruthy();
+    expect(screen.getByText('SEARCHING')).toBeTruthy(); // the bots queue, over RANKED
+    expect(screen.getByText('3')).toBeTruthy(); // in the market
+    expect(screen.queryByText('PLAYERS')).toBeNull();
     for (const [label, handler] of [
       ['HADES', p.onBossfight],
-      ['PLAYERS', p.onRanked],
-      ['BOTS', p.onBotRanked],
       ['MARKET', p.onMarket],
       ['EARTH', p.onBackToEarth],
     ] as const) {
@@ -56,8 +56,27 @@ describe('TextCity', () => {
     }
   });
 
+  it('says nothing over MARKET when nobody is there', () => {
+    render(<TextCity {...props()} presence={{ ranked: 0, bot_ranked: 0, market: 0 }} />);
+    expect(screen.queryByText('0')).toBeNull();
+  });
+
+  it('opens RANKED: PLAYERS and BOTS with who is playing, and BACK', () => {
+    const p = props();
+    render(<TextCity {...p} />);
+    fireEvent.click(screen.getByText('RANKED'));
+    expect(screen.getByText('1 playing')).toBeTruthy();
+    fireEvent.click(screen.getByText('PLAYERS'));
+    expect(p.onRanked).toHaveBeenCalled();
+    fireEvent.click(screen.getByText('BOTS'));
+    expect(p.onBotRanked).toHaveBeenCalled();
+    fireEvent.click(screen.getByText('BACK'));
+    expect(screen.getByText('HADES')).toBeTruthy();
+  });
+
   it('says when a match is waiting to be returned to', () => {
     render(<TextCity {...props()} rankedLabel="RETURN TO MATCH" />);
+    fireEvent.click(screen.getByText('RANKED'));
     expect(screen.getByText('RETURN TO MATCH')).toBeTruthy();
   });
 });
