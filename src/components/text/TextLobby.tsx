@@ -21,7 +21,6 @@ import { BATTLE_MUSIC, playMusic, PRE_LOBBY_MUSIC } from '@/lib/music';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
-import LoadingState from '@/components/loading/LoadingState';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import { playerMark, shownPlayerName } from '@/lib/playerThumbnail';
 import type { Player, Relic } from '@/types/game';
@@ -345,10 +344,12 @@ export default function TextLobby({
   const otherPlayers = state?.players.filter((p) => p.name !== playerName && p.hp > 0 && !p.spectator) ?? [];
   const selectedRelicIds = myPlayer?.selected_relic_ids ?? [];
 
-  // Reconnecting (useLobbyConnection rejoins by itself; a lobby gone
-  // meanwhile walks out via onLobbyGone): the loading animation, as
-  // everywhere else, over the lobby page's switched-off overlay.
-  if (connectionStatus === 'disconnected') return <LoadingState label="Reconnecting" overSuppression />;
+  // Not caught up with the server -- joining, or reconnecting after a drop
+  // (useLobbyConnection rejoins by itself; a lobby gone meanwhile walks out
+  // via onLobbyGone): who's in the lobby and the round messages stay, blurred
+  // and pulsing as they load, and the rest waits for the server's answer.
+  const stale = connectionStatus !== 'connected';
+  const staleLook = stale ? ' blur-[2px] animate-pulse pointer-events-none select-none' : '';
 
   const submitResource = (id: string) => {
     if (!game.canAct) return;
@@ -392,7 +393,7 @@ export default function TextLobby({
       </div>
       <div className="relative z-10 min-h-screen w-full flex items-center justify-center">
         <div className="w-full max-w-3xl flex flex-col items-center justify-center rounded-2xl bg-gray-950/80 transition-all duration-300 p-3">
-          {state?.boss_fight && enemy && (
+          {!stale && state?.boss_fight && enemy && (
             <div className="bg-red-950/70 border border-red-800 p-4 rounded mb-4">
               <h2 className="text-2xl font-bold text-center">{shownPlayerName(enemy)}</h2>
               <p className="text-center text-gray-400">{enemy.title} </p>
@@ -404,17 +405,19 @@ export default function TextLobby({
               )}
             </div>
           )}
-          {rankedStartsIn !== null && <p className="mb-3 text-lg text-gray-300 font-medium">Match starts in {rankedStartsIn}s</p>}
+          {!stale && rankedStartsIn !== null && <p className="mb-3 text-lg text-gray-300 font-medium">Match starts in {rankedStartsIn}s</p>}
           {/* A ranked match is matchmade, never joined by code: no id to share
               (the 3D lobby's LobbyOverlay hides it too). */}
-          {!state?.ranked && !state?.ai_ranked && (
+          {!stale && !state?.ranked && !state?.ai_ranked && (
             <h2 className="text-3xl font-extrabold text-white mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
           )}
-          <p className="mb-6 text-lg text-gray-300 font-medium">
-            🌀 {gameStarted ? `Round: ${round}` : <WaitingForStart />}
-          </p>
+          {!stale && (
+            <p className="mb-6 text-lg text-gray-300 font-medium">
+              🌀 {gameStarted ? `Round: ${round}` : <WaitingForStart />}
+            </p>
+          )}
 
-          <div className={card}>
+          <div className={card + staleLook} aria-busy={stale}>
             <h3 className="font-semibold text-xl text-gray-100 mb-4">Players in Lobby</h3>
             <ul className="list-disc pl-6 text-gray-200 space-y-2">
               {state?.players.map((p) => (
@@ -451,7 +454,7 @@ export default function TextLobby({
             </ul>
           </div>
 
-          {isAdmin && round === 0 && (
+          {!stale && isAdmin && round === 0 && (
             <div className="flex flex-wrap justify-center items-start">
               <button type="button" onClick={() => emit.emit('start_game', { lobby_id: lobbyId })} style={bigButton('goldenrod')}>
                 🚀 Start Game
@@ -460,7 +463,7 @@ export default function TextLobby({
             </div>
           )}
 
-          {round === 0 && myPlayer && !myPlayer.spectator && relics.length > 0 && (
+          {!stale && round === 0 && myPlayer && !myPlayer.spectator && relics.length > 0 && (
             <RelicPicker
               relics={relics}
               selectedIds={selectedRelicIds}
@@ -479,7 +482,7 @@ export default function TextLobby({
             />
           ))}
 
-          {myPlayer && !myPlayer.spectator && (
+          {!stale && myPlayer && !myPlayer.spectator && (
             <div className={card}>
               <h3 className="font-semibold text-xl text-gray-100 mb-4">Your Stats</h3>
               <p className="text-gray-200 flex gap-4">
@@ -496,7 +499,7 @@ export default function TextLobby({
             </div>
           )}
 
-          {!gameOver && !isDenied && isAlive && gameStarted && !myPlayer?.spectator && (
+          {!stale && !gameOver && !isDenied && isAlive && gameStarted && !myPlayer?.spectator && (
             <div className={card}>
               <div>
                 <h4 className="font-semibold text-lg text-gray-100 mb-3">Choose Resource</h4>
@@ -545,7 +548,7 @@ export default function TextLobby({
             </div>
           )}
 
-          {gameStarted && secondsLeft !== null && secondsLeft <= 20 && !gameOver && (
+          {!stale && gameStarted && secondsLeft !== null && secondsLeft <= 20 && !gameOver && (
             <p className={`mb-2 text-lg font-semibold ${secondsLeft <= 10 ? 'text-red-700 animate-pulse' : 'text-red-600'}`}>
               ⏳ Time left: {secondsLeft}s
             </p>
@@ -554,7 +557,8 @@ export default function TextLobby({
           <div
             className={`w-full mt-2 mb-6 transition-opacity ${
               floatingMessages.length > 0 ? 'opacity-0 duration-0' : 'opacity-100 duration-1000'
-            }`}
+            }${staleLook}`}
+            aria-busy={stale}
           >
             <h3 className="font-semibold text-xl text-gray-100 mb-4 px-6">Round Messages</h3>
             <ul className="list-disc pl-6 text-gray-200 bg-gray-900 border border-white/10 p-4 rounded-xl space-y-2">
@@ -566,7 +570,7 @@ export default function TextLobby({
             </ul>
           </div>
 
-          {isPendingDenyChooser && (
+          {!stale && isPendingDenyChooser && (
             <div className="w-full bg-yellow-950/60 border border-yellow-700 p-4 mt-4 rounded-xl">
               <h3 className="font-semibold text-lg text-yellow-300 mb-4">🛑 Choose someone to deny next round</h3>
               <div className="flex gap-4 items-center">
@@ -595,7 +599,7 @@ export default function TextLobby({
             </div>
           )}
 
-          {gameOver && (
+          {!stale && gameOver && (
             <div className="w-full bg-green-950/60 border border-green-700 text-green-300 p-4 rounded-xl mt-4 text-center">
               <p className="text-xl font-semibold mb-3">🎉 Game Over! {winnerName} has won the game!</p>
               <Link href="/" className="text-blue-400 hover:text-blue-300 font-medium transition-colors duration-200">
@@ -609,7 +613,7 @@ export default function TextLobby({
 
       {/* Chat: a button in the bottom-right corner that opens it, so it
           takes no room on a phone screen until it's wanted. */}
-      {chatOpen && (
+      {!stale && chatOpen && (
         <div className="fixed bottom-16 right-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-gray-900 p-4 rounded-xl shadow-xl border border-gray-700">
           <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
           <ul className="space-y-1 text-gray-200 mb-3 max-h-60 overflow-y-auto">
@@ -645,22 +649,24 @@ export default function TextLobby({
         </div>
       )}
       {/* The 3D game's own chat button (SceneOverlay), with its unread dot. */}
-      <div className="fixed bottom-4 right-4 z-40 inline-block">
-        <button
-          type="button"
-          onClick={() => {
-            setChatOpen((o) => !o);
-            setUnreadChat(false);
-          }}
-          className="w-11 h-11 rounded-full bg-blue-600/90 hover:bg-blue-500/90 flex items-center justify-center shadow-lg border border-white/20 text-lg cursor-pointer"
-          aria-label="Toggle chat"
-        >
-          💬
-        </button>
-        {unreadChat && (
-          <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-orange-500 border border-white/60 pointer-events-none" />
-        )}
-      </div>
+      {!stale && (
+        <div className="fixed bottom-4 right-4 z-40 inline-block">
+          <button
+            type="button"
+            onClick={() => {
+              setChatOpen((o) => !o);
+              setUnreadChat(false);
+            }}
+            className="w-11 h-11 rounded-full bg-blue-600/90 hover:bg-blue-500/90 flex items-center justify-center shadow-lg border border-white/20 text-lg cursor-pointer"
+            aria-label="Toggle chat"
+          >
+            💬
+          </button>
+          {unreadChat && (
+            <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-orange-500 border border-white/60 pointer-events-none" />
+          )}
+        </div>
+      )}
 
       {gameOver && state?.boss_fight && myPlayer?.pending_relic_nudge && !dismissed.relic && (
         <BossSignupNudge lobbyId={lobbyId} playerName={playerName} onDismiss={dismiss('relic')} />

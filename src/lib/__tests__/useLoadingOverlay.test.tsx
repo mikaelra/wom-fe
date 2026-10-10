@@ -70,22 +70,4 @@ describe('useLoadingOverlay switched off', () => {
     act(() => release());
     expect(result.current).toBe(true);
   });
-
-  it('shows a screen claimed over suppression even while a page switched it off', () => {
-    const release = suppressLoadingOverlay();
-    const { result } = renderHook(() => useLoadingOverlay());
-    expect(result.current).toBe(false);
-    let unclaim = () => {};
-    act(() => {
-      unclaim = claimLoadingScreen();
-    });
-    expect(result.current).toBe(false); // an ordinary screen stays hidden
-    act(() => {
-      unclaim();
-      unclaim = claimLoadingScreen(true);
-    });
-    expect(result.current).toBe(true);
-    act(() => unclaim());
-    release();
-  });
 });

@@ -40,7 +40,6 @@ vi.mock('@/components/BossSignupNudge', () => ({ default: () => <div>relic nudge
 vi.mock('@/components/ArtifactClaimNudge', () => ({ default: () => <div>artifact nudge</div> }));
 
 import TextLobby from '@/components/text/TextLobby';
-import { isUrgentScreenLoading } from '@/lib/loadingTracker';
 
 function player(name: string, extra: Partial<Player> = {}): Player {
   return {
@@ -281,14 +280,21 @@ describe('TextLobby', () => {
     expect(screen.getByText(/Boss-fight starts in 2m/)).toBeTruthy();
   });
 
-  it('walks out of a lobby that is gone, and shows the loading animation while reconnecting', async () => {
+  it('walks out of a lobby that is gone', async () => {
     const gone = await show(lobby());
     act(() => conn.onError?.('Lobby not found'));
     expect(gone).toHaveBeenCalled();
+  });
+
+  it('keeps the players and round messages, blurred, while reconnecting, and waits with the rest', async () => {
     conn.status = 'disconnected';
-    await show(lobby());
-    expect(screen.getByRole('status', { name: 'Reconnecting' })).toBeTruthy();
-    expect(isUrgentScreenLoading()).toBe(true); // shown over the lobby's NoLoadingOverlay
+    await show(lobby({ round: 2 }));
+    const players = screen.getByText('Players in Lobby').parentElement!;
+    expect(players.getAttribute('aria-busy')).toBe('true');
+    expect(players.className).toContain('blur');
+    expect(screen.getByText('Round Messages').parentElement!.className).toContain('blur');
+    expect(screen.queryByText('Choose Resource')).toBeNull();
+    expect(screen.queryByLabelText('Toggle chat')).toBeNull();
     expect(screen.queryByText(/refresh/i)).toBeNull();
   });
 });
