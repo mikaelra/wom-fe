@@ -176,14 +176,18 @@ export function project(cam: Camera, p: Vec3): { x: number; y: number; near: num
   };
 }
 
-/** A star (a direction, infinitely far) on screen, or null when it's out
- *  of view. */
+/** The stars sit on a sphere round the Earth, out past Saturn, and turn
+ *  with everything else -- seen from inside the scene, as if infinitely far,
+ *  they swept past much faster than the planets (Mikael, 2026-10-10). In
+ *  Saturn-distances; inside the camera's, so the camera sees the sphere. */
+export const STAR_SPHERE = 2.5;
+
+/** A star on screen, or null when it's out of view: only the half of the
+ *  sphere behind the Earth is drawn, the sky beyond the solar system. */
 export function projectStar(cam: Camera, dir: Vec3, w: number, h: number): [number, number] | null {
-  const z = dot(dir, cam.fwd);
-  if (z <= 0) return null;
-  const x = Math.round(cam.cx + (cam.focal * dot(dir, cam.right)) / z);
-  const y = Math.round(cam.cy - (cam.focal * dot(dir, cam.up)) / z);
-  return x >= 0 && x < w && y >= 0 && y < h ? [x, y] : null;
+  if (dot(dir, cam.pos) >= 0) return null; // the near half, the camera's side
+  const at = project(cam, [dir[0] * STAR_SPHERE, dir[1] * STAR_SPHERE, dir[2] * STAR_SPHERE]);
+  return at && at.x >= 0 && at.x < w && at.y >= 0 && at.y < h ? [at.x, at.y] : null;
 }
 
 // ── The stars: the globe's catalogue (right ascension, declination) turned
@@ -205,7 +209,10 @@ export function eclipticStar(raHours: number, decDeg: number): Vec3 {
   return [x, y * Math.cos(OBLIQUITY) + z * Math.sin(OBLIQUITY), -y * Math.sin(OBLIQUITY) + z * Math.cos(OBLIQUITY)];
 }
 
-export const SKY_STARS: SkyStar[] = STAR_CATALOG.map((s) => ({
+/** The brightest only -- a sky of a few dozen, not hundreds. */
+export const FAINTEST_MAG = 2.5;
+
+export const SKY_STARS: SkyStar[] = STAR_CATALOG.filter((s) => s.mag <= FAINTEST_MAG).map((s) => ({
   dir: eclipticStar(s.ra[0] + s.ra[1] / 60, s.dec),
   mag: s.mag,
 }));

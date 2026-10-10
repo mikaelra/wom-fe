@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PLANETS,
+  FAINTEST_MAG,
   SKY_STARS,
   TURN_MS,
   azimuthAt,
@@ -94,13 +95,25 @@ describe('pixelOrrery', () => {
     expect(Math.abs(z)).toBeLessThan(0.02);
     const [, , pole] = eclipticStar(2.5, 89.3); // Polaris
     expect(pole).toBeGreaterThan(0.9);
-    expect(SKY_STARS).toHaveLength(STAR_CATALOG.length);
+    expect(SKY_STARS).toHaveLength(STAR_CATALOG.filter((s) => s.mag <= FAINTEST_MAG).length);
   });
 
-  it('shows only the stars in front of the camera, on screen', () => {
+  it('turns the stars with the planets, at a planet-like pace, not sweeping past', () => {
+    // The star straight behind the Earth, and Saturn's far point, a little turn on.
+    const cam0 = turntableCamera(0, 500, 1000, 460, 960);
+    const cam1 = turntableCamera(0.1, 500, 1000, 460, 960);
+    const star = projectStar(cam1, cam0.fwd, 1000, 2000)!;
+    const saturn = project(cam1, [-1, 0, 0])!;
+    const starMove = star[0] - 500;
+    const saturnMove = saturn.x - 500;
+    expect(Math.sign(starMove)).toBe(Math.sign(saturnMove)); // the same way round
+    expect(Math.abs(starMove)).toBeLessThan(3 * Math.abs(saturnMove));
+  });
+
+  it('shows only the stars behind the Earth, on screen', () => {
     const cam = turntableCamera(0, 50, 100, 46, 96);
-    expect(projectStar(cam, cam.fwd, 100, 200)).toEqual([50, 100]); // dead ahead: the centre
-    expect(projectStar(cam, [-cam.fwd[0], -cam.fwd[1], -cam.fwd[2]], 100, 200)).toBeNull(); // behind
+    expect(projectStar(cam, cam.fwd, 100, 200)).toEqual([50, 100]); // straight behind the Earth: the centre
+    expect(projectStar(cam, [-cam.fwd[0], -cam.fwd[1], -cam.fwd[2]], 100, 200)).toBeNull(); // the near half
     const shown = SKY_STARS.filter((s) => projectStar(cam, s.dir, 100, 200));
     expect(shown.length).toBeGreaterThan(0);
     expect(shown.length).toBeLessThan(SKY_STARS.length / 2);
