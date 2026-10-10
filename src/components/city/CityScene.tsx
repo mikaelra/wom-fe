@@ -18,13 +18,17 @@ import Bay from '@/components/city/Bay';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import { sunIsDown } from '@/lib/skyLocal';
 import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
+// Kept in lib/cityCamera.ts (no three.js there): the city page needs them
+// without loading this scene in text mode.
+import { CITY_CAMERA, CITY_FOV, EYE, EYE_RADIUS } from '@/lib/cityCamera';
+export { CITY_CAMERA, CITY_FOV, EYE };
 // Temple left, Senate right, signpost between (§1.1). In lib/ so the
 // left/right pairing with the signpost's arms can be tested.
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION, MARKET_POSITION,
   SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION, RANKED_FORK_SIGNPOST_ROTATION_Y,
   RANKED_FORK_VIEW_PIN, RANKED_FORK_VIEW_OFFSET, BAY_POSITION, BAY_ROTATION_Y,
-  SEA_LEVEL, LAND_LEVEL, EYE_HEIGHT,
+  SEA_LEVEL, LAND_LEVEL,
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
 import TempleTableau from '@/components/city/TempleTableau';
@@ -34,6 +38,7 @@ import { fovAfterPinch, fovAfterWheel, rotateSpeedForFov } from '@/lib/cityZoom'
 import type { BossfightRoster } from '@/lib/api';
 import type { CityPresence } from '@/lib/schemas';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
+import { BACK_COLOR, BOSSFIGHT_COLOR, EARTH_COLOR, MARKET_COLOR, RANKED_COLOR } from '@/components/city/signpostColors';
 
 /**
  * The Athens city scene (docs/CITY_SCENE_PLAN.md §5).
@@ -64,24 +69,15 @@ import { useClickNotDrag } from '@/lib/useClickNotDrag';
  * the measurements behind them.
  */
 
-/** Where the player stands: eye height above the GROUND, at the origin. Was
- *  measured from the sea until there was ground to stand on. */
-export const EYE: [number, number, number] = [0, LAND_LEVEL + EYE_HEIGHT, 0];
-/** How far the camera sits from the pin. Small enough to read as rotating in
- *  place, large enough to keep OrbitControls' maths well-conditioned. */
-const EYE_RADIUS = 0.01;
+
 /** The timewarp's weather overhead: inside the sphere the Sun, the Moon
  *  and the planets are placed on, so the buildings stand in front of it. */
 const TIMEWARP_DOME_R = SKY_R * 0.9;
-/** Start pose: offset along +Z of the pin, so the default view looks toward
- *  -Z -- where the signpost and both buildings stand. */
-export const CITY_CAMERA: [number, number, number] = [EYE[0], EYE[1], EYE[2] + EYE_RADIUS];
+
 /** The entry pose as a unit offset direction, for GuidedView: a hair south
  *  of the pin, looking north. The fork's is this turned onto its face. */
 const CITY_VIEW_OFFSET: readonly [number, number, number] = [0, 0, 1];
-/** Wider than the lobby's 75: standing among buildings and looking up wants
- *  more sky in frame than a table-top scene does. */
-export const CITY_FOV = 70;
+
 
 /**
  * Keeps a gaze label at its authored pixel size (docs/CITY_SCENE_PLAN.md §7).
@@ -106,19 +102,7 @@ const MAX_POLAR = Math.PI * 0.86;     // well below the horizon, short of invert
 const ROTATE_SPEED = -0.35;
 
 
-const BOSSFIGHT_COLOR = '#4da6ff';
-const RANKED_COLOR = '#ff6666';
-/** Parchment yellow, matching Market.tsx's accent light: the right arm and
- *  the building it pairs with read as one colour from a distance, like the
- *  temple/Senate. (Was green; swapped with EARTH's parchment.) */
-const MARKET_COLOR = '#e8d9a0';
 const LIT_MARKET = '#fffbea';
-/** Green: the way back to the world map. (Was parchment; swapped with the
- *  Market's green.) */
-const EARTH_COLOR = '#5fd88a';
-/** Parchment rather than a third saturated hue: the fork's way back to the
- *  city is not a third destination competing with the two fights. */
-const BACK_COLOR = '#e8d9a0';
 
 /**
  * The light Hades keeps burning (docs/CITY_SCENE_PLAN.md §5.2).

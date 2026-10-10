@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getSocket, subscribe } from '@/lib/socket';
 import { getStoredAccountToken, getStoredToken } from '@/lib/http';
 import type { LobbyState, ChatMessage } from '@/types/game';
+import { noteDisconnect } from '@/lib/textModeOffer';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -84,6 +85,9 @@ export function useLobbyConnection(
     };
     const handleDisconnect = () => {
       setConnectionStatus('disconnected');
+      // A connection that keeps dropping may be a device struggling with
+      // the 3D match: lib/textModeOffer.ts offers text mode.
+      noteDisconnect();
     };
 
     sock.on('connect', handleConnect);

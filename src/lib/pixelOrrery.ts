@@ -1,0 +1,110 @@
+import * as Astronomy from 'astronomy-engine';
+import { BODY_COLOR } from '@/lib/bodyColors';
+
+// The text Earth page's sky (components/text/PixelOrrery.tsx): the solar
+// system as it is right now, drawn small and pixelated with the Earth at the
+// centre of the screen and every planet placed round the Sun, so the picture
+// shows the Sun at the centre of the solar system, seen from where we stand
+// (Mikael, 2026-10-10; the orbit lines were taken out again the same day). The Moon
+// circles the Earth on a small ring of its own.
+//
+// Positions are heliocentric: ecliptic longitude (the zodiac) and distance
+// from the Sun in AU. Distances are squeezed with a square root so Mercury's
+// orbit and Saturn's both fit on a phone; the angles are true.
+
+export type OrreryBody = 'Sun' | 'Moon' | 'Mercury' | 'Venus' | 'Earth' | 'Mars' | 'Jupiter' | 'Saturn';
+
+/** The bodies that go round the Sun, innermost first. */
+export const PLANETS = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn'] as const;
+export type Planet = (typeof PLANETS)[number];
+
+/** Ecliptic longitude in degrees and distance in AU, from the Sun (or, for
+ *  the Moon, from the Earth). */
+export interface OrbitPoint {
+  lon: number;
+  dist: number;
+}
+
+const SUN_COLOR = 0xffe600; // bright yellow, drawn with a white centre
+const EARTH_COLOR = 0x2563eb;
+
+export function orreryColor(body: OrreryBody): number {
+  if (body === 'Sun') return SUN_COLOR;
+  if (body === 'Earth') return EARTH_COLOR;
+  return BODY_COLOR[body];
+}
+
+function point(vec: Astronomy.Vector): OrbitPoint {
+  return { lon: Astronomy.Ecliptic(vec).elon, dist: vec.Length() };
+}
+
+/** Where a planet is, seen from the Sun. */
+export function helioPoint(planet: Planet, date: Date): OrbitPoint {
+  return point(Astronomy.HelioVector(Astronomy.Body[planet], Astronomy.MakeTime(date)));
+}
+
+/** Where the Moon is, seen from the Earth. */
+export function moonPoint(date: Date): OrbitPoint {
+  return point(Astronomy.GeoMoon(Astronomy.MakeTime(date)));
+}
+
+const OUTERMOST_AU = 10.1; // Saturn at its farthest from the Sun
+
+/** Distance from the Sun on screen, as a share of the drawing's scale. */
+export function radiusShare(dist: number): number {
+  return Math.sqrt(dist / OUTERMOST_AU);
+}
+
+/** The scale `r` that keeps Saturn's whole orbit on a screen of half-size
+ *  `half`, wherever round the Earth the Sun happens to be. */
+export function scaleFor(half: number): number {
+  return half / (1 + radiusShare(1));
+}
+
+/**
+ * The scale that puts Saturn against the edge of the screen, on any device:
+ * the Earth (now at `earth`) at the centre of a screen of half-size
+ * (halfW, halfH), Saturn (now at `saturn`) as far out along its own
+ * direction as the screen goes. Everything else is drawn to that scale, so
+ * the other orbits and planets are spaced by how far away Saturn is
+ * (Mikael, 2026-10-10). Its own orbit may run off the screen elsewhere.
+ */
+export function saturnScale(saturn: OrbitPoint, earth: OrbitPoint, halfW: number, halfH: number): number {
+  const [ex, ey] = unit(earth);
+  const [x, y] = unit(saturn);
+  const dx = Math.abs(x - ex);
+  const dy = Math.abs(y - ey);
+  if (!dx && !dy) return scaleFor(Math.min(halfW, halfH));
+  return Math.min(dx ? halfW / dx : Infinity, dy ? halfH / dy : Infinity);
+}
+
+/** A point round the Sun at scale 1, the Sun at the origin. */
+function unit(p: OrbitPoint): [number, number] {
+  const d = radiusShare(p.dist);
+  const a = (p.lon * Math.PI) / 180;
+  return [d * Math.cos(a), -d * Math.sin(a)];
+}
+
+/** Screen position of a point round the Sun (sx, sy): 0° longitude to the
+ *  right, increasing anticlockwise, as on a star map. */
+export function aroundSun(p: OrbitPoint, sx: number, sy: number, r: number): [number, number] {
+  const d = radiusShare(p.dist) * r;
+  const a = (p.lon * Math.PI) / 180;
+  return [Math.round(sx + d * Math.cos(a)), Math.round(sy - d * Math.sin(a))];
+}
+
+/** Where the Sun goes on screen, the Earth (now at `earth` round the Sun)
+ *  being at the centre (cx, cy). */
+export function sunPosition(earth: OrbitPoint, cx: number, cy: number, r: number): [number, number] {
+  const [ex, ey] = aroundSun(earth, 0, 0, r);
+  return [cx - ex, cy - ey];
+}
+
+const MOON_RING = 0.08; // of the scale; a few pixels round the Earth
+
+/** The Moon round the Earth at the centre. */
+export function aroundEarth(p: OrbitPoint, cx: number, cy: number, r: number): [number, number] {
+  const d = Math.max(3, MOON_RING * r);
+  const a = (p.lon * Math.PI) / 180;
+  return [Math.round(cx + d * Math.cos(a)), Math.round(cy - d * Math.sin(a))];
+}

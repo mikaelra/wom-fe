@@ -2,18 +2,17 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import CityOverlay from '@/components/city/CityOverlay';
 import WorldClock from '@/components/worldmap/WorldClock';
 import TimewarpPanel from '@/components/worldmap/TimewarpPanel';
-import { timewarpColorsFor } from '@/lib/timewarpFx';
+import { timewarpColorsFor, timewarpFxState } from '@/lib/timewarpFx';
 import { useTimewarpFx } from '@/lib/useTimewarpFx';
 import { useTimewarpRun } from '@/lib/useTimewarpRun';
 import { getSky } from '@/lib/astrology';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import AuthGatePopup from '@/components/AuthGatePopup';
-import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
+import { CITY_CAMERA, CITY_FOV } from '@/lib/cityCamera';
 import { findCity } from '@/lib/cities';
 import { ATHENS_TZ, resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
@@ -26,9 +25,15 @@ import { useCityPresence } from '@/lib/useCityPresence';
 import { bossfightSignSublabel } from '@/lib/bossfightSign';
 import { playMusic, CITY_MUSIC } from '@/lib/music';
 import LoadingState from '@/components/loading/LoadingState';
-import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
+import { useTextMode } from '@/lib/textMode';
+import { watch3dScene } from '@/lib/textModeOffer';
 
+// three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
+// is, and the renderer is never downloaded.
+const Canvas = dynamic(() => import('@react-three/fiber').then((m) => m.Canvas), { ssr: false });
+const AssetLoadingReporter = dynamic(() => import('@/components/loading/AssetLoadingReporter'), { ssr: false });
 const CityScene = dynamic(() => import('@/components/city/CityScene'), { ssr: false });
+const TextCity = dynamic(() => import('@/components/text/TextCity'), { ssr: false });
 
 // A query param rather than /city/[id]: a dynamic path segment cannot be
 // statically exported for the native build (docs/MOBILE_AND_STEAM_PLAN.md
@@ -81,10 +86,16 @@ function CityPageContent() {
     onArrival: () => router.replace(`/city?id=${encodeURIComponent(searchParams.get('id') ?? '')}`),
     refreshMerchantOffer,
   });
+  // Text mode (lib/textMode.ts): no scene, its signposts as text (TextCity).
+  const textMode = useTextMode();
+  // A 3D scene up: marked, so a crash in it offers text mode next start
+  // (lib/textModeOffer.ts).
+  useEffect(() => (textMode === false ? watch3dScene() : undefined), [textMode]);
   const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
     timewarpRun,
     timewarpRunId,
-    sceneReady,
+    // Text mode has no scene to wait on: its sky is ready at once.
+    sceneReady || textMode === true,
   );
   const warping = timewarpPlaying || (!!timewarpRun?.hold && timewarpStep > 0);
   const skyDate = warping ? getSky().date : restingSkyDate;
@@ -143,7 +154,27 @@ function CityPageContent() {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100dvh', overflow: 'hidden', background: '#070b15' }}>
-      <AssetLoadingReporter />
+      {textMode === false && <AssetLoadingReporter />}
+      {textMode && (
+        <TextCity
+          onBossfight={enterBossfight}
+          bossfightSublabel={bossfightSublabel}
+          onRanked={ranked.enterRanked}
+          rankedLabel={ranked.label}
+          rankedSublabel={ranked.sublabel}
+          onBotRanked={botRanked.enterBotRanked}
+          botRankedLabel={botRanked.label}
+          botRankedSublabel={botRanked.sublabel}
+          presence={presence}
+          onMarket={() => router.push('/market')}
+          onBackToEarth={() => router.push('/')}
+          skyDate={skyDate}
+          timewarp={timewarpPlaying && timewarpRun ? { glow: timewarpFxState.glow, colors: timewarpRun.spec.colors } : null}
+          lat={city.realLat}
+          lng={city.realLng}
+        />
+      )}
+      {textMode === false && (
       <Canvas
         camera={{ position: CITY_CAMERA, fov: CITY_FOV }}
         // Same DPR cap as the lobby: rendering at DPR 3 on phones triples
@@ -184,6 +215,7 @@ function CityPageContent() {
           timewarpColors={timewarpPlaying && timewarpRun ? timewarpRun.spec.colors : null}
         />
       </Canvas>
+      )}
       <CityOverlay
         skyClock={skyOverridden ? formatAthensClock(skyDate) : null}
         clock={
@@ -201,9 +233,11 @@ function CityPageContent() {
 
       {timewarpPreview && <TimewarpPanel onPlay={playPreview} onPlayEnd={playPreviewEnd} />}
 
+      {/* Up until text mode is known, so the 3D city never flashes; text
+          mode has nothing to wait for. */}
       <CityLoadingScreen
         title={city.actionLabel ?? city.name}
-        done={sceneReady}
+        done={textMode === true || sceneReady}
       />
 
       {loading && (
