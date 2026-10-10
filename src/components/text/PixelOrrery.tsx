@@ -9,7 +9,7 @@ import {
   moonPoint,
   orbit,
   orreryColor,
-  scaleFor,
+  saturnScale,
   sunPosition,
   type OrbitPoint,
   type OrreryBody,
@@ -111,7 +111,9 @@ export default function PixelOrrery() {
       });
       const cx = Math.floor(w / 2);
       const cy = Math.floor(h / 2);
-      const r = scaleFor(Math.min(w, h) / 2 - 2);
+      // Saturn against the edge, everything else to its scale; the margin
+      // keeps its sprite (and ring) whole.
+      const r = saturnScale(current.planets.Saturn, current.planets.Earth, w / 2 - 4, h / 2 - 4);
       const [sx, sy] = sunPosition(current.planets.Earth, cx, cy, r);
       ctx.globalAlpha = 0.35;
       for (const planet of PLANETS) {

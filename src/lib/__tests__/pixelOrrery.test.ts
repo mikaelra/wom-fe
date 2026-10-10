@@ -3,6 +3,7 @@ import {
   PLANETS,
   aroundEarth,
   aroundSun,
+  saturnScale,
   helioPoint,
   moonPoint,
   orbit,
@@ -56,5 +57,26 @@ describe('pixelOrrery', () => {
 
   it('colours every body', () => {
     for (const b of ['Sun', 'Moon', ...PLANETS] as const) expect(orreryColor(b)).toBeGreaterThan(0);
+  });
+
+  it('puts Saturn against the edge of any screen, the Earth at the centre', () => {
+    const earth = helioPoint('Earth', DATE);
+    const saturn = helioPoint('Saturn', DATE);
+    for (const [halfW, halfH] of [[50, 110], [110, 50], [80, 80]]) {
+      const r = saturnScale(saturn, earth, halfW, halfH);
+      const [sx, sy] = sunPosition(earth, 0, 0, r);
+      const [x, y] = aroundSun(saturn, sx, sy, r);
+      // On the edge it points to (within a pixel of rounding), never past it.
+      expect(Math.max(Math.abs(x) / halfW, Math.abs(y) / halfH)).toBeGreaterThan(0.98);
+      expect(Math.abs(x)).toBeLessThanOrEqual(halfW + 1);
+      expect(Math.abs(y)).toBeLessThanOrEqual(halfH + 1);
+    }
+  });
+
+  it('spaces everything else by that same scale', () => {
+    const earth = helioPoint('Earth', DATE);
+    const r1 = saturnScale(helioPoint('Saturn', DATE), earth, 50, 110);
+    const r2 = saturnScale(helioPoint('Saturn', DATE), earth, 100, 220);
+    expect(r2).toBeCloseTo(2 * r1); // twice the screen, twice the spacing
   });
 });

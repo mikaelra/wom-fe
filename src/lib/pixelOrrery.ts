@@ -81,6 +81,30 @@ export function scaleFor(half: number): number {
   return half / (1 + radiusShare(1));
 }
 
+/**
+ * The scale that puts Saturn against the edge of the screen, on any device:
+ * the Earth (now at `earth`) at the centre of a screen of half-size
+ * (halfW, halfH), Saturn (now at `saturn`) as far out along its own
+ * direction as the screen goes. Everything else is drawn to that scale, so
+ * the other orbits and planets are spaced by how far away Saturn is
+ * (Mikael, 2026-10-10). Its own orbit may run off the screen elsewhere.
+ */
+export function saturnScale(saturn: OrbitPoint, earth: OrbitPoint, halfW: number, halfH: number): number {
+  const [ex, ey] = unit(earth);
+  const [x, y] = unit(saturn);
+  const dx = Math.abs(x - ex);
+  const dy = Math.abs(y - ey);
+  if (!dx && !dy) return scaleFor(Math.min(halfW, halfH));
+  return Math.min(dx ? halfW / dx : Infinity, dy ? halfH / dy : Infinity);
+}
+
+/** A point round the Sun at scale 1, the Sun at the origin. */
+function unit(p: OrbitPoint): [number, number] {
+  const d = radiusShare(p.dist);
+  const a = (p.lon * Math.PI) / 180;
+  return [d * Math.cos(a), -d * Math.sin(a)];
+}
+
 /** Screen position of a point round the Sun (sx, sy): 0° longitude to the
  *  right, increasing anticlockwise, as on a star map. */
 export function aroundSun(p: OrbitPoint, sx: number, sy: number, r: number): [number, number] {
