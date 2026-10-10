@@ -45,32 +45,35 @@ const GLYPHS: Record<string, string[]> = {
 };
 export const GLYPH_W = 3;
 export const GLYPH_H = 5;
-const ADVANCE = GLYPH_W + 1;
-const LINE = GLYPH_H + 2;
+// At scale `s` each font pixel is s x s; letters stay one pixel apart.
+const advance = (s: number) => GLYPH_W * s + 1;
+const lineHeight = (s: number) => GLYPH_H * s + 2;
 
-/** Width in pixels of a line of text. */
-export function textWidth(text: string): number {
-  return text.length ? text.length * ADVANCE - 1 : 0;
+/** Width in pixels of a line of text at scale `s`. */
+export function textWidth(text: string, s = 1): number {
+  return text.length ? text.length * advance(s) - 1 : 0;
 }
 
-/** The text in lines no wider than `maxW` pixels, broken between words. */
-export function wrap(text: string, maxW: number): string[] {
+/** The text in lines no wider than `maxW` pixels at scale `s`, broken
+ *  between words. */
+export function wrap(text: string, maxW: number, s = 1): string[] {
   const lines: string[] = [];
   for (const word of text.toUpperCase().split(' ')) {
     const last = lines.at(-1);
-    if (last !== undefined && textWidth(`${last} ${word}`) <= maxW) lines[lines.length - 1] = `${last} ${word}`;
+    if (last !== undefined && textWidth(`${last} ${word}`, s) <= maxW) lines[lines.length - 1] = `${last} ${word}`;
     else lines.push(word);
   }
   return lines;
 }
 
-export function drawText(ctx: Painter, text: string, x: number, y: number, color: string) {
+export function drawText(ctx: Painter, text: string, x: number, y: number, color: string, s = 1) {
   ctx.fillStyle = color;
   [...text.toUpperCase()].forEach((ch, i) => {
     const glyph = GLYPHS[ch];
     if (!glyph) return; // a space, or a letter it doesn't have
     glyph.forEach((row, gy) => {
-      for (let gx = 0; gx < GLYPH_W; gx++) if (row[gx] === '#') ctx.fillRect(x + i * ADVANCE + gx, y + gy, 1, 1);
+      for (let gx = 0; gx < GLYPH_W; gx++)
+        if (row[gx] === '#') ctx.fillRect(x + i * advance(s) + gx * s, y + gy * s, s, s);
     });
   });
 }
@@ -133,8 +136,11 @@ export function mix(from: string, to: string, t: number): string {
 
 /** Where things stand, as shares of the height. */
 export const HORIZON = 0.68;
-const POST_TOP = 0.3;
-const ROWS = [0.36, 0.5];
+// The signpost stands close, in the foreground: big boards, and a post that
+// runs down past the horizon into the grass in front.
+const TOP_ROW = 0.33;
+const ROW_GAP = 6;
+const POST_FOOT = 22; // sky pixels below the horizon
 
 export interface Board {
   label: string;
@@ -150,24 +156,39 @@ export interface BoardBox {
   w: number;
   h: number;
   lines: string[];
+  /** The lettering's scale: 2, or 1 for words too long to fit at 2. */
+  scale: number;
 }
 
-const PAD = 3;
+const PAD = 2;
 const POINT = 3; // the arrow's tip
-export const POST_W = 6;
+export const POST_W = 8;
+const BIG = 2; // the lettering's scale
+const BOARD_LINES = 2; // every board has room for two lines of it
+
+/** Every board's size on a screen `w` sky pixels wide: the same for all,
+ *  whatever is written on it -- from the post to the screen's edge, and two
+ *  lines of big lettering high. */
+function boardSize(w: number): { bw: number; bh: number; inner: number } {
+  const bw = Math.floor(w / 2) - POST_W / 2;
+  return { bw, bh: BOARD_LINES * lineHeight(BIG) - 2 + PAD * 2, inner: bw - PAD * 2 - POINT };
+}
 
 /** Where each board goes on a screen `w` x `h` sky pixels: either side of
- *  the post, as wide as its words (wrapped to fit its half). */
+ *  the post, one row under the other, all the same size. Its words in big
+ *  lettering, wrapped -- or small, should they not fit in two lines. */
 export function layoutBoard(board: Board, w: number, h: number): BoardBox {
   const cx = Math.floor(w / 2);
-  const maxText = Math.floor(w / 2) - POST_W / 2 - PAD * 2 - POINT - 2;
-  const lines = wrap(board.label, maxText);
-  const textW = Math.max(...lines.map(textWidth));
-  const bw = textW + PAD * 2 + POINT;
-  const bh = lines.length * LINE - 2 + PAD * 2;
-  const y = Math.round(ROWS[board.row] * h);
+  const { bw, bh, inner } = boardSize(w);
+  let scale = BIG;
+  let lines = wrap(board.label, inner, BIG);
+  if (lines.length > BOARD_LINES || lines.some((l) => textWidth(l, BIG) > inner)) {
+    scale = 1;
+    lines = wrap(board.label, inner, 1);
+  }
+  const y = Math.round(TOP_ROW * h) + board.row * (bh + ROW_GAP);
   const x = board.side === 'left' ? cx - POST_W / 2 - bw : cx + POST_W / 2;
-  return { x, y, w: bw, h: bh, lines };
+  return { x, y, w: bw, h: bh, lines, scale };
 }
 
 // Dark, weathered wood.
@@ -198,9 +219,12 @@ function drawBoard(ctx: Painter, board: Board, box: BoardBox, light: number) {
     }
   }
   // The lettering keeps its colour, day or night: it glows, as the 3D one does.
+  // Centred on the board, across and down.
+  const textH = box.lines.length * lineHeight(box.scale) - 2;
+  const ty = y + Math.floor((h - textH) / 2);
   lines.forEach((line, i) => {
-    const lx = bodyX + Math.floor((bodyW - textWidth(line)) / 2);
-    drawText(ctx, line, lx, y + PAD + i * LINE, board.color);
+    const lx = bodyX + Math.floor((bodyW - textWidth(line, box.scale)) / 2);
+    drawText(ctx, line, lx, ty + i * lineHeight(box.scale), board.color, box.scale);
   });
 }
 
@@ -263,11 +287,18 @@ export function drawSignpostScene(
   for (let y = horizonY + 7; y < h; y += 4) for (let x = (y * 7) % 9; x < w; x += 9) ctx.fillRect(x, y, 2, 1);
   // The post, from above the top board into the ground.
   const cx = Math.floor(w / 2);
-  const top = Math.round(POST_TOP * h);
+  const top = Math.round(TOP_ROW * h) - 4;
+  const foot = Math.min(h, horizonY + POST_FOOT);
   ctx.fillStyle = mix(WOOD_DARK, '#000000', (1 - sky.light) * 0.6);
-  ctx.fillRect(cx - POST_W / 2, top, POST_W, horizonY + 6 - top);
+  ctx.fillRect(cx - POST_W / 2, top, POST_W, foot - top);
   ctx.fillStyle = mix(WOOD, '#000000', (1 - sky.light) * 0.6);
-  ctx.fillRect(cx - POST_W / 2 + 1, top, POST_W - 2, horizonY + 6 - top);
-  ctx.fillRect(cx - POST_W / 2 - 1, top - 1, POST_W + 2, 2); // its cap
+  ctx.fillRect(cx - POST_W / 2 + 1, top, POST_W - 2, foot - top);
+  ctx.fillStyle = mix(WOOD_LIGHT, '#000000', (1 - sky.light) * 0.6);
+  ctx.fillRect(cx - POST_W / 2 + 2, top, 1, foot - top); // the light down one side
+  ctx.fillStyle = mix(WOOD_DARK, '#000000', (1 - sky.light) * 0.6);
+  ctx.fillRect(cx - POST_W / 2 - 1, top - 2, POST_W + 2, 3); // its cap
+  // Grass round its foot, in front of it: it stands close.
+  ctx.fillStyle = land('#3f6b31');
+  for (let i = -POST_W; i <= POST_W; i += 2) ctx.fillRect(cx + i, foot - 2 - (Math.abs(i) % 3), 1, 3);
   for (const board of boards) drawBoard(ctx, board, layoutBoard(board, w, h), sky.light);
 }

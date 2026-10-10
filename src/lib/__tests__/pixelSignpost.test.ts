@@ -39,6 +39,7 @@ const BOARDS: Board[] = [
 describe('pixel font', () => {
   it('measures and wraps by whole words', () => {
     expect(textWidth('HADES')).toBe(19);
+    expect(textWidth('HADES', 2)).toBe(34);
     expect(wrap('return to match', 40)).toEqual(['RETURN TO', 'MATCH']);
     expect(wrap('EARTH', 40)).toEqual(['EARTH']);
   });
@@ -85,6 +86,22 @@ describe('the signpost', () => {
     const box = layoutBoard({ label: 'RETURN TO MATCH', color: '#fff', side: 'left', row: 0 }, 130, 281);
     expect(box.lines.length).toBe(2);
     expect(box.x).toBeGreaterThanOrEqual(0);
+  });
+
+  it('makes every board the same size, whatever is written on it', () => {
+    const boxes = [...BOARDS, { label: 'PLAYERS', color: '#fff', side: 'left', row: 0 } as Board].map((b) =>
+      layoutBoard(b, 130, 281),
+    );
+    expect(new Set(boxes.map((b) => `${b.w}x${b.h}`)).size).toBe(1);
+    expect(boxes.every((b) => b.scale === 2)).toBe(true); // big lettering, close up
+    expect(boxes[0].x).toBe(0); // out to the screen's edge
+  });
+
+  it("falls back to small lettering, same board, when a label won't fit big", () => {
+    const long = layoutBoard({ label: 'RETURN TO MATCH', color: '#fff', side: 'right', row: 0 }, 130, 281);
+    const short = layoutBoard({ label: 'BOTS', color: '#fff', side: 'right', row: 0 }, 130, 281);
+    expect(long.scale).toBe(1);
+    expect([long.w, long.h]).toEqual([short.w, short.h]);
   });
 
   it('draws the whole scene, lettering in each arm colour', () => {
