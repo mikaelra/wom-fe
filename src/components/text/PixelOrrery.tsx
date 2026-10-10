@@ -7,7 +7,6 @@ import {
   aroundSun,
   helioPoint,
   moonPoint,
-  orbit,
   orreryColor,
   saturnScale,
   sunPosition,
@@ -18,8 +17,7 @@ import {
 
 // The text Earth page's background (lib/pixelOrrery.ts): an 8-bit solar
 // system with the Earth at the centre of the screen -- the Sun, the Moon and
-// the planets where they are right now, each planet on its orbit round the
-// Sun. Drawn on a canvas a quarter of the
+// the planets where they are right now round the Sun. Drawn on a canvas a quarter of the
 // screen's size and scaled up with sharp pixels: no three.js, no textures,
 // a few kilobytes of drawing. Moves on as the sky does (once a minute), and
 // its stars twinkle.
@@ -35,7 +33,7 @@ const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 function stars(w: number, h: number): [number, number][] {
   let seed = 7;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  // A sparse scatter, so the stars never crowd the orbits.
+  // A sparse scatter, so the stars never crowd the planets.
   return Array.from({ length: Math.round((w * h) / 1500) }, () => [Math.floor(rand() * w), Math.floor(rand() * h)]);
 }
 
@@ -108,7 +106,6 @@ export default function PixelOrrery() {
       moon: moonPoint(now),
     });
     let current = positions();
-    let orbits: Partial<Record<Planet, OrbitPoint[]>> = {};
     let twinkle = 0;
 
     const draw = () => {
@@ -125,14 +122,6 @@ export default function PixelOrrery() {
       // keeps its sprite (and ring) whole.
       const r = saturnScale(current.planets.Saturn, current.planets.Earth, w / 2 - 4, h / 2 - 4);
       const [sx, sy] = sunPosition(current.planets.Earth, cx, cy, r);
-      ctx.globalAlpha = 0.35;
-      for (const planet of PLANETS) {
-        ctx.fillStyle = hex(orreryColor(planet));
-        for (const p of orbits[planet] ?? []) {
-          const [x, y] = aroundSun(p, sx, sy, r);
-          ctx.fillRect(x, y, 1, 1);
-        }
-      }
       ctx.globalAlpha = 1;
       drawBody(ctx, 'Sun', sx, sy);
       for (const planet of PLANETS) {
@@ -155,12 +144,6 @@ export default function PixelOrrery() {
       draw();
     };
 
-    // The orbits are the costly part: worked out once, after the page is
-    // already up; each minute only where the bodies are now.
-    const traced = setTimeout(() => {
-      orbits = Object.fromEntries(PLANETS.map((p) => [p, orbit(p, now)]));
-      draw();
-    }, 0);
     const minute = setInterval(() => {
       now = new Date();
       current = positions();
@@ -174,7 +157,6 @@ export default function PixelOrrery() {
     resize();
     window.addEventListener('resize', resize);
     return () => {
-      clearTimeout(traced);
       clearInterval(minute);
       clearInterval(twinkling);
       window.removeEventListener('resize', resize);

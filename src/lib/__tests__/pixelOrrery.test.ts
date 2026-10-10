@@ -6,7 +6,6 @@ import {
   saturnScale,
   helioPoint,
   moonPoint,
-  orbit,
   orreryColor,
   radiusShare,
   scaleFor,
@@ -20,14 +19,6 @@ describe('pixelOrrery', () => {
     expect(helioPoint('Earth', DATE).dist).toBeCloseTo(1, 1);
     expect(helioPoint('Saturn', DATE).dist).toBeGreaterThan(9);
     expect(moonPoint(DATE).dist).toBeLessThan(0.003);
-  });
-
-  it("traces a planet's whole orbit round the Sun, ending now", () => {
-    const mars = orbit('Mars', DATE);
-    expect(mars.length).toBe(96);
-    expect(mars.at(-1)).toEqual(helioPoint('Mars', DATE));
-    const lons = mars.map((p) => p.lon);
-    expect(Math.max(...lons) - Math.min(...lons)).toBeGreaterThan(300); // all the way round
   });
 
   it('puts the Sun beside the Earth at the centre, the Earth on its orbit round it', () => {

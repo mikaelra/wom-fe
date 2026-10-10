@@ -3,9 +3,9 @@ import { BODY_COLOR } from '@/lib/bodyColors';
 
 // The text Earth page's sky (components/text/PixelOrrery.tsx): the solar
 // system as it is right now, drawn small and pixelated with the Earth at the
-// centre of the screen. Every planet's trajectory -- the Earth's own too --
-// is its orbit round the Sun, so the picture shows the Sun at the centre of
-// the solar system, seen from where we stand (Mikael, 2026-10-10). The Moon
+// centre of the screen and every planet placed round the Sun, so the picture
+// shows the Sun at the centre of the solar system, seen from where we stand
+// (Mikael, 2026-10-10; the orbit lines were taken out again the same day). The Moon
 // circles the Earth on a small ring of its own.
 //
 // Positions are heliocentric: ecliptic longitude (the zodiac) and distance
@@ -46,26 +46,6 @@ export function helioPoint(planet: Planet, date: Date): OrbitPoint {
 /** Where the Moon is, seen from the Earth. */
 export function moonPoint(date: Date): OrbitPoint {
   return point(Astronomy.GeoMoon(Astronomy.MakeTime(date)));
-}
-
-// One orbit, in days.
-const PERIOD_DAYS: Record<Planet, number> = {
-  Mercury: 88,
-  Venus: 225,
-  Earth: 365.25,
-  Mars: 687,
-  Jupiter: 4333,
-  Saturn: 10759,
-};
-const ORBIT_SAMPLES = 96;
-const DAY_MS = 86_400_000;
-
-/** A planet's whole orbit round the Sun: one period's positions, ending now. */
-export function orbit(planet: Planet, date: Date): OrbitPoint[] {
-  const step = PERIOD_DAYS[planet] / ORBIT_SAMPLES;
-  return Array.from({ length: ORBIT_SAMPLES }, (_, i) =>
-    helioPoint(planet, new Date(date.getTime() - (ORBIT_SAMPLES - 1 - i) * step * DAY_MS)),
-  );
 }
 
 const OUTERMOST_AU = 10.1; // Saturn at its farthest from the Sun
