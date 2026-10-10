@@ -10,8 +10,12 @@ import type { MerchantOffer } from '@/lib/api';
 // merchants in town -- in the middle of an 8-bit sky (PixelOrrery). (The boss fight's countdown is the city's, over HADES.) The lobby code / Create Lobby controls
 // and the top bar are the globe's own (WorldMapOverlay), drawn over this.
 
+// GREECE in its 3D marker label's light blue (worldmap/CityMarker.tsx).
+const CITY_COLOR = '#4da6ff';
+const MERCHANT_COLOR = '#a855f7';
+
 const link = {
-  color: 'gold',
+  color: CITY_COLOR,
   fontSize: '24px',
   background: 'none',
   border: 'none',
@@ -45,9 +49,9 @@ export default function TextHome({
               key={`${offer.offer_id}|${offer.event_key}`}
               type="button"
               onClick={() => onOpenMerchant(offer)}
-              style={{ ...link, color: 'violet', fontSize: '20px', marginTop: '0.5rem' }}
+              style={{ ...link, color: MERCHANT_COLOR, fontSize: '20px', marginTop: '0.5rem' }}
             >
-              {MERCHANT_MARKER_LABEL}: {offer.merchant_name}
+              {MERCHANT_MARKER_LABEL}
             </button>
           ))}
         </div>

@@ -18,7 +18,8 @@ describe('TextHome', () => {
     expect(screen.queryByText(/Next boss-fight/)).toBeNull(); // that's the city's, over HADES
     fireEvent.click(screen.getByText('🏛️ GREECE 🏛️'));
     expect(onEnterCity).toHaveBeenCalledWith(expect.objectContaining({ id: 3 }));
-    fireEvent.click(screen.getByText('Merchant: John Dee'));
+    expect(screen.queryByText(/John Dee/)).toBeNull(); // just "Merchant"
+    fireEvent.click(screen.getByText('Merchant'));
     expect(onOpenMerchant).toHaveBeenCalledWith(offer);
   });
 });
