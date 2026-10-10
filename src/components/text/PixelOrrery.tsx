@@ -39,29 +39,43 @@ function stars(w: number, h: number): [number, number][] {
   return Array.from({ length: Math.round((w * h) / 1500) }, () => [Math.floor(rand() * w), Math.floor(rand() * h)]);
 }
 
+// Sprite sizes in sky pixels, centred on each body's position.
+const SIZE: Record<Exclude<OrreryBody, 'Earth' | 'Sun'>, number> = {
+  Moon: 2,
+  Mercury: 2,
+  Venus: 3,
+  Mars: 3,
+  Jupiter: 4,
+  Saturn: 3,
+};
+
+/** A filled square of side `n` centred on (x, y). */
+function square(ctx: CanvasRenderingContext2D, x: number, y: number, n: number) {
+  const o = Math.floor(n / 2);
+  ctx.fillRect(x - o, y - o, n, n);
+}
+
 function drawBody(ctx: CanvasRenderingContext2D, body: Exclude<OrreryBody, 'Earth'>, x: number, y: number) {
   ctx.fillStyle = hex(orreryColor(body));
   if (body === 'Sun') {
-    ctx.fillRect(x - 1, y - 1, 3, 3);
-    ctx.fillRect(x, y - 3, 1, 1); // rays
-    ctx.fillRect(x, y + 3, 1, 1);
-    ctx.fillRect(x - 3, y, 1, 1);
-    ctx.fillRect(x + 3, y, 1, 1);
-  } else if (body === 'Moon' || body === 'Mercury') {
-    ctx.fillRect(x, y, 1, 1);
-  } else {
-    ctx.fillRect(x, y, 2, 2);
-    if (body === 'Saturn') {
-      ctx.fillRect(x - 1, y + 1, 1, 1); // its ring
-      ctx.fillRect(x + 2, y, 1, 1);
-    }
+    square(ctx, x, y, 5);
+    ctx.fillRect(x, y - 5, 1, 2); // rays
+    ctx.fillRect(x, y + 4, 1, 2);
+    ctx.fillRect(x - 5, y, 2, 1);
+    ctx.fillRect(x + 4, y, 2, 1);
+    return;
+  }
+  square(ctx, x, y, SIZE[body]);
+  if (body === 'Saturn') {
+    ctx.fillRect(x - 3, y + 1, 2, 1); // its ring
+    ctx.fillRect(x + 2, y - 1, 2, 1);
   }
 }
 
 function drawEarth(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
-  ctx.fillStyle = '#2563eb';
-  ctx.fillRect(cx - 1, cy - 1, 3, 3);
-  ctx.fillStyle = '#22c55e';
+  ctx.fillStyle = hex(orreryColor('Earth'));
+  square(ctx, cx, cy, 3);
+  ctx.fillStyle = '#22c55e'; // land
   ctx.fillRect(cx, cy - 1, 1, 1);
   ctx.fillRect(cx - 1, cy, 1, 1);
 }
