@@ -543,7 +543,7 @@ export default function TextLobby({
             </div>
           )}
 
-          {secondsLeft !== null && secondsLeft <= 20 && !gameOver && (
+          {gameStarted && secondsLeft !== null && secondsLeft <= 20 && !gameOver && (
             <p className={`mb-2 text-lg font-semibold ${secondsLeft <= 10 ? 'text-red-700 animate-pulse' : 'text-red-600'}`}>
               ⏳ Time left: {secondsLeft}s
             </p>

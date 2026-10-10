@@ -125,6 +125,12 @@ describe('TextLobby', () => {
     }
   });
 
+  it('shows the round timer only once the game has started', async () => {
+    const soon = new Date(Date.now() + 5000).toISOString();
+    await show(lobby({ round: 0, round_end_time: soon, ai_ranked: true }));
+    expect(screen.queryByText(/Time left/)).toBeNull(); // a bot-ranked lobby still forming
+  });
+
   it('offers only the relics that do something in battle, folded away until opened', async () => {
     await show(lobby({ players: [player('Oni', { admin: true, selected_relic_ids: [1] }), player('Toad')] }));
     const heading = await screen.findByText(/Relics/);
