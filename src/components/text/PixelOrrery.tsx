@@ -17,15 +17,14 @@ import {
 
 // The text Earth page's background (lib/pixelOrrery.ts): an 8-bit solar
 // system with the Earth at the centre of the screen -- the Sun, the Moon and
-// the planets where they are right now round the Sun. Drawn on a canvas a quarter of the
-// screen's size and scaled up with sharp pixels: no three.js, no textures,
-// a few kilobytes of drawing. Moves on as the sky does (once a minute), and
-// its stars twinkle.
+// the planets where they are right now round the Sun. Drawn on a canvas a
+// quarter of the screen's size and scaled up with sharp pixels: no three.js,
+// no textures, a few kilobytes of drawing. Moves on as the sky does (once a
+// minute); the stars hold still.
 
 const PX = 4; // screen pixels per sky pixel
 const BG = '#070b15';
 const MINUTE = 60_000;
-const TWINKLE_MS = 700;
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
@@ -106,13 +105,12 @@ export default function PixelOrrery() {
       moon: moonPoint(now),
     });
     let current = positions();
-    let twinkle = 0;
 
     const draw = () => {
       ctx.fillStyle = BG;
       ctx.fillRect(0, 0, w, h);
       starField.forEach(([x, y], i) => {
-        ctx.globalAlpha = (i + twinkle) % 9 === 0 ? 0.25 : 0.7;
+        ctx.globalAlpha = i % 3 === 0 ? 0.35 : 0.7; // steady, some dimmer
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(x, y, 1, 1);
       });
@@ -149,16 +147,11 @@ export default function PixelOrrery() {
       current = positions();
       draw();
     }, MINUTE);
-    const twinkling = setInterval(() => {
-      twinkle = (twinkle + 1) % 9;
-      draw();
-    }, TWINKLE_MS);
 
     resize();
     window.addEventListener('resize', resize);
     return () => {
       clearInterval(minute);
-      clearInterval(twinkling);
       window.removeEventListener('resize', resize);
     };
   }, []);
