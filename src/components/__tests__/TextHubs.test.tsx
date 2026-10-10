@@ -16,7 +16,7 @@ describe('TextHome', () => {
     const offer = { offer_id: 4, event_key: 'moon', merchant_name: 'John Dee' } as unknown as MerchantOffer;
     render(<TextHome offers={[offer]} onEnterCity={onEnterCity} onOpenMerchant={onOpenMerchant} />);
     expect(screen.queryByText(/Next boss-fight/)).toBeNull(); // that's the city's, over HADES
-    fireEvent.click(screen.getByText('🏛️ GREECE 🏛️'));
+    fireEvent.click(screen.getByText('GREECE'));
     expect(onEnterCity).toHaveBeenCalledWith(expect.objectContaining({ id: 3 }));
     expect(screen.queryByText(/John Dee/)).toBeNull(); // just "Merchant"
     fireEvent.click(screen.getByText('Merchant'));

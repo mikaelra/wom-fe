@@ -40,7 +40,7 @@ export default function TextHome({
         <div className="flex flex-col items-center px-6 py-3 pointer-events-auto">
           {CITIES.map((city) => (
             <button key={city.id} type="button" onClick={() => onEnterCity(city)} style={link}>
-              🏛️ {city.actionLabel ?? city.name} 🏛️
+              {city.actionLabel ?? city.name}
             </button>
           ))}
           {offers.map((offer) => (
