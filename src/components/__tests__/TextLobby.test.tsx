@@ -190,6 +190,14 @@ describe('TextLobby', () => {
     }
   });
 
+  it('sends the round messages to the list at once on a tap', async () => {
+    events.value = { round: 1, messages: ['You hit Toad'], events: [], instakill: false };
+    await show(lobby({ round: 1 }));
+    fireEvent.click(screen.getByText('You hit Toad'));
+    const listed = screen.getByText('You hit Toad');
+    expect(listed.tagName).toBe('LI'); // the bubble is gone; the line is in the list
+  });
+
   it('chats behind the Chat link', async () => {
     await show(lobby({ chat: [{ sender: 'Toad', message: 'hi', timestamp: '' }] }));
     expect(screen.queryByText('hi')).toBeNull();

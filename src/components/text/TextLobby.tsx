@@ -448,6 +448,11 @@ export default function TextLobby({
               key={idx}
               message={msg}
               onDone={() => setFloatingMessages((prev) => prev.filter((_, i) => i !== idx))}
+              onTap={() => {
+                // Into the list now, not when the bubble would have faded.
+                setFloatingMessages((prev) => prev.filter((_, i) => i !== idx));
+                if (events) setMessages(events.messages);
+              }}
             />
           ))}
 
