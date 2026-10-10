@@ -308,6 +308,11 @@ export default function TextLobby({
   const [chatInput, setChatInput] = useState('');
   const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  // The newest message in sight: on opening, and as messages arrive.
+  const chatEndRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (chatOpen) chatEndRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [chatOpen, state?.chat]);
   const chat = useMemo(() => hideMuted(state?.chat ?? [], muted), [state?.chat, muted]);
 
   const emit = getSocket();
@@ -572,10 +577,10 @@ export default function TextLobby({
         </div>
       </div>
 
-      {/* Chat: a link in the bottom-left corner that opens it, so it takes
+      {/* Chat: a link in the bottom-right corner that opens it, so it takes
           no room on a phone screen until it's wanted. */}
       {chatOpen && (
-        <div className="fixed bottom-14 left-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-gray-900 p-4 rounded-xl shadow-xl border border-gray-700">
+        <div className="fixed bottom-14 right-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-gray-900 p-4 rounded-xl shadow-xl border border-gray-700">
           <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
           <ul className="space-y-1 text-gray-200 mb-3 max-h-60 overflow-y-auto">
             {chat.map((m, i) => (
@@ -589,6 +594,7 @@ export default function TextLobby({
                 {chatText(m.message)}
               </li>
             ))}
+            <li ref={chatEndRef} aria-hidden="true" />
           </ul>
           <div className="flex gap-2">
             <input
@@ -611,7 +617,7 @@ export default function TextLobby({
       <button
         type="button"
         onClick={() => setChatOpen((o) => !o)}
-        className="fixed bottom-4 left-4 z-40 text-blue-400 underline text-lg font-semibold bg-transparent border-none cursor-pointer"
+        className="fixed bottom-4 right-4 z-40 text-blue-400 underline text-lg font-semibold bg-transparent border-none cursor-pointer"
       >
         Chat
       </button>

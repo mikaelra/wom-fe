@@ -193,8 +193,11 @@ describe('TextLobby', () => {
   it('chats behind the Chat link', async () => {
     await show(lobby({ chat: [{ sender: 'Toad', message: 'hi', timestamp: '' }] }));
     expect(screen.queryByText('hi')).toBeNull();
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
     fireEvent.click(screen.getByText('Chat'));
     expect(screen.getByText('hi')).toBeTruthy();
+    expect(scrolled).toHaveBeenCalled(); // the newest message in sight
     fireEvent.change(screen.getByLabelText('Chat message'), { target: { value: ' gg ' } });
     fireEvent.click(screen.getByText('Send'));
     expect(emit).toHaveBeenCalledWith('send_message', { lobby_id: 'ABCD', message: 'gg' });
