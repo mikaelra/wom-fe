@@ -14,7 +14,7 @@ import { CITY_PATH } from '@/lib/cities';
 import { RELIC_BADGE_EMOJI, RELIC_SELECT_CAPTION } from '@/components/RelicSelectionPopover';
 import { useToast } from '@/components/Toast';
 import { getPlayerRelics } from '@/lib/api';
-import { hideMuted, useMutedPlayers } from '@/lib/chatMute';
+import { getMutedPlayers, hideMuted, useMutedPlayers } from '@/lib/chatMute';
 import { useChatText } from '@/lib/chatFilter';
 import { isLobbyGoneError } from '@/lib/lobbyErrors';
 import { BATTLE_MUSIC, playMusic, PRE_LOBBY_MUSIC } from '@/lib/music';
@@ -236,7 +236,16 @@ export default function TextLobby({
   onLobbyGone: () => void;
 }) {
   const { showError } = useToast();
+  const [chatOpen, setChatOpen] = useState(false);
+  const [unreadChat, setUnreadChat] = useState(false);
+  const chatOpenRef = useRef(false);
+  chatOpenRef.current = chatOpen;
   const { state, connectionStatus } = useLobbyConnection(lobbyId, playerName, {
+    // A message while the chat is closed lights the button's dot (not for
+    // someone muted), as in the 3D game.
+    onChatMessage: (msg) => {
+      if (!chatOpenRef.current && !getMutedPlayers().has(msg.sender)) setUnreadChat(true);
+    },
     onError: (message) => {
       // Same as the 3D overlay: a lobby that is gone (most often a backend
       // restart) walks the player out without a word.
@@ -322,7 +331,6 @@ export default function TextLobby({
   const chatText = useChatText();
   const [chatInput, setChatInput] = useState('');
   const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
   // The newest message in sight: on opening, and as messages arrive.
   const chatEndRef = useRef<HTMLLIElement>(null);
   useEffect(() => {
@@ -597,10 +605,10 @@ export default function TextLobby({
         </div>
       </div>
 
-      {/* Chat: a link in the bottom-right corner that opens it, so it takes
-          no room on a phone screen until it's wanted. */}
+      {/* Chat: a button in the bottom-right corner that opens it, so it
+          takes no room on a phone screen until it's wanted. */}
       {chatOpen && (
-        <div className="fixed bottom-14 right-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-gray-900 p-4 rounded-xl shadow-xl border border-gray-700">
+        <div className="fixed bottom-16 right-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-gray-900 p-4 rounded-xl shadow-xl border border-gray-700">
           <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
           <ul className="space-y-1 text-gray-200 mb-3 max-h-60 overflow-y-auto">
             {chat.map((m, i) => (
@@ -634,13 +642,23 @@ export default function TextLobby({
           </div>
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => setChatOpen((o) => !o)}
-        className="fixed bottom-4 right-4 z-40 text-blue-400 underline text-lg font-semibold bg-transparent border-none cursor-pointer"
-      >
-        Chat
-      </button>
+      {/* The 3D game's own chat button (SceneOverlay), with its unread dot. */}
+      <div className="fixed bottom-4 right-4 z-40 inline-block">
+        <button
+          type="button"
+          onClick={() => {
+            setChatOpen((o) => !o);
+            setUnreadChat(false);
+          }}
+          className="w-11 h-11 rounded-full bg-blue-600/90 hover:bg-blue-500/90 flex items-center justify-center shadow-lg border border-white/20 text-lg cursor-pointer"
+          aria-label="Toggle chat"
+        >
+          💬
+        </button>
+        {unreadChat && (
+          <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-orange-500 border border-white/60 pointer-events-none" />
+        )}
+      </div>
 
       {gameOver && state?.boss_fight && myPlayer?.pending_relic_nudge && !dismissed.relic && (
         <BossSignupNudge lobbyId={lobbyId} playerName={playerName} onDismiss={dismiss('relic')} />

@@ -3,13 +3,23 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import type { LobbyState, Player } from '@/types/game';
 
 const emit = vi.fn();
-const conn: { state: LobbyState | null; status: string; onError?: (m: string) => void } = { state: null, status: 'connected' };
+const conn: {
+  state: LobbyState | null;
+  status: string;
+  onError?: (m: string) => void;
+  onChat?: (m: { sender: string; message: string; timestamp: string }) => void;
+} = { state: null, status: 'connected' };
 const events: { value: { round: number; messages: (string | string[])[]; events: []; instakill: boolean } | null } = { value: null };
 
 vi.mock('@/lib/socket', () => ({ getSocket: () => ({ emit }) }));
 vi.mock('@/lib/useLobbyConnection', () => ({
-  useLobbyConnection: (_l: string, _p: string, opts: { onError?: (m: string) => void }) => {
+  useLobbyConnection: (
+    _l: string,
+    _p: string,
+    opts: { onError?: (m: string) => void; onChatMessage?: (m: { sender: string; message: string; timestamp: string }) => void },
+  ) => {
     conn.onError = opts.onError;
+    conn.onChat = opts.onChatMessage;
     return { state: conn.state, connectionStatus: conn.status };
   },
 }));
@@ -224,18 +234,22 @@ describe('TextLobby', () => {
     expect(listed.tagName).toBe('LI'); // the bubble is gone; the line is in the list
   });
 
-  it('chats behind the Chat link', async () => {
+  it('chats behind the 💬 button, which lights up for a message while closed', async () => {
     await show(lobby({ chat: [{ sender: 'Toad', message: 'hi', timestamp: '' }] }));
     expect(screen.queryByText('hi')).toBeNull();
     const scrolled = vi.fn();
     Element.prototype.scrollIntoView = scrolled;
-    fireEvent.click(screen.getByText('Chat'));
+    act(() => conn.onChat?.({ sender: 'Toad', message: 'hi', timestamp: '' }));
+    const button = screen.getByLabelText('Toggle chat');
+    expect(button.parentElement!.querySelector('.bg-orange-500')).toBeTruthy(); // unread
+    fireEvent.click(button);
+    expect(button.parentElement!.querySelector('.bg-orange-500')).toBeNull();
     expect(screen.getByText('hi')).toBeTruthy();
     expect(scrolled).toHaveBeenCalled(); // the newest message in sight
     fireEvent.change(screen.getByLabelText('Chat message'), { target: { value: ' gg ' } });
     fireEvent.click(screen.getByText('Send'));
     expect(emit).toHaveBeenCalledWith('send_message', { lobby_id: 'ABCD', message: 'gg' });
-    fireEvent.click(screen.getByText('Chat'));
+    fireEvent.click(screen.getByLabelText('Toggle chat'));
     expect(screen.queryByText('hi')).toBeNull();
   });
 
