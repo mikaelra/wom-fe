@@ -1,0 +1,272 @@
+import * as Astronomy from 'astronomy-engine';
+
+// The text city's scene (components/text/PixelSignpost.tsx): the 3D city's
+// signpost in 8-bit -- a wooden post with arrow-shaped boards, each lettered
+// in a pixel font in its arm's colour -- under the sky over the city as it
+// is right now (day, golden hour, twilight or night, from the Sun's real
+// height there), with the Sun or the Moon where they really are, above a
+// pixel landscape (Mikael, 2026-10-10).
+
+/** The bit of a canvas context the drawing needs (a fake one in tests). */
+export interface Painter {
+  fillStyle: string | CanvasGradient | CanvasPattern;
+  fillRect(x: number, y: number, w: number, h: number): void;
+}
+
+// ── A 3x5 pixel font ────────────────────────────────────────────────────────
+
+const GLYPHS: Record<string, string[]> = {
+  A: ['.#.', '#.#', '###', '#.#', '#.#'],
+  B: ['##.', '#.#', '##.', '#.#', '##.'],
+  C: ['.##', '#..', '#..', '#..', '.##'],
+  D: ['##.', '#.#', '#.#', '#.#', '##.'],
+  E: ['###', '#..', '##.', '#..', '###'],
+  F: ['###', '#..', '##.', '#..', '#..'],
+  G: ['.##', '#..', '#.#', '#.#', '.##'],
+  H: ['#.#', '#.#', '###', '#.#', '#.#'],
+  I: ['###', '.#.', '.#.', '.#.', '###'],
+  J: ['..#', '..#', '..#', '#.#', '.#.'],
+  K: ['#.#', '#.#', '##.', '#.#', '#.#'],
+  L: ['#..', '#..', '#..', '#..', '###'],
+  M: ['#.#', '###', '###', '#.#', '#.#'],
+  N: ['##.', '#.#', '#.#', '#.#', '#.#'],
+  O: ['.#.', '#.#', '#.#', '#.#', '.#.'],
+  P: ['##.', '#.#', '##.', '#..', '#..'],
+  Q: ['.#.', '#.#', '#.#', '##.', '.##'],
+  R: ['##.', '#.#', '##.', '#.#', '#.#'],
+  S: ['.##', '#..', '.#.', '..#', '##.'],
+  T: ['###', '.#.', '.#.', '.#.', '.#.'],
+  U: ['#.#', '#.#', '#.#', '#.#', '###'],
+  V: ['#.#', '#.#', '#.#', '#.#', '.#.'],
+  W: ['#.#', '#.#', '###', '###', '#.#'],
+  X: ['#.#', '#.#', '.#.', '#.#', '#.#'],
+  Y: ['#.#', '#.#', '.#.', '.#.', '.#.'],
+  Z: ['###', '..#', '.#.', '#..', '###'],
+};
+export const GLYPH_W = 3;
+export const GLYPH_H = 5;
+const ADVANCE = GLYPH_W + 1;
+const LINE = GLYPH_H + 2;
+
+/** Width in pixels of a line of text. */
+export function textWidth(text: string): number {
+  return text.length ? text.length * ADVANCE - 1 : 0;
+}
+
+/** The text in lines no wider than `maxW` pixels, broken between words. */
+export function wrap(text: string, maxW: number): string[] {
+  const lines: string[] = [];
+  for (const word of text.toUpperCase().split(' ')) {
+    const last = lines.at(-1);
+    if (last !== undefined && textWidth(`${last} ${word}`) <= maxW) lines[lines.length - 1] = `${last} ${word}`;
+    else lines.push(word);
+  }
+  return lines;
+}
+
+export function drawText(ctx: Painter, text: string, x: number, y: number, color: string) {
+  ctx.fillStyle = color;
+  [...text.toUpperCase()].forEach((ch, i) => {
+    const glyph = GLYPHS[ch];
+    if (!glyph) return; // a space, or a letter it doesn't have
+    glyph.forEach((row, gy) => {
+      for (let gx = 0; gx < GLYPH_W; gx++) if (row[gx] === '#') ctx.fillRect(x + i * ADVANCE + gx, y + gy, 1, 1);
+    });
+  });
+}
+
+// ── The sky over the city ───────────────────────────────────────────────────
+
+export interface Sky {
+  /** Top of the sky, then the horizon. */
+  top: string;
+  horizon: string;
+  /** How lit the land is, 0 (night) to 1 (day). */
+  light: number;
+  /** Stars showing: none, a few, or all. */
+  stars: 0 | 0.4 | 1;
+}
+
+/** The sky's colours for the Sun at `alt` degrees above the horizon. */
+export function skyFor(alt: number): Sky {
+  if (alt > 10) return { top: '#2f6fd0', horizon: '#9fd0f5', light: 1, stars: 0 };
+  if (alt > 0) return { top: '#4a6fb0', horizon: '#f3b05a', light: 0.85, stars: 0 };
+  if (alt > -6) return { top: '#2b2f6b', horizon: '#e0705a', light: 0.55, stars: 0 };
+  if (alt > -12) return { top: '#141a45', horizon: '#6b3f6e', light: 0.35, stars: 0.4 };
+  return { top: '#070b20', horizon: '#18204a', light: 0.25, stars: 1 };
+}
+
+export interface HorizonPos {
+  alt: number;
+  az: number;
+}
+
+/** Where the Sun and the Moon are in the sky over (lat, lng) at `date`. */
+export function skyBodies(date: Date, lat: number, lng: number): { sun: HorizonPos; moon: HorizonPos } {
+  const observer = new Astronomy.Observer(lat, lng, 0);
+  const time = Astronomy.MakeTime(date);
+  const at = (body: Astronomy.Body): HorizonPos => {
+    const eq = Astronomy.Equator(body, time, observer, true, true);
+    const h = Astronomy.Horizon(time, observer, eq.ra, eq.dec, 'normal');
+    return { alt: h.altitude, az: h.azimuth };
+  };
+  return { sun: at(Astronomy.Body.Sun), moon: at(Astronomy.Body.Moon) };
+}
+
+/** A sky position on screen, looking south: east at the left edge, west at
+ *  the right, the horizon at `horizonY`, straight up at the top. */
+export function skyXY(p: HorizonPos, w: number, horizonY: number): [number, number] {
+  const x = ((p.az - 90) / 180) * w;
+  const y = horizonY - (Math.max(0, p.alt) / 90) * horizonY;
+  return [Math.round(x), Math.round(y)];
+}
+
+/** A colour mixed toward `to` by `t` (0..1). */
+export function mix(from: string, to: string, t: number): string {
+  const a = parseInt(from.slice(1), 16);
+  const b = parseInt(to.slice(1), 16);
+  const ch = (s: number) => Math.round(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t);
+  return `#${[16, 8, 0].map((s) => ch(s).toString(16).padStart(2, '0')).join('')}`;
+}
+
+// ── The signpost ────────────────────────────────────────────────────────────
+
+/** Where things stand, as shares of the height. */
+export const HORIZON = 0.68;
+const POST_TOP = 0.3;
+const ROWS = [0.36, 0.5];
+
+export interface Board {
+  label: string;
+  color: string;
+  side: 'left' | 'right';
+  row: 0 | 1;
+}
+
+/** A board's box in sky pixels, its point included. */
+export interface BoardBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  lines: string[];
+}
+
+const PAD = 2;
+const POINT = 3; // the arrow's tip
+export const POST_W = 4;
+
+/** Where each board goes on a screen `w` x `h` sky pixels: either side of
+ *  the post, as wide as its words (wrapped to fit its half). */
+export function layoutBoard(board: Board, w: number, h: number): BoardBox {
+  const cx = Math.floor(w / 2);
+  const maxText = Math.floor(w / 2) - POST_W / 2 - PAD * 2 - POINT - 2;
+  const lines = wrap(board.label, maxText);
+  const textW = Math.max(...lines.map(textWidth));
+  const bw = textW + PAD * 2 + POINT;
+  const bh = lines.length * LINE - 2 + PAD * 2;
+  const y = Math.round(ROWS[board.row] * h);
+  const x = board.side === 'left' ? cx - POST_W / 2 - bw : cx + POST_W / 2;
+  return { x, y, w: bw, h: bh, lines };
+}
+
+const WOOD = '#8a5a34';
+const WOOD_LIGHT = '#a8703f';
+const WOOD_DARK = '#4a2e18';
+
+function drawBoard(ctx: Painter, board: Board, box: BoardBox, light: number) {
+  const shadeOf = (c: string) => mix(c, '#000000', (1 - light) * 0.6);
+  const { x, y, w, h, lines } = box;
+  const bodyX = board.side === 'left' ? x + POINT : x;
+  const bodyW = w - POINT;
+  ctx.fillStyle = shadeOf(WOOD_DARK);
+  ctx.fillRect(bodyX - 1, y - 1, bodyW + 2, h + 2); // outline
+  ctx.fillStyle = shadeOf(WOOD);
+  ctx.fillRect(bodyX, y, bodyW, h);
+  ctx.fillStyle = shadeOf(WOOD_LIGHT);
+  ctx.fillRect(bodyX, y, bodyW, 1); // the plank's lit edge
+  // The point, a step at a time.
+  for (let i = 0; i < POINT; i++) {
+    const inset = i + 1;
+    const px = board.side === 'left' ? x + POINT - 1 - i : x + bodyW + i;
+    ctx.fillStyle = shadeOf(WOOD_DARK);
+    ctx.fillRect(px, y - 1 + inset, 1, h + 2 - inset * 2);
+    if (h - inset * 2 > 0) {
+      ctx.fillStyle = shadeOf(WOOD);
+      ctx.fillRect(px, y + inset, 1, h - inset * 2);
+    }
+  }
+  // The lettering keeps its colour, day or night: it glows, as the 3D one does.
+  lines.forEach((line, i) => {
+    const lx = bodyX + Math.floor((bodyW - textWidth(line)) / 2);
+    drawText(ctx, line, lx, y + PAD + i * LINE, board.color);
+  });
+}
+
+/** Stars that stay put: a sparse seeded scatter over the sky. */
+function stars(w: number, horizonY: number): [number, number][] {
+  let seed = 11;
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  return Array.from({ length: Math.round((w * horizonY) / 300) }, () => [Math.floor(rand() * w), Math.floor(rand() * horizonY)]);
+}
+
+/** The whole scene: sky, Sun or Moon, landscape, the post and its boards. */
+export function drawSignpostScene(
+  ctx: Painter,
+  w: number,
+  h: number,
+  boards: Board[],
+  bodies: { sun: HorizonPos; moon: HorizonPos },
+) {
+  const sky = skyFor(bodies.sun.alt);
+  const horizonY = Math.round(HORIZON * h);
+  const BANDS = 8; // the sky in bands, top to horizon -- 8-bit, not a gradient
+  for (let b = 0; b < BANDS; b++) {
+    ctx.fillStyle = mix(sky.top, sky.horizon, b / (BANDS - 1));
+    const y0 = Math.round((b / BANDS) * horizonY);
+    const y1 = Math.round(((b + 1) / BANDS) * horizonY);
+    ctx.fillRect(0, y0, w, y1 - y0);
+  }
+  if (sky.stars) {
+    ctx.fillStyle = '#ffffff';
+    stars(w, horizonY).forEach(([sx, sy], i) => {
+      if (sky.stars === 1 || i % 3 === 0) ctx.fillRect(sx, sy, 1, 1);
+    });
+  }
+  if (bodies.moon.alt > 0) {
+    const [mx, my] = skyXY(bodies.moon, w, horizonY);
+    ctx.fillStyle = '#e8ecf5';
+    ctx.fillRect(mx - 1, my - 2, 3, 5);
+    ctx.fillRect(mx - 2, my - 1, 5, 3);
+  }
+  if (bodies.sun.alt > -1) {
+    const [sx, sy] = skyXY(bodies.sun, w, horizonY);
+    ctx.fillStyle = '#ffe600';
+    ctx.fillRect(sx - 2, sy - 3, 5, 7);
+    ctx.fillRect(sx - 3, sy - 2, 7, 5);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(sx - 1, sy - 1, 3, 3);
+  }
+  // Hills on the horizon, then the land, darker as the light goes.
+  const land = (c: string) => mix(c, '#0b1026', 1 - sky.light);
+  ctx.fillStyle = land('#5b7f4a');
+  for (let x = 0; x < w; x++) {
+    const hill = Math.round(4 + 3 * Math.sin(x / 9) + 2 * Math.sin(x / 4 + 1));
+    ctx.fillRect(x, horizonY - hill, 1, hill);
+  }
+  ctx.fillStyle = land('#4a7c3a');
+  ctx.fillRect(0, horizonY, w, h - horizonY);
+  ctx.fillStyle = land('#7a5a3a'); // the earth under the grass
+  ctx.fillRect(0, horizonY + 4, w, h - horizonY - 4);
+  ctx.fillStyle = land('#5e4329');
+  for (let y = horizonY + 7; y < h; y += 4) for (let x = (y * 7) % 9; x < w; x += 9) ctx.fillRect(x, y, 2, 1);
+  // The post, from above the top board into the ground.
+  const cx = Math.floor(w / 2);
+  const top = Math.round(POST_TOP * h);
+  ctx.fillStyle = mix(WOOD_DARK, '#000000', (1 - sky.light) * 0.6);
+  ctx.fillRect(cx - POST_W / 2, top, POST_W, horizonY + 6 - top);
+  ctx.fillStyle = mix(WOOD, '#000000', (1 - sky.light) * 0.6);
+  ctx.fillRect(cx - POST_W / 2 + 1, top, POST_W - 2, horizonY + 6 - top);
+  ctx.fillRect(cx - POST_W / 2 - 1, top - 1, POST_W + 2, 2); // its cap
+  for (const board of boards) drawBoard(ctx, board, layoutBoard(board, w, h), sky.light);
+}

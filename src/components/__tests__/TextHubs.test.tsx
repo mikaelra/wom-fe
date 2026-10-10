@@ -37,6 +37,8 @@ describe('TextCity', () => {
     presence: { ranked: 1, bot_ranked: 0, market: 3 },
     onMarket: vi.fn(),
     onBackToEarth: vi.fn(),
+    lat: 37.98,
+    lng: 23.73,
   });
 
   it('shows HADES, RANKED, EARTH and MARKET, with what is going on over them', () => {
@@ -45,13 +47,13 @@ describe('TextCity', () => {
     expect(screen.getByText('BOSSFIGHT IN 2:05')).toBeTruthy(); // the caption alone, no "N playing" twice
     expect(screen.getByText('SEARCHING')).toBeTruthy(); // the bots queue, over RANKED
     expect(screen.getByText('3')).toBeTruthy(); // in the market
-    expect(screen.queryByText('PLAYERS')).toBeNull();
+    expect(screen.queryByLabelText('PLAYERS')).toBeNull();
     for (const [label, handler] of [
       ['HADES', p.onBossfight],
       ['MARKET', p.onMarket],
       ['EARTH', p.onBackToEarth],
     ] as const) {
-      fireEvent.click(screen.getByText(label));
+      fireEvent.click(screen.getByLabelText(label));
       expect(handler).toHaveBeenCalled();
     }
   });
@@ -64,19 +66,19 @@ describe('TextCity', () => {
   it('opens RANKED: PLAYERS and BOTS with who is playing, and BACK', () => {
     const p = props();
     render(<TextCity {...p} />);
-    fireEvent.click(screen.getByText('RANKED'));
+    fireEvent.click(screen.getByLabelText('RANKED'));
     expect(screen.getByText('1 playing')).toBeTruthy();
-    fireEvent.click(screen.getByText('PLAYERS'));
+    fireEvent.click(screen.getByLabelText('PLAYERS'));
     expect(p.onRanked).toHaveBeenCalled();
-    fireEvent.click(screen.getByText('BOTS'));
+    fireEvent.click(screen.getByLabelText('BOTS'));
     expect(p.onBotRanked).toHaveBeenCalled();
-    fireEvent.click(screen.getByText('BACK'));
-    expect(screen.getByText('HADES')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('BACK'));
+    expect(screen.getByLabelText('HADES')).toBeTruthy();
   });
 
   it('says when a match is waiting to be returned to', () => {
     render(<TextCity {...props()} rankedLabel="RETURN TO MATCH" />);
-    fireEvent.click(screen.getByText('RANKED'));
-    expect(screen.getByText('RETURN TO MATCH')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('RANKED'));
+    expect(screen.getByLabelText('RETURN TO MATCH')).toBeTruthy();
   });
 });

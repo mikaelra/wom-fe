@@ -1,47 +1,16 @@
 'use client';
 
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useState } from 'react';
+import PixelSignpost, { type SignpostBoard } from '@/components/text/PixelSignpost';
 import { playingLabel } from '@/lib/cityLabels';
 import { BACK_COLOR, BOSSFIGHT_COLOR, EARTH_COLOR, MARKET_COLOR, RANKED_COLOR } from '@/components/city/signpostColors';
 
-// The city as text (Text mode, src/lib/textMode.ts): its signposts and
-// buildings as Tjuvpakk-style links, the same actions the city page hands
-// CityScene, in the signpost's colours. White text over a link says what
-// is going on there. RANKED opens its own list -- PLAYERS and BOTS, the fork
-// in 3D -- with BACK. The top bar, clock and auth popups are the page's own.
-
-const link = (color: string): CSSProperties => ({
-  color,
-  fontSize: '24px',
-  background: 'none',
-  border: 'none',
-  cursor: 'pointer',
-  textDecoration: 'underline',
-});
-
-function Place({
-  label,
-  color,
-  onClick,
-  info,
-}: {
-  label: string;
-  color: string;
-  onClick: () => void;
-  info?: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-end text-center">
-      {info && <div className="text-white text-sm font-semibold whitespace-pre-line">{info}</div>}
-      <button type="button" onClick={onClick} style={link(color)}>
-        {label}
-      </button>
-    </div>
-  );
-}
-
-// Two places to a row, their links level whatever is written over them.
-const row = 'grid grid-cols-2 items-end gap-x-10 gap-y-2 mb-8 w-full max-w-sm';
+// The city as text (Text mode, src/lib/textMode.ts): the 3D city's signpost
+// in 8-bit (PixelSignpost) -- RANKED and HADES on the top boards, MARKET and
+// EARTH below, each lettered in its arm's colour -- under the city's sky as
+// it is right now. White text over a board says what is going on there.
+// RANKED turns the boards to PLAYERS and BOTS -- the fork in 3D -- with BACK.
+// The top bar, clock and auth popups are the page's own.
 
 /** Lines that are there, one per line; null when none are. */
 function lines(...parts: (string | null | undefined)[]): string | null {
@@ -61,6 +30,9 @@ export default function TextCity({
   presence,
   onMarket,
   onBackToEarth,
+  skyDate,
+  lat,
+  lng,
 }: {
   onBossfight: () => void;
   bossfightSublabel: string | null | undefined;
@@ -73,59 +45,63 @@ export default function TextCity({
   presence: { ranked: number; bot_ranked: number; market: number };
   onMarket: () => void;
   onBackToEarth: () => void;
+  /** The sky's moment, as the 3D city has it (a timewarp's, or now). */
+  skyDate?: Date;
+  lat: number;
+  lng: number;
 }) {
   const [inRanked, setInRanked] = useState(false);
 
-  if (inRanked) {
-    return (
-      <div className="absolute inset-0 overflow-y-auto flex flex-col items-center justify-center text-white px-4 pt-28 pb-10">
-        <div className={row}>
-          <Place
-            label={rankedLabel === 'RANKED' ? 'PLAYERS' : rankedLabel}
-            color={RANKED_COLOR}
-            onClick={onRanked}
-            info={lines(rankedSublabel, playingLabel(presence.ranked))}
-          />
-          <Place
-            label={botRankedLabel}
-            color={RANKED_COLOR}
-            onClick={onBotRanked}
-            info={lines(botRankedSublabel, playingLabel(presence.bot_ranked))}
-          />
-        </div>
-        <Place label="BACK" color={BACK_COLOR} onClick={() => setInRanked(false)} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="absolute inset-0 overflow-y-auto flex flex-col items-center justify-center text-white px-4 pt-28 pb-10">
-      <div className={row}>
-        {/* A queue being searched, or a match to return to, from either arm. */}
-        <Place
-          label="RANKED"
-          color={RANKED_COLOR}
-          onClick={() => setInRanked(true)}
-          info={lines(rankedSublabel, botRankedSublabel)}
-        />
-        <Place
-          label="HADES"
-          color={BOSSFIGHT_COLOR}
-          onClick={onBossfight}
+  const boards: SignpostBoard[] = inRanked
+    ? [
+        {
+          label: rankedLabel === 'RANKED' ? 'PLAYERS' : rankedLabel,
+          color: RANKED_COLOR,
+          side: 'left',
+          row: 0,
+          onClick: onRanked,
+          info: lines(rankedSublabel, playingLabel(presence.ranked)),
+        },
+        {
+          label: botRankedLabel,
+          color: RANKED_COLOR,
+          side: 'right',
+          row: 0,
+          onClick: onBotRanked,
+          info: lines(botRankedSublabel, playingLabel(presence.bot_ranked)),
+        },
+        { label: 'BACK', color: BACK_COLOR, side: 'left', row: 1, onClick: () => setInRanked(false) },
+      ]
+    : [
+        {
+          label: 'RANKED',
+          color: RANKED_COLOR,
+          side: 'left',
+          row: 0,
+          onClick: () => setInRanked(true),
+          // A queue being searched, or a match to return to, from either arm.
+          info: lines(rankedSublabel, botRankedSublabel),
+        },
+        {
+          label: 'HADES',
+          color: BOSSFIGHT_COLOR,
+          side: 'right',
+          row: 0,
+          onClick: onBossfight,
           // The signpost's caption alone: it already counts who is playing
           // or waiting, so the temple's "N playing" would say it twice.
-          info={bossfightSublabel}
-        />
-      </div>
-      <div className={row}>
-        <Place
-          label="MARKET"
-          color={MARKET_COLOR}
-          onClick={onMarket}
-          info={presence.market > 0 ? String(presence.market) : null}
-        />
-        <Place label="EARTH" color={EARTH_COLOR} onClick={onBackToEarth} />
-      </div>
-    </div>
-  );
+          info: bossfightSublabel,
+        },
+        {
+          label: 'MARKET',
+          color: MARKET_COLOR,
+          side: 'left',
+          row: 1,
+          onClick: onMarket,
+          info: presence.market > 0 ? String(presence.market) : null,
+        },
+        { label: 'EARTH', color: EARTH_COLOR, side: 'right', row: 1, onClick: onBackToEarth },
+      ];
+
+  return <PixelSignpost boards={boards} date={skyDate} lat={lat} lng={lng} />;
 }

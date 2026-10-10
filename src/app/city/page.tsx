@@ -161,6 +161,9 @@ function CityPageContent() {
           presence={presence}
           onMarket={() => router.push('/market')}
           onBackToEarth={() => router.push('/')}
+          skyDate={skyDate}
+          lat={city.realLat}
+          lng={city.realLng}
         />
       )}
       {textMode === false && (
