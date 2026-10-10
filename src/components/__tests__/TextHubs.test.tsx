@@ -10,12 +10,12 @@ import TextCity from '@/components/text/TextCity';
 import type { MerchantOffer } from '@/lib/api';
 
 describe('TextHome', () => {
-  it('lists the next boss fight, the cities and the merchants', () => {
+  it('lists the cities and the merchants, with no boss-fight countdown', () => {
     const onEnterCity = vi.fn();
     const onOpenMerchant = vi.fn();
     const offer = { offer_id: 4, event_key: 'moon', merchant_name: 'John Dee' } as unknown as MerchantOffer;
     render(<TextHome offers={[offer]} onEnterCity={onEnterCity} onOpenMerchant={onOpenMerchant} />);
-    expect(screen.getByText('⏳ Next boss-fight in: 2m 5s')).toBeTruthy();
+    expect(screen.queryByText(/Next boss-fight/)).toBeNull(); // that's the city's, over HADES
     fireEvent.click(screen.getByText('🏛️ GREECE 🏛️'));
     expect(onEnterCity).toHaveBeenCalledWith(expect.objectContaining({ id: 3 }));
     fireEvent.click(screen.getByText('Merchant: John Dee'));
