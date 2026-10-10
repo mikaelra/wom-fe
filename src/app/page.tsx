@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import WorldClock from '@/components/worldmap/WorldClock';
 import TimewarpPanel from '@/components/worldmap/TimewarpPanel';
-import { timewarpColorsFor } from '@/lib/timewarpFx';
+import { timewarpColorsFor, timewarpFxState } from '@/lib/timewarpFx';
+import { getSky } from '@/lib/astrology';
 import { useTimewarpFx } from '@/lib/useTimewarpFx';
 import { useTimewarpRun } from '@/lib/useTimewarpRun';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
@@ -136,8 +137,13 @@ export default function Page() {
   const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
     timewarpRun,
     timewarpRunId,
-    skyReady,
+    // Text mode has no globe to wait on: its sky is ready at once.
+    skyReady || textMode === true,
   );
+  // The text sky's moment: the timewarp's, running through time while it
+  // plays (redrawn each of its steps), or a reverted sky's; else none, and
+  // it keeps time itself.
+  const textSkyDate = textMode && (timewarpPlaying || reverted) ? getSky().date : undefined;
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setSceneReady(true));
@@ -186,6 +192,8 @@ export default function Page() {
           offers={merchantOffers}
           onEnterCity={handleCityClick}
           onOpenMerchant={(o) => setOpenMerchantKey(merchantKey(o))}
+          skyDate={textSkyDate}
+          timewarp={timewarpPlaying && timewarpRun ? { glow: timewarpFxState.glow, colors: timewarpRun.spec.colors } : null}
         />
       )}
       {textMode === false && <HudToggle />}

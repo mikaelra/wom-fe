@@ -1,5 +1,6 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import { CITIES, type City } from '@/lib/cities';
 import { MERCHANT_MARKER_LABEL } from '@/lib/merchant';
 import PixelOrrery from '@/components/text/PixelOrrery';
@@ -27,17 +28,31 @@ export default function TextHome({
   offers,
   onEnterCity,
   onOpenMerchant,
+  skyDate,
+  timewarp,
 }: {
   offers: MerchantOffer[];
   onEnterCity: (city: City) => void;
   onOpenMerchant: (offer: MerchantOffer) => void;
+  /** The sky's moment, while a timewarp runs or the sky is reverted. */
+  skyDate?: Date;
+  /** A timewarp playing: its glow (0..1) and colours. */
+  timewarp?: { glow: number; colors: string[] } | null;
 }) {
   return (
     <>
-      <PixelOrrery />
+      <PixelOrrery date={skyDate} timewarp={timewarp} />
       {/* In the middle of the sky, over the Earth. */}
       <div className="absolute inset-0 flex items-center justify-center px-4 pointer-events-none">
-        <div className="flex flex-col items-center px-6 py-3 pointer-events-auto">
+        {/* They leave and come back with the timewarp, as the globe's pins
+            do (lib/timewarpFx.ts's marker fade). */}
+        <div
+          className="flex flex-col items-center px-6 py-3"
+          style={{
+            opacity: 'var(--timewarp-markers, 1)',
+            pointerEvents: 'var(--timewarp-markers-events, auto)' as CSSProperties['pointerEvents'],
+          }}
+        >
           {CITIES.map((city) => (
             <button key={city.id} type="button" onClick={() => onEnterCity(city)} style={link}>
               {city.actionLabel ?? city.name}

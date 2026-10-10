@@ -274,6 +274,7 @@ export function drawSignpostScene(
   h: number,
   boards: Board[],
   bodies: { sun: HorizonPos; moon: HorizonPos },
+  timewarp?: { glow: number; colors: string[] } | null,
 ) {
   const sky = skyFor(bodies.sun.alt);
   const horizonY = Math.round(HORIZON * h);
@@ -303,6 +304,21 @@ export function drawSignpostScene(
     ctx.fillRect(sx - 3, sy - 2, 7, 5);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(sx - 1, sy - 1, 3, 3);
+  }
+  // A timewarp's electricity in the sky, in its colours: crooked bolts
+  // flickering down from above, as many and as bright as its glow.
+  if (timewarp && timewarp.glow > 0) {
+    const bolts = Math.round(8 * timewarp.glow);
+    for (let b = 0; b < bolts; b++) {
+      ctx.fillStyle = timewarp.colors[b % timewarp.colors.length] ?? '#ffffff';
+      let x = Math.random() * w;
+      let y = Math.random() * horizonY * 0.5;
+      for (let step = 0; step < 6; step++) {
+        ctx.fillRect(Math.round(x), Math.round(y), 1, 2);
+        x += Math.random() < 0.5 ? -1 : 1;
+        y += 2;
+      }
+    }
   }
   // Hills on the horizon, then the land, darker as the light goes.
   const land = (c: string) => mix(c, '#0b1026', 1 - sky.light);

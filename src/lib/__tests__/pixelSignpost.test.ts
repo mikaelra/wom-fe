@@ -128,4 +128,16 @@ describe('the signpost', () => {
     for (const b of BOARDS) expect(colours).toContain(b.color);
     expect(colours).toContain('#ffe600'); // the Sun, up at noon
   });
+
+  it("sparks a timewarp's colours across the sky while it glows", () => {
+    const w = 130;
+    const h = 281;
+    const bodies = skyBodies(new Date('2026-06-21T10:00:00Z'), 37.98, 23.73);
+    const warp = recorder(w, h);
+    drawSignpostScene(warp.ctx, w, h, BOARDS, bodies, { glow: 1, colors: ['#ce70ff'] });
+    expect([...warp.pixels.values()]).toContain('#ce70ff');
+    const calm = recorder(w, h);
+    drawSignpostScene(calm.ctx, w, h, BOARDS, bodies, { glow: 0, colors: ['#ce70ff'] });
+    expect([...calm.pixels.values()]).not.toContain('#ce70ff');
+  });
 });

@@ -31,6 +31,7 @@ export default function TextCity({
   onMarket,
   onBackToEarth,
   skyDate,
+  timewarp,
   lat,
   lng,
 }: {
@@ -47,6 +48,8 @@ export default function TextCity({
   onBackToEarth: () => void;
   /** The sky's moment, as the 3D city has it (a timewarp's, or now). */
   skyDate?: Date;
+  /** A timewarp playing: its glow (0..1) and colours. */
+  timewarp?: { glow: number; colors: string[] } | null;
   lat: number;
   lng: number;
 }) {
@@ -103,5 +106,5 @@ export default function TextCity({
         { label: 'EARTH', color: EARTH_COLOR, side: 'right', row: 1, onClick: onBackToEarth },
       ];
 
-  return <PixelSignpost boards={boards} date={skyDate} lat={lat} lng={lng} />;
+  return <PixelSignpost boards={boards} date={skyDate} timewarp={timewarp} lat={lat} lng={lng} />;
 }

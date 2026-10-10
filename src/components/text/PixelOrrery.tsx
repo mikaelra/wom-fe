@@ -80,8 +80,45 @@ function drawEarth(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
   ctx.fillRect(cx - 1, cy, 1, 1);
 }
 
-export default function PixelOrrery() {
+/**
+ * A timewarp's electricity round the Earth (the globe's clouds and
+ * lightning, components/worldmap/TimewarpFx.tsx, in 8-bit): short zigzags
+ * of sparks in the warp's colours, new ones every frame so they flicker,
+ * as many and as bright as its glow.
+ */
+function drawSparks(ctx: CanvasRenderingContext2D, cx: number, cy: number, glow: number, colors: string[]) {
+  const bolts = Math.round(10 * glow);
+  ctx.globalAlpha = Math.min(1, 0.3 + glow);
+  for (let b = 0; b < bolts; b++) {
+    ctx.fillStyle = colors[b % colors.length] ?? '#ffffff';
+    const a = Math.random() * Math.PI * 2;
+    let x = cx + Math.cos(a) * (4 + Math.random() * 4);
+    let y = cy + Math.sin(a) * (4 + Math.random() * 4);
+    for (let step = 0; step < 4; step++) {
+      ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+      x += Math.cos(a) + (Math.random() - 0.5) * 1.5; // outward, crooked
+      y += Math.sin(a) + (Math.random() - 0.5) * 1.5;
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+export default function PixelOrrery({
+  date,
+  timewarp,
+}: {
+  /** The sky's moment: a timewarp's as it runs, or a reverted sky's. Left
+   *  out, the sky keeps time itself. */
+  date?: Date;
+  /** A timewarp playing: its glow (0..1) and colours. */
+  timewarp?: { glow: number; colors: string[] } | null;
+} = {}) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const dateRef = useRef(date);
+  const fxRef = useRef(timewarp);
+  dateRef.current = date;
+  fxRef.current = timewarp;
+  const redraw = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -91,7 +128,8 @@ export default function PixelOrrery() {
     let w = 0;
     let h = 0;
     let starField: [number, number][] = [];
-    let now = new Date();
+    const moment = () => dateRef.current ?? new Date();
+    let now = moment();
     type Now = { planets: Record<Planet, OrbitPoint>; moon: OrbitPoint };
     const positions = (): Now => ({
       planets: Object.fromEntries(PLANETS.map((p) => [p, helioPoint(p, now)])) as Record<Planet, OrbitPoint>,
@@ -123,6 +161,13 @@ export default function PixelOrrery() {
       drawEarth(ctx, cx, cy);
       const [mx, my] = aroundEarth(current.moon, cx, cy, r);
       drawBody(ctx, 'Moon', mx, my);
+      const fx = fxRef.current;
+      if (fx && fx.glow > 0) drawSparks(ctx, cx, cy, fx.glow, fx.colors);
+    };
+    redraw.current = () => {
+      now = moment();
+      current = positions();
+      draw();
     };
 
     const resize = () => {
@@ -135,10 +180,9 @@ export default function PixelOrrery() {
       draw();
     };
 
+    // Keeping time itself: once a minute, when no moment is given.
     const minute = setInterval(() => {
-      now = new Date();
-      current = positions();
-      draw();
+      if (!dateRef.current) redraw.current();
     }, MINUTE);
 
     resize();
@@ -148,6 +192,13 @@ export default function PixelOrrery() {
       window.removeEventListener('resize', resize);
     };
   }, []);
+
+  // A timewarp's every step (or a new reverted moment) redraws the sky.
+  const when = date?.getTime();
+  const glow = timewarp?.glow;
+  useEffect(() => {
+    redraw.current();
+  }, [when, glow]);
 
   return (
     <canvas

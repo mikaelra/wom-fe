@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import CityOverlay from '@/components/city/CityOverlay';
 import WorldClock from '@/components/worldmap/WorldClock';
 import TimewarpPanel from '@/components/worldmap/TimewarpPanel';
-import { timewarpColorsFor } from '@/lib/timewarpFx';
+import { timewarpColorsFor, timewarpFxState } from '@/lib/timewarpFx';
 import { useTimewarpFx } from '@/lib/useTimewarpFx';
 import { useTimewarpRun } from '@/lib/useTimewarpRun';
 import { getSky } from '@/lib/astrology';
@@ -85,10 +85,13 @@ function CityPageContent() {
     onArrival: () => router.replace(`/city?id=${encodeURIComponent(searchParams.get('id') ?? '')}`),
     refreshMerchantOffer,
   });
+  // Text mode (lib/textMode.ts): no scene, its signposts as text (TextCity).
+  const textMode = useTextMode();
   const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
     timewarpRun,
     timewarpRunId,
-    sceneReady,
+    // Text mode has no scene to wait on: its sky is ready at once.
+    sceneReady || textMode === true,
   );
   const warping = timewarpPlaying || (!!timewarpRun?.hold && timewarpStep > 0);
   const skyDate = warping ? getSky().date : restingSkyDate;
@@ -129,8 +132,6 @@ function CityPageContent() {
   // How busy each of the three buildings is right now, for the "N playing"
   // / "N in market" signs floating over them (wom-be `city_presence`).
   const presence = useCityPresence();
-  // Text mode (lib/textMode.ts): no scene, its signposts as text (TextCity).
-  const textMode = useTextMode();
 
   if (!city) {
     return (
@@ -164,6 +165,7 @@ function CityPageContent() {
           onMarket={() => router.push('/market')}
           onBackToEarth={() => router.push('/')}
           skyDate={skyDate}
+          timewarp={timewarpPlaying && timewarpRun ? { glow: timewarpFxState.glow, colors: timewarpRun.spec.colors } : null}
           lat={city.realLat}
           lng={city.realLng}
         />

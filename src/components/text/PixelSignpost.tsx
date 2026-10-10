@@ -20,10 +20,13 @@ export interface SignpostBoard extends Board {
 export default function PixelSignpost({
   boards,
   date,
+  timewarp,
   lat,
   lng,
 }: {
   boards: SignpostBoard[];
+  /** A timewarp playing: its glow (0..1) and colours, sparking in the sky. */
+  timewarp?: { glow: number; colors: string[] } | null;
   /** The sky's moment: now, or a timewarp's. */
   date?: Date;
   lat: number;
@@ -52,8 +55,8 @@ export default function PixelSignpost({
     canvas.width = size.w;
     canvas.height = size.h;
     ctx.imageSmoothingEnabled = false;
-    drawSignpostScene(ctx, size.w, size.h, boards, skyBodies(when ? new Date(when) : new Date(), lat, lng));
-  }, [size, boards, when, lat, lng, tick]);
+    drawSignpostScene(ctx, size.w, size.h, boards, skyBodies(when ? new Date(when) : new Date(), lat, lng), timewarp);
+  }, [size, boards, when, lat, lng, tick, timewarp]);
 
   return (
     <>
