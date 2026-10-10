@@ -140,4 +140,13 @@ describe('the signpost', () => {
     drawSignpostScene(calm.ctx, w, h, BOARDS, bodies, { glow: 0, colors: ['#ce70ff'] });
     expect([...calm.pixels.values()]).not.toContain('#ce70ff');
   });
+
+  it("doesn't stretch the boards across a laptop's screen", () => {
+    const phone = layoutBoard(BOARDS[0], 130, 281);
+    const laptop = layoutBoard(BOARDS[0], 480, 300);
+    expect(laptop.w).toBeLessThan(80);
+    expect(laptop.w).toBeGreaterThanOrEqual(phone.w);
+    expect(laptop.x + laptop.w).toBe(240 - 4); // still against the post
+    expect(layoutBoard({ label: 'PLAYERS', color: '#fff', side: 'left', row: 0 }, 480, 300).scale).toBe(2);
+  });
 });

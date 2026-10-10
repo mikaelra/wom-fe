@@ -183,10 +183,16 @@ export const POST_W = 8;
 const BIG = 2; // the lettering's scale
 
 /** Every board's size on a screen `w` sky pixels wide: the same for all,
- *  whatever is written on it -- from the post to the screen's edge, and as
- *  high as a line of big lettering (or two small ones). */
+ *  whatever is written on it -- from the post out to the screen's edge, but
+ *  no wider than the longest word needs, and as high as a line of big
+ *  lettering (or two small ones). */
+// No wider than the longest word on any board (PLAYERS) needs, and a bit:
+// a laptop's screen would stretch them out to its edges.
+const LONGEST_WORD = 'PLAYERS';
+const MAX_BOARD_W = textWidth(LONGEST_WORD, 2) + PAD * 2 + POINT + 8;
+
 function boardSize(w: number): { bw: number; bh: number; inner: number } {
-  const bw = Math.floor(w / 2) - POST_W / 2;
+  const bw = Math.min(MAX_BOARD_W, Math.floor(w / 2) - POST_W / 2);
   const textH = Math.max(lineHeight(BIG), 2 * lineHeight(1)) - 2;
   return { bw, bh: textH + PAD * 2, inner: bw - PAD * 2 - POINT };
 }
