@@ -46,7 +46,7 @@ describe('TextCity', () => {
     render(<TextCity {...p} />);
     expect(screen.getByText('BOSSFIGHT IN 2:05')).toBeTruthy(); // the caption alone, no "N playing" twice
     expect(screen.getByText('SEARCHING')).toBeTruthy(); // the bots queue, over RANKED
-    expect(screen.getByText('3')).toBeTruthy(); // in the market
+    expect(screen.getByText('3 in market')).toBeTruthy();
     expect(screen.queryByLabelText('PLAYERS')).toBeNull();
     for (const [label, handler] of [
       ['HADES', p.onBossfight],
@@ -60,7 +60,7 @@ describe('TextCity', () => {
 
   it('says nothing over MARKET when nobody is there', () => {
     render(<TextCity {...props()} presence={{ ranked: 0, bot_ranked: 0, market: 0 }} />);
-    expect(screen.queryByText('0')).toBeNull();
+    expect(screen.queryByText(/in market/)).toBeNull();
   });
 
   it('opens RANKED: PLAYERS and BOTS with who is playing, and BACK', () => {

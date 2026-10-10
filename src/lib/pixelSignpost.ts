@@ -152,9 +152,9 @@ export interface BoardBox {
   lines: string[];
 }
 
-const PAD = 2;
+const PAD = 3;
 const POINT = 3; // the arrow's tip
-export const POST_W = 4;
+export const POST_W = 6;
 
 /** Where each board goes on a screen `w` x `h` sky pixels: either side of
  *  the post, as wide as its words (wrapped to fit its half). */
@@ -170,9 +170,10 @@ export function layoutBoard(board: Board, w: number, h: number): BoardBox {
   return { x, y, w: bw, h: bh, lines };
 }
 
-const WOOD = '#8a5a34';
-const WOOD_LIGHT = '#a8703f';
-const WOOD_DARK = '#4a2e18';
+// Dark, weathered wood.
+const WOOD = '#5e3b1f';
+const WOOD_LIGHT = '#74492a';
+const WOOD_DARK = '#2e1c0e';
 
 function drawBoard(ctx: Painter, board: Board, box: BoardBox, light: number) {
   const shadeOf = (c: string) => mix(c, '#000000', (1 - light) * 0.6);

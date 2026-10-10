@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import PixelSignpost, { type SignpostBoard } from '@/components/text/PixelSignpost';
-import { playingLabel } from '@/lib/cityLabels';
+import { inMarketLabel, playingLabel } from '@/lib/cityLabels';
 import { BACK_COLOR, BOSSFIGHT_COLOR, EARTH_COLOR, MARKET_COLOR, RANKED_COLOR } from '@/components/city/signpostColors';
 
 // The city as text (Text mode, src/lib/textMode.ts): the 3D city's signpost
@@ -98,7 +98,7 @@ export default function TextCity({
           side: 'left',
           row: 1,
           onClick: onMarket,
-          info: presence.market > 0 ? String(presence.market) : null,
+          info: inMarketLabel(presence.market),
         },
         { label: 'EARTH', color: EARTH_COLOR, side: 'right', row: 1, onClick: onBackToEarth },
       ];
