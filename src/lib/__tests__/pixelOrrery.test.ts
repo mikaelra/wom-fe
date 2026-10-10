@@ -1,18 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
   PLANETS,
-  aroundEarth,
-  aroundSun,
-  saturnScale,
+  SKY_STARS,
+  TURN_MS,
+  azimuthAt,
+  eclipticStar,
   helioPoint,
   moonPoint,
   orreryColor,
+  project,
+  projectStar,
   radiusShare,
-  scaleFor,
-  sunPosition,
+  sceneBodies,
+  startAzimuth,
+  turntableCamera,
+  type OrbitPoint,
+  type Planet,
 } from '@/lib/pixelOrrery';
+import { STAR_CATALOG } from '@/components/worldmap/starCatalog';
 
 const DATE = new Date('2026-10-10T00:00:00Z');
+const planets = Object.fromEntries(PLANETS.map((p) => [p, helioPoint(p, DATE)])) as Record<Planet, OrbitPoint>;
+const bodies = sceneBodies(planets, moonPoint(DATE));
 
 describe('pixelOrrery', () => {
   it('finds each planet from the Sun: the Earth 1 AU out, Saturn near 10', () => {
@@ -21,53 +30,79 @@ describe('pixelOrrery', () => {
     expect(moonPoint(DATE).dist).toBeLessThan(0.003);
   });
 
-  it('puts the Sun beside the Earth at the centre, the Earth on its orbit round it', () => {
-    const earth = helioPoint('Earth', DATE);
-    const r = scaleFor(100);
-    const [sx, sy] = sunPosition(earth, 100, 100, r);
-    expect(aroundSun(earth, sx, sy, r)).toEqual([100, 100]); // the Earth, back at the centre
-    const sunDist = Math.hypot(sx - 100, sy - 100);
-    expect(sunDist).toBeCloseTo(radiusShare(1) * r, 0);
-  });
-
-  it("keeps Saturn's orbit on screen wherever the Sun is", () => {
-    const r = scaleFor(100);
-    expect((1 + radiusShare(1)) * r).toBeCloseTo(100);
-    expect(radiusShare(10.1)).toBe(1);
-  });
-
   it('orders the orbits outward from the Sun', () => {
     const shares = PLANETS.map((p) => radiusShare(helioPoint(p, DATE).dist));
     expect([...shares].sort((a, b) => a - b)).toEqual(shares);
-  });
-
-  it('keeps the Moon a few pixels round the Earth', () => {
-    const [x, y] = aroundEarth({ lon: 0, dist: 0.0026 }, 50, 50, 10);
-    expect([x, y]).toEqual([53, 50]);
   });
 
   it('colours every body', () => {
     for (const b of ['Sun', 'Moon', ...PLANETS] as const) expect(orreryColor(b)).toBeGreaterThan(0);
   });
 
-  it('puts Saturn against the edge of any screen, the Earth at the centre', () => {
-    const earth = helioPoint('Earth', DATE);
-    const saturn = helioPoint('Saturn', DATE);
-    for (const [halfW, halfH] of [[50, 110], [110, 50], [80, 80]]) {
-      const r = saturnScale(saturn, earth, halfW, halfH);
-      const [sx, sy] = sunPosition(earth, 0, 0, r);
-      const [x, y] = aroundSun(saturn, sx, sy, r);
-      // On the edge it points to (within a pixel of rounding), never past it.
-      expect(Math.max(Math.abs(x) / halfW, Math.abs(y) / halfH)).toBeGreaterThan(0.98);
-      expect(Math.abs(x)).toBeLessThanOrEqual(halfW + 1);
-      expect(Math.abs(y)).toBeLessThanOrEqual(halfH + 1);
+  it('measures the scene from the Earth in Saturn-distances, all on the ecliptic', () => {
+    expect(Math.hypot(...bodies.Saturn)).toBeCloseTo(1);
+    expect(Math.hypot(...bodies.Sun)).toBeLessThan(1);
+    expect(Math.hypot(...bodies.Moon)).toBeLessThan(Math.hypot(...bodies.Sun) / 2); // close round the Earth
+    for (const p of Object.values(bodies)) expect(p[2]).toBe(0);
+  });
+
+  it('starts the camera opposite the Sun, the Sun behind the Earth', () => {
+    const cam = turntableCamera(startAzimuth(bodies.Sun), 50, 100, 46, 96);
+    const sun = project(cam, bodies.Sun)!;
+    expect(sun.x).toBe(50); // straight behind
+    expect(sun.y).toBeLessThan(100); // up the screen: the far side
+    expect(sun.near).toBeLessThan(1);
+  });
+
+  it('turns once round the Earth in TURN_MS', () => {
+    expect(azimuthAt(1, TURN_MS)).toBeCloseTo(1 + 2 * Math.PI);
+    expect(azimuthAt(1, TURN_MS / 4)).toBeCloseTo(1 + Math.PI / 2);
+  });
+
+  it('draws the near side lower and nearer, the far side higher', () => {
+    const cam = turntableCamera(0, 50, 100, 46, 96);
+    const near = project(cam, [1, 0, 0])!; // towards the camera
+    const far = project(cam, [-1, 0, 0])!;
+    expect(near.y).toBeGreaterThan(100);
+    expect(far.y).toBeLessThan(100);
+    expect(near.near).toBeGreaterThan(1);
+    expect(far.near).toBeLessThan(1);
+    expect(project(cam, [0, 0, 0])).toEqual({ x: 50, y: 100, near: 1 }); // the Earth, at the centre
+  });
+
+  it('brings Saturn to the side of any screen as it swings past, and keeps its circle on screen', () => {
+    for (const [halfW, halfH] of [
+      [46, 96],
+      [96, 46],
+      [80, 80],
+    ]) {
+      const cam = turntableCamera(0, 0, 0, halfW, halfH);
+      const side = project(cam, [0, 1, 0])!;
+      const near = project(cam, [1, 0, 0])!;
+      const far = project(cam, [-1, 0, 0])!;
+      expect(Math.abs(side.x)).toBeLessThanOrEqual(halfW + 1);
+      expect(Math.abs(near.y)).toBeLessThanOrEqual(halfH + 1);
+      expect(Math.abs(far.y)).toBeLessThanOrEqual(halfH + 1);
+      // Against one wall or the other.
+      expect(Math.max(Math.abs(side.x) / halfW, Math.abs(near.y) / halfH, Math.abs(far.y) / halfH)).toBeGreaterThan(0.97);
     }
   });
 
-  it('spaces everything else by that same scale', () => {
-    const earth = helioPoint('Earth', DATE);
-    const r1 = saturnScale(helioPoint('Saturn', DATE), earth, 50, 110);
-    const r2 = saturnScale(helioPoint('Saturn', DATE), earth, 100, 220);
-    expect(r2).toBeCloseTo(2 * r1); // twice the screen, twice the spacing
+  it('turns the real stars to the ecliptic: Regulus sits on it, Polaris high above', () => {
+    const regulus = STAR_CATALOG.find((s) => s.name === 'Regulus')!;
+    const [, , z] = eclipticStar(regulus.ra[0] + regulus.ra[1] / 60, regulus.dec);
+    expect(Math.abs(z)).toBeLessThan(0.02);
+    const [, , pole] = eclipticStar(2.5, 89.3); // Polaris
+    expect(pole).toBeGreaterThan(0.9);
+    expect(SKY_STARS).toHaveLength(STAR_CATALOG.length);
+  });
+
+  it('shows only the stars in front of the camera, on screen', () => {
+    const cam = turntableCamera(0, 50, 100, 46, 96);
+    expect(projectStar(cam, cam.fwd, 100, 200)).toEqual([50, 100]); // dead ahead: the centre
+    expect(projectStar(cam, [-cam.fwd[0], -cam.fwd[1], -cam.fwd[2]], 100, 200)).toBeNull(); // behind
+    const shown = SKY_STARS.filter((s) => projectStar(cam, s.dir, 100, 200));
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.length).toBeLessThan(SKY_STARS.length / 2);
   });
 });

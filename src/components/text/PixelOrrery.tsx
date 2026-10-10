@@ -3,13 +3,16 @@
 import { useEffect, useRef } from 'react';
 import {
   PLANETS,
-  aroundEarth,
-  aroundSun,
+  SKY_STARS,
+  azimuthAt,
   helioPoint,
   moonPoint,
   orreryColor,
-  saturnScale,
-  sunPosition,
+  project,
+  projectStar,
+  sceneBodies,
+  startAzimuth,
+  turntableCamera,
   type OrbitPoint,
   type OrreryBody,
   type Planet,
@@ -17,24 +20,20 @@ import {
 
 // The text Earth page's background (lib/pixelOrrery.ts): an 8-bit solar
 // system with the Earth at the centre of the screen -- the Sun, the Moon and
-// the planets where they are right now round the Sun. Drawn on a canvas a
+// the planets where they are right now round the Sun -- seen from a little
+// above the ecliptic by a camera turning round the Earth, as the 3D globe's
+// does, with the real bright stars turning behind. Drawn on a canvas a
 // quarter of the screen's size and scaled up with sharp pixels: no three.js,
-// no textures, a few kilobytes of drawing. Moves on as the sky does (once a
-// minute); the stars hold still.
+// no textures, a few kilobytes of drawing, eight frames a second (each moves
+// things a pixel at most). It stands still while the page is hidden, and for
+// anyone who has asked their device for less motion.
 
 const PX = 4; // screen pixels per sky pixel
 const BG = '#070b15';
 const MINUTE = 60_000;
+const FRAME_MS = 125;
 
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
-
-/** Stars that stay put from one draw to the next: a small seeded scatter. */
-function stars(w: number, h: number): [number, number][] {
-  let seed = 7;
-  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  // A sparse scatter, so the stars never crowd the planets.
-  return Array.from({ length: Math.round((w * h) / 1500) }, () => [Math.floor(rand() * w), Math.floor(rand() * h)]);
-}
 
 // Sprite sizes in sky pixels, centred on each body's position.
 const SIZE: Record<Exclude<OrreryBody, 'Earth' | 'Sun'>, number> = {
@@ -46,13 +45,21 @@ const SIZE: Record<Exclude<OrreryBody, 'Earth' | 'Sun'>, number> = {
   Saturn: 3,
 };
 
+const NEARER = 1.15;
+
 /** A filled square of side `n` centred on (x, y). */
 function square(ctx: CanvasRenderingContext2D, x: number, y: number, n: number) {
   const o = Math.floor(n / 2);
   ctx.fillRect(x - o, y - o, n, n);
 }
 
-function drawBody(ctx: CanvasRenderingContext2D, body: Exclude<OrreryBody, 'Earth'>, x: number, y: number) {
+function drawBody(
+  ctx: CanvasRenderingContext2D,
+  body: Exclude<OrreryBody, 'Earth'>,
+  x: number,
+  y: number,
+  near: number,
+) {
   ctx.fillStyle = hex(orreryColor(body));
   if (body === 'Sun') {
     square(ctx, x, y, 5);
@@ -65,11 +72,21 @@ function drawBody(ctx: CanvasRenderingContext2D, body: Exclude<OrreryBody, 'Eart
     ctx.fillRect(x - 1, y, 3, 1);
     return;
   }
-  square(ctx, x, y, SIZE[body]);
+  // Nearer than the Earth by a fair bit: a pixel bigger.
+  square(ctx, x, y, SIZE[body] + (near > NEARER ? 1 : 0));
   if (body === 'Saturn') {
     ctx.fillRect(x - 3, y + 1, 2, 1); // its ring
     ctx.fillRect(x + 2, y - 1, 2, 1);
   }
+}
+
+/** The Moon kept a few pixels off the Earth, whichever way the camera looks
+ *  at its little ring. */
+function offEarth(x: number, y: number, cx: number, cy: number): [number, number] {
+  const d = Math.hypot(x - cx, y - cy);
+  if (d >= 3) return [x, y];
+  if (d === 0) return [cx + 3, cy];
+  return [Math.round(cx + ((x - cx) * 3) / d), Math.round(cy + ((y - cy) * 3) / d)];
 }
 
 function drawEarth(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
@@ -127,7 +144,6 @@ export default function PixelOrrery({
 
     let w = 0;
     let h = 0;
-    let starField: [number, number][] = [];
     const moment = () => dateRef.current ?? new Date();
     let now = moment();
     type Now = { planets: Record<Planet, OrbitPoint>; moon: OrbitPoint };
@@ -135,38 +151,59 @@ export default function PixelOrrery({
       planets: Object.fromEntries(PLANETS.map((p) => [p, helioPoint(p, now)])) as Record<Planet, OrbitPoint>,
       moon: moonPoint(now),
     });
-    let current = positions();
+    const sceneNow = () => {
+      const { planets, moon } = positions();
+      return sceneBodies(planets, moon);
+    };
+    let bodies = sceneNow();
+    // The camera starts with the Sun behind the Earth, as the globe's does.
+    const start = startAzimuth(bodies.Sun);
+    const startedAt = Date.now();
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
     const draw = () => {
       ctx.fillStyle = BG;
       ctx.fillRect(0, 0, w, h);
-      starField.forEach(([x, y], i) => {
-        ctx.globalAlpha = i % 3 === 0 ? 0.35 : 0.7; // steady, some dimmer
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(x, y, 1, 1);
-      });
       const cx = Math.floor(w / 2);
       const cy = Math.floor(h / 2);
-      // Saturn against the edge, everything else to its scale; the margin
-      // keeps its sprite (and ring) whole.
-      const r = saturnScale(current.planets.Saturn, current.planets.Earth, w / 2 - 4, h / 2 - 4);
-      const [sx, sy] = sunPosition(current.planets.Earth, cx, cy, r);
-      ctx.globalAlpha = 1;
-      drawBody(ctx, 'Sun', sx, sy);
-      for (const planet of PLANETS) {
-        if (planet === 'Earth') continue;
-        const [x, y] = aroundSun(current.planets[planet], sx, sy, r);
-        drawBody(ctx, planet, x, y);
+      // A margin keeps Saturn's sprite (and ring) whole at the edge.
+      const cam = turntableCamera(
+        still ? start : azimuthAt(start, Date.now() - startedAt),
+        cx,
+        cy,
+        w / 2 - 4,
+        h / 2 - 4,
+      );
+      ctx.fillStyle = '#ffffff';
+      for (const star of SKY_STARS) {
+        const at = projectStar(cam, star.dir, w, h);
+        if (!at) continue;
+        ctx.globalAlpha = star.mag < 1 ? 0.9 : star.mag < 2 ? 0.6 : 0.35; // steady, dimmer as fainter
+        ctx.fillRect(at[0], at[1], 1, 1);
       }
-      drawEarth(ctx, cx, cy);
-      const [mx, my] = aroundEarth(current.moon, cx, cy, r);
-      drawBody(ctx, 'Moon', mx, my);
+      ctx.globalAlpha = 1;
+      // Farthest first, so the near side is drawn over the far.
+      const shown = (Object.entries(bodies) as [Exclude<OrreryBody, 'Earth'>, (typeof bodies)['Sun']][])
+        .map(([body, p]) => ({ body, at: project(cam, p) }))
+        .filter((b): b is { body: Exclude<OrreryBody, 'Earth'>; at: NonNullable<ReturnType<typeof project>> } => !!b.at)
+        .sort((a, b) => a.at.near - b.at.near);
+      let earthDrawn = false;
+      for (const { body, at } of shown) {
+        if (!earthDrawn && at.near > 1) {
+          drawEarth(ctx, cx, cy);
+          earthDrawn = true;
+        }
+        let { x, y } = at;
+        if (body === 'Moon') [x, y] = offEarth(x, y, cx, cy);
+        drawBody(ctx, body, x, y, at.near);
+      }
+      if (!earthDrawn) drawEarth(ctx, cx, cy);
       const fx = fxRef.current;
       if (fx && fx.glow > 0) drawSparks(ctx, cx, cy, fx.glow, fx.colors);
     };
     redraw.current = () => {
       now = moment();
-      current = positions();
+      bodies = sceneNow();
       draw();
     };
 
@@ -176,10 +213,13 @@ export default function PixelOrrery({
       canvas.width = w;
       canvas.height = h;
       ctx.imageSmoothingEnabled = false;
-      starField = stars(w, h);
       draw();
     };
 
+    // The camera turning, while the page is in view.
+    const turn = setInterval(() => {
+      if (!still && document.visibilityState !== 'hidden') draw();
+    }, FRAME_MS);
     // Keeping time itself: once a minute, when no moment is given.
     const minute = setInterval(() => {
       if (!dateRef.current) redraw.current();
@@ -188,6 +228,7 @@ export default function PixelOrrery({
     resize();
     window.addEventListener('resize', resize);
     return () => {
+      clearInterval(turn);
       clearInterval(minute);
       window.removeEventListener('resize', resize);
     };
