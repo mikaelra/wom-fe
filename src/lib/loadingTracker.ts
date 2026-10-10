@@ -13,7 +13,9 @@
 //   they last a moment (see useLoadingOverlay).
 //
 // A page can switch the overlay off entirely while it is mounted
-// (<NoLoadingOverlay>, e.g. live lobbies, where it would get in the way).
+// (<NoLoadingOverlay>, e.g. live lobbies, where it would get in the way) --
+// all but a screen that claims it over that (<LoadingState overSuppression>,
+// a text lobby reconnecting: there is no play to get in the way of).
 //
 // A plain module-level store (subscribe + snapshot) rather than React
 // context, so request() can report without being a component.
@@ -22,6 +24,7 @@ let requests = 0;
 let assetsLoading = false;
 let suppressed = 0;
 let screens = 0;
+let urgentScreens = 0;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -82,15 +85,18 @@ export function isAssetsLoading(): boolean {
   return assetsLoading;
 }
 
-/** A screen is waiting for its content; returns the release. */
-export function claimLoadingScreen(): () => void {
-  screens += 1;
+/** A screen is waiting for its content; returns the release. With
+ *  `overSuppression`, shown even while a page has the overlay switched off. */
+export function claimLoadingScreen(overSuppression = false): () => void {
+  if (overSuppression) urgentScreens += 1;
+  else screens += 1;
   emit();
   let released = false;
   return () => {
     if (released) return;
     released = true;
-    screens -= 1;
+    if (overSuppression) urgentScreens -= 1;
+    else screens -= 1;
     emit();
   };
 }
@@ -102,7 +108,12 @@ export function isBackgroundLoading(): boolean {
 
 /** True while a <LoadingState> (a screen waiting for its content) is up. */
 export function isScreenLoading(): boolean {
-  return screens > 0;
+  return screens > 0 || urgentScreens > 0;
+}
+
+/** True while a <LoadingState overSuppression> is up. */
+export function isUrgentScreenLoading(): boolean {
+  return urgentScreens > 0;
 }
 
 /** Test hook: forget all state. */
@@ -111,5 +122,6 @@ export function resetLoadingTracker(): void {
   assetsLoading = false;
   suppressed = 0;
   screens = 0;
+  urgentScreens = 0;
   emit();
 }

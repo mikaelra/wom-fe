@@ -40,6 +40,7 @@ vi.mock('@/components/BossSignupNudge', () => ({ default: () => <div>relic nudge
 vi.mock('@/components/ArtifactClaimNudge', () => ({ default: () => <div>artifact nudge</div> }));
 
 import TextLobby from '@/components/text/TextLobby';
+import { isUrgentScreenLoading } from '@/lib/loadingTracker';
 
 function player(name: string, extra: Partial<Player> = {}): Player {
   return {
@@ -280,12 +281,14 @@ describe('TextLobby', () => {
     expect(screen.getByText(/Boss-fight starts in 2m/)).toBeTruthy();
   });
 
-  it('walks out of a lobby that is gone, and says when the connection is lost', async () => {
+  it('walks out of a lobby that is gone, and shows the loading animation while reconnecting', async () => {
     const gone = await show(lobby());
     act(() => conn.onError?.('Lobby not found'));
     expect(gone).toHaveBeenCalled();
     conn.status = 'disconnected';
     await show(lobby());
-    expect(screen.getByText('Connection lost. Please refresh.')).toBeTruthy();
+    expect(screen.getByRole('status', { name: 'Reconnecting' })).toBeTruthy();
+    expect(isUrgentScreenLoading()).toBe(true); // shown over the lobby's NoLoadingOverlay
+    expect(screen.queryByText(/refresh/i)).toBeNull();
   });
 });

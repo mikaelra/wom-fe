@@ -21,6 +21,7 @@ import { BATTLE_MUSIC, playMusic, PRE_LOBBY_MUSIC } from '@/lib/music';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
+import LoadingState from '@/components/loading/LoadingState';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import { playerMark, shownPlayerName } from '@/lib/playerThumbnail';
 import type { Player, Relic } from '@/types/game';
@@ -344,13 +345,10 @@ export default function TextLobby({
   const otherPlayers = state?.players.filter((p) => p.name !== playerName && p.hp > 0 && !p.spectator) ?? [];
   const selectedRelicIds = myPlayer?.selected_relic_ids ?? [];
 
-  if (connectionStatus === 'disconnected') {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#070b15] p-4">
-        <p className="text-lg text-gray-100">Connection lost. Please refresh.</p>
-      </div>
-    );
-  }
+  // Reconnecting (useLobbyConnection rejoins by itself; a lobby gone
+  // meanwhile walks out via onLobbyGone): the loading animation, as
+  // everywhere else, over the lobby page's switched-off overlay.
+  if (connectionStatus === 'disconnected') return <LoadingState label="Reconnecting" overSuppression />;
 
   const submitResource = (id: string) => {
     if (!game.canAct) return;
