@@ -3,6 +3,8 @@
 import type { CSSProperties } from 'react';
 import { CITIES, type City } from '@/lib/cities';
 import { MERCHANT_MARKER_LABEL } from '@/lib/merchant';
+import { timewarpColorsFor } from '@/lib/timewarpFx';
+import { warpBands } from '@/lib/worldClock';
 import PixelOrrery from '@/components/text/PixelOrrery';
 import type { MerchantOffer } from '@/lib/api';
 
@@ -14,6 +16,16 @@ import type { MerchantOffer } from '@/lib/api';
 // GREECE in its 3D marker label's light blue (worldmap/CityMarker.tsx).
 const CITY_COLOR = '#4da6ff';
 const MERCHANT_COLOR = '#a855f7';
+
+/** A merchant's lettering in the colours of its event, the way the clock
+ *  paints a timewarp (lib/worldClock.ts): one colour for a full moon, a
+ *  conjunction's two planets top and bottom through the letters. */
+function merchantPaint(event: MerchantOffer['event']): CSSProperties {
+  const colors = timewarpColorsFor([event]);
+  const bands = warpBands(colors);
+  if (bands) return { backgroundImage: bands, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' };
+  return { color: colors[0] ?? MERCHANT_COLOR };
+}
 
 const link = {
   color: CITY_COLOR,
@@ -63,7 +75,7 @@ export default function TextHome({
               key={`${offer.offer_id}|${offer.event_key}`}
               type="button"
               onClick={() => onOpenMerchant(offer)}
-              style={{ ...link, color: MERCHANT_COLOR, fontSize: '20px', marginTop: '0.5rem' }}
+              style={{ ...link, fontSize: '20px', marginTop: '0.5rem', ...merchantPaint(offer.event) }}
             >
               {MERCHANT_MARKER_LABEL}
             </button>

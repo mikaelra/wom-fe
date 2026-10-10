@@ -13,7 +13,12 @@ describe('TextHome', () => {
   it('lists the cities and the merchants, with no boss-fight countdown', () => {
     const onEnterCity = vi.fn();
     const onOpenMerchant = vi.fn();
-    const offer = { offer_id: 4, event_key: 'moon', merchant_name: 'John Dee' } as unknown as MerchantOffer;
+    const offer = {
+      offer_id: 4,
+      event_key: 'moon',
+      merchant_name: 'John Dee',
+      event: { kind: 'full_moon', key: 'full_moon', bodies: ['Moon'], sign: '', at: '' },
+    } as unknown as MerchantOffer;
     render(<TextHome offers={[offer]} onEnterCity={onEnterCity} onOpenMerchant={onOpenMerchant} />);
     expect(screen.queryByText(/Next boss-fight/)).toBeNull(); // that's the city's, over HADES
     fireEvent.click(screen.getByText('GREECE'));
@@ -80,5 +85,24 @@ describe('TextCity', () => {
     render(<TextCity {...props()} rankedLabel="RETURN TO MATCH" />);
     fireEvent.click(screen.getByLabelText('RANKED'));
     expect(screen.getByLabelText('RETURN TO MATCH')).toBeTruthy();
+  });
+});
+
+describe('TextHome merchants', () => {
+  it("paints a conjunction merchant in its planets' colours, the full moon's in one", () => {
+    const moon = {
+      offer_id: 1, event_key: 'fm', merchant_name: 'John Dee',
+      event: { kind: 'full_moon', key: 'full_moon', bodies: ['Moon'], sign: '', at: '' },
+    } as unknown as MerchantOffer;
+    const conj = {
+      offer_id: 2, event_key: 'mj', merchant_name: 'Hildegard von Bingen',
+      event: { kind: 'conjunction', key: 'Mars-Jupiter', bodies: ['Mars', 'Jupiter'], sign: '', at: '' },
+    } as unknown as MerchantOffer;
+    render(<TextHome offers={[moon, conj]} onEnterCity={vi.fn()} onOpenMerchant={vi.fn()} />);
+    const [a, b] = screen.getAllByText('Merchant');
+    expect(a.style.backgroundImage).not.toContain('gradient'); // one plain colour
+    expect(a.style.color).not.toBe('');
+    expect(b.style.backgroundImage).toContain('linear-gradient');
+    expect(a.style.fontSize).toBe(b.style.fontSize); // the same lettering
   });
 });
