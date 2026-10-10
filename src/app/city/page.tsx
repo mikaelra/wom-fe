@@ -152,7 +152,6 @@ function CityPageContent() {
         <TextCity
           onBossfight={enterBossfight}
           bossfightSublabel={bossfightSublabel}
-          bossfightPlaying={roster.players.filter((p) => !p.bot).length}
           onRanked={ranked.enterRanked}
           rankedLabel={ranked.label}
           rankedSublabel={ranked.sublabel}

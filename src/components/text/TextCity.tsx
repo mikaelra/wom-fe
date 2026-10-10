@@ -52,7 +52,6 @@ function lines(...parts: (string | null | undefined)[]): string | null {
 export default function TextCity({
   onBossfight,
   bossfightSublabel,
-  bossfightPlaying,
   onRanked,
   rankedLabel,
   rankedSublabel,
@@ -65,8 +64,6 @@ export default function TextCity({
 }: {
   onBossfight: () => void;
   bossfightSublabel: string | null | undefined;
-  /** Humans in the boss fight right now. */
-  bossfightPlaying: number;
   onRanked: () => void;
   rankedLabel: string;
   rankedSublabel: string | null | undefined;
@@ -115,7 +112,9 @@ export default function TextCity({
           label="HADES"
           color={BOSSFIGHT_COLOR}
           onClick={onBossfight}
-          info={lines(bossfightSublabel, playingLabel(bossfightPlaying))}
+          // The signpost's caption alone: it already counts who is playing
+          // or waiting, so the temple's "N playing" would say it twice.
+          info={bossfightSublabel}
         />
       </div>
       <div className={row}>

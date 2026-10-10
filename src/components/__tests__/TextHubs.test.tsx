@@ -27,7 +27,6 @@ describe('TextCity', () => {
   const props = () => ({
     onBossfight: vi.fn(),
     bossfightSublabel: 'BOSSFIGHT IN 2:05',
-    bossfightPlaying: 2,
     onRanked: vi.fn(),
     rankedLabel: 'RANKED',
     rankedSublabel: null,
@@ -42,7 +41,7 @@ describe('TextCity', () => {
   it('shows HADES, RANKED, EARTH and MARKET, with what is going on over them', () => {
     const p = props();
     render(<TextCity {...p} />);
-    expect(screen.getByText(/BOSSFIGHT IN 2:05/)).toBeTruthy();
+    expect(screen.getByText('BOSSFIGHT IN 2:05')).toBeTruthy(); // the caption alone, no "N playing" twice
     expect(screen.getByText('SEARCHING')).toBeTruthy(); // the bots queue, over RANKED
     expect(screen.getByText('3')).toBeTruthy(); // in the market
     expect(screen.queryByText('PLAYERS')).toBeNull();
