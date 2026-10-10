@@ -100,13 +100,13 @@ export function sceneBodies(
 }
 
 // ── The camera: like the globe's, it looks at the Earth from a little above
-// the ecliptic and goes round it, one turn in two and a half minutes (the
-// globe's autoRotateSpeed 0.4).
+// the ecliptic and goes round it, one turn in five minutes (half the
+// globe's autoRotateSpeed 0.4; Mikael, 2026-10-10).
 
 /** How far above the ecliptic the camera looks down from. */
 export const VIEW_TILT_DEG = 30;
 /** One turn round the Earth. */
-export const TURN_MS = 150_000;
+export const TURN_MS = 300_000;
 /** The camera's distance from the Earth, in Saturn-distances: far enough
  *  that the far side isn't squashed to nothing, near enough for depth. */
 const CAMERA_DIST = 3;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { drawMoon, moonPhase } from '@/lib/pixelMoon';
 import {
   PLANETS,
   SKY_STARS,
@@ -36,8 +37,7 @@ const FRAME_MS = 125;
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
 // Sprite sizes in sky pixels, centred on each body's position.
-const SIZE: Record<Exclude<OrreryBody, 'Earth' | 'Sun'>, number> = {
-  Moon: 2,
+const SIZE: Record<Exclude<OrreryBody, 'Earth' | 'Sun' | 'Moon'>, number> = {
   Mercury: 2,
   Venus: 2,
   Mars: 3,
@@ -46,6 +46,8 @@ const SIZE: Record<Exclude<OrreryBody, 'Earth' | 'Sun'>, number> = {
 };
 
 const NEARER = 1.15;
+const MOON_SIZE = 5;
+const MOON_DARK = '#2b3140'; // its unlit side, faint against the night
 
 /** A filled square of side `n` centred on (x, y). */
 function square(ctx: CanvasRenderingContext2D, x: number, y: number, n: number) {
@@ -59,8 +61,14 @@ function drawBody(
   x: number,
   y: number,
   near: number,
+  phase: number,
 ) {
   ctx.fillStyle = hex(orreryColor(body));
+  if (body === 'Moon') {
+    // Big enough to show its phase (lib/pixelMoon.ts).
+    drawMoon(ctx, x, y, MOON_SIZE, phase, { lit: hex(orreryColor('Moon')), dark: MOON_DARK });
+    return;
+  }
   if (body === 'Sun') {
     square(ctx, x, y, 5);
     ctx.fillRect(x, y - 5, 1, 2); // rays
@@ -80,13 +88,15 @@ function drawBody(
   }
 }
 
+const MOON_GAP = 5; // centre to centre: the Earth's 3 pixels and the Moon's 5 never touch
+
 /** The Moon kept a few pixels off the Earth, whichever way the camera looks
  *  at its little ring. */
 function offEarth(x: number, y: number, cx: number, cy: number): [number, number] {
   const d = Math.hypot(x - cx, y - cy);
-  if (d >= 3) return [x, y];
-  if (d === 0) return [cx + 3, cy];
-  return [Math.round(cx + ((x - cx) * 3) / d), Math.round(cy + ((y - cy) * 3) / d)];
+  if (d >= MOON_GAP) return [x, y];
+  if (d === 0) return [cx + MOON_GAP, cy];
+  return [Math.round(cx + ((x - cx) * MOON_GAP) / d), Math.round(cy + ((y - cy) * MOON_GAP) / d)];
 }
 
 function drawEarth(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
@@ -156,6 +166,7 @@ export default function PixelOrrery({
       return sceneBodies(planets, moon);
     };
     let bodies = sceneNow();
+    let phase = moonPhase(now);
     // The camera starts with the Sun behind the Earth, as the globe's does.
     const start = startAzimuth(bodies.Sun);
     const startedAt = Date.now();
@@ -195,7 +206,7 @@ export default function PixelOrrery({
         }
         let { x, y } = at;
         if (body === 'Moon') [x, y] = offEarth(x, y, cx, cy);
-        drawBody(ctx, body, x, y, at.near);
+        drawBody(ctx, body, x, y, at.near, phase);
       }
       if (!earthDrawn) drawEarth(ctx, cx, cy);
       const fx = fxRef.current;
@@ -204,6 +215,7 @@ export default function PixelOrrery({
     redraw.current = () => {
       now = moment();
       bodies = sceneNow();
+      phase = moonPhase(now);
       draw();
     };
 
