@@ -25,7 +25,7 @@ describe('moonNotificationSchedule', () => {
   it('announces each merchant a day before the exact instant, never one already here', () => {
     const list = moonNotificationSchedule(now, 30);
     // Mercury-Venus (exact 2026-10-07 00:05Z) arrived 2026-10-06 00:05Z: already here.
-    expect(list.map((n) => n.title)).toEqual(['New moon', 'Full moon']);
+    expect(list.map((n) => n.title)).toEqual(['World of Mythos', 'World of Mythos']);
     expect(list[0].body).toBe('A merchant has arrived');
     const arrival = Date.parse('2026-10-09T15:50:36Z');
     expect(list[0].at.getTime()).toBeGreaterThanOrEqual(arrival - 1000 * 60);
@@ -35,7 +35,7 @@ describe('moonNotificationSchedule', () => {
   it('covers half a year by default', () => {
     const list = moonNotificationSchedule(now);
     expect(list.length).toBeGreaterThanOrEqual(12);
-    expect(list.some((n) => n.title === 'Conjunction')).toBe(true);
+    expect(list.every((n) => n.title === 'World of Mythos' && n.body === 'A merchant has arrived')).toBe(true);
   });
 });
 
@@ -58,7 +58,7 @@ describe('syncMoonNotifications', () => {
     expect(p.requestPermissions).not.toHaveBeenCalled();
     expect(p.cancel).toHaveBeenCalledWith({ notifications: [{ id: 3 }, { id: 4 }] });
     const { notifications } = p.schedule.mock.calls[0][0];
-    expect(notifications[0]).toMatchObject({ id: 1, title: 'New moon' });
+    expect(notifications[0]).toMatchObject({ id: 1, title: 'World of Mythos', body: 'A merchant has arrived' });
     expect(notifications[0].schedule.at).toBeInstanceOf(Date);
   });
 

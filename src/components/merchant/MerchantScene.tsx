@@ -1,9 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import SpinningModelViewer from '@/components/SpinningModelViewer';
+import dynamic from 'next/dynamic';
+// Loaded only to be drawn: in text mode (textOnly) it never is, and three.js
+// with it stays unloaded.
+const SpinningModelViewer = dynamic(() => import('@/components/SpinningModelViewer'), { ssr: false });
 import { skinUrl } from '@/lib/frogSkins';
-import { relicModelUrl } from '@/components/RelicCoin';
+import { relicModelUrl } from '@/lib/relics';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
@@ -41,6 +44,9 @@ type Props = {
   /** Called after a successful trade so the caller can refresh the offer
    * (already_bought_this_period flips, the globe marker disappears). */
   onPurchased: () => void;
+  /** Text mode (lib/textMode.ts): the offer without the merchant's and the
+   *  relic's 3D models. */
+  textOnly?: boolean;
 };
 
 /**
@@ -54,7 +60,7 @@ type Props = {
  * backdrop/crate for real geometry or a rendered background later without
  * touching the offer logic below.
  */
-export default function MerchantScene({ offer, token, onClose, onPurchased }: Props) {
+export default function MerchantScene({ offer, token, onClose, onPurchased, textOnly = false }: Props) {
   const [buying, setBuying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bought, setBought] = useState(false);
@@ -120,6 +126,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
             Merchant paints first (furthest back), the table next (so it
             covers his middle like a real counter), the Stone last (so it
             reads as sitting on the table, not embedded in it). */}
+        {!textOnly && (
         <div className="relative mt-2" style={{ height: STAGE_H }}>
           <div
             className="absolute right-2 top-0 overflow-hidden"
@@ -176,6 +183,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
             />
           </div>
         </div>
+        )}
 
         {/* A slight hover on the Stone, off (usePrefersReducedMotion) for
             anyone who has that preference set -- same convention as

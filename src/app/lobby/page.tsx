@@ -2,9 +2,7 @@
 
 import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
-import LobbyOverlay from '@/components/lobby/LobbyOverlay';
 import { BASE_FOV } from '@/lib/sceneConstants';
 import { joinLobby } from '@/lib/api';
 import { getSocket, subscribe } from '@/lib/socket';
@@ -14,8 +12,16 @@ import type { LobbyState } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
 import { cameraSpinCookie, readCameraSpin } from '@/lib/cameraSpinPref';
 import NoLoadingOverlay from '@/components/loading/NoLoadingOverlay';
+import { useTextMode } from '@/lib/textMode';
+import { watch3dScene } from '@/lib/textModeOffer';
 
+// three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
+// is, and the renderer is never downloaded.
+const Canvas = dynamic(() => import('@react-three/fiber').then((m) => m.Canvas), { ssr: false });
+// The 3D game's overlay (its 3D effects with it) only when it is shown.
+const LobbyOverlay = dynamic(() => import('@/components/lobby/LobbyOverlay'), { ssr: false });
 const LobbyScene = dynamic(() => import('@/components/lobby/LobbyScene'), { ssr: false });
+const TextLobby = dynamic(() => import('@/components/text/TextLobby'), { ssr: false });
 
 // useSearchParams() opts this subtree out of static rendering unless it's
 // wrapped in Suspense (docs/MOBILE_AND_STEAM_PLAN.md §5.3) -- the whole page
@@ -53,6 +59,12 @@ function LobbyPageContent() {
   // computes the "model has landed" reveal timing (it owns the well-reward
   // batch scheduling), LobbyOverlay/SceneOverlay's ATK card just follows it.
   const [instakillActive, setInstakillActive] = useState(false);
+
+  // Text mode (src/lib/textMode.ts): the match as text, no 3D at all.
+  const textMode = useTextMode();
+  // A 3D scene up: marked, so a crash in it offers text mode next start
+  // (lib/textModeOffer.ts).
+  useEffect(() => (textMode === false ? watch3dScene() : undefined), [textMode]);
 
   const hasAutoJoined = useRef(false);
   const [hasJoined, setHasJoined] = useState(false);
@@ -167,6 +179,12 @@ function LobbyPageContent() {
     <div style={{ position: 'relative', width: '100%', height: '100dvh', overflow: 'hidden' }}>
       {/* Live lobbies: the loading overlay would get in the way of play. */}
       <NoLoadingOverlay />
+      {textMode && playerName && hasJoined && lobbyId && (
+        <div style={{ position: 'absolute', inset: 0, overflowY: 'auto' }}>
+          <TextLobby lobbyId={lobbyId} playerName={playerName} onLobbyGone={() => router.push('/')} />
+        </div>
+      )}
+      {textMode === false && (
       <Canvas
         camera={{ position: [33, 26, 33], fov: BASE_FOV }}
         // Cap resolution at 2x — rendering at DPR 3 on phones triples the pixel
@@ -190,8 +208,9 @@ function LobbyPageContent() {
           onInstakillActiveChange={setInstakillActive}
         />
       </Canvas>
+      )}
 
-      {playerName && hasJoined && (
+      {textMode === false && playerName && hasJoined && (
         <LobbyOverlay
           lobbyId={lobbyId}
           onStateChange={setLobbyState}

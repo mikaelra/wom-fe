@@ -85,6 +85,11 @@ jobs:
           NEXT_PUBLIC_APP_VERSION: ${{ steps.version.outputs.app_version }}
           NEXT_PUBLIC_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
 
+      # public/models/ keeps old versions and -hd originals the game never
+      # loads (~300 MB); they stay on the web but not in the app.
+      - name: Leave unused models out of the app
+        run: node scripts/prune-native-models.mjs
+
       - name: Sync web assets into the iOS project
         run: npx cap sync ios
 

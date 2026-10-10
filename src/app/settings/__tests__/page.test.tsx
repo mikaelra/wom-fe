@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, fireEvent } from '@testing-library/react';
 import SettingsPage from '@/app/settings/page';
-import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
+import { setStoredAccountToken } from '@/lib/http';
+import { getAlwaysVerifyEmailFlag, getConnections, requestToggleVerifyEmail } from '@/lib/api';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -10,11 +11,18 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/lib/api', () => ({
   getAlwaysVerifyEmailFlag: vi.fn(),
+  getConnections: vi.fn(),
   requestToggleVerifyEmail: vi.fn(),
+  // The other panels' calls once a session is stored.
+  connectWeb: vi.fn(),
+  deleteAccount: vi.fn(),
+  resolveAccountSession: vi.fn(() => new Promise(() => undefined)),
+  getEntitlements: vi.fn(() => new Promise(() => undefined)),
 }));
 
 const mockedGetFlag = vi.mocked(getAlwaysVerifyEmailFlag);
 const mockedRequestToggle = vi.mocked(requestToggleVerifyEmail);
+const mockedConnections = vi.mocked(getConnections);
 
 const flush = () => act(async () => Promise.resolve());
 const loginAs = (name: string, email: string) => {
@@ -26,9 +34,11 @@ beforeEach(() => {
   push.mockClear();
   mockedGetFlag.mockReset();
   mockedRequestToggle.mockReset();
+  mockedConnections.mockReset();
 });
 
 afterEach(() => {
+  setStoredAccountToken(null);
   localStorage.clear();
   vi.unstubAllGlobals();
 });
@@ -49,6 +59,34 @@ describe('SettingsPage', () => {
     // way to turn the music down.
     expect(screen.getByLabelText('Music volume')).toBeInTheDocument();
     expect(screen.getByLabelText('Sound effects volume')).toBeInTheDocument();
+  });
+
+  it('finds the email through the session after a Steam or Apple login', async () => {
+    // Those logins keep no playerEmail on the device (lib/appleAccount.ts).
+    localStorage.setItem('playerName', 'Oni');
+    setStoredAccountToken('tok');
+    mockedConnections.mockResolvedValue({ steam: null, apple: {}, web: { email: 'oni@example.com' } });
+    mockedGetFlag.mockResolvedValue({ always_verify_email: true });
+    render(<SettingsPage />);
+    await flush();
+    await flush();
+
+    expect(screen.queryByText('You must be logged in to view settings.')).not.toBeInTheDocument();
+    expect(mockedGetFlag).toHaveBeenCalledWith('Oni', 'oni@example.com');
+    expect(screen.getByText('Toggle always e-mail verificiation.')).toBeInTheDocument();
+  });
+
+  it('leaves the email toggle out for an account with no email', async () => {
+    localStorage.setItem('playerName', 'Scoundrel');
+    setStoredAccountToken('tok');
+    mockedConnections.mockResolvedValue({ steam: null, apple: {}, web: null });
+    render(<SettingsPage />);
+    await flush();
+    await flush();
+
+    expect(screen.queryByText('You must be logged in to view settings.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Toggle always e-mail verificiation.')).not.toBeInTheDocument();
+    expect(mockedGetFlag).not.toHaveBeenCalled();
   });
 
   it('reflects the server flag when it is on', async () => {

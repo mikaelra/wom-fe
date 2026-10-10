@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
+import { getAlwaysVerifyEmailFlag, getConnections, requestToggleVerifyEmail } from '@/lib/api';
+import { getStoredAccountToken } from '@/lib/http';
 import { APP_VERSION, BUILD_NUMBER } from '@/config';
 import { CITY_PATH } from '@/lib/cities';
 import AudioSettingsPanel from '@/components/audio/AudioSettingsPanel';
@@ -38,24 +39,42 @@ export default function SettingsPage() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
 
+  // A Steam or Apple account with no email to verify: no toggle to show.
+  const [noEmail, setNoEmail] = useState(false);
+
   useEffect(() => {
     setMounted(true);
     if (typeof window === 'undefined') return;
     const name = localStorage.getItem('playerName') || '';
-    const email = localStorage.getItem('playerEmail') || '';
+    const storedEmail = localStorage.getItem('playerEmail') || '';
+    const token = getStoredAccountToken();
     setPlayerName(name);
-    setPlayerEmail(email);
+    setPlayerEmail(storedEmail);
 
-    if (!name || !email) {
+    if (!name || (!storedEmail && !token)) {
       setLoading(false);
       setLoadError('You must be logged in to view settings.');
       return;
     }
 
-    getAlwaysVerifyEmailFlag(name, email)
-      .then((data) => {
-        setServerValue(!!data.always_verify_email);
-        setChecked(!!data.always_verify_email);
+    // A Steam or Apple login keeps no email on the device (lib/steamAccount.ts,
+    // lib/appleAccount.ts): the session says which, if any, the account has.
+    const email: Promise<string | null> =
+      storedEmail || !token
+        ? Promise.resolve(storedEmail)
+        : getConnections(token).then((c) => c.web?.email ?? null);
+
+    email
+      .then((found) => {
+        if (!found) {
+          setNoEmail(true);
+          return;
+        }
+        setPlayerEmail(found);
+        return getAlwaysVerifyEmailFlag(name, found).then((data) => {
+          setServerValue(!!data.always_verify_email);
+          setChecked(!!data.always_verify_email);
+        });
       })
       .catch((err: unknown) => {
         setLoadError(err instanceof Error ? err.message : 'Failed to load settings.');
@@ -138,7 +157,7 @@ export default function SettingsPage() {
               Go to log in
             </Link>
           </div>
-        ) : (
+        ) : noEmail ? null : (
           <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6">
             <label className="flex items-center gap-3 cursor-pointer select-none">
               <input

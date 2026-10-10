@@ -13,6 +13,7 @@ vi.mock('@/lib/hdTextures', async (importOriginal) => ({
 
 import HdTexturesPanel from '@/components/settings/HdTexturesPanel';
 import { getHdPreference } from '@/lib/hdTextures';
+import { getTextMode } from '@/lib/textMode';
 
 beforeEach(() => {
   Object.assign(state, { native: false, unlocked: true });
@@ -36,7 +37,18 @@ describe('HdTexturesPanel', () => {
     state.unlocked = false;
     render(<HdTexturesPanel />);
     expect(await screen.findByText(/come with the game on Steam/)).toBeTruthy();
-    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'HD textures' })).toBeNull();
+  });
+
+  it('turns text mode on and off', () => {
+    state.native = true;
+    render(<HdTexturesPanel />);
+    const box = screen.getByRole('checkbox', { name: 'Text mode' }) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    expect(getTextMode()).toBe(true);
+    fireEvent.click(box);
+    expect(getTextMode()).toBe(false);
   });
 
   it('starts on in the paid apps, and can be turned off', () => {

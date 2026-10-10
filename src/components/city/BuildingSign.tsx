@@ -73,12 +73,5 @@ export default function BuildingSign({
   );
 }
 
-/** "3 playing" / "1 playing" / null when nobody's there. */
-export function playingLabel(count: number): string | null {
-  return count > 0 ? `${count} playing` : null;
-}
-
-/** "2 in market" / "1 in market" / null when nobody's there. */
-export function inMarketLabel(count: number): string | null {
-  return count > 0 ? `${count} in market` : null;
-}
+// Kept in lib/cityLabels.ts (no three.js there, for the text city); re-exported here.
+export { inMarketLabel, playingLabel } from '@/lib/cityLabels';

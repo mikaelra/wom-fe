@@ -2,26 +2,11 @@
 
 import { useGLTF } from '@react-three/drei';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
+// The model urls: lib/relics.ts (no three.js there).
+import { COIN_MODEL_URL, RELIC_MODEL_URLS, relicModelUrl } from '@/lib/relics';
+export { relicModelUrl };
 
-// Falls back to the Well's gold-reward coin model (see WellRewardEffect.tsx's
-// WELL_REWARD_MODELS.gold, already loaded/cached for anyone who's played a
-// match with a Well) for any relic without dedicated art of its own.
-const COIN_MODEL_URL = '/models/well/rewards/gold-ld.glb';
 
-// Name-keyed, not id-keyed: unlike COIN_RELIC_ID (types/game.ts), a new
-// relic's id is whatever the seed migration's autoincrement assigns, not a
-// value safe to hardcode across environments (docs/MERCHANT_PLAN.md's
-// domain/merchant.py resolves Stone of Vitality's id by name for the same
-// reason).
-const RELIC_MODEL_URLS: Record<string, string> = {
-  'Stone of Vitality': '/models/relics/stone_of_vitality_v1.glb',
-  // pergament_v1 (add-pergament-item-model), textures resized 2048 -> 1024:
-  // it is drawn at relic-card size, and that took it from 6.6 MB to 0.7.
-  Paper: '/models/relics/paper_v1.glb',
-  // Meshy feather quill (wom-tools/model-generation), texture resized
-  // 2048 -> 1024 for the same reason: 3.1 MB to 0.45.
-  Pen: '/models/relics/pen_v1.glb',
-};
 
 // Relics whose inventory card shows a flat picture instead of the spinning
 // model -- the model is kept for where the relic is staged large (the
@@ -30,12 +15,6 @@ const RELIC_THUMBNAIL_URLS: Record<string, string> = {
   Pen: '/models/relics/pen_v1.thumbnail.png',
 };
 
-// Exported for callers that need the raw model url without the rest of
-// this component (e.g. MerchantScene.tsx, which stages the relic a
-// merchant sells itself rather than in a standard relic-card box).
-export function relicModelUrl(relicName?: string): string {
-  return (relicName && RELIC_MODEL_URLS[relicName]) || COIN_MODEL_URL;
-}
 
 // A small, self-contained <Canvas> per card -- relic counts per player are
 // low (a handful of distinct bosses at most), so this stays well under
