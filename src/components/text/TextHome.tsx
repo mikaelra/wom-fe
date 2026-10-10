@@ -20,7 +20,7 @@ const link = {
   background: 'none',
   border: 'none',
   cursor: 'pointer',
-  textDecoration: 'underline',
+  textDecoration: 'none',
 };
 
 export default function TextHome({
