@@ -104,6 +104,20 @@ describe('the signpost', () => {
     expect([long.w, long.h]).toEqual([short.w, short.h]);
   });
 
+  it('writes the white info over its board in the pixel font, digits and all', () => {
+    const w = 130;
+    const h = 281;
+    const { ctx, pixels } = recorder(w, h);
+    const board: Board = { label: 'HADES', color: '#4da6ff', side: 'right', row: 0, info: 'BOSSFIGHT IN 2:05' };
+    drawSignpostScene(ctx, w, h, [board], skyBodies(new Date('2026-06-21T22:00:00Z'), 37.98, 23.73));
+    const box = layoutBoard(board, w, h);
+    const whiteAbove = [...pixels.entries()].filter(([k, c]) => {
+      const [x, y] = k.split(',').map(Number);
+      return c === '#ffffff' && y < box.y && y > box.y - 20 && x >= box.x && x < box.x + box.w;
+    });
+    expect(whiteAbove.length).toBeGreaterThan(40);
+  });
+
   it('draws the whole scene, lettering in each arm colour', () => {
     const w = 130;
     const h = 281;

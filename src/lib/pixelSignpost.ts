@@ -42,6 +42,21 @@ const GLYPHS: Record<string, string[]> = {
   X: ['#.#', '#.#', '.#.', '#.#', '#.#'],
   Y: ['#.#', '#.#', '.#.', '.#.', '.#.'],
   Z: ['###', '..#', '.#.', '#..', '###'],
+  '0': ['###', '#.#', '#.#', '#.#', '###'],
+  '1': ['.#.', '##.', '.#.', '.#.', '###'],
+  '2': ['##.', '..#', '.#.', '#..', '###'],
+  '3': ['##.', '..#', '.#.', '..#', '##.'],
+  '4': ['#.#', '#.#', '###', '..#', '..#'],
+  '5': ['###', '#..', '##.', '..#', '##.'],
+  '6': ['.##', '#..', '###', '#.#', '###'],
+  '7': ['###', '..#', '.#.', '.#.', '.#.'],
+  '8': ['###', '#.#', '###', '#.#', '###'],
+  '9': ['###', '#.#', '###', '..#', '##.'],
+  ':': ['...', '.#.', '...', '.#.', '...'],
+  '!': ['.#.', '.#.', '.#.', '...', '.#.'],
+  '.': ['...', '...', '...', '...', '.#.'],
+  '-': ['...', '...', '###', '...', '...'],
+  "'": ['.#.', '.#.', '...', '...', '...'],
 };
 export const GLYPH_W = 3;
 export const GLYPH_H = 5;
@@ -139,7 +154,7 @@ export const HORIZON = 0.68;
 // The signpost stands close, in the foreground: big boards, and a post that
 // runs down past the horizon into the grass in front.
 const TOP_ROW = 0.33;
-const ROW_GAP = 6;
+const ROW_GAP = 16; // room for two lines of white info over the lower row
 const POST_FOOT = 22; // sky pixels below the horizon
 
 export interface Board {
@@ -147,6 +162,8 @@ export interface Board {
   color: string;
   side: 'left' | 'right';
   row: 0 | 1;
+  /** What is going on there, in white over the board (lines split on \n). */
+  info?: string | null;
 }
 
 /** A board's box in sky pixels, its point included. */
@@ -164,25 +181,25 @@ const PAD = 2;
 const POINT = 3; // the arrow's tip
 export const POST_W = 8;
 const BIG = 2; // the lettering's scale
-const BOARD_LINES = 2; // every board has room for two lines of it
 
 /** Every board's size on a screen `w` sky pixels wide: the same for all,
- *  whatever is written on it -- from the post to the screen's edge, and two
- *  lines of big lettering high. */
+ *  whatever is written on it -- from the post to the screen's edge, and as
+ *  high as a line of big lettering (or two small ones). */
 function boardSize(w: number): { bw: number; bh: number; inner: number } {
   const bw = Math.floor(w / 2) - POST_W / 2;
-  return { bw, bh: BOARD_LINES * lineHeight(BIG) - 2 + PAD * 2, inner: bw - PAD * 2 - POINT };
+  const textH = Math.max(lineHeight(BIG), 2 * lineHeight(1)) - 2;
+  return { bw, bh: textH + PAD * 2, inner: bw - PAD * 2 - POINT };
 }
 
 /** Where each board goes on a screen `w` x `h` sky pixels: either side of
  *  the post, one row under the other, all the same size. Its words in big
- *  lettering, wrapped -- or small, should they not fit in two lines. */
+ *  lettering on one line -- or small, in up to two, should they not fit. */
 export function layoutBoard(board: Board, w: number, h: number): BoardBox {
   const cx = Math.floor(w / 2);
   const { bw, bh, inner } = boardSize(w);
   let scale = BIG;
-  let lines = wrap(board.label, inner, BIG);
-  if (lines.length > BOARD_LINES || lines.some((l) => textWidth(l, BIG) > inner)) {
+  let lines = [board.label.toUpperCase()];
+  if (textWidth(lines[0], BIG) > inner) {
     scale = 1;
     lines = wrap(board.label, inner, 1);
   }
@@ -225,6 +242,21 @@ function drawBoard(ctx: Painter, board: Board, box: BoardBox, light: number) {
   lines.forEach((line, i) => {
     const lx = bodyX + Math.floor((bodyW - textWidth(line, box.scale)) / 2);
     drawText(ctx, line, lx, ty + i * lineHeight(box.scale), board.color, box.scale);
+  });
+}
+
+/** The white info over a board, in the pixel font: wrapped to the board's
+ *  width, bottom line just over its top edge, with a dark shadow so it reads
+ *  on any sky. */
+function drawInfo(ctx: Painter, info: string, box: BoardBox) {
+  const lines = info.split('\n').flatMap((part) => wrap(part, box.w, 1));
+  const lh = lineHeight(1);
+  const top = box.y - 2 - lines.length * lh;
+  lines.forEach((line, i) => {
+    const x = box.x + Math.floor((box.w - textWidth(line)) / 2);
+    const y = top + i * lh;
+    drawText(ctx, line, x + 1, y + 1, '#000000');
+    drawText(ctx, line, x, y, '#ffffff');
   });
 }
 
@@ -300,5 +332,9 @@ export function drawSignpostScene(
   // Grass round its foot, in front of it: it stands close.
   ctx.fillStyle = land('#3f6b31');
   for (let i = -POST_W; i <= POST_W; i += 2) ctx.fillRect(cx + i, foot - 2 - (Math.abs(i) % 3), 1, 3);
-  for (const board of boards) drawBoard(ctx, board, layoutBoard(board, w, h), sky.light);
+  for (const board of boards) {
+    const box = layoutBoard(board, w, h);
+    drawBoard(ctx, board, box, sky.light);
+    if (board.info) drawInfo(ctx, board.info, box);
+  }
 }
