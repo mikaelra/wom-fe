@@ -2,7 +2,6 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import CityOverlay from '@/components/city/CityOverlay';
 import WorldClock from '@/components/worldmap/WorldClock';
@@ -13,7 +12,7 @@ import { useTimewarpRun } from '@/lib/useTimewarpRun';
 import { getSky } from '@/lib/astrology';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import AuthGatePopup from '@/components/AuthGatePopup';
-import { CITY_CAMERA, CITY_FOV } from '@/components/city/CityScene';
+import { CITY_CAMERA, CITY_FOV } from '@/lib/cityCamera';
 import { findCity } from '@/lib/cities';
 import { ATHENS_TZ, resolveCityTime, formatAthensClock } from '@/lib/cityTime';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
@@ -26,9 +25,12 @@ import { useCityPresence } from '@/lib/useCityPresence';
 import { bossfightSignSublabel } from '@/lib/bossfightSign';
 import { playMusic, CITY_MUSIC } from '@/lib/music';
 import LoadingState from '@/components/loading/LoadingState';
-import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
 import { useTextMode } from '@/lib/textMode';
 
+// three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
+// is, and the renderer is never downloaded.
+const Canvas = dynamic(() => import('@react-three/fiber').then((m) => m.Canvas), { ssr: false });
+const AssetLoadingReporter = dynamic(() => import('@/components/loading/AssetLoadingReporter'), { ssr: false });
 const CityScene = dynamic(() => import('@/components/city/CityScene'), { ssr: false });
 const TextCity = dynamic(() => import('@/components/text/TextCity'), { ssr: false });
 

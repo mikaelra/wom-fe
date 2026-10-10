@@ -1,6 +1,5 @@
 'use client';
 
-import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -15,13 +14,16 @@ import type { City } from '@/lib/cities';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { MERCHANT_MARKER_LABEL, merchantMarkerColors, merchantSkyBodies } from '@/lib/merchant';
 import { getStoredAccountToken } from '@/lib/http';
-import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
 import ExitGamePrompt from '@/components/ExitGamePrompt';
 import HudToggle from '@/components/worldmap/HudToggle';
 import HudLoadingMark from '@/components/worldmap/HudLoadingMark';
 import { useHudHidden, useHudLoadingMark } from '@/lib/hudHidden';
 import { useTextMode } from '@/lib/textMode';
 
+// three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
+// is, and the renderer is never downloaded.
+const Canvas = dynamic(() => import('@react-three/fiber').then((m) => m.Canvas), { ssr: false });
+const AssetLoadingReporter = dynamic(() => import('@/components/loading/AssetLoadingReporter'), { ssr: false });
 const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
 
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
@@ -190,7 +192,7 @@ export default function Page() {
       {/* With the HUD hidden, a tap on the globe loops the loading animation
           where the loading screen shows it, half the Earth's size (lib/hudHidden.ts). */}
       {hudLoadingMark && <HudLoadingMark />}
-      <AssetLoadingReporter />
+      {textMode === false && <AssetLoadingReporter />}
       {sceneReady && textMode === false && (
         <Canvas
           camera={{ position: [0, 3, 10.5], fov: 50 }}

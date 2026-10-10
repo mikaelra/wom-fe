@@ -1,9 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import SpinningModelViewer from '@/components/SpinningModelViewer';
+import dynamic from 'next/dynamic';
+// Loaded only to be drawn: in text mode (textOnly) it never is, and three.js
+// with it stays unloaded.
+const SpinningModelViewer = dynamic(() => import('@/components/SpinningModelViewer'), { ssr: false });
 import { skinUrl } from '@/lib/frogSkins';
-import { relicModelUrl } from '@/components/RelicCoin';
+import { relicModelUrl } from '@/lib/relics';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';

@@ -5,6 +5,8 @@ import { getPlayerRelics } from '@/lib/api';
 import { COIN_RELIC_ID, type Relic } from '@/types/game';
 import RelicCoin from '@/components/RelicCoin';
 import RelicCooldownOverlay from '@/components/RelicCooldownOverlay';
+import { DEFAULT_RELIC_BADGE_EMOJI, RELIC_BADGE_EMOJI, RELIC_SELECT_CAPTION } from '@/lib/relics';
+export { RELIC_BADGE_EMOJI, RELIC_SELECT_CAPTION };
 
 const COOLDOWN_MS = 10_000;
 
@@ -19,21 +21,8 @@ const RELIC_SELECT_HELP: Record<string, string> = {
   'Stone of Vitality': 'Use one Stone of Vitality to start the game with 15 HP instead of 10. This consumes it.',
 };
 
-// The compact badge (selected-but-collapsed state) shows one glyph in place
-// of the full 3D model -- name-keyed for the same reason as RELIC_SELECT_HELP.
-export const RELIC_BADGE_EMOJI: Record<string, string> = {
-  "Hades' Coin": '🪙',
-  'Stone of Vitality': '🪨',
-};
-const DEFAULT_RELIC_BADGE_EMOJI = '💠';
+// Its badge glyphs and captions: lib/relics.ts (no three.js there).
 
-// Short version of RELIC_SELECT_HELP for the caption under the icon/count
-// in the open popover -- that one's a full sentence meant for a
-// hover/tooltip title, this is meant to fit under a compact card.
-export const RELIC_SELECT_CAPTION: Record<string, string> = {
-  "Hades' Coin": 'Start the game with 1 coin',
-  'Stone of Vitality': 'Start the game with 15 HP',
-};
 
 type RelicSelectionPopoverProps = {
   playerName: string;

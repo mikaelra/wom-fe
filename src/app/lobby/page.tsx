@@ -2,9 +2,7 @@
 
 import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
-import LobbyOverlay from '@/components/lobby/LobbyOverlay';
 import { BASE_FOV } from '@/lib/sceneConstants';
 import { joinLobby } from '@/lib/api';
 import { getSocket, subscribe } from '@/lib/socket';
@@ -16,6 +14,11 @@ import { cameraSpinCookie, readCameraSpin } from '@/lib/cameraSpinPref';
 import NoLoadingOverlay from '@/components/loading/NoLoadingOverlay';
 import { useTextMode } from '@/lib/textMode';
 
+// three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
+// is, and the renderer is never downloaded.
+const Canvas = dynamic(() => import('@react-three/fiber').then((m) => m.Canvas), { ssr: false });
+// The 3D game's overlay (its 3D effects with it) only when it is shown.
+const LobbyOverlay = dynamic(() => import('@/components/lobby/LobbyOverlay'), { ssr: false });
 const LobbyScene = dynamic(() => import('@/components/lobby/LobbyScene'), { ssr: false });
 const TextLobby = dynamic(() => import('@/components/text/TextLobby'), { ssr: false });
 
