@@ -11,6 +11,7 @@ const fs = require('node:fs');
 
 const steam = require('./steam');
 const { resolveFile, contentType } = require('./serveFromExport');
+const { steamClientUrl } = require('./steamPage');
 
 // The renderer loads from app://wom/ rather than file:// -- Next's static
 // export uses absolute /_next/... URLs and a client-side router, both of
@@ -118,6 +119,13 @@ if (steam.restartAppIfNecessary()) {
     // electron/preload.js -> window.wom): who is signed in, and a login
     // ticket for the backend. (Achievements are unlocked by the backend.)
     ipcMain.on('wom:quit', () => app.quit());
+    // Linux: a Steam web purchase's approval page, opened in the Steam
+    // client (electron/preload.js openSteamPurchasePage). Only Steam pages.
+    ipcMain.on('wom:open-steam-page', (_event, url) => {
+      const link = steamClientUrl(url);
+      if (link) shell.openExternal(link);
+      else console.warn('[steam] refused to open a non-Steam purchase page');
+    });
     ipcMain.handle('wom:steam-ticket', () => steam.getAuthTicket());
     ipcMain.handle('wom:steam-info', () => ({
       enabled: steam.isEnabled(),

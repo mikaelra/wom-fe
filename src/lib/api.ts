@@ -827,16 +827,19 @@ export async function postAppleVerify(
   });
 }
 
-/** Start a Steam Wallet purchase in the Steam build (src/lib/steamShop.ts). */
+/** Start a Steam Wallet purchase in the Steam build (src/lib/steamShop.ts).
+ *  `web` makes it a web purchase, approved on the page in steam_url (Linux,
+ *  which has no Steam overlay). */
 export async function postSteamInit(
   token: string,
   product: string,
   quantity: number,
   confirmDuplicate: boolean,
-  language: string
+  language: string,
+  web = false
 ): Promise<z.infer<typeof SteamInitResponseSchema>> {
   return request('/shop/steam/init', SteamInitResponseSchema, {
-    body: { token, product, quantity, confirm_duplicate: confirmDuplicate, language },
+    body: { token, product, quantity, confirm_duplicate: confirmDuplicate, language, ...(web ? { web: true } : {}) },
     defaultErrorMessage: 'Failed to start the purchase.',
   });
 }
@@ -850,6 +853,19 @@ export async function postSteamFinalize(
   return request('/shop/steam/finalize', SteamFinalizeResponseSchema, {
     body: { token, order_id: orderId, authorized },
     defaultErrorMessage: 'Failed to complete the purchase.',
+  });
+}
+
+/** Ask whether a Steam web purchase has been approved yet: "fulfilled",
+ *  "pending", or anything else when it won't go through. */
+export async function postSteamCheck(
+  token: string,
+  orderId: number
+): Promise<z.infer<typeof SteamFinalizeResponseSchema>> {
+  return request('/shop/steam/finalize', SteamFinalizeResponseSchema, {
+    body: { token, order_id: orderId, check: true },
+    defaultErrorMessage: 'Failed to check the purchase.',
+    quiet: true, // polled
   });
 }
 

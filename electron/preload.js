@@ -28,6 +28,13 @@ contextBridge.exposeInMainWorld('wom', {
     return () => ipcRenderer.removeListener('wom:steam-microtxn', wrapped);
   },
 
+  // Linux only: the build runs without the Steam overlay
+  // (electron/linux/world-of-mythos.sh), so a purchase is approved on Steam's
+  // own page instead, opened in the Steam client (src/lib/steamShop.ts).
+  ...(process.platform === 'linux'
+    ? { openSteamPurchasePage: (url) => ipcRenderer.send('wom:open-steam-page', url) }
+    : {}),
+
   // Closes the game (the exit prompt on the globe, src/components/ExitGamePrompt.tsx).
   quit: () => ipcRenderer.send('wom:quit'),
 });

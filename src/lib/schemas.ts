@@ -531,13 +531,16 @@ export const AppleVerifyResponseSchema = z.object({
 });
 
 // POST /shop/steam/init -- a Steam Wallet purchase started; Steam is
-// showing the player its approval dialog for this order.
+// showing the player its approval dialog for this order. A web purchase
+// (Linux, no overlay) comes with steam_url, the page to approve it on.
 export const SteamInitResponseSchema = z.object({
   order_id: z.number().int(),
+  steam_url: z.string().optional(),
 });
 
 // POST /shop/steam/finalize -- "fulfilled" once charged and granted,
-// "cancelled" when the player declined.
+// "cancelled" when the player declined. A web purchase's check is
+// "pending" until the player has approved it on Steam's page.
 export const SteamFinalizeResponseSchema = z.object({
   status: z.string(),
   product: z.string(),

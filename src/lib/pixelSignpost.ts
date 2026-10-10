@@ -1,4 +1,5 @@
 import * as Astronomy from 'astronomy-engine';
+import { drawMoon, moonPhase } from '@/lib/pixelMoon';
 
 // The text city's scene (components/text/PixelSignpost.tsx): the 3D city's
 // signpost in 8-bit -- a wooden post with arrow-shaped boards, each lettered
@@ -119,8 +120,18 @@ export interface HorizonPos {
   az: number;
 }
 
-/** Where the Sun and the Moon are in the sky over (lat, lng) at `date`. */
-export function skyBodies(date: Date, lat: number, lng: number): { sun: HorizonPos; moon: HorizonPos } {
+const MOON_LIT = '#e8ecf5';
+
+export interface SkyBodies {
+  sun: HorizonPos;
+  moon: HorizonPos;
+  /** The Moon's phase (lib/pixelMoon.ts): 0 new, 180 full. Full if left out. */
+  moonPhase?: number;
+}
+
+/** Where the Sun and the Moon are in the sky over (lat, lng) at `date`, and
+ *  the Moon's phase. */
+export function skyBodies(date: Date, lat: number, lng: number): Required<SkyBodies> {
   const observer = new Astronomy.Observer(lat, lng, 0);
   const time = Astronomy.MakeTime(date);
   const at = (body: Astronomy.Body): HorizonPos => {
@@ -128,7 +139,7 @@ export function skyBodies(date: Date, lat: number, lng: number): { sun: HorizonP
     const h = Astronomy.Horizon(time, observer, eq.ra, eq.dec, 'normal');
     return { alt: h.altitude, az: h.azimuth };
   };
-  return { sun: at(Astronomy.Body.Sun), moon: at(Astronomy.Body.Moon) };
+  return { sun: at(Astronomy.Body.Sun), moon: at(Astronomy.Body.Moon), moonPhase: moonPhase(date) };
 }
 
 /** A sky position on screen, looking south: east at the left edge, west at
@@ -279,7 +290,7 @@ export function drawSignpostScene(
   w: number,
   h: number,
   boards: Board[],
-  bodies: { sun: HorizonPos; moon: HorizonPos },
+  bodies: SkyBodies,
   timewarp?: { glow: number; colors: string[] } | null,
 ) {
   const sky = skyFor(bodies.sun.alt);
@@ -299,9 +310,11 @@ export function drawSignpostScene(
   }
   if (bodies.moon.alt > 0) {
     const [mx, my] = skyXY(bodies.moon, w, horizonY);
-    ctx.fillStyle = '#e8ecf5';
-    ctx.fillRect(mx - 1, my - 2, 3, 5);
-    ctx.fillRect(mx - 2, my - 1, 5, 3);
+    // In its phase (lib/pixelMoon.ts), the dark side faint against the sky
+    // behind it.
+    const band = Math.min(BANDS - 1, Math.max(0, Math.floor((my / horizonY) * BANDS)));
+    const behind = mix(sky.top, sky.horizon, band / (BANDS - 1));
+    drawMoon(ctx, mx, my, 5, bodies.moonPhase ?? 180, { lit: MOON_LIT, dark: mix(MOON_LIT, behind, 0.75) });
   }
   if (bodies.sun.alt > -1) {
     const [sx, sy] = skyXY(bodies.sun, w, horizonY);
