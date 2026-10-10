@@ -1,11 +1,25 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { ORRERY_BODIES, geoPoint, orreryColor, toXY, trail, type GeoPoint, type OrreryBody } from '@/lib/pixelOrrery';
+import {
+  PLANETS,
+  aroundEarth,
+  aroundSun,
+  helioPoint,
+  moonPoint,
+  orbit,
+  orreryColor,
+  scaleFor,
+  sunPosition,
+  type OrbitPoint,
+  type OrreryBody,
+  type Planet,
+} from '@/lib/pixelOrrery';
 
-// The text Earth page's background (lib/pixelOrrery.ts): an 8-bit sky with
-// the Earth at its centre -- the Sun, the Moon and the planets where they
-// are right now, each trailing its path. Drawn on a canvas a quarter of the
+// The text Earth page's background (lib/pixelOrrery.ts): an 8-bit solar
+// system with the Earth at the centre of the screen -- the Sun, the Moon and
+// the planets where they are right now, each planet on its orbit round the
+// Sun. Drawn on a canvas a quarter of the
 // screen's size and scaled up with sharp pixels: no three.js, no textures,
 // a few kilobytes of drawing. Moves on as the sky does (once a minute), and
 // its stars twinkle.
@@ -21,10 +35,11 @@ const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 function stars(w: number, h: number): [number, number][] {
   let seed = 7;
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  return Array.from({ length: Math.round((w * h) / 120) }, () => [Math.floor(rand() * w), Math.floor(rand() * h)]);
+  // A sparse scatter, so the stars never crowd the orbits.
+  return Array.from({ length: Math.round((w * h) / 1500) }, () => [Math.floor(rand() * w), Math.floor(rand() * h)]);
 }
 
-function drawBody(ctx: CanvasRenderingContext2D, body: OrreryBody, x: number, y: number) {
+function drawBody(ctx: CanvasRenderingContext2D, body: Exclude<OrreryBody, 'Earth'>, x: number, y: number) {
   ctx.fillStyle = hex(orreryColor(body));
   if (body === 'Sun') {
     ctx.fillRect(x - 1, y - 1, 3, 3);
@@ -63,9 +78,13 @@ export default function PixelOrrery() {
     let h = 0;
     let starField: [number, number][] = [];
     let now = new Date();
-    const positions = () => Object.fromEntries(ORRERY_BODIES.map((b) => [b, geoPoint(b, now)])) as Record<OrreryBody, GeoPoint>;
+    type Now = { planets: Record<Planet, OrbitPoint>; moon: OrbitPoint };
+    const positions = (): Now => ({
+      planets: Object.fromEntries(PLANETS.map((p) => [p, helioPoint(p, now)])) as Record<Planet, OrbitPoint>,
+      moon: moonPoint(now),
+    });
     let current = positions();
-    let paths: Partial<Record<OrreryBody, GeoPoint[]>> = {};
+    let orbits: Partial<Record<Planet, OrbitPoint[]>> = {};
     let twinkle = 0;
 
     const draw = () => {
@@ -78,22 +97,26 @@ export default function PixelOrrery() {
       });
       const cx = Math.floor(w / 2);
       const cy = Math.floor(h / 2);
-      const r = Math.min(w, h) / 2 - 4;
-      for (const body of ORRERY_BODIES) {
-        const path = paths[body] ?? [];
-        ctx.fillStyle = hex(orreryColor(body));
-        path.forEach((p, i) => {
-          ctx.globalAlpha = 0.12 + 0.4 * (i / path.length); // fading into the past
-          const [x, y] = toXY(body, p, cx, cy, r);
+      const r = scaleFor(Math.min(w, h) / 2 - 2);
+      const [sx, sy] = sunPosition(current.planets.Earth, cx, cy, r);
+      ctx.globalAlpha = 0.35;
+      for (const planet of PLANETS) {
+        ctx.fillStyle = hex(orreryColor(planet));
+        for (const p of orbits[planet] ?? []) {
+          const [x, y] = aroundSun(p, sx, sy, r);
           ctx.fillRect(x, y, 1, 1);
-        });
+        }
       }
       ctx.globalAlpha = 1;
-      drawEarth(ctx, cx, cy);
-      for (const body of ORRERY_BODIES) {
-        const [x, y] = toXY(body, current[body], cx, cy, r);
-        drawBody(ctx, body, x, y);
+      drawBody(ctx, 'Sun', sx, sy);
+      for (const planet of PLANETS) {
+        if (planet === 'Earth') continue;
+        const [x, y] = aroundSun(current.planets[planet], sx, sy, r);
+        drawBody(ctx, planet, x, y);
       }
+      drawEarth(ctx, cx, cy);
+      const [mx, my] = aroundEarth(current.moon, cx, cy, r);
+      drawBody(ctx, 'Moon', mx, my);
     };
 
     const resize = () => {
@@ -106,10 +129,10 @@ export default function PixelOrrery() {
       draw();
     };
 
-    // The trails are the costly part: worked out once, after the page is
-    // already up, and again each minute only for where the bodies are now.
+    // The orbits are the costly part: worked out once, after the page is
+    // already up; each minute only where the bodies are now.
     const traced = setTimeout(() => {
-      paths = Object.fromEntries(ORRERY_BODIES.map((b) => [b, trail(b, now)]));
+      orbits = Object.fromEntries(PLANETS.map((p) => [p, orbit(p, now)]));
       draw();
     }, 0);
     const minute = setInterval(() => {

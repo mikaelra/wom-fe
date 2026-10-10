@@ -1,79 +1,106 @@
 import * as Astronomy from 'astronomy-engine';
 import { BODY_COLOR } from '@/lib/bodyColors';
 
-// The text Earth page's sky (components/text/PixelOrrery.tsx): the Sun, the
-// Moon and the planets the globe shows, where they really are as seen from
-// Earth, drawn small and pixelated around the Earth at the centre. Each
-// trails the path it took over the last year or two -- seen from Earth the
-// planets loop back on themselves (retrograde), and the loops swing around
-// the Sun: the Sun at the centre of the solar system, shown from where we
-// stand.
+// The text Earth page's sky (components/text/PixelOrrery.tsx): the solar
+// system as it is right now, drawn small and pixelated with the Earth at the
+// centre of the screen. Every planet's trajectory -- the Earth's own too --
+// is its orbit round the Sun, so the picture shows the Sun at the centre of
+// the solar system, seen from where we stand (Mikael, 2026-10-10). The Moon
+// circles the Earth on a small ring of its own.
 //
-// Directions are ecliptic longitude (the zodiac), distances in AU, squeezed
-// onto the screen with a log scale -- Venus at its closest is a quarter of an
-// AU away, Saturn ten: drawn to scale, the inner planets would be one pixel.
+// Positions are heliocentric: ecliptic longitude (the zodiac) and distance
+// from the Sun in AU. Distances are squeezed with a square root so Mercury's
+// orbit and Saturn's both fit on a phone; the angles are true.
 
-export type OrreryBody = 'Sun' | 'Moon' | 'Mercury' | 'Venus' | 'Mars' | 'Jupiter' | 'Saturn';
+export type OrreryBody = 'Sun' | 'Moon' | 'Mercury' | 'Venus' | 'Earth' | 'Mars' | 'Jupiter' | 'Saturn';
 
-export const ORRERY_BODIES: OrreryBody[] = ['Moon', 'Mercury', 'Venus', 'Sun', 'Mars', 'Jupiter', 'Saturn'];
+/** The bodies that go round the Sun, innermost first. */
+export const PLANETS = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn'] as const;
+export type Planet = (typeof PLANETS)[number];
 
-/** Where a body is from Earth: ecliptic longitude in degrees, distance in AU. */
-export interface GeoPoint {
+/** Ecliptic longitude in degrees and distance in AU, from the Sun (or, for
+ *  the Moon, from the Earth). */
+export interface OrbitPoint {
   lon: number;
   dist: number;
 }
 
 const SUN_COLOR = 0xffd23f;
+const EARTH_COLOR = 0x2563eb;
 
 export function orreryColor(body: OrreryBody): number {
-  return body === 'Sun' ? SUN_COLOR : BODY_COLOR[body];
+  if (body === 'Sun') return SUN_COLOR;
+  if (body === 'Earth') return EARTH_COLOR;
+  return BODY_COLOR[body];
 }
 
-export function geoPoint(body: OrreryBody, date: Date): GeoPoint {
-  const time = Astronomy.MakeTime(date);
-  const vec = body === 'Moon' ? Astronomy.GeoMoon(time) : Astronomy.GeoVector(Astronomy.Body[body], time, true);
+function point(vec: Astronomy.Vector): OrbitPoint {
   return { lon: Astronomy.Ecliptic(vec).elon, dist: vec.Length() };
 }
 
-// How far back each trail reaches, and how often it is sampled: long enough
-// for a full loop (Mars needs two years), sparse enough to stay cheap -- the
-// whole sky is about 1,500 positions, computed once per page.
-const TRAIL: Record<OrreryBody, { days: number; step: number }> = {
-  Moon: { days: 27, step: 1 },
-  Mercury: { days: 365, step: 2 },
-  Venus: { days: 584, step: 3 },
-  Sun: { days: 365, step: 4 },
-  Mars: { days: 780, step: 4 },
-  Jupiter: { days: 730, step: 6 },
-  Saturn: { days: 730, step: 8 },
-};
+/** Where a planet is, seen from the Sun. */
+export function helioPoint(planet: Planet, date: Date): OrbitPoint {
+  return point(Astronomy.HelioVector(Astronomy.Body[planet], Astronomy.MakeTime(date)));
+}
 
+/** Where the Moon is, seen from the Earth. */
+export function moonPoint(date: Date): OrbitPoint {
+  return point(Astronomy.GeoMoon(Astronomy.MakeTime(date)));
+}
+
+// One orbit, in days.
+const PERIOD_DAYS: Record<Planet, number> = {
+  Mercury: 88,
+  Venus: 225,
+  Earth: 365.25,
+  Mars: 687,
+  Jupiter: 4333,
+  Saturn: 10759,
+};
+const ORBIT_SAMPLES = 96;
 const DAY_MS = 86_400_000;
 
-/** The body's path over the trail's span up to `date`, oldest first. */
-export function trail(body: OrreryBody, date: Date): GeoPoint[] {
-  const { days, step } = TRAIL[body];
-  const points: GeoPoint[] = [];
-  for (let d = days; d >= 0; d -= step) points.push(geoPoint(body, new Date(date.getTime() - d * DAY_MS)));
-  return points;
+/** A planet's whole orbit round the Sun: one period's positions, ending now. */
+export function orbit(planet: Planet, date: Date): OrbitPoint[] {
+  const step = PERIOD_DAYS[planet] / ORBIT_SAMPLES;
+  return Array.from({ length: ORBIT_SAMPLES }, (_, i) =>
+    helioPoint(planet, new Date(date.getTime() - (ORBIT_SAMPLES - 1 - i) * step * DAY_MS)),
+  );
 }
 
-const NEAREST_AU = 0.25; // Venus at its closest
-const FARTHEST_AU = 11; // Saturn at its farthest
-const MOON_RING = 0.12; // the Moon, on its own small ring round the Earth
-const INNER_EDGE = 0.2; // where the planets' log scale starts
+const OUTERMOST_AU = 10.1; // Saturn at its farthest from the Sun
 
-/** Distance from the centre, as a share of the drawing's radius (0..1). */
-export function radiusShare(body: OrreryBody, dist: number): number {
-  if (body === 'Moon') return MOON_RING;
-  const t = Math.log(Math.max(dist, NEAREST_AU) / NEAREST_AU) / Math.log(FARTHEST_AU / NEAREST_AU);
-  return INNER_EDGE + (1 - INNER_EDGE) * Math.min(1, t);
+/** Distance from the Sun on screen, as a share of the drawing's scale. */
+export function radiusShare(dist: number): number {
+  return Math.sqrt(dist / OUTERMOST_AU);
 }
 
-/** A point's pixel position around the centre (cx, cy), radius `r`:
- *  0° longitude to the right, increasing anticlockwise, as on a star map. */
-export function toXY(body: OrreryBody, p: GeoPoint, cx: number, cy: number, r: number): [number, number] {
-  const share = radiusShare(body, p.dist) * r;
+/** The scale `r` that keeps Saturn's whole orbit on a screen of half-size
+ *  `half`, wherever round the Earth the Sun happens to be. */
+export function scaleFor(half: number): number {
+  return half / (1 + radiusShare(1));
+}
+
+/** Screen position of a point round the Sun (sx, sy): 0° longitude to the
+ *  right, increasing anticlockwise, as on a star map. */
+export function aroundSun(p: OrbitPoint, sx: number, sy: number, r: number): [number, number] {
+  const d = radiusShare(p.dist) * r;
   const a = (p.lon * Math.PI) / 180;
-  return [Math.round(cx + share * Math.cos(a)), Math.round(cy - share * Math.sin(a))];
+  return [Math.round(sx + d * Math.cos(a)), Math.round(sy - d * Math.sin(a))];
+}
+
+/** Where the Sun goes on screen, the Earth (now at `earth` round the Sun)
+ *  being at the centre (cx, cy). */
+export function sunPosition(earth: OrbitPoint, cx: number, cy: number, r: number): [number, number] {
+  const [ex, ey] = aroundSun(earth, 0, 0, r);
+  return [cx - ex, cy - ey];
+}
+
+const MOON_RING = 0.08; // of the scale; a few pixels round the Earth
+
+/** The Moon round the Earth at the centre. */
+export function aroundEarth(p: OrbitPoint, cx: number, cy: number, r: number): [number, number] {
+  const d = Math.max(3, MOON_RING * r);
+  const a = (p.lon * Math.PI) / 180;
+  return [Math.round(cx + d * Math.cos(a)), Math.round(cy - d * Math.sin(a))];
 }
