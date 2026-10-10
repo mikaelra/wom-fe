@@ -276,15 +276,30 @@ export default function TextLobby({
   // This round's messages: shown big for a moment, then listed.
   const events = useGameEvents(lobbyId, playerName, round, state?.deny_target);
   const [messages, setMessages] = useState<(string | string[])[]>([]);
-  const [floatingMessages, setFloatingMessages] = useState<string[]>([]);
+  // Each bubble with its own id: keyed by position, a bubble that finished
+  // would hand its finished state to the next one sliding into its place,
+  // which then never finished either -- the list stayed hidden behind it.
+  const [floatingMessages, setFloatingMessages] = useState<
+    { id: number; text: string; list: (string | string[])[] }[]
+  >([]);
+  const nextFloatId = useRef(0);
+  // The same messages fetched again (a deny re-fetches the round; dev
+  // fetches everything twice) are not news: one bubble per new text.
+  const lastFloated = useRef('');
   useEffect(() => {
     if (!events) return;
     const next = flatten(events.messages);
-    if (!next || next === flatten(messages)) return;
-    setFloatingMessages((prev) => [...prev, next]);
-    const t = setTimeout(() => setMessages(events.messages), 2500);
-    return () => clearTimeout(t);
-  }, [events]); // eslint-disable-line react-hooks/exhaustive-deps -- once per fetched result
+    if (!next || next === lastFloated.current) return;
+    lastFloated.current = next;
+    const id = nextFloatId.current++;
+    setFloatingMessages((prev) => [...prev, { id, text: next, list: events.messages }]);
+  }, [events]);
+
+  const settle = (id: number) => {
+    const done = floatingMessages.find((m) => m.id === id);
+    if (done) setMessages(done.list);
+    setFloatingMessages((prev) => prev.filter((m) => m.id !== id));
+  };
 
   const secondsLeft = useSecondsUntil(state?.round_end_time);
   const bossStartsIn = useSecondsUntil(state?.boss_fight && !gameStarted ? state.start_time : null);
@@ -443,16 +458,14 @@ export default function TextLobby({
             />
           )}
 
-          {floatingMessages.map((msg, idx) => (
+          {floatingMessages.map((msg) => (
             <FloatingMessage
-              key={idx}
-              message={msg}
-              onDone={() => setFloatingMessages((prev) => prev.filter((_, i) => i !== idx))}
-              onTap={() => {
-                // Into the list now, not when the bubble would have faded.
-                setFloatingMessages((prev) => prev.filter((_, i) => i !== idx));
-                if (events) setMessages(events.messages);
-              }}
+              key={msg.id}
+              message={msg.text}
+              // Its messages go into the list as the bubble goes -- when it
+              // has faded, or at once on a tap.
+              onDone={() => settle(msg.id)}
+              onTap={() => settle(msg.id)}
             />
           ))}
 

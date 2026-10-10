@@ -183,8 +183,34 @@ describe('TextLobby', () => {
       conn.state = lobby({ round: 1 });
       render(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
       expect(screen.getAllByText(/You hit Toad/).length).toBe(1); // floating
-      act(() => vi.advanceTimersByTime(2600));
+      act(() => vi.advanceTimersByTime(3400)); // shown 2.5 s, faded 0.8 s
       expect(screen.getByText('for 3')).toBeTruthy(); // listed
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('lists every round, even when the same messages come twice or a new round comes mid-bubble', () => {
+    vi.useFakeTimers();
+    try {
+      const view = (messages: string[], round: number) => {
+        events.value = { round, messages, events: [], instakill: false };
+        conn.state = lobby({ round });
+      };
+      view(['Round 1 news'], 1);
+      const { rerender } = render(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+      const again = () => rerender(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+      view(['Round 1 news'], 1); // fetched again (a deny, or dev's double fetch)
+      again();
+      expect(screen.getAllByText('Round 1 news').length).toBe(1); // one bubble, not two
+      act(() => vi.advanceTimersByTime(1000));
+      view(['Round 2 news'], 2); // the next round, while the first bubble is still up
+      again();
+      act(() => vi.advanceTimersByTime(10_000));
+      const list = screen.getByText('Round Messages').parentElement!;
+      expect(list.className).toContain('opacity-100'); // not stuck hidden behind a bubble
+      expect(screen.getByText('Round 2 news').tagName).toBe('LI');
+      expect(document.querySelectorAll('.fixed.inset-0').length).toBe(0); // no bubble left over
     } finally {
       vi.useRealTimers();
     }
