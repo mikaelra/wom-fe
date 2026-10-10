@@ -150,3 +150,23 @@ describe('the signpost', () => {
     expect(layoutBoard({ label: 'PLAYERS', color: '#fff', side: 'left', row: 0 }, 480, 300).scale).toBe(2);
   });
 });
+
+describe('the Moon in the city sky', () => {
+  it('knows its phase, and draws it: a new Moon is all dark', () => {
+    const bodies = skyBodies(new Date('2026-10-26T21:00:00Z'), 37.98, 23.73);
+    expect(bodies.moonPhase).toBeGreaterThan(170); // full, that night
+    const fills: string[] = [];
+    const ctx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect() {
+        fills.push(String(this.fillStyle));
+      },
+    };
+    const moonHigh = { sun: { alt: -30, az: 0 }, moon: { alt: 50, az: 180 } };
+    drawSignpostScene(ctx, 120, 200, [], { ...moonHigh, moonPhase: 180 });
+    expect(fills).toContain('#e8ecf5');
+    fills.length = 0;
+    drawSignpostScene(ctx, 120, 200, [], { ...moonHigh, moonPhase: 0 });
+    expect(fills).not.toContain('#e8ecf5');
+  });
+});
