@@ -4,6 +4,9 @@ import { getStoredAccountToken, getStoredToken } from '@/lib/http';
 import type { LobbyState, ChatMessage } from '@/types/game';
 import { noteDisconnect } from '@/lib/textModeOffer';
 
+/** Away this long (in the background), the socket reconnects on return. */
+export const AWAY_RECONNECT_MS = 3000;
+
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
 export type UseLobbyConnectionOptions = {
@@ -83,15 +86,34 @@ export function useLobbyConnection(
     const handleConnect = () => {
       rejoin();
     };
-    const handleDisconnect = () => {
+    const handleDisconnect = (reason?: string) => {
       setConnectionStatus('disconnected');
       // A connection that keeps dropping may be a device struggling with
-      // the 3D match: lib/textModeOffer.ts offers text mode.
-      noteDisconnect();
+      // the 3D match: lib/textModeOffer.ts offers text mode. Not our own
+      // reconnect below, which is no drop.
+      if (reason !== 'io client disconnect') noteDisconnect();
+    };
+
+    // Back from the background (the app left and opened again, the phone
+    // locked): the socket can still look connected while iOS has long cut
+    // it, and socket.io only notices at its ping timeout, half a minute on.
+    // Reconnect at once instead; handleConnect rejoins.
+    let hiddenAt: number | null = null;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+      }
+      const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
+      hiddenAt = null;
+      if (away < AWAY_RECONNECT_MS) return;
+      sock.disconnect();
+      sock.connect();
     };
 
     sock.on('connect', handleConnect);
     sock.on('disconnect', handleDisconnect);
+    document.addEventListener('visibilitychange', handleVisibility);
     rejoin();
 
     const unsubState = subscribe('state_update', (data) => {
@@ -114,6 +136,7 @@ export function useLobbyConnection(
     return () => {
       sock.off('connect', handleConnect);
       sock.off('disconnect', handleDisconnect);
+      document.removeEventListener('visibilitychange', handleVisibility);
       sock.emit('leave_room', { lobby_id: lobbyId });
       unsubState();
       unsubChat();

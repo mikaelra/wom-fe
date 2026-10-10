@@ -21,6 +21,7 @@ import { BATTLE_MUSIC, playMusic, PRE_LOBBY_MUSIC } from '@/lib/music';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
+import LoadingState from '@/components/loading/LoadingState';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import { playerMark, shownPlayerName } from '@/lib/playerThumbnail';
 import type { Player, Relic } from '@/types/game';
@@ -344,13 +345,12 @@ export default function TextLobby({
   const otherPlayers = state?.players.filter((p) => p.name !== playerName && p.hp > 0 && !p.spectator) ?? [];
   const selectedRelicIds = myPlayer?.selected_relic_ids ?? [];
 
-  if (connectionStatus === 'disconnected') {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#070b15] p-4">
-        <p className="text-lg text-gray-100">Connection lost. Please refresh.</p>
-      </div>
-    );
-  }
+  // Not caught up with the server -- joining, or reconnecting after a drop
+  // (useLobbyConnection rejoins by itself; a lobby gone meanwhile walks out
+  // via onLobbyGone): the whole lobby stays on screen, blurred and out of
+  // reach, under the loading animation. Only the way home stays sharp.
+  const stale = connectionStatus !== 'connected';
+  const staleLook = stale ? ' blur-sm pointer-events-none select-none' : '';
 
   const submitResource = (id: string) => {
     if (!game.canAct) return;
@@ -388,11 +388,12 @@ export default function TextLobby({
           🏛️
         </Link>
       </span>
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+      {stale && <LoadingState label="Reconnecting" overSuppression />}
+      <div className={`absolute top-4 right-4 z-20 flex items-center gap-2${staleLook}`}>
         <MusicToggleButton />
         <SfxToggleButton />
       </div>
-      <div className="relative z-10 min-h-screen w-full flex items-center justify-center">
+      <div className={`relative z-10 min-h-screen w-full flex items-center justify-center${staleLook}`} aria-busy={stale}>
         <div className="w-full max-w-3xl flex flex-col items-center justify-center rounded-2xl bg-gray-950/80 transition-all duration-300 p-3">
           {state?.boss_fight && enemy && (
             <div className="bg-red-950/70 border border-red-800 p-4 rounded mb-4">
@@ -612,7 +613,7 @@ export default function TextLobby({
       {/* Chat: a button in the bottom-right corner that opens it, so it
           takes no room on a phone screen until it's wanted. */}
       {chatOpen && (
-        <div className="fixed bottom-16 right-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-gray-900 p-4 rounded-xl shadow-xl border border-gray-700">
+        <div className={`fixed bottom-16 right-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-gray-900 p-4 rounded-xl shadow-xl border border-gray-700${staleLook}`}>
           <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
           <ul className="space-y-1 text-gray-200 mb-3 max-h-60 overflow-y-auto">
             {chat.map((m, i) => (
@@ -647,7 +648,7 @@ export default function TextLobby({
         </div>
       )}
       {/* The 3D game's own chat button (SceneOverlay), with its unread dot. */}
-      <div className="fixed bottom-4 right-4 z-40 inline-block">
+      <div className={`fixed bottom-4 right-4 z-40 inline-block${staleLook}`}>
         <button
           type="button"
           onClick={() => {

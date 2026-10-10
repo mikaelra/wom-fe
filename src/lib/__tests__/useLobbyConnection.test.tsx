@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { useLobbyConnection } from '@/lib/useLobbyConnection';
+import { AWAY_RECONNECT_MS, useLobbyConnection } from '@/lib/useLobbyConnection';
 import { setStoredToken } from '@/lib/http';
+import { OFFER_EVENT, resetDropsForTests } from '@/lib/textModeOffer';
 import * as socketModule from '@/lib/socket';
 
 // A minimal fake for @/lib/socket's getSocket()/subscribe(): real socket.io
@@ -24,6 +25,8 @@ vi.mock('@/lib/socket', () => {
       socketListeners.get(event)?.delete(handler);
     },
     emit,
+    disconnect: vi.fn(),
+    connect: vi.fn(),
   };
 
   return {
@@ -40,7 +43,10 @@ vi.mock('@/lib/socket', () => {
       subscribeListeners.get(event)?.forEach((h) => h(payload));
     },
     __emit: emit,
+    __socket: fakeSocket,
     __reset: () => {
+      fakeSocket.disconnect.mockClear();
+      fakeSocket.connect.mockClear();
       socketListeners.clear();
       subscribeListeners.clear();
       emit.mockClear();
@@ -52,6 +58,7 @@ const socket = socketModule as unknown as {
   __fireSocketEvent: (event: string, payload?: unknown) => void;
   __fireSubscribeEvent: (event: string, payload: unknown) => void;
   __emit: ReturnType<typeof vi.fn>;
+  __socket: { disconnect: ReturnType<typeof vi.fn>; connect: ReturnType<typeof vi.fn> };
   __reset: () => void;
 };
 
@@ -294,5 +301,47 @@ describe('useLobbyConnection', () => {
     });
 
     expect(socket.__emit).not.toHaveBeenCalledWith('join_room', expect.anything());
+  });
+
+  describe('coming back from the background', () => {
+    const setVisibility = (v: 'hidden' | 'visible') => {
+      Object.defineProperty(document, 'visibilityState', { value: v, configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    };
+
+    it('reconnects at once after a while away, without counting it as a drop', () => {
+      vi.useFakeTimers();
+      renderHook(() => useLobbyConnection('AAAA', 'Alice'));
+      act(() => setVisibility('hidden'));
+      vi.advanceTimersByTime(AWAY_RECONNECT_MS);
+      act(() => setVisibility('visible'));
+      expect(socket.__socket.disconnect).toHaveBeenCalledTimes(1);
+      expect(socket.__socket.connect).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not count its own reconnects toward the text-mode offer', () => {
+      resetDropsForTests();
+      const offered = vi.fn();
+      window.addEventListener(OFFER_EVENT, offered);
+      renderHook(() => useLobbyConnection('AAAA', 'Alice'));
+      act(() => {
+        for (let i = 0; i < 3; i++) socket.__fireSocketEvent('disconnect', 'io client disconnect');
+      });
+      expect(offered).not.toHaveBeenCalled();
+      act(() => {
+        for (let i = 0; i < 3; i++) socket.__fireSocketEvent('disconnect', 'transport close');
+      });
+      expect(offered).toHaveBeenCalledTimes(1);
+      window.removeEventListener(OFFER_EVENT, offered);
+    });
+
+    it('leaves a quick glance away alone', () => {
+      vi.useFakeTimers();
+      renderHook(() => useLobbyConnection('AAAA', 'Alice'));
+      act(() => setVisibility('hidden'));
+      vi.advanceTimersByTime(AWAY_RECONNECT_MS - 1000);
+      act(() => setVisibility('visible'));
+      expect(socket.__socket.disconnect).not.toHaveBeenCalled();
+    });
   });
 });
