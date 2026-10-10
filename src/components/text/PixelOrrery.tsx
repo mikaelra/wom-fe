@@ -40,7 +40,7 @@ function stars(w: number, h: number): [number, number][] {
 const SIZE: Record<Exclude<OrreryBody, 'Earth' | 'Sun'>, number> = {
   Moon: 2,
   Mercury: 2,
-  Venus: 3,
+  Venus: 2,
   Mars: 3,
   Jupiter: 4,
   Saturn: 3,
