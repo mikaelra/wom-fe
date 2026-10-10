@@ -20,6 +20,7 @@ import HudToggle from '@/components/worldmap/HudToggle';
 import HudLoadingMark from '@/components/worldmap/HudLoadingMark';
 import { useHudHidden, useHudLoadingMark } from '@/lib/hudHidden';
 import { useTextMode } from '@/lib/textMode';
+import { watch3dScene } from '@/lib/textModeOffer';
 
 // three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
 // is, and the renderer is never downloaded.
@@ -52,6 +53,9 @@ export default function Page() {
   const [sceneReady, setSceneReady] = useState(false);
   // Text mode (lib/textMode.ts): no globe, its markers as text (TextHome).
   const textMode = useTextMode();
+  // A 3D scene up: marked, so a crash in it offers text mode next start
+  // (lib/textModeOffer.ts).
+  useEffect(() => (textMode === false ? watch3dScene() : undefined), [textMode]);
   const hudHidden = useHudHidden() && textMode === false;
   const hudLoadingMark = useHudLoadingMark();
 

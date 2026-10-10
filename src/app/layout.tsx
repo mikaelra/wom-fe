@@ -7,6 +7,7 @@ import LoadingOverlay from "@/components/loading/LoadingOverlay";
 import AppleTransactionSync from "@/components/shop/AppleTransactionSync";
 import SteamWelcome from "@/components/steam/SteamWelcome";
 import AppleWelcome from "@/components/account/AppleWelcome";
+import TextModeOffer from "@/components/TextModeOffer";
 import AgePrompt from "@/components/AgePrompt";
 import MoonNotifications from "@/components/MoonNotifications";
 
@@ -54,6 +55,7 @@ export default function RootLayout({
           <SteamWelcome />
           <AppleWelcome />
           <AgePrompt />
+          <TextModeOffer />
           <MoonNotifications />
         </ToastProvider>
       </body>

@@ -26,6 +26,7 @@ import { bossfightSignSublabel } from '@/lib/bossfightSign';
 import { playMusic, CITY_MUSIC } from '@/lib/music';
 import LoadingState from '@/components/loading/LoadingState';
 import { useTextMode } from '@/lib/textMode';
+import { watch3dScene } from '@/lib/textModeOffer';
 
 // three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
 // is, and the renderer is never downloaded.
@@ -87,6 +88,9 @@ function CityPageContent() {
   });
   // Text mode (lib/textMode.ts): no scene, its signposts as text (TextCity).
   const textMode = useTextMode();
+  // A 3D scene up: marked, so a crash in it offers text mode next start
+  // (lib/textModeOffer.ts).
+  useEffect(() => (textMode === false ? watch3dScene() : undefined), [textMode]);
   const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
     timewarpRun,
     timewarpRunId,

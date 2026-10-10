@@ -13,6 +13,7 @@ import { CITY_PATH } from '@/lib/cities';
 import { cameraSpinCookie, readCameraSpin } from '@/lib/cameraSpinPref';
 import NoLoadingOverlay from '@/components/loading/NoLoadingOverlay';
 import { useTextMode } from '@/lib/textMode';
+import { watch3dScene } from '@/lib/textModeOffer';
 
 // three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
 // is, and the renderer is never downloaded.
@@ -61,6 +62,9 @@ function LobbyPageContent() {
 
   // Text mode (src/lib/textMode.ts): the match as text, no 3D at all.
   const textMode = useTextMode();
+  // A 3D scene up: marked, so a crash in it offers text mode next start
+  // (lib/textModeOffer.ts).
+  useEffect(() => (textMode === false ? watch3dScene() : undefined), [textMode]);
 
   const hasAutoJoined = useRef(false);
   const [hasJoined, setHasJoined] = useState(false);
