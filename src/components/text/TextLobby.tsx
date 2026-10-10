@@ -407,7 +407,11 @@ export default function TextLobby({
             </div>
           )}
           {rankedStartsIn !== null && <p className="mb-3 text-lg text-gray-300 font-medium">Match starts in {rankedStartsIn}s</p>}
-          <h2 className="text-3xl font-extrabold text-white mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
+          {/* A ranked match is matchmade, never joined by code: no id to share
+              (the 3D lobby's LobbyOverlay hides it too). */}
+          {!state?.ranked && !state?.ai_ranked && (
+            <h2 className="text-3xl font-extrabold text-white mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
+          )}
           <p className="mb-6 text-lg text-gray-300 font-medium">
             🌀 {gameStarted ? `Round: ${round}` : <WaitingForStart />}
           </p>
