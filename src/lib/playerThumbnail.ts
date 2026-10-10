@@ -23,3 +23,12 @@ export function playerMark(p: Pick<Player, 'boss' | 'lost_soul' | 'bot' | 'bot_t
   if (p.bot) return { emoji: p.bot_type ? (BOT_EMOJI[p.bot_type] ?? BOT_EMOJI.TURTLE) : '🤖' };
   return { url: `/skins/thumbnails/${p.skin ?? 'frog_green_v1'}.png` };
 }
+
+/** A player's name as the text match shows it: Hades' and the Lost Soul's
+ *  without the emoji their names end in ("Hades 👹", "Lost Soul 👻") --
+ *  the mark in front stands for it (Mikael, 2026-10-10). Display only:
+ *  anything sent to the server uses the name itself. */
+export function shownPlayerName(p: Pick<Player, 'name' | 'boss' | 'lost_soul'>): string {
+  if (!p.boss && !p.lost_soul) return p.name;
+  return p.name.replace(/\s*(\p{Extended_Pictographic}️?)+$/u, '');
+}

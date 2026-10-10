@@ -213,8 +213,9 @@ describe('TextLobby', () => {
 
   it('shows the boss and its countdown', async () => {
     const start = new Date(Date.now() + 125_000).toISOString();
-    await show(lobby({ boss_fight: true, start_time: start, players: [player('Oni'), player('Hades 👹', { boss: true, hp: 40, title: 'Lord' })] }));
+    await show(lobby({ boss_fight: true, start_time: start, players: [player('Oni'), player('Hades 👹', { boss: true, bot: true, hp: 40, title: 'Lord' })] }));
     expect(screen.getByText('HP: 40')).toBeTruthy();
+    expect(screen.getAllByText('Hades').length).toBe(2); // boss box and player list, without its 👹
     expect(screen.getByText(/Boss-fight starts in 2m/)).toBeTruthy();
   });
 

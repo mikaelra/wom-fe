@@ -22,7 +22,7 @@ import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import { useLobbyGame } from '@/lib/useLobbyGame';
-import { playerMark } from '@/lib/playerThumbnail';
+import { playerMark, shownPlayerName } from '@/lib/playerThumbnail';
 import type { Player, Relic } from '@/types/game';
 
 // A match as text (Settings -> Graphics -> Text mode, src/lib/textMode.ts):
@@ -316,6 +316,8 @@ export default function TextLobby({
   const chat = useMemo(() => hideMuted(state?.chat ?? [], muted), [state?.chat, muted]);
 
   const emit = getSocket();
+  const winnerPlayer = state?.players.find((p) => p.name === state.winner);
+  const winnerName = winnerPlayer ? shownPlayerName(winnerPlayer) : state?.winner;
   const otherPlayers = state?.players.filter((p) => p.name !== playerName && p.hp > 0 && !p.spectator) ?? [];
   const selectedRelicIds = myPlayer?.selected_relic_ids ?? [];
 
@@ -371,7 +373,7 @@ export default function TextLobby({
         <div className="w-full max-w-3xl flex flex-col items-center justify-center rounded-2xl bg-gray-950/80 transition-all duration-300 p-3">
           {state?.boss_fight && enemy && (
             <div className="bg-red-950/70 border border-red-800 p-4 rounded mb-4">
-              <h2 className="text-2xl font-bold text-center">{enemy.name}</h2>
+              <h2 className="text-2xl font-bold text-center">{shownPlayerName(enemy)}</h2>
               <p className="text-center text-gray-400">{enemy.title} </p>
               <p className="text-center">HP: {enemy.hp}</p>
               {bossStartsIn !== null && (
@@ -409,7 +411,7 @@ export default function TextLobby({
                   {state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>}
                   {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
                   <PlayerThumbnail player={p} />
-                  <span className="font-medium">{p.name}</span>
+                  <span className="font-medium">{shownPlayerName(p)}</span>
                   {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
                     <span
                       className="ml-auto text-red-500 text-sm cursor-pointer"
@@ -506,7 +508,7 @@ export default function TextLobby({
                       <option value="">Select target</option>
                       {otherPlayers.map((p) => (
                         <option key={p.name} value={p.name}>
-                          {p.name}
+                          {shownPlayerName(p)}
                         </option>
                       ))}
                     </select>
@@ -549,7 +551,7 @@ export default function TextLobby({
                   <option value="">Select player</option>
                   {eligibleDenyTargets.map((p) => (
                     <option key={p.name} value={p.name}>
-                      {p.name}
+                      {shownPlayerName(p)}
                     </option>
                   ))}
                 </select>
@@ -567,7 +569,7 @@ export default function TextLobby({
 
           {gameOver && (
             <div className="w-full bg-green-950/60 border border-green-700 text-green-300 p-4 rounded-xl mt-4 text-center">
-              <p className="text-xl font-semibold mb-3">🎉 Game Over! {state?.winner} has won the game!</p>
+              <p className="text-xl font-semibold mb-3">🎉 Game Over! {winnerName} has won the game!</p>
               <Link href="/" className="text-blue-400 hover:text-blue-300 font-medium transition-colors duration-200">
                 ← Back to Home
               </Link>
