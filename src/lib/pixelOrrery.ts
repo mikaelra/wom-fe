@@ -25,7 +25,7 @@ export interface OrbitPoint {
   dist: number;
 }
 
-const SUN_COLOR = 0xffd23f;
+const SUN_COLOR = 0xffe600; // bright yellow, drawn with a white centre
 const EARTH_COLOR = 0x2563eb;
 
 export function orreryColor(body: OrreryBody): number {

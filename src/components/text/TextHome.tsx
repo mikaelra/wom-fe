@@ -35,10 +35,9 @@ export default function TextHome({
   return (
     <>
       <PixelOrrery />
-      {/* In the middle of the sky, over the Earth, on a dark backing so the
-          trails never get in the way of reading them. */}
+      {/* In the middle of the sky, over the Earth. */}
       <div className="absolute inset-0 flex items-center justify-center px-4 pointer-events-none">
-        <div className="flex flex-col items-center bg-black/70 rounded-xl px-6 py-3 pointer-events-auto">
+        <div className="flex flex-col items-center px-6 py-3 pointer-events-auto">
           {CITIES.map((city) => (
             <button key={city.id} type="button" onClick={() => onEnterCity(city)} style={link}>
               🏛️ {city.actionLabel ?? city.name} 🏛️

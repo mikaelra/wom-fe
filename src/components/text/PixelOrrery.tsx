@@ -63,6 +63,9 @@ function drawBody(ctx: CanvasRenderingContext2D, body: Exclude<OrreryBody, 'Eart
     ctx.fillRect(x, y + 4, 1, 2);
     ctx.fillRect(x - 5, y, 2, 1);
     ctx.fillRect(x + 4, y, 2, 1);
+    ctx.fillStyle = '#ffffff'; // its white-hot centre
+    ctx.fillRect(x, y - 1, 1, 3);
+    ctx.fillRect(x - 1, y, 3, 1);
     return;
   }
   square(ctx, x, y, SIZE[body]);
@@ -72,12 +75,19 @@ function drawBody(ctx: CanvasRenderingContext2D, body: Exclude<OrreryBody, 'Eart
   }
 }
 
+// The Earth at the centre, seven sky pixels round: S sea, L land.
+const EARTH = ['..SSS..', '.SSLSS.', 'SSLLSSS', 'SSSLLSS', 'SLSSSLS', '.SSSSL.', '..SSS..'];
+
 function drawEarth(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
-  ctx.fillStyle = hex(orreryColor('Earth'));
-  square(ctx, cx, cy, 3);
-  ctx.fillStyle = '#22c55e'; // land
-  ctx.fillRect(cx, cy - 1, 1, 1);
-  ctx.fillRect(cx - 1, cy, 1, 1);
+  const colors: Record<string, string> = { S: hex(orreryColor('Earth')), L: '#22c55e' };
+  EARTH.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      const c = colors[row[x]];
+      if (!c) continue;
+      ctx.fillStyle = c;
+      ctx.fillRect(cx - 3 + x, cy - 3 + y, 1, 1);
+    }
+  });
 }
 
 export default function PixelOrrery() {
