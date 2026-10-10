@@ -40,6 +40,7 @@ vi.mock('@/components/BossSignupNudge', () => ({ default: () => <div>relic nudge
 vi.mock('@/components/ArtifactClaimNudge', () => ({ default: () => <div>artifact nudge</div> }));
 
 import TextLobby from '@/components/text/TextLobby';
+import { isUrgentScreenLoading, resetLoadingTracker } from '@/lib/loadingTracker';
 
 function player(name: string, extra: Partial<Player> = {}): Player {
   return {
@@ -67,6 +68,7 @@ async function show(state: LobbyState, onLobbyGone = vi.fn()) {
 beforeEach(() => {
   localStorage.clear();
   conn.status = 'connected';
+  resetLoadingTracker();
   events.value = null;
 });
 
@@ -286,15 +288,22 @@ describe('TextLobby', () => {
     expect(gone).toHaveBeenCalled();
   });
 
-  it('keeps the players and round messages, blurred, while reconnecting, and waits with the rest', async () => {
+  it('blurs the whole lobby under the loading animation while reconnecting', async () => {
     conn.status = 'disconnected';
     await show(lobby({ round: 2 }));
-    const players = screen.getByText('Players in Lobby').parentElement!;
-    expect(players.getAttribute('aria-busy')).toBe('true');
-    expect(players.className).toContain('blur');
-    expect(screen.getByText('Round Messages').parentElement!.className).toContain('blur');
-    expect(screen.queryByText('Choose Resource')).toBeNull();
-    expect(screen.queryByLabelText('Toggle chat')).toBeNull();
+    expect(screen.getByRole('status', { name: 'Reconnecting' })).toBeTruthy();
+    expect(isUrgentScreenLoading()).toBe(true); // shown over the lobby's NoLoadingOverlay
+    const lobbyView = screen.getByText('Players in Lobby').closest('[aria-busy]')!;
+    expect(lobbyView.getAttribute('aria-busy')).toBe('true');
+    expect(lobbyView.className).toContain('blur');
+    expect(screen.getByText('Choose Resource')).toBeTruthy(); // still there, under the blur
+    expect(screen.getByLabelText('Back to Home').closest('.blur-sm')).toBeNull(); // the way home stays sharp
     expect(screen.queryByText(/refresh/i)).toBeNull();
+  });
+
+  it('is sharp, with no loading, once connected', async () => {
+    await show(lobby({ round: 2 }));
+    expect(screen.queryByRole('status', { name: 'Reconnecting' })).toBeNull();
+    expect(screen.getByText('Players in Lobby').closest('[aria-busy]')!.className).not.toContain('blur');
   });
 });
