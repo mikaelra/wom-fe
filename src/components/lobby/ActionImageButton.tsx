@@ -16,9 +16,6 @@ type ActionImageButtonProps = {
   width?: number;
   className?: string;
   style?: CSSProperties;
-  /** Small pixel art scaled up with sharp pixels (text mode's 8-bit
-   *  buttons, *-8bit.png) rather than smoothed. */
-  pixelated?: boolean;
 };
 
 // Cropped LD button art (attack-ld.png etc.) is a tightly-bound pill shape
@@ -35,7 +32,6 @@ export default function ActionImageButton({
   width = 200,
   className,
   style,
-  pixelated = false,
 }: ActionImageButtonProps) {
   return (
     <button
@@ -87,7 +83,6 @@ export default function ActionImageButton({
           height: 'auto',
           display: 'block',
           pointerEvents: 'none',
-          imageRendering: pixelated ? 'pixelated' : undefined,
           filter: selected
             ? `brightness(1.2) saturate(1.35) drop-shadow(0 0 8px ${glowColor})`
             : 'brightness(0.82) saturate(0.85)',

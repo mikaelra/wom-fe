@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import FloatingMessage from '@/components/text/FloatingMessage';
 import BossSignupNudge from '@/components/BossSignupNudge';
@@ -23,7 +23,6 @@ import { useGameEvents } from '@/lib/useGameEvents';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import { wellRewardFromEvents } from '@/lib/gameEvents';
 import { useWideScreen } from '@/lib/useWideScreen';
-import ActionImageButton from '@/components/lobby/ActionImageButton';
 import ResourceCard from '@/components/ResourceCard';
 import { lobbyTitle } from '@/lib/lobbyTitle';
 import PixelTitle from '@/components/text/PixelTitle';
@@ -69,28 +68,47 @@ const bigButton = (backgroundColor: string) => ({
 const homeButton =
   'bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors';
 
-// The 8-bit action buttons are 80 pixels wide; whole multiples keep their
-// pixels square: the small Attack in the player list at 1x, the rest at 2x.
-const ATTACK_ICON_W = 80;
-const ACTION_W = 160;
+// The actions as words in their colours (Mikael, 2026-10-11): Attack red,
+// The Well purple, Defend blue -- the colours the 3D game's buttons have.
+// The chosen one is framed in its colour.
+const ATTACK_COLOR = '#ef4444';
+const WELL_COLOR = '#c084fc';
+const DEFEND_COLOR = '#60a5fa';
 
-// The action buttons' colours, as the 3D game glows them when chosen.
-const ATTACK_GLOW = 'rgba(239,68,68,0.7)';
-const DEFEND_GLOW = 'rgba(59,130,246,0.7)';
-const WELL_GLOW = 'rgba(167,139,250,0.7)';
-
-/** A tight white glow just round an action's 8-bit button art, always there, so the
- *  actions stand out from the text round them (the chosen one glows in its
- *  own colour on top, ActionImageButton's selected look). */
-function GlowAction({ className = '', children }: { className?: string; children: ReactNode }) {
+function ActionWord({
+  word,
+  label,
+  color,
+  selected,
+  onClick,
+  small = false,
+  className = '',
+}: {
+  word: string;
+  label: string;
+  color: string;
+  selected: boolean;
+  onClick: () => void;
+  small?: boolean;
+  className?: string;
+}) {
   return (
-    <span className={`relative inline-flex ${className}`}>
-      <span
-        aria-hidden="true"
-        className="absolute -inset-[2px] rounded-lg blur-[3px] opacity-20 bg-white pointer-events-none"
-      />
-      <span className="relative">{children}</span>
-    </span>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={selected}
+      className={`font-extrabold uppercase tracking-wider rounded-lg border-2 cursor-pointer transition-colors ${
+        small ? 'text-sm px-2 py-0.5' : 'text-xl px-5 py-2'
+      } ${className}`}
+      style={{
+        color,
+        borderColor: selected ? color : 'transparent',
+        backgroundColor: selected ? `${color}26` : 'transparent',
+      }}
+    >
+      {word}
+    </button>
   );
 }
 
@@ -521,24 +539,22 @@ export default function TextLobby({
                   const relic = relics.find((r) => Number(r.id) === id);
                   return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
                 })}
-              {/* Attack, the 3D game's red button made small, a tab's width
+              {/* Attack, the word in red, a tab's width
                   after the name of everyone you can attack -- a tap attacks
                   them. */}
               {attackable(p) && (
-                <GlowAction className="ml-8">
-                  <ActionImageButton
-                    src="/images/buttons/attack-8bit.png"
-                    pixelated
-                    alt={`Attack ${shownPlayerName(p)}`}
-                    onClick={() => {
-                      submitAction('attack');
-                      submitTarget(p.name);
-                    }}
-                    selected={action === 'attack' && target === p.name}
-                    glowColor={ATTACK_GLOW}
-                    width={ATTACK_ICON_W}
-                  />
-                </GlowAction>
+                <ActionWord
+                  word="Attack"
+                  label={`Attack ${shownPlayerName(p)}`}
+                  color={ATTACK_COLOR}
+                  selected={action === 'attack' && target === p.name}
+                  onClick={() => {
+                    submitAction('attack');
+                    submitTarget(p.name);
+                  }}
+                  small
+                  className="ml-8"
+                />
               )}
               {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
                 <span
@@ -598,28 +614,20 @@ export default function TextLobby({
   // to take that resource this round.
   const defendAndWell = canChoose && (
     <div className="flex gap-3 justify-center flex-wrap mb-4">
-      <GlowAction>
-        <ActionImageButton
-          src="/images/buttons/well-8bit.png"
-          pixelated
-          alt="The Well"
-          onClick={() => submitAction('well')}
-          selected={action === 'well'}
-          glowColor={WELL_GLOW}
-          width={ACTION_W}
-        />
-      </GlowAction>
-      <GlowAction>
-        <ActionImageButton
-          src="/images/buttons/defend-8bit.png"
-          pixelated
-          alt="Defend"
-          onClick={() => submitAction('defend')}
-          selected={action === 'defend'}
-          glowColor={DEFEND_GLOW}
-          width={ACTION_W}
-        />
-      </GlowAction>
+      <ActionWord
+        word="Well"
+        label="The Well"
+        color={WELL_COLOR}
+        selected={action === 'well'}
+        onClick={() => submitAction('well')}
+      />
+      <ActionWord
+        word="Defend"
+        label="Defend"
+        color={DEFEND_COLOR}
+        selected={action === 'defend'}
+        onClick={() => submitAction('defend')}
+      />
     </div>
   );
 
