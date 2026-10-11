@@ -68,14 +68,17 @@ const bigButton = (backgroundColor: string) => ({
 const homeButton =
   'bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors';
 
-const ATTACK_ICON_W = 56; // the small Attack button in the player list, px
+// The 8-bit action buttons are 80 pixels wide; whole multiples keep their
+// pixels square: the small Attack in the player list at 1x, the rest at 2x.
+const ATTACK_ICON_W = 80;
+const ACTION_W = 160;
 
 // The action buttons' colours, as the 3D game glows them when chosen.
 const ATTACK_GLOW = 'rgba(239,68,68,0.7)';
 const DEFEND_GLOW = 'rgba(59,130,246,0.7)';
 const WELL_GLOW = 'rgba(167,139,250,0.7)';
 
-/** A soft white glow behind an action's button art, always there, so the
+/** A tight white glow just round an action's 8-bit button art, always there, so the
  *  actions stand out from the text round them (the chosen one glows in its
  *  own colour on top, ActionImageButton's selected look). */
 function GlowAction({ className = '', children }: { className?: string; children: ReactNode }) {
@@ -83,7 +86,7 @@ function GlowAction({ className = '', children }: { className?: string; children
     <span className={`relative inline-flex ${className}`}>
       <span
         aria-hidden="true"
-        className="absolute -inset-1 rounded-full blur-md opacity-20 bg-white pointer-events-none"
+        className="absolute -inset-[2px] rounded-lg blur-[3px] opacity-20 bg-white pointer-events-none"
       />
       <span className="relative">{children}</span>
     </span>
@@ -478,7 +481,8 @@ export default function TextLobby({
               {attackable(p) && (
                 <GlowAction className="ml-8">
                   <ActionImageButton
-                    src="/images/buttons/attack-ld.png"
+                    src="/images/buttons/attack-8bit.png"
+                    pixelated
                     alt={`Attack ${shownPlayerName(p)}`}
                     onClick={() => {
                       submitAction('attack');
@@ -550,22 +554,24 @@ export default function TextLobby({
     <div className="flex gap-3 justify-center flex-wrap mb-4">
       <GlowAction>
         <ActionImageButton
-          src="/images/buttons/well-ld.png"
+          src="/images/buttons/well-8bit.png"
+          pixelated
           alt="The Well"
           onClick={() => submitAction('well')}
           selected={action === 'well'}
           glowColor={WELL_GLOW}
-          width={150}
+          width={ACTION_W}
         />
       </GlowAction>
       <GlowAction>
         <ActionImageButton
-          src="/images/buttons/defend-ld.png"
+          src="/images/buttons/defend-8bit.png"
+          pixelated
           alt="Defend"
           onClick={() => submitAction('defend')}
           selected={action === 'defend'}
           glowColor={DEFEND_GLOW}
-          width={150}
+          width={ACTION_W}
         />
       </GlowAction>
     </div>
