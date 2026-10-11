@@ -1,6 +1,7 @@
 // Paging through a list of games (the My AI page's, the stats page's ranked
-// Games): a page at a time, the newest first, each row numbered from 1 for
-// the newest game of the season.
+// Games): a page at a time, the newest first, each row numbered by when it
+// was played -- the season's first game #1, the newest #n (Mikael,
+// 2026-10-11).
 
 export const GAMES_PER_PAGE = 10;
 
@@ -10,9 +11,10 @@ export function pageCount(total: number, perPage: number = GAMES_PER_PAGE): numb
   return Math.max(1, Math.ceil(total / perPage));
 }
 
-/** The row number of the `index`th row on `page`. */
-export function rowNumber(page: number, index: number, perPage: number = GAMES_PER_PAGE): number {
-  return (page - 1) * perPage + index + 1;
+/** The game number of the `index`th row on `page`, of `total` games
+ *  listed newest first: the newest is `total`, the first ever 1. */
+export function rowNumber(total: number, page: number, index: number, perPage: number = GAMES_PER_PAGE): number {
+  return total - ((page - 1) * perPage + index);
 }
 
 /** When a game ended: the time alone today, the date as well before. */

@@ -258,7 +258,7 @@ describe('MyAiPage', () => {
     expect(cells.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("pages through the season's games, numbered from the newest", async () => {
+  it("pages through the season's games, the first numbered 1 and the newest n", async () => {
     vi.mocked(getMyAiMatches).mockImplementation(async (_t, page = 1) => ({
       matches: [{ match_id: `m${page}`, placement: 3, rank: null, opponents: [], at: null }],
       total: 23,
@@ -267,10 +267,11 @@ describe('MyAiPage', () => {
     }));
     render(<MyAiPage />);
     expect(await screen.findByText('1 / 3')).toBeInTheDocument();
+    expect(screen.getByText('23')).toBeInTheDocument(); // the newest game, top of page 1
     expect(screen.getByRole('button', { name: 'First page' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Last page' }));
     expect(await screen.findByText('3 / 3')).toBeInTheDocument();
-    expect(screen.getByText('21')).toBeInTheDocument(); // the first row of page 3
+    expect(screen.getByText('3')).toBeInTheDocument(); // the first row of page 3: games 3, 2, 1
     expect(vi.mocked(getMyAiMatches)).toHaveBeenLastCalledWith('tok', 3);
     expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled();
   });

@@ -3,7 +3,7 @@
 import { formatEnded, pageCount, rowNumber } from '@/lib/paging';
 
 // A season's games, a page at a time (lib/paging.ts): each row numbered
-// from 1 for the newest, and under them |< < page > >| to go through them
+// by when it was played, the first #1 and the newest #n, and under them |< < page > >| to go through them
 // (Mikael, 2026-10-11). Shared by the My AI page and the stats page's
 // ranked Games.
 
@@ -47,7 +47,7 @@ export default function GameHistoryTable({
         <tbody>
           {rows.map((r, i) => (
             <tr key={r.id} className="border-t border-white/10">
-              <td className="text-white/50 pr-2">{rowNumber(page, i, perPage)}</td>
+              <td className="text-white/50 pr-2">{rowNumber(total, page, i, perPage)}</td>
               <td>#{r.placement}</td>
               <td>{r.rank ?? '—'}</td>
               <td>{r.opponents}</td>

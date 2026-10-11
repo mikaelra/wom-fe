@@ -9,10 +9,10 @@ describe('paging', () => {
     expect(pageCount(23, 10)).toBe(3);
   });
 
-  it('numbers rows from 1 for the newest, across pages', () => {
-    expect(rowNumber(1, 0)).toBe(1);
-    expect(rowNumber(3, 0, 10)).toBe(21);
-    expect(rowNumber(2, 4, 5)).toBe(10);
+  it('numbers rows by when they were played: the newest #n, the first #1', () => {
+    expect(rowNumber(23, 1, 0)).toBe(23); // the newest, top of page 1
+    expect(rowNumber(23, 3, 2, 10)).toBe(1); // the first, last row of page 3
+    expect(rowNumber(12, 2, 4, 5)).toBe(3);
   });
 
   it('shows the time alone today, the date before, a dash for nonsense', () => {
