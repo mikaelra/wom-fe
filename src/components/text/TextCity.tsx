@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import PixelSignpost, { type SignpostBoard } from '@/components/text/PixelSignpost';
-import { inGameLabel, inMarketLabel, playingLabel, searchingLabel } from '@/lib/cityLabels';
+import { inMarketLabel, playingLabel, searchingLabel } from '@/lib/cityLabels';
 import { BACK_COLOR, BOSSFIGHT_COLOR, EARTH_COLOR, MARKET_COLOR, RANKED_COLOR } from '@/components/city/signpostColors';
 
 // The city as text (Text mode, src/lib/textMode.ts): the 3D city's signpost
@@ -18,11 +18,12 @@ function lines(...parts: (string | null | undefined)[]): string | null {
   return shown.length ? shown.join('\n') : null;
 }
 
-/** Who is in a lobby or game and who is searching (Mikael, 2026-10-11) --
- *  or, from a backend without the split, the one "N playing" total. */
+/** Who is searching and who is playing, each line only when there is
+ *  someone (Mikael, 2026-10-11) -- or, from a backend without the split,
+ *  the one "N playing" total. Bot ranked's searching includes its bots. */
 function split(inGame: number | undefined, searching: number | undefined, total: number): (string | null)[] {
   if (inGame === undefined || searching === undefined) return [playingLabel(total)];
-  return [inGameLabel(inGame), searchingLabel(searching)];
+  return [searchingLabel(searching), playingLabel(inGame)];
 }
 
 export default function TextCity({

@@ -7,11 +7,6 @@ export function playingLabel(count: number): string | null {
   return count > 0 ? `${count} playing` : null;
 }
 
-/** "2 in game" / null when nobody is in a lobby or game. */
-export function inGameLabel(count: number): string | null {
-  return count > 0 ? `${count} in game` : null;
-}
-
 /** "3 searching" / null when nobody is queued. */
 export function searchingLabel(count: number): string | null {
   return count > 0 ? `${count} searching` : null;

@@ -81,7 +81,7 @@ describe('TextCity', () => {
     expect(screen.getByLabelText('HADES')).toBeTruthy();
   });
 
-  it('splits each ranked board into who is in a game and who is searching', () => {
+  it('splits each ranked board into who is searching and who is playing', () => {
     render(
       <TextCity
         {...props()}
@@ -92,11 +92,10 @@ describe('TextCity', () => {
         }}
       />,
     );
-    expect(screen.getByText('2 in game', { exact: false })).toBeTruthy();
-    expect(screen.getByText(/1 searching/)).toBeTruthy();
+    expect(screen.getByText(/1 searching\s+2 playing/)).toBeTruthy(); // searching first
     expect(screen.getByText(/4 searching/)).toBeTruthy();
-    expect(screen.queryByText(/playing/)).toBeNull();
-    expect(screen.queryByText(/0 in game/)).toBeNull();
+    expect(screen.queryByText(/0 playing/)).toBeNull(); // only when there is someone
+    expect(screen.queryByText(/in game/)).toBeNull();
   });
 
   it('opens on the ranked boards when sent back from a ranked game', () => {
