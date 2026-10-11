@@ -105,6 +105,14 @@ describe('TextLobby', () => {
     expect(row.textContent).toBe('☠️✅🐺Wolf 1'); // dead, so no kick ❌
   });
 
+  it("shows a player's equipped relics after their name before the game", async () => {
+    await show(lobby({ players: [player('Oni', { admin: true }), player('Toad', { selected_relic_ids: [1] })] }));
+    const row = (await screen.findByText('Toad')).closest('li')!;
+    await act(async () => Promise.resolve());
+    expect(row.textContent!.startsWith('Toad')).toBe(true);
+    expect(row.textContent!.length).toBeGreaterThan('Toad❌'.length); // a relic badge after the name
+  });
+
   it('waits for the game to start with counting dots, then shows the round', async () => {
     vi.useFakeTimers();
     try {
@@ -182,9 +190,9 @@ describe('TextLobby', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Defend' }));
     expect(emit).toHaveBeenCalledWith('submit_choice', { lobby_id: 'ABCD', action: 'defend', resource: '' });
     emit.mockClear();
-    fireEvent.click(screen.getByRole('button', { name: 'Attack' }));
-    expect(emit).not.toHaveBeenCalled(); // waits for a target
-    fireEvent.change(screen.getByLabelText('Select target'), { target: { value: 'Toad' } });
+    // Attack sits beside each player you can attack: one tap attacks them.
+    expect(screen.queryByRole('button', { name: 'Attack Oni' })).toBeNull(); // not yourself
+    fireEvent.click(screen.getByRole('button', { name: 'Attack Toad' }));
     expect(emit).toHaveBeenCalledWith('submit_choice', { lobby_id: 'ABCD', action: 'attack', target: 'Toad', resource: '' });
     expect(screen.queryByText('🚀 Start Game')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'The Well' }));
@@ -193,7 +201,7 @@ describe('TextLobby', () => {
 
   it('has no choices for a denied player, the bar showing but out of reach', async () => {
     await show(lobby({ round: 2, deny_target: 'Oni' }));
-    expect(screen.queryByRole('button', { name: 'Attack' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Attack Toad' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'The Well' })).toBeNull();
     expect((screen.getByText('💰 Get').closest('button') as HTMLButtonElement).disabled).toBe(true);
   });
@@ -300,7 +308,7 @@ describe('TextLobby', () => {
     const lobbyView = screen.getByText('Players in Lobby').closest('[aria-busy]')!;
     expect(lobbyView.getAttribute('aria-busy')).toBe('true');
     expect(lobbyView.className).toContain('blur');
-    expect(screen.getByRole('button', { name: 'Attack' })).toBeTruthy(); // still there, under the blur
+    expect(screen.getByRole('button', { name: 'Attack Toad' })).toBeTruthy(); // still there, under the blur
     expect(screen.getByLabelText('Back to Home').closest('.blur-sm')).toBeNull(); // the way home stays sharp
     expect(screen.queryByText(/refresh/i)).toBeNull();
   });
@@ -333,7 +341,7 @@ describe('TextLobby title and PC layout', () => {
     );
     await show(lobby({ round: 2 }));
     expect(screen.getByText('Players in Lobby')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Attack' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Attack Toad' })).toBeTruthy();
     expect(screen.getByText('❤ Get')).toBeTruthy(); // the bottom bar
     expect(screen.getByText('Round Messages')).toBeTruthy();
     expect(screen.getByLabelText('Chat message')).toBeTruthy(); // docked, already open

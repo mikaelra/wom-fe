@@ -68,6 +68,8 @@ const bigButton = (backgroundColor: string) => ({
 const homeButton =
   'bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors';
 
+const ATTACK_ICON_W = 56; // the small Attack button in the player list, px
+
 const card = 'w-full mb-4 bg-gray-900 border border-white/10 p-4 rounded-xl';
 
 /** Whole seconds until an ISO time, never below zero; null without one. */
@@ -413,6 +415,9 @@ export default function TextLobby({
       </p>
     </>
   );
+  const canChoose = !gameOver && !isDenied && isAlive && gameStarted && !myPlayer?.spectator;
+  const attackable = (p: { name: string; hp: number; spectator?: boolean }) =>
+    canChoose && p.name !== playerName && p.hp > 0 && !p.spectator;
   const playersCard = (
     <>
       <div className={card}>
@@ -420,24 +425,44 @@ export default function TextLobby({
         <ul className="list-disc pl-6 text-gray-200 space-y-2">
           {state?.players.map((p) => (
             <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
+              {/* Attack, the 3D game's red button made small, first on the
+                  line of everyone you can attack -- a tap attacks them. A
+                  gap the same size keeps the other names in line. */}
+              {canChoose &&
+                (attackable(p) ? (
+                  <ActionImageButton
+                    src="/images/buttons/attack-ld.png"
+                    alt={`Attack ${shownPlayerName(p)}`}
+                    onClick={() => {
+                      submitAction('attack');
+                      submitTarget(p.name);
+                    }}
+                    selected={action === 'attack' && target === p.name}
+                    glowColor="rgba(239,68,68,0.7)"
+                    width={ATTACK_ICON_W}
+                  />
+                ) : (
+                  <span aria-hidden="true" style={{ width: ATTACK_ICON_W }} />
+                ))}
               {/* Every mark goes in front of the name, the player's own
-                  (skin thumbnail or bot emoji) right before it -- all but
-                  the admin's kick, at the end of the line. */}
+                  (skin thumbnail or bot emoji) right before it -- but the
+                  relics they've equipped, right after it, and the admin's
+                  kick, at the end of the line. */}
               {p.hp <= 0 && <span className="text-red-500">☠️</span>}
               {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
                 <span className="text-yellow-500">👑</span>
               )}
               {p.spectator && <span className="text-yellow-500">👁</span>}
               {muted.has(p.name) && <span>🔇</span>}
+              {state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>}
+              {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
+              <PlayerThumbnail player={p} />
+              <span className="font-medium">{shownPlayerName(p)}</span>
               {!gameStarted &&
                 (p.selected_relic_ids ?? []).map((id) => {
                   const relic = relics.find((r) => Number(r.id) === id);
                   return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
                 })}
-              {state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>}
-              {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
-              <PlayerThumbnail player={p} />
-              <span className="font-medium">{shownPlayerName(p)}</span>
               {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
                 <span
                   className="ml-auto text-red-500 text-sm cursor-pointer"
@@ -490,38 +515,10 @@ export default function TextLobby({
       ))}
     </>
   );
-  // Your choices as the 3D game shows them (Mikael, 2026-10-11): the red
-  // Attack button (its target under it once chosen), Defend and The Well
-  // under the player list, and the 3D game's bottom bar -- your HP, coins
-  // and attack, each tapped to take that resource this round.
-  const canChoose = !gameOver && !isDenied && isAlive && gameStarted && !myPlayer?.spectator;
-  const attackBlock = canChoose && (
-    <div className="flex flex-col items-center w-full mb-4">
-      <ActionImageButton
-        src="/images/buttons/attack-ld.png"
-        alt="Attack"
-        onClick={() => submitAction('attack')}
-        selected={action === 'attack'}
-        glowColor="rgba(239,68,68,0.7)"
-        width={150}
-      />
-      {action === 'attack' && (
-        <select
-          value={target}
-          onChange={(e) => submitTarget(e.target.value)}
-          aria-label="Select target"
-          className="mt-3 w-full max-w-xs p-1.5 border-2 border-gray-400 rounded-md bg-gray-800 text-white text-base"
-        >
-          <option value="">Select target</option>
-          {otherPlayers.map((p) => (
-            <option key={p.name} value={p.name}>
-              {shownPlayerName(p)}
-            </option>
-          ))}
-        </select>
-      )}
-    </div>
-  );
+  // Your choices as the 3D game shows them (Mikael, 2026-10-11): Defend
+  // and The Well under the player list (Attack is beside each player in it),
+  // and the 3D game's bottom bar -- your HP, coins and attack, each tapped
+  // to take that resource this round.
   const defendAndWell = canChoose && (
     <div className="flex gap-3 justify-center flex-wrap mb-4">
       <ActionImageButton
@@ -743,7 +740,7 @@ export default function TextLobby({
 
   // A PC's screen (Mikael, 2026-10-11): the whole lobby in the window at
   // once, never scrolled, in two columns -- the lobby on the left (the
-  // players beside your stats and choices), the round messages always in
+  // players and your choices, the bottom bar at its foot), the round messages always in
   // view on the right with the chat under them, and no bubble. A column only
   // scrolls on its own if it overflows.
   if (wide) {
@@ -756,16 +753,9 @@ export default function TextLobby({
         >
           <div className="min-h-0 overflow-y-auto flex flex-col items-center rounded-2xl bg-gray-950/80 p-3">
             {header}
-            <div className="w-full grid grid-cols-2 gap-4 items-start">
-              <div>
-                {playersCard}
-                {defendAndWell}
-              </div>
-              <div className="pt-2">
-                {attackBlock}
-                {timer}
-              </div>
-            </div>
+            {playersCard}
+            {defendAndWell}
+            {timer}
             {adminControls}
             {relicPicker}
             {denyChooser}
@@ -793,7 +783,6 @@ export default function TextLobby({
           {adminControls}
           {relicPicker}
           {floating}
-          {attackBlock}
           {timer}
           {messagesBox}
           {denyChooser}
