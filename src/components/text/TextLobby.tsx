@@ -21,6 +21,9 @@ import { BATTLE_MUSIC, playMusic, PRE_LOBBY_MUSIC } from '@/lib/music';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
+import { useWideScreen } from '@/lib/useWideScreen';
+import { lobbyTitle } from '@/lib/lobbyTitle';
+import PixelTitle from '@/components/text/PixelTitle';
 import LoadingState from '@/components/loading/LoadingState';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import { playerMark, shownPlayerName } from '@/lib/playerThumbnail';
@@ -239,8 +242,11 @@ export default function TextLobby({
   const { showError } = useToast();
   const [chatOpen, setChatOpen] = useState(false);
   const [unreadChat, setUnreadChat] = useState(false);
+  // On a PC the chat sits open beside the round messages (below).
+  const wide = useWideScreen();
+  const chatShown = chatOpen || wide;
   const chatOpenRef = useRef(false);
-  chatOpenRef.current = chatOpen;
+  chatOpenRef.current = chatShown;
   const { state, connectionStatus } = useLobbyConnection(lobbyId, playerName, {
     // A message while the chat is closed lights the button's dot (not for
     // someone muted), as in the 3D game.
@@ -335,8 +341,8 @@ export default function TextLobby({
   // The newest message in sight: on opening, and as messages arrive.
   const chatEndRef = useRef<HTMLLIElement>(null);
   useEffect(() => {
-    if (chatOpen) chatEndRef.current?.scrollIntoView?.({ block: 'nearest' });
-  }, [chatOpen, state?.chat]);
+    if (chatShown) chatEndRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [chatShown, state?.chat]);
   const chat = useMemo(() => hideMuted(state?.chat ?? [], muted), [state?.chat, muted]);
 
   const emit = getSocket();
@@ -377,8 +383,308 @@ export default function TextLobby({
     setChatInput('');
   };
 
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#070b15] p-4 pt-20 sm:p-8 sm:pt-20 text-gray-100">
+  // The parts of the lobby, laid out one way on a phone and another on a
+  // wide screen (below).
+  const title = lobbyTitle(state);
+  const header = (
+    <>
+      {title && <PixelTitle text={title.text} color={title.color} />}
+      {state?.boss_fight && enemy && (
+        <div className="bg-red-950/70 border border-red-800 p-4 rounded mb-4">
+          <h2 className="text-2xl font-bold text-center">{shownPlayerName(enemy)}</h2>
+          <p className="text-center text-gray-400">{enemy.title} </p>
+          <p className="text-center">HP: {enemy.hp}</p>
+          {bossStartsIn !== null && (
+            <p className="text-center text-gray-400">
+              ⏳ Boss-fight starts in {Math.floor(bossStartsIn / 60)}m {bossStartsIn % 60}s
+            </p>
+          )}
+        </div>
+      )}
+      {rankedStartsIn !== null && <p className="mb-3 text-lg text-gray-300 font-medium">Match starts in {rankedStartsIn}s</p>}
+      {/* A ranked match is matchmade, never joined by code: no id to share
+          (the 3D lobby's LobbyOverlay hides it too). */}
+      {!state?.ranked && !state?.ai_ranked && (
+        <h2 className="text-3xl font-extrabold text-white mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
+      )}
+      <p className="mb-6 text-lg text-gray-300 font-medium">
+        🌀 {gameStarted ? `Round: ${round}` : <WaitingForStart />}
+      </p>
+    </>
+  );
+  const playersCard = (
+    <>
+      <div className={card}>
+        <h3 className="font-semibold text-xl text-gray-100 mb-4">Players in Lobby</h3>
+        <ul className="list-disc pl-6 text-gray-200 space-y-2">
+          {state?.players.map((p) => (
+            <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
+              {/* Every mark goes in front of the name, the player's own
+                  (skin thumbnail or bot emoji) right before it -- all but
+                  the admin's kick, at the end of the line. */}
+              {p.hp <= 0 && <span className="text-red-500">☠️</span>}
+              {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
+                <span className="text-yellow-500">👑</span>
+              )}
+              {p.spectator && <span className="text-yellow-500">👁</span>}
+              {muted.has(p.name) && <span>🔇</span>}
+              {!gameStarted &&
+                (p.selected_relic_ids ?? []).map((id) => {
+                  const relic = relics.find((r) => Number(r.id) === id);
+                  return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
+                })}
+              {state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>}
+              {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
+              <PlayerThumbnail player={p} />
+              <span className="font-medium">{shownPlayerName(p)}</span>
+              {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
+                <span
+                  className="ml-auto text-red-500 text-sm cursor-pointer"
+                  title="Kick player"
+                  onClick={() => emit.emit('kick_player', { lobby_id: lobbyId, target: p.name })}
+                >
+                  ❌
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
+  const adminControls = (
+    <>
+      {isAdmin && round === 0 && (
+        <div className="flex flex-wrap justify-center items-start">
+          <button type="button" onClick={() => emit.emit('start_game', { lobby_id: lobbyId })} style={bigButton('goldenrod')}>
+            🚀 Start Game
+          </button>
+          <AddBotMenu onAdd={(type) => emit.emit('add_dummy', { lobby_id: lobbyId, bot_type: type })} />
+        </div>
+      )}
+    </>
+  );
+  const relicPicker = (
+    <>
+      {round === 0 && myPlayer && !myPlayer.spectator && relics.length > 0 && (
+        <RelicPicker
+          relics={relics}
+          selectedIds={selectedRelicIds}
+          onToggle={(id) => emit.emit('toggle_relic_selection', { lobby_id: lobbyId, relic_id: id })}
+        />
+      )}
+    </>
+  );
+  const floating = (
+    <>
+      {floatingMessages.map((msg) => (
+        <FloatingMessage
+          key={msg.id}
+          message={msg.text}
+          // Its messages go into the list as the bubble goes -- when it
+          // has faded, or at once on a tap.
+          onDone={() => settle(msg.id)}
+          onTap={() => settle(msg.id)}
+        />
+      ))}
+    </>
+  );
+  const statsCard = (
+    <>
+      {myPlayer && !myPlayer.spectator && (
+        <div className={card}>
+          <h3 className="font-semibold text-xl text-gray-100 mb-4">Your Stats</h3>
+          <p className="text-gray-200 flex gap-4">
+            <span>
+              ❤ <span className="font-semibold text-red-500">{myPlayer.hp}</span>
+            </span>
+            <span>
+              💰 <span className="font-semibold text-yellow-500">{myPlayer.coins}</span>
+            </span>
+            <span>
+              ⚔ <span className="font-semibold text-blue-500">{myPlayer.attackDamage}</span>
+            </span>
+          </p>
+        </div>
+      )}
+    </>
+  );
+  const choicesCard = (
+    <>
+      {!gameOver && !isDenied && isAlive && gameStarted && !myPlayer?.spectator && (
+        <div className={card}>
+          <div>
+            <h4 className="font-semibold text-lg text-gray-100 mb-3">Choose Resource</h4>
+            <div className="flex gap-2">
+              {RESOURCES.map((res) => (
+                <button key={res.id} type="button" onClick={() => submitResource(res.id)} style={choiceStyle(resource === res.id)}>
+                  {res.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4">
+            <h4 className="font-semibold text-lg text-gray-100 mb-3">Choose Action</h4>
+            <div className="flex gap-2">
+              {ACTIONS.map((act) => (
+                <button key={act} type="button" onClick={() => submitAction(act)} style={choiceStyle(action === act)}>
+                  {act.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            {action === 'attack' && (
+                <select
+                  value={target}
+                  onChange={(e) => submitTarget(e.target.value)}
+                  aria-label="Select target"
+                  style={{
+                    padding: '6px',
+                    border: '2px solid #9ca3af',
+                    borderRadius: '5px',
+                    backgroundColor: '#1f2937',
+                    color: 'white',
+                    fontSize: '16px',
+                    marginTop: '10px',
+                    width: '100%',
+                  }}
+                >
+                  <option value="">Select target</option>
+                  {otherPlayers.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {shownPlayerName(p)}
+                    </option>
+                  ))}
+                </select>
+              )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+  const timer = (
+    <>
+      {gameStarted && secondsLeft !== null && secondsLeft <= 20 && !gameOver && (
+        <p className={`mb-2 text-lg font-semibold ${secondsLeft <= 10 ? 'text-red-700 animate-pulse' : 'text-red-600'}`}>
+          ⏳ Time left: {secondsLeft}s
+        </p>
+      )}
+    </>
+  );
+  const messagesBox = (
+    <>
+      <div
+        className={`w-full mt-2 mb-6 transition-opacity ${
+          floatingMessages.length > 0 ? 'opacity-0 duration-0' : 'opacity-100 duration-1000'
+        }`}
+      >
+        <h3 className="font-semibold text-xl text-gray-100 mb-4 px-6">Round Messages</h3>
+        <ul className="list-disc pl-6 text-gray-200 bg-gray-900 border border-white/10 p-4 rounded-xl space-y-2">
+          {messages.map((m, i) => (
+            <li key={i} className="py-1">
+              {Array.isArray(m) ? m.join(' ') : m}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
+  const denyChooser = (
+    <>
+      {isPendingDenyChooser && (
+        <div className="w-full bg-yellow-950/60 border border-yellow-700 p-4 mt-4 rounded-xl">
+          <h3 className="font-semibold text-lg text-yellow-300 mb-4">🛑 Choose someone to deny next round</h3>
+          <div className="flex gap-4 items-center">
+            <select
+              className="border border-gray-600 rounded-lg p-2.5 bg-gray-800 text-white flex-1"
+              value={denyTarget}
+              onChange={(e) => setDenyTarget(e.target.value)}
+              aria-label="Select player"
+            >
+              <option value="">Select player</option>
+              {eligibleDenyTargets.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {shownPlayerName(p)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={!denyTarget}
+              onClick={() => emit.emit('submit_deny_target', { lobby_id: lobbyId, target: denyTarget })}
+              style={{ ...choiceStyle(false), flex: 'none', padding: '10px 20px' }}
+            >
+              Deny
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+  const gameOverCard = (
+    <>
+      {gameOver && (
+        <div className="w-full bg-green-950/60 border border-green-700 text-green-300 p-4 rounded-xl mt-4 text-center">
+          <p className="text-xl font-semibold mb-3">🎉 Game Over! {winnerName} has won the game!</p>
+          <Link href="/" className="text-blue-400 hover:text-blue-300 font-medium transition-colors duration-200">
+            ← Back to Home
+          </Link>
+        </div>
+      )}
+    </>
+  );
+  const chatBody = (
+    <>
+      <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
+      <ul className={`space-y-1 text-gray-200 mb-3 overflow-y-auto ${wide ? 'flex-1 min-h-0' : 'max-h-60'}`}>
+        {chat.map((m, i) => (
+          <li
+            key={i}
+            className={`break-words ${m.sender !== playerName ? 'cursor-pointer hover:bg-white/10 rounded' : ''}`}
+            onClick={m.sender !== playerName ? () => setChatTarget(m) : undefined}
+          >
+            {muted.has(m.sender) && <MutedMark />}
+            <span className="font-semibold">{m.sender}: </span>
+            {chatText(m.message)}
+          </li>
+        ))}
+        <li ref={chatEndRef} aria-hidden="true" />
+      </ul>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          maxLength={200}
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && sendChat()}
+          placeholder="Chat…"
+          aria-label="Chat message"
+          // On a phone it opens to be typed in; on a PC it is always there.
+          autoFocus={!wide}
+          className="flex-1 border border-gray-600 rounded-lg p-2 bg-gray-800 text-white min-w-0"
+        />
+        <button type="button" onClick={sendChat} style={{ ...choiceStyle(false), flex: 'none', padding: '6px 12px' }}>
+          Send
+        </button>
+      </div>
+    </>
+  );
+
+  const nudges = (
+    <>
+      {gameOver && state?.boss_fight && myPlayer?.pending_relic_nudge && !dismissed.relic && (
+        <BossSignupNudge lobbyId={lobbyId} playerName={playerName} onDismiss={dismiss('relic')} />
+      )}
+      {gameOver && myPlayer?.pending_wheel_nudge && !dismissed.wheel && (
+        <WheelClaimNudge lobbyId={lobbyId} playerName={playerName} onDismiss={dismiss('wheel')} />
+      )}
+      {gameOver && myPlayer?.pending_artifact_nudge && !dismissed.artifact && (
+        <ArtifactClaimNudge lobbyId={lobbyId} playerName={playerName} onDismiss={dismiss('artifact')} />
+      )}
+    </>
+  );
+
+  const topButtons = (
+    <>
       {/* Home, and beside it the city -- the same pair as the other pages'. */}
       <span className="emoji-pair absolute top-4 left-4 z-20 inline-flex items-center gap-2">
         <Link href="/" aria-label="Back to Home" className={homeButton}>
@@ -393,220 +699,61 @@ export default function TextLobby({
         <MusicToggleButton />
         <SfxToggleButton />
       </div>
+    </>
+  );
+
+  // A PC's screen (Mikael, 2026-10-11): the whole lobby in the window at
+  // once, never scrolled -- players and your stats on the left, the round
+  // and your choices in the middle, the round messages on the right with
+  // the chat under them. A column only scrolls on its own if it overflows.
+  if (wide) {
+    return (
+      <div className="relative h-dvh w-full overflow-hidden bg-[#070b15] text-gray-100">
+        {topButtons}
+        <div
+          className={`relative z-10 h-full w-full max-w-7xl mx-auto px-6 pt-20 pb-6 grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)] gap-4${staleLook}`}
+          aria-busy={stale}
+        >
+          <div className="min-h-0 overflow-y-auto">
+            {playersCard}
+            {statsCard}
+          </div>
+          <div className="min-h-0 overflow-y-auto flex flex-col items-center rounded-2xl bg-gray-950/80 p-3">
+            {header}
+            {adminControls}
+            {relicPicker}
+            {choicesCard}
+            {timer}
+            {denyChooser}
+            {gameOverCard}
+          </div>
+          <div className="min-h-0 flex flex-col gap-4">
+            <div className="min-h-0 flex-1 overflow-y-auto">{messagesBox}</div>
+            <div className="h-72 shrink-0 flex flex-col bg-gray-900 p-4 rounded-xl border border-gray-700">{chatBody}</div>
+          </div>
+        </div>
+        {floating}
+        {nudges}
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#070b15] p-4 pt-20 sm:p-8 sm:pt-20 text-gray-100">
+      {topButtons}
       <div className={`relative z-10 min-h-screen w-full flex items-center justify-center${staleLook}`} aria-busy={stale}>
         <div className="w-full max-w-3xl flex flex-col items-center justify-center rounded-2xl bg-gray-950/80 transition-all duration-300 p-3">
-          {state?.boss_fight && enemy && (
-            <div className="bg-red-950/70 border border-red-800 p-4 rounded mb-4">
-              <h2 className="text-2xl font-bold text-center">{shownPlayerName(enemy)}</h2>
-              <p className="text-center text-gray-400">{enemy.title} </p>
-              <p className="text-center">HP: {enemy.hp}</p>
-              {bossStartsIn !== null && (
-                <p className="text-center text-gray-400">
-                  ⏳ Boss-fight starts in {Math.floor(bossStartsIn / 60)}m {bossStartsIn % 60}s
-                </p>
-              )}
-            </div>
-          )}
-          {rankedStartsIn !== null && <p className="mb-3 text-lg text-gray-300 font-medium">Match starts in {rankedStartsIn}s</p>}
-          {/* A ranked match is matchmade, never joined by code: no id to share
-              (the 3D lobby's LobbyOverlay hides it too). */}
-          {!state?.ranked && !state?.ai_ranked && (
-            <h2 className="text-3xl font-extrabold text-white mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
-          )}
-          <p className="mb-6 text-lg text-gray-300 font-medium">
-            🌀 {gameStarted ? `Round: ${round}` : <WaitingForStart />}
-          </p>
-
-          <div className={card}>
-            <h3 className="font-semibold text-xl text-gray-100 mb-4">Players in Lobby</h3>
-            <ul className="list-disc pl-6 text-gray-200 space-y-2">
-              {state?.players.map((p) => (
-                <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
-                  {/* Every mark goes in front of the name, the player's own
-                      (skin thumbnail or bot emoji) right before it -- all but
-                      the admin's kick, at the end of the line. */}
-                  {p.hp <= 0 && <span className="text-red-500">☠️</span>}
-                  {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
-                    <span className="text-yellow-500">👑</span>
-                  )}
-                  {p.spectator && <span className="text-yellow-500">👁</span>}
-                  {muted.has(p.name) && <span>🔇</span>}
-                  {!gameStarted &&
-                    (p.selected_relic_ids ?? []).map((id) => {
-                      const relic = relics.find((r) => Number(r.id) === id);
-                      return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
-                    })}
-                  {state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>}
-                  {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
-                  <PlayerThumbnail player={p} />
-                  <span className="font-medium">{shownPlayerName(p)}</span>
-                  {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
-                    <span
-                      className="ml-auto text-red-500 text-sm cursor-pointer"
-                      title="Kick player"
-                      onClick={() => emit.emit('kick_player', { lobby_id: lobbyId, target: p.name })}
-                    >
-                      ❌
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {isAdmin && round === 0 && (
-            <div className="flex flex-wrap justify-center items-start">
-              <button type="button" onClick={() => emit.emit('start_game', { lobby_id: lobbyId })} style={bigButton('goldenrod')}>
-                🚀 Start Game
-              </button>
-              <AddBotMenu onAdd={(type) => emit.emit('add_dummy', { lobby_id: lobbyId, bot_type: type })} />
-            </div>
-          )}
-
-          {round === 0 && myPlayer && !myPlayer.spectator && relics.length > 0 && (
-            <RelicPicker
-              relics={relics}
-              selectedIds={selectedRelicIds}
-              onToggle={(id) => emit.emit('toggle_relic_selection', { lobby_id: lobbyId, relic_id: id })}
-            />
-          )}
-
-          {floatingMessages.map((msg) => (
-            <FloatingMessage
-              key={msg.id}
-              message={msg.text}
-              // Its messages go into the list as the bubble goes -- when it
-              // has faded, or at once on a tap.
-              onDone={() => settle(msg.id)}
-              onTap={() => settle(msg.id)}
-            />
-          ))}
-
-          {myPlayer && !myPlayer.spectator && (
-            <div className={card}>
-              <h3 className="font-semibold text-xl text-gray-100 mb-4">Your Stats</h3>
-              <p className="text-gray-200 flex gap-4">
-                <span>
-                  ❤ <span className="font-semibold text-red-500">{myPlayer.hp}</span>
-                </span>
-                <span>
-                  💰 <span className="font-semibold text-yellow-500">{myPlayer.coins}</span>
-                </span>
-                <span>
-                  ⚔ <span className="font-semibold text-blue-500">{myPlayer.attackDamage}</span>
-                </span>
-              </p>
-            </div>
-          )}
-
-          {!gameOver && !isDenied && isAlive && gameStarted && !myPlayer?.spectator && (
-            <div className={card}>
-              <div>
-                <h4 className="font-semibold text-lg text-gray-100 mb-3">Choose Resource</h4>
-                <div className="flex gap-2">
-                  {RESOURCES.map((res) => (
-                    <button key={res.id} type="button" onClick={() => submitResource(res.id)} style={choiceStyle(resource === res.id)}>
-                      {res.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-4">
-                <h4 className="font-semibold text-lg text-gray-100 mb-3">Choose Action</h4>
-                <div className="flex gap-2">
-                  {ACTIONS.map((act) => (
-                    <button key={act} type="button" onClick={() => submitAction(act)} style={choiceStyle(action === act)}>
-                      {act.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-                {action === 'attack' && (
-                    <select
-                      value={target}
-                      onChange={(e) => submitTarget(e.target.value)}
-                      aria-label="Select target"
-                      style={{
-                        padding: '6px',
-                        border: '2px solid #9ca3af',
-                        borderRadius: '5px',
-                        backgroundColor: '#1f2937',
-                        color: 'white',
-                        fontSize: '16px',
-                        marginTop: '10px',
-                        width: '100%',
-                      }}
-                    >
-                      <option value="">Select target</option>
-                      {otherPlayers.map((p) => (
-                        <option key={p.name} value={p.name}>
-                          {shownPlayerName(p)}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-              </div>
-            </div>
-          )}
-
-          {gameStarted && secondsLeft !== null && secondsLeft <= 20 && !gameOver && (
-            <p className={`mb-2 text-lg font-semibold ${secondsLeft <= 10 ? 'text-red-700 animate-pulse' : 'text-red-600'}`}>
-              ⏳ Time left: {secondsLeft}s
-            </p>
-          )}
-
-          <div
-            className={`w-full mt-2 mb-6 transition-opacity ${
-              floatingMessages.length > 0 ? 'opacity-0 duration-0' : 'opacity-100 duration-1000'
-            }`}
-          >
-            <h3 className="font-semibold text-xl text-gray-100 mb-4 px-6">Round Messages</h3>
-            <ul className="list-disc pl-6 text-gray-200 bg-gray-900 border border-white/10 p-4 rounded-xl space-y-2">
-              {messages.map((m, i) => (
-                <li key={i} className="py-1">
-                  {Array.isArray(m) ? m.join(' ') : m}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {isPendingDenyChooser && (
-            <div className="w-full bg-yellow-950/60 border border-yellow-700 p-4 mt-4 rounded-xl">
-              <h3 className="font-semibold text-lg text-yellow-300 mb-4">🛑 Choose someone to deny next round</h3>
-              <div className="flex gap-4 items-center">
-                <select
-                  className="border border-gray-600 rounded-lg p-2.5 bg-gray-800 text-white flex-1"
-                  value={denyTarget}
-                  onChange={(e) => setDenyTarget(e.target.value)}
-                  aria-label="Select player"
-                >
-                  <option value="">Select player</option>
-                  {eligibleDenyTargets.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {shownPlayerName(p)}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!denyTarget}
-                  onClick={() => emit.emit('submit_deny_target', { lobby_id: lobbyId, target: denyTarget })}
-                  style={{ ...choiceStyle(false), flex: 'none', padding: '10px 20px' }}
-                >
-                  Deny
-                </button>
-              </div>
-            </div>
-          )}
-
-          {gameOver && (
-            <div className="w-full bg-green-950/60 border border-green-700 text-green-300 p-4 rounded-xl mt-4 text-center">
-              <p className="text-xl font-semibold mb-3">🎉 Game Over! {winnerName} has won the game!</p>
-              <Link href="/" className="text-blue-400 hover:text-blue-300 font-medium transition-colors duration-200">
-                ← Back to Home
-              </Link>
-            </div>
-          )}
-
+          {header}
+          {playersCard}
+          {adminControls}
+          {relicPicker}
+          {floating}
+          {statsCard}
+          {choicesCard}
+          {timer}
+          {messagesBox}
+          {denyChooser}
+          {gameOverCard}
         </div>
       </div>
 
@@ -614,37 +761,7 @@ export default function TextLobby({
           takes no room on a phone screen until it's wanted. */}
       {chatOpen && (
         <div className={`fixed bottom-16 right-4 z-40 w-80 max-w-[calc(100vw-2rem)] bg-gray-900 p-4 rounded-xl shadow-xl border border-gray-700${staleLook}`}>
-          <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
-          <ul className="space-y-1 text-gray-200 mb-3 max-h-60 overflow-y-auto">
-            {chat.map((m, i) => (
-              <li
-                key={i}
-                className={`break-words ${m.sender !== playerName ? 'cursor-pointer hover:bg-white/10 rounded' : ''}`}
-                onClick={m.sender !== playerName ? () => setChatTarget(m) : undefined}
-              >
-                {muted.has(m.sender) && <MutedMark />}
-                <span className="font-semibold">{m.sender}: </span>
-                {chatText(m.message)}
-              </li>
-            ))}
-            <li ref={chatEndRef} aria-hidden="true" />
-          </ul>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              maxLength={200}
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-              placeholder="Chat…"
-              aria-label="Chat message"
-              autoFocus
-              className="flex-1 border border-gray-600 rounded-lg p-2 bg-gray-800 text-white min-w-0"
-            />
-            <button type="button" onClick={sendChat} style={{ ...choiceStyle(false), flex: 'none', padding: '6px 12px' }}>
-              Send
-            </button>
-          </div>
+          {chatBody}
         </div>
       )}
       {/* The 3D game's own chat button (SceneOverlay), with its unread dot. */}
@@ -665,15 +782,7 @@ export default function TextLobby({
         )}
       </div>
 
-      {gameOver && state?.boss_fight && myPlayer?.pending_relic_nudge && !dismissed.relic && (
-        <BossSignupNudge lobbyId={lobbyId} playerName={playerName} onDismiss={dismiss('relic')} />
-      )}
-      {gameOver && myPlayer?.pending_wheel_nudge && !dismissed.wheel && (
-        <WheelClaimNudge lobbyId={lobbyId} playerName={playerName} onDismiss={dismiss('wheel')} />
-      )}
-      {gameOver && myPlayer?.pending_artifact_nudge && !dismissed.artifact && (
-        <ArtifactClaimNudge lobbyId={lobbyId} playerName={playerName} onDismiss={dismiss('artifact')} />
-      )}
+      {nudges}
     </div>
   );
 }

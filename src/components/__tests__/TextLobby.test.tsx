@@ -307,3 +307,38 @@ describe('TextLobby', () => {
     expect(screen.getByText('Players in Lobby').closest('[aria-busy]')!.className).not.toContain('blur');
   });
 });
+
+describe('TextLobby title and PC layout', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('puts the 8-bit title of the kind of match on top', async () => {
+    await show(lobby());
+    expect(screen.getByRole('img', { name: 'Private lobby' })).toBeTruthy();
+    await show(lobby({ ranked: true }));
+    expect(screen.getByRole('img', { name: 'Ranked' })).toBeTruthy();
+    await show(lobby({ ai_ranked: true }));
+    expect(screen.getByRole('img', { name: 'Bot Ranked' })).toBeTruthy();
+  });
+
+  it('lays a PC screen out in columns with the chat docked, nothing to open', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) => ({ matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
+    );
+    await show(lobby({ round: 2 }));
+    expect(screen.getByText('Players in Lobby')).toBeTruthy();
+    expect(screen.getByText('Choose Resource')).toBeTruthy();
+    expect(screen.getByText('Round Messages')).toBeTruthy();
+    expect(screen.getByLabelText('Chat message')).toBeTruthy(); // docked, already open
+    expect(screen.queryByLabelText('Toggle chat')).toBeNull();
+    expect(document.querySelector('.h-dvh.overflow-hidden')).toBeTruthy(); // the window, never scrolled
+  });
+
+  it('keeps the one column and the chat button on a phone', async () => {
+    await show(lobby({ round: 2 }));
+    expect(screen.getByLabelText('Toggle chat')).toBeTruthy();
+    expect(screen.queryByLabelText('Chat message')).toBeNull();
+  });
+});
