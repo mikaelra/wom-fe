@@ -307,9 +307,15 @@ export default function TextLobby({
     const next = flatten(events.messages);
     if (!next || next === lastFloated.current) return;
     lastFloated.current = next;
+    // On a PC the list is always in view beside the rest: straight in, no
+    // bubble (Mikael, 2026-10-11).
+    if (wide) {
+      setMessages(events.messages);
+      return;
+    }
     const id = nextFloatId.current++;
     setFloatingMessages((prev) => [...prev, { id, text: next, list: events.messages }]);
-  }, [events]);
+  }, [events, wide]);
 
   const settle = (id: number) => {
     const done = floatingMessages.find((m) => m.id === id);
@@ -574,7 +580,7 @@ export default function TextLobby({
     <>
       <div
         className={`w-full mt-2 mb-6 transition-opacity ${
-          floatingMessages.length > 0 ? 'opacity-0 duration-0' : 'opacity-100 duration-1000'
+          !wide && floatingMessages.length > 0 ? 'opacity-0 duration-0' : 'opacity-100 duration-1000'
         }`}
       >
         <h3 className="font-semibold text-xl text-gray-100 mb-4 px-6">Round Messages</h3>
@@ -703,26 +709,29 @@ export default function TextLobby({
   );
 
   // A PC's screen (Mikael, 2026-10-11): the whole lobby in the window at
-  // once, never scrolled -- players and your stats on the left, the round
-  // and your choices in the middle, the round messages on the right with
-  // the chat under them. A column only scrolls on its own if it overflows.
+  // once, never scrolled, in two columns -- the lobby on the left (the
+  // players beside your stats and choices), the round messages always in
+  // view on the right with the chat under them, and no bubble. A column only
+  // scrolls on its own if it overflows.
   if (wide) {
     return (
       <div className="relative h-dvh w-full overflow-hidden bg-[#070b15] text-gray-100">
         {topButtons}
         <div
-          className={`relative z-10 h-full w-full max-w-7xl mx-auto px-6 pt-20 pb-6 grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)] gap-4${staleLook}`}
+          className={`relative z-10 h-full w-full max-w-7xl mx-auto px-6 pt-20 pb-6 grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4${staleLook}`}
           aria-busy={stale}
         >
-          <div className="min-h-0 overflow-y-auto">
-            {playersCard}
-            {statsCard}
-          </div>
           <div className="min-h-0 overflow-y-auto flex flex-col items-center rounded-2xl bg-gray-950/80 p-3">
             {header}
+            <div className="w-full grid grid-cols-2 gap-4 items-start">
+              <div>{playersCard}</div>
+              <div>
+                {statsCard}
+                {choicesCard}
+              </div>
+            </div>
             {adminControls}
             {relicPicker}
-            {choicesCard}
             {timer}
             {denyChooser}
             {gameOverCard}
@@ -732,7 +741,6 @@ export default function TextLobby({
             <div className="h-72 shrink-0 flex flex-col bg-gray-900 p-4 rounded-xl border border-gray-700">{chatBody}</div>
           </div>
         </div>
-        {floating}
         {nudges}
       </div>
     );

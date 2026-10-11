@@ -322,7 +322,7 @@ describe('TextLobby title and PC layout', () => {
     expect(screen.getByRole('img', { name: 'Bot Ranked' })).toBeTruthy();
   });
 
-  it('lays a PC screen out in columns with the chat docked, nothing to open', async () => {
+  it('lays a PC screen out in two columns with the chat docked, nothing to open', async () => {
     vi.stubGlobal(
       'matchMedia',
       (query: string) => ({ matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
@@ -340,5 +340,16 @@ describe('TextLobby title and PC layout', () => {
     await show(lobby({ round: 2 }));
     expect(screen.getByLabelText('Toggle chat')).toBeTruthy();
     expect(screen.queryByLabelText('Chat message')).toBeNull();
+  });
+
+  it('puts the round messages straight in the list on a PC, no bubble', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) => ({ matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
+    );
+    events.value = { round: 2, messages: ['Oni attacked Bot Turtle'], events: [], instakill: false };
+    await show(lobby({ round: 2 }));
+    expect(screen.getByText('Oni attacked Bot Turtle')).toBeTruthy();
+    expect(screen.getByText('Round Messages').parentElement!.className).toContain('opacity-100');
   });
 });
