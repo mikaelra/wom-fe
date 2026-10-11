@@ -17,6 +17,7 @@ import { MERCHANT_MARKER_LABEL, merchantMarkerColors, merchantSkyBodies } from '
 import { getStoredAccountToken } from '@/lib/http';
 import ExitGamePrompt from '@/components/ExitGamePrompt';
 import HudToggle from '@/components/worldmap/HudToggle';
+import QualityCorner from '@/components/hud/QualityCorner';
 import HudLoadingMark from '@/components/worldmap/HudLoadingMark';
 import { useHudHidden, useHudLoadingMark } from '@/lib/hudHidden';
 import { useTextMode } from '@/lib/textMode';
@@ -201,6 +202,7 @@ export default function Page() {
         />
       )}
       {textMode === false && <HudToggle />}
+      {textMode && <QualityCorner />}
       {/* With the HUD hidden, a tap on the globe loops the loading animation
           where the loading screen shows it, half the Earth's size (lib/hudHidden.ts). */}
       {hudLoadingMark && <HudLoadingMark />}

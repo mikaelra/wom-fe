@@ -27,6 +27,7 @@ import { playMusic, CITY_MUSIC } from '@/lib/music';
 import LoadingState from '@/components/loading/LoadingState';
 import { useTextMode } from '@/lib/textMode';
 import { watch3dScene } from '@/lib/textModeOffer';
+import QualityCorner from '@/components/hud/QualityCorner';
 
 // three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
 // is, and the renderer is never downloaded.
@@ -155,6 +156,7 @@ function CityPageContent() {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100dvh', overflow: 'hidden', background: '#070b15' }}>
       {textMode === false && <AssetLoadingReporter />}
+      {textMode !== null && <QualityCorner />}
       {textMode && (
         <TextCity
           onBossfight={enterBossfight}

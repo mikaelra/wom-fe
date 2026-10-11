@@ -26,6 +26,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/lib/api', () => ({
+  // The graphics quality button asks whether the account has HD.
+  getEntitlements: vi.fn(async () => ({ hd: false })),
   checkName: vi.fn(),
   logInUser: vi.fn(),
   verifyLoginCode: vi.fn(),
