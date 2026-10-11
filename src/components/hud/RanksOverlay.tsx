@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getRankedRanks } from '@/lib/api';
 import type { RankedRanks } from '@/lib/schemas';
-import RankBadge from '@/components/hud/RankBadge';
+import RankBadge, { tierRank } from '@/components/hud/RankBadge';
 import StatsDialog from '@/components/hud/StatsDialog';
 import LoadingState from '@/components/loading/LoadingState';
 
@@ -14,14 +14,8 @@ const TABS: { id: Ladder; label: string }[] = [
   { id: 'ai', label: 'Bot ranked' },
 ];
 
-function seenOn(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
 /** The stats page's Ranks pop-up: every rank the player has ever been
- *  shown, through all seasons, in the order they first saw them and when
+ *  shown, through all seasons, highest first, with the season it was in
  *  -- in ranked on one tab, and their AI's on the bot-ranked ladder on the
  *  other (GET /ranked/ranks/<name>; Mikael, 2026-10-11). */
 export default function RanksOverlay({ playerName, onClose }: { playerName: string; onClose: () => void }) {
@@ -39,7 +33,11 @@ export default function RanksOverlay({ playerName, onClose }: { playerName: stri
     };
   }, [playerName]);
 
-  const ranks = data ? (ladder === 'ranked' ? data.ranks : (data.ai_ranks ?? [])) : [];
+  // Highest rank on top, lower ones below (Mikael, 2026-10-11); the same
+  // rank in several seasons, the latest first.
+  const ranks = [...(data ? (ladder === 'ranked' ? data.ranks : (data.ai_ranks ?? [])) : [])].sort(
+    (a, b) => tierRank(b.tier) - tierRank(a.tier) || (b.at ?? '').localeCompare(a.at ?? ''),
+  );
 
   return (
     <StatsDialog id="ranks" title="Ranks" onClose={onClose}>
@@ -72,10 +70,7 @@ export default function RanksOverlay({ playerName, onClose }: { playerName: stri
               key={`${r.season}-${r.tier}`}
               className="flex items-center justify-between gap-3 bg-white/5 rounded-lg px-3 py-2"
             >
-              <span className="text-sm text-white/70">
-                {r.season}
-                {r.at && <span className="block text-xs text-white/40">{seenOn(r.at)}</span>}
-              </span>
+              <span className="text-sm text-white/70">{r.season}</span>
               <RankBadge tier={r.tier} placement={null} playerName={playerName} />
             </li>
           ))}

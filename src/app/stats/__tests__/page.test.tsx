@@ -152,7 +152,28 @@ describe('StatsPage', () => {
     expect(screen.getByText('Fall 2026')).toBeInTheDocument();
   });
 
-  it("shows the Bot ranked tab's ranks with when each was first reached", async () => {
+  it('lists the ranks highest first, whenever they were reached', async () => {
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 19 });
+    vi.mocked(getRankedRanks).mockResolvedValue({
+      ranks: [
+        { tier: 'Troll III', season: 'Summer 2026', at: '2026-07-01T00:00:00Z' },
+        { tier: 'Djinn I', season: 'Summer 2026', at: '2026-07-02T00:00:00Z' },
+        { tier: 'Djinn III', season: 'Summer 2026', at: '2026-07-03T00:00:00Z' },
+        { tier: 'Djinn II', season: 'Summer 2026', at: '2026-07-04T00:00:00Z' },
+      ],
+    });
+    render(<StatsPage />);
+    await flush();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ranks' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Ranks' });
+    await screen.findByText('Djinn III');
+    const shown = Array.from(dialog.querySelectorAll('li')).map((li) => li.textContent);
+    expect(shown.map((t) => t!.match(/(Troll|Djinn) I+/)![0])).toEqual(['Djinn III', 'Djinn II', 'Djinn I', 'Troll III']);
+  });
+
+  it("shows the Bot ranked tab's ranks with their season, no date", async () => {
     localStorage.setItem('playerName', 'Oni');
     mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 19 });
     vi.mocked(getRankedRanks).mockResolvedValue({
@@ -167,7 +188,7 @@ describe('StatsPage', () => {
     expect(screen.queryByText('Summer 2026')).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: 'Bot ranked' }));
     expect(screen.getByText('Summer 2026')).toBeInTheDocument();
-    expect(screen.getByText(/2026/, { selector: 'span.block' })).toBeInTheDocument(); // the date first reached
+    expect(screen.queryByText(/Jul/)).toBeNull(); // the season only, no date
   });
 
   it('hides the season timer while mid-placements', async () => {
