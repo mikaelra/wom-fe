@@ -75,15 +75,15 @@ const ATTACK_GLOW = 'rgba(239,68,68,0.7)';
 const DEFEND_GLOW = 'rgba(59,130,246,0.7)';
 const WELL_GLOW = 'rgba(167,139,250,0.7)';
 
-/** A soft glow in the action's colour behind its button art, always there,
- *  so the three actions stand out from the text round them. */
-function GlowAction({ color, className = '', children }: { color: string; className?: string; children: ReactNode }) {
+/** A soft white glow behind an action's button art, always there, so the
+ *  actions stand out from the text round them (the chosen one glows in its
+ *  own colour on top, ActionImageButton's selected look). */
+function GlowAction({ className = '', children }: { className?: string; children: ReactNode }) {
   return (
     <span className={`relative inline-flex ${className}`}>
       <span
         aria-hidden="true"
-        className="absolute -inset-1 rounded-full blur-md opacity-40 pointer-events-none"
-        style={{ background: color }}
+        className="absolute -inset-1 rounded-full blur-md opacity-20 bg-white pointer-events-none"
       />
       <span className="relative">{children}</span>
     </span>
@@ -474,7 +474,7 @@ export default function TextLobby({
                   after the name of everyone you can attack -- a tap attacks
                   them. */}
               {attackable(p) && (
-                <GlowAction color={ATTACK_GLOW} className="ml-8">
+                <GlowAction className="ml-8">
                   <ActionImageButton
                     src="/images/buttons/attack-ld.png"
                     alt={`Attack ${shownPlayerName(p)}`}
@@ -546,7 +546,7 @@ export default function TextLobby({
   // to take that resource this round.
   const defendAndWell = canChoose && (
     <div className="flex gap-3 justify-center flex-wrap mb-4">
-      <GlowAction color={WELL_GLOW}>
+      <GlowAction>
         <ActionImageButton
           src="/images/buttons/well-ld.png"
           alt="The Well"
@@ -556,7 +556,7 @@ export default function TextLobby({
           width={150}
         />
       </GlowAction>
-      <GlowAction color={DEFEND_GLOW}>
+      <GlowAction>
         <ActionImageButton
           src="/images/buttons/defend-ld.png"
           alt="Defend"
