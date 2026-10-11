@@ -448,7 +448,7 @@ export default function TextLobby({
               {/* Every mark goes in front of the name, the player's own
                   (skin thumbnail or bot emoji) right before it -- but the
                   relics they've equipped, right after it, and the admin's
-                  kick or your Attack, at the end of the line. */}
+                  kick, at the end of the line. */}
               {/* In a bossfight every bot's health, first on its line. */}
               {state.boss_fight && (p.bot || p.boss) && p.hp > 0 && (
                 <span className="text-red-400 font-semibold tabular-nums" title="HP">
@@ -470,11 +470,11 @@ export default function TextLobby({
                   const relic = relics.find((r) => Number(r.id) === id);
                   return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
                 })}
-              {/* Attack, the 3D game's red button made small, at the end of
-                  the line of everyone you can attack -- a tap attacks them.
-                  (The kick is before the game only, Attack during it.) */}
+              {/* Attack, the 3D game's red button made small, a tab's width
+                  after the name of everyone you can attack -- a tap attacks
+                  them. */}
               {attackable(p) && (
-                <GlowAction color={ATTACK_GLOW} className="ml-auto">
+                <GlowAction color={ATTACK_GLOW} className="ml-8">
                   <ActionImageButton
                     src="/images/buttons/attack-ld.png"
                     alt={`Attack ${shownPlayerName(p)}`}
