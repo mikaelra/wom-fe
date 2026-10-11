@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { LobbyState, Player } from '@/types/game';
 
 const emit = vi.fn();
@@ -387,4 +387,17 @@ describe('TextLobby title and PC layout', () => {
     expect(within(over).getByLabelText('Go to the city')).toBeTruthy();
     expect(screen.queryByText(/← Back to Home/)).toBeNull();
   });
+
+  it('leads back to the ranked signpost after a ranked game, the main one otherwise', async () => {
+    const cityLink = () => screen.getAllByLabelText('Go to the city').at(-1)!.getAttribute('href');
+    await show(lobby({ round: 3, ranked: true }));
+    expect(cityLink()).toMatch(/board=ranked/);
+    cleanup();
+    await show(lobby({ round: 3, ai_ranked: true }));
+    expect(cityLink()).toMatch(/board=ranked/);
+    cleanup();
+    await show(lobby({ round: 3 }));
+    expect(cityLink()).not.toMatch(/board=ranked/);
+  });
+
 });

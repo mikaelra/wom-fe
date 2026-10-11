@@ -10,7 +10,7 @@ import ChatMessageActions, { MutedMark, type ChatTarget } from '@/components/cha
 import MusicToggleButton from '@/components/audio/MusicToggleButton';
 import SfxToggleButton from '@/components/audio/SfxToggleButton';
 import { BOT_TYPES } from '@/lib/botTypes';
-import { CITY_PATH } from '@/lib/cities';
+import { CITY_PATH, RANKED_CITY_PATH } from '@/lib/cities';
 import { RELIC_BADGE_EMOJI, RELIC_SELECT_CAPTION } from '@/lib/relics';
 import { useToast } from '@/components/Toast';
 import { getPlayerRelics } from '@/lib/api';
@@ -409,6 +409,8 @@ export default function TextLobby({
   // The parts of the lobby, laid out one way on a phone and another on a
   // wide screen (below).
   const title = lobbyTitle(state);
+  // After a ranked game the city opens on its ranked boards, to queue again.
+  const cityPath = state?.ranked || state?.ai_ranked ? RANKED_CITY_PATH : CITY_PATH;
   const header = (
     <>
       {title && <PixelTitle text={title.text} color={title.color} />}
@@ -696,7 +698,7 @@ export default function TextLobby({
             <Link href="/" aria-label="Back to Home" className={homeButton}>
               🌍
             </Link>
-            <Link href={CITY_PATH} aria-label="Go to the city" className={homeButton}>
+            <Link href={cityPath} aria-label="Go to the city" className={homeButton}>
               🏛️
             </Link>
           </span>
@@ -762,7 +764,7 @@ export default function TextLobby({
         <Link href="/" aria-label="Back to Home" className={homeButton}>
           🌍
         </Link>
-        <Link href={CITY_PATH} aria-label="Go to the city" className={homeButton}>
+        <Link href={cityPath} aria-label="Go to the city" className={homeButton}>
           🏛️
         </Link>
       </span>

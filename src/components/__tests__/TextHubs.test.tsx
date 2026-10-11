@@ -81,6 +81,13 @@ describe('TextCity', () => {
     expect(screen.getByLabelText('HADES')).toBeTruthy();
   });
 
+  it('opens on the ranked boards when sent back from a ranked game', () => {
+    render(<TextCity {...props()} startInRanked />);
+    expect(screen.getByLabelText('PLAYERS')).toBeTruthy();
+    expect(screen.getByLabelText('BACK')).toBeTruthy();
+    expect(screen.queryByLabelText('HADES')).toBeNull();
+  });
+
   it('says when a match is waiting to be returned to', () => {
     render(<TextCity {...props()} rankedLabel="RETURN TO MATCH" />);
     fireEvent.click(screen.getByLabelText('RANKED'));

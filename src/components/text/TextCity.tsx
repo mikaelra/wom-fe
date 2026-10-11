@@ -34,6 +34,7 @@ export default function TextCity({
   timewarp,
   lat,
   lng,
+  startInRanked = false,
 }: {
   onBossfight: () => void;
   bossfightSublabel: string | null | undefined;
@@ -52,8 +53,10 @@ export default function TextCity({
   timewarp?: { glow: number; colors: string[] } | null;
   lat: number;
   lng: number;
+  /** Open on the ranked boards (?board=ranked): back from a ranked game. */
+  startInRanked?: boolean;
 }) {
-  const [inRanked, setInRanked] = useState(false);
+  const [inRanked, setInRanked] = useState(startInRanked);
 
   const boards: SignpostBoard[] = inRanked
     ? [
