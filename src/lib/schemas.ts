@@ -436,8 +436,12 @@ export const RankedGamesResponseSchema = z.object({
 export type RankedGames = z.infer<typeof RankedGamesResponseSchema>;
 
 // GET /ranked/ranks/<name> -- every rank ever shown in ranked, all seasons.
+const RankSeenSchema = z.object({ tier: z.string(), season: z.string(), at: z.string().nullable() });
 export const RankedRanksResponseSchema = z.object({
-  ranks: z.array(z.object({ tier: z.string(), season: z.string(), at: z.string().nullable() })),
+  ranks: z.array(RankSeenSchema),
+  // The bot-ranked ladder's (the player's AI), when each rank was first
+  // shown -- optional while an older backend may answer without it.
+  ai_ranks: z.array(RankSeenSchema).optional(),
 });
 export type RankedRanks = z.infer<typeof RankedRanksResponseSchema>;
 

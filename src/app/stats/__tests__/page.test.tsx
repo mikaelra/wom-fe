@@ -152,6 +152,24 @@ describe('StatsPage', () => {
     expect(screen.getByText('Fall 2026')).toBeInTheDocument();
   });
 
+  it("shows the Bot ranked tab's ranks with when each was first reached", async () => {
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 19 });
+    vi.mocked(getRankedRanks).mockResolvedValue({
+      ranks: [{ tier: 'Warlock', season: 'Fall 2026', at: null }],
+      ai_ranks: [{ tier: 'Djinn I', season: 'Summer 2026', at: '2026-07-28T13:00:00Z' }],
+    });
+    render(<StatsPage />);
+    await flush();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ranks' }));
+    expect(await screen.findByRole('tab', { name: 'Ranked', selected: true })).toBeInTheDocument();
+    expect(screen.queryByText('Summer 2026')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'Bot ranked' }));
+    expect(screen.getByText('Summer 2026')).toBeInTheDocument();
+    expect(screen.getByText(/2026/, { selector: 'span.block' })).toBeInTheDocument(); // the date first reached
+  });
+
   it('hides the season timer while mid-placements', async () => {
     localStorage.setItem('playerName', 'Eleonora');
     mockedGetRankedProfile.mockResolvedValue({ tier: null, ranked_games_played: 4 });
