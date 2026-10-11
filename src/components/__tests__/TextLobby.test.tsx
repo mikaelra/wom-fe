@@ -175,23 +175,27 @@ describe('TextLobby', () => {
     }
   });
 
-  it('sends the round choices over the socket', async () => {
+  it("sends the round choices over the socket, from the 3D game's buttons and bottom bar", async () => {
     await show(lobby({ round: 1 }));
-    fireEvent.click(screen.getByText('Get 💰'));
+    fireEvent.click(screen.getByText('💰 Get'));
     expect(emit).toHaveBeenCalledWith('submit_choice', { lobby_id: 'ABCD', resource: 'gain_coin', action: '' });
-    fireEvent.click(screen.getByText('DEFEND'));
+    fireEvent.click(screen.getByRole('button', { name: 'Defend' }));
     expect(emit).toHaveBeenCalledWith('submit_choice', { lobby_id: 'ABCD', action: 'defend', resource: '' });
     emit.mockClear();
-    fireEvent.click(screen.getByText('ATTACK'));
+    fireEvent.click(screen.getByRole('button', { name: 'Attack' }));
     expect(emit).not.toHaveBeenCalled(); // waits for a target
     fireEvent.change(screen.getByLabelText('Select target'), { target: { value: 'Toad' } });
     expect(emit).toHaveBeenCalledWith('submit_choice', { lobby_id: 'ABCD', action: 'attack', target: 'Toad', resource: '' });
     expect(screen.queryByText('🚀 Start Game')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'The Well' }));
+    expect(emit).toHaveBeenCalledWith('submit_choice', { lobby_id: 'ABCD', action: 'well', resource: '' });
   });
 
-  it('has no choices for a denied player', async () => {
+  it('has no choices for a denied player, the bar showing but out of reach', async () => {
     await show(lobby({ round: 2, deny_target: 'Oni' }));
-    expect(screen.queryByText('Choose Action')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Attack' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'The Well' })).toBeNull();
+    expect((screen.getByText('💰 Get').closest('button') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('asks the deny chooser for a target', async () => {
@@ -296,7 +300,7 @@ describe('TextLobby', () => {
     const lobbyView = screen.getByText('Players in Lobby').closest('[aria-busy]')!;
     expect(lobbyView.getAttribute('aria-busy')).toBe('true');
     expect(lobbyView.className).toContain('blur');
-    expect(screen.getByText('Choose Resource')).toBeTruthy(); // still there, under the blur
+    expect(screen.getByRole('button', { name: 'Attack' })).toBeTruthy(); // still there, under the blur
     expect(screen.getByLabelText('Back to Home').closest('.blur-sm')).toBeNull(); // the way home stays sharp
     expect(screen.queryByText(/refresh/i)).toBeNull();
   });
@@ -329,7 +333,8 @@ describe('TextLobby title and PC layout', () => {
     );
     await show(lobby({ round: 2 }));
     expect(screen.getByText('Players in Lobby')).toBeTruthy();
-    expect(screen.getByText('Choose Resource')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Attack' })).toBeTruthy();
+    expect(screen.getByText('❤ Get')).toBeTruthy(); // the bottom bar
     expect(screen.getByText('Round Messages')).toBeTruthy();
     expect(screen.getByLabelText('Chat message')).toBeTruthy(); // docked, already open
     expect(screen.queryByLabelText('Toggle chat')).toBeNull();

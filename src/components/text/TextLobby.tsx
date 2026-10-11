@@ -22,6 +22,8 @@ import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import { useWideScreen } from '@/lib/useWideScreen';
+import ActionImageButton from '@/components/lobby/ActionImageButton';
+import ResourceCard from '@/components/ResourceCard';
 import { lobbyTitle } from '@/lib/lobbyTitle';
 import PixelTitle from '@/components/text/PixelTitle';
 import LoadingState from '@/components/loading/LoadingState';
@@ -36,13 +38,6 @@ import type { Player, Relic } from '@/types/game';
 // messages are fetched once per round (useGameEvents). What World of Mythos
 // added since Tjuvpakk -- bot types, relics, ranked countdowns, chat, the
 // Wheel/artifact/relic prizes -- is here too, in the same style.
-
-const RESOURCES = [
-  { id: 'gain_hp', label: 'Get ❤' },
-  { id: 'gain_coin', label: 'Get 💰' },
-  { id: 'gain_attack', label: 'Buy ⚔' },
-];
-const ACTIONS = ['attack', 'defend', 'well'];
 
 // Tjuvpakk's choice buttons, dark, and narrow enough that a section's three
 // sit on one line on a phone (they share the row: flex 1).
@@ -495,77 +490,115 @@ export default function TextLobby({
       ))}
     </>
   );
-  const statsCard = (
-    <>
-      {myPlayer && !myPlayer.spectator && (
-        <div className={card}>
-          <h3 className="font-semibold text-xl text-gray-100 mb-4">Your Stats</h3>
-          <p className="text-gray-200 flex gap-4">
-            <span>
-              ❤ <span className="font-semibold text-red-500">{myPlayer.hp}</span>
-            </span>
-            <span>
-              💰 <span className="font-semibold text-yellow-500">{myPlayer.coins}</span>
-            </span>
-            <span>
-              ⚔ <span className="font-semibold text-blue-500">{myPlayer.attackDamage}</span>
-            </span>
-          </p>
-        </div>
+  // Your choices as the 3D game shows them (Mikael, 2026-10-11): the red
+  // Attack button (its target under it once chosen), Defend and The Well
+  // under the player list, and the 3D game's bottom bar -- your HP, coins
+  // and attack, each tapped to take that resource this round.
+  const canChoose = !gameOver && !isDenied && isAlive && gameStarted && !myPlayer?.spectator;
+  const attackBlock = canChoose && (
+    <div className="flex flex-col items-center w-full mb-4">
+      <ActionImageButton
+        src="/images/buttons/attack-ld.png"
+        alt="Attack"
+        onClick={() => submitAction('attack')}
+        selected={action === 'attack'}
+        glowColor="rgba(239,68,68,0.7)"
+        width={150}
+      />
+      {action === 'attack' && (
+        <select
+          value={target}
+          onChange={(e) => submitTarget(e.target.value)}
+          aria-label="Select target"
+          className="mt-3 w-full max-w-xs p-1.5 border-2 border-gray-400 rounded-md bg-gray-800 text-white text-base"
+        >
+          <option value="">Select target</option>
+          {otherPlayers.map((p) => (
+            <option key={p.name} value={p.name}>
+              {shownPlayerName(p)}
+            </option>
+          ))}
+        </select>
       )}
-    </>
+    </div>
   );
-  const choicesCard = (
-    <>
-      {!gameOver && !isDenied && isAlive && gameStarted && !myPlayer?.spectator && (
-        <div className={card}>
-          <div>
-            <h4 className="font-semibold text-lg text-gray-100 mb-3">Choose Resource</h4>
-            <div className="flex gap-2">
-              {RESOURCES.map((res) => (
-                <button key={res.id} type="button" onClick={() => submitResource(res.id)} style={choiceStyle(resource === res.id)}>
-                  {res.label}
-                </button>
-              ))}
+  const defendAndWell = canChoose && (
+    <div className="flex gap-3 justify-center flex-wrap mb-4">
+      <ActionImageButton
+        src="/images/buttons/defend-ld.png"
+        alt="Defend"
+        onClick={() => submitAction('defend')}
+        selected={action === 'defend'}
+        glowColor="rgba(59,130,246,0.7)"
+        width={150}
+      />
+      <ActionImageButton
+        src="/images/buttons/well-ld.png"
+        alt="The Well"
+        onClick={() => submitAction('well')}
+        selected={action === 'well'}
+        glowColor="rgba(167,139,250,0.7)"
+        width={150}
+      />
+    </div>
+  );
+  const cannotAffordAtk = !!myPlayer && myPlayer.coins < myPlayer.attackDamage;
+  const resourceBar = myPlayer && !myPlayer.spectator && (
+    <div className="flex gap-2 justify-center">
+      <ResourceCard
+        value={myPlayer.hp}
+        label="HP"
+        sublabel="❤ Get"
+        valueClass="text-red-400"
+        sublabelClass="text-red-400/70"
+        disabled={!canChoose}
+        onClick={() => submitResource('gain_hp')}
+        className={`${!canChoose ? 'opacity-60 cursor-default' : 'cursor-pointer'} ${
+          resource === 'gain_hp'
+            ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+            : 'bg-black/70 border-red-500/50 hover:bg-red-950/80 hover:border-red-400/80'
+        }`}
+      />
+      <ResourceCard
+        value={myPlayer.coins}
+        label="Coins"
+        sublabel="💰 Get"
+        valueClass="text-yellow-400"
+        sublabelClass="text-yellow-400/70"
+        disabled={!canChoose}
+        onClick={() => submitResource('gain_coin')}
+        className={`${!canChoose ? 'opacity-60 cursor-default' : 'cursor-pointer'} ${
+          resource === 'gain_coin'
+            ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
+            : 'bg-black/70 border-yellow-500/50 hover:bg-yellow-950/80 hover:border-yellow-400/80'
+        }`}
+      />
+      <ResourceCard
+        value={myPlayer.attackDamage}
+        label="ATK"
+        sublabel="⚔ Buy"
+        valueClass="text-blue-400"
+        sublabelClass="text-blue-400/70"
+        disabled={!canChoose || cannotAffordAtk}
+        onClick={() => submitResource('gain_attack')}
+        className={`relative overflow-hidden ${
+          !canChoose || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+        } ${
+          resource === 'gain_attack'
+            ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
+            : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80'
+        }`}
+        overlay={
+          cannotAffordAtk && (
+            <div className="absolute inset-0 pointer-events-none rounded-lg overflow-hidden">
+              <svg className="w-full h-full" preserveAspectRatio="none">
+                <line x1="0" y1="0" x2="100%" y2="100%" stroke="red" strokeWidth="2" />
+              </svg>
             </div>
-          </div>
-          <div className="mt-4">
-            <h4 className="font-semibold text-lg text-gray-100 mb-3">Choose Action</h4>
-            <div className="flex gap-2">
-              {ACTIONS.map((act) => (
-                <button key={act} type="button" onClick={() => submitAction(act)} style={choiceStyle(action === act)}>
-                  {act.toUpperCase()}
-                </button>
-              ))}
-            </div>
-            {action === 'attack' && (
-                <select
-                  value={target}
-                  onChange={(e) => submitTarget(e.target.value)}
-                  aria-label="Select target"
-                  style={{
-                    padding: '6px',
-                    border: '2px solid #9ca3af',
-                    borderRadius: '5px',
-                    backgroundColor: '#1f2937',
-                    color: 'white',
-                    fontSize: '16px',
-                    marginTop: '10px',
-                    width: '100%',
-                  }}
-                >
-                  <option value="">Select target</option>
-                  {otherPlayers.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {shownPlayerName(p)}
-                    </option>
-                  ))}
-                </select>
-              )}
-          </div>
-        </div>
-      )}
-    </>
+          )
+        }
+      />
+    </div>
   );
   const timer = (
     <>
@@ -724,17 +757,20 @@ export default function TextLobby({
           <div className="min-h-0 overflow-y-auto flex flex-col items-center rounded-2xl bg-gray-950/80 p-3">
             {header}
             <div className="w-full grid grid-cols-2 gap-4 items-start">
-              <div>{playersCard}</div>
               <div>
-                {statsCard}
-                {choicesCard}
+                {playersCard}
+                {defendAndWell}
+              </div>
+              <div className="pt-2">
+                {attackBlock}
+                {timer}
               </div>
             </div>
             {adminControls}
             {relicPicker}
-            {timer}
             {denyChooser}
             {gameOverCard}
+            <div className="mt-auto pt-3">{resourceBar}</div>
           </div>
           <div className="min-h-0 flex flex-col gap-4">
             <div className="min-h-0 flex-1 overflow-y-auto">{messagesBox}</div>
@@ -753,15 +789,17 @@ export default function TextLobby({
         <div className="w-full max-w-3xl flex flex-col items-center justify-center rounded-2xl bg-gray-950/80 transition-all duration-300 p-3">
           {header}
           {playersCard}
+          {defendAndWell}
           {adminControls}
           {relicPicker}
           {floating}
-          {statsCard}
-          {choicesCard}
+          {attackBlock}
           {timer}
           {messagesBox}
           {denyChooser}
           {gameOverCard}
+          {/* The bottom bar stays in view while the rest scrolls. */}
+          {resourceBar && <div className="sticky bottom-3 z-30 mt-2">{resourceBar}</div>}
         </div>
       </div>
 
