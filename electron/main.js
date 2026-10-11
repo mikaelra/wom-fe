@@ -126,6 +126,15 @@ if (steam.restartAppIfNecessary()) {
       if (link) shell.openExternal(link);
       else console.warn('[steam] refused to open a non-Steam purchase page');
     });
+    // Linux: back to the game once that purchase is granted (preload.js
+    // raiseWindow). The window manager may only mark it urgent instead.
+    ipcMain.on('wom:raise', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win) return;
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    });
     ipcMain.handle('wom:steam-ticket', () => steam.getAuthTicket());
     ipcMain.handle('wom:steam-info', () => ({
       enabled: steam.isEnabled(),

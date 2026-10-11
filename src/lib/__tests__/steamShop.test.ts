@@ -139,7 +139,8 @@ describe('buyWithSteam', () => {
 function fakeLinuxShell() {
   const shell = fakeShell();
   const open = vi.fn();
-  return { ...shell, open, w: { wom: { ...shell.w.wom, openSteamPurchasePage: open } } };
+  const raise = vi.fn();
+  return { ...shell, open, raise, w: { wom: { ...shell.w.wom, openSteamPurchasePage: open, raiseWindow: raise } } };
 }
 
 const STEAM_URL = 'https://store.steampowered.com/checkout/approvetxn/77/';
@@ -159,6 +160,16 @@ describe('buyWithSteam on Linux (a web purchase, no overlay)', () => {
     expect(check).toHaveBeenCalledWith('tok', 77);
     expect(finalize).not.toHaveBeenCalled();
     expect(shell.w.wom.onSteamPurchaseAnswer).not.toHaveBeenCalled();
+    expect(shell.raise).toHaveBeenCalledTimes(1);
+  });
+
+  it('still delivers on a shell that cannot raise its window', async () => {
+    const shell = fakeLinuxShell();
+    const wom = { ...shell.w.wom, raiseWindow: undefined };
+    init.mockResolvedValue({ order_id: 77, steam_url: STEAM_URL });
+    check.mockResolvedValue({ status: 'fulfilled', product: 'wheel_special' });
+
+    await expect(buyWithSteam('tok', 'wheel_special', 1, false, { wom }, 1000, 1)).resolves.toBe('fulfilled');
   });
 
   it('asks every few seconds, not in a tight loop', async () => {
@@ -182,6 +193,7 @@ describe('buyWithSteam on Linux (a web purchase, no overlay)', () => {
     check.mockResolvedValue({ status: 'cancelled', product: 'ai_credits' });
 
     await expect(buyWithSteam('tok', 'ai_credits', 1, false, shell.w, 1000, 1)).resolves.toBe('cancelled');
+    expect(shell.raise).not.toHaveBeenCalled();
   });
 
   it('gives up after the timeout when the player never approves', async () => {
