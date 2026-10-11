@@ -89,6 +89,11 @@ describe('TextCity', () => {
 });
 
 describe('TextHome merchants', () => {
+  it('leaves just the sky while the HUD is hidden', () => {
+    render(<TextHome offers={[]} onEnterCity={vi.fn()} onOpenMerchant={vi.fn()} hideLinks />);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
   it("paints a conjunction merchant in its planets' colours, the full moon's in one", () => {
     const moon = {
       offer_id: 1, event_key: 'fm', merchant_name: 'John Dee',
