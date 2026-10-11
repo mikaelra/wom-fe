@@ -46,7 +46,8 @@ export async function buyWithSteam(
   const shell = w?.wom;
   if (shell?.openSteamPurchasePage) {
     const open = shell.openSteamPurchasePage.bind(shell);
-    return buyOnSteamPage(token, product, quantity, confirmDuplicate, open, timeoutMs, checkIntervalMs);
+    const raise = () => shell.raiseWindow?.();
+    return buyOnSteamPage(token, product, quantity, confirmDuplicate, open, raise, timeoutMs, checkIntervalMs);
   }
   if (!shell?.onSteamPurchaseAnswer) throw new Error('Steam is not running.');
 
@@ -102,6 +103,7 @@ async function buyOnSteamPage(
   quantity: number,
   confirmDuplicate: boolean,
   open: (url: string) => void,
+  raise: () => void,
   timeoutMs: number,
   checkIntervalMs: number
 ): Promise<SteamBuyOutcome> {
@@ -115,7 +117,10 @@ async function buyOnSteamPage(
     await new Promise((r) => setTimeout(r, checkIntervalMs));
     try {
       const { status } = await postSteamCheck(token, order_id);
-      if (status === 'fulfilled') return 'fulfilled';
+      if (status === 'fulfilled') {
+        raise(); // back from Steam's page to the game
+        return 'fulfilled';
+      }
       if (status !== 'pending') return 'cancelled';
     } catch (e) {
       // A refusal is final; a busy or unreachable backend is not.
