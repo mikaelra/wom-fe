@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import StatsPage from '@/app/stats/page';
-import { getCurrentSeason, getPlayerProfile, getRankedProfile, getSeasonHistory, getWellProfile } from '@/lib/api';
+import {
+  getCurrentSeason,
+  getPlayerProfile,
+  getRankedGames,
+  getRankedProfile,
+  getRankedRanks,
+  getSeasonHistory,
+  getWellProfile,
+} from '@/lib/api';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -14,6 +22,8 @@ vi.mock('@/lib/api', () => ({
   getPlayerProfile: vi.fn(),
   getCurrentSeason: vi.fn(),
   getSeasonHistory: vi.fn(),
+  getRankedGames: vi.fn(),
+  getRankedRanks: vi.fn(),
 }));
 
 const mockedGetRankedProfile = vi.mocked(getRankedProfile);
@@ -99,6 +109,47 @@ describe('StatsPage', () => {
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(mockedGetSeasonHistory).toHaveBeenCalledWith('Oni');
+  });
+
+  it("opens this season's ranked Games, a page at a time", async () => {
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 19 });
+    vi.mocked(getRankedGames).mockResolvedValue({
+      games: [{ game_id: 'G1', placement: 1, rank: 'Warlock', opponents: [{ name: 'Bob', place: 2 }], at: null }],
+      total: 19,
+      page: 1,
+      per_page: 10,
+    });
+    render(<StatsPage />);
+    await flush();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Games' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Games' })).toBeInTheDocument();
+    expect(await screen.findByText('Bob')).toBeInTheDocument();
+    expect(vi.mocked(getRankedGames)).toHaveBeenCalledWith('Oni', 1, 10);
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    await flush();
+    expect(vi.mocked(getRankedGames)).toHaveBeenLastCalledWith('Oni', 2, 10);
+  });
+
+  it('opens every Rank ever seen, with its season', async () => {
+    localStorage.setItem('playerName', 'Oni');
+    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 19 });
+    vi.mocked(getRankedRanks).mockResolvedValue({
+      ranks: [
+        { tier: 'Troll II', season: 'Summer 2026', at: null },
+        { tier: 'Warlock', season: 'Fall 2026', at: null },
+      ],
+    });
+    render(<StatsPage />);
+    await flush();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ranks' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Ranks' })).toBeInTheDocument();
+    expect(await screen.findByText('Summer 2026')).toBeInTheDocument();
+    expect(screen.getByText('Fall 2026')).toBeInTheDocument();
   });
 
   it('hides the season timer while mid-placements', async () => {
