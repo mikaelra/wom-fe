@@ -871,10 +871,12 @@ export default function TextLobby({
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#070b15] p-4 pt-20 sm:p-8 sm:pt-20 text-gray-100">
+    // From the top, just under the home buttons -- centred in the screen, a
+    // short lobby left a gap above it (Mikael, 2026-10-11).
+    <div className="min-h-screen w-full flex items-start justify-center bg-[#070b15] p-4 pt-20 sm:p-8 sm:pt-20 text-gray-100">
       {topButtons}
-      <div className={`relative z-10 min-h-screen w-full flex items-center justify-center${staleLook}`} aria-busy={stale}>
-        <div className="w-full max-w-3xl flex flex-col items-center justify-center rounded-2xl bg-gray-950/80 transition-all duration-300 p-3">
+      <div className={`relative z-10 w-full flex items-start justify-center${staleLook}`} aria-busy={stale}>
+        <div className="w-full max-w-3xl flex flex-col items-center justify-start rounded-2xl bg-gray-950/80 transition-all duration-300 p-3">
           {header}
           {playersCard}
           {defendAndWell}
