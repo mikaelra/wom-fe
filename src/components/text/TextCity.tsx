@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import PixelSignpost, { type SignpostBoard } from '@/components/text/PixelSignpost';
-import { inMarketLabel, playingLabel } from '@/lib/cityLabels';
+import { inGameLabel, inMarketLabel, playingLabel, searchingLabel } from '@/lib/cityLabels';
 import { BACK_COLOR, BOSSFIGHT_COLOR, EARTH_COLOR, MARKET_COLOR, RANKED_COLOR } from '@/components/city/signpostColors';
 
 // The city as text (Text mode, src/lib/textMode.ts): the 3D city's signpost
@@ -16,6 +16,13 @@ import { BACK_COLOR, BOSSFIGHT_COLOR, EARTH_COLOR, MARKET_COLOR, RANKED_COLOR } 
 function lines(...parts: (string | null | undefined)[]): string | null {
   const shown = parts.filter(Boolean);
   return shown.length ? shown.join('\n') : null;
+}
+
+/** Who is in a lobby or game and who is searching (Mikael, 2026-10-11) --
+ *  or, from a backend without the split, the one "N playing" total. */
+function split(inGame: number | undefined, searching: number | undefined, total: number): (string | null)[] {
+  if (inGame === undefined || searching === undefined) return [playingLabel(total)];
+  return [inGameLabel(inGame), searchingLabel(searching)];
 }
 
 export default function TextCity({
@@ -44,7 +51,15 @@ export default function TextCity({
   onBotRanked: () => void;
   botRankedLabel: string;
   botRankedSublabel: string | null | undefined;
-  presence: { ranked: number; bot_ranked: number; market: number };
+  presence: {
+    ranked: number;
+    bot_ranked: number;
+    market: number;
+    ranked_searching?: number;
+    ranked_in_game?: number;
+    bot_ranked_searching?: number;
+    bot_ranked_in_game?: number;
+  };
   onMarket: () => void;
   onBackToEarth: () => void;
   /** The sky's moment, as the 3D city has it (a timewarp's, or now). */
@@ -66,7 +81,7 @@ export default function TextCity({
           side: 'left',
           row: 0,
           onClick: onRanked,
-          info: lines(rankedSublabel, playingLabel(presence.ranked)),
+          info: lines(rankedSublabel, ...split(presence.ranked_in_game, presence.ranked_searching, presence.ranked)),
         },
         {
           label: botRankedLabel,
@@ -74,7 +89,10 @@ export default function TextCity({
           side: 'right',
           row: 0,
           onClick: onBotRanked,
-          info: lines(botRankedSublabel, playingLabel(presence.bot_ranked)),
+          info: lines(
+            botRankedSublabel,
+            ...split(presence.bot_ranked_in_game, presence.bot_ranked_searching, presence.bot_ranked),
+          ),
         },
         { label: 'BACK', color: BACK_COLOR, side: 'left', row: 1, onClick: () => setInRanked(false) },
       ]
