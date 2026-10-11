@@ -21,6 +21,7 @@ import { BATTLE_MUSIC, playMusic, PRE_LOBBY_MUSIC } from '@/lib/music';
 import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
+import { wellRewardFromEvents } from '@/lib/gameEvents';
 import { useWideScreen } from '@/lib/useWideScreen';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
 import ResourceCard from '@/components/ResourceCard';
@@ -343,6 +344,36 @@ export default function TextLobby({
     setFloatingMessages((prev) => prev.filter((m) => m.id !== id));
   };
 
+  // The Well's "info" reward: every other player's stats as they stood the
+  // round you won it, shown before their names that round in their colours,
+  // greyed the round after, then gone -- as the 3D game badges them
+  // (LobbyScene's infoReveal).
+  const [infoReveal, setInfoReveal] = useState<{
+    round: number;
+    stats: Map<string, { hp: number; coins: number; attackDamage: number }>;
+  } | null>(null);
+  useEffect(() => {
+    if (!events || !state || events.round !== state.round) return;
+    if (!wellRewardFromEvents(events.events).some((c) => c.type === 'info')) return;
+    setInfoReveal((prev) => {
+      // Only ever forward: the same round fetched again keeps its snapshot.
+      if (prev && events.round <= prev.round) return prev;
+      const stats = new Map<string, { hp: number; coins: number; attackDamage: number }>();
+      for (const p of state.players) {
+        if (p.name !== playerName) stats.set(p.name, { hp: p.hp, coins: p.coins, attackDamage: p.attackDamage });
+      }
+      return { round: events.round, stats };
+    });
+  }, [events, state, playerName]);
+  const infoFor = (p: { name: string; hp: number }) => {
+    if (!infoReveal || p.hp <= 0 || gameOver) return null;
+    const s = infoReveal.stats.get(p.name);
+    if (!s) return null;
+    if (infoReveal.round === round) return { ...s, stale: false };
+    if (infoReveal.round === round - 1) return { ...s, stale: true };
+    return null;
+  };
+
   const secondsLeft = useSecondsUntil(state?.round_end_time);
   const bossStartsIn = useSecondsUntil(state?.boss_fight && !gameStarted ? state.start_time : null);
   const rankedDeadline = state?.ranked
@@ -467,6 +498,21 @@ export default function TextLobby({
               {p.spectator && <span className="text-yellow-500">👁</span>}
               {muted.has(p.name) && <span>🔇</span>}
               {state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>}
+              {(() => {
+                const info = infoFor(p);
+                if (!info) return null;
+                const tint = (c: string) => (info.stale ? 'text-gray-500' : c);
+                return (
+                  <span
+                    className={`tabular-nums font-semibold ${info.stale ? 'text-gray-500' : ''}`}
+                    title={info.stale ? 'Last round' : 'This round'}
+                  >
+                    ❤ <span className={tint('text-red-400')}>{info.hp}</span> 💰{' '}
+                    <span className={tint('text-yellow-400')}>{info.coins}</span> ⚔{' '}
+                    <span className={tint('text-blue-400')}>{info.attackDamage}</span>
+                  </span>
+                );
+              })()}
               {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
               <PlayerThumbnail player={p} />
               <span className="font-medium">{shownPlayerName(p)}</span>

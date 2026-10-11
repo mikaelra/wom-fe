@@ -9,7 +9,7 @@ const conn: {
   onError?: (m: string) => void;
   onChat?: (m: { sender: string; message: string; timestamp: string }) => void;
 } = { state: null, status: 'connected' };
-const events: { value: { round: number; messages: (string | string[])[]; events: []; instakill: boolean } | null } = { value: null };
+const events: { value: { round: number; messages: (string | string[])[]; events: unknown[]; instakill: boolean } | null } = { value: null };
 
 vi.mock('@/lib/socket', () => ({ getSocket: () => ({ emit }) }));
 vi.mock('@/lib/useLobbyConnection', () => ({
@@ -400,4 +400,34 @@ describe('TextLobby title and PC layout', () => {
     expect(cityLink()).not.toMatch(/board=ranked/);
   });
 
+
+  it("shows the Well's info before each opponent's name in colour, greyed the next round, then gone", async () => {
+    const players = [player('Oni', { admin: true }), player('Toad', { hp: 6, coins: 4, attackDamage: 2 })];
+    events.value = {
+      round: 2,
+      messages: ['You won the well'],
+      events: [{ kind: 'well_reward', components: [{ type: 'info', count: 1 }] }],
+      instakill: false,
+    };
+    const { rerender } = render(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+    conn.state = lobby({ round: 2, players });
+    rerender(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+    await act(async () => Promise.resolve());
+    const row = () => screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    expect(row().textContent).toContain('❤ 6 💰 4 ⚔ 2');
+    expect(within(row()).getByText('6').className).toContain('text-red-400');
+    expect(screen.getAllByText('Oni').map((el) => el.closest('li')).find(Boolean)!.textContent).not.toContain('❤');
+
+    events.value = { round: 3, messages: [], events: [], instakill: false };
+    conn.state = lobby({ round: 3, players });
+    rerender(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+    await act(async () => Promise.resolve());
+    expect(within(row()).getByText('6').className).toContain('text-gray-500');
+
+    conn.state = lobby({ round: 4, players });
+    events.value = { round: 4, messages: [], events: [], instakill: false };
+    rerender(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+    await act(async () => Promise.resolve());
+    expect(row().textContent).not.toContain('💰');
+  });
 });
