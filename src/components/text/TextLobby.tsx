@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import FloatingMessage from '@/components/text/FloatingMessage';
 import BossSignupNudge from '@/components/BossSignupNudge';
@@ -69,6 +69,26 @@ const homeButton =
   'bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors';
 
 const ATTACK_ICON_W = 56; // the small Attack button in the player list, px
+
+// The action buttons' colours, as the 3D game glows them when chosen.
+const ATTACK_GLOW = 'rgba(239,68,68,0.7)';
+const DEFEND_GLOW = 'rgba(59,130,246,0.7)';
+const WELL_GLOW = 'rgba(167,139,250,0.7)';
+
+/** A soft glow in the action's colour behind its button art, always there,
+ *  so the three actions stand out from the text round them. */
+function GlowAction({ color, className = '', children }: { color: string; className?: string; children: ReactNode }) {
+  return (
+    <span className={`relative inline-flex ${className}`}>
+      <span
+        aria-hidden="true"
+        className="absolute -inset-1 rounded-full blur-md opacity-40 pointer-events-none"
+        style={{ background: color }}
+      />
+      <span className="relative">{children}</span>
+    </span>
+  );
+}
 
 const card = 'w-full mb-4 bg-gray-900 border border-white/10 p-4 rounded-xl';
 
@@ -425,29 +445,16 @@ export default function TextLobby({
         <ul className="list-disc pl-6 text-gray-200 space-y-2">
           {state?.players.map((p) => (
             <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
-              {/* Attack, the 3D game's red button made small, first on the
-                  line of everyone you can attack -- a tap attacks them. A
-                  gap the same size keeps the other names in line. */}
-              {canChoose &&
-                (attackable(p) ? (
-                  <ActionImageButton
-                    src="/images/buttons/attack-ld.png"
-                    alt={`Attack ${shownPlayerName(p)}`}
-                    onClick={() => {
-                      submitAction('attack');
-                      submitTarget(p.name);
-                    }}
-                    selected={action === 'attack' && target === p.name}
-                    glowColor="rgba(239,68,68,0.7)"
-                    width={ATTACK_ICON_W}
-                  />
-                ) : (
-                  <span aria-hidden="true" style={{ width: ATTACK_ICON_W }} />
-                ))}
               {/* Every mark goes in front of the name, the player's own
                   (skin thumbnail or bot emoji) right before it -- but the
                   relics they've equipped, right after it, and the admin's
-                  kick, at the end of the line. */}
+                  kick or your Attack, at the end of the line. */}
+              {/* In a bossfight every bot's health, first on its line. */}
+              {state.boss_fight && (p.bot || p.boss) && p.hp > 0 && (
+                <span className="text-red-400 font-semibold tabular-nums" title="HP">
+                  ❤ {p.hp}
+                </span>
+              )}
               {p.hp <= 0 && <span className="text-red-500">☠️</span>}
               {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
                 <span className="text-yellow-500">👑</span>
@@ -463,6 +470,24 @@ export default function TextLobby({
                   const relic = relics.find((r) => Number(r.id) === id);
                   return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
                 })}
+              {/* Attack, the 3D game's red button made small, at the end of
+                  the line of everyone you can attack -- a tap attacks them.
+                  (The kick is before the game only, Attack during it.) */}
+              {attackable(p) && (
+                <GlowAction color={ATTACK_GLOW} className="ml-auto">
+                  <ActionImageButton
+                    src="/images/buttons/attack-ld.png"
+                    alt={`Attack ${shownPlayerName(p)}`}
+                    onClick={() => {
+                      submitAction('attack');
+                      submitTarget(p.name);
+                    }}
+                    selected={action === 'attack' && target === p.name}
+                    glowColor={ATTACK_GLOW}
+                    width={ATTACK_ICON_W}
+                  />
+                </GlowAction>
+              )}
               {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
                 <span
                   className="ml-auto text-red-500 text-sm cursor-pointer"
@@ -521,24 +546,29 @@ export default function TextLobby({
   // to take that resource this round.
   const defendAndWell = canChoose && (
     <div className="flex gap-3 justify-center flex-wrap mb-4">
-      <ActionImageButton
-        src="/images/buttons/defend-ld.png"
-        alt="Defend"
-        onClick={() => submitAction('defend')}
-        selected={action === 'defend'}
-        glowColor="rgba(59,130,246,0.7)"
-        width={150}
-      />
-      <ActionImageButton
-        src="/images/buttons/well-ld.png"
-        alt="The Well"
-        onClick={() => submitAction('well')}
-        selected={action === 'well'}
-        glowColor="rgba(167,139,250,0.7)"
-        width={150}
-      />
+      <GlowAction color={WELL_GLOW}>
+        <ActionImageButton
+          src="/images/buttons/well-ld.png"
+          alt="The Well"
+          onClick={() => submitAction('well')}
+          selected={action === 'well'}
+          glowColor={WELL_GLOW}
+          width={150}
+        />
+      </GlowAction>
+      <GlowAction color={DEFEND_GLOW}>
+        <ActionImageButton
+          src="/images/buttons/defend-ld.png"
+          alt="Defend"
+          onClick={() => submitAction('defend')}
+          selected={action === 'defend'}
+          glowColor={DEFEND_GLOW}
+          width={150}
+        />
+      </GlowAction>
     </div>
   );
+
   const cannotAffordAtk = !!myPlayer && myPlayer.coins < myPlayer.attackDamage;
   const resourceBar = myPlayer && !myPlayer.spectator && (
     <div className="flex gap-2 justify-center">
@@ -661,9 +691,15 @@ export default function TextLobby({
       {gameOver && (
         <div className="w-full bg-green-950/60 border border-green-700 text-green-300 p-4 rounded-xl mt-4 text-center">
           <p className="text-xl font-semibold mb-3">🎉 Game Over! {winnerName} has won the game!</p>
-          <Link href="/" className="text-blue-400 hover:text-blue-300 font-medium transition-colors duration-200">
-            ← Back to Home
-          </Link>
+          {/* Home, and beside it the city -- the pair from the top corner. */}
+          <span className="emoji-pair inline-flex items-center justify-center gap-2">
+            <Link href="/" aria-label="Back to Home" className={homeButton}>
+              🌍
+            </Link>
+            <Link href={CITY_PATH} aria-label="Go to the city" className={homeButton}>
+              🏛️
+            </Link>
+          </span>
         </div>
       )}
     </>
@@ -784,11 +820,11 @@ export default function TextLobby({
           {relicPicker}
           {floating}
           {timer}
+          {/* On a phone the round messages come under the bottom bar. */}
+          {resourceBar && <div className="mt-2 mb-4">{resourceBar}</div>}
           {messagesBox}
           {denyChooser}
           {gameOverCard}
-          {/* The bottom bar stays in view while the rest scrolls. */}
-          {resourceBar && <div className="sticky bottom-3 z-30 mt-2">{resourceBar}</div>}
         </div>
       </div>
 

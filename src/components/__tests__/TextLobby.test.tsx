@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type { LobbyState, Player } from '@/types/game';
 
 const emit = vi.fn();
@@ -364,5 +364,27 @@ describe('TextLobby title and PC layout', () => {
     await show(lobby({ round: 2 }));
     expect(screen.getByText('Oni attacked Bot Turtle')).toBeTruthy();
     expect(screen.getByText('Round Messages').parentElement!.className).toContain('opacity-100');
+  });
+
+  it("shows every bot's HP before its name in a bossfight", async () => {
+    await show(
+      lobby({
+        round: 1,
+        boss_fight: true,
+        players: [player('Oni', { admin: true }), player('Hades', { bot: true, boss: true, hp: 42 }), player('Wolf 1', { bot: true, hp: 7 })],
+      }),
+    );
+    const hadesRow = screen.getAllByText('Hades').map((el) => el.closest('li')).find(Boolean)!;
+    expect(hadesRow.textContent).toContain('❤ 42');
+    expect(screen.getByText('Wolf 1').closest('li')!.textContent).toContain('❤ 7');
+    expect(screen.getByText('Oni').closest('li')!.textContent).not.toContain('❤');
+  });
+
+  it('ends with the way home and to the city', async () => {
+    await show(lobby({ round: 3, gameover: true, winner: 'Oni' }));
+    const over = screen.getByText(/Game Over!/).parentElement!;
+    expect(within(over).getByLabelText('Back to Home')).toBeTruthy();
+    expect(within(over).getByLabelText('Go to the city')).toBeTruthy();
+    expect(screen.queryByText(/← Back to Home/)).toBeNull();
   });
 });
