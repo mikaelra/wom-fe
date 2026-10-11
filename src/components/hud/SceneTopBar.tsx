@@ -30,9 +30,12 @@ import SfxToggleButton from '@/components/audio/SfxToggleButton';
 
 export default function SceneTopBar({
   belowRules,
+  belowSound,
 }: {
   /** Drawn directly under the Rules button -- the Earth screen's clock. */
   belowRules?: ReactNode;
+  /** Under the sound buttons: the Earth's camera speed (CameraSpeedButton). */
+  belowSound?: ReactNode;
 } = {}) {
   const router = useRouter();
   const [loggedInName, setLoggedInName] = useState('');
@@ -169,6 +172,7 @@ export default function SceneTopBar({
               included -- offered a music button and no way at all to mute
               the effects. */}
           <SfxToggleButton />
+          {belowSound}
         </div>
       </div>
       <div
