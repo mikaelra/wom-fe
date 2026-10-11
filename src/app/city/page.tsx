@@ -27,7 +27,8 @@ import { playMusic, CITY_MUSIC } from '@/lib/music';
 import LoadingState from '@/components/loading/LoadingState';
 import { useTextMode } from '@/lib/textMode';
 import { watch3dScene } from '@/lib/textModeOffer';
-import QualityCorner from '@/components/hud/QualityCorner';
+import HudToggle from '@/components/worldmap/HudToggle';
+import { useHudHidden } from '@/lib/hudHidden';
 
 // three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
 // is, and the renderer is never downloaded.
@@ -137,6 +138,8 @@ function CityPageContent() {
   // How busy each of the three buildings is right now, for the "N playing"
   // / "N in market" signs floating over them (wom-be `city_presence`).
   const presence = useCityPresence();
+  // The eye (HudToggle) hides the top bar and the clock, leaving the scene.
+  const hudHidden = useHudHidden();
 
   if (!city) {
     return (
@@ -156,7 +159,8 @@ function CityPageContent() {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100dvh', overflow: 'hidden', background: '#070b15' }}>
       {textMode === false && <AssetLoadingReporter />}
-      {textMode !== null && <QualityCorner />}
+      {/* The eye and the graphics quality, in 3D and text alike. */}
+      {textMode !== null && <HudToggle />}
       {textMode && (
         <TextCity
           onBossfight={enterBossfight}
@@ -218,7 +222,7 @@ function CityPageContent() {
         />
       </Canvas>
       )}
-      <CityOverlay
+      {!hudHidden && <CityOverlay
         skyClock={skyOverridden ? formatAthensClock(skyDate) : null}
         clock={
           <WorldClock
@@ -231,7 +235,7 @@ function CityPageContent() {
             timeZone={ATHENS_TZ}
           />
         }
-      />
+      />}
 
       {timewarpPreview && <TimewarpPanel onPlay={playPreview} onPlayEnd={playPreviewEnd} />}
 

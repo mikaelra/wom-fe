@@ -3,9 +3,9 @@
 import { useEffect } from 'react';
 import { setHudHidden, useHudHidden } from '@/lib/hudHidden';
 import GraphicsQualityButton from '@/components/hud/GraphicsQualityButton';
-import { CORNER_CLASS, CORNER_STYLE } from '@/components/hud/QualityCorner';
 
-// The small button under the user-menu button on the Earth screen that hides
+// The small button under the user-menu button on the Earth and city screens
+// (3D and text alike) that hides
 // the HUD (lib/hudHidden.ts). While the HUD is hidden the button is invisible
 // too, so it isn't in the picture -- it stays where it was and a tap there
 // (or the H key) brings everything back.
@@ -15,6 +15,10 @@ import { CORNER_CLASS, CORNER_STYLE } from '@/components/hud/QualityCorner';
 // bar's z-20, so the user menu's dropdown opens over it. The graphics
 // quality button (GraphicsQualityButton) sits to its left, and hides with
 // the HUD.
+// Under the top bar's user-menu button.
+const CORNER_CLASS = 'absolute right-3 sm:right-[calc(50%-257px)] z-10';
+const CORNER_STYLE = { top: 'calc(env(safe-area-inset-top) + 0.5rem + 54px + 0.5rem)' };
+
 export default function HudToggle() {
   const hidden = useHudHidden();
 
