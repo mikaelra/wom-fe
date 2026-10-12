@@ -32,6 +32,7 @@ import { useLobbyGame } from '@/lib/useLobbyGame';
 import { playerMark, shownPlayerName } from '@/lib/playerThumbnail';
 import type { Player, Relic } from '@/types/game';
 import { WheelText } from '@/components/WheelIcon';
+import RankOutcome from '@/components/hud/RankOutcome';
 
 // A match as text (Settings -> Graphics -> Text mode, src/lib/textMode.ts):
 // Tjuvpakk's lobby page, kept as it was, on World of Mythos's socket. The
@@ -917,7 +918,11 @@ export default function TextLobby({
     <>
       {gameOver && (
         <div className="w-full bg-green-950/60 border border-green-700 text-green-300 p-4 rounded-xl mt-4 text-center">
+          {state?.winner && state.winner !== playerName && myPlayer && !myPlayer.spectator && (
+            <p className="text-xl font-semibold text-red-400 mb-1">You lost.</p>
+          )}
           <p className="text-xl font-semibold mb-3">🎉 Game Over! {winnerName} has won the game!</p>
+          <RankOutcome result={state?.ranked_results?.[playerName]} playerName={playerName} />
           {/* Home, and beside it the city -- the pair from the top corner. */}
           <span className="emoji-pair inline-flex items-center justify-center gap-2">
             <Link href="/" aria-label="Back to Home" className={homeButton}>
