@@ -22,6 +22,20 @@ const RING_COLOR = new THREE.Color('#ff1a1a');
 const HEAD_Y_OFFSET = 1.0;   // where each ring starts, relative to the player's base position
 const FEET_Y_OFFSET = 0.08;  // where each ring vanishes, just above the ground
 
+/** The rings' material, shared with ShaderWarmup so the warm-up compiles
+ *  exactly the shader a deny will use. */
+export const DENY_RING_MATERIAL = {
+  color: RING_COLOR,
+  emissive: RING_COLOR,
+  emissiveIntensity: 1.4,
+  roughness: 0.35,
+  metalness: 0.15,
+  transparent: true,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+} as const;
+export const DENY_RING_GEOMETRY_ARGS: [number, number, number, number] = [RING_RADIUS, TUBE_RADIUS, 12, 32];
+
 /** Gravity-like fall: starts slow, accelerates toward the feet. */
 function fallEase(p: number): number {
   return p * p;
@@ -38,7 +52,7 @@ export default function DenyRingEffect({ position, onDone }: DenyRingEffectProps
   const startRef = useRef<number | null>(null);
   const doneRef = useRef(false);
 
-  const geometry = useMemo(() => new THREE.TorusGeometry(RING_RADIUS, TUBE_RADIUS, 12, 32), []);
+  const geometry = useMemo(() => new THREE.TorusGeometry(...DENY_RING_GEOMETRY_ARGS), []);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   useFrame(() => {
@@ -82,17 +96,7 @@ export default function DenyRingEffect({ position, onDone }: DenyRingEffectProps
           renderOrder={19}
           visible={false}
         >
-          <meshStandardMaterial
-            color={RING_COLOR}
-            emissive={RING_COLOR}
-            emissiveIntensity={1.4}
-            roughness={0.35}
-            metalness={0.15}
-            transparent
-            opacity={0}
-            depthWrite={false}
-            side={THREE.DoubleSide}
-          />
+          <meshStandardMaterial {...DENY_RING_MATERIAL} opacity={0} />
         </mesh>
       ))}
     </group>

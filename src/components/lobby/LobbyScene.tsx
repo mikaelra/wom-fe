@@ -24,6 +24,7 @@ import SelectionGlow from '@/components/lobby/SelectionGlow';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
 import DamageNumberEffect from '@/components/lobby/DamageNumberEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
+import ShaderWarmup from '@/components/lobby/ShaderWarmup';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
 import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
 import { FreshHtml } from '@/components/hud/FreshHtml';
@@ -1399,6 +1400,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
           </group>
         );
       })}
+
+      {/* The deny prompt, its rings and (in a bossfight) the lost souls,
+          compiled onto the GPU before they're first needed. */}
+      <ShaderWarmup lostSouls={!!state?.boss_fight} />
 
       {/* Lost soul names + attack buttons — immediate; mesh loads lazily inside LostSoulModel */}
       {lostSouls.map((soul, i) => {
