@@ -583,10 +583,12 @@ export default function TextLobby({
     <>
       <div className={card}>
         <h3 className="font-semibold text-xl text-gray-100 mb-4">Players in Lobby</h3>
-        {/* A grid of two columns: each player's frame, as wide as the
-            widest -- from the info on the left to the longest name -- and
-            after it their Attack, chat bubble and kick. */}
-        <ul className="text-gray-200 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2 gap-y-2 items-center">
+        {/* One grid for the whole list, so every line's columns line up:
+            info | crown or skull | avatar | ready or away | name | Attack,
+            framed together, and after the frame the chat bubble and kick.
+            Each frame spans its six columns (a subgrid), so all are as wide
+            as the widest. */}
+        <ul className="text-gray-200 grid grid-cols-[auto_auto_auto_auto_max-content_auto_minmax(0,1fr)] gap-y-2 items-center">
           {state?.players.map((p) => {
             const info = infoFor(p);
             const hit = info ? undefined : hits?.get(p.name)?.[hitStep];
@@ -597,14 +599,16 @@ export default function TextLobby({
             return (
               // Each player framed in a very thin black line (Mikael, 2026-10-12).
               <li key={p.name} className="contents">
-                <div className="py-1 px-2 flex items-center gap-2 border border-black rounded-md">
+                <div className="col-span-6 grid grid-cols-subgrid gap-x-2 items-center py-1 px-2 border border-black rounded-md">
                 {/* In columns, so every line lines up (Mikael, 2026-10-12):
                     what you know of them -- the Well's info, the round's
                     hits (blinking), or a bossfight bot's health -- set
                     against the next column rather than the left edge; the
                     crown or skull; their avatar; whether they've chosen
                     (✅) or are away (👻); then the name and the rest. */}
-                {showLeftColumn && (
+                {!showLeftColumn ? (
+                  <span />
+                ) : (
                   <span className={`${leftColumnWidth} ${wide ? 'text-sm' : 'text-xs'} shrink-0 flex justify-end tabular-nums`}>
                     {info ? (
                       <span
@@ -644,23 +648,21 @@ export default function TextLobby({
                     <span className="text-gray-400">👻</span>
                   ) : null}
                 </span>
-                <span className="font-medium">{shownPlayerName(p)}</span>
-                {p.spectator && <span className="text-yellow-500">👁</span>}
-                {muted.has(p.name) && <span>🔇</span>}
-                {!gameStarted &&
-                  (p.selected_relic_ids ?? []).map((id) => {
-                    const relic = relics.find((r) => Number(r.id) === id);
-                    return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
-                  })}
-                  {/* On a PC, as much frame after the names as the info column
-                      puts before them (Mikael, 2026-10-12). Not on a phone:
-                      there it pushed Attack off the edge of the list. */}
-                  {wide && <span aria-hidden="true" className={`${leftColumnWidth} shrink-0`} />}
-                </div>
-                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                {/* Attack, the word in red, a tab's width
-                    after the name of everyone you can attack -- a tap attacks
-                    them. */}
+                <span className="flex items-center gap-2">
+                  <span className="font-medium">{shownPlayerName(p)}</span>
+                  {p.spectator && <span className="text-yellow-500">👁</span>}
+                  {muted.has(p.name) && <span>🔇</span>}
+                  {!gameStarted &&
+                    (p.selected_relic_ids ?? []).map((id) => {
+                      const relic = relics.find((r) => Number(r.id) === id);
+                      return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
+                    })}
+                </span>
+                {/* Attack, the word in red, inside the frame after the name
+                    of everyone you can attack -- a tap attacks them. On a PC
+                    its column is as wide as the info column, so the frame
+                    reaches as far after the names as before them. */}
+                <span className={`flex justify-start ${wide ? leftColumnWidth : ''}`}>
                 {attackable(p) && (
                   <ActionWord
                     word="Attack"
@@ -672,9 +674,12 @@ export default function TextLobby({
                       submitTarget(p.name);
                     }}
                     small
-                    className={`ml-4 ${actionCue}`}
+                    className={`ml-2 ${actionCue}`}
                   />
                 )}
+                </span>
+                </div>
+                <div className="flex items-center gap-2 min-w-0 pl-2">
                 {/* What they just said in the chat, for a few seconds. */}
                 {bubbles.get(p.name) && (
                   <span
