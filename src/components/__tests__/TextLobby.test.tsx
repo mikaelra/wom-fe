@@ -531,5 +531,13 @@ describe('TextLobby title and PC layout', () => {
     const toad = screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
     expect(toad.textContent).toContain('👻');
   });
+
+  it('keeps a phone frame to the info and the name, leaving room for Attack', async () => {
+    await show(lobby({ round: 2 }));
+    const toad = screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    const frame = toad.querySelector(':scope > .border-black')!;
+    expect(frame.querySelector('.w-24, .w-36')).toBeNull(); // no extra space after the name
+    expect(within(toad).getByRole('button', { name: 'Attack Toad' }).closest('.border-black')).toBeNull(); // outside the frame
+  });
 });
 

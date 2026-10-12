@@ -586,7 +586,7 @@ export default function TextLobby({
         {/* A grid of two columns: each player's frame, as wide as the
             widest -- from the info on the left to the longest name -- and
             after it their Attack, chat bubble and kick. */}
-        <ul className="text-gray-200 grid grid-cols-[max-content_1fr] gap-x-2 gap-y-2 items-center">
+        <ul className="text-gray-200 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2 gap-y-2 items-center">
           {state?.players.map((p) => {
             const info = infoFor(p);
             const hit = info ? undefined : hits?.get(p.name)?.[hitStep];
@@ -652,9 +652,10 @@ export default function TextLobby({
                     const relic = relics.find((r) => Number(r.id) === id);
                     return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
                   })}
-                  {/* As much frame after the names as the info column puts before
-                      them (Mikael, 2026-10-12). */}
-                  {showLeftColumn && <span aria-hidden="true" className={`${leftColumnWidth} shrink-0`} />}
+                  {/* On a PC, as much frame after the names as the info column
+                      puts before them (Mikael, 2026-10-12). Not on a phone:
+                      there it pushed Attack off the edge of the list. */}
+                  {wide && <span aria-hidden="true" className={`${leftColumnWidth} shrink-0`} />}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
                 {/* Attack, the word in red, a tab's width
