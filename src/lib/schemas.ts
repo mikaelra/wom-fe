@@ -418,6 +418,33 @@ export const SeasonHistoryResponseSchema = z.object({
 });
 export type SeasonHistoryEntry = z.infer<typeof SeasonHistoryEntrySchema>;
 
+// GET /ranked/games/<name> -- this season's ranked games, a page at a time
+// (the stats page's Games list).
+export const RankedGamesResponseSchema = z.object({
+  games: z.array(z.object({
+    game_id: z.string(),
+    placement: z.number().int(),
+    // The tier shown after this game; null while hidden during placement.
+    rank: z.string().nullable(),
+    opponents: z.array(z.object({ name: z.string(), place: z.number().int() })),
+    at: z.string().nullable(),
+  })),
+  total: z.number().int(),
+  page: z.number().int(),
+  per_page: z.number().int(),
+});
+export type RankedGames = z.infer<typeof RankedGamesResponseSchema>;
+
+// GET /ranked/ranks/<name> -- every rank ever shown in ranked, all seasons.
+const RankSeenSchema = z.object({ tier: z.string(), season: z.string(), at: z.string().nullable() });
+export const RankedRanksResponseSchema = z.object({
+  ranks: z.array(RankSeenSchema),
+  // The bot-ranked ladder's (the player's AI), when each rank was first
+  // shown -- optional while an older backend may answer without it.
+  ai_ranks: z.array(RankSeenSchema).optional(),
+});
+export type RankedRanks = z.infer<typeof RankedRanksResponseSchema>;
+
 // POST /ranked/active -- does this player have a currently
 // unfinished ranked match to return to (docs/RANK_SYSTEM_PLAN.md §6/§10)?
 // "Back to Home" only navigates away, it never leaves the lobby server-side,
@@ -835,6 +862,11 @@ export const MyAiMatchesSchema = z.object({
     })),
     at: z.string().nullable(),
   })),
+  // Paged through the whole season (wom-be #257); optional while an older
+  // backend may answer with the latest games only.
+  total: z.number().int().optional(),
+  page: z.number().int().optional(),
+  per_page: z.number().int().optional(),
 });
 export type MyAiStatus = z.infer<typeof MyAiStatusSchema>;
 export type MyAiKnobs = z.infer<typeof MyAiKnobsSchema>;
