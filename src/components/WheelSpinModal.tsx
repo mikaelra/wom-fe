@@ -133,6 +133,16 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
     return () => window.removeEventListener('keydown', onKey);
   }, [isResult, onClose]);
 
+  // The page behind stays put while the wheel is up -- otherwise the window
+  // itself could grow a scrollbar on Steam (Electron) during the roll.
+  useEffect(() => {
+    const before = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = before;
+    };
+  }, []);
+
   const handleEquip = async () => {
     if (!resultSkin) return;
     const token = getStoredAccountToken();
@@ -170,7 +180,7 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-gray-950 text-white"
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-gray-950 text-white"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       {useFallback ? (
@@ -246,7 +256,14 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
             <WheelFlapper geometry={geometry} thetaRad={anim.flapperTheta} />
           </div>
 
-          <div className="flex-1 flex flex-col items-center gap-4 px-4 py-6 mx-auto w-full max-w-[480px] overflow-y-auto">
+          {/* No scrolling while the wheel turns: on Steam (Chromium on
+              Windows/Linux, real scrollbars, not overlay ones) a scrollbar
+              came and went down the right side during the roll. */}
+          <div
+            className={`flex-1 flex flex-col items-center gap-4 px-4 py-6 mx-auto w-full max-w-[480px] ${
+              rolling ? 'overflow-hidden' : 'overflow-y-auto'
+            }`}
+          >
             {!rolling && (
               <div className="flex gap-3">
                 <button

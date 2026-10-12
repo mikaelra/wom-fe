@@ -23,8 +23,9 @@ import { useLobbyGame } from '@/lib/useLobbyGame';
 import { BOT_TYPES } from '@/lib/botTypes';
 import { playMusic, PRE_LOBBY_MUSIC, BATTLE_MUSIC } from '@/lib/music';
 import type { LobbyState } from '@/types/game';
-import { CITY_PATH } from '@/lib/cities';
+import { CITY_PATH, RANKED_CITY_PATH } from '@/lib/cities';
 import WheelIcon from '@/components/WheelIcon';
+import RankOutcome from '@/components/hud/RankOutcome';
 
 type LobbyOverlayProps = {
   lobbyId: string;
@@ -170,12 +171,20 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   // happens (a crashed pre-game ranked-countdown watcher, sockets/
   // utils.py's end_game(None) -- round 0, no humans seated yet either).
   const timedOut = !state.winner && !allHumansDead && humans.some((p) => p.alive);
+  // Someone else won and you were in it.
+  const lost = !!state.winner && state.winner !== playerName && !!myPlayer && !myPlayer.spectator;
 
   return (
     <div className="mt-3 text-center">
       <p className="text-xl font-bold mb-2">
         {state.winner === playerName ? (
           <span className="text-green-400">You won! 👑</span>
+        ) : lost ? (
+          // You lost to someone (Mikael, 2026-10-12): say so first.
+          <>
+            <span className="text-red-400">You lost.</span>{' '}
+            <span className="text-yellow-400 text-base">{state.winner} wins!</span>
+          </>
         ) : botsWon ? (
           <span className="text-yellow-400">🤖 Bots win!</span>
         ) : timedOut ? (
@@ -213,25 +222,19 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
           <RankBadge tier="Principality" playerName={playerName} size="lg" />
           <span className="text-green-400 font-semibold">Ranked up!</span>
         </div>
-      ) : rankedResult?.tier_after && (
-        <p className="mb-2 flex items-center justify-center gap-2 flex-wrap">
-          <RankBadge tier={rankedResult.tier_after} playerName={playerName} />
-          {/* tier_before is only ever null here on the game-10 debut reveal
-              (docs/RANK_SYSTEM_PLAN.md §5) -- promoted stays null too since
-              the backend has nothing to compare against, so this and the
-              up/down text below are mutually exclusive. */}
-          {rankedResult.tier_before === null && (
-            <span className="text-cyan-400 font-semibold">Placement complete!</span>
-          )}
-          {rankedResult.promoted === true && <span className="text-green-400 font-semibold">Ranked up!</span>}
-          {rankedResult.promoted === false && <span className="text-red-400 font-semibold">Ranked down.</span>}
-        </p>
+      ) : (
+        <RankOutcome result={rankedResult} playerName={playerName} />
       )}
       <div className="flex flex-col gap-2 items-center">
         <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
           🌍
         </Link>
-        <Link href={CITY_PATH} className="text-blue-400 no-underline text-2xl" aria-label="Go to the city">
+        {/* After a ranked game, to the ranked signpost to queue again. */}
+        <Link
+          href={state.ranked || state.ai_ranked ? RANKED_CITY_PATH : CITY_PATH}
+          className="text-blue-400 no-underline text-2xl"
+          aria-label="Go to the city"
+        >
           🏛️
         </Link>
       </div>
