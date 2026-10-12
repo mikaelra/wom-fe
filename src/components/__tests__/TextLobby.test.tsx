@@ -523,6 +523,7 @@ describe('TextLobby title and PC layout', () => {
     const frame = oni.querySelector(':scope > .border-black')!; // the player's frame
     expect(frame.querySelectorAll(':scope > .w-6')).toHaveLength(3); // crown/skull, avatar, ready/away
     expect(frame.textContent).toContain('Oni'); // the name inside it
+    expect(frame.querySelectorAll(':scope > .w-36')).toHaveLength(2); // the info column, and as much after the name
   });
 
   it('shows an away player with a ghost in the ready column', async () => {

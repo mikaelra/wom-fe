@@ -578,6 +578,7 @@ export default function TextLobby({
   const showLeftColumn =
     wide ||
     !!state?.players.some((p) => infoFor(p) || hits?.get(p.name) || (state.boss_fight && (p.bot || p.boss) && p.hp > 0));
+  const leftColumnWidth = wide ? 'w-36' : 'w-24';
   const playersCard = (
     <>
       <div className={card}>
@@ -604,7 +605,7 @@ export default function TextLobby({
                     crown or skull; their avatar; whether they've chosen
                     (✅) or are away (👻); then the name and the rest. */}
                 {showLeftColumn && (
-                  <span className={`${wide ? 'w-36 text-sm' : 'w-24 text-xs'} shrink-0 flex justify-end tabular-nums`}>
+                  <span className={`${leftColumnWidth} ${wide ? 'text-sm' : 'text-xs'} shrink-0 flex justify-end tabular-nums`}>
                     {info ? (
                       <span
                         className={`font-semibold whitespace-nowrap ${info.stale ? 'text-gray-500' : ''}`}
@@ -651,6 +652,9 @@ export default function TextLobby({
                     const relic = relics.find((r) => Number(r.id) === id);
                     return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
                   })}
+                  {/* As much frame after the names as the info column puts before
+                      them (Mikael, 2026-10-12). */}
+                  {showLeftColumn && <span aria-hidden="true" className={`${leftColumnWidth} shrink-0`} />}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
                 {/* Attack, the word in red, a tab's width
