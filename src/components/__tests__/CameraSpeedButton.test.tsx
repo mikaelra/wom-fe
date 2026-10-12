@@ -32,4 +32,14 @@ describe('CameraSpeedButton', () => {
     localStorage.setItem('cameraSpeed', '3');
     expect(getCameraSpeed()).toBe(1);
   });
+
+  it('widens the same pill into the speeds instead of opening another', () => {
+    render(<CameraSpeedButton />);
+    const pill = screen.getByRole('button', { name: 'Camera speed: 1x' }).parentElement!;
+    fireEvent.click(screen.getByRole('button', { name: 'Camera speed: 1x' }));
+    expect(screen.getByRole('radiogroup')).toBe(pill);
+    fireEvent.click(screen.getByRole('radio', { name: '1x' })); // the current one: just shrinks back
+    expect(screen.queryByRole('radiogroup')).toBeNull();
+    expect(getCameraSpeed()).toBe(1);
+  });
 });
