@@ -558,108 +558,116 @@ export default function TextLobby({
   const resourceCue = canChoose && resource === '' ? warnCue : '';
   const attackable = (p: { name: string; hp: number; spectator?: boolean }) =>
     canChoose && p.name !== playerName && p.hp > 0 && !p.spectator;
+  // The first column: always kept on a PC; on a phone only while someone
+  // has something in it.
+  const showLeftColumn =
+    wide ||
+    !!state?.players.some((p) => infoFor(p) || hits?.get(p.name) || (state.boss_fight && (p.bot || p.boss) && p.hp > 0));
   const playersCard = (
     <>
       <div className={card}>
         <h3 className="font-semibold text-xl text-gray-100 mb-4">Players in Lobby</h3>
-        <ul className="list-disc pl-6 text-gray-200 space-y-2">
-          {state?.players.map((p) => (
-            <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
-              {/* Every mark goes in front of the name, the player's own
-                  (skin thumbnail or bot emoji) right before it -- but the
-                  relics they've equipped, right after it, and the admin's
-                  kick, at the end of the line. */}
-              {/* First, two places kept for every player on a PC so the names
-                  never move: what the Well's info reward told you of them --
-                  or, the rest of the time, the round's hits on them -- and
-                  whether they have chosen this round. On a phone they come
-                  only when there. */}
-              {(() => {
-                const info = infoFor(p);
-                const hit = info ? undefined : hits?.get(p.name);
-                const tint = (c: string) => (info?.stale ? 'text-gray-500' : c);
-                const content = info ? (
-                  <span
-                    className={`tabular-nums font-semibold ${info.stale ? 'text-gray-500' : ''}`}
-                    title={info.stale ? 'Last round' : 'This round'}
-                  >
-                    ❤ <span className={tint('text-red-400')}>{info.hp}</span> 💰{' '}
-                    <span className={tint('text-yellow-400')}>{info.coins}</span> ⚔{' '}
-                    <span className={tint('text-blue-400')}>{info.attackDamage}</span>
-                  </span>
-                ) : hit ? (
-                  <span className="tabular-nums font-extrabold">
-                    {hit.map((h, i) => (
-                      <span key={i} className="mr-1.5" style={{ color: h.color === 'red' ? HIT_RED : HIT_BLUE }}>
-                        {h.text}
+        <ul className="text-gray-200 space-y-2">
+          {state?.players.map((p) => {
+            const info = infoFor(p);
+            const hit = info ? undefined : hits?.get(p.name);
+            const tint = (c: string) => (info?.stale ? 'text-gray-500' : c);
+            const ready = state.readyPlayers?.includes(p.name);
+            const crowned = state.winner === p.name || (!state.winner && state.wellwinner === p.name);
+            const bossHp = state.boss_fight && (p.bot || p.boss) && p.hp > 0;
+            return (
+              <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
+                {/* In columns, so every line lines up (Mikael, 2026-10-12):
+                    what you know of them -- the Well's info, the round's
+                    hits (blinking), or a bossfight bot's health -- set
+                    against the next column rather than the left edge; the
+                    crown or skull; their avatar; whether they've chosen
+                    (✅) or are away (👻); then the name and the rest. */}
+                {showLeftColumn && (
+                  <span className={`${wide ? 'w-36 text-sm' : 'w-24 text-xs'} shrink-0 flex justify-end tabular-nums`}>
+                    {info ? (
+                      <span
+                        className={`font-semibold whitespace-nowrap ${info.stale ? 'text-gray-500' : ''}`}
+                        title={info.stale ? 'Last round' : 'This round'}
+                      >
+                        ❤ <span className={tint('text-red-400')}>{info.hp}</span> 💰{' '}
+                        <span className={tint('text-yellow-400')}>{info.coins}</span> ⚔{' '}
+                        <span className={tint('text-blue-400')}>{info.attackDamage}</span>
                       </span>
-                    ))}
+                    ) : hit ? (
+                      <span className="font-extrabold whitespace-nowrap animate-pulse">
+                        {hit.map((h, i) => (
+                          <span key={i} className="ml-1.5" style={{ color: h.color === 'red' ? HIT_RED : HIT_BLUE }}>
+                            {h.text}
+                          </span>
+                        ))}
+                      </span>
+                    ) : bossHp ? (
+                      <span className="text-red-400 font-semibold whitespace-nowrap" title="HP">
+                        ❤ {p.hp}
+                      </span>
+                    ) : null}
                   </span>
-                ) : null;
-                return wide ? <span className="w-36 shrink-0 text-sm">{content}</span> : content;
-              })()}
-              {wide ? (
-                <span className="w-5 shrink-0 text-green-500">{state.readyPlayers?.includes(p.name) && '✅'}</span>
-              ) : (
-                state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>
-              )}
-              {/* In a bossfight every bot's health. */}
-              {state.boss_fight && (p.bot || p.boss) && p.hp > 0 && (
-                <span className="text-red-400 font-semibold tabular-nums" title="HP">
-                  ❤ {p.hp}
+                )}
+                <span className="w-6 shrink-0 text-center">
+                  {p.hp <= 0 ? <span className="text-red-500">☠️</span> : crowned ? <span className="text-yellow-500">👑</span> : null}
                 </span>
-              )}
-              {p.hp <= 0 && <span className="text-red-500">☠️</span>}
-              {(state.winner === p.name || (!state.winner && state.wellwinner === p.name)) && (
-                <span className="text-yellow-500">👑</span>
-              )}
-              {p.spectator && <span className="text-yellow-500">👁</span>}
-              {muted.has(p.name) && <span>🔇</span>}
-              {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
-              <PlayerThumbnail player={p} />
-              <span className="font-medium">{shownPlayerName(p)}</span>
-              {!gameStarted &&
-                (p.selected_relic_ids ?? []).map((id) => {
-                  const relic = relics.find((r) => Number(r.id) === id);
-                  return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
-                })}
-              {/* Attack, the word in red, a tab's width
-                  after the name of everyone you can attack -- a tap attacks
-                  them. */}
-              {attackable(p) && (
-                <ActionWord
-                  word="Attack"
-                  label={`Attack ${shownPlayerName(p)}`}
-                  color={ATTACK_COLOR}
-                  selected={action === 'attack' && target === p.name}
-                  onClick={() => {
-                    submitAction('attack');
-                    submitTarget(p.name);
-                  }}
-                  small
-                  className={`ml-8 ${actionCue}`}
-                />
-              )}
-              {/* What they just said in the chat, for a few seconds. */}
-              {bubbles.get(p.name) && (
-                <span
-                  className="ml-2 max-w-[14rem] truncate rounded-2xl rounded-bl-sm bg-white text-gray-900 text-sm px-2.5 py-0.5"
-                  title={bubbles.get(p.name)}
-                >
-                  {bubbles.get(p.name)}
+                <span className="w-6 shrink-0 flex justify-center">
+                  <PlayerThumbnail player={p} />
                 </span>
-              )}
-              {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
-                <span
-                  className="ml-auto text-red-500 text-sm cursor-pointer"
-                  title="Kick player"
-                  onClick={() => emit.emit('kick_player', { lobby_id: lobbyId, target: p.name })}
-                >
-                  ❌
+                <span className="w-6 shrink-0 text-center">
+                  {ready ? (
+                    <span className="text-green-500">✅</span>
+                  ) : p.idle_rounds >= 2 ? (
+                    <span className="text-gray-400">👻</span>
+                  ) : null}
                 </span>
-              )}
-            </li>
-          ))}
+                <span className="font-medium">{shownPlayerName(p)}</span>
+                {p.spectator && <span className="text-yellow-500">👁</span>}
+                {muted.has(p.name) && <span>🔇</span>}
+                {!gameStarted &&
+                  (p.selected_relic_ids ?? []).map((id) => {
+                    const relic = relics.find((r) => Number(r.id) === id);
+                    return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
+                  })}
+                {/* Attack, the word in red, a tab's width
+                    after the name of everyone you can attack -- a tap attacks
+                    them. */}
+                {attackable(p) && (
+                  <ActionWord
+                    word="Attack"
+                    label={`Attack ${shownPlayerName(p)}`}
+                    color={ATTACK_COLOR}
+                    selected={action === 'attack' && target === p.name}
+                    onClick={() => {
+                      submitAction('attack');
+                      submitTarget(p.name);
+                    }}
+                    small
+                    className={`ml-8 ${actionCue}`}
+                  />
+                )}
+                {/* What they just said in the chat, for a few seconds. */}
+                {bubbles.get(p.name) && (
+                  <span
+                    className="ml-2 max-w-[14rem] truncate rounded-2xl rounded-bl-sm bg-white text-gray-900 text-sm px-2.5 py-0.5"
+                    title={bubbles.get(p.name)}
+                  >
+                    {bubbles.get(p.name)}
+                  </span>
+                )}
+                {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
+                  <span
+                    className="ml-auto text-red-500 text-sm cursor-pointer"
+                    title="Kick player"
+                    onClick={() => emit.emit('kick_player', { lobby_id: lobbyId, target: p.name })}
+                  >
+                    ❌
+                  </span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
     </>

@@ -99,10 +99,10 @@ describe('TextLobby', () => {
     expect(emit).toHaveBeenCalledWith('kick_player', { lobby_id: 'ABCD', target: 'Toad' });
   });
 
-  it('puts every mark in front of the name, the bot emoji or skin right before it', async () => {
+  it('lays each line out in columns: crown or skull, avatar, ready or away, then the name', async () => {
     await show(lobby({ readyPlayers: ['Wolf 1'], players: [player('Oni', { admin: true }), player('Wolf 1', { bot: true, bot_type: 'WOLF', hp: 0 })] }));
     const row = screen.getByText('Wolf 1').closest('li')!;
-    expect(row.textContent).toBe('✅☠️🐺Wolf 1'); // ready first (its own place), dead so no kick ❌
+    expect(row.textContent).toBe('☠️🐺✅Wolf 1'); // dead, so no kick ❌
   });
 
   it("shows a player's equipped relics after their name before the game", async () => {
@@ -494,7 +494,13 @@ describe('TextLobby title and PC layout', () => {
     await show(lobby({ round: 1, readyPlayers: ['Toad'] }));
     const oni = screen.getAllByText('Oni').map((el) => el.closest('li')).find(Boolean)!;
     expect(oni.querySelector('.w-36')).toBeTruthy(); // info / hits, empty
-    expect(oni.querySelector('.w-5')).toBeTruthy(); // ready mark, empty
+    expect(oni.querySelectorAll(':scope > .w-6')).toHaveLength(3); // crown/skull, avatar, ready/away
+  });
+
+  it('shows an away player with a ghost in the ready column', async () => {
+    await show(lobby({ round: 2, players: [player('Oni', { admin: true }), player('Toad', { idle_rounds: 2 })] }));
+    const toad = screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    expect(toad.textContent).toContain('👻');
   });
 });
 
