@@ -625,8 +625,8 @@ export default function TextLobby({
                     crown or skull; their avatar; whether they've chosen
                     (✅) or are away (👻); then the name and the rest. */}
                 {/* On a PC a column of its own, kept for every line; on a
-                    phone it goes under the name instead (below), so the
-                    frame never widens when it comes (Mikael, 2026-10-12). */}
+                    phone small over the name instead, so the frame doesn't
+                    grow a column when it comes (Mikael, 2026-10-12). */}
                 {wide ? (
                   <span className={`${leftColumnWidth} text-sm shrink-0 flex justify-end tabular-nums`}>{known}</span>
                 ) : (
@@ -646,7 +646,11 @@ export default function TextLobby({
                   ) : null}
                 </span>
                 <span className="flex items-center gap-2">
-                  <span className="font-medium">{shownPlayerName(p)}</span>
+                  <span className="flex flex-col">
+                    {/* On a phone, small over the name (Mikael, 2026-10-12). */}
+                    {!wide && known && <span className="text-[10px] leading-none tabular-nums">{known}</span>}
+                    <span className="font-medium">{shownPlayerName(p)}</span>
+                  </span>
                   {p.spectator && <span className="text-yellow-500">👁</span>}
                   {muted.has(p.name) && <span>🔇</span>}
                   {!gameStarted &&
@@ -675,7 +679,6 @@ export default function TextLobby({
                   />
                 )}
                 </span>
-                {!wide && known && <span className="col-span-6 text-xs tabular-nums pl-1">{known}</span>}
                 </div>
                 <div className="flex items-center gap-2 min-w-0 pl-2">
                 {/* What they just said in the chat, for a few seconds. */}
