@@ -805,7 +805,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       const denierPos = posMapRef.current.get(denier);
       if (denierPos) triggerDenierGlow(denierPos);
     }
-  }, [state?.deny_target, state?.deny_denier, playerName, triggerDenierGlow]);
+    // state?.players: only read for whether the target is Hades; a re-run
+    // for any other change returns early above (same target as before).
+  }, [state?.deny_target, state?.deny_denier, state?.players, playerName, triggerDenierGlow]);
 
   // Well-winner glow: fires every time someone wins the Well, including the
   // same player winning again -- so this can't just watch "did wellwinner
