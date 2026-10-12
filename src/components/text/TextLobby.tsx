@@ -397,12 +397,18 @@ export default function TextLobby({
       return { round: events.round, stats };
     });
   }, [events, state, playerName]);
+  const [dealt, setDealt] = useState<{ round: number; byName: Map<string, number> } | null>(null);
   const infoFor = (p: { name: string; hp: number }) => {
     if (!infoReveal || p.hp <= 0 || gameOver) return null;
     const s = infoReveal.stats.get(p.name);
     if (!s) return null;
     if (infoReveal.round === round) return { ...s, stale: false };
-    if (infoReveal.round === round - 1) return { ...s, stale: true };
+    if (infoReveal.round === round - 1) {
+      // Last round's numbers, less the damage you know you've dealt them
+      // since (Mikael, 2026-10-12).
+      const since = dealt?.round === round ? (dealt.byName.get(p.name) ?? 0) : 0;
+      return { ...s, hp: Math.max(0, s.hp - since), stale: true };
+    }
     return null;
   };
 
@@ -419,6 +425,15 @@ export default function TextLobby({
     hitsRound.current = events.round;
     const found = roundHits(events.events, playerName);
     if (found.size) setHits(found);
+    // What you know you did to the others this round, to carry onto the
+    // info reward's last-round numbers (infoFor).
+    const byName = new Map<string, number>();
+    found.forEach((hs, name) => {
+      if (name === playerName) return;
+      const damage = hs.filter((h) => h.color === 'red').reduce((sum, h) => sum + Math.abs(Number(h.text)), 0);
+      if (damage) byName.set(name, damage);
+    });
+    setDealt({ round: events.round, byName });
   }, [events, state, playerName]);
   // One hit at a time, a second each (Mikael, 2026-10-12): someone hit
   // three times shows their three numbers in turn, then nothing.
@@ -593,7 +608,7 @@ export default function TextLobby({
             const bossHp = state.boss_fight && (p.bot || p.boss) && p.hp > 0;
             const known = info ? (
               <span
-                className={`font-semibold whitespace-nowrap ${info.stale ? 'text-gray-500' : ''}`}
+                className={`font-semibold whitespace-nowrap ${info.stale ? 'text-gray-500 grayscale opacity-70' : ''}`}
                 title={info.stale ? 'Last round' : 'This round'}
               >
                 ❤ <span className={tint('text-red-400')}>{info.hp}</span> 💰{' '}

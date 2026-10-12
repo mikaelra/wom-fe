@@ -418,11 +418,19 @@ describe('TextLobby title and PC layout', () => {
     expect(within(row()).getByText('6').className).toContain('text-red-400');
     expect(screen.getAllByText('Oni').map((el) => el.closest('li')).find(Boolean)!.textContent).not.toContain('❤');
 
-    events.value = { round: 3, messages: [], events: [], instakill: false };
+    // The next round: greyed, emojis too, less the 1 you hit them for since.
+    events.value = {
+      round: 3,
+      messages: [],
+      events: [{ kind: 'outgoing', target: 'Toad', outcome: 'hit', damage: 1, attackerDied: false, eliminated: false }],
+      instakill: false,
+    };
     conn.state = lobby({ round: 3, players });
     rerender(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
     await act(async () => Promise.resolve());
-    expect(within(row()).getByText('6').className).toContain('text-gray-500');
+    const stale = within(row()).getByText('5');
+    expect(stale.className).toContain('text-gray-500');
+    expect(stale.closest('[title="Last round"]')!.className).toContain('grayscale');
 
     conn.state = lobby({ round: 4, players });
     events.value = { round: 4, messages: [], events: [], instakill: false };
