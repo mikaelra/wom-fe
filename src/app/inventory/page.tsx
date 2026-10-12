@@ -9,7 +9,7 @@ import { ledgerMarks } from '@/lib/market';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel, skinThumbnailUrl, skinUrl, sortSkins } from '@/lib/frogSkins';
 import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
-import { wheelKindLabel } from '@/lib/wheelGeometry';
+import { wheelKindFromString, wheelKindLabel } from '@/lib/wheelGeometry';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import WheelSpinModal from '@/components/WheelSpinModal';
 import TradeUpModal from '@/components/TradeUpModal';
@@ -25,6 +25,7 @@ import { REVERT_RELIC_NAMES } from '@/lib/merchant';
 import { CONSUMABLE_RELIC_NAMES, type Relic } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
 import LoadingState from '@/components/loading/LoadingState';
+import WheelIcon from '@/components/WheelIcon';
 
 type SkinEntry = { skin: string; count: number };
 type ArtifactEntry = {
@@ -378,7 +379,7 @@ export default function InventoryPage() {
                       onClick={() => setSpinningWheel({ id: group.id, kind: group.kind })}
                       className="px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-semibold hover:bg-amber-600/80 transition-colors cursor-pointer"
                     >
-                      🎡 Use {wheelKindLabel(group.kind)}{group.count > 1 ? ` ×${group.count}` : ''}
+                      <WheelIcon special={wheelKindFromString(group.kind) === 'special'} /> Use {wheelKindLabel(group.kind)}{group.count > 1 ? ` ×${group.count}` : ''}
                     </button>
                   ))}
                 </div>

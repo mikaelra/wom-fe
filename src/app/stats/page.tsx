@@ -7,6 +7,8 @@ import { getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
 import RankBadge from '@/components/hud/RankBadge';
 import SeasonTimer from '@/components/hud/SeasonTimer';
 import SeasonHistoryOverlay from '@/components/hud/SeasonHistoryOverlay';
+import RankedGamesOverlay from '@/components/hud/RankedGamesOverlay';
+import RanksOverlay from '@/components/hud/RanksOverlay';
 import { CITY_PATH } from '@/lib/cities';
 import LoadingState from '@/components/loading/LoadingState';
 
@@ -27,6 +29,9 @@ const WELL_REWARD_LABELS: Record<string, { label: string; emoji: string }> = {
   reveal_info: { label: 'Reveal Info', emoji: '🔍' },
 };
 
+const linkButton =
+  'bg-transparent border-none p-0 text-sm text-blue-400 underline hover:text-blue-300 cursor-pointer';
+
 export default function StatsPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -45,6 +50,8 @@ export default function StatsPage() {
   const [wins, setWins] = useState(0);
   const [kills, setKills] = useState(0);
   const [showSeasons, setShowSeasons] = useState(false);
+  const [showGames, setShowGames] = useState(false);
+  const [showRanks, setShowRanks] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -138,6 +145,10 @@ export default function StatsPage() {
         {showSeasons && playerName && (
           <SeasonHistoryOverlay playerName={playerName} onClose={() => setShowSeasons(false)} />
         )}
+        {showGames && playerName && (
+          <RankedGamesOverlay playerName={playerName} onClose={() => setShowGames(false)} />
+        )}
+        {showRanks && playerName && <RanksOverlay playerName={playerName} onClose={() => setShowRanks(false)} />}
 
         {loading ? (
           <LoadingState />
@@ -176,6 +187,15 @@ export default function StatsPage() {
                   <p className="text-sm text-white/50 mt-3">{placementMessage}</p>
                 </>
               )}
+              {/* This season's ranked games, and every rank ever seen. */}
+              <div className="flex gap-4 mt-3">
+                <button type="button" onClick={() => setShowGames(true)} className={linkButton}>
+                  Games
+                </button>
+                <button type="button" onClick={() => setShowRanks(true)} className={linkButton}>
+                  Ranks
+                </button>
+              </div>
             </div>
 
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { drawMoon, moonPhase } from '@/lib/pixelMoon';
+import { getCameraSpeed } from '@/lib/cameraSpeed';
 import {
   PLANETS,
   SKY_STARS,
@@ -169,7 +170,19 @@ export default function PixelOrrery({
     let phase = moonPhase(now);
     // The camera starts with the Sun behind the Earth, as the globe's does.
     const start = startAzimuth(bodies.Sun);
-    const startedAt = Date.now();
+    // The camera's angle, moved on a little each frame at the chosen camera
+    // speed (lib/cameraSpeed.ts), so a change of speed carries on from
+    // where it is rather than jumping. A long gap (the page hidden) moves
+    // it at most a second's worth.
+    let azimuth = start;
+    let lastFrame = Date.now();
+    const turnOn = () => {
+      const now = Date.now();
+      const dt = Math.min(now - lastFrame, 1000);
+      lastFrame = now;
+      if (!still) azimuth = azimuthAt(azimuth, dt * getCameraSpeed());
+      return azimuth;
+    };
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
     const draw = () => {
@@ -179,7 +192,7 @@ export default function PixelOrrery({
       const cy = Math.floor(h / 2);
       // A margin keeps Saturn's sprite (and ring) whole at the edge.
       const cam = turntableCamera(
-        still ? start : azimuthAt(start, Date.now() - startedAt),
+        turnOn(),
         cx,
         cy,
         w / 2 - 4,

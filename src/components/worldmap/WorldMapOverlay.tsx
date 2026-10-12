@@ -9,6 +9,7 @@ import RopedInput from '@/components/hud/RopedInput';
 import SceneTopBar from '@/components/hud/SceneTopBar';
 import { useToast } from '@/components/Toast';
 import { playMusic, HOME_MUSIC } from '@/lib/music';
+import CameraSpeedButton from '@/components/hud/CameraSpeedButton';
 
 export default function WorldMapOverlay({
   clock,
@@ -117,7 +118,7 @@ export default function WorldMapOverlay({
     <>
       {/* Rules, music and the user menu, shared with the city scene so the
           top bar is continuous between them (locked decision 4). */}
-      <SceneTopBar belowRules={clock} />
+      <SceneTopBar belowRules={clock} belowSound={<CameraSpeedButton />} />
 
       {/* Bottom: lobby controls */}
       <div className="absolute bottom-8 left-0 right-0 z-20 flex flex-col items-center gap-2 pointer-events-none">

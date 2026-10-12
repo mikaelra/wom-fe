@@ -46,7 +46,7 @@ describe('LoadingMark', () => {
       }
       return 1;
     });
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.995);
 
     // the oldest share: v10, here in blue
     const { unmount } = render(<LoadingMark />);
@@ -54,7 +54,7 @@ describe('LoadingMark', () => {
     unmount();
 
     // the rainbow: mid-spin it is no longer red
-    random.mockReturnValue(0.9);
+    random.mockReturnValue(0.96);
     const [start, end] = spinWindow(LOADING_SPEC);
     at = ((start + end) / 2) * 1000;
     scheduled = false;
@@ -65,7 +65,7 @@ describe('LoadingMark', () => {
 
     // the wheel: the sharp figure (the frame's first stroke) in its colour
     // at that time; the trail behind it in earlier colours
-    random.mockReturnValue(0.7);
+    random.mockReturnValue(0.9);
     scheduled = false;
     const first = strokes.length;
     const wheel = render(<LoadingMark />);
@@ -90,7 +90,7 @@ describe('LoadingMark', () => {
     // v11 plays from the hexagon: its first frame touches nothing at the center
     const moves: [number, number][] = [];
     (ctx as Record<string, unknown>).moveTo = (x: number, y: number) => moves.push([x, y]);
-    random.mockReturnValue(0.97);
+    random.mockReturnValue(0.985);
     at = 0;
     scheduled = false;
     render(<LoadingMark />);
