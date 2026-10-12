@@ -21,6 +21,7 @@ import { isLobbyGoneError } from '@/lib/lobbyErrors';
 import ChatMessageActions, { MutedMark, type ChatTarget } from '@/components/chat/ChatMessageActions';
 import { getMutedPlayers, useMutedPlayers, hideMuted } from '@/lib/chatMute';
 import { useChatText } from '@/lib/chatFilter';
+import { WheelText } from '@/components/WheelIcon';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -758,7 +759,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                 >
                   <ul ref={messagesRef} className="text-sm space-y-1">
                     {messages.map((m, i) => (
-                      <li key={i} className={theme.msgTextClass}>{Array.isArray(m) ? m.join(' ') : m}</li>
+                      <li key={i} className={theme.msgTextClass}><WheelText text={Array.isArray(m) ? m.join(' ') : m} /></li>
                     ))}
                   </ul>
                 </div>

@@ -24,6 +24,7 @@ import { BOT_TYPES } from '@/lib/botTypes';
 import { playMusic, PRE_LOBBY_MUSIC, BATTLE_MUSIC } from '@/lib/music';
 import type { LobbyState } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
+import WheelIcon from '@/components/WheelIcon';
 
 type LobbyOverlayProps = {
   lobbyId: string;
@@ -185,7 +186,7 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
       </p>
       {myPlayer?.wheel_awarded && (
         <p className="text-amber-300 font-semibold mb-2">
-          🎡 You won a Wheel!{' '}
+          <WheelIcon /> You won a Wheel!{' '}
           <Link href="/inventory" className="underline hover:text-amber-200">
             Spin it in your inventory
           </Link>

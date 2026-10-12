@@ -13,6 +13,7 @@ import LoadingState from '@/components/loading/LoadingState';
 import { buyWithApple, isIosApp, loadAppleShop, type AppleShop, type BuyOutcome } from '@/lib/appleShop';
 import { isSteamClient } from '@/lib/steamShell';
 import { buyWithSteam, type SteamBuyOutcome } from '@/lib/steamShop';
+import WheelIcon from '@/components/WheelIcon';
 
 function formatPrice(cents: number, currency: string): string {
   try {
@@ -386,7 +387,7 @@ export default function ShopPage() {
                   {product.kind === 'wheel' && product.odds && (
                     <div className="mb-4">
                       <div className="flex justify-center py-4" aria-hidden="true">
-                        <span className="text-5xl">🎡</span>
+                        <span className="text-5xl"><WheelIcon special /></span>
                       </div>
                       <p className="text-xs text-white/50">
                         Buy a special wheel and roll it to get a special skin
