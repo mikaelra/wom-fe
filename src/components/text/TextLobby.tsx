@@ -582,7 +582,10 @@ export default function TextLobby({
     <>
       <div className={card}>
         <h3 className="font-semibold text-xl text-gray-100 mb-4">Players in Lobby</h3>
-        <ul className="text-gray-200 space-y-2">
+        {/* A grid of two columns: each player's frame, as wide as the
+            widest -- from the info on the left to the longest name -- and
+            after it their Attack, chat bubble and kick. */}
+        <ul className="text-gray-200 grid grid-cols-[max-content_1fr] gap-x-2 gap-y-2 items-center">
           {state?.players.map((p) => {
             const info = infoFor(p);
             const hit = info ? undefined : hits?.get(p.name)?.[hitStep];
@@ -592,7 +595,8 @@ export default function TextLobby({
             const bossHp = state.boss_fight && (p.bot || p.boss) && p.hp > 0;
             return (
               // Each player framed in a very thin black line (Mikael, 2026-10-12).
-              <li key={p.name} className="py-1 px-2 flex items-center gap-2 flex-wrap border border-black rounded-md">
+              <li key={p.name} className="contents">
+                <div className="py-1 px-2 flex items-center gap-2 border border-black rounded-md">
                 {/* In columns, so every line lines up (Mikael, 2026-10-12):
                     what you know of them -- the Well's info, the round's
                     hits (blinking), or a bossfight bot's health -- set
@@ -647,6 +651,8 @@ export default function TextLobby({
                     const relic = relics.find((r) => Number(r.id) === id);
                     return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
                   })}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
                 {/* Attack, the word in red, a tab's width
                     after the name of everyone you can attack -- a tap attacks
                     them. */}
@@ -661,13 +667,13 @@ export default function TextLobby({
                       submitTarget(p.name);
                     }}
                     small
-                    className={`ml-8 ${actionCue}`}
+                    className={`ml-4 ${actionCue}`}
                   />
                 )}
                 {/* What they just said in the chat, for a few seconds. */}
                 {bubbles.get(p.name) && (
                   <span
-                    className="ml-2 max-w-[14rem] truncate rounded-2xl rounded-bl-sm bg-white text-gray-900 text-sm px-2.5 py-0.5"
+                    className="max-w-[14rem] truncate rounded-2xl rounded-bl-sm bg-white text-gray-900 text-sm px-2.5 py-0.5"
                     title={bubbles.get(p.name)}
                   >
                     {bubbles.get(p.name)}
@@ -682,6 +688,7 @@ export default function TextLobby({
                     ❌
                   </span>
                 )}
+                </div>
               </li>
             );
           })}

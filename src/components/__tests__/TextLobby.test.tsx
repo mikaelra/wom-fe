@@ -520,7 +520,9 @@ describe('TextLobby title and PC layout', () => {
     await show(lobby({ round: 1, readyPlayers: ['Toad'] }));
     const oni = screen.getAllByText('Oni').map((el) => el.closest('li')).find(Boolean)!;
     expect(oni.querySelector('.w-36')).toBeTruthy(); // info / hits, empty
-    expect(oni.querySelectorAll(':scope > .w-6')).toHaveLength(3); // crown/skull, avatar, ready/away
+    const frame = oni.querySelector(':scope > .border-black')!; // the player's frame
+    expect(frame.querySelectorAll(':scope > .w-6')).toHaveLength(3); // crown/skull, avatar, ready/away
+    expect(frame.textContent).toContain('Oni'); // the name inside it
   });
 
   it('shows an away player with a ghost in the ready column', async () => {
