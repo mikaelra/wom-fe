@@ -25,6 +25,7 @@ import LoadingState from '@/components/loading/LoadingState';
 import { useLobbyGame } from '@/lib/useLobbyGame';
 import { playerMark, shownPlayerName } from '@/lib/playerThumbnail';
 import type { Player, Relic } from '@/types/game';
+import { WheelText } from '@/components/WheelIcon';
 
 // A match as text (Settings -> Graphics -> Text mode, src/lib/textMode.ts):
 // Tjuvpakk's lobby page, kept as it was, on World of Mythos's socket. The
@@ -563,7 +564,7 @@ export default function TextLobby({
             <ul className="list-disc pl-6 text-gray-200 bg-gray-900 border border-white/10 p-4 rounded-xl space-y-2">
               {messages.map((m, i) => (
                 <li key={i} className="py-1">
-                  {Array.isArray(m) ? m.join(' ') : m}
+                  <WheelText text={Array.isArray(m) ? m.join(' ') : m} />
                 </li>
               ))}
             </ul>
