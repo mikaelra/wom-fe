@@ -81,6 +81,30 @@ describe('TextCity', () => {
     expect(screen.getByLabelText('HADES')).toBeTruthy();
   });
 
+  it('splits each ranked board into who is searching and who is playing', () => {
+    render(
+      <TextCity
+        {...props()}
+        startInRanked
+        presence={{
+          ranked: 3, bot_ranked: 9, market: 0,
+          ranked_in_game: 2, ranked_searching: 1, bot_ranked_in_game: 0, bot_ranked_searching: 4,
+        }}
+      />,
+    );
+    expect(screen.getByText(/1 searching\s+2 playing/)).toBeTruthy(); // searching first
+    expect(screen.getByText(/4 searching/)).toBeTruthy();
+    expect(screen.queryByText(/0 playing/)).toBeNull(); // only when there is someone
+    expect(screen.queryByText(/in game/)).toBeNull();
+  });
+
+  it('opens on the ranked boards when sent back from a ranked game', () => {
+    render(<TextCity {...props()} startInRanked />);
+    expect(screen.getByLabelText('PLAYERS')).toBeTruthy();
+    expect(screen.getByLabelText('BACK')).toBeTruthy();
+    expect(screen.queryByLabelText('HADES')).toBeNull();
+  });
+
   it('says when a match is waiting to be returned to', () => {
     render(<TextCity {...props()} rankedLabel="RETURN TO MATCH" />);
     fireEvent.click(screen.getByLabelText('RANKED'));

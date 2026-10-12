@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { LobbyState, Player } from '@/types/game';
 
 const emit = vi.fn();
@@ -9,7 +9,7 @@ const conn: {
   onError?: (m: string) => void;
   onChat?: (m: { sender: string; message: string; timestamp: string }) => void;
 } = { state: null, status: 'connected' };
-const events: { value: { round: number; messages: (string | string[])[]; events: []; instakill: boolean } | null } = { value: null };
+const events: { value: { round: number; messages: (string | string[])[]; events: unknown[]; instakill: boolean } | null } = { value: null };
 
 vi.mock('@/lib/socket', () => ({ getSocket: () => ({ emit }) }));
 vi.mock('@/lib/useLobbyConnection', () => ({
@@ -99,10 +99,18 @@ describe('TextLobby', () => {
     expect(emit).toHaveBeenCalledWith('kick_player', { lobby_id: 'ABCD', target: 'Toad' });
   });
 
-  it('puts every mark in front of the name, the bot emoji or skin right before it', async () => {
+  it('lays each line out in columns: crown or skull, avatar, ready or away, then the name', async () => {
     await show(lobby({ readyPlayers: ['Wolf 1'], players: [player('Oni', { admin: true }), player('Wolf 1', { bot: true, bot_type: 'WOLF', hp: 0 })] }));
     const row = screen.getByText('Wolf 1').closest('li')!;
-    expect(row.textContent).toBe('☠️✅🐺Wolf 1'); // dead, so no kick ❌
+    expect(row.textContent).toBe('☠️🐺✅Wolf 1'); // dead, so no kick ❌
+  });
+
+  it("shows a player's equipped relics after their name before the game", async () => {
+    await show(lobby({ players: [player('Oni', { admin: true }), player('Toad', { selected_relic_ids: [1] })] }));
+    const row = (await screen.findByText('Toad')).closest('li')!;
+    await act(async () => Promise.resolve());
+    expect(row.textContent!.startsWith('Toad')).toBe(true);
+    expect(row.textContent!.length).toBeGreaterThan('Toad❌'.length); // a relic badge after the name
   });
 
   it('waits for the game to start with counting dots, then shows the round', async () => {
@@ -175,23 +183,27 @@ describe('TextLobby', () => {
     }
   });
 
-  it('sends the round choices over the socket', async () => {
+  it("sends the round choices over the socket, from the 3D game's buttons and bottom bar", async () => {
     await show(lobby({ round: 1 }));
-    fireEvent.click(screen.getByText('Get 💰'));
+    fireEvent.click(screen.getByText('💰 Get'));
     expect(emit).toHaveBeenCalledWith('submit_choice', { lobby_id: 'ABCD', resource: 'gain_coin', action: '' });
-    fireEvent.click(screen.getByText('DEFEND'));
+    fireEvent.click(screen.getByRole('button', { name: 'Defend' }));
     expect(emit).toHaveBeenCalledWith('submit_choice', { lobby_id: 'ABCD', action: 'defend', resource: '' });
     emit.mockClear();
-    fireEvent.click(screen.getByText('ATTACK'));
-    expect(emit).not.toHaveBeenCalled(); // waits for a target
-    fireEvent.change(screen.getByLabelText('Select target'), { target: { value: 'Toad' } });
+    // Attack sits beside each player you can attack: one tap attacks them.
+    expect(screen.queryByRole('button', { name: 'Attack Oni' })).toBeNull(); // not yourself
+    fireEvent.click(screen.getByRole('button', { name: 'Attack Toad' }));
     expect(emit).toHaveBeenCalledWith('submit_choice', { lobby_id: 'ABCD', action: 'attack', target: 'Toad', resource: '' });
     expect(screen.queryByText('🚀 Start Game')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'The Well' }));
+    expect(emit).toHaveBeenCalledWith('submit_choice', { lobby_id: 'ABCD', action: 'well', resource: '' });
   });
 
-  it('has no choices for a denied player', async () => {
+  it('has no choices for a denied player, the bar showing but out of reach', async () => {
     await show(lobby({ round: 2, deny_target: 'Oni' }));
-    expect(screen.queryByText('Choose Action')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Attack Toad' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'The Well' })).toBeNull();
+    expect((screen.getByText('💰 Get').closest('button') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('asks the deny chooser for a target', async () => {
@@ -296,7 +308,7 @@ describe('TextLobby', () => {
     const lobbyView = screen.getByText('Players in Lobby').closest('[aria-busy]')!;
     expect(lobbyView.getAttribute('aria-busy')).toBe('true');
     expect(lobbyView.className).toContain('blur');
-    expect(screen.getByText('Choose Resource')).toBeTruthy(); // still there, under the blur
+    expect(screen.getByRole('button', { name: 'Attack Toad' })).toBeTruthy(); // still there, under the blur
     expect(screen.getByLabelText('Back to Home').closest('.blur-sm')).toBeNull(); // the way home stays sharp
     expect(screen.queryByText(/refresh/i)).toBeNull();
   });
@@ -307,3 +319,250 @@ describe('TextLobby', () => {
     expect(screen.getByText('Players in Lobby').closest('[aria-busy]')!.className).not.toContain('blur');
   });
 });
+
+describe('TextLobby title and PC layout', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('puts the 8-bit title of the kind of match on top', async () => {
+    await show(lobby());
+    expect(screen.getByRole('img', { name: 'Private lobby' })).toBeTruthy();
+    await show(lobby({ ranked: true }));
+    expect(screen.getByRole('img', { name: 'Ranked' })).toBeTruthy();
+    await show(lobby({ ai_ranked: true }));
+    expect(screen.getByRole('img', { name: 'Bot Ranked' })).toBeTruthy();
+  });
+
+  it('lays a PC screen out in two columns with the chat docked, nothing to open', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) => ({ matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
+    );
+    await show(lobby({ round: 2 }));
+    expect(screen.getByText('Players in Lobby')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Attack Toad' })).toBeTruthy();
+    expect(screen.getByText('❤ Get')).toBeTruthy(); // the bottom bar
+    expect(screen.getByText('Round Messages')).toBeTruthy();
+    expect(screen.getByLabelText('Chat message')).toBeTruthy(); // docked, already open
+    expect(screen.queryByLabelText('Toggle chat')).toBeNull();
+    expect(document.querySelector('.h-dvh.overflow-hidden')).toBeTruthy(); // the window, never scrolled
+  });
+
+  it('keeps the one column and the chat button on a phone', async () => {
+    await show(lobby({ round: 2 }));
+    expect(screen.getByLabelText('Toggle chat')).toBeTruthy();
+    expect(screen.queryByLabelText('Chat message')).toBeNull();
+  });
+
+  it('puts the round messages straight in the list on a PC, no bubble', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) => ({ matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
+    );
+    events.value = { round: 2, messages: ['Oni attacked Bot Turtle'], events: [], instakill: false };
+    await show(lobby({ round: 2 }));
+    expect(screen.getByText('Oni attacked Bot Turtle')).toBeTruthy();
+    expect(screen.getByText('Round Messages').parentElement!.className).toContain('opacity-100');
+  });
+
+  it("shows every bot's HP before its name in a bossfight", async () => {
+    await show(
+      lobby({
+        round: 1,
+        boss_fight: true,
+        players: [player('Oni', { admin: true }), player('Hades', { bot: true, boss: true, hp: 42 }), player('Wolf 1', { bot: true, hp: 7 })],
+      }),
+    );
+    const hadesRow = screen.getAllByText('Hades').map((el) => el.closest('li')).find(Boolean)!;
+    expect(hadesRow.textContent).toContain('❤ 42');
+    expect(screen.getByText('Wolf 1').closest('li')!.textContent).toContain('❤ 7');
+    expect(screen.getByText('Oni').closest('li')!.textContent).not.toContain('❤');
+  });
+
+  it('ends with the way home and to the city', async () => {
+    await show(lobby({ round: 3, gameover: true, winner: 'Oni' }));
+    const over = screen.getByText(/Game Over!/).parentElement!;
+    expect(within(over).getByLabelText('Back to Home')).toBeTruthy();
+    expect(within(over).getByLabelText('Go to the city')).toBeTruthy();
+    expect(screen.queryByText(/← Back to Home/)).toBeNull();
+  });
+
+  it('leads back to the ranked signpost after a ranked game, the main one otherwise', async () => {
+    const cityLink = () => screen.getAllByLabelText('Go to the city').at(-1)!.getAttribute('href');
+    await show(lobby({ round: 3, ranked: true }));
+    expect(cityLink()).toMatch(/board=ranked/);
+    cleanup();
+    await show(lobby({ round: 3, ai_ranked: true }));
+    expect(cityLink()).toMatch(/board=ranked/);
+    cleanup();
+    await show(lobby({ round: 3 }));
+    expect(cityLink()).not.toMatch(/board=ranked/);
+  });
+
+
+  it("shows the Well's info before each opponent's name in colour, greyed the next round, then gone", async () => {
+    const players = [player('Oni', { admin: true }), player('Toad', { hp: 6, coins: 4, attackDamage: 2 })];
+    events.value = {
+      round: 2,
+      messages: ['You won the well'],
+      events: [{ kind: 'well_reward', components: [{ type: 'info', count: 1 }] }],
+      instakill: false,
+    };
+    const { rerender } = render(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+    conn.state = lobby({ round: 2, players });
+    rerender(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+    await act(async () => Promise.resolve());
+    const row = () => screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    expect(row().textContent).toContain('❤ 6 💰 4 ⚔ 2');
+    expect(within(row()).getByText('6').className).toContain('text-red-400');
+    expect(screen.getAllByText('Oni').map((el) => el.closest('li')).find(Boolean)!.textContent).not.toContain('❤');
+
+    // The next round: greyed, emojis too, less the 1 you hit them for since.
+    events.value = {
+      round: 3,
+      messages: [],
+      events: [{ kind: 'outgoing', target: 'Toad', outcome: 'hit', damage: 1, attackerDied: false, eliminated: false }],
+      instakill: false,
+    };
+    conn.state = lobby({ round: 3, players });
+    rerender(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+    await act(async () => Promise.resolve());
+    const stale = within(row()).getByText('5');
+    expect(stale.className).toContain('text-gray-500');
+    expect(stale.closest('[title="Last round"]')!.className).toContain('grayscale');
+
+    conn.state = lobby({ round: 4, players });
+    events.value = { round: 4, messages: [], events: [], instakill: false };
+    rerender(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+    await act(async () => Promise.resolve());
+    expect(row().textContent).not.toContain('💰');
+  });
+
+  it('shows no lobby id in the bossfight', async () => {
+    await show(lobby({ boss_fight: true }));
+    expect(screen.queryByText(/Lobby ID/)).toBeNull();
+  });
+
+  it('frames each action in its colour, and fills the chosen one', async () => {
+    await show(lobby({ round: 1 }));
+    const well = screen.getByRole('button', { name: 'The Well' });
+    expect(well.style.borderColor).not.toBe('transparent');
+    expect(well.style.backgroundColor).toBe('transparent');
+    fireEvent.click(well);
+    expect(well.style.backgroundColor).not.toBe('transparent');
+    expect(well.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('blinks the choices still to make and says what is missing as time runs out', async () => {
+    const soon = new Date(Date.now() + 8000).toISOString();
+    await show(lobby({ round: 2, round_end_time: soon }));
+    expect(screen.getByRole('button', { name: 'Defend' }).className).toContain('warn-blink-gold');
+    expect(screen.getByText('You must choose an action: Attack someone, Well or Defend.')).toBeTruthy();
+    expect(screen.getByText('You must choose a resource: Get HP, Get Coin or Upgrade Attack.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Defend' }));
+    expect(screen.queryByText(/You must choose an action/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Defend' }).className).not.toContain('warn-blink');
+  });
+
+  it('blinks red with 5 seconds left, and not at all with plenty of time', async () => {
+    await show(lobby({ round: 2, round_end_time: new Date(Date.now() + 4000).toISOString() }));
+    expect(screen.getByRole('button', { name: 'The Well' }).className).toContain('warn-blink-red');
+    cleanup();
+    await show(lobby({ round: 2, round_end_time: new Date(Date.now() + 60000).toISOString() }));
+    expect(screen.getByRole('button', { name: 'The Well' }).className).not.toContain('warn-blink');
+    expect(screen.queryByText(/You must choose/)).toBeNull();
+  });
+
+  it("shows the round's hits as red and blue numbers before the names", async () => {
+    events.value = {
+      round: 2,
+      messages: ['You hit Toad'],
+      events: [{ kind: 'outgoing', target: 'Toad', outcome: 'hit', damage: 3, attackerDied: false, eliminated: false }],
+      instakill: false,
+    };
+    await show(lobby({ round: 2 }));
+    const toad = screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    expect(within(toad).getByText('-3').style.color).toBe('rgb(239, 68, 68)');
+  });
+
+  it('passes through several hits on a player, a second each, then clears', async () => {
+    vi.useFakeTimers();
+    try {
+      events.value = {
+        round: 2,
+        messages: [],
+        events: [
+          { kind: 'incoming', attacker: 'Toad', outcome: 'hit', damage: 2, attackerDied: false },
+          { kind: 'incoming', attacker: 'Wolf', outcome: 'blocked', attackerDied: false },
+        ],
+        instakill: false,
+      };
+      await show(lobby({ round: 2 }));
+      const oni = () => screen.getAllByText('Oni').map((el) => el.closest('li')).find(Boolean)!;
+      expect(within(oni()).getByText('-2')).toBeTruthy();
+      expect(within(oni()).queryByText('0')).toBeNull();
+      act(() => vi.advanceTimersByTime(1000));
+      expect(within(oni()).getByText('0')).toBeTruthy();
+      expect(within(oni()).queryByText('-2')).toBeNull();
+      act(() => vi.advanceTimersByTime(1000));
+      expect(within(oni()).queryByText('0')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('puts a chat bubble by the name of whoever just said something', async () => {
+    await show(
+      lobby({ round: 1, chat: [{ sender: 'Toad', message: 'gg', timestamp: new Date().toISOString() }] as LobbyState['chat'] }),
+    );
+    const toad = screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    expect(within(toad).getByText('gg')).toBeTruthy();
+  });
+
+  it('keeps a place for the info and the ready mark on every line on a PC', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) => ({ matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
+    );
+    await show(lobby({ round: 1, readyPlayers: ['Toad'] }));
+    const oni = screen.getAllByText('Oni').map((el) => el.closest('li')).find(Boolean)!;
+    expect(oni.querySelector('.w-36')).toBeTruthy(); // info / hits, empty
+    const frame = oni.querySelector(':scope > .border-black')!; // the player's frame
+    expect(frame.querySelectorAll(':scope > .w-6')).toHaveLength(3); // crown/skull, avatar, ready/away
+    expect(frame.textContent).toContain('Oni'); // the name inside it
+    expect(frame.querySelectorAll(':scope > .w-36')).toHaveLength(2); // the info column, and as much after the name
+  });
+
+  it('shows an away player with a ghost in the ready column', async () => {
+    await show(lobby({ round: 2, players: [player('Oni', { admin: true }), player('Toad', { idle_rounds: 2 })] }));
+    const toad = screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    expect(toad.textContent).toContain('👻');
+  });
+
+  it("puts Attack inside the player's frame, with the bubble and kick outside", async () => {
+    await show(
+      lobby({ round: 2, chat: [{ sender: 'Toad', message: 'gg', timestamp: new Date().toISOString() }] as LobbyState['chat'] }),
+    );
+    const toad = screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    expect(within(toad).getByRole('button', { name: 'Attack Toad' }).closest('.border-black')).toBeTruthy();
+    expect(within(toad).getByText('gg').closest('.border-black')).toBeNull();
+  });
+
+
+  it('on a phone shows the hits small over the name, with no column for them', async () => {
+    events.value = {
+      round: 2,
+      messages: [],
+      events: [{ kind: 'outgoing', target: 'Toad', outcome: 'hit', damage: 4, attackerDied: false, eliminated: false }],
+      instakill: false,
+    };
+    await show(lobby({ round: 2 }));
+    const toad = screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    const frame = toad.querySelector(':scope > .border-black') as HTMLElement;
+    expect(frame.querySelector('.w-36, .w-24')).toBeNull(); // no column for it
+    const hitLine = within(frame).getByText('-4').closest('.leading-none')!;
+    expect(hitLine.nextElementSibling?.textContent).toBe('Toad'); // right over the name
+  });
+});
+

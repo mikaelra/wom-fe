@@ -178,6 +178,7 @@ function CityPageContent() {
           timewarp={timewarpPlaying && timewarpRun ? { glow: timewarpFxState.glow, colors: timewarpRun.spec.colors } : null}
           lat={city.realLat}
           lng={city.realLng}
+          startInRanked={searchParams.get('board') === 'ranked'}
         />
       )}
       {textMode === false && (

@@ -773,6 +773,13 @@ export const CityPresenceSchema = z.object({
   ranked: z.number().int(),
   bot_ranked: z.number().int(),
   market: z.number().int(),
+  // People only, split into searching (queued) and in a lobby or game
+  // (wom-be #259) -- the text city's ranked boards. Optional while an older
+  // backend may answer without them.
+  ranked_searching: z.number().int().optional(),
+  ranked_in_game: z.number().int().optional(),
+  bot_ranked_searching: z.number().int().optional(),
+  bot_ranked_in_game: z.number().int().optional(),
 });
 export type CityPresence = z.infer<typeof CityPresenceSchema>;
 export type MarketFrogs = z.infer<typeof MarketFrogsSchema>;
