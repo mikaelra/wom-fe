@@ -481,6 +481,9 @@ export const PlayerProfileResponseSchema = z.object({
   played_games: z.number().int(),
   wins: z.number().int(),
   kills: z.number().int(),
+  // Bossfights the players won (wom-be #263); optional while an older
+  // backend may answer without it.
+  bosses_defeated: z.number().int().optional(),
 });
 
 // docs/MONETIZATION_PLAN.md §5.2/§5.3/§8 -- shop, checkout, wheel odds.

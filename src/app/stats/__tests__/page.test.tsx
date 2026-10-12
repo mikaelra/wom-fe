@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import StatsPage from '@/app/stats/page';
 import {
   getCurrentSeason,
@@ -44,6 +44,7 @@ beforeEach(() => {
   // Every test that doesn't care about the Well/Overview sections gets a
   // harmless default so it doesn't have to stub this itself.
   mockedGetWellProfile.mockResolvedValue({ well_wins: 0, rewards: [] });
+  vi.mocked(getRankedRanks).mockResolvedValue({ ranks: [], ai_ranks: [] });
   mockedGetPlayerProfile.mockResolvedValue({
     created_at: '2026-03-05T12:30:00Z',
     played_games: 0,
@@ -133,62 +134,38 @@ describe('StatsPage', () => {
     expect(vi.mocked(getRankedGames)).toHaveBeenLastCalledWith('Oni', 2, 10);
   });
 
-  it('opens every Rank ever seen, with its season', async () => {
+  it('lists every rank ever reached in the Seasons pop-up, highest first, per ladder', async () => {
     localStorage.setItem('playerName', 'Oni');
     mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 19 });
-    vi.mocked(getRankedRanks).mockResolvedValue({
-      ranks: [
-        { tier: 'Troll II', season: 'Summer 2026', at: null },
-        { tier: 'Warlock', season: 'Fall 2026', at: null },
-      ],
-    });
-    render(<StatsPage />);
-    await flush();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Ranks' }));
-
-    expect(await screen.findByRole('dialog', { name: 'Ranks' })).toBeInTheDocument();
-    expect(await screen.findByText('Summer 2026')).toBeInTheDocument();
-    expect(screen.getByText('Fall 2026')).toBeInTheDocument();
-  });
-
-  it('lists the ranks highest first, whenever they were reached', async () => {
-    localStorage.setItem('playerName', 'Oni');
-    mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 19 });
+    mockedGetSeasonHistory.mockResolvedValue({ human: [{ season: 'Fall 2026', tier: 'Warlock', current: true }], ai: [] });
     vi.mocked(getRankedRanks).mockResolvedValue({
       ranks: [
         { tier: 'Troll III', season: 'Summer 2026', at: '2026-07-01T00:00:00Z' },
-        { tier: 'Djinn I', season: 'Summer 2026', at: '2026-07-02T00:00:00Z' },
         { tier: 'Djinn III', season: 'Summer 2026', at: '2026-07-03T00:00:00Z' },
-        { tier: 'Djinn II', season: 'Summer 2026', at: '2026-07-04T00:00:00Z' },
+        { tier: 'Djinn I', season: 'Summer 2026', at: '2026-07-02T00:00:00Z' },
       ],
+      ai_ranks: [{ tier: 'Wizard I', season: 'Fall 2026', at: '2026-10-01T00:00:00Z' }],
     });
     render(<StatsPage />);
     await flush();
+    expect(screen.queryByRole('button', { name: 'Ranks' })).toBeNull(); // no separate pop-up
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ranks' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Ranks' });
-    await screen.findByText('Djinn III');
-    const shown = Array.from(dialog.querySelectorAll('li')).map((li) => li.textContent);
-    expect(shown.map((t) => t!.match(/(Troll|Djinn) I+/)![0])).toEqual(['Djinn III', 'Djinn II', 'Djinn I', 'Troll III']);
+    fireEvent.click(screen.getByRole('button', { name: 'Seasons' }));
+    const dialog = await screen.findByRole('dialog');
+    await screen.findByText('Ranks reached');
+    const reached = Array.from(dialog.querySelectorAll('h3 + ul li')).map((li) => li.textContent!.match(/(Troll|Djinn) I+/)![0]);
+    expect(reached).toEqual(['Djinn III', 'Djinn I', 'Troll III']);
+    fireEvent.click(screen.getByRole('tab', { name: 'My AI' }));
+    expect(within(dialog).getByText('Wizard I')).toBeInTheDocument();
   });
 
-  it("shows the Bot ranked tab's ranks with their season, no date", async () => {
+  it('counts the bosses defeated', async () => {
     localStorage.setItem('playerName', 'Oni');
     mockedGetRankedProfile.mockResolvedValue({ tier: 'Warlock', ranked_games_played: 19 });
-    vi.mocked(getRankedRanks).mockResolvedValue({
-      ranks: [{ tier: 'Warlock', season: 'Fall 2026', at: null }],
-      ai_ranks: [{ tier: 'Djinn I', season: 'Summer 2026', at: '2026-07-28T13:00:00Z' }],
-    });
+    mockedGetPlayerProfile.mockResolvedValue({ created_at: null, played_games: 4, wins: 1, kills: 2, bosses_defeated: 3 });
     render(<StatsPage />);
     await flush();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Ranks' }));
-    expect(await screen.findByRole('tab', { name: 'Ranked', selected: true })).toBeInTheDocument();
-    expect(screen.queryByText('Summer 2026')).toBeNull();
-    fireEvent.click(screen.getByRole('tab', { name: 'Bot ranked' }));
-    expect(screen.getByText('Summer 2026')).toBeInTheDocument();
-    expect(screen.queryByText(/Jul/)).toBeNull(); // the season only, no date
+    expect(screen.getByText(/Bosses defeated:/).textContent).toBe('Bosses defeated: 3');
   });
 
   it('hides the season timer while mid-placements', async () => {

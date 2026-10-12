@@ -564,5 +564,20 @@ describe('TextLobby title and PC layout', () => {
     const hitLine = within(frame).getByText('-4').closest('.leading-none')!;
     expect(hitLine.nextElementSibling?.textContent).toBe('Toad'); // right over the name
   });
+
+  it('says you lost, with the rank outcome, when someone else wins', async () => {
+    await show(
+      lobby({
+        round: 5,
+        gameover: true,
+        winner: 'Toad',
+        ranked: true,
+        ranked_results: { Oni: { tier_before: 'Wizard I', tier_after: 'Wizard I', promoted: null, games_at_tier: 3 } },
+      }),
+    );
+    expect(screen.getByText('You lost.')).toBeTruthy();
+    expect(screen.getByText('Same rank')).toBeTruthy();
+    expect(screen.getByText('3 games at Wizard I')).toBeTruthy();
+  });
 });
 
