@@ -6,7 +6,7 @@ import { HD_DOWNLOAD_MB, hdPreferred, hdUnlocked, setHdPreference } from '@/lib/
 import { getTextMode, setTextMode } from '@/lib/textMode';
 
 // Settings -> Graphics: one choice of how the game is drawn (Mikael,
-// 2026-10-11) -- Text (lib/textMode.ts, no 3D), SD, or HD textures
+// 2026-10-11) -- LD (text mode, lib/textMode.ts, no 3D), SD, or HD textures
 // (lib/hdTextures.ts). HD is offered once the account has it: always in the
 // paid apps, where it is also the default; on the web once the account is
 // connected to a Steam account that owns the game or to the Apple account
@@ -55,7 +55,7 @@ export default function HdTexturesPanel() {
     <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mt-6">
       <h2 className="text-lg font-bold tracking-wide">Graphics</h2>
       <div role="radiogroup" aria-label="Graphics">
-        {option('text', 'Text')}
+        {option('text', 'LD')}
         <p className={note}>Play matches as text, without 3D.</p>
         {option('sd', 'SD')}
         {unlocked && (

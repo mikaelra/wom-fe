@@ -23,12 +23,12 @@ beforeEach(() => {
 });
 
 describe('HdTexturesPanel', () => {
-  it('is one choice of Text, SD or HD, SD by default on the web', async () => {
+  it('is one choice of LD, SD or HD, SD by default on the web', async () => {
     render(<HdTexturesPanel />);
     await screen.findByRole('radio', { name: 'HD' });
     expect(screen.getAllByRole('radio')).toHaveLength(3);
     expect(option('SD').checked).toBe(true);
-    expect(option('Text').checked).toBe(false);
+    expect(option('LD').checked).toBe(false);
     expect(option('HD').checked).toBe(false);
   });
 
@@ -43,7 +43,7 @@ describe('HdTexturesPanel', () => {
     ).toBeTruthy();
   });
 
-  it('offers only Text and SD on the web without HD, and says how to unlock it', async () => {
+  it('offers only LD and SD on the web without HD, and says how to unlock it', async () => {
     state.unlocked = false;
     render(<HdTexturesPanel />);
     expect(await screen.findByText(/come with the game on Steam/)).toBeTruthy();
@@ -51,12 +51,12 @@ describe('HdTexturesPanel', () => {
     expect(screen.queryByRole('radio', { name: 'HD' })).toBeNull();
   });
 
-  it('switches to text mode and back to SD', async () => {
+  it('switches to LD (text mode) and back to SD', async () => {
     render(<HdTexturesPanel />);
     await screen.findByRole('radio', { name: 'HD' });
-    fireEvent.click(option('Text'));
+    fireEvent.click(option('LD'));
     expect(getTextMode()).toBe(true);
-    expect(option('Text').checked).toBe(true);
+    expect(option('LD').checked).toBe(true);
     fireEvent.click(option('SD'));
     expect(getTextMode()).toBe(false);
     expect(getHdPreference()).toBe(false);
