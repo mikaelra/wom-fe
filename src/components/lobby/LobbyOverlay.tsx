@@ -23,7 +23,7 @@ import { useLobbyGame } from '@/lib/useLobbyGame';
 import { BOT_TYPES } from '@/lib/botTypes';
 import { playMusic, PRE_LOBBY_MUSIC, BATTLE_MUSIC } from '@/lib/music';
 import type { LobbyState } from '@/types/game';
-import { CITY_PATH } from '@/lib/cities';
+import { CITY_PATH, RANKED_CITY_PATH } from '@/lib/cities';
 import WheelIcon from '@/components/WheelIcon';
 import RankOutcome from '@/components/hud/RankOutcome';
 
@@ -229,7 +229,12 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
         <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
           🌍
         </Link>
-        <Link href={CITY_PATH} className="text-blue-400 no-underline text-2xl" aria-label="Go to the city">
+        {/* After a ranked game, to the ranked signpost to queue again. */}
+        <Link
+          href={state.ranked || state.ai_ranked ? RANKED_CITY_PATH : CITY_PATH}
+          className="text-blue-400 no-underline text-2xl"
+          aria-label="Go to the city"
+        >
           🏛️
         </Link>
       </div>

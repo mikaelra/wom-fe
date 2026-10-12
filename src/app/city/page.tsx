@@ -203,6 +203,7 @@ function CityPageContent() {
         style={{ position: 'absolute', inset: 0, isolation: 'isolate' }}
       >
         <CityScene
+          startAtFork={searchParams.get('board') === 'ranked'}
           date={skyDate}
           realLat={city.realLat}
           realLng={city.realLng}
