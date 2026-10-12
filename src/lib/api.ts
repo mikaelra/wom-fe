@@ -66,6 +66,10 @@ import {
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
   SeasonHistoryResponseSchema,
+  RankedGamesResponseSchema,
+  RankedRanksResponseSchema,
+  type RankedGames,
+  type RankedRanks,
   SeasonInfoResponseSchema,
   WellProfileResponseSchema,
   ShopProductsResponseSchema,
@@ -88,6 +92,7 @@ import {
 } from '@/lib/schemas';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import type { MarketCatalog, MarketItemInput, MarketListing, MarketTrade } from '@/lib/market';
+import { GAMES_PER_PAGE } from '@/lib/paging';
 
 export type ShopProduct = {
   id: string;
@@ -274,6 +279,22 @@ export async function getSeasonHistory(
 ): Promise<{ human: SeasonHistoryEntry[]; ai: SeasonHistoryEntry[] }> {
   return request(`/ranked/season_history/${encodeURIComponent(playerName)}`, SeasonHistoryResponseSchema, {
     defaultErrorMessage: 'Failed to fetch season history.',
+  });
+}
+
+/** This season's ranked games, a page at a time, newest first. */
+export async function getRankedGames(playerName: string, page = 1, perPage = GAMES_PER_PAGE): Promise<RankedGames> {
+  return request(
+    `/ranked/games/${encodeURIComponent(playerName)}?page=${page}&per_page=${perPage}`,
+    RankedGamesResponseSchema,
+    { defaultErrorMessage: 'Failed to load games.' },
+  );
+}
+
+/** Every rank the player has ever been shown in ranked, all seasons. */
+export async function getRankedRanks(playerName: string): Promise<RankedRanks> {
+  return request(`/ranked/ranks/${encodeURIComponent(playerName)}`, RankedRanksResponseSchema, {
+    defaultErrorMessage: 'Failed to load ranks.',
   });
 }
 
@@ -1095,9 +1116,9 @@ export async function saveMyAiSettings(
   });
 }
 
-export async function getMyAiMatches(token: string): Promise<MyAiMatches> {
+export async function getMyAiMatches(token: string, page = 1, perPage = GAMES_PER_PAGE): Promise<MyAiMatches> {
   return request('/my_ai/matches', MyAiMatchesSchema, {
-    body: { token },
+    body: { token, page, per_page: perPage },
     defaultErrorMessage: 'Failed to load match history.',
   });
 }

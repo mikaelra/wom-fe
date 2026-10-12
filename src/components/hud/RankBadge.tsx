@@ -27,6 +27,14 @@ const TIER_COLORS: Record<string, string> = {
 const UNRANKED_COLOR = 'bg-gray-700 text-gray-300';
 
 const PRINCIPALITY = 'Principality';
+
+/** The ladder, lowest to highest: the tiers above, then Principality. */
+export const TIER_ORDER: readonly string[] = [...Object.keys(TIER_COLORS), PRINCIPALITY];
+
+/** A tier's place on the ladder (higher is better); -1 for one it doesn't know. */
+export function tierRank(tier: string): number {
+  return TIER_ORDER.indexOf(tier);
+}
 /** The loading mark's figure (logo -> cube -> logo, src/lib/loadingAnimation.ts)
  *  played in one colour: gold, on the purple aura of the Steam capsule title. */
 const PRINCIPALITY_GOLD = '#f5c542';
