@@ -8,7 +8,6 @@ import RankBadge from '@/components/hud/RankBadge';
 import SeasonTimer from '@/components/hud/SeasonTimer';
 import SeasonHistoryOverlay from '@/components/hud/SeasonHistoryOverlay';
 import RankedGamesOverlay from '@/components/hud/RankedGamesOverlay';
-import RanksOverlay from '@/components/hud/RanksOverlay';
 import { CITY_PATH } from '@/lib/cities';
 import LoadingState from '@/components/loading/LoadingState';
 
@@ -49,9 +48,9 @@ export default function StatsPage() {
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [wins, setWins] = useState(0);
   const [kills, setKills] = useState(0);
+  const [bossesDefeated, setBossesDefeated] = useState(0);
   const [showSeasons, setShowSeasons] = useState(false);
   const [showGames, setShowGames] = useState(false);
-  const [showRanks, setShowRanks] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -80,6 +79,7 @@ export default function StatsPage() {
         setGamesPlayed(data.played_games);
         setWins(data.wins);
         setKills(data.kills);
+        setBossesDefeated(data.bosses_defeated ?? 0);
       }),
     ])
       .catch((err: unknown) => {
@@ -148,7 +148,6 @@ export default function StatsPage() {
         {showGames && playerName && (
           <RankedGamesOverlay playerName={playerName} onClose={() => setShowGames(false)} />
         )}
-        {showRanks && playerName && <RanksOverlay playerName={playerName} onClose={() => setShowRanks(false)} />}
 
         {loading ? (
           <LoadingState />
@@ -187,13 +186,11 @@ export default function StatsPage() {
                   <p className="text-sm text-white/50 mt-3">{placementMessage}</p>
                 </>
               )}
-              {/* This season's ranked games, and every rank ever seen. */}
+              {/* This season's ranked games. Every rank ever seen is under
+                  Seasons, with the ranks of each season. */}
               <div className="flex gap-4 mt-3">
                 <button type="button" onClick={() => setShowGames(true)} className={linkButton}>
                   Games
-                </button>
-                <button type="button" onClick={() => setShowRanks(true)} className={linkButton}>
-                  Ranks
                 </button>
               </div>
             </div>
@@ -216,6 +213,9 @@ export default function StatsPage() {
                 {avgKillsPerGame !== null && (
                   <span className="text-white/40"> ({avgKillsPerGame}/game)</span>
                 )}
+              </p>
+              <p className="text-sm text-white/50 mt-1">
+                Bosses defeated: <span className="text-white font-semibold">{bossesDefeated}</span>
               </p>
             </div>
 
