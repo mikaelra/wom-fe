@@ -573,12 +573,7 @@ export default function TextLobby({
   const resourceCue = canChoose && resource === '' ? warnCue : '';
   const attackable = (p: { name: string; hp: number; spectator?: boolean }) =>
     canChoose && p.name !== playerName && p.hp > 0 && !p.spectator;
-  // The first column: always kept on a PC; on a phone only while someone
-  // has something in it.
-  const showLeftColumn =
-    wide ||
-    !!state?.players.some((p) => infoFor(p) || hits?.get(p.name) || (state.boss_fight && (p.bot || p.boss) && p.hp > 0));
-  const leftColumnWidth = wide ? 'w-36' : 'w-24';
+  const leftColumnWidth = 'w-36';
   const playersCard = (
     <>
       <div className={card}>
@@ -596,6 +591,29 @@ export default function TextLobby({
             const ready = state.readyPlayers?.includes(p.name);
             const crowned = state.winner === p.name || (!state.winner && state.wellwinner === p.name);
             const bossHp = state.boss_fight && (p.bot || p.boss) && p.hp > 0;
+            const known = info ? (
+              <span
+                className={`font-semibold whitespace-nowrap ${info.stale ? 'text-gray-500' : ''}`}
+                title={info.stale ? 'Last round' : 'This round'}
+              >
+                ❤ <span className={tint('text-red-400')}>{info.hp}</span> 💰{' '}
+                <span className={tint('text-yellow-400')}>{info.coins}</span> ⚔{' '}
+                <span className={tint('text-blue-400')}>{info.attackDamage}</span>
+              </span>
+            ) : hit ? (
+              // Keyed by the step, so each number blinks once anew.
+              <span
+                key={hitStep}
+                className="font-extrabold whitespace-nowrap animate-[pulse_1s_ease-in-out_1]"
+                style={{ color: hit.color === 'red' ? HIT_RED : HIT_BLUE }}
+              >
+                {hit.text}
+              </span>
+            ) : bossHp ? (
+              <span className="text-red-400 font-semibold whitespace-nowrap" title="HP">
+                ❤ {p.hp}
+              </span>
+            ) : null;
             return (
               // Each player framed in a very thin black line (Mikael, 2026-10-12).
               <li key={p.name} className="contents">
@@ -606,34 +624,13 @@ export default function TextLobby({
                     against the next column rather than the left edge; the
                     crown or skull; their avatar; whether they've chosen
                     (✅) or are away (👻); then the name and the rest. */}
-                {!showLeftColumn ? (
-                  <span />
+                {/* On a PC a column of its own, kept for every line; on a
+                    phone it goes under the name instead (below), so the
+                    frame never widens when it comes (Mikael, 2026-10-12). */}
+                {wide ? (
+                  <span className={`${leftColumnWidth} text-sm shrink-0 flex justify-end tabular-nums`}>{known}</span>
                 ) : (
-                  <span className={`${leftColumnWidth} ${wide ? 'text-sm' : 'text-xs'} shrink-0 flex justify-end tabular-nums`}>
-                    {info ? (
-                      <span
-                        className={`font-semibold whitespace-nowrap ${info.stale ? 'text-gray-500' : ''}`}
-                        title={info.stale ? 'Last round' : 'This round'}
-                      >
-                        ❤ <span className={tint('text-red-400')}>{info.hp}</span> 💰{' '}
-                        <span className={tint('text-yellow-400')}>{info.coins}</span> ⚔{' '}
-                        <span className={tint('text-blue-400')}>{info.attackDamage}</span>
-                      </span>
-                    ) : hit ? (
-                      // Keyed by the step, so each number blinks once anew.
-                      <span
-                        key={hitStep}
-                        className="font-extrabold whitespace-nowrap animate-[pulse_1s_ease-in-out_1]"
-                        style={{ color: hit.color === 'red' ? HIT_RED : HIT_BLUE }}
-                      >
-                        {hit.text}
-                      </span>
-                    ) : bossHp ? (
-                      <span className="text-red-400 font-semibold whitespace-nowrap" title="HP">
-                        ❤ {p.hp}
-                      </span>
-                    ) : null}
-                  </span>
+                  <span />
                 )}
                 <span className="w-6 shrink-0 text-center">
                   {p.hp <= 0 ? <span className="text-red-500">☠️</span> : crowned ? <span className="text-yellow-500">👑</span> : null}
@@ -678,6 +675,7 @@ export default function TextLobby({
                   />
                 )}
                 </span>
+                {!wide && known && <span className="col-span-6 text-xs tabular-nums pl-1">{known}</span>}
                 </div>
                 <div className="flex items-center gap-2 min-w-0 pl-2">
                 {/* What they just said in the chat, for a few seconds. */}

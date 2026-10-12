@@ -541,5 +541,19 @@ describe('TextLobby title and PC layout', () => {
     expect(within(toad).getByText('gg').closest('.border-black')).toBeNull();
   });
 
+
+  it('on a phone shows the hits under the name, so the frame never widens', async () => {
+    events.value = {
+      round: 2,
+      messages: [],
+      events: [{ kind: 'outgoing', target: 'Toad', outcome: 'hit', damage: 4, attackerDied: false, eliminated: false }],
+      instakill: false,
+    };
+    await show(lobby({ round: 2 }));
+    const toad = screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    const frame = toad.querySelector(':scope > .border-black') as HTMLElement;
+    expect(frame.querySelector('.w-36, .w-24')).toBeNull(); // no column for it
+    expect(within(frame).getByText('-4').closest('.col-span-6')).toBeTruthy(); // its own line in the frame
+  });
 });
 
