@@ -404,7 +404,16 @@ export default function ShopPage() {
                   {product.kind === 'ai_credits' && (
                     <div className="mb-4">
                       <div className="flex justify-center py-4" aria-hidden="true">
-                        <span className="text-5xl">🪙</span>
+                        {/* The My AI Coin (Mikael, 2026-10-12): Hades' Coin in silver with a
+                            robot face, rendered from /modelling's myaicoinv02. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element -- a small static file from public/, like the wheel icon */}
+                        <img
+                          src="/images/my-ai-coin.png"
+                          alt=""
+                          data-testid="my-ai-coin"
+                          draggable={false}
+                          className="h-12 w-12"
+                        />
                       </div>
                       <p className="text-xs text-white/50">
                         {(product.credits_per_pack ?? 0) * (quantities[product.id] ?? 1)} bot-game credits — your AI
