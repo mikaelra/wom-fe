@@ -430,4 +430,19 @@ describe('TextLobby title and PC layout', () => {
     await act(async () => Promise.resolve());
     expect(row().textContent).not.toContain('💰');
   });
+
+  it('shows no lobby id in the bossfight', async () => {
+    await show(lobby({ boss_fight: true }));
+    expect(screen.queryByText(/Lobby ID/)).toBeNull();
+  });
+
+  it('frames each action in its colour, and fills the chosen one', async () => {
+    await show(lobby({ round: 1 }));
+    const well = screen.getByRole('button', { name: 'The Well' });
+    expect(well.style.borderColor).not.toBe('transparent');
+    expect(well.style.backgroundColor).toBe('transparent');
+    fireEvent.click(well);
+    expect(well.style.backgroundColor).not.toBe('transparent');
+    expect(well.getAttribute('aria-pressed')).toBe('true');
+  });
 });

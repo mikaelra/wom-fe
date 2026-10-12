@@ -70,7 +70,8 @@ const homeButton =
 
 // The actions as words in their colours (Mikael, 2026-10-11): Attack red,
 // The Well purple, Defend blue -- the colours the 3D game's buttons have.
-// The chosen one is framed in its colour.
+// Each is framed in its colour; the chosen one is filled with it, the word
+// dark.
 const ATTACK_COLOR = '#ef4444';
 const WELL_COLOR = '#c084fc';
 const DEFEND_COLOR = '#60a5fa';
@@ -102,9 +103,10 @@ function ActionWord({
         small ? 'text-sm px-2 py-0.5' : 'text-xl px-5 py-2'
       } ${className}`}
       style={{
-        color,
-        borderColor: selected ? color : 'transparent',
-        backgroundColor: selected ? `${color}26` : 'transparent',
+        // Always framed in its colour; chosen, the colours swap inside.
+        color: selected ? '#070b15' : color,
+        borderColor: color,
+        backgroundColor: selected ? color : 'transparent',
       }}
     >
       {word}
@@ -479,9 +481,9 @@ export default function TextLobby({
         </div>
       )}
       {rankedStartsIn !== null && <p className="mb-3 text-lg text-gray-300 font-medium">Match starts in {rankedStartsIn}s</p>}
-      {/* A ranked match is matchmade, never joined by code: no id to share
-          (the 3D lobby's LobbyOverlay hides it too). */}
-      {!state?.ranked && !state?.ai_ranked && (
+      {/* A ranked match is matchmade and the bossfight is one for everyone,
+          never joined by code: no id to share. */}
+      {!state?.ranked && !state?.ai_ranked && !state?.boss_fight && (
         <h2 className="text-3xl font-extrabold text-white mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
       )}
       <p className="mb-6 text-lg text-gray-300 font-medium">
