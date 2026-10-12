@@ -6,8 +6,8 @@ import { currentQuality, hdAlways, setQuality, type GraphicsQuality } from '@/li
 import GraphicsQualityIcon, { QUALITY_LABEL } from '@/components/hud/GraphicsQualityIcon';
 
 // The graphics quality on the Earth and city scenes (Mikael, 2026-10-11): a
-// round button showing the current one -- a low-res cube (SD), a high-res
-// cube (HD), a T (Text) -- that opens an oval of the qualities this account
+// round button showing the current one -- LD (text mode), SD or HD -- that
+// opens an oval of the qualities this account
 // can have: HD only once it has HD (lib/hdTextures.ts). Choosing another
 // loads the page again in it (lib/graphicsQuality.ts).
 

@@ -32,11 +32,11 @@ afterEach(() => {
 });
 
 describe('GraphicsQualityButton', () => {
-  it('shows SD by default and offers Text and SD to an account without HD', async () => {
+  it('shows SD by default and offers LD and SD to an account without HD', async () => {
     render(<GraphicsQualityButton />);
     await flush();
     fireEvent.click(screen.getByRole('button', { name: 'Graphics: SD' }));
-    expect(screen.getByRole('radio', { name: 'Text' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'LD' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'SD' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.queryByRole('radio', { name: 'HD' })).toBeNull();
   });
@@ -59,7 +59,7 @@ describe('GraphicsQualityButton', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'SD' }));
     expect(reload).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Graphics: SD' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Text' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'LD' }));
     expect(getTextMode()).toBe(true);
     expect(reload).toHaveBeenCalledTimes(1);
   });
@@ -71,11 +71,11 @@ describe('GraphicsQualityButton', () => {
     expect(screen.getByRole('button', { name: 'Graphics: HD' })).toBeTruthy();
   });
 
-  it('shows Text while in text mode, closes on Escape, and hides with the HUD', async () => {
+  it('shows LD while in text mode, closes on Escape, and hides with the HUD', async () => {
     localStorage.setItem('textMode', 'on');
     const { rerender } = render(<GraphicsQualityButton />);
     await flush();
-    fireEvent.click(screen.getByRole('button', { name: 'Graphics: Text' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Graphics: LD' }));
     expect(screen.getByRole('radiogroup')).toBeTruthy();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('radiogroup')).toBeNull();
