@@ -1,7 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
 import { INITIAL_CAMERA_YAW } from '@/lib/sceneConstants';
-import { defaultLobbyZoom, MAX_ZOOM, MIN_ZOOM } from '@/lib/lobbyZoom';
 
 const SENSITIVITY = 0.004;
 // Prevent the camera arm from going below the table (LOBBY_LOOKAT.y).
@@ -11,13 +10,14 @@ const MAX_PITCH = 0.55;   // near-side floor cap (camera just above table level)
 const MIN_PITCH = -2.50;  // far-side floor cap (camera just above table from over the top)
 
 const ZOOM_SENSITIVITY = 0.001;
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 3.0;
 
 /**
  * Returns a ref with { yaw, pitch, zoom } offsets.
  * - Drag to pan: yaw is unlimited (full 360° horizontal).
  * - Pitch is capped so the camera cannot go below the table surface.
- * - Scroll wheel adjusts zoom (arm-length multiplier, MIN_ZOOM–MAX_ZOOM,
- *   lib/lobbyZoom.ts), starting at defaultLobbyZoom().
+ * - Scroll wheel adjusts zoom (arm-length multiplier, clamped to 0.4–3.0).
  * - Position is retained when the pointer is released (no snap-back).
  *
  * @param onUserAdjust Fired on genuine player-driven drag/scroll only (not
@@ -28,7 +28,7 @@ const ZOOM_SENSITIVITY = 0.001;
 export function usePanOffset(onUserAdjust?: () => void) {
   const { gl } = useThree();
   const drag = useRef({ active: false, lastX: 0, lastY: 0 });
-  const offset = useRef({ yaw: INITIAL_CAMERA_YAW, pitch: 0, zoom: defaultLobbyZoom() });
+  const offset = useRef({ yaw: INITIAL_CAMERA_YAW, pitch: 0, zoom: 1 });
   const onUserAdjustRef = useRef(onUserAdjust);
   onUserAdjustRef.current = onUserAdjust;
 

@@ -1,7 +1,6 @@
 'use client';
 
 import { useThree, useFrame } from '@react-three/fiber';
-import { defaultLobbyZoom } from '@/lib/lobbyZoom';
 import { useRef } from 'react';
 import * as THREE from 'three';
 import { usePanOffset } from '@/lib/usePanOffset';
@@ -39,7 +38,7 @@ const MIN_EXTRA_SPIN = Math.PI;
 // the player had scrolled/pinched to during the wait -- otherwise a zoomed-in
 // view can crop the DEFEND button right out of frame the moment the round
 // starts, and worse, inconsistently from one game to the next.
-// 1 on a PC; on a phone the old furthest (lib/lobbyZoom.ts).
+const SETTLE_TARGET_ZOOM = 1;
 
 function easeOutCubic(t: number): number {
   return 1 - (1 - t) ** 3;
@@ -113,10 +112,10 @@ export default function CameraFlyIn({
       // button clears the resource cards; applied to a shoulder camera it
       // would just swing the watcher off their own shoulder.
       panOffset.current.yaw = 0;
-      panOffset.current.zoom = defaultLobbyZoom();
+      panOffset.current.zoom = 1;
     } else if (round > 0) {
       panOffset.current.yaw = PLAYING_YAW;
-      panOffset.current.zoom = defaultLobbyZoom();
+      panOffset.current.zoom = SETTLE_TARGET_ZOOM;
     }
   }
   const phaseRef = useRef<Phase>(round > 0 ? 'playing' : 'waiting');
@@ -167,7 +166,7 @@ export default function CameraFlyIn({
       const t = Math.min(1, s.elapsed / SETTLE_DURATION_S);
       const eased = easeOutCubic(t);
       panOffset.current.yaw = s.startYaw + (s.targetYaw - s.startYaw) * eased;
-      panOffset.current.zoom = s.startZoom + (defaultLobbyZoom() - s.startZoom) * eased;
+      panOffset.current.zoom = s.startZoom + (SETTLE_TARGET_ZOOM - s.startZoom) * eased;
       if (t >= 1) phaseRef.current = 'playing';
     } else if (phaseRef.current === 'resetting') {
       const s = settleRef.current;
@@ -176,7 +175,7 @@ export default function CameraFlyIn({
       const eased = easeOutCubic(t);
       panOffset.current.yaw = s.startYaw + (s.targetYaw - s.startYaw) * eased;
       panOffset.current.pitch = s.startPitch + (0 - s.startPitch) * eased;
-      panOffset.current.zoom = s.startZoom + (defaultLobbyZoom() - s.startZoom) * eased;
+      panOffset.current.zoom = s.startZoom + (SETTLE_TARGET_ZOOM - s.startZoom) * eased;
       if (t >= 1) phaseRef.current = 'playing';
     }
     // 'playing': yaw/zoom are left alone from here -- back to fully player-controlled drag/zoom.
