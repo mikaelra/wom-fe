@@ -39,7 +39,7 @@ const RAD = Math.PI / 180;
 
 // ── Per-body render depth ("front-to-back" layering) ───────────────────────
 // All bodies share the same sky-sphere angular position (RA/Dec), but the
-// camera sits well inside PLANET_R (CAMERA_RADIUS = 13), so nudging a body's
+// camera sits well inside PLANET_R (CAMERA_RADIUS = 19.5), so nudging a body's
 // radial distance from the origin moves it closer to or farther from the
 // camera without changing where it appears in the sky. Smaller radius =
 // nearer the camera = renders in front. Used to force a fixed front-to-back
@@ -1197,7 +1197,7 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
 // axis. We set it every frame because OrbitControls may re-enter its own
 // spherical system and needs a consistent "up" to orbit in the ecliptic plane.
 // The camera starts at the anti-solar point — the Sun is always on the
-// ecliptic, so its opposite direction is too. At r=13 with the Sun at r=46
+// ecliptic, so its opposite direction is too. At r=19.5 with the Sun at r=46
 // in the same direction, the Sun is hidden behind the Earth and peeks out as
 // the ambient auto-rotate carries the camera around.
 // Sky drift: planets, stars, and ecliptic all rotate their groups by this
@@ -1206,7 +1206,9 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
 const _driftQ   = new THREE.Quaternion();
 const _yAxis    = new THREE.Vector3(0, 1, 0);
 
-const CAMERA_RADIUS = 13;
+// 1.5x the old 13 (Mikael, 2026-10-12): the Earth a little smaller in the
+// view, more sky round it. Still well inside PLANET_R (46).
+const CAMERA_RADIUS = 19.5;
 
 
 function CameraRig({
@@ -1361,7 +1363,7 @@ export default function WorldMap({
         enablePan={false}
         enableZoom
         minDistance={4}
-        maxDistance={18}
+        maxDistance={27}
         autoRotate
         autoRotateSpeed={0.4 * cameraSpeed}
         maxPolarAngle={Math.PI * 0.80}
