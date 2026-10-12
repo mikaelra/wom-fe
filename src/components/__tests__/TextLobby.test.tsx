@@ -102,7 +102,7 @@ describe('TextLobby', () => {
   it('puts every mark in front of the name, the bot emoji or skin right before it', async () => {
     await show(lobby({ readyPlayers: ['Wolf 1'], players: [player('Oni', { admin: true }), player('Wolf 1', { bot: true, bot_type: 'WOLF', hp: 0 })] }));
     const row = screen.getByText('Wolf 1').closest('li')!;
-    expect(row.textContent).toBe('☠️✅🐺Wolf 1'); // dead, so no kick ❌
+    expect(row.textContent).toBe('✅☠️🐺Wolf 1'); // ready first (its own place), dead so no kick ❌
   });
 
   it("shows a player's equipped relics after their name before the game", async () => {
@@ -445,4 +445,56 @@ describe('TextLobby title and PC layout', () => {
     expect(well.style.backgroundColor).not.toBe('transparent');
     expect(well.getAttribute('aria-pressed')).toBe('true');
   });
+
+  it('blinks the choices still to make and says what is missing as time runs out', async () => {
+    const soon = new Date(Date.now() + 8000).toISOString();
+    await show(lobby({ round: 2, round_end_time: soon }));
+    expect(screen.getByRole('button', { name: 'Defend' }).className).toContain('warn-blink-gold');
+    expect(screen.getByText('You must choose an action: Attack someone, Well or Defend.')).toBeTruthy();
+    expect(screen.getByText('You must choose a resource: Get HP, Get Coin or Upgrade Attack.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Defend' }));
+    expect(screen.queryByText(/You must choose an action/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Defend' }).className).not.toContain('warn-blink');
+  });
+
+  it('blinks red with 5 seconds left, and not at all with plenty of time', async () => {
+    await show(lobby({ round: 2, round_end_time: new Date(Date.now() + 4000).toISOString() }));
+    expect(screen.getByRole('button', { name: 'The Well' }).className).toContain('warn-blink-red');
+    cleanup();
+    await show(lobby({ round: 2, round_end_time: new Date(Date.now() + 60000).toISOString() }));
+    expect(screen.getByRole('button', { name: 'The Well' }).className).not.toContain('warn-blink');
+    expect(screen.queryByText(/You must choose/)).toBeNull();
+  });
+
+  it("shows the round's hits as red and blue numbers before the names", async () => {
+    events.value = {
+      round: 2,
+      messages: ['You hit Toad'],
+      events: [{ kind: 'outgoing', target: 'Toad', outcome: 'hit', damage: 3, attackerDied: false, eliminated: false }],
+      instakill: false,
+    };
+    await show(lobby({ round: 2 }));
+    const toad = screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    expect(within(toad).getByText('-3').style.color).toBe('rgb(239, 68, 68)');
+  });
+
+  it('puts a chat bubble by the name of whoever just said something', async () => {
+    await show(
+      lobby({ round: 1, chat: [{ sender: 'Toad', message: 'gg', timestamp: new Date().toISOString() }] as LobbyState['chat'] }),
+    );
+    const toad = screen.getAllByText('Toad').map((el) => el.closest('li')).find(Boolean)!;
+    expect(within(toad).getByText('gg')).toBeTruthy();
+  });
+
+  it('keeps a place for the info and the ready mark on every line on a PC', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) => ({ matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
+    );
+    await show(lobby({ round: 1, readyPlayers: ['Toad'] }));
+    const oni = screen.getAllByText('Oni').map((el) => el.closest('li')).find(Boolean)!;
+    expect(oni.querySelector('.w-36')).toBeTruthy(); // info / hits, empty
+    expect(oni.querySelector('.w-5')).toBeTruthy(); // ready mark, empty
+  });
 });
+

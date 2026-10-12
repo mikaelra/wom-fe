@@ -22,6 +22,7 @@ import { getSocket } from '@/lib/socket';
 import { useGameEvents } from '@/lib/useGameEvents';
 import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import { wellRewardFromEvents } from '@/lib/gameEvents';
+import { roundHits, type Hit } from '@/lib/roundHits';
 import { useWideScreen } from '@/lib/useWideScreen';
 import ResourceCard from '@/components/ResourceCard';
 import { lobbyTitle } from '@/lib/lobbyTitle';
@@ -68,6 +69,15 @@ const bigButton = (backgroundColor: string) => ({
 
 const homeButton =
   'bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors';
+
+// How long the round's hit numbers and a chat bubble stay (the 3D game's
+// chat bubble, LobbyScene's CHAT_BUBBLE_DURATION_MS).
+const HITS_SHOWN_MS = 4000;
+// The 3D game's combat number colours (components/lobby/DamageNumberEffect),
+// a shade lighter to read on the dark lobby.
+const HIT_RED = '#ef4444';
+const HIT_BLUE = '#3b82f6';
+const CHAT_BUBBLE_MS = 4000;
 
 // The actions as words in their colours (Mikael, 2026-10-11): Attack red,
 // The Well purple, Defend blue -- the colours the 3D game's buttons have.
@@ -395,6 +405,51 @@ export default function TextLobby({
     return null;
   };
 
+  const muted = useMutedPlayers();
+  const chatText = useChatText();
+
+  // The round's attacks as numbers by the players they landed on, for a
+  // few seconds as the round's results come in (lib/roundHits.ts) -- in
+  // the same place as the info reward, when that isn't there.
+  const [hits, setHits] = useState<Map<string, Hit[]> | null>(null);
+  const hitsRound = useRef(-1);
+  useEffect(() => {
+    if (!events || !state || events.round !== state.round || hitsRound.current === events.round) return;
+    hitsRound.current = events.round;
+    const found = roundHits(events.events, playerName);
+    if (found.size) setHits(found);
+  }, [events, state, playerName]);
+  useEffect(() => {
+    if (!hits) return;
+    const t = setTimeout(() => setHits(null), HITS_SHOWN_MS);
+    return () => clearTimeout(t);
+  }, [hits]);
+
+  // A chat bubble beside the name of whoever just said something, for as
+  // long as the 3D game's over their head (LobbyScene's chatBubbles).
+  const [bubbleTick, setBubbleTick] = useState(0);
+  const bubbles = useMemo(() => {
+    const now = Date.now();
+    const map = new Map<string, string>();
+    for (const msg of state?.chat ?? []) {
+      if (muted.has(msg.sender)) continue;
+      if (now - new Date(msg.timestamp).getTime() < CHAT_BUBBLE_MS) map.set(msg.sender, chatText(msg.message));
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bubbleTick re-reads the clock
+  }, [state?.chat, bubbleTick, muted, chatText]);
+  useEffect(() => {
+    const now = Date.now();
+    let soonest = Infinity;
+    for (const msg of state?.chat ?? []) {
+      const expiry = new Date(msg.timestamp).getTime() + CHAT_BUBBLE_MS;
+      if (expiry > now) soonest = Math.min(soonest, expiry);
+    }
+    if (!Number.isFinite(soonest)) return;
+    const t = setTimeout(() => setBubbleTick((n) => n + 1), soonest - now + 50);
+    return () => clearTimeout(t);
+  }, [state?.chat, bubbleTick]);
+
   const secondsLeft = useSecondsUntil(state?.round_end_time);
   const bossStartsIn = useSecondsUntil(state?.boss_fight && !gameStarted ? state.start_time : null);
   const rankedDeadline = state?.ranked
@@ -412,8 +467,6 @@ export default function TextLobby({
     getPlayerRelics(playerName).then((data) => setRelics(data.relics.filter((r) => r.name in RELIC_SELECT_CAPTION)));
   }, [playerName]);
 
-  const muted = useMutedPlayers();
-  const chatText = useChatText();
   const [chatInput, setChatInput] = useState('');
   const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
   // The newest message in sight: on opening, and as messages arrive.
@@ -426,7 +479,6 @@ export default function TextLobby({
   const emit = getSocket();
   const winnerPlayer = state?.players.find((p) => p.name === state.winner);
   const winnerName = winnerPlayer ? shownPlayerName(winnerPlayer) : state?.winner;
-  const otherPlayers = state?.players.filter((p) => p.name !== playerName && p.hp > 0 && !p.spectator) ?? [];
   const selectedRelicIds = myPlayer?.selected_relic_ids ?? [];
 
   // Not caught up with the server -- joining, or reconnecting after a drop
@@ -493,6 +545,17 @@ export default function TextLobby({
     </>
   );
   const canChoose = !gameOver && !isDenied && isAlive && gameStarted && !myPlayer?.spectator;
+  // Running out of time with a choice still to make: the choices blink,
+  // yellow from 10 seconds left and red from 5, as the 3D game's do
+  // (SceneOverlay's actionCue / resourceCue, globals.css warn-blink-*).
+  const warnCue =
+    secondsLeft !== null && secondsLeft <= 5
+      ? 'warn-blink-red'
+      : secondsLeft !== null && secondsLeft <= 10
+        ? 'warn-blink-gold'
+        : '';
+  const actionCue = canChoose && action === '' ? warnCue : '';
+  const resourceCue = canChoose && resource === '' ? warnCue : '';
   const attackable = (p: { name: string; hp: number; spectator?: boolean }) =>
     canChoose && p.name !== playerName && p.hp > 0 && !p.spectator;
   const playersCard = (
@@ -506,7 +569,41 @@ export default function TextLobby({
                   (skin thumbnail or bot emoji) right before it -- but the
                   relics they've equipped, right after it, and the admin's
                   kick, at the end of the line. */}
-              {/* In a bossfight every bot's health, first on its line. */}
+              {/* First, two places kept for every player on a PC so the names
+                  never move: what the Well's info reward told you of them --
+                  or, the rest of the time, the round's hits on them -- and
+                  whether they have chosen this round. On a phone they come
+                  only when there. */}
+              {(() => {
+                const info = infoFor(p);
+                const hit = info ? undefined : hits?.get(p.name);
+                const tint = (c: string) => (info?.stale ? 'text-gray-500' : c);
+                const content = info ? (
+                  <span
+                    className={`tabular-nums font-semibold ${info.stale ? 'text-gray-500' : ''}`}
+                    title={info.stale ? 'Last round' : 'This round'}
+                  >
+                    ❤ <span className={tint('text-red-400')}>{info.hp}</span> 💰{' '}
+                    <span className={tint('text-yellow-400')}>{info.coins}</span> ⚔{' '}
+                    <span className={tint('text-blue-400')}>{info.attackDamage}</span>
+                  </span>
+                ) : hit ? (
+                  <span className="tabular-nums font-extrabold">
+                    {hit.map((h, i) => (
+                      <span key={i} className="mr-1.5" style={{ color: h.color === 'red' ? HIT_RED : HIT_BLUE }}>
+                        {h.text}
+                      </span>
+                    ))}
+                  </span>
+                ) : null;
+                return wide ? <span className="w-36 shrink-0 text-sm">{content}</span> : content;
+              })()}
+              {wide ? (
+                <span className="w-5 shrink-0 text-green-500">{state.readyPlayers?.includes(p.name) && '✅'}</span>
+              ) : (
+                state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>
+              )}
+              {/* In a bossfight every bot's health. */}
               {state.boss_fight && (p.bot || p.boss) && p.hp > 0 && (
                 <span className="text-red-400 font-semibold tabular-nums" title="HP">
                   ❤ {p.hp}
@@ -518,22 +615,6 @@ export default function TextLobby({
               )}
               {p.spectator && <span className="text-yellow-500">👁</span>}
               {muted.has(p.name) && <span>🔇</span>}
-              {state.readyPlayers?.includes(p.name) && <span className="text-green-500">✅</span>}
-              {(() => {
-                const info = infoFor(p);
-                if (!info) return null;
-                const tint = (c: string) => (info.stale ? 'text-gray-500' : c);
-                return (
-                  <span
-                    className={`tabular-nums font-semibold ${info.stale ? 'text-gray-500' : ''}`}
-                    title={info.stale ? 'Last round' : 'This round'}
-                  >
-                    ❤ <span className={tint('text-red-400')}>{info.hp}</span> 💰{' '}
-                    <span className={tint('text-yellow-400')}>{info.coins}</span> ⚔{' '}
-                    <span className={tint('text-blue-400')}>{info.attackDamage}</span>
-                  </span>
-                );
-              })()}
               {p.idle_rounds >= 2 && <span className="text-gray-400">👻</span>}
               <PlayerThumbnail player={p} />
               <span className="font-medium">{shownPlayerName(p)}</span>
@@ -556,8 +637,17 @@ export default function TextLobby({
                     submitTarget(p.name);
                   }}
                   small
-                  className="ml-8"
+                  className={`ml-8 ${actionCue}`}
                 />
+              )}
+              {/* What they just said in the chat, for a few seconds. */}
+              {bubbles.get(p.name) && (
+                <span
+                  className="ml-2 max-w-[14rem] truncate rounded-2xl rounded-bl-sm bg-white text-gray-900 text-sm px-2.5 py-0.5"
+                  title={bubbles.get(p.name)}
+                >
+                  {bubbles.get(p.name)}
+                </span>
               )}
               {isAdmin && p.name !== playerName && p.hp > 0 && round === 0 && (
                 <span
@@ -623,6 +713,7 @@ export default function TextLobby({
         color={WELL_COLOR}
         selected={action === 'well'}
         onClick={() => submitAction('well')}
+        className={actionCue}
       />
       <ActionWord
         word="Defend"
@@ -630,12 +721,24 @@ export default function TextLobby({
         color={DEFEND_COLOR}
         selected={action === 'defend'}
         onClick={() => submitAction('defend')}
+        className={actionCue}
       />
+      {actionCue && (
+        <p className={`w-full text-center bg-black/80 rounded-xl border border-white/20 p-3 text-white text-sm ${actionCue}`}>
+          You must choose an action: Attack someone, Well or Defend.
+        </p>
+      )}
     </div>
   );
 
   const cannotAffordAtk = !!myPlayer && myPlayer.coins < myPlayer.attackDamage;
   const resourceBar = myPlayer && !myPlayer.spectator && (
+    <div className="flex flex-col items-center gap-2">
+      {resourceCue && (
+        <p className={`max-w-xs text-center bg-black/80 rounded-xl border border-white/20 p-3 text-white text-sm ${resourceCue}`}>
+          You must choose a resource: Get HP, Get Coin or Upgrade Attack.
+        </p>
+      )}
     <div className="flex gap-2 justify-center">
       <ResourceCard
         value={myPlayer.hp}
@@ -645,7 +748,7 @@ export default function TextLobby({
         sublabelClass="text-red-400/70"
         disabled={!canChoose}
         onClick={() => submitResource('gain_hp')}
-        className={`${!canChoose ? 'opacity-60 cursor-default' : 'cursor-pointer'} ${
+        className={`${!canChoose ? 'opacity-60 cursor-default' : 'cursor-pointer'} ${resourceCue} ${
           resource === 'gain_hp'
             ? 'bg-red-700/80 border-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
             : 'bg-black/70 border-red-500/50 hover:bg-red-950/80 hover:border-red-400/80'
@@ -659,7 +762,7 @@ export default function TextLobby({
         sublabelClass="text-yellow-400/70"
         disabled={!canChoose}
         onClick={() => submitResource('gain_coin')}
-        className={`${!canChoose ? 'opacity-60 cursor-default' : 'cursor-pointer'} ${
+        className={`${!canChoose ? 'opacity-60 cursor-default' : 'cursor-pointer'} ${resourceCue} ${
           resource === 'gain_coin'
             ? 'bg-yellow-700/80 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
             : 'bg-black/70 border-yellow-500/50 hover:bg-yellow-950/80 hover:border-yellow-400/80'
@@ -675,7 +778,7 @@ export default function TextLobby({
         onClick={() => submitResource('gain_attack')}
         className={`relative overflow-hidden ${
           !canChoose || cannotAffordAtk ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
-        } ${
+        } ${cannotAffordAtk ? '' : resourceCue} ${
           resource === 'gain_attack'
             ? 'bg-blue-700/80 border-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.5)]'
             : 'bg-black/70 border-blue-500/50 hover:bg-blue-950/80 hover:border-blue-400/80'
@@ -690,6 +793,7 @@ export default function TextLobby({
           )
         }
       />
+    </div>
     </div>
   );
   const timer = (
