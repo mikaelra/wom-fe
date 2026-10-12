@@ -160,6 +160,8 @@ export interface CitySceneProps {
   /** Enter a bot-ranked game against the field of other players' trained
    *  AIs (docs/MY_AI.md §4) -- the BOTS arm of the fork signpost.
    *  Your own AI isn't in it; it competes on its own in the queue. */
+  /** Open with the camera at the ranked fork's signpost (?board=ranked). */
+  startAtFork?: boolean;
   onBotRanked: () => void;
   rankedLabel: string;
   rankedSublabel?: string | null;
@@ -372,6 +374,7 @@ export default function CityScene({
   roster,
   onRanked,
   onBotRanked,
+  startAtFork = false,
   rankedLabel,
   rankedSublabel,
   botRankedLabel,
@@ -385,7 +388,9 @@ export default function CityScene({
   // The city's primary RANKED arm doesn't queue -- it walks the camera over
   // to the fork signpost between the two Senates, where you pick PLAYERS or
   // BOTS. The fork's BACK arm walks it home again (§5.2b).
-  const [view, setView] = useState<'city' | 'fork'>('city');
+  // Back from a ranked game (?board=ranked), the camera starts at the
+  // ranked fork's signpost (Mikael, 2026-10-12).
+  const [view, setView] = useState<'city' | 'fork'>(startAtFork ? 'fork' : 'city');
   const focusRanked = () => setView('fork');
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
@@ -617,28 +622,19 @@ export default function CityScene({
           decay={TEMPLE_GLOW_DECAY}
         />
 
-        {/* The human ladder. Clicking it enters ranked directly, the same
-            as the PLAYERS arm it pairs with -- exactly how the Temple and
-            Market buildings work. */}
-        <BuildingTarget
-          position={SENATE_POSITION}
-          onActivate={onRanked}
-          onHoverChange={setPlayersHot}
-        >
+        {/* The human ladder. Not a way in (Mikael, 2026-10-12): ranked is
+            entered only from the signposts -- it lights up with the PLAYERS
+            arm it pairs with. */}
+        <group position={SENATE_POSITION}>
           <Senate color={playersHot ? LIT_RANKED : PLAIN} />
-        </BuildingTarget>
+        </group>
 
         {/* The bot ladder, touching the first at a corner (docs/MY_AI.md
             §9.1). A plain second Senate until the /modelling building
-            exists. Clicking it starts a bot-ranked game, the same as the
-            BOTS arm it pairs with. */}
-        <BuildingTarget
-          position={SENATE_BOT_POSITION}
-          onActivate={onBotRanked}
-          onHoverChange={setBotsHot}
-        >
+            exists. Not a way in either: it lights up with the BOTS arm. */}
+        <group position={SENATE_BOT_POSITION}>
           <Senate color={botsHot ? LIT_RANKED : PLAIN} />
-        </BuildingTarget>
+        </group>
 
         <Signpost
           position={RANKED_FORK_SIGNPOST_POSITION}

@@ -10,7 +10,7 @@ import { getStoredToken } from '@/lib/http';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import type { LobbyState } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
-import { cameraSpinCookie, readCameraSpin } from '@/lib/cameraSpinPref';
+import { readCameraSpin, saveCameraSpin } from '@/lib/cameraSpinPref';
 import NoLoadingOverlay from '@/components/loading/NoLoadingOverlay';
 import { useTextMode } from '@/lib/textMode';
 import { watch3dScene } from '@/lib/textModeOffer';
@@ -72,14 +72,14 @@ function LobbyPageContent() {
   // Join form state (used when not logged in)
   const [previewState, setPreviewState] = useState<LobbyState | null>(null);
 
-  // The camera spin choice is remembered in a cookie (cameraSpinPref.ts),
+  // The camera spin choice is remembered on the device (cameraSpinPref.ts),
   // read after mount so the server render and first client render agree.
   useEffect(() => {
-    setSpinEnabled(readCameraSpin(document.cookie));
+    setSpinEnabled(readCameraSpin());
   }, []);
   const toggleSpin = useCallback(() => {
     setSpinEnabled((v) => {
-      document.cookie = cameraSpinCookie(!v);
+      saveCameraSpin(!v);
       return !v;
     });
   }, []);

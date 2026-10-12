@@ -645,7 +645,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                     onBlur={handleChatBlur}
                     onFocus={handleChatFocus}
                     placeholder="Chat…"
-                    className="flex-1 bg-black/60 text-white text-xs rounded px-2 py-1 border border-white/20 outline-none min-w-0"
+                    // 16px: any smaller and iOS zooms the whole page in on focus, and with
+                    // pinch-zoom off there was no zooming back out (Mikael, 2026-10-12).
+                    className="flex-1 bg-black/60 text-white text-base rounded px-2 py-1 border border-white/20 outline-none min-w-0"
                     autoFocus
                   />
                   <button
@@ -996,7 +998,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                   onBlur={handleChatBlur}
                   onFocus={handleChatFocus}
                   placeholder="Chat…"
-                  className="flex-1 bg-black/60 text-white text-xs rounded px-2 py-1 border border-white/20 outline-none min-w-0"
+                  // 16px: any smaller and iOS zooms the whole page in on focus, and with
+                    // pinch-zoom off there was no zooming back out (Mikael, 2026-10-12).
+                    className="flex-1 bg-black/60 text-white text-base rounded px-2 py-1 border border-white/20 outline-none min-w-0"
                   autoFocus
                 />
                 <button
