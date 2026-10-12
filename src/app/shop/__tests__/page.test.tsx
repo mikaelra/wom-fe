@@ -231,6 +231,9 @@ describe('ShopPage', () => {
     expect(screen.getByLabelText('Quantity')).toHaveValue('1');
     expect(screen.getByText('$1.00')).toBeInTheDocument();
     expect(screen.getByText(/^10 bot-game credits/)).toBeInTheDocument();
+    // shown with the My AI Coin, not an emoji
+    expect(screen.getByTestId('my-ai-coin')).toHaveAttribute('src', '/images/my-ai-coin.png');
+    expect(screen.queryByText('🪙')).not.toBeInTheDocument();
 
     fireEvent.click(increase);
     fireEvent.click(increase);   // -> 3 packs
