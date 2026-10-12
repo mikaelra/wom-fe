@@ -70,9 +70,10 @@ const bigButton = (backgroundColor: string) => ({
 const homeButton =
   'bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors';
 
-// How long the round's hit numbers and a chat bubble stay (the 3D game's
-// chat bubble, LobbyScene's CHAT_BUBBLE_DURATION_MS).
-const HITS_SHOWN_MS = 4000;
+// How long each of the round's hit numbers shows, blinking once, and how
+// long a chat bubble stays (the 3D game's, LobbyScene's
+// CHAT_BUBBLE_DURATION_MS).
+const HIT_SHOWN_MS = 1000;
 // The 3D game's combat number colours (components/lobby/DamageNumberEffect),
 // a shade lighter to read on the dark lobby.
 const HIT_RED = '#ef4444';
@@ -419,10 +420,24 @@ export default function TextLobby({
     const found = roundHits(events.events, playerName);
     if (found.size) setHits(found);
   }, [events, state, playerName]);
+  // One hit at a time, a second each (Mikael, 2026-10-12): someone hit
+  // three times shows their three numbers in turn, then nothing.
+  const [hitStep, setHitStep] = useState(0);
   useEffect(() => {
     if (!hits) return;
-    const t = setTimeout(() => setHits(null), HITS_SHOWN_MS);
-    return () => clearTimeout(t);
+    setHitStep(0);
+    const steps = Math.max(...[...hits.values()].map((h) => h.length));
+    let step = 0;
+    const t = setInterval(() => {
+      step += 1;
+      if (step >= steps) {
+        clearInterval(t);
+        setHits(null);
+      } else {
+        setHitStep(step);
+      }
+    }, HIT_SHOWN_MS);
+    return () => clearInterval(t);
   }, [hits]);
 
   // A chat bubble beside the name of whoever just said something, for as
@@ -570,13 +585,14 @@ export default function TextLobby({
         <ul className="text-gray-200 space-y-2">
           {state?.players.map((p) => {
             const info = infoFor(p);
-            const hit = info ? undefined : hits?.get(p.name);
+            const hit = info ? undefined : hits?.get(p.name)?.[hitStep];
             const tint = (c: string) => (info?.stale ? 'text-gray-500' : c);
             const ready = state.readyPlayers?.includes(p.name);
             const crowned = state.winner === p.name || (!state.winner && state.wellwinner === p.name);
             const bossHp = state.boss_fight && (p.bot || p.boss) && p.hp > 0;
             return (
-              <li key={p.name} className="py-1 flex items-center gap-2 flex-wrap">
+              // Each player framed in a very thin black line (Mikael, 2026-10-12).
+              <li key={p.name} className="py-1 px-2 flex items-center gap-2 flex-wrap border border-black rounded-md">
                 {/* In columns, so every line lines up (Mikael, 2026-10-12):
                     what you know of them -- the Well's info, the round's
                     hits (blinking), or a bossfight bot's health -- set
@@ -595,12 +611,13 @@ export default function TextLobby({
                         <span className={tint('text-blue-400')}>{info.attackDamage}</span>
                       </span>
                     ) : hit ? (
-                      <span className="font-extrabold whitespace-nowrap animate-pulse">
-                        {hit.map((h, i) => (
-                          <span key={i} className="ml-1.5" style={{ color: h.color === 'red' ? HIT_RED : HIT_BLUE }}>
-                            {h.text}
-                          </span>
-                        ))}
+                      // Keyed by the step, so each number blinks once anew.
+                      <span
+                        key={hitStep}
+                        className="font-extrabold whitespace-nowrap animate-[pulse_1s_ease-in-out_1]"
+                        style={{ color: hit.color === 'red' ? HIT_RED : HIT_BLUE }}
+                      >
+                        {hit.text}
                       </span>
                     ) : bossHp ? (
                       <span className="text-red-400 font-semibold whitespace-nowrap" title="HP">

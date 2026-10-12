@@ -478,6 +478,32 @@ describe('TextLobby title and PC layout', () => {
     expect(within(toad).getByText('-3').style.color).toBe('rgb(239, 68, 68)');
   });
 
+  it('passes through several hits on a player, a second each, then clears', async () => {
+    vi.useFakeTimers();
+    try {
+      events.value = {
+        round: 2,
+        messages: [],
+        events: [
+          { kind: 'incoming', attacker: 'Toad', outcome: 'hit', damage: 2, attackerDied: false },
+          { kind: 'incoming', attacker: 'Wolf', outcome: 'blocked', attackerDied: false },
+        ],
+        instakill: false,
+      };
+      await show(lobby({ round: 2 }));
+      const oni = () => screen.getAllByText('Oni').map((el) => el.closest('li')).find(Boolean)!;
+      expect(within(oni()).getByText('-2')).toBeTruthy();
+      expect(within(oni()).queryByText('0')).toBeNull();
+      act(() => vi.advanceTimersByTime(1000));
+      expect(within(oni()).getByText('0')).toBeTruthy();
+      expect(within(oni()).queryByText('-2')).toBeNull();
+      act(() => vi.advanceTimersByTime(1000));
+      expect(within(oni()).queryByText('0')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('puts a chat bubble by the name of whoever just said something', async () => {
     await show(
       lobby({ round: 1, chat: [{ sender: 'Toad', message: 'gg', timestamp: new Date().toISOString() }] as LobbyState['chat'] }),
