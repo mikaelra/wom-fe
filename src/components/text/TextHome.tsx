@@ -42,7 +42,10 @@ export default function TextHome({
   onOpenMerchant,
   skyDate,
   timewarp,
+  hideLinks = false,
 }: {
+  /** The HUD hidden (the eye, lib/hudHidden.ts): the sky alone. */
+  hideLinks?: boolean;
   offers: MerchantOffer[];
   onEnterCity: (city: City) => void;
   onOpenMerchant: (offer: MerchantOffer) => void;
@@ -55,33 +58,35 @@ export default function TextHome({
     <>
       <PixelOrrery date={skyDate} timewarp={timewarp} />
       {/* In the middle of the sky, over the Earth. */}
-      <div className="absolute inset-0 flex items-center justify-center px-4 pointer-events-none">
-        {/* They leave and come back with the timewarp, as the globe's pins
-            do (lib/timewarpFx.ts's marker fade). */}
-        <div
-          className="flex flex-col items-center px-6 py-3"
-          style={{
-            opacity: 'var(--timewarp-markers, 1)',
-            pointerEvents: 'var(--timewarp-markers-events, auto)' as CSSProperties['pointerEvents'],
-          }}
-        >
-          {CITIES.map((city) => (
-            <button key={city.id} type="button" onClick={() => onEnterCity(city)} style={link}>
-              {city.actionLabel ?? city.name}
-            </button>
-          ))}
-          {offers.map((offer) => (
-            <button
-              key={`${offer.offer_id}|${offer.event_key}`}
-              type="button"
-              onClick={() => onOpenMerchant(offer)}
-              style={{ ...link, fontSize: '20px', marginTop: '0.5rem', ...merchantPaint(offer.event) }}
-            >
-              {MERCHANT_MARKER_LABEL}
-            </button>
-          ))}
+      {!hideLinks && (
+        <div className="absolute inset-0 flex items-center justify-center px-4 pointer-events-none">
+          {/* They leave and come back with the timewarp, as the globe's pins
+              do (lib/timewarpFx.ts's marker fade). */}
+          <div
+            className="flex flex-col items-center px-6 py-3"
+            style={{
+              opacity: 'var(--timewarp-markers, 1)',
+              pointerEvents: 'var(--timewarp-markers-events, auto)' as CSSProperties['pointerEvents'],
+            }}
+          >
+            {CITIES.map((city) => (
+              <button key={city.id} type="button" onClick={() => onEnterCity(city)} style={link}>
+                {city.actionLabel ?? city.name}
+              </button>
+            ))}
+            {offers.map((offer) => (
+              <button
+                key={`${offer.offer_id}|${offer.event_key}`}
+                type="button"
+                onClick={() => onOpenMerchant(offer)}
+                style={{ ...link, fontSize: '20px', marginTop: '0.5rem', ...merchantPaint(offer.event) }}
+              >
+                {MERCHANT_MARKER_LABEL}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }

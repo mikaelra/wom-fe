@@ -2,15 +2,23 @@
 
 import { useEffect } from 'react';
 import { setHudHidden, useHudHidden } from '@/lib/hudHidden';
+import GraphicsQualityButton from '@/components/hud/GraphicsQualityButton';
 
-// The small button under the user-menu button on the Earth screen that hides
+// The small button under the user-menu button on the Earth and city screens
+// (3D and text alike) that hides
 // the HUD (lib/hudHidden.ts). While the HUD is hidden the button is invisible
 // too, so it isn't in the picture -- it stays where it was and a tap there
 // (or the H key) brings everything back.
 //
 // Positioned like SceneTopBar's right-hand group, one 54px chip plus a gap
 // lower, so it sits right under the user-menu button. z-10, below the top
-// bar's z-20, so the user menu's dropdown opens over it.
+// bar's z-20, so the user menu's dropdown opens over it. The graphics
+// quality button (GraphicsQualityButton) sits to its left, and hides with
+// the HUD.
+// Under the top bar's user-menu button.
+const CORNER_CLASS = 'absolute right-3 sm:right-[calc(50%-257px)] z-10';
+const CORNER_STYLE = { top: 'calc(env(safe-area-inset-top) + 0.5rem + 54px + 0.5rem)' };
+
 export default function HudToggle() {
   const hidden = useHudHidden();
 
@@ -28,10 +36,8 @@ export default function HudToggle() {
   useEffect(() => () => setHudHidden(false), []);
 
   return (
-    <div
-      className="absolute right-3 sm:right-[calc(50%-257px)] z-10"
-      style={{ top: 'calc(env(safe-area-inset-top) + 0.5rem + 54px + 0.5rem)' }}
-    >
+    <div className={`${CORNER_CLASS} flex items-start gap-2`} style={CORNER_STYLE}>
+      <GraphicsQualityButton hidden={hidden} />
       <button
         type="button"
         onClick={() => setHudHidden(!hidden)}

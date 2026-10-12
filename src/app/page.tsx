@@ -56,7 +56,8 @@ export default function Page() {
   // A 3D scene up: marked, so a crash in it offers text mode next start
   // (lib/textModeOffer.ts).
   useEffect(() => (textMode === false ? watch3dScene() : undefined), [textMode]);
-  const hudHidden = useHudHidden() && textMode === false;
+  // Text mode too: the eye leaves just the 8-bit sky (TextHome's hideLinks).
+  const hudHidden = useHudHidden();
   const hudLoadingMark = useHudLoadingMark();
 
   // Set once the city route has been asked for but this page is still
@@ -193,6 +194,7 @@ export default function Page() {
       />}
       {textMode && (
         <TextHome
+          hideLinks={hudHidden}
           offers={merchantOffers}
           onEnterCity={handleCityClick}
           onOpenMerchant={(o) => setOpenMerchantKey(merchantKey(o))}
@@ -200,7 +202,7 @@ export default function Page() {
           timewarp={timewarpPlaying && timewarpRun ? { glow: timewarpFxState.glow, colors: timewarpRun.spec.colors } : null}
         />
       )}
-      {textMode === false && <HudToggle />}
+      {textMode !== null && <HudToggle />}
       {/* With the HUD hidden, a tap on the globe loops the loading animation
           where the loading screen shows it, half the Earth's size (lib/hudHidden.ts). */}
       {hudLoadingMark && <HudLoadingMark />}

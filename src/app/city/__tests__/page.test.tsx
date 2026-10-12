@@ -26,6 +26,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/lib/api', () => ({
+  // The graphics quality button asks whether the account has HD.
+  getEntitlements: vi.fn(async () => ({ hd: false })),
   checkName: vi.fn(),
   logInUser: vi.fn(),
   verifyLoginCode: vi.fn(),
@@ -268,6 +270,16 @@ describe('CityPage (routing)', () => {
     renderCity();
     await waitForScene();
     expect(lastCoords).toEqual({ realLat: ATHENS.realLat, realLng: ATHENS.realLng });
+  });
+
+  it('has the eye, which hides the top bar and leaves the scene', async () => {
+    renderCity();
+    await waitForScene();
+    expect(screen.getByRole('button', { name: 'Rules' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide HUD' }));
+    expect(screen.queryByRole('button', { name: 'Rules' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show HUD' }));
+    expect(screen.getByRole('button', { name: 'Rules' })).toBeInTheDocument();
   });
 
   it('shows no city nameplate over the scene', async () => {
