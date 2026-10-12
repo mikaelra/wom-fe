@@ -44,10 +44,13 @@ function fallEase(p: number): number {
 export type DenyRingEffectProps = {
   /** World-space base (feet) position of the denied player. */
   position: [number, number, number];
+  /** How big, rings and fall both: 2 for Hades, who is that much bigger
+   *  (Mikael, 2026-10-12: "his rings have been too small for too long"). */
+  scale?: number;
   onDone?: () => void;
 };
 
-export default function DenyRingEffect({ position, onDone }: DenyRingEffectProps) {
+export default function DenyRingEffect({ position, scale = 1, onDone }: DenyRingEffectProps) {
   const ringRefs = useRef<(THREE.Mesh | null)[]>([]);
   const startRef = useRef<number | null>(null);
   const doneRef = useRef(false);
@@ -86,7 +89,7 @@ export default function DenyRingEffect({ position, onDone }: DenyRingEffectProps
   });
 
   return (
-    <group position={position}>
+    <group position={position} scale={scale}>
       {Array.from({ length: DENY_RING_COUNT }, (_, i) => (
         <mesh
           key={i}
