@@ -171,20 +171,12 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   // happens (a crashed pre-game ranked-countdown watcher, sockets/
   // utils.py's end_game(None) -- round 0, no humans seated yet either).
   const timedOut = !state.winner && !allHumansDead && humans.some((p) => p.alive);
-  // Someone else won and you were in it.
-  const lost = !!state.winner && state.winner !== playerName && !!myPlayer && !myPlayer.spectator;
 
   return (
     <div className="mt-3 text-center">
       <p className="text-xl font-bold mb-2">
         {state.winner === playerName ? (
           <span className="text-green-400">You won! 👑</span>
-        ) : lost ? (
-          // You lost to someone (Mikael, 2026-10-12): say so first.
-          <>
-            <span className="text-red-400">You lost.</span>{' '}
-            <span className="text-yellow-400 text-base">{state.winner} wins!</span>
-          </>
         ) : botsWon ? (
           <span className="text-yellow-400">🤖 Bots win!</span>
         ) : timedOut ? (
