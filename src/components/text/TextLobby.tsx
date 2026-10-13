@@ -918,9 +918,6 @@ export default function TextLobby({
     <>
       {gameOver && (
         <div className="w-full bg-green-950/60 border border-green-700 text-green-300 p-4 rounded-xl mt-4 text-center">
-          {state?.winner && state.winner !== playerName && myPlayer && !myPlayer.spectator && (
-            <p className="text-xl font-semibold text-red-400 mb-1">You lost.</p>
-          )}
           <p className="text-xl font-semibold mb-3">🎉 Game Over! {winnerName} has won the game!</p>
           <RankOutcome result={state?.ranked_results?.[playerName]} playerName={playerName} />
           {/* Home, and beside it the city -- the pair from the top corner. */}
