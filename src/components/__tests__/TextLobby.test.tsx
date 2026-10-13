@@ -465,6 +465,17 @@ describe('TextLobby title and PC layout', () => {
     expect(screen.getByRole('button', { name: 'Defend' }).className).not.toContain('warn-blink');
   });
 
+  it('puts the action warning at the top of the player list and the resource one under the resource buttons', async () => {
+    await show(lobby({ round: 2, round_end_time: new Date(Date.now() + 8000).toISOString() }));
+    const actionWarn = screen.getByText(/You must choose an action/);
+    const list = screen.getByText('Players in Lobby').parentElement!.querySelector('ul')!;
+    expect(actionWarn.parentElement).toBe(list.parentElement);
+    expect(actionWarn.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const resourceWarn = screen.getByText(/You must choose a resource/);
+    const hp = screen.getByText('HP');
+    expect(hp.compareDocumentPosition(resourceWarn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('blinks red with 5 seconds left, and not at all with plenty of time', async () => {
     await show(lobby({ round: 2, round_end_time: new Date(Date.now() + 4000).toISOString() }));
     expect(screen.getByRole('button', { name: 'The Well' }).className).toContain('warn-blink-red');

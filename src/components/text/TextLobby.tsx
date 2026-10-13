@@ -594,6 +594,13 @@ export default function TextLobby({
     <>
       <div className={card}>
         <h3 className="font-semibold text-xl text-gray-100 mb-4">Players in Lobby</h3>
+        {/* The 10s/5s action warning at the top of the list, where the
+            Attack words are (Mikael, 2026-10-13). */}
+        {actionCue && (
+          <p className={`w-full mb-4 text-center bg-black/80 rounded-xl border border-white/20 p-3 text-white text-sm ${actionCue}`}>
+            You must choose an action: Attack someone, Well or Defend.
+          </p>
+        )}
         {/* One grid for the whole list, so every line's columns line up:
             info | crown or skull | avatar | ready or away | name | Attack,
             framed together, and after the frame the chat bubble and kick.
@@ -782,22 +789,12 @@ export default function TextLobby({
         onClick={() => submitAction('defend')}
         className={actionCue}
       />
-      {actionCue && (
-        <p className={`w-full text-center bg-black/80 rounded-xl border border-white/20 p-3 text-white text-sm ${actionCue}`}>
-          You must choose an action: Attack someone, Well or Defend.
-        </p>
-      )}
     </div>
   );
 
   const cannotAffordAtk = !!myPlayer && myPlayer.coins < myPlayer.attackDamage;
   const resourceBar = myPlayer && !myPlayer.spectator && (
     <div className="flex flex-col items-center gap-2">
-      {resourceCue && (
-        <p className={`max-w-xs text-center bg-black/80 rounded-xl border border-white/20 p-3 text-white text-sm ${resourceCue}`}>
-          You must choose a resource: Get HP, Get Coin or Upgrade Attack.
-        </p>
-      )}
     <div className="flex gap-2 justify-center">
       <ResourceCard
         value={myPlayer.hp}
@@ -853,6 +850,13 @@ export default function TextLobby({
         }
       />
     </div>
+      {/* Under the buttons, so nothing above them shifts when it comes
+          (Mikael, 2026-10-13). */}
+      {resourceCue && (
+        <p className={`max-w-xs text-center bg-black/80 rounded-xl border border-white/20 p-3 text-white text-sm ${resourceCue}`}>
+          You must choose a resource: Get HP, Get Coin or Upgrade Attack.
+        </p>
+      )}
     </div>
   );
   const timer = (
