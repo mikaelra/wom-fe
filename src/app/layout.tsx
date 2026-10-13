@@ -10,6 +10,7 @@ import AppleWelcome from "@/components/account/AppleWelcome";
 import TextModeOffer from "@/components/TextModeOffer";
 import AgePrompt from "@/components/AgePrompt";
 import MoonNotifications from "@/components/MoonNotifications";
+import IosZoomReset from "@/components/IosZoomReset";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,6 +58,7 @@ export default function RootLayout({
           <AgePrompt />
           <TextModeOffer />
           <MoonNotifications />
+          <IosZoomReset />
         </ToastProvider>
       </body>
     </html>
