@@ -226,6 +226,10 @@ function AddBotMenu({ onAdd }: { onAdd: (botType: string) => void }) {
  * until opened -- and folded away again once scrolled out of sight, so it
  * takes no room on a phone screen when not in use.
  */
+/** The backend lets a player change their relics once every 10 seconds
+ * (sockets/lobby.py toggle_relic_selection). */
+export const RELIC_COOLDOWN_MS = 10_000;
+
 function RelicPicker({
   relics,
   selectedIds,
@@ -250,6 +254,22 @@ function RelicPicker({
 
   const chosen = relics.filter((r) => selectedIds.includes(Number(r.id)));
 
+  // The relic just changed, while the backend won't take another change:
+  // a red bar fills its button left to right and its text is grey; once
+  // full, a chosen relic's text is struck through in red -- a tap takes it
+  // off again (Mikael, 2026-10-13).
+  const [cooling, setCooling] = useState<number | null>(null);
+  useEffect(() => {
+    if (cooling === null) return;
+    const timer = setTimeout(() => setCooling(null), RELIC_COOLDOWN_MS);
+    return () => clearTimeout(timer);
+  }, [cooling]);
+  const toggle = (id: number) => {
+    if (cooling !== null) return; // the bar shows why
+    onToggle(id);
+    setCooling(id);
+  };
+
   return (
     <div ref={ref} className={`${card} !p-4`}>
       <button
@@ -267,9 +287,33 @@ function RelicPicker({
         <div className="flex flex-wrap gap-3 mt-4">
           {relics.map((r) => {
             const id = Number(r.id);
+            const selected = selectedIds.includes(id);
+            const coolingHere = cooling === id;
             return (
-              <button key={id} type="button" onClick={() => onToggle(id)} style={choiceStyle(selectedIds.includes(id))}>
-                {RELIC_BADGE_EMOJI[r.name]} {RELIC_SELECT_CAPTION[r.name]} (×{r.count})
+              <button
+                key={id}
+                type="button"
+                onClick={() => toggle(id)}
+                aria-busy={coolingHere}
+                className="relative overflow-hidden"
+                style={{
+                  ...choiceStyle(selected),
+                  ...(coolingHere ? { backgroundColor: '#1f2937', color: '#9ca3af', cursor: 'default' } : {}),
+                }}
+              >
+                {coolingHere && (
+                  <span
+                    data-testid="relic-cooldown-bar"
+                    className="absolute inset-y-0 left-0 pointer-events-none"
+                    style={{ backgroundColor: 'crimson', animation: `relic-cooldown-fill ${RELIC_COOLDOWN_MS}ms linear forwards` }}
+                  />
+                )}
+                <span
+                  className={`relative ${selected && !coolingHere ? 'line-through decoration-[3px]' : ''}`}
+                  style={selected && !coolingHere ? { textDecorationColor: '#450a0a' } : undefined}
+                >
+                  {RELIC_BADGE_EMOJI[r.name]} {RELIC_SELECT_CAPTION[r.name]} (×{r.count})
+                </span>
               </button>
             );
           })}

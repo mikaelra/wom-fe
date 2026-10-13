@@ -39,7 +39,7 @@ vi.mock('@/components/WheelClaimNudge', () => ({ default: () => <div>wheel nudge
 vi.mock('@/components/BossSignupNudge', () => ({ default: () => <div>relic nudge</div> }));
 vi.mock('@/components/ArtifactClaimNudge', () => ({ default: () => <div>artifact nudge</div> }));
 
-import TextLobby from '@/components/text/TextLobby';
+import TextLobby, { RELIC_COOLDOWN_MS } from '@/components/text/TextLobby';
 import { isUrgentScreenLoading, resetLoadingTracker } from '@/lib/loadingTracker';
 
 function player(name: string, extra: Partial<Player> = {}): Player {
@@ -158,6 +158,33 @@ describe('TextLobby', () => {
     expect(screen.queryByText(/Paper/)).toBeNull();
     fireEvent.click(coin);
     expect(emit).toHaveBeenCalledWith('toggle_relic_selection', { lobby_id: 'ABCD', relic_id: 1 });
+  });
+
+  it('fills a red bar over the relic just changed for 10s, greys it, then strikes a chosen one through', async () => {
+    await show(lobby({ players: [player('Oni', { admin: true, selected_relic_ids: [1] }), player('Toad')] }));
+    fireEvent.click(await screen.findByText(/Relics/));
+    vi.useFakeTimers();
+    try {
+      const label = screen.getByText(/Start the game with 1 coin/);
+      const button = label.closest('button')!;
+      expect(label.className).toContain('line-through'); // chosen, free to take off
+      emit.mockClear();
+      fireEvent.click(button);
+      expect(emit).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('relic-cooldown-bar').style.animation).toContain('relic-cooldown-fill 10000ms');
+      expect(button.style.color).toBe('rgb(156, 163, 175)'); // grey while it fills
+      expect(label.className).not.toContain('line-through');
+      fireEvent.click(button); // too soon: nothing sent, the bar says why
+      expect(emit).toHaveBeenCalledTimes(1);
+      act(() => vi.advanceTimersByTime(RELIC_COOLDOWN_MS));
+      expect(screen.queryByTestId('relic-cooldown-bar')).toBeNull();
+      expect(button.style.color).toBe('white');
+      expect(label.className).toContain('line-through'); // still chosen (the lobby state says so)
+      fireEvent.click(button);
+      expect(emit).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('folds the relics away again once scrolled out of sight', async () => {
