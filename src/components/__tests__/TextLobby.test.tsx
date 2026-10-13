@@ -565,7 +565,7 @@ describe('TextLobby title and PC layout', () => {
     expect(hitLine.nextElementSibling?.textContent).toBe('Toad'); // right over the name
   });
 
-  it('says you lost, with the rank outcome, when someone else wins', async () => {
+  it('shows the rank outcome, and never says "You lost", when someone else wins', async () => {
     await show(
       lobby({
         round: 5,
@@ -575,7 +575,7 @@ describe('TextLobby title and PC layout', () => {
         ranked_results: { Oni: { tier_before: 'Wizard I', tier_after: 'Wizard I', promoted: null, games_at_tier: 3 } },
       }),
     );
-    expect(screen.getByText('You lost.')).toBeTruthy();
+    expect(screen.queryByText(/You lost/)).toBeNull();
     expect(screen.getByText('Same rank')).toBeTruthy();
     expect(screen.getByText('3 games at Wizard I')).toBeTruthy();
   });
