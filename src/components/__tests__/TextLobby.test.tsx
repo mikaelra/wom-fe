@@ -213,52 +213,28 @@ describe('TextLobby', () => {
     expect(emit).toHaveBeenCalledWith('submit_deny_target', { lobby_id: 'ABCD', target: 'Toad' });
   });
 
-  it("shows the round's messages", async () => {
-    vi.useFakeTimers();
-    try {
-      events.value = { round: 1, messages: ['You hit Toad', ['for', '3']], events: [], instakill: false };
-      conn.state = lobby({ round: 1 });
-      render(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
-      expect(screen.getAllByText(/You hit Toad/).length).toBe(1); // floating
-      act(() => vi.advanceTimersByTime(3400)); // shown 2.5 s, faded 0.8 s
-      expect(screen.getByText('for 3')).toBeTruthy(); // listed
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('lists every round, even when the same messages come twice or a new round comes mid-bubble', () => {
-    vi.useFakeTimers();
-    try {
-      const view = (messages: string[], round: number) => {
-        events.value = { round, messages, events: [], instakill: false };
-        conn.state = lobby({ round });
-      };
-      view(['Round 1 news'], 1);
-      const { rerender } = render(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
-      const again = () => rerender(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
-      view(['Round 1 news'], 1); // fetched again (a deny, or dev's double fetch)
-      again();
-      expect(screen.getAllByText('Round 1 news').length).toBe(1); // one bubble, not two
-      act(() => vi.advanceTimersByTime(1000));
-      view(['Round 2 news'], 2); // the next round, while the first bubble is still up
-      again();
-      act(() => vi.advanceTimersByTime(10_000));
-      const list = screen.getByText('Round Messages').parentElement!;
-      expect(list.className).toContain('opacity-100'); // not stuck hidden behind a bubble
-      expect(screen.getByText('Round 2 news').tagName).toBe('LI');
-      expect(document.querySelectorAll('.fixed.inset-0').length).toBe(0); // no bubble left over
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('sends the round messages to the list at once on a tap', async () => {
-    events.value = { round: 1, messages: ['You hit Toad'], events: [], instakill: false };
+  it("lists the round's messages straight away, with no bubble over the battle (Mikael, 2026-10-13)", async () => {
+    events.value = { round: 1, messages: ['You hit Toad', ['for', '3']], events: [], instakill: false };
     await show(lobby({ round: 1 }));
-    fireEvent.click(screen.getByText('You hit Toad'));
-    const listed = screen.getByText('You hit Toad');
-    expect(listed.tagName).toBe('LI'); // the bubble is gone; the line is in the list
+    expect(screen.getByText('You hit Toad').tagName).toBe('LI');
+    expect(screen.getByText('for 3').tagName).toBe('LI');
+    expect(document.querySelectorAll('.fixed.inset-0').length).toBe(0);
+  });
+
+  it('lists every round, and the same messages fetched twice only once', () => {
+    const view = (messages: string[], round: number) => {
+      events.value = { round, messages, events: [], instakill: false };
+      conn.state = lobby({ round });
+    };
+    view(['Round 1 news'], 1);
+    const { rerender } = render(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+    const again = () => rerender(<TextLobby lobbyId="ABCD" playerName="Oni" onLobbyGone={vi.fn()} />);
+    view(['Round 1 news'], 1); // fetched again (a deny, or dev's double fetch)
+    again();
+    expect(screen.getAllByText('Round 1 news').length).toBe(1);
+    view(['Round 2 news'], 2);
+    again();
+    expect(screen.getByText('Round 2 news').tagName).toBe('LI');
   });
 
   it('chats behind the 💬 button, which lights up for a message while closed', async () => {
@@ -362,8 +338,7 @@ describe('TextLobby title and PC layout', () => {
     );
     events.value = { round: 2, messages: ['Oni attacked Bot Turtle'], events: [], instakill: false };
     await show(lobby({ round: 2 }));
-    expect(screen.getByText('Oni attacked Bot Turtle')).toBeTruthy();
-    expect(screen.getByText('Round Messages').parentElement!.className).toContain('opacity-100');
+    expect(screen.getByText('Oni attacked Bot Turtle').tagName).toBe('LI');
   });
 
   it("shows every bot's HP before its name in a bossfight", async () => {
@@ -465,7 +440,7 @@ describe('TextLobby title and PC layout', () => {
     expect(screen.getByRole('button', { name: 'Defend' }).className).not.toContain('warn-blink');
   });
 
-  it('puts the action warning at the top of the player list and the resource one under the resource buttons', async () => {
+  it('puts the action warning at the top of the player list, and time left and the resource warning under the resource buttons', async () => {
     await show(lobby({ round: 2, round_end_time: new Date(Date.now() + 8000).toISOString() }));
     const actionWarn = screen.getByText(/You must choose an action/);
     const list = screen.getByText('Players in Lobby').parentElement!.querySelector('ul')!;
@@ -474,6 +449,11 @@ describe('TextLobby title and PC layout', () => {
     const resourceWarn = screen.getByText(/You must choose a resource/);
     const hp = screen.getByText('HP');
     expect(hp.compareDocumentPosition(resourceWarn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Time left too, under the buttons and over the warning -- just once.
+    const [timeLeft] = screen.getAllByText(/Time left/);
+    expect(screen.getAllByText(/Time left/).length).toBe(1);
+    expect(hp.compareDocumentPosition(timeLeft) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(timeLeft.compareDocumentPosition(resourceWarn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('blinks red with 5 seconds left, and not at all with plenty of time', async () => {
