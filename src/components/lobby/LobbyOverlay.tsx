@@ -433,9 +433,6 @@ const lobbyConfig: SceneOverlayConfig = {
   theme: {
     accentColorClass: 'text-gray-300',
     panelBorderClass: 'border-white/20',
-    msgBorderClass: 'border-white/20',
-    msgTextClass: 'text-gray-200',
-    showMoreClass: 'text-gray-400 hover:text-white',
     backLinkClass: 'text-white',
     enemyBorderClass: 'border-red-500/30',
     enemyNameClass: 'text-red-400',

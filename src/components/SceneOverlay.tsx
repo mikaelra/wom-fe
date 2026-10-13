@@ -21,7 +21,6 @@ import { isLobbyGoneError } from '@/lib/lobbyErrors';
 import ChatMessageActions, { MutedMark, type ChatTarget } from '@/components/chat/ChatMessageActions';
 import { getMutedPlayers, useMutedPlayers, hideMuted } from '@/lib/chatMute';
 import { useChatText } from '@/lib/chatFilter';
-import { WheelText } from '@/components/WheelIcon';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -32,9 +31,6 @@ const GAMEOVER_REVEAL_FALLBACK_MS = 4000;
 export type SceneOverlayTheme = {
   accentColorClass: string;   // Round label color, e.g. 'text-green-400'
   panelBorderClass: string;   // Main panel border, e.g. 'border-green-500/30'
-  msgBorderClass: string;     // Message divider border, e.g. 'border-green-500/20'
-  msgTextClass: string;       // Message item color, e.g. 'text-green-200'
-  showMoreClass: string;      // Show more/less button classes
   backLinkClass: string;      // Back link color, e.g. 'text-green-300'
   enemyBorderClass: string;   // Enemy panel border, e.g. 'border-green-500/30'
   enemyNameClass: string;     // Enemy name color, e.g. 'text-green-400'
@@ -161,17 +157,12 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   } = config;
 
   const [playerName, setPlayerName] = useState('');
-  const [messages, setMessages] = useState<(string | string[])[]>([]);
   const [action, setAction] = useState('');
   const [resource, setResource] = useState('');
-  const [messagesExpanded, setMessagesExpanded] = useState(false);
-  const [messagesOverflow, setMessagesOverflow] = useState(false);
-  const [messagesHidden, setMessagesHidden] = useState(false);
   const [playerListCollapsed, setPlayerListCollapsed] = useState(false);
   const muted = useMutedPlayers();
   const chatText = useChatText();
   const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
-  const messagesRef = useRef<HTMLUListElement>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatExpanded, setChatExpanded] = useState(false);
   const [unreadChat, setUnreadChat] = useState(false);
@@ -192,10 +183,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
       setPlayerName(localStorage.getItem('playerName') || '');
     }
   }, []);
-
-  useEffect(() => {
-    setMessages([]);
-  }, [lobbyId]);
 
   const orientation = useOrientation();
   const { state, connectionStatus } = useLobbyConnection(lobbyId, playerName, {
@@ -262,14 +249,13 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   useEffect(() => {
     setAction('');
     setResource('');
-    setMessagesExpanded(false);
   }, [state?.round]);
 
   const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
 
-  // Which round's messages + Game Over screen have actually been revealed.
-  // Ordinary rounds reveal the instant their events arrive (unchanged from
-  // before); a round that ends the game holds off until the kill animation
+  // Which round's Game Over screen has actually been revealed. (The round's
+  // messages no longer pop up over the battle -- Mikael, 2026-10-13.)
+  // Ordinary rounds reveal the instant their events arrive; a round that ends the game holds off until the kill animation
   // that caused it (the sword strike, kill-fire glow, dead-pose reveal --
   // timed identically to LobbyScene's own buildCombatAnimationPlan, just
   // re-run here with placeholder positions since only the *timing* matters
@@ -284,13 +270,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     // content and still need its one-time reveal to fire.
     if (revealedRound === gameEvents.round) return;
 
-    const newMsgs = gameEvents.messages ?? [];
-
-    const reveal = () => {
-      setMessages(newMsgs);
-      setMessagesExpanded(false);
-      setRevealedRound(gameEvents.round);
-    };
+    const reveal = () => setRevealedRound(gameEvents.round);
 
     if (!state.gameover) {
       reveal();
@@ -343,29 +323,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const rankedSecondsLeft = useCountdown(
     state?.ranked_countdown_deadline ?? state?.ai_ranked_countdown_deadline,
   );
-
-  // Detect if messages overflow the collapsed container. We compare the
-  // list's natural height against the fixed collapsed limit (the max-h-[4.5rem]
-  // on the wrapper) so the result is correct whether the panel is currently
-  // expanded or collapsed. Re-measure via ResizeObserver and once web fonts
-  // settle, otherwise a stale snapshot can leave "Show more" showing when
-  // there is nothing more to reveal.
-  useEffect(() => {
-    const list = messagesRef.current;
-    if (!list) return;
-
-    const measure = () => {
-      const rootFont = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      const collapsedLimit = rootFont * 4.5; // matches max-h-[4.5rem]
-      setMessagesOverflow(list.scrollHeight > collapsedLimit + 2);
-    };
-
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(list);
-    document.fonts?.ready.then(measure).catch(() => {});
-    return () => ro.disconnect();
-  }, [messages, messagesHidden]);
 
   const effectiveAction = externalAction !== undefined ? externalAction : action;
 
@@ -731,7 +688,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         </div>
       )}
 
-      {/* Round messages panel — top right. Half width in landscape; wider in
+      {/* Round panel (round number, countdown, Game Over) — top right. Half width in landscape; wider in
           portrait since there's no adjacent panel left to share space with
           once actionCue moves below it. */}
       <div
@@ -752,42 +709,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
               </span>
             )}
           </div>
-
-          {messages.length > 0 && (
-            <div className={`mt-2 border-t ${theme.msgBorderClass} pt-2`}>
-              {!messagesHidden && (
-                <div
-                  className={`overflow-hidden transition-all duration-300 ${messagesExpanded ? '' : 'max-h-[4.5rem]'}`}
-                >
-                  <ul ref={messagesRef} className="text-sm space-y-1">
-                    {messages.map((m, i) => (
-                      <li key={i} className={theme.msgTextClass}><WheelText text={Array.isArray(m) ? m.join(' ') : m} /></li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <div className="mt-1 flex justify-between items-center">
-                {!messagesHidden && (messagesOverflow || messagesExpanded) ? (
-                  <button
-                    type="button"
-                    onClick={() => setMessagesExpanded((e) => !e)}
-                    className={`text-xs ${theme.showMoreClass} pointer-events-auto`}
-                  >
-                    {messagesExpanded ? '▲ Show less' : '▼ Show more'}
-                  </button>
-                ) : (
-                  <span />
-                )}
-                <button
-                  type="button"
-                  onClick={() => setMessagesHidden((h) => !h)}
-                  className={`text-xs ${theme.showMoreClass} pointer-events-auto`}
-                >
-                  {messagesHidden ? 'Show' : 'Hide'}
-                </button>
-              </div>
-            </div>
-          )}
 
           {gameOverRevealed && renderGameOver({ state, playerName, enemy, btn })}
         </div>
