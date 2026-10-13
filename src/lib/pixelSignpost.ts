@@ -1,5 +1,6 @@
 import * as Astronomy from 'astronomy-engine';
 import { drawMoon, moonPhase } from '@/lib/pixelMoon';
+import { BODY_COLOR } from '@/lib/bodyColors';
 
 // The text city's scene (components/text/PixelSignpost.tsx): the 3D city's
 // signpost in 8-bit -- a wooden post with arrow-shaped boards, each lettered
@@ -127,10 +128,18 @@ export interface SkyBodies {
   moon: HorizonPos;
   /** The Moon's phase (lib/pixelMoon.ts): 0 new, 180 full. Full if left out. */
   moonPhase?: number;
+  /** The planets, drawn as they rise and set like the Sun (Mikael,
+   *  2026-10-13). None if left out. */
+  planets?: Partial<Record<SkyPlanet, HorizonPos>>;
 }
 
-/** Where the Sun and the Moon are in the sky over (lat, lng) at `date`, and
- *  the Moon's phase. */
+/** The planets the sky shows, in the 3D sky's colours (lib/bodyColors.ts). */
+export const SKY_PLANETS = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'] as const;
+export type SkyPlanet = (typeof SKY_PLANETS)[number];
+const planetColor = (p: SkyPlanet) => `#${BODY_COLOR[p].toString(16).padStart(6, '0')}`;
+
+/** Where the Sun, the Moon and the planets are in the sky over (lat, lng) at
+ *  `date`, and the Moon's phase. */
 export function skyBodies(date: Date, lat: number, lng: number): Required<SkyBodies> {
   const observer = new Astronomy.Observer(lat, lng, 0);
   const time = Astronomy.MakeTime(date);
@@ -139,7 +148,8 @@ export function skyBodies(date: Date, lat: number, lng: number): Required<SkyBod
     const h = Astronomy.Horizon(time, observer, eq.ra, eq.dec, 'normal');
     return { alt: h.altitude, az: h.azimuth };
   };
-  return { sun: at(Astronomy.Body.Sun), moon: at(Astronomy.Body.Moon), moonPhase: moonPhase(date) };
+  const planets = Object.fromEntries(SKY_PLANETS.map((p) => [p, at(Astronomy.Body[p])])) as Record<SkyPlanet, HorizonPos>;
+  return { sun: at(Astronomy.Body.Sun), moon: at(Astronomy.Body.Moon), moonPhase: moonPhase(date), planets };
 }
 
 /** A sky position on screen: east at the right edge, west at the left
@@ -151,26 +161,26 @@ export function skyXY(p: HorizonPos, w: number, horizonY: number): [number, numb
   return [Math.round(x), Math.round(y)];
 }
 
-/** The Sun shows only this low: higher, in the day, it is overhead, out of
- *  the picture (Mikael, 2026-10-13). */
-export const SUN_SHOW_ALT = 12;
+/** The Sun -- and the planets, on the same path -- shows only this low:
+ *  higher, it is overhead, out of the picture (Mikael, 2026-10-13). */
+export const RISE_SET_ALT = 12;
 /** How far in from its edge the Sun touches the horizon, as a share of the
  *  width. */
-const SUN_EDGE_SPAN = 0.22;
+const EDGE_SPAN = 0.22;
 /** How high it is when it slides in at the edge, as a share of the sky. */
-const SUN_EDGE_HEIGHT = 0.6;
+const EDGE_HEIGHT = 0.6;
 
-/** Where the Sun is drawn, or null while it is not: rising (in the east,
+/** Where the Sun (or a planet) is drawn, or null while it is not: rising (in the east,
  *  before noon) up and out past the right edge, setting (in the west) down
  *  in from the left edge, sloping to the horizon -- at every time of year,
  *  so the sunrise and the sunset are always in the picture, wherever on the
  *  horizon they really are. */
-export function sunXY(sun: HorizonPos, w: number, horizonY: number): [number, number] | null {
-  if (sun.alt <= -1 || sun.alt > SUN_SHOW_ALT) return null;
-  const up = Math.max(0, sun.alt) / SUN_SHOW_ALT; // 0 at the horizon, 1 at the edge
-  const fromEdge = (1 - up) * SUN_EDGE_SPAN * w;
+export function riseSetXY(sun: HorizonPos, w: number, horizonY: number): [number, number] | null {
+  if (sun.alt <= -1 || sun.alt > RISE_SET_ALT) return null;
+  const up = Math.max(0, sun.alt) / RISE_SET_ALT; // 0 at the horizon, 1 at the edge
+  const fromEdge = (1 - up) * EDGE_SPAN * w;
   const x = sun.az < 180 ? w - fromEdge : fromEdge;
-  const y = horizonY - up * SUN_EDGE_HEIGHT * horizonY;
+  const y = horizonY - up * EDGE_HEIGHT * horizonY;
   return [Math.round(x), Math.round(y)];
 }
 
@@ -340,7 +350,16 @@ export function drawSignpostScene(
     const behind = mix(sky.top, sky.horizon, band / (BANDS - 1));
     drawMoon(ctx, mx, my, 5, bodies.moonPhase ?? 180, { lit: MOON_LIT, dark: mix(MOON_LIT, behind, 0.75) });
   }
-  const sunAt = sunXY(bodies.sun, w, horizonY);
+  // The planets on the Sun's path as they rise and set, under it where they
+  // meet it.
+  for (const p of SKY_PLANETS) {
+    const pos = bodies.planets?.[p];
+    const at = pos && riseSetXY(pos, w, horizonY);
+    if (!at) continue;
+    ctx.fillStyle = planetColor(p);
+    ctx.fillRect(at[0] - 1, at[1] - 1, 3, 3);
+  }
+  const sunAt = riseSetXY(bodies.sun, w, horizonY);
   if (sunAt) {
     const [sx, sy] = sunAt;
     ctx.fillStyle = '#ffe600';
