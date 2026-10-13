@@ -7,8 +7,9 @@ import {
   skyBodies,
   skyFor,
   skyXY,
-  sunXY,
-  SUN_SHOW_ALT,
+  riseSetXY,
+  SKY_PLANETS,
+  RISE_SET_ALT,
   textWidth,
   wrap,
   type Board,
@@ -73,21 +74,45 @@ describe('the sky', () => {
   });
 
   it('hides the Sun in the day, overhead, and below the horizon', () => {
-    expect(sunXY({ alt: SUN_SHOW_ALT + 1, az: 200 }, 100, 60)).toBeNull();
-    expect(sunXY({ alt: 60, az: 180 }, 100, 60)).toBeNull();
-    expect(sunXY({ alt: -2, az: 250 }, 100, 60)).toBeNull();
+    expect(riseSetXY({ alt: RISE_SET_ALT + 1, az: 200 }, 100, 60)).toBeNull();
+    expect(riseSetXY({ alt: 60, az: 180 }, 100, 60)).toBeNull();
+    expect(riseSetXY({ alt: -2, az: 250 }, 100, 60)).toBeNull();
   });
 
   it('slopes the setting Sun down in from the left edge, wherever it really sets', () => {
-    const high = sunXY({ alt: SUN_SHOW_ALT, az: 230 }, 100, 60)!; // a winter sunset, south-west
-    const low = sunXY({ alt: 0, az: 320 }, 100, 60)!; // a summer one, north-west
+    const high = riseSetXY({ alt: RISE_SET_ALT, az: 230 }, 100, 60)!; // a winter sunset, south-west
+    const low = riseSetXY({ alt: 0, az: 320 }, 100, 60)!; // a summer one, north-west
     expect(high).toEqual([0, 24]);
     expect(low).toEqual([22, 60]);
   });
 
   it('raises the rising Sun up and out past the right edge', () => {
-    expect(sunXY({ alt: 0, az: 40 }, 100, 60)).toEqual([78, 60]);
-    expect(sunXY({ alt: SUN_SHOW_ALT, az: 130 }, 100, 60)).toEqual([100, 24]);
+    expect(riseSetXY({ alt: 0, az: 40 }, 100, 60)).toEqual([78, 60]);
+    expect(riseSetXY({ alt: RISE_SET_ALT, az: 130 }, 100, 60)).toEqual([100, 24]);
+  });
+
+  it('knows where the planets are -- Saturn just risen over Athens on the evening of 13 Oct 2026', () => {
+    const { planets } = skyBodies(new Date('2026-10-13T15:45:00Z'), 37.98, 23.73);
+    expect(Object.keys(planets).sort()).toEqual([...SKY_PLANETS].sort());
+    expect(planets.Saturn!.alt).toBeGreaterThan(0);
+    expect(planets.Saturn!.alt).toBeLessThan(RISE_SET_ALT);
+    expect(planets.Saturn!.az).toBeLessThan(180); // rising, in the east
+  });
+
+  it('draws a planet on the rise/set path while it is low, and not once it is high', () => {
+    const SATURN = '#a16300';
+    const draw = (alt: number) => {
+      const { ctx, pixels } = recorder(130, 281);
+      drawSignpostScene(ctx, 130, 281, [], {
+        sun: { alt: -30, az: 0 },
+        moon: { alt: -30, az: 0 },
+        planets: { Saturn: { alt, az: 100 } },
+      });
+      return [...pixels.entries()].filter(([, c]) => c === SATURN).map(([k]) => k);
+    };
+    const low = draw(4);
+    expect(low.length).toBe(9); // a 3x3 dot
+    expect(draw(RISE_SET_ALT + 5)).toEqual([]);
   });
 
   it('mixes colours', () => {
