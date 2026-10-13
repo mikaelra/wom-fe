@@ -29,7 +29,7 @@ function merchantPaint(event: MerchantOffer['event']): CSSProperties {
 
 const link = {
   color: CITY_COLOR,
-  fontSize: '24px',
+  fontSize: '1.5rem',
   background: 'none',
   border: 'none',
   cursor: 'pointer',
@@ -79,7 +79,7 @@ export default function TextHome({
                 key={`${offer.offer_id}|${offer.event_key}`}
                 type="button"
                 onClick={() => onOpenMerchant(offer)}
-                style={{ ...link, fontSize: '20px', marginTop: '0.5rem', ...merchantPaint(offer.event) }}
+                style={{ ...link, fontSize: '1.25rem', marginTop: '0.5rem', ...merchantPaint(offer.event) }}
               >
                 {MERCHANT_MARKER_LABEL}
               </button>

@@ -352,7 +352,7 @@ export default function InventoryPage() {
                       )}
                       <p className="text-sm font-semibold text-center">{relic.name}</p>
                       {CONSUMABLE_RELIC_NAMES.has(relic.name) && (
-                        <span className="text-[10px] uppercase tracking-wide text-amber-400/80 border border-amber-400/30 rounded px-1.5 py-0.5">
+                        <span className="text-[0.625rem] uppercase tracking-wide text-amber-400/80 border border-amber-400/30 rounded px-1.5 py-0.5">
                           Consumable
                         </span>
                       )}
