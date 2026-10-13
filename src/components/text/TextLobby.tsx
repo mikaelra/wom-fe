@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import FloatingMessage from '@/components/text/FloatingMessage';
 import BossSignupNudge from '@/components/BossSignupNudge';
 import WheelClaimNudge from '@/components/WheelClaimNudge';
 import ArtifactClaimNudge from '@/components/ArtifactClaimNudge';
@@ -280,10 +279,6 @@ function RelicPicker({
   );
 }
 
-function flatten(messages: (string | string[])[]): string {
-  return messages.map((m) => (Array.isArray(m) ? m.join(' ') : m)).join('\n');
-}
-
 export default function TextLobby({
   lobbyId,
   playerName,
@@ -343,39 +338,13 @@ export default function TextLobby({
     playMusic(battleStarted ? BATTLE_MUSIC : PRE_LOBBY_MUSIC);
   }, [battleStarted]);
 
-  // This round's messages: shown big for a moment, then listed.
+  // This round's messages, straight into the list -- no bubble floating
+  // over the battle first (Mikael, 2026-10-13).
   const events = useGameEvents(lobbyId, playerName, round, state?.deny_target);
   const [messages, setMessages] = useState<(string | string[])[]>([]);
-  // Each bubble with its own id: keyed by position, a bubble that finished
-  // would hand its finished state to the next one sliding into its place,
-  // which then never finished either -- the list stayed hidden behind it.
-  const [floatingMessages, setFloatingMessages] = useState<
-    { id: number; text: string; list: (string | string[])[] }[]
-  >([]);
-  const nextFloatId = useRef(0);
-  // The same messages fetched again (a deny re-fetches the round; dev
-  // fetches everything twice) are not news: one bubble per new text.
-  const lastFloated = useRef('');
   useEffect(() => {
-    if (!events) return;
-    const next = flatten(events.messages);
-    if (!next || next === lastFloated.current) return;
-    lastFloated.current = next;
-    // On a PC the list is always in view beside the rest: straight in, no
-    // bubble (Mikael, 2026-10-11).
-    if (wide) {
-      setMessages(events.messages);
-      return;
-    }
-    const id = nextFloatId.current++;
-    setFloatingMessages((prev) => [...prev, { id, text: next, list: events.messages }]);
-  }, [events, wide]);
-
-  const settle = (id: number) => {
-    const done = floatingMessages.find((m) => m.id === id);
-    if (done) setMessages(done.list);
-    setFloatingMessages((prev) => prev.filter((m) => m.id !== id));
-  };
+    if (events) setMessages(events.messages);
+  }, [events]);
 
   // The Well's "info" reward: every other player's stats as they stood the
   // round you won it, shown before their names that round in their colours,
@@ -753,20 +722,6 @@ export default function TextLobby({
       )}
     </>
   );
-  const floating = (
-    <>
-      {floatingMessages.map((msg) => (
-        <FloatingMessage
-          key={msg.id}
-          message={msg.text}
-          // Its messages go into the list as the bubble goes -- when it
-          // has faded, or at once on a tap.
-          onDone={() => settle(msg.id)}
-          onTap={() => settle(msg.id)}
-        />
-      ))}
-    </>
-  );
   // Your choices as the 3D game shows them (Mikael, 2026-10-11): Defend
   // and The Well under the player list (Attack is beside each player in it),
   // and the 3D game's bottom bar -- your HP, coins and attack, each tapped
@@ -792,6 +747,15 @@ export default function TextLobby({
     </div>
   );
 
+  const timer = (
+    <>
+      {gameStarted && secondsLeft !== null && secondsLeft <= 20 && !gameOver && (
+        <p className={`mb-2 text-lg font-semibold ${secondsLeft <= 10 ? 'text-red-700 animate-pulse' : 'text-red-600'}`}>
+          ⏳ Time left: {secondsLeft}s
+        </p>
+      )}
+    </>
+  );
   const cannotAffordAtk = !!myPlayer && myPlayer.coins < myPlayer.attackDamage;
   const resourceBar = myPlayer && !myPlayer.spectator && (
     <div className="flex flex-col items-center gap-2">
@@ -850,8 +814,9 @@ export default function TextLobby({
         }
       />
     </div>
-      {/* Under the buttons, so nothing above them shifts when it comes
-          (Mikael, 2026-10-13). */}
+      {/* Time left and the resource warning under the buttons, so nothing
+          above them shifts when they come (Mikael, 2026-10-13). */}
+      {timer}
       {resourceCue && (
         <p className={`max-w-xs text-center bg-black/80 rounded-xl border border-white/20 p-3 text-white text-sm ${resourceCue}`}>
           You must choose a resource: Get HP, Get Coin or Upgrade Attack.
@@ -859,22 +824,9 @@ export default function TextLobby({
       )}
     </div>
   );
-  const timer = (
-    <>
-      {gameStarted && secondsLeft !== null && secondsLeft <= 20 && !gameOver && (
-        <p className={`mb-2 text-lg font-semibold ${secondsLeft <= 10 ? 'text-red-700 animate-pulse' : 'text-red-600'}`}>
-          ⏳ Time left: {secondsLeft}s
-        </p>
-      )}
-    </>
-  );
   const messagesBox = (
     <>
-      <div
-        className={`w-full mt-2 mb-6 transition-opacity ${
-          !wide && floatingMessages.length > 0 ? 'opacity-0 duration-0' : 'opacity-100 duration-1000'
-        }`}
-      >
+      <div className="w-full mt-2 mb-6">
         <h3 className="font-semibold text-xl text-gray-100 mb-4 px-6">Round Messages</h3>
         <ul className="list-disc pl-6 text-gray-200 bg-gray-900 border border-white/10 p-4 rounded-xl space-y-2">
           {messages.map((m, i) => (
@@ -1024,7 +976,7 @@ export default function TextLobby({
             {header}
             {playersCard}
             {defendAndWell}
-            {timer}
+            {!resourceBar && timer}
             {adminControls}
             {relicPicker}
             {denyChooser}
@@ -1053,8 +1005,7 @@ export default function TextLobby({
           {defendAndWell}
           {adminControls}
           {relicPicker}
-          {floating}
-          {timer}
+          {!resourceBar && timer}
           {/* On a phone the round messages come under the bottom bar. */}
           {resourceBar && <div className="mt-2 mb-4">{resourceBar}</div>}
           {messagesBox}
