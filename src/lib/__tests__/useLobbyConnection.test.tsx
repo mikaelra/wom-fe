@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { AWAY_RECONNECT_MS, useLobbyConnection } from '@/lib/useLobbyConnection';
-import { setStoredToken } from '@/lib/http';
+import { getStoredToken, setStoredAccountToken, setStoredToken } from '@/lib/http';
 import { OFFER_EVENT, resetDropsForTests } from '@/lib/textModeOffer';
 import * as socketModule from '@/lib/socket';
 
@@ -115,6 +115,32 @@ describe('useLobbyConnection', () => {
       lobby_id: 'AAAA',
       token: 'test-token',
     });
+  });
+
+  it('sends the account session on join_room, so a player from another device can resume', () => {
+    setStoredAccountToken('acct');
+    try {
+      renderHook(() => useLobbyConnection('AAAA', 'Alice'));
+      expect(socket.__emit).toHaveBeenCalledWith('join_room', {
+        lobby_id: 'AAAA',
+        token: 'test-token',
+        account_token: 'acct',
+      });
+    } finally {
+      setStoredAccountToken(null);
+    }
+  });
+
+  it("keeps the token a resume hands back for this lobby, not another lobby's", () => {
+    renderHook(() => useLobbyConnection('AAAA', 'Alice'));
+    act(() => {
+      socket.__fireSubscribeEvent('joined_lobby', { lobby_id: 'BBBB', token: 'other' });
+    });
+    expect(getStoredToken('AAAA')).toBe('test-token');
+    act(() => {
+      socket.__fireSubscribeEvent('joined_lobby', { lobby_id: 'AAAA', token: 'resumed' });
+    });
+    expect(getStoredToken('AAAA')).toBe('resumed');
   });
 
   it('populates state from a state_update broadcast', () => {
