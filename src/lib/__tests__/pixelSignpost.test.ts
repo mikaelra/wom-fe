@@ -7,6 +7,8 @@ import {
   skyBodies,
   skyFor,
   skyXY,
+  sunXY,
+  SUN_SHOW_ALT,
   textWidth,
   wrap,
   type Board,
@@ -64,9 +66,28 @@ describe('the sky', () => {
     expect(skyBodies(new Date('2026-06-21T22:00:00Z'), 37.98, 23.73).sun.alt).toBeLessThan(-10);
   });
 
-  it('puts the east on the left, south in the middle, and higher up higher', () => {
-    expect(skyXY({ alt: 0, az: 90 }, 100, 60)).toEqual([0, 60]);
+  it('puts the east on the right, the west on the left, south in the middle, and higher up higher', () => {
+    expect(skyXY({ alt: 0, az: 90 }, 100, 60)).toEqual([100, 60]);
+    expect(skyXY({ alt: 0, az: 270 }, 100, 60)).toEqual([0, 60]);
     expect(skyXY({ alt: 90, az: 180 }, 100, 60)).toEqual([50, 0]);
+  });
+
+  it('hides the Sun in the day, overhead, and below the horizon', () => {
+    expect(sunXY({ alt: SUN_SHOW_ALT + 1, az: 200 }, 100, 60)).toBeNull();
+    expect(sunXY({ alt: 60, az: 180 }, 100, 60)).toBeNull();
+    expect(sunXY({ alt: -2, az: 250 }, 100, 60)).toBeNull();
+  });
+
+  it('slopes the setting Sun down in from the left edge, wherever it really sets', () => {
+    const high = sunXY({ alt: SUN_SHOW_ALT, az: 230 }, 100, 60)!; // a winter sunset, south-west
+    const low = sunXY({ alt: 0, az: 320 }, 100, 60)!; // a summer one, north-west
+    expect(high).toEqual([0, 24]);
+    expect(low).toEqual([22, 60]);
+  });
+
+  it('raises the rising Sun up and out past the right edge', () => {
+    expect(sunXY({ alt: 0, az: 40 }, 100, 60)).toEqual([78, 60]);
+    expect(sunXY({ alt: SUN_SHOW_ALT, az: 130 }, 100, 60)).toEqual([100, 24]);
   });
 
   it('mixes colours', () => {
@@ -122,11 +143,19 @@ describe('the signpost', () => {
     const w = 130;
     const h = 281;
     const { ctx, pixels } = recorder(w, h);
-    drawSignpostScene(ctx, w, h, BOARDS, skyBodies(new Date('2026-06-21T10:00:00Z'), 37.98, 23.73));
+    drawSignpostScene(ctx, w, h, BOARDS, { sun: { alt: 5, az: 290 }, moon: { alt: -20, az: 0 } });
     expect(pixels.size).toBe(w * h);
     const colours = new Set(pixels.values());
     for (const b of BOARDS) expect(colours).toContain(b.color);
-    expect(colours).toContain('#ffe600'); // the Sun, up at noon
+    expect(colours).toContain('#ffe600'); // the Sun, setting
+  });
+
+  it('leaves the Sun out at noon -- it is overhead', () => {
+    const w = 130;
+    const h = 281;
+    const { ctx, pixels } = recorder(w, h);
+    drawSignpostScene(ctx, w, h, BOARDS, skyBodies(new Date('2026-06-21T10:00:00Z'), 37.98, 23.73));
+    expect(new Set(pixels.values())).not.toContain('#ffe600');
   });
 
   it("sparks a timewarp's colours across the sky while it glows", () => {

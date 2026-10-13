@@ -142,11 +142,35 @@ export function skyBodies(date: Date, lat: number, lng: number): Required<SkyBod
   return { sun: at(Astronomy.Body.Sun), moon: at(Astronomy.Body.Moon), moonPhase: moonPhase(date) };
 }
 
-/** A sky position on screen, looking south: east at the left edge, west at
- *  the right, the horizon at `horizonY`, straight up at the top. */
+/** A sky position on screen: east at the right edge, west at the left
+ *  (Mikael, 2026-10-13), south in the middle, the horizon at `horizonY`,
+ *  straight up at the top. */
 export function skyXY(p: HorizonPos, w: number, horizonY: number): [number, number] {
-  const x = ((p.az - 90) / 180) * w;
+  const x = ((270 - p.az) / 180) * w;
   const y = horizonY - (Math.max(0, p.alt) / 90) * horizonY;
+  return [Math.round(x), Math.round(y)];
+}
+
+/** The Sun shows only this low: higher, in the day, it is overhead, out of
+ *  the picture (Mikael, 2026-10-13). */
+export const SUN_SHOW_ALT = 12;
+/** How far in from its edge the Sun touches the horizon, as a share of the
+ *  width. */
+const SUN_EDGE_SPAN = 0.22;
+/** How high it is when it slides in at the edge, as a share of the sky. */
+const SUN_EDGE_HEIGHT = 0.6;
+
+/** Where the Sun is drawn, or null while it is not: rising (in the east,
+ *  before noon) up and out past the right edge, setting (in the west) down
+ *  in from the left edge, sloping to the horizon -- at every time of year,
+ *  so the sunrise and the sunset are always in the picture, wherever on the
+ *  horizon they really are. */
+export function sunXY(sun: HorizonPos, w: number, horizonY: number): [number, number] | null {
+  if (sun.alt <= -1 || sun.alt > SUN_SHOW_ALT) return null;
+  const up = Math.max(0, sun.alt) / SUN_SHOW_ALT; // 0 at the horizon, 1 at the edge
+  const fromEdge = (1 - up) * SUN_EDGE_SPAN * w;
+  const x = sun.az < 180 ? w - fromEdge : fromEdge;
+  const y = horizonY - up * SUN_EDGE_HEIGHT * horizonY;
   return [Math.round(x), Math.round(y)];
 }
 
@@ -316,8 +340,9 @@ export function drawSignpostScene(
     const behind = mix(sky.top, sky.horizon, band / (BANDS - 1));
     drawMoon(ctx, mx, my, 5, bodies.moonPhase ?? 180, { lit: MOON_LIT, dark: mix(MOON_LIT, behind, 0.75) });
   }
-  if (bodies.sun.alt > -1) {
-    const [sx, sy] = skyXY(bodies.sun, w, horizonY);
+  const sunAt = sunXY(bodies.sun, w, horizonY);
+  if (sunAt) {
+    const [sx, sy] = sunAt;
     ctx.fillStyle = '#ffe600';
     ctx.fillRect(sx - 2, sy - 3, 5, 7);
     ctx.fillRect(sx - 3, sy - 2, 7, 5);
