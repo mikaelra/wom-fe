@@ -105,10 +105,15 @@ describe('TextCity', () => {
     expect(screen.queryByLabelText('HADES')).toBeNull();
   });
 
-  it('says when a match is waiting to be returned to', () => {
-    render(<TextCity {...props()} rankedLabel="RETURN TO MATCH" />);
-    fireEvent.click(screen.getByLabelText('RANKED'));
-    expect(screen.getByLabelText('RETURN TO MATCH')).toBeTruthy();
+  it('says when a match is waiting to be returned to, on the top sign too, which goes straight back', () => {
+    const onBotRanked = vi.fn();
+    render(
+      <TextCity {...props()} botRankedLabel="RETURN TO MATCH" botRankedSublabel="STARTS IN 22s" onBotRanked={onBotRanked} />,
+    );
+    // The top sign says what the fork's arm says (Mikael, 2026-10-14).
+    expect(screen.queryByLabelText('RANKED')).toBeNull();
+    fireEvent.click(screen.getByLabelText('RETURN TO MATCH'));
+    expect(onBotRanked).toHaveBeenCalled();
   });
 });
 

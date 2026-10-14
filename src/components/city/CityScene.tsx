@@ -39,6 +39,7 @@ import type { BossfightRoster } from '@/lib/api';
 import type { CityPresence } from '@/lib/schemas';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
 import { BACK_COLOR, BOSSFIGHT_COLOR, EARTH_COLOR, MARKET_COLOR, RANKED_COLOR } from '@/components/city/signpostColors';
+import { rankedTopSign } from '@/lib/rankedSign';
 
 /**
  * The Athens city scene (docs/CITY_SCENE_PLAN.md §5).
@@ -392,6 +393,11 @@ export default function CityScene({
   // ranked fork's signpost (Mikael, 2026-10-12).
   const [view, setView] = useState<'city' | 'fork'>(startAtFork ? 'fork' : 'city');
   const focusRanked = () => setView('fork');
+  const rankedTop = rankedTopSign(
+    { label: rankedLabel, sublabel: rankedSublabel, enter: onRanked },
+    { label: botRankedLabel, sublabel: botRankedSublabel, enter: onBotRanked },
+    focusRanked,
+  );
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
   const { placements, sky, nightness, sunAltitude } = useCitySky(date, realLat, realLng, EYE);
@@ -484,12 +490,14 @@ export default function CityScene({
       // Bossfight without being lesser than it.
       side: 'right',
       tier: 0.5,
-      label: rankedLabel,
-      sublabel: rankedSublabel,
+      // RETURN TO MATCH while a match of yours is on, straight back to it
+      // (lib/rankedSign.ts); otherwise RANKED.
+      label: rankedTop.label,
+      sublabel: rankedTop.sublabels[0] ?? null,
       color: RANKED_COLOR,
       // Walks the camera to the fork -- it stands for both ladders, so
       // it pairs with no single building.
-      onActivate: focusRanked,
+      onActivate: rankedTop.onActivate,
     },
     {
       // A third full-size destination, hanging below RANKED on the right the
