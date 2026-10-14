@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import * as Sentry from '@sentry/nextjs';
+import { reloadPage } from '@/lib/reloadPage';
 
 // Only fires if an error escapes the root layout itself (ErrorBoundary
 // covers everything inside it) -- Next.js requires this exact file to
@@ -33,7 +34,7 @@ export default function GlobalError({
       >
         <p>Something went wrong.</p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => reloadPage()}
           style={{
             padding: '0.5rem 1.5rem',
             borderRadius: '0.5rem',
