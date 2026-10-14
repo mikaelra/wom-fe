@@ -1,6 +1,7 @@
 import * as Astronomy from 'astronomy-engine';
 import { drawMoon, moonPhase } from '@/lib/pixelMoon';
 import { BODY_COLOR } from '@/lib/bodyColors';
+import { isCompactViewport, uiScale } from '@/lib/uiScale';
 
 // The text city's scene (components/text/PixelSignpost.tsx): the 3D city's
 // signpost in 8-bit -- a wooden post with arrow-shaped boards, each lettered
@@ -253,6 +254,26 @@ function boardSize(w: number): { bw: number; bh: number; inner: number } {
   const bw = Math.min(MAX_BOARD_W, Math.floor(w / 2) - POST_W / 2);
   const textH = Math.max(lineHeight(BIG), 2 * lineHeight(1)) - 2;
   return { bw, bh: textH + PAD * 2, inner: bw - PAD * 2 - POINT };
+}
+
+/** Screen pixels per sky pixel: 3, grown with the UI scale (lib/uiScale.ts).
+ *  On a tiny viewport (an Apple Watch-sized window) as many as still fit
+ *  every board's longest word in big lettering across the width, so no
+ *  board is cut off at the edge. */
+export const SIGNPOST_PX = 3;
+
+/** The sky width (in its pixels) the boards need for `labels` in big
+ *  lettering: two boards and the post. */
+export function signpostMinWidth(labels: string[]): number {
+  const longest = Math.max(0, ...labels.flatMap((l) => l.toUpperCase().split(' ')).map((word) => textWidth(word, BIG)));
+  const bw = Math.min(MAX_BOARD_W, longest + PAD * 2 + POINT);
+  return 2 * (bw + POST_W / 2);
+}
+
+export function signpostPixelSize(viewW: number, viewH: number, labels: string[]): number {
+  const px = SIGNPOST_PX * uiScale(viewW, viewH);
+  if (!isCompactViewport(viewW, viewH)) return px;
+  return Math.min(px, viewW / signpostMinWidth(labels));
 }
 
 /** Where each board goes on a screen `w` x `h` sky pixels: either side of

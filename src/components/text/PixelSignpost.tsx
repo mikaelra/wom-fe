@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { drawSignpostScene, layoutBoard, skyBodies, type Board } from '@/lib/pixelSignpost';
+import { drawSignpostScene, layoutBoard, signpostPixelSize, skyBodies, type Board } from '@/lib/pixelSignpost';
 
 // The text city's scene (lib/pixelSignpost.ts): the signpost in 8-bit under
 // the sky over the city right now. The boards and the white text over them
@@ -10,7 +10,6 @@ import { drawSignpostScene, layoutBoard, skyBodies, type Board } from '@/lib/pix
 // for screen readers. A canvas a third of the screen's size, scaled up with
 // sharp pixels; the sky moves on once a minute.
 
-const PX = 3; // screen pixels per sky pixel
 const MINUTE = 60_000;
 
 export interface SignpostBoard extends Board {
@@ -35,10 +34,15 @@ export default function PixelSignpost({
   const ref = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [tick, setTick] = useState(0);
+  const labelsRef = useRef<string[]>([]);
+  labelsRef.current = boards.map((b) => b.label);
 
   useEffect(() => {
     const minute = setInterval(() => setTick((t) => t + 1), MINUTE);
-    const resize = () => setSize({ w: Math.ceil(window.innerWidth / PX), h: Math.ceil(window.innerHeight / PX) });
+    const resize = () => {
+      const px = signpostPixelSize(window.innerWidth, window.innerHeight, labelsRef.current);
+      setSize({ w: Math.ceil(window.innerWidth / px), h: Math.ceil(window.innerHeight / px) });
+    };
     resize();
     window.addEventListener('resize', resize);
     return () => {
