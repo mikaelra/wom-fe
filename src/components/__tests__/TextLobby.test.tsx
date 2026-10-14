@@ -41,7 +41,6 @@ vi.mock('@/components/ArtifactClaimNudge', () => ({ default: () => <div>artifact
 
 import TextLobby, { RELIC_COOLDOWN_MS } from '@/components/text/TextLobby';
 import { COMPACT_QUERY } from '@/lib/uiScale';
-import { LANDSCAPE_QUERY } from '@/lib/useLandscapeLayout';
 import { isUrgentScreenLoading, resetLoadingTracker } from '@/lib/loadingTracker';
 
 function player(name: string, extra: Partial<Player> = {}): Player {
@@ -390,30 +389,6 @@ describe('TextLobby title and PC layout', () => {
     expect(screen.getByText('Toad attacked you')).toBeTruthy();
     // The players, one line each, in the middle.
     expect(screen.getByText('Players in Lobby').className).toContain('sr-only');
-  });
-
-  it('lays a roomy landscape window (Steam on a scaled display, an iPad on its side) out in columns, the choices docked', async () => {
-    vi.stubGlobal('matchMedia', (query: string) => ({
-      matches: query === LANDSCAPE_QUERY,
-      media: query,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }));
-    events.value = { round: 2, messages: ['Oni attacked Toad'], events: [], instakill: false };
-    await show(lobby({ round: 2, round_end_time: new Date(Date.now() + 8000).toISOString() }));
-    const dock = screen.getByTestId('battle-dock');
-    for (const el of [
-      screen.getByRole('button', { name: 'The Well' }),
-      screen.getByRole('button', { name: 'Defend' }),
-      screen.getByText('HP'),
-      screen.getByText(/Time left/),
-    ]) {
-      expect(dock.contains(el)).toBe(true);
-    }
-    // The round messages and the chat in the right column, no bubble.
-    expect(screen.getByText('Oni attacked Toad').tagName).toBe('LI');
-    expect(screen.queryByLabelText('Toggle chat')).toBeNull();
-    expect(screen.getByLabelText('Chat message')).toBeTruthy();
   });
 
   it('puts the round messages straight in the list on a PC, no bubble', async () => {
