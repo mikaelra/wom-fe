@@ -25,6 +25,7 @@ import { watch3dScene } from '@/lib/textModeOffer';
 // three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
 // is, and the renderer is never downloaded.
 const Canvas = dynamic(() => import('@react-three/fiber').then((m) => m.Canvas), { ssr: false });
+const ContextLossRecovery = dynamic(() => import('@/components/hud/ContextLossRecovery'), { ssr: false });
 const AssetLoadingReporter = dynamic(() => import('@/components/loading/AssetLoadingReporter'), { ssr: false });
 const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
 
@@ -220,6 +221,7 @@ export default function Page() {
           // its z-20 against this container's auto is.
           style={{ isolation: 'isolate' }}
         >
+          <ContextLossRecovery />
           <WorldMap
             onCityClick={handleCityClick}
             merchantMarkers={merchantMarkers}

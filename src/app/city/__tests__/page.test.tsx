@@ -97,6 +97,9 @@ const socket = socketModule as unknown as {
 // Renders the wrapper div R3F would, carrying the style through, so the
 // canvas container's stacking behaviour is assertable -- the labels
 // FreshHtml appends live in exactly this element.
+// Needs a real R3F renderer (useThree); nothing to test here.
+vi.mock('@/components/hud/ContextLossRecovery', () => ({ default: () => null }));
+
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children, style }: { children?: ReactNode; style?: CSSProperties }) => (
     <div data-testid="canvas-container" style={style}>
