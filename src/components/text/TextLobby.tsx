@@ -33,7 +33,6 @@ import type { Player, Relic } from '@/types/game';
 import { WheelText } from '@/components/WheelIcon';
 import RankOutcome from '@/components/hud/RankOutcome';
 import { useCompactViewport } from '@/lib/useCompactViewport';
-import { useLandscapeLayout } from '@/lib/useLandscapeLayout';
 
 // A match as text (Settings -> Graphics -> Text mode, src/lib/textMode.ts):
 // Tjuvpakk's lobby page, kept as it was, on World of Mythos's socket. The
@@ -131,8 +130,6 @@ function ActionWord({
 const card = 'w-full mb-4 bg-gray-900 border border-white/10 p-4 rounded-xl';
 // The same, tight, for an Apple Watch-sized window.
 const compactCard = 'w-full mb-2 bg-gray-900 border border-white/10 p-2 rounded-lg text-sm';
-// A little tighter in the columns, so the battle fits the window.
-const columnCard = 'w-full mb-3 bg-gray-900 border border-white/10 p-3 rounded-xl';
 
 /** Whole seconds until an ISO time, never below zero; null without one. */
 function useSecondsUntil(iso: string | null | undefined): number | null {
@@ -342,10 +339,7 @@ export default function TextLobby({
   const [chatOpen, setChatOpen] = useState(false);
   const [unreadChat, setUnreadChat] = useState(false);
   // On a PC the chat sits open beside the round messages (below).
-  // Columns: a PC's width, or a roomy landscape window -- a Steam window on
-  // a scaled display, an iPad on its side (Mikael, 2026-10-14).
-  const landscape = useLandscapeLayout();
-  const wide = useWideScreen() || landscape;
+  const wide = useWideScreen();
   // An Apple Watch-sized window: the compact arrangement below.
   const compact = useCompactViewport();
   const [allMessages, setAllMessages] = useState(false);
@@ -576,10 +570,10 @@ export default function TextLobby({
   const cityPath = state?.ranked || state?.ai_ranked ? RANKED_CITY_PATH : CITY_PATH;
   const header = (
     <>
-      {title && <PixelTitle text={title.text} color={title.color} px={wide ? 4 : undefined} />}
+      {title && <PixelTitle text={title.text} color={title.color} />}
       {state?.boss_fight && enemy && (
-        <div className={`bg-red-950/70 border border-red-800 rounded ${wide ? 'px-4 py-2 mb-2' : 'p-4 mb-4'}`}>
-          <h2 className={`${wide ? 'text-xl' : 'text-2xl'} font-bold text-center`}>{shownPlayerName(enemy)}</h2>
+        <div className="bg-red-950/70 border border-red-800 p-4 rounded mb-4">
+          <h2 className="text-2xl font-bold text-center">{shownPlayerName(enemy)}</h2>
           <p className="text-center text-gray-400">{enemy.title} </p>
           <p className="text-center">HP: {enemy.hp}</p>
           {bossStartsIn !== null && (
@@ -595,7 +589,7 @@ export default function TextLobby({
       {!state?.ranked && !state?.ai_ranked && !state?.boss_fight && (
         <h2 className="text-3xl font-extrabold text-white mt-6 mb-4 tracking-tight">Lobby ID: {lobbyId}</h2>
       )}
-      <p className={`${wide ? 'mb-2 text-base' : 'mb-6 text-lg'} text-gray-300 font-medium`}>
+      <p className="mb-6 text-lg text-gray-300 font-medium">
         🌀 {gameStarted ? `Round: ${round}` : <WaitingForStart />}
       </p>
     </>
@@ -617,8 +611,8 @@ export default function TextLobby({
   const leftColumnWidth = 'w-36';
   const playersCard = (
     <>
-      <div className={compact ? compactCard : wide ? columnCard : card}>
-        <h3 className={compact ? 'sr-only' : wide ? 'font-semibold text-lg text-gray-100 mb-2' : 'font-semibold text-xl text-gray-100 mb-4'}>Players in Lobby</h3>
+      <div className={compact ? compactCard : card}>
+        <h3 className={compact ? 'sr-only' : 'font-semibold text-xl text-gray-100 mb-4'}>Players in Lobby</h3>
         {/* The 10s/5s action warning at the top of the list, where the
             Attack words are (Mikael, 2026-10-13). */}
         {actionCue && (
@@ -884,7 +878,7 @@ export default function TextLobby({
   const messagesBox = (
     <>
       <div className="w-full mt-2 mb-6">
-        <h3 className={`font-semibold text-gray-100 px-6 ${wide ? 'text-lg mb-2' : 'text-xl mb-4'}`}>Round Messages</h3>
+        <h3 className="font-semibold text-xl text-gray-100 mb-4 px-6">Round Messages</h3>
         <ul className="list-disc pl-6 text-gray-200 bg-gray-900 border border-white/10 p-4 rounded-xl space-y-2">
           {messages.map((m, i) => (
             <li key={i} className="py-1">
@@ -1133,36 +1127,28 @@ export default function TextLobby({
   // players and your choices, the bottom bar at its foot), the round messages always in
   // view on the right with the chat under them, and no bubble. A column only
   // scrolls on its own if it overflows.
-  // Columns (Mikael, 2026-10-14): the round messages and the chat in one
-  // column against the RIGHT edge, a third of the width; the battle in the
-  // two thirds to its left, never scrolling the page -- its top part
-  // scrolls on its own if it must, and the choices (Well, Defend, the
-  // HP/COINS/ATK bar and the time) are docked at its foot, always in view.
   if (wide) {
     return (
       <div className="relative h-dvh w-full overflow-hidden bg-[#070b15] text-gray-100">
         {topButtons}
         <div
-          className={`relative z-10 h-full w-full grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)]${staleLook}`}
+          className={`relative z-10 h-full w-full max-w-7xl mx-auto px-6 pt-20 pb-6 grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4${staleLook}`}
           aria-busy={stale}
         >
-          <div className="min-h-0 flex flex-col pl-4 pr-3 pt-16 pb-3">
-            <div className="min-h-0 flex-1 overflow-y-auto flex flex-col items-center rounded-2xl bg-gray-950/80 p-3">
-              {header}
-              {playersCard}
-              {adminControls}
-              {relicPicker}
-              {denyChooser}
-              {gameOverCard}
-            </div>
-            <div data-testid="battle-dock" className="shrink-0 flex flex-col items-center pt-2">
-              {defendAndWell}
-              {resourceBar || timer}
-            </div>
+          <div className="min-h-0 overflow-y-auto flex flex-col items-center rounded-2xl bg-gray-950/80 p-3">
+            {header}
+            {playersCard}
+            {defendAndWell}
+            {!resourceBar && timer}
+            {adminControls}
+            {relicPicker}
+            {denyChooser}
+            {gameOverCard}
+            <div className="mt-auto pt-3">{resourceBar}</div>
           </div>
-          <div className="min-h-0 flex flex-col gap-3 pt-16 pb-3 pr-3">
+          <div className="min-h-0 flex flex-col gap-4">
             <div className="min-h-0 flex-1 overflow-y-auto">{messagesBox}</div>
-            <div className="min-h-0 flex-1 flex flex-col bg-gray-900 p-3 rounded-xl border border-gray-700">{chatBody}</div>
+            <div className="h-72 shrink-0 flex flex-col bg-gray-900 p-4 rounded-xl border border-gray-700">{chatBody}</div>
           </div>
         </div>
         {nudges}
