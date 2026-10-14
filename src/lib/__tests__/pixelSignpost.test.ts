@@ -8,6 +8,7 @@ import {
   skyFor,
   skyXY,
   riseSetXY,
+  daylightDim,
   SKY_PLANETS,
   RISE_SET_ALT,
   textWidth,
@@ -113,6 +114,24 @@ describe('the sky', () => {
     const low = draw(4);
     expect(low.length).toBe(9); // a 3x3 dot
     expect(draw(RISE_SET_ALT + 5)).toEqual([]);
+  });
+
+  it('washes the Moon and the planets into the sky by day, not at night', () => {
+    expect(daylightDim(40)).toBeGreaterThan(daylightDim(5));
+    expect(daylightDim(5)).toBeGreaterThan(daylightDim(-3));
+    expect(daylightDim(-20)).toBe(0);
+    const SATURN = '#a16300';
+    const colours = (sunAlt: number) => {
+      const { ctx, pixels } = recorder(130, 281);
+      drawSignpostScene(ctx, 130, 281, [], {
+        sun: { alt: sunAlt, az: 180 },
+        moon: { alt: -30, az: 0 },
+        planets: { Saturn: { alt: 4, az: 100 } },
+      });
+      return new Set(pixels.values());
+    };
+    expect(colours(-30)).toContain(SATURN); // night: its own colour
+    expect(colours(40)).not.toContain(SATURN); // day: washed toward the sky
   });
 
   it('mixes colours', () => {

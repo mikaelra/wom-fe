@@ -184,6 +184,19 @@ export function riseSetXY(sun: HorizonPos, w: number, horizonY: number): [number
   return [Math.round(x), Math.round(y)];
 }
 
+/** How far the daylight washes the Moon and the planets into the sky behind
+ *  them (0 none .. 1 gone), from the Sun's height: all but gone in full day,
+ *  faint at golden hour, a little in twilight, not at all at night -- the
+ *  Sun alone stands out by day (Mikael, 2026-10-14). The Moon, brighter,
+ *  washes out a little less (MOON_DAY_DIM). */
+export function daylightDim(sunAlt: number): number {
+  if (sunAlt > 10) return 0.85;
+  if (sunAlt > 0) return 0.6;
+  if (sunAlt > -6) return 0.3;
+  return 0;
+}
+const MOON_DAY_DIM = 0.75;
+
 /** A colour mixed toward `to` by `t` (0..1). */
 export function mix(from: string, to: string, t: number): string {
   const a = parseInt(from.slice(1), 16);
@@ -342,13 +355,19 @@ export function drawSignpostScene(
       if (sky.stars === 1 || i % 3 === 0) ctx.fillRect(sx, sy, 1, 1);
     });
   }
+  // The sky's own colour at height y, to wash a body into.
+  const skyAtY = (y: number) => {
+    const band = Math.min(BANDS - 1, Math.max(0, Math.floor((y / horizonY) * BANDS)));
+    return mix(sky.top, sky.horizon, band / (BANDS - 1));
+  };
+  const dim = daylightDim(bodies.sun.alt);
   if (bodies.moon.alt > 0) {
     const [mx, my] = skyXY(bodies.moon, w, horizonY);
     // In its phase (lib/pixelMoon.ts), the dark side faint against the sky
-    // behind it.
-    const band = Math.min(BANDS - 1, Math.max(0, Math.floor((my / horizonY) * BANDS)));
-    const behind = mix(sky.top, sky.horizon, band / (BANDS - 1));
-    drawMoon(ctx, mx, my, 5, bodies.moonPhase ?? 180, { lit: MOON_LIT, dark: mix(MOON_LIT, behind, 0.75) });
+    // behind it; by day the whole of it washed toward that sky.
+    const behind = skyAtY(my);
+    const lit = mix(MOON_LIT, behind, dim * MOON_DAY_DIM);
+    drawMoon(ctx, mx, my, 5, bodies.moonPhase ?? 180, { lit, dark: mix(lit, behind, 0.75) });
   }
   // The planets on the Sun's path as they rise and set, under it where they
   // meet it.
@@ -356,7 +375,7 @@ export function drawSignpostScene(
     const pos = bodies.planets?.[p];
     const at = pos && riseSetXY(pos, w, horizonY);
     if (!at) continue;
-    ctx.fillStyle = planetColor(p);
+    ctx.fillStyle = mix(planetColor(p), skyAtY(at[1]), dim);
     ctx.fillRect(at[0] - 1, at[1] - 1, 3, 3);
   }
   const sunAt = riseSetXY(bodies.sun, w, horizonY);
