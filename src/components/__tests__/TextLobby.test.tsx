@@ -151,10 +151,10 @@ describe('TextLobby', () => {
   it('offers only the relics that do something in battle, folded away until opened', async () => {
     await show(lobby({ players: [player('Oni', { admin: true, selected_relic_ids: [1] }), player('Toad')] }));
     const heading = await screen.findByText(/Relics/);
-    expect(screen.queryByText(/Start the game with 1 coin/)).toBeNull();
+    expect(screen.queryByText(/\+1💰/)).toBeNull();
     expect(heading.textContent).toContain('🪙'); // what is picked shows while folded
     fireEvent.click(heading);
-    const coin = screen.getByText(/Start the game with 1 coin/);
+    const coin = screen.getByText(/\+1💰/);
     expect(screen.queryByText(/Paper/)).toBeNull();
     fireEvent.click(coin);
     expect(emit).toHaveBeenCalledWith('toggle_relic_selection', { lobby_id: 'ABCD', relic_id: 1 });
@@ -165,7 +165,7 @@ describe('TextLobby', () => {
     fireEvent.click(await screen.findByText(/Relics/));
     vi.useFakeTimers();
     try {
-      const label = screen.getByText(/Start the game with 1 coin/);
+      const label = screen.getByText(/\+1💰/);
       const button = label.closest('button')!;
       expect(label.className).toContain('line-through'); // chosen, free to take off
       emit.mockClear();
@@ -202,9 +202,9 @@ describe('TextLobby', () => {
     try {
       await show(lobby());
       fireEvent.click(await screen.findByText(/Relics/));
-      expect(screen.getByText(/Start the game with 1 coin/)).toBeTruthy();
+      expect(screen.getByText(/\+1💰/)).toBeTruthy();
       act(() => report?.([{ isIntersecting: false }]));
-      expect(screen.queryByText(/Start the game with 1 coin/)).toBeNull();
+      expect(screen.queryByText(/\+1💰/)).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }

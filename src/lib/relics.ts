@@ -42,6 +42,7 @@ export const DEFAULT_RELIC_BADGE_EMOJI = '💠';
 // in the open popover -- that one's a full sentence meant for a
 // hover/tooltip title, this is meant to fit under a compact card.
 export const RELIC_SELECT_CAPTION: Record<string, string> = {
-  "Hades' Coin": 'Start the game with 1 coin',
-  'Stone of Vitality': 'Start the game with 15 HP',
+  // Just what it gives (Mikael, 2026-10-14).
+  "Hades' Coin": '+1💰',
+  'Stone of Vitality': '+5❤️',
 };
