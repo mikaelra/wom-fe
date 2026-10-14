@@ -33,6 +33,7 @@ import { useHudHidden } from '@/lib/hudHidden';
 // three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
 // is, and the renderer is never downloaded.
 const Canvas = dynamic(() => import('@react-three/fiber').then((m) => m.Canvas), { ssr: false });
+const ContextLossRecovery = dynamic(() => import('@/components/hud/ContextLossRecovery'), { ssr: false });
 const AssetLoadingReporter = dynamic(() => import('@/components/loading/AssetLoadingReporter'), { ssr: false });
 const CityScene = dynamic(() => import('@/components/city/CityScene'), { ssr: false });
 const TextCity = dynamic(() => import('@/components/text/TextCity'), { ssr: false });
@@ -202,6 +203,7 @@ function CityPageContent() {
         // group now sits below later siblings like <CityOverlay/>.
         style={{ position: 'absolute', inset: 0, isolation: 'isolate' }}
       >
+        <ContextLossRecovery />
         <CityScene
           startAtFork={searchParams.get('board') === 'ranked'}
           date={skyDate}

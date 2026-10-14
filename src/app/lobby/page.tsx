@@ -18,6 +18,7 @@ import { watch3dScene } from '@/lib/textModeOffer';
 // three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
 // is, and the renderer is never downloaded.
 const Canvas = dynamic(() => import('@react-three/fiber').then((m) => m.Canvas), { ssr: false });
+const ContextLossRecovery = dynamic(() => import('@/components/hud/ContextLossRecovery'), { ssr: false });
 // The 3D game's overlay (its 3D effects with it) only when it is shown.
 const LobbyOverlay = dynamic(() => import('@/components/lobby/LobbyOverlay'), { ssr: false });
 const LobbyScene = dynamic(() => import('@/components/lobby/LobbyScene'), { ssr: false });
@@ -193,6 +194,7 @@ function LobbyPageContent() {
         gl={{ powerPreference: 'high-performance' }}
         style={{ position: 'absolute', inset: 0 }}
       >
+        <ContextLossRecovery />
         <LobbyScene
           state={playerName ? lobbyState : previewState}
           playerName={playerName}
