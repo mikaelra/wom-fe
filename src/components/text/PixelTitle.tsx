@@ -12,7 +12,7 @@ import { rem } from '@/lib/uiScale';
 const PX = 6; // screen pixels per font pixel
 const SHADOW = '#000000';
 
-export default function PixelTitle({ text, color }: { text: string; color: string }) {
+export default function PixelTitle({ text, color, px = PX }: { text: string; color: string; px?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const w = textWidth(text) + 1;
   const h = 6;
@@ -34,7 +34,7 @@ export default function PixelTitle({ text, color }: { text: string; color: strin
       aria-label={text}
       className="block mx-auto mb-4 max-w-full"
       // height auto: a narrow phone shrinks it whole rather than squashing it.
-      style={{ width: rem(w * PX), height: 'auto', imageRendering: 'pixelated' }}
+      style={{ width: rem(w * px), height: 'auto', imageRendering: 'pixelated' }}
     />
   );
 }
