@@ -4,6 +4,7 @@ import { useState } from 'react';
 import PixelSignpost, { type SignpostBoard } from '@/components/text/PixelSignpost';
 import { inMarketLabel, playingLabel, searchingLabel } from '@/lib/cityLabels';
 import { BACK_COLOR, BOSSFIGHT_COLOR, EARTH_COLOR, MARKET_COLOR, RANKED_COLOR } from '@/components/city/signpostColors';
+import { rankedTopSign } from '@/lib/rankedSign';
 
 // The city as text (Text mode, src/lib/textMode.ts): the 3D city's signpost
 // in 8-bit (PixelSignpost) -- RANKED and HADES on the top boards, MARKET and
@@ -74,6 +75,11 @@ export default function TextCity({
 }) {
   const [inRanked, setInRanked] = useState(startInRanked);
 
+  const top = rankedTopSign(
+    { label: rankedLabel, sublabel: rankedSublabel, enter: onRanked },
+    { label: botRankedLabel, sublabel: botRankedSublabel, enter: onBotRanked },
+    () => setInRanked(true),
+  );
   const boards: SignpostBoard[] = inRanked
     ? [
         {
@@ -99,13 +105,14 @@ export default function TextCity({
       ]
     : [
         {
-          label: 'RANKED',
+          // RETURN TO MATCH while a match of yours is on (lib/rankedSign.ts).
+          label: top.label,
           color: RANKED_COLOR,
           side: 'left',
           row: 0,
-          onClick: () => setInRanked(true),
+          onClick: top.onActivate,
           // A queue being searched, or a match to return to, from either arm.
-          info: lines(rankedSublabel, botRankedSublabel),
+          info: lines(...top.sublabels),
         },
         {
           label: 'HADES',
