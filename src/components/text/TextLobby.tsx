@@ -23,6 +23,7 @@ import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import { wellRewardFromEvents } from '@/lib/gameEvents';
 import { roundHits, type Hit } from '@/lib/roundHits';
 import { useWideScreen } from '@/lib/useWideScreen';
+import { useVirtualCanvas } from '@/lib/useVirtualCanvas';
 import ResourceCard from '@/components/ResourceCard';
 import { lobbyTitle } from '@/lib/lobbyTitle';
 import PixelTitle from '@/components/text/PixelTitle';
@@ -339,7 +340,10 @@ export default function TextLobby({
   const [chatOpen, setChatOpen] = useState(false);
   const [unreadChat, setUnreadChat] = useState(false);
   // On a PC the chat sits open beside the round messages (below).
-  const wide = useWideScreen();
+  // A window under a PC's width but roomy and landscape (a Steam window on a
+  // scaled display) gets the PC columns on a scaled canvas (Mikael, 2026-10-15).
+  const canvas = useVirtualCanvas();
+  const wide = useWideScreen() || canvas !== null;
   // An Apple Watch-sized window: the compact arrangement below.
   const compact = useCompactViewport();
   const [allMessages, setAllMessages] = useState(false);
@@ -1128,11 +1132,15 @@ export default function TextLobby({
   // view on the right with the chat under them, and no bubble. A column only
   // scrolls on its own if it overflows.
   if (wide) {
-    return (
-      <div className="relative h-dvh w-full overflow-hidden bg-[#070b15] text-gray-100">
+    const lobby = (
+      <div className={`relative bg-[#070b15] text-gray-100 ${canvas ? 'h-full w-full' : 'h-dvh w-full overflow-hidden'}`}>
         {topButtons}
         <div
-          className={`relative z-10 h-full w-full max-w-7xl mx-auto px-6 pt-20 pb-6 grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4${staleLook}`}
+          className={`relative z-10 h-full w-full grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 ${
+            // On the canvas the whole window is used: the home and audio buttons float
+            // over the corners beside the centred title instead of a strip of their own.
+            canvas ? 'p-3' : 'max-w-7xl mx-auto px-6 pt-20 pb-6'
+          }${staleLook}`}
           aria-busy={stale}
         >
           <div className="min-h-0 overflow-y-auto flex flex-col items-center rounded-2xl bg-gray-950/80 p-3">
@@ -1152,6 +1160,16 @@ export default function TextLobby({
           </div>
         </div>
         {nudges}
+      </div>
+    );
+    if (!canvas) return lobby;
+    return (
+      <div data-testid="lobby-canvas" className="h-dvh w-full overflow-hidden bg-[#070b15]">
+        <div
+          style={{ width: canvas.width, height: canvas.height, transform: `scale(${canvas.scale})`, transformOrigin: '0 0' }}
+        >
+          {lobby}
+        </div>
       </div>
     );
   }
