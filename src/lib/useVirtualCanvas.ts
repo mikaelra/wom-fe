@@ -6,7 +6,7 @@ import { useSyncExternalStore } from 'react';
 // scaled down to fit -- what the web page looks like in a big window zoomed
 // out (Mikael, 2026-10-15). A phone on its side is under 500px tall, so it
 // keeps its one column.
-export const CANVAS_WIDTH = 1440;
+export const CANVAS_WIDTH = 1200;
 export const CANVAS_MIN_WIDTH = 768;
 export const CANVAS_MIN_HEIGHT = 500;
 const PC_MIN_WIDTH = 1024;

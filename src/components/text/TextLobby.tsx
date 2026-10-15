@@ -1136,7 +1136,11 @@ export default function TextLobby({
       <div className={`relative bg-[#070b15] text-gray-100 ${canvas ? 'h-full w-full' : 'h-dvh w-full overflow-hidden'}`}>
         {topButtons}
         <div
-          className={`relative z-10 h-full w-full max-w-7xl mx-auto px-6 pt-20 pb-6 grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4${staleLook}`}
+          className={`relative z-10 h-full w-full grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 ${
+            // On the canvas the whole window is used: the home and audio buttons float
+            // over the corners beside the centred title instead of a strip of their own.
+            canvas ? 'p-3' : 'max-w-7xl mx-auto px-6 pt-20 pb-6'
+          }${staleLook}`}
           aria-busy={stale}
         >
           <div className="min-h-0 overflow-y-auto flex flex-col items-center rounded-2xl bg-gray-950/80 p-3">

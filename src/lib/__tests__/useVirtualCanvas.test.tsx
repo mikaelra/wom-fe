@@ -3,11 +3,11 @@ import { act, renderHook } from '@testing-library/react';
 import { CANVAS_WIDTH, useVirtualCanvas, virtualCanvas } from '@/lib/useVirtualCanvas';
 
 describe('virtualCanvas', () => {
-  it('lays a Surface Go window out as a 1440x960 PC window at 0.625', () => {
+  it('lays a Surface Go window out as a 1200x800 PC window at 0.75', () => {
     const c = virtualCanvas(900, 600)!;
     expect(c.width).toBe(CANVAS_WIDTH);
-    expect(c.scale).toBeCloseTo(0.625);
-    expect(c.height).toBeCloseTo(960);
+    expect(c.scale).toBeCloseTo(0.75);
+    expect(c.height).toBeCloseTo(800);
   });
 
   it('leaves a PC window, a phone, and a phone on its side alone', () => {
@@ -22,7 +22,7 @@ describe('virtualCanvas', () => {
     window.innerWidth = 900;
     window.innerHeight = 600;
     const { result } = renderHook(() => useVirtualCanvas());
-    expect(result.current?.scale).toBeCloseTo(0.625);
+    expect(result.current?.scale).toBeCloseTo(0.75);
     act(() => {
       window.innerWidth = 1200;
       window.dispatchEvent(new Event('resize'));
