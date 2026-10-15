@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { setTextMode } from '@/lib/textMode';
 import { OFFER_EVENT, dismissOffer, endedInACrash, shouldOffer } from '@/lib/textModeOffer';
+import { reloadPage } from '@/lib/reloadPage';
 
 /**
  * Offers text mode to a player whose device struggles with the 3D game
@@ -34,7 +35,7 @@ export default function TextModeOffer() {
             type="button"
             onClick={() => {
               setTextMode(true);
-              window.location.reload();
+              reloadPage();
             }}
             className="px-4 py-2 rounded-lg bg-amber-700/80 text-amber-100 border border-amber-600 font-bold hover:bg-amber-600/80 transition-colors cursor-pointer"
           >

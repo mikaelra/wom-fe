@@ -11,6 +11,7 @@ import TextModeOffer from "@/components/TextModeOffer";
 import AgePrompt from "@/components/AgePrompt";
 import MoonNotifications from "@/components/MoonNotifications";
 import IosZoomReset from "@/components/IosZoomReset";
+import RestoreAfterReload from "@/components/RestoreAfterReload";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -59,6 +60,7 @@ export default function RootLayout({
           <TextModeOffer />
           <MoonNotifications />
           <IosZoomReset />
+          <RestoreAfterReload />
         </ToastProvider>
       </body>
     </html>

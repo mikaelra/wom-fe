@@ -1,6 +1,7 @@
 'use client';
 
 import type { CSSProperties, MouseEventHandler } from 'react';
+import { rem } from '@/lib/uiScale';
 
 type ActionImageButtonProps = {
   src: string;
@@ -69,7 +70,7 @@ export default function ActionImageButton({
         alt={alt}
         draggable={false}
         style={{
-          width,
+          width: rem(width),
           // Tailwind's preflight sets `img { max-width: 100% }`. The button
           // wrapper here has no defined width of its own (it shrink-wraps to
           // this image), so that percentage is indeterminate and resolves to

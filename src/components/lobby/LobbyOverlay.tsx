@@ -26,6 +26,7 @@ import type { LobbyState } from '@/types/game';
 import { CITY_PATH, RANKED_CITY_PATH } from '@/lib/cities';
 import WheelIcon from '@/components/WheelIcon';
 import RankOutcome from '@/components/hud/RankOutcome';
+import { rem } from '@/lib/uiScale';
 
 type LobbyOverlayProps = {
   lobbyId: string;
@@ -143,8 +144,8 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
                 ✕
               </button>
               <h3 className="text-xl font-bold mb-5 text-gray-800">Scan to Join</h3>
-              <QRCodeSVG value={lobbyUrl} size={200} />
-              <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[200px]">{lobbyUrl}</p>
+              <QRCodeSVG value={lobbyUrl} size={200} style={{ width: rem(200), height: rem(200) }} />
+              <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[12.5rem]">{lobbyUrl}</p>
             </div>
           </div>
         </div>,

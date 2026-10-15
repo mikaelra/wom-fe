@@ -5,6 +5,7 @@ import { hdUnlocked } from '@/lib/hdTextures';
 import { currentQuality, hdAlways, setQuality, type GraphicsQuality } from '@/lib/graphicsQuality';
 import GraphicsQualityIcon, { QUALITY_LABEL } from '@/components/hud/GraphicsQualityIcon';
 import ExpandingChoice from '@/components/hud/ExpandingChoice';
+import { reloadPage } from '@/lib/reloadPage';
 
 // The graphics quality on the Earth and city scenes (Mikael, 2026-10-11): a
 // round button showing the current one -- LD (text mode), SD or HD -- that
@@ -41,7 +42,7 @@ export default function GraphicsQualityButton({ hidden = false }: { hidden?: boo
       choices={qualities.map((q) => ({ value: q, label: QUALITY_LABEL[q], node: <GraphicsQualityIcon quality={q} /> }))}
       onChoose={(q) => {
         setQuality(q);
-        window.location.reload();
+        reloadPage();
       }}
       className="bg-black/50 border border-white/20 hover:bg-black/70"
     />

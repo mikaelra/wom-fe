@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { drawText, textWidth } from '@/lib/pixelSignpost';
+import { rem } from '@/lib/uiScale';
 
 // A title in the city signpost's 3x5 pixel font (lib/pixelSignpost.ts),
 // drawn small on a canvas and scaled up with sharp pixels, with a dark
@@ -33,7 +34,7 @@ export default function PixelTitle({ text, color }: { text: string; color: strin
       aria-label={text}
       className="block mx-auto mb-4 max-w-full"
       // height auto: a narrow phone shrinks it whole rather than squashing it.
-      style={{ width: w * PX, height: 'auto', imageRendering: 'pixelated' }}
+      style={{ width: rem(w * PX), height: 'auto', imageRendering: 'pixelated' }}
     />
   );
 }

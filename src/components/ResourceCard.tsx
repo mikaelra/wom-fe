@@ -26,7 +26,7 @@ type ResourceCardProps = {
 };
 
 const BASE_CLASS =
-  'backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[62px] transition-all duration-150';
+  'backdrop-blur-sm rounded-lg px-3 py-2 border text-center min-w-[3.875rem] transition-all duration-150';
 
 // Delay before the number swaps to its new value — lines up with the bounce's
 // rise so the player sees "bounce, then the number changes". Scaled to

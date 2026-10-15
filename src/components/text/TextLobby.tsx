@@ -23,6 +23,7 @@ import { useLobbyConnection } from '@/lib/useLobbyConnection';
 import { wellRewardFromEvents } from '@/lib/gameEvents';
 import { roundHits, type Hit } from '@/lib/roundHits';
 import { useWideScreen } from '@/lib/useWideScreen';
+import { useVirtualCanvas } from '@/lib/useVirtualCanvas';
 import ResourceCard from '@/components/ResourceCard';
 import { lobbyTitle } from '@/lib/lobbyTitle';
 import PixelTitle from '@/components/text/PixelTitle';
@@ -32,6 +33,7 @@ import { playerMark, shownPlayerName } from '@/lib/playerThumbnail';
 import type { Player, Relic } from '@/types/game';
 import { WheelText } from '@/components/WheelIcon';
 import RankOutcome from '@/components/hud/RankOutcome';
+import { useCompactViewport } from '@/lib/useCompactViewport';
 
 // A match as text (Settings -> Graphics -> Text mode, src/lib/textMode.ts):
 // Tjuvpakk's lobby page, kept as it was, on World of Mythos's socket. The
@@ -45,22 +47,22 @@ import RankOutcome from '@/components/hud/RankOutcome';
 // sit on one line on a phone (they share the row: flex 1).
 const choiceStyle = (selected: boolean) => ({
   flex: 1,
-  padding: '6px 4px',
+  padding: '0.375rem 0.25rem',
   border: '2px solid #9ca3af',
-  borderRadius: '5px',
+  borderRadius: '0.3125rem',
   backgroundColor: selected ? 'crimson' : '#374151',
   color: 'white',
   fontWeight: 'bold' as const,
-  fontSize: '15px',
+  fontSize: '0.9375rem',
   whiteSpace: 'nowrap' as const,
   cursor: 'pointer',
 });
 
 const bigButton = (backgroundColor: string) => ({
-  padding: '10px 20px',
-  margin: '6px',
+  padding: '0.625rem 1.25rem',
+  margin: '0.375rem',
   border: '2px solid #9ca3af',
-  borderRadius: '8px',
+  borderRadius: '0.5rem',
   backgroundColor,
   color: 'white',
   fontWeight: 'bold' as const,
@@ -127,6 +129,8 @@ function ActionWord({
 }
 
 const card = 'w-full mb-4 bg-gray-900 border border-white/10 p-4 rounded-xl';
+// The same, tight, for an Apple Watch-sized window.
+const compactCard = 'w-full mb-2 bg-gray-900 border border-white/10 p-2 rounded-lg text-sm';
 
 /** Whole seconds until an ISO time, never below zero; null without one. */
 function useSecondsUntil(iso: string | null | undefined): number | null {
@@ -210,7 +214,7 @@ function AddBotMenu({ onAdd }: { onAdd: (botType: string) => void }) {
                 onAdd(type);
                 setOpen(false);
               }}
-              style={{ ...bigButton('#4b5563'), padding: '6px 12px' }}
+              style={{ ...bigButton('#4b5563'), padding: '0.375rem 0.75rem' }}
             >
               {label}
             </button>
@@ -336,7 +340,13 @@ export default function TextLobby({
   const [chatOpen, setChatOpen] = useState(false);
   const [unreadChat, setUnreadChat] = useState(false);
   // On a PC the chat sits open beside the round messages (below).
-  const wide = useWideScreen();
+  // A window under a PC's width but roomy and landscape (a Steam window on a
+  // scaled display) gets the PC columns on a scaled canvas (Mikael, 2026-10-15).
+  const canvas = useVirtualCanvas();
+  const wide = useWideScreen() || canvas !== null;
+  // An Apple Watch-sized window: the compact arrangement below.
+  const compact = useCompactViewport();
+  const [allMessages, setAllMessages] = useState(false);
   const chatShown = chatOpen || wide;
   const chatOpenRef = useRef(false);
   chatOpenRef.current = chatShown;
@@ -605,12 +615,12 @@ export default function TextLobby({
   const leftColumnWidth = 'w-36';
   const playersCard = (
     <>
-      <div className={card}>
-        <h3 className="font-semibold text-xl text-gray-100 mb-4">Players in Lobby</h3>
+      <div className={compact ? compactCard : card}>
+        <h3 className={compact ? 'sr-only' : 'font-semibold text-xl text-gray-100 mb-4'}>Players in Lobby</h3>
         {/* The 10s/5s action warning at the top of the list, where the
             Attack words are (Mikael, 2026-10-13). */}
         {actionCue && (
-          <p className={`w-full mb-4 text-center bg-black/80 rounded-xl border border-white/20 p-3 text-white text-sm ${actionCue}`}>
+          <p className={`w-full text-center bg-black/80 rounded-xl border border-white/20 text-white ${compact ? 'mb-2 p-1 text-xs' : 'mb-4 p-3 text-sm'} ${actionCue}`}>
             You must choose an action: Attack someone, Well or Defend.
           </p>
         )}
@@ -682,9 +692,10 @@ export default function TextLobby({
                   ) : null}
                 </span>
                 <span className="flex items-center gap-2">
-                  <span className="flex flex-col">
+                  {/* On an Apple Watch-sized window, after the name on its one line. */}
+                  <span className={compact ? 'flex flex-row-reverse justify-end items-baseline gap-1' : 'flex flex-col'}>
                     {/* On a phone, small over the name (Mikael, 2026-10-12). */}
-                    {!wide && known && <span className="text-[10px] leading-none tabular-nums">{known}</span>}
+                    {!wide && known && <span className="text-[0.625rem] leading-none tabular-nums">{known}</span>}
                     <span className="font-medium">{shownPlayerName(p)}</span>
                   </span>
                   {p.spectator && <span className="text-yellow-500">👁</span>}
@@ -771,7 +782,7 @@ export default function TextLobby({
   // and the 3D game's bottom bar -- your HP, coins and attack, each tapped
   // to take that resource this round.
   const defendAndWell = canChoose && (
-    <div className="flex gap-3 justify-center flex-wrap mb-4">
+    <div className={`flex gap-3 justify-center flex-wrap ${compact ? 'mb-1' : 'mb-4'}`}>
       <ActionWord
         word="Well"
         label="The Well"
@@ -862,7 +873,7 @@ export default function TextLobby({
           above them shifts when they come (Mikael, 2026-10-13). */}
       {timer}
       {resourceCue && (
-        <p className={`max-w-xs text-center bg-black/80 rounded-xl border border-white/20 p-3 text-white text-sm ${resourceCue}`}>
+        <p className={`max-w-xs text-center bg-black/80 rounded-xl border border-white/20 text-white ${compact ? 'p-1 text-xs' : 'p-3 text-sm'} ${resourceCue}`}>
           You must choose a resource: Get HP, Get Coin or Upgrade Attack.
         </p>
       )}
@@ -905,7 +916,7 @@ export default function TextLobby({
               type="button"
               disabled={!denyTarget}
               onClick={() => emit.emit('submit_deny_target', { lobby_id: lobbyId, target: denyTarget })}
-              style={{ ...choiceStyle(false), flex: 'none', padding: '10px 20px' }}
+              style={{ ...choiceStyle(false), flex: 'none', padding: '0.625rem 1.25rem' }}
             >
               Deny
             </button>
@@ -963,7 +974,7 @@ export default function TextLobby({
           autoFocus={!wide}
           className="flex-1 border border-gray-600 rounded-lg p-2 bg-gray-800 text-white min-w-0"
         />
-        <button type="button" onClick={sendChat} style={{ ...choiceStyle(false), flex: 'none', padding: '6px 12px' }}>
+        <button type="button" onClick={sendChat} style={{ ...choiceStyle(false), flex: 'none', padding: '0.375rem 0.75rem' }}>
           Send
         </button>
       </div>
@@ -1003,17 +1014,133 @@ export default function TextLobby({
     </>
   );
 
+  const chatToggle = (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setChatOpen((o) => !o);
+          setUnreadChat(false);
+        }}
+        className={`${compact ? 'w-8 h-8 text-sm' : 'w-11 h-11 text-lg'} rounded-full bg-blue-600/90 hover:bg-blue-500/90 flex items-center justify-center shadow-lg border border-white/20 cursor-pointer`}
+        aria-label="Toggle chat"
+      >
+        💬
+      </button>
+      {unreadChat && (
+        <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-orange-500 border border-white/60 pointer-events-none" />
+      )}
+    </>
+  );
+
+  // An Apple Watch-sized window (Mikael, 2026-10-13): everything to play a
+  // round on the one screen, never scrolled for. A single header line (home,
+  // the city, the title, the round, the chat button); the players and the
+  // rest scroll in the middle; and docked at the foot the latest round
+  // message (a tap shows them all), Well and Defend, and HP/COINS/ATK with
+  // the time left. Zero-3D and the same look, only tighter.
+  if (compact && !wide) {
+    const latest = messages.at(-1);
+    return (
+      <div className="relative h-dvh w-full flex flex-col overflow-hidden bg-[#070b15] text-gray-100">
+        <div className={`shrink-0 flex items-center gap-1.5 px-2 py-1 border-b border-white/10${staleLook}`}>
+          <Link href="/" aria-label="Back to Home" className="text-lg leading-none no-underline">
+            🌍
+          </Link>
+          <Link href={cityPath} aria-label="Go to the city" className="text-lg leading-none no-underline">
+            🏛️
+          </Link>
+          {title && (
+            <span className="min-w-0 truncate font-extrabold uppercase tracking-wide" style={{ color: title.color }}>
+              {title.text}
+            </span>
+          )}
+          {gameStarted && <span className="ml-auto shrink-0 text-xs text-gray-300">🌀 Round: {round}</span>}
+          <span className={`relative inline-block shrink-0 ${gameStarted ? '' : 'ml-auto'}`}>{chatToggle}</span>
+        </div>
+        {stale && <LoadingState label="Reconnecting" overSuppression />}
+        <div className={`min-h-0 flex-1 overflow-y-auto px-2 pt-2 text-sm${staleLook}`} aria-busy={stale}>
+          {state?.boss_fight && enemy && (
+            <p className="mb-2 text-center bg-red-950/70 border border-red-800 rounded px-2 py-1">
+              <span className="font-bold">{shownPlayerName(enemy)}</span> HP: {enemy.hp}
+              {bossStartsIn !== null && (
+                <span className="block text-xs text-gray-400">
+                  ⏳ Boss-fight starts in {Math.floor(bossStartsIn / 60)}m {bossStartsIn % 60}s
+                </span>
+              )}
+            </p>
+          )}
+          {rankedStartsIn !== null && <p className="mb-2 text-center text-gray-300">Match starts in {rankedStartsIn}s</p>}
+          {!state?.ranked && !state?.ai_ranked && !state?.boss_fight && (
+            <p className="mb-2 text-center font-bold">Lobby ID: {lobbyId}</p>
+          )}
+          {!gameStarted && (
+            <p className="mb-2 text-center text-gray-300">
+              🌀 <WaitingForStart />
+            </p>
+          )}
+          {playersCard}
+          {adminControls}
+          {relicPicker}
+          {denyChooser}
+          {gameOverCard}
+          <div className="flex justify-center gap-2 py-2">
+            <MusicToggleButton />
+            <SfxToggleButton />
+          </div>
+        </div>
+        <div className={`shrink-0 flex flex-col items-center gap-1 px-2 pt-1 pb-2 border-t border-white/10 text-sm${staleLook}`}>
+          {latest !== undefined && (
+            <button
+              type="button"
+              onClick={() => setAllMessages((a) => !a)}
+              aria-expanded={allMessages}
+              aria-label="Round Messages"
+              className="w-full text-left text-gray-200 bg-transparent border-none cursor-pointer"
+            >
+              {allMessages ? (
+                <ul className="max-h-32 overflow-y-auto space-y-1">
+                  {messages.map((m, i) => (
+                    <li key={i}>
+                      <WheelText text={Array.isArray(m) ? m.join(' ') : m} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="block truncate">
+                  <WheelText text={Array.isArray(latest) ? latest.join(' ') : latest} />
+                </span>
+              )}
+            </button>
+          )}
+          {defendAndWell}
+          {resourceBar || timer}
+        </div>
+        {chatOpen && (
+          <div className={`fixed inset-x-2 top-11 bottom-2 z-40 flex flex-col bg-gray-900 p-2 rounded-xl shadow-xl border border-gray-700${staleLook}`}>
+            {chatBody}
+          </div>
+        )}
+        {nudges}
+      </div>
+    );
+  }
+
   // A PC's screen (Mikael, 2026-10-11): the whole lobby in the window at
   // once, never scrolled, in two columns -- the lobby on the left (the
   // players and your choices, the bottom bar at its foot), the round messages always in
   // view on the right with the chat under them, and no bubble. A column only
   // scrolls on its own if it overflows.
   if (wide) {
-    return (
-      <div className="relative h-dvh w-full overflow-hidden bg-[#070b15] text-gray-100">
+    const lobby = (
+      <div className={`relative bg-[#070b15] text-gray-100 ${canvas ? 'h-full w-full' : 'h-dvh w-full overflow-hidden'}`}>
         {topButtons}
         <div
-          className={`relative z-10 h-full w-full max-w-7xl mx-auto px-6 pt-20 pb-6 grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4${staleLook}`}
+          className={`relative z-10 h-full w-full grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 ${
+            // On the canvas the whole window is used: the home and audio buttons float
+            // over the corners beside the centred title instead of a strip of their own.
+            canvas ? 'p-3' : 'max-w-7xl mx-auto px-6 pt-20 pb-6'
+          }${staleLook}`}
           aria-busy={stale}
         >
           <div className="min-h-0 overflow-y-auto flex flex-col items-center rounded-2xl bg-gray-950/80 p-3">
@@ -1033,6 +1160,16 @@ export default function TextLobby({
           </div>
         </div>
         {nudges}
+      </div>
+    );
+    if (!canvas) return lobby;
+    return (
+      <div data-testid="lobby-canvas" className="h-dvh w-full overflow-hidden bg-[#070b15]">
+        <div
+          style={{ width: canvas.width, height: canvas.height, transform: `scale(${canvas.scale})`, transformOrigin: '0 0' }}
+        >
+          {lobby}
+        </div>
       </div>
     );
   }
@@ -1066,22 +1203,7 @@ export default function TextLobby({
         </div>
       )}
       {/* The 3D game's own chat button (SceneOverlay), with its unread dot. */}
-      <div className={`fixed bottom-4 right-4 z-40 inline-block${staleLook}`}>
-        <button
-          type="button"
-          onClick={() => {
-            setChatOpen((o) => !o);
-            setUnreadChat(false);
-          }}
-          className="w-11 h-11 rounded-full bg-blue-600/90 hover:bg-blue-500/90 flex items-center justify-center shadow-lg border border-white/20 text-lg cursor-pointer"
-          aria-label="Toggle chat"
-        >
-          💬
-        </button>
-        {unreadChat && (
-          <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-orange-500 border border-white/60 pointer-events-none" />
-        )}
-      </div>
+      <div className={`fixed bottom-4 right-4 z-40 inline-block${staleLook}`}>{chatToggle}</div>
 
       {nudges}
     </div>

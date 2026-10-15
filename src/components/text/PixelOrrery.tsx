@@ -19,6 +19,7 @@ import {
   type OrreryBody,
   type Planet,
 } from '@/lib/pixelOrrery';
+import { currentUiScale } from '@/lib/uiScale';
 
 // The text Earth page's background (lib/pixelOrrery.ts): an 8-bit solar
 // system with the Earth at the centre of the screen -- the Sun, the Moon and
@@ -233,8 +234,10 @@ export default function PixelOrrery({
     };
 
     const resize = () => {
-      w = Math.ceil(window.innerWidth / PX);
-      h = Math.ceil(window.innerHeight / PX);
+      // Bigger sky pixels on a big screen, with the UI (lib/uiScale.ts).
+      const px = PX * currentUiScale();
+      w = Math.ceil(window.innerWidth / px);
+      h = Math.ceil(window.innerHeight / px);
       canvas.width = w;
       canvas.height = h;
       ctx.imageSmoothingEnabled = false;

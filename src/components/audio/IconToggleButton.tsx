@@ -30,7 +30,7 @@ export default function IconToggleButton({ enabled, onToggle, icon, ariaLabel, c
         // music note and the speaker, neither of which has a muted variant
         // that matches its own weight.
         <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
-          <span className="block w-[26px] h-[2px] rounded-full bg-red-500 rotate-45 shadow-[0_0_2px_rgba(0,0,0,0.9)]" />
+          <span className="block w-[1.625rem] h-[2px] rounded-full bg-red-500 rotate-45 shadow-[0_0_2px_rgba(0,0,0,0.9)]" />
         </span>
       )}
     </button>

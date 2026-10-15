@@ -17,6 +17,7 @@ import {
   wheelColorAt,
 } from '@/lib/loadingAnimation';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
+import { currentUiScale, rem } from '@/lib/uiScale';
 
 /**
  * The World of Mythos loading animation (src/lib/loadingAnimation.ts), drawn
@@ -62,8 +63,10 @@ export default function LoadingMark({
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(size * dpr);
-    canvas.height = Math.round(size * dpr);
+    // Sharp at the UI scale too: it is drawn at rem(size) (lib/uiScale.ts).
+    const res = size * dpr * currentUiScale();
+    canvas.width = Math.round(res);
+    canvas.height = Math.round(res);
 
     // One loop's figure: a given colour plays the single-colour figure, and
     // a given colour or start stays fixed across loops.
@@ -134,7 +137,7 @@ export default function LoadingMark({
       aria-label={label}
       width={size}
       height={size}
-      style={{ width: size, height: size }}
+      style={{ width: rem(size), height: rem(size) }}
       className={className}
     />
   );
