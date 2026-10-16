@@ -23,6 +23,8 @@ const flush = () => act(async () => Promise.resolve());
 beforeEach(() => {
   Object.assign(state, { native: false, unlocked: false });
   localStorage.clear();
+  // These tests are about the 3D game; the web's default is text mode.
+  localStorage.setItem('textMode', 'off');
   reload.mockClear();
   vi.stubGlobal('location', { ...window.location, reload });
 });

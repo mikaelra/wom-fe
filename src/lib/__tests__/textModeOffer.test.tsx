@@ -12,6 +12,8 @@ import {
 
 beforeEach(() => {
   localStorage.clear();
+  // These tests are about the 3D game; the web's default is text mode.
+  localStorage.setItem('textMode', 'off');
   resetDropsForTests();
 });
 

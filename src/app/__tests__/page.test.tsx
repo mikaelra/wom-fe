@@ -154,6 +154,8 @@ const clickCity = async (city: City) => {
 const clickAthens = () => clickCity(ATHENS);
 
 beforeEach(() => {
+  // These tests are about the 3D game; the web's default is text mode.
+  localStorage.setItem('textMode', 'off');
   push.mockClear();
   cityClickHandler = undefined;
   lastSkyRevertKey = undefined;
