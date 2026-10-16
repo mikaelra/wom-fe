@@ -30,6 +30,25 @@ describe('pixelMoon', () => {
     expect(first.length).toBe(last.length);
   });
 
+  it('turns the lit side toward the Sun', () => {
+    // Waxing, but the Sun is to the left: the left half is lit.
+    const left = moonPixels(5, 90, [-10, 0]).filter((p) => p.lit);
+    expect(left.length).toBeGreaterThan(0);
+    expect(left.every((p) => p.x <= 1)).toBe(true);
+    // The Sun above: the top half is lit.
+    const up = moonPixels(5, 270, [0, -3]).filter((p) => p.lit);
+    expect(up.every((p) => p.y <= 1)).toBe(true);
+    expect(up.length).toBe(lit(90).length);
+    // Facing the Sun keeps the phase: as much lit, wherever it is.
+    expect(moonPixels(5, 45, [0, 7]).filter((p) => p.lit).length).toBe(lit(45).length);
+    expect(moonPixels(5, 180, [3, 4]).filter((p) => p.lit)).toHaveLength(21);
+    expect(moonPixels(5, 0, [3, 4]).filter((p) => p.lit)).toHaveLength(0);
+  });
+
+  it('falls back to right waxing, left waning without a direction', () => {
+    expect(moonPixels(5, 90, [0, 0])).toEqual(moonPixels(5, 90));
+  });
+
   it('grows from crescent to gibbous', () => {
     expect(lit(45).length).toBeLessThan(lit(90).length);
     expect(lit(90).length).toBeLessThan(lit(135).length);

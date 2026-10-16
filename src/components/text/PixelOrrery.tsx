@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { drawMoon, moonPhase } from '@/lib/pixelMoon';
+import { drawMoon, moonPhase, type Sunward } from '@/lib/pixelMoon';
 import { getCameraSpeed } from '@/lib/cameraSpeed';
 import {
   PLANETS,
@@ -64,11 +64,12 @@ function drawBody(
   y: number,
   near: number,
   phase: number,
+  sunward?: Sunward,
 ) {
   ctx.fillStyle = hex(orreryColor(body));
   if (body === 'Moon') {
     // Big enough to show its phase (lib/pixelMoon.ts).
-    drawMoon(ctx, x, y, MOON_SIZE, phase, { lit: hex(orreryColor('Moon')), dark: MOON_DARK });
+    drawMoon(ctx, x, y, MOON_SIZE, phase, { lit: hex(orreryColor('Moon')), dark: MOON_DARK }, sunward);
     return;
   }
   if (body === 'Sun') {
@@ -212,6 +213,8 @@ export default function PixelOrrery({
         .map(([body, p]) => ({ body, at: project(cam, p) }))
         .filter((b): b is { body: Exclude<OrreryBody, 'Earth'>; at: NonNullable<ReturnType<typeof project>> } => !!b.at)
         .sort((a, b) => a.at.near - b.at.near);
+      // The Moon's lit side faces the Sun as drawn.
+      const sunAt = shown.find((b) => b.body === 'Sun')?.at;
       let earthDrawn = false;
       for (const { body, at } of shown) {
         if (!earthDrawn && at.near > 1) {
@@ -220,7 +223,8 @@ export default function PixelOrrery({
         }
         let { x, y } = at;
         if (body === 'Moon') [x, y] = offEarth(x, y, cx, cy);
-        drawBody(ctx, body, x, y, at.near, phase);
+        const sunward: Sunward | undefined = sunAt && [sunAt.x - x, sunAt.y - y];
+        drawBody(ctx, body, x, y, at.near, phase, sunward);
       }
       if (!earthDrawn) drawEarth(ctx, cx, cy);
       const fx = fxRef.current;
