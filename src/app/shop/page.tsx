@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { claimName, getShopProducts, postCheckout, resolveAccountSession, type ShopProduct } from '@/lib/api';
 import { ApiError, getStoredAccountToken } from '@/lib/http';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
-import { skinUrl } from '@/lib/frogSkins';
+import { skinLabel, skinUrl } from '@/lib/frogSkins';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { CITY_PATH } from '@/lib/cities';
 import LoadingState from '@/components/loading/LoadingState';
@@ -14,6 +14,13 @@ import { buyWithApple, isIosApp, loadAppleShop, type AppleShop, type BuyOutcome 
 import { isSteamClient } from '@/lib/steamShell';
 import { buyWithSteam, type SteamBuyOutcome } from '@/lib/steamShop';
 import WheelIcon from '@/components/WheelIcon';
+
+// Trims trailing zeros (63.00 -> 63) while still showing real precision where
+// it matters (6.67, 0.33) -- .toFixed(2) alone would show "63.00%" for a
+// round number, which reads oddly next to "6.67%".
+function formatOddsPercent(probability: number): string {
+  return `${Number((probability * 100).toFixed(2))}%`;
+}
 
 function formatPrice(cents: number, currency: string): string {
   try {
@@ -71,6 +78,9 @@ export default function ShopPage() {
   const [buying, setBuying] = useState<string | null>(null);
   const [productErrors, setProductErrors] = useState<Record<string, string>>({});
   const [duplicateConfirm, setDuplicateConfirm] = useState<Set<string>>(new Set());
+  // Paid random items must disclose their odds before purchase (App Store
+  // guideline 3.1.1), so the Special Wheel's odds sit behind an info toggle.
+  const [oddsInfoOpen, setOddsInfoOpen] = useState<Set<string>>(new Set());
   // Wheels and AI-credit packs can both be bought several at a time; the
   // per-product cap comes from maxQuantityFor.
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -104,6 +114,18 @@ export default function ShopPage() {
     }
     const clamped = Math.min(max, Math.max(1, parseInt(digitsOnly, 10)));
     setQuantities((prev) => ({ ...prev, [productId]: clamped }));
+  };
+
+  const toggleOddsInfo = (productId: string) => {
+    setOddsInfoOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
   };
 
   const [verifyState, setVerifyState] = useState<VerifyState>('idle');
@@ -389,9 +411,32 @@ export default function ShopPage() {
                       <div className="flex justify-center py-4" aria-hidden="true">
                         <span className="text-5xl"><WheelIcon special /></span>
                       </div>
-                      <p className="text-xs text-white/50">
-                        Buy a special wheel and roll it to get a special skin
-                      </p>
+                      <div className="flex items-start gap-1.5">
+                        <p className="text-xs text-white/50 flex-1">
+                          Buy a special wheel and roll it to get a special skin
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => toggleOddsInfo(product.id)}
+                          aria-label="Wheel odds info"
+                          aria-expanded={oddsInfoOpen.has(product.id)}
+                          className="shrink-0 w-4 h-4 rounded-full border border-white/30 text-white/60 text-[10px] leading-none flex items-center justify-center hover:bg-white/10 hover:text-white cursor-pointer"
+                        >
+                          i
+                        </button>
+                      </div>
+                      {oddsInfoOpen.has(product.id) && (
+                        <div className="mt-2 text-xs text-white/60 bg-white/5 border border-white/10 rounded-lg p-3">
+                          <p className="mb-1">
+                            You get a random skin when rolling the wheel. The odds for getting each skin is:
+                          </p>
+                          {product.odds.map((entry) => (
+                            <p key={entry.skin} className="capitalize">
+                              {skinLabel(entry.skin)} - {formatOddsPercent(entry.probability)}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 

@@ -99,16 +99,22 @@ describe('ShopPage', () => {
     expect(screen.getByText('Inventory')).toHaveAttribute('href', '/inventory');
   });
 
-  it('never shows the wheel odds -- no info toggle, no odds text anywhere (bug list 260916)', async () => {
+  it('reveals the wheel odds, matching the served numbers exactly, behind the info toggle (App Store 3.1.1)', async () => {
     mockedGetShopProducts.mockResolvedValue({
       shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
     });
     render(<ShopPage />);
     await flush();
 
-    expect(screen.queryByLabelText('Wheel odds info')).not.toBeInTheDocument();
+    // Not shown until the info icon is clicked.
     expect(screen.queryByText(/silver - /)).not.toBeInTheDocument();
-    expect(screen.queryByText(/bling - /)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Wheel odds info'));
+
+    expect(screen.getByText('silver - 63%')).toBeInTheDocument();
+    expect(screen.getByText('gold - 30%')).toBeInTheDocument();
+    expect(screen.getByText('rainbow - 6.67%')).toBeInTheDocument();
+    expect(screen.getByText('bling - 0.33%')).toBeInTheDocument();
   });
 
   it('renders a skin product generically', async () => {
