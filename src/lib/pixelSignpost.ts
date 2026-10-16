@@ -388,7 +388,10 @@ export function drawSignpostScene(
     // behind it; by day the whole of it washed toward that sky.
     const behind = skyAtY(my);
     const lit = mix(MOON_LIT, behind, dim * MOON_DAY_DIM);
-    drawMoon(ctx, mx, my, 5, bodies.moonPhase ?? 180, { lit, dark: mix(lit, behind, 0.75) });
+    // Lit toward where the Sun really is, below the horizon too.
+    const sunX = ((270 - bodies.sun.az) / 180) * w;
+    const sunY = horizonY - (bodies.sun.alt / 90) * horizonY;
+    drawMoon(ctx, mx, my, 5, bodies.moonPhase ?? 180, { lit, dark: mix(lit, behind, 0.75) }, [sunX - mx, sunY - my]);
   }
   // The planets on the Sun's path as they rise and set, under it where they
   // meet it.
