@@ -20,6 +20,8 @@ const option = (name: string) => screen.getByRole('radio', { name }) as HTMLInpu
 beforeEach(() => {
   Object.assign(state, { native: false, unlocked: true });
   localStorage.clear();
+  // These tests are about the 3D game; the web's default is text mode.
+  localStorage.setItem('textMode', 'off');
 });
 
 describe('HdTexturesPanel', () => {

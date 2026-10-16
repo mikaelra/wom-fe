@@ -1,16 +1,23 @@
 // Text mode: playing without 3D -- matches as text, like Tjuvpakk's
 // (components/text/). Nothing to load beyond the page itself, so it also
 // plays on a phone that can't hold the 3D scenes. A choice per device
-// (Settings -> Graphics), off until the player turns it on.
+// (Settings -> Graphics). With no choice yet it is on in a browser -- the web
+// opens in Low Definition -- and off in the iOS and Steam apps, which open in
+// HD (Mikael, 2026-10-16).
 
 import { useEffect, useState } from 'react';
+import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
 
 const KEY = 'textMode';
 
 export function getTextMode(): boolean {
   try {
-    return localStorage.getItem(KEY) === 'on';
+    const saved = localStorage.getItem(KEY);
+    if (saved === null) return !IS_NATIVE_BUILD;
+    return saved === 'on';
   } catch {
+    // Private mode keeps no choice: on from default would trap the player in
+    // text mode, since switching quality reloads the page.
     return false;
   }
 }
