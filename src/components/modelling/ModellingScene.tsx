@@ -74,8 +74,13 @@ interface Props {
  * wireframe flag pushed onto its materials never leaks into the useGLTF
  * cache that the game itself will load the same file from.
  */
+// A stamp per page load, put on the model's url: /models is served immutable
+// for a year, so without it a model re-made by the prompt box would keep
+// showing the old file until the browser's cache was cleared.
+const LOADED_AT = Date.now();
+
 function GlbModel({ url }: { url: string }) {
-  const { scene } = useGLTF(url);
+  const { scene } = useGLTF(`${url}?v=${LOADED_AT}`);
   const model = useMemo(() => {
     const copy = scene.clone(true);
     copy.traverse((obj) => {

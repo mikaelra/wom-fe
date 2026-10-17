@@ -12,6 +12,9 @@ import {
 import { MODELLING_FOV, type MeasuredModel } from '@/components/modelling/ModellingScene';
 import PromptBox from '@/components/modelling/PromptBox';
 
+// Thumbnails are served immutable too; a stamp per page load shows a re-made one.
+const LOADED_AT = Date.now();
+
 const ModellingScene = dynamic(() => import('@/components/modelling/ModellingScene'), { ssr: false });
 
 /**
@@ -113,7 +116,7 @@ function ModellingPageContent() {
         {model.thumbnail && (
           <figure className="bg-black/50 rounded-lg p-2 backdrop-blur-sm pointer-events-auto w-40">
             {/* eslint-disable-next-line @next/next/no-img-element -- dev-only sandbox, a plain file from public/ */}
-            <img src={model.thumbnail} alt={`Thumbnail: ${model.label}`} className="w-full rounded" />
+            <img src={`${model.thumbnail}?v=${LOADED_AT}`} alt={`Thumbnail: ${model.label}`} className="w-full rounded" />
             <figcaption className="text-[10px] text-white/50 mt-1 font-mono">Thumbnail</figcaption>
           </figure>
         )}
