@@ -180,7 +180,7 @@ describe('MerchantScene', () => {
       expect(line.nextElementSibling).toHaveTextContent('3 Hades’ Coins');
       expect(screen.getByRole('button', { name: /Trade for 3/ })).toBeEnabled();
       const models = screen.getAllByTestId('merchant-model').map((el) => el.getAttribute('data-url'));
-      expect(models).toContain('/models/relics/paper_v1.glb');
+      expect(models).toContain('/models/relics/paper_v2.glb');
       // The Lady Merchant stands behind the counter at a conjunction.
       expect(models).toContain('/models/lady_merchant_v1.glb');
       expect(models).not.toContain('/models/merchant_v1.glb');

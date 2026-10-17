@@ -496,15 +496,40 @@ def pen():
 
 
 def paper():
+    """The Paper relic (v2): a crumpled gold-tan sheet with wavy edges and four curled
+    corners, in the colours sampled from paper_v2.thumbnail.png."""
     c = Canvas()
-    sheet = (XX >= 7) & (XX <= 24) & (YY >= 4) & (YY <= 27)
-    c.fill(sheet, rgb('#f1e2ba'))
-    c.fill(sheet & ((XX >= 22) | (YY >= 25)), rgb('#dccb98'))
-    # the folded corner, top right: cut away, with the flap in a darker tone
-    cut = sheet & (XX >= 19) & (YY <= 9) & ((XX - 19) + (9 - YY) >= 5)
-    c.px[cut] = 0
-    c.fill(sheet & (XX >= 19) & (YY <= 9) & ((XX - 19) + (9 - YY) < 5) & ((XX - 19) + (9 - YY) >= 3), rgb('#c2ab72'))
-    c.outline(rgb('#3a2e1a'))
+    base, lit, shade = rgb('#9c8655'), rgb('#d1aa57'), rgb('#7d6433')
+    hi, pale, mid = rgb('#f4d98c'), rgb('#feeaa2'), rgb('#c69e51')
+    x0, x1, y0, y1 = 6, 25, 3, 28
+    sheet = np.zeros((N, N), dtype=bool)
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            wl, wr = round(1.2 * math.sin(y * 0.38 + 0.4)), round(1.2 * math.sin(y * 0.31 + 2.1))   # the edges are not straight
+            wt, wb = round(1.1 * math.sin(x * 0.34 + 1.0)), round(1.1 * math.sin(x * 0.29 + 3.0))
+            if x0 + wl <= x <= x1 - wr and y0 + wt <= y <= y1 - wb:
+                sheet[y, x] = True
+    c.fill(sheet, mix(base, lit, 0.22))
+    c.fill(sheet & (CX + CY < 22), mix(base, lit, 0.55))           # lit from the upper left
+    c.fill(sheet & (CX + CY > 41), mix(base, shade, 0.55))         # shaded lower right
+    c.rim(sheet, lit, shade)
+    for x, y in [(11, 11), (12, 11), (17, 17), (18, 17), (13, 22), (14, 22), (20, 9), (9, 18)]:   # creases
+        c.dot(x, y, shade)
+    for x, y in [(15, 7), (10, 14), (19, 21), (16, 14)]:
+        c.dot(x, y, mix(base, hi, 0.5))
+    # the four corners curl up towards you: a pale flap with a dark fold under it
+    curls = [
+        ([(6, 3), (7, 3), (8, 3), (9, 3), (6, 4), (7, 4), (8, 4), (6, 5), (7, 5), (6, 6)], pale, [(9, 4), (8, 5), (7, 6), (6, 7)]),
+        ([(25, 3), (24, 3), (23, 3), (22, 3), (25, 4), (24, 4), (23, 4), (25, 5), (24, 5), (25, 6)], mix(mid, pale, 0.4), [(22, 4), (23, 5), (24, 6), (25, 7)]),
+        ([(6, 28), (7, 28), (8, 28), (9, 28), (6, 27), (7, 27), (8, 27), (6, 26), (7, 26), (6, 25)], mix(mid, pale, 0.6), [(9, 27), (8, 26), (7, 25), (6, 24)]),
+        ([(25, 28), (24, 28), (23, 28), (22, 28), (25, 27), (24, 27), (23, 27), (25, 26), (24, 26), (25, 25)], mid, [(22, 27), (23, 26), (24, 25), (25, 24)]),
+    ]
+    for flap, color, fold in curls:
+        for x, y in fold:
+            c.dot(x, y, shade)
+        for x, y in flap:
+            c.dot(x, y, color)
+    c.outline(rgb('#3a2c10'))
     return c
 
 
@@ -725,7 +750,7 @@ AURA = {
     'frog_yellow_v1': '#f4e060', 'frog_gold_v1': '#f2c14e', 'frog_silver_v1': '#c8ccd6',
     'frog_bling_v1': '#8fdcff', 'frog_rainbow_v2': 'rainbow', 'cherub_v1': '#fff0c0',
     'frog_robot_v1': '#9aa1ad', 'merchant_v1': '#a8682c', 'lady_merchant_v1': '#a8682c',
-    'stone': '#2fb84a', 'pen': '#dfe3ec', 'paper': '#ecd9a8', 'hades_coin': '#f0b84a',
+    'stone': '#2fb84a', 'pen': '#dfe3ec', 'paper': '#d1aa57', 'hades_coin': '#f0b84a',
     'my_ai_coin': '#c9ced8', 'artifact': '#dcc38c', 'wheel': '#3a3af5', 'special-wheel': '#a040ff',
 }
 

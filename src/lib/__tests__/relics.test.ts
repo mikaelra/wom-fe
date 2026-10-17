@@ -15,6 +15,11 @@ describe('relic models', () => {
     expect(existsSync(join(process.cwd(), 'public/models/relics/stone_of_vitality_v2.thumbnail.png'))).toBe(true);
   });
 
+  it('the Paper is the v2 model, with its picture beside it', () => {
+    expect(relicModelUrl('Paper')).toBe('/models/relics/paper_v2.glb');
+    expect(existsSync(join(process.cwd(), 'public/models/relics/paper_v2.thumbnail.png'))).toBe(true);
+  });
+
   it('an unknown relic falls back to the coin', () => {
     expect(relicModelUrl('Nothing')).toBe(relicModelUrl(undefined));
   });

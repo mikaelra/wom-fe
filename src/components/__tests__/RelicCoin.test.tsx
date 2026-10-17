@@ -55,6 +55,6 @@ describe('RelicCoin', () => {
 
   it('keeps the spinning model for other relics', () => {
     render(<RelicCoin relicName="Paper" />);
-    expect(screen.getByTestId('model')).toHaveAttribute('data-url', '/models/relics/paper_v1.glb');
+    expect(screen.getByTestId('model')).toHaveAttribute('data-url', '/models/relics/paper_v2.glb');
   });
 });
