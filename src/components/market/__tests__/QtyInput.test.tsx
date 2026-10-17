@@ -79,4 +79,17 @@ describe('QtyInput', () => {
     expect(document.activeElement).not.toBe(input);
     expect(committed()).toBe('7');
   });
+
+  it('selects the whole number when tapped, so typing replaces it (2026-10-17)', async () => {
+    render(<QtyInput value={12} max={99} onCommit={() => undefined} />);
+    const box = screen.getByLabelText('Quantity') as HTMLInputElement;
+    act(() => {
+      box.focus();
+    });
+    await act(async () => {
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    });
+    expect(box.selectionStart).toBe(0);
+    expect(box.selectionEnd).toBe(2);
+  });
 });
