@@ -145,7 +145,7 @@ export interface CitySceneProps {
   /** GENUINE coordinates. Never the mirrored globe-texture ones (§6.2). */
   realLat: number;
   realLng: number;
-  /** Enter the Hades bossfight. The Temple and the signpost's left arm both
+  /** Enter the Hades bossfight. The Temple and the signpost's right arm both
    *  call this, so the building is a second, larger target for one action
    *  rather than a separate code path. */
   onBossfight: () => void;
@@ -470,7 +470,7 @@ export default function CityScene({
 
   const arms: SignpostArm[] = [
     {
-      side: 'left',
+      side: 'right',
       label: 'HADES',
       sublabel: bossfightSublabel,
       color: BOSSFIGHT_COLOR,
@@ -478,18 +478,14 @@ export default function CityScene({
       onHoverChange: setTempleHot,
     },
     {
-      // Halfway down between the two arms on the far side, rather than
-      // level with Bossfight. Sharing the top row put both destinations'
-      // labels at one height, and each is a nowrap name over a sublabel --
-      // far wider than the gap between the two arms, so BOSSFIGHT and the
-      // ranked label ran into each other across the post. Dropping this one
-      // to the midpoint interleaves the three signs down the post instead
-      // of stacking two of them on one line.
-      //
-      // Still a full-length, full-size destination arm: it hangs lower than
-      // Bossfight without being lesser than it.
-      side: 'right',
-      tier: 0.5,
+      // The signpost reads as the text city's does (Mikael, 2026-10-17):
+      // HADES top right with RANKED level with it on the left, then EARTH
+      // right with MARKET level with it on the left. Level, as the text
+      // city has them -- they once were staggered by half a tier because
+      // the two labels' nowrap names and sublabels ran into each other
+      // across the post; see ARM_LENGTH if that returns.
+      side: 'left',
+      tier: 0,
       // RETURN TO MATCH while a match of yours is on, straight back to it
       // (lib/rankedSign.ts); otherwise RANKED.
       label: rankedTop.label,
@@ -500,15 +496,11 @@ export default function CityScene({
       onActivate: rankedTop.onActivate,
     },
     {
-      // A third full-size destination, hanging below RANKED on the right the
-      // way EARTH hangs below BOSSFIGHT on the left. Full size (no
-      // `secondary`/`lengthScale`): it is a destination, not an aside.
-      // Half a tier below EARTH's row rather than level with it -- EARTH is
-      // the small "way back" plank at the bottom left and MARKET reading at
-      // the same height looked like its pair. right-1.5 can't collide with
-      // RANKED's right-0.5 key.
-      side: 'right',
-      tier: 1.5,
+      // Level with EARTH on the left, below RANKED the way EARTH hangs below
+      // HADES. Full size (no `secondary`/`lengthScale`): it is a destination,
+      // not an aside.
+      side: 'left',
+      tier: 1,
       label: 'MARKET',
       color: MARKET_COLOR,
       onActivate: onMarket,
@@ -517,7 +509,7 @@ export default function CityScene({
     {
       // Under the Bossfight arm, a full-size destination like the others --
       // the way back to the world map is no lesser a place to go.
-      side: 'left',
+      side: 'right',
       tier: 1,
       label: 'EARTH',
       color: EARTH_COLOR,
@@ -554,7 +546,7 @@ export default function CityScene({
         distanceFactor={14}
         occupancy={playingLabel(roster.players.filter((p) => !p.bot).length)}
       />
-      {/* Left Senate: humans in the ranked flow. Right Senate: "bots live
+      {/* The near Senate: humans in the ranked flow. The far one: "bots live
           plus players" -- every bot on the AI ladder plus anyone in a
           bot-ranked game (wom-be city_presence.bot_ranked). */}
       <BuildingSign
@@ -649,7 +641,10 @@ export default function CityScene({
           rotationY={RANKED_FORK_SIGNPOST_ROTATION_Y}
           arms={[
             {
-              side: 'left',
+              // The fork is the city mirrored with it: the Senates stand on
+              // the left now, so PLAYERS -- the one nearer the viewer -- is on
+              // the post's right as seen from where it is read.
+              side: 'right',
               label: 'PLAYERS',
               sublabel: rankedSublabel,
               color: RANKED_COLOR,
@@ -657,7 +652,7 @@ export default function CityScene({
               onHoverChange: setPlayersHot,
             },
             {
-              side: 'right',
+              side: 'left',
               label: botRankedLabel,
               sublabel: botRankedSublabel,
               color: RANKED_COLOR,
@@ -667,8 +662,8 @@ export default function CityScene({
             {
               // The way back to the city signpost -- parchment, not a third
               // fight, the same as EARTH on the main post. Hangs under RL
-              // RANKED on the left.
-              side: 'left',
+              // RANKED on the right.
+              side: 'right',
               tier: 1,
               label: 'BACK',
               color: BACK_COLOR,
@@ -685,7 +680,7 @@ export default function CityScene({
           offsetDir={view === 'fork' ? RANKED_FORK_VIEW_OFFSET : CITY_VIEW_OFFSET}
         />
 
-        {/* The trading post, back-right of the default view (§3.2). Same
+        {/* The trading post, back-left of the default view (§3.2). Same
             arm/building hover pairing as Temple and Senate. */}
         <BuildingTarget
           position={MARKET_POSITION}
@@ -695,7 +690,7 @@ export default function CityScene({
           <Market color={marketHot ? LIT_MARKET : PLAIN} />
         </BuildingTarget>
 
-        {/* The Bay, in the back-left corner the Market left clear: a quay at
+        {/* The Bay, in the back-right corner the Market left clear: a quay at
             the head of the inlet Terrain carves, a boat leaving it, and a
             sign saying more is coming. Scenery for now -- no click target
             until there is something for it to open. */}

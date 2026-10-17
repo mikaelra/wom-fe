@@ -69,9 +69,13 @@ export const TEMPLE_BASE_DROP = 8.07;
 export const TEMPLE_EXTENT = { x: 17.8, y: 9.3, z: 31.6 } as const;
 
 /**
- * Temple (left) -> Bossfight. Senate (right) -> Ranked (§1.1).
+ * Temple (right) -> Bossfight. Senate (left) -> Ranked (§1.1).
  *
- * The temple is pushed left and further out than the Senate: it is four
+ * The city is laid out as the text city's signpost reads (Mikael,
+ * 2026-10-17): HADES and the harbor on the right, RANKED and the market on
+ * the left. It was the mirror image of that until then.
+ *
+ * The temple is pushed right and further out than the Senate: it is four
  * times the Senate's width and twelve times its depth, so at a matching
  * distance it dominates the scene and crowds the signpost between them.
  *
@@ -96,55 +100,56 @@ export const TEMPLE_EXTENT = { x: 17.8, y: 9.3, z: 31.6 } as const;
  * degrees left brings it in. That is the intended trade: it is scenery
  * across the bay, not a doorway.
  */
-export const TEMPLE_POSITION: [number, number, number] = [-29.3, LAND_LEVEL + TEMPLE_BASE_DROP, -34.6];
-export const SENATE_POSITION: [number, number, number] = [15, LAND_LEVEL, -22];
+export const TEMPLE_POSITION: [number, number, number] = [29.3, LAND_LEVEL + TEMPLE_BASE_DROP, -34.6];
+export const SENATE_POSITION: [number, number, number] = [-15, LAND_LEVEL, -22];
 
 /**
  * The bot-ranked Senate (docs/MY_AI.md §9.1) -- a second civic hall touching
  * the first at a corner, its own arm of the ranked fork. Offset diagonally
- * back-and-right from SENATE_POSITION by roughly one building width, so the
+ * back-and-left from SENATE_POSITION by roughly one building width, so the
  * two read as an L that shares a corner rather than two separate doorways.
  * PROVISIONAL placement -- Mikael's visual pass owns the final pose and the
  * real /modelling building.
  */
-export const SENATE_BOT_POSITION: [number, number, number] = [22.5, LAND_LEVEL, -29.5];
+export const SENATE_BOT_POSITION: [number, number, number] = [-22.5, LAND_LEVEL, -29.5];
 
 /** Between the temple and the Senate and nearer the viewer, so it is read
  *  first. */
 export const SIGNPOST_POSITION: [number, number, number] = [0, LAND_LEVEL, -11];
 
 /**
- * Market (right arm) -> the trading post (wom-be docs/MARKET_PLAN.md §3.2).
+ * Market (left arm) -> the trading post (wom-be docs/MARKET_PLAN.md §3.2).
  *
- * The doc fixes only the bearing: **south-east, the back-right quadrant**
- * relative to the default camera. The scene compass has -Z north and +X
- * east and the camera looks north, so "back" is +Z and "right" is +X --
- * this sits behind the viewer's right shoulder, reached by turning the
- * orbit camera around. The **south-west / back-left** quadrant (-X, +Z) is
- * left deliberately clear: §3.2 reserves it for a later building.
+ * The doc fixed only a back quadrant (it was the back-right, south-east); the
+ * city is now laid out as the text signpost reads, so the Market is the
+ * **south-west, back-left quadrant** relative to the default camera. The
+ * scene compass has -Z north and +X east and the camera looks north, so
+ * "back" is +Z and "left" is -X -- this sits behind the viewer's left
+ * shoulder, reached by turning the orbit camera around. The **south-east /
+ * back-right** quadrant (+X, +Z) is where the Bay is.
  *
  * Distance and exact offset are by eye, matching the Senate's ~26-unit
  * remove rather than the temple's far backdrop -- it is a doorway you walk
  * to, not scenery across the bay.
  */
-export const MARKET_POSITION: [number, number, number] = [17, LAND_LEVEL, 13];
+export const MARKET_POSITION: [number, number, number] = [-17, LAND_LEVEL, 13];
 
 /**
- * The Bay -- the south-west / back-left quadrant (-X, +Z) that MARKET_POSITION
- * above held clear for a later building. It sits diagonally opposite the two
- * Senates, between the temple and the Market.
+ * The Bay -- the south-east / back-right quadrant (+X, +Z), on the temple's
+ * side of the city. It sits diagonally opposite the two Senates, between the
+ * temple and the Market's side of the viewer.
  *
  * Not a building on the plateau but the head of an inlet: lib/cityTerrain.ts
  * carves a channel of open water from here out to the sea along
  * BAY_DIRECTION, and components/city/Bay.tsx stands a quay at its head with a
  * pier running out over the water. So the model's own +Z is "out to sea",
- * and BAY_ROTATION_Y turns that onto the south-west bearing.
+ * and BAY_ROTATION_Y turns that onto the south-east bearing.
  *
  * The head is 26 units out -- the Market's ~21-unit remove plus the quay's
  * depth, which lies landward of the head and would otherwise crowd the
  * viewer's own clearing.
  */
-export const BAY_DIRECTION: readonly [number, number] = [-Math.SQRT1_2, Math.SQRT1_2];
+export const BAY_DIRECTION: readonly [number, number] = [Math.SQRT1_2, Math.SQRT1_2];
 export const BAY_HEAD_DISTANCE = 26;
 export const BAY_POSITION: [number, number, number] = [
   BAY_DIRECTION[0] * BAY_HEAD_DISTANCE,
@@ -201,7 +206,7 @@ export function groundDistance(position: readonly [number, number, number]): num
  * the camera to RANKED_FORK_VIEW_PIN, and this post's own BACK arm guides it
  * home to the city signpost.
  */
-export const RANKED_FORK_SIGNPOST_ROTATION_Y = Math.PI / 4;
+export const RANKED_FORK_SIGNPOST_ROTATION_Y = -Math.PI / 4;
 
 /** Outward normal of the post's readable face after the turn, as [x, z]: the
  *  way the labels look, and the side the guided camera watches from. */
