@@ -55,7 +55,7 @@ type Props = {
  * relic he sells: Paper at a full moon, Pen at a new moon, Stone of Vitality at a conjunction. Deliberately
  * simple, per the doc: a CSS wooden-logs backdrop and a plain wooden crate
  * standing in for real prop art, with the real merchant_v1.glb and
- * stone_of_vitality_v1.glb models staged over it -- Merchant behind the
+ * stone_of_vitality_v2.glb models staged over it -- Merchant behind the
  * desk on the right, the Stone beside him on the left -- via the same
  * SpinningModelViewer used for relic/skin reveals elsewhere. Swap the
  * backdrop/crate for real geometry or a rendered background later without

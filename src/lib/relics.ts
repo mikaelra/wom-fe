@@ -14,7 +14,9 @@ export const COIN_MODEL_URL = '/models/well/rewards/gold-ld.glb';
 // domain/merchant.py resolves Stone of Vitality's id by name for the same
 // reason).
 export const RELIC_MODEL_URLS: Record<string, string> = {
-  'Stone of Vitality': '/models/relics/stone_of_vitality_v1.glb',
+  // v2 (Mikael, 2026-10-17): the green faceted stone; its picture is
+  // stone_of_vitality_v2.thumbnail.png beside it.
+  'Stone of Vitality': '/models/relics/stone_of_vitality_v2.glb',
   // pergament_v1 (add-pergament-item-model), textures resized 2048 -> 1024:
   // it is drawn at relic-card size, and that took it from 6.6 MB to 0.7.
   Paper: '/models/relics/paper_v1.glb',

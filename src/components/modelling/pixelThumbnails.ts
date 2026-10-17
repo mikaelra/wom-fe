@@ -5,7 +5,7 @@
 export interface PixelThumbnail {
   id: string;
   label: string;
-  /** Today's picture of the same thing, if there is one. */
+  /** The 3D picture of the same thing, if there is one (today's, or a render of its model). */
   was?: string;
 }
 
@@ -32,8 +32,8 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
   {
     title: 'The merchants (portraits)',
     items: [
-      { id: 'merchant_v1', label: 'Merchant' },
-      { id: 'lady_merchant_v1', label: 'Lady merchant' },
+      { id: 'merchant_v1', label: 'Merchant', was: '/models/merchant_v1.thumbnail.png' },
+      { id: 'lady_merchant_v1', label: 'Lady merchant', was: '/models/lady_merchant_v1.thumbnail.png' },
     ],
   },
   {
@@ -41,7 +41,7 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
     items: [
       { id: 'pen', label: 'Pen', was: '/models/relics/pen_v1.thumbnail.png' },
       { id: 'paper', label: 'Paper' },
-      { id: 'stone', label: 'Stone of Vitality (now green)' },
+      { id: 'stone', label: 'Stone of Vitality (v2)', was: '/models/relics/stone_of_vitality_v2.thumbnail.png' },
     ],
   },
   {

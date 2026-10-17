@@ -432,22 +432,43 @@ def paper():
 
 
 def stone():
-    """A chunky faceted rock, green."""
+    """The Stone of Vitality (v2): a round, glossy green ball made of patches
+    in several greens, as the model's texture is -- its patches are a Voronoi
+    scatter here, lit from the upper left."""
     c = Canvas()
-    top = [(9, 9), (15, 6), (22, 7), (27, 12), (16, 14)]
-    left = [(4, 15), (9, 9), (16, 14), (13, 25), (8, 26), (5, 22)]
-    right = [(16, 14), (27, 12), (28, 20), (24, 26), (14, 27), (13, 25)]
-    poly(c, left, rgb('#52c46f'))
-    poly(c, right, rgb('#2f9a50'))
-    poly(c, top, rgb('#9aeaae'))
-    for a, b in [((4, 15), (16, 14)), ((16, 14), (27, 12)), ((16, 14), (13, 25))]:
-        line(c, [a, b], rgb('#1f7a3c'))
-    line(c, [(9, 9), (16, 14)], rgb('#6fd68a'))
-    for x, y in [(12, 8), (13, 8), (12, 9), (21, 9)]:
-        c.dot(x, y, (255, 255, 255))
-    c.dot(8, 17, rgb('#8fe4a4'))
-    c.dot(9, 18, rgb('#8fe4a4'))
-    c.outline(rgb('#0f3d1d'))
+    # the greens of the model's base-colour texture (mean #118218, up to #3db83e), dark to light
+    ramp = [rgb(h) for h in ('#06450c', '#0a6411', '#118218', '#1ea524', '#3db83e', '#86e592')]
+    cx, cy, r = 16.0, 16.4, 13.4
+    inside = ((CX - cx) ** 2 + (CY - cy) ** 2) <= r**2
+    rng = np.random.default_rng(11)
+    seeds = []
+    while len(seeds) < 13:
+        sx, sy = rng.uniform(cx - r, cx + r), rng.uniform(cy - r, cy + r)
+        if (sx - cx) ** 2 + (sy - cy) ** 2 <= (r * 0.95) ** 2:
+            seeds.append((sx, sy))
+    seeds = np.array(seeds)
+    cell = np.argmin((CX[..., None] - seeds[:, 0]) ** 2 + (CY[..., None] - seeds[:, 1]) ** 2, axis=2)
+    tone = rng.choice([2, 3, 3, 4], size=len(seeds))  # each patch's own green
+    # a ball lit from the upper left, in bands
+    nx, ny = (CX - cx) / r, (CY - cy) / r
+    nz = np.sqrt(np.clip(1 - nx**2 - ny**2, 0, 1))
+    light = -0.55 * nx - 0.65 * ny + 0.55 * nz
+    shift = np.where(light > 0.62, 1, np.where(light < 0.05, -1, 0))  # lit, mid, shade: three wide bands
+    lit_side = light > 0.12
+    level = np.clip(np.where(lit_side, tone[cell], 3) + shift, 0, 5)  # patches differ only on the lit side
+    for lv in range(6):
+        c.fill(inside & (level == lv), ramp[lv])
+    # a seam where two patches of different greens meet, one step darker
+    other_x, other_y = np.roll(cell, -1, axis=1), np.roll(cell, -1, axis=0)
+    seam = ((cell != other_x) & (tone[cell] != tone[other_x])) | ((cell != other_y) & (tone[cell] != tone[other_y]))
+    for y, x in zip(*np.nonzero(inside & seam & lit_side)):
+        lv = max(int(level[y, x]) - 1, 0)
+        c.dot(x, y, ramp[lv])
+    # the glossy window reflection, and a small glint
+    for x, y in [(10, 8), (11, 8), (12, 8), (9, 9), (10, 9), (9, 10)]:
+        c.dot(x, y, (255, 255, 255) if (x, y) in [(10, 8), (11, 8), (9, 9)] else rgb('#c9f7d0'))
+    c.dot(21, 7, rgb('#c9f7d0'))
+    c.outline(rgb('#04290a'))
     return c
 
 
