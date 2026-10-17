@@ -62,6 +62,7 @@ describe('matchCloud', () => {
   describe('the ranked cloud', () => {
     it('says you are in a lobby and who you are up against', () => {
       expect(rankedCloud(match, 20, false)).toEqual({
+        header: 'Game found!',
         lines: ['You are currently in a lobby.', 'Against: Oni, Skoober'],
         action: 'Join Lobby',
       });

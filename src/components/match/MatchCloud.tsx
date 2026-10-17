@@ -29,6 +29,7 @@ import { RANKED, SEARCHING, STILL_QUEUING, lobbyStartedCloud, onLobbyPage, ranke
 function Lines({ content, onAction }: { content: CloudContent; onAction?: () => void }) {
   return (
     <div>
+      {content.header && <p className="text-xs font-bold text-[#8b0000] leading-tight mb-0.5">{content.header}</p>}
       {content.lines.map((line) => (
         <p key={line} className="font-semibold">
           {line}
@@ -153,7 +154,7 @@ export default function MatchCloud() {
     return (
       <BlimkinCloud
         appearance={rankedKey}
-        label={content.lines.join(' ')}
+        label={[content.header, ...content.lines].filter(Boolean).join(' ')}
         onCloudClick={match.started ? joinRanked : () => setExpanded((x) => !x)}
         onClose={() => close(rankedKey)}
       >

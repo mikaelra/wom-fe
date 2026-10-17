@@ -39,12 +39,15 @@ export function countLine(match: Pick<RankedMatch, 'playerCount' | 'maxPlayers'>
 }
 
 export interface CloudContent {
+  /** A small header over the lines, in dark red. */
+  header?: string;
   lines: string[];
   /** The button under the lines, if any. */
   action?: string;
 }
 
 export const GAME_STARTED = 'Game started.';
+export const GAME_FOUND = 'Game found!';
 /** Blimkin's cloud on the Earth screen while queued for ranked (Mikael,
  *  2026-10-17): "Searching" in black, "Ranked" in red. */
 export const SEARCHING = 'Searching';
@@ -65,7 +68,8 @@ export function rankedCloud(match: RankedMatch, secondsLeft: number | null, expa
   }
   const lines = ['You are currently in a lobby.'];
   if (match.players.length) lines.push(`Against: ${match.players.join(', ')}`);
-  return { lines, action: JOIN_LOBBY };
+  // The match was just found: said first, in a small dark red header (Mikael, 2026-10-17).
+  return { header: GAME_FOUND, lines, action: JOIN_LOBBY };
 }
 
 /** The ranked arm's second line while a match is on, in the signpost's own

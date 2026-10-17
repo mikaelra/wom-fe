@@ -86,6 +86,9 @@ describe('MatchCloud', () => {
     renderCloud();
 
     expect(await screen.findByText('You are currently in a lobby.')).toBeInTheDocument();
+    // Said first, in a small dark red header.
+    expect(screen.getByText('Game found!').className).toContain('text-[#8b0000]');
+    expect(screen.getByText('Game found!').compareDocumentPosition(screen.getByText('You are currently in a lobby.')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('Against: Bob, Cid')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /currently in a lobby/ }));
