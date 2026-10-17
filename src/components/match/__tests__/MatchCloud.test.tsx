@@ -134,6 +134,9 @@ describe('MatchCloud', () => {
     fireEvent.click(screen.getByText('queue'));
     expect(await screen.findByText('Searching')).toBeInTheDocument();
     expect(screen.getByText('Ranked').className).toContain('text-red-600');
+    // In the middle of the screen, over the Earth.
+    const stand = screen.getByText('Searching').closest('.fixed') as HTMLElement;
+    expect(stand.style.bottom).toContain('calc(50%');
 
     pathname = '/market';
     rerender(

@@ -86,10 +86,20 @@ export interface BlimkinCloudProps {
   onCloudClick?: () => void;
   /** The cross in the cloud's top-right corner. */
   onClose?: () => void;
+  /** Where he stands when nobody is typing: his corner, or the middle of
+   *  the screen with the cloud over it (the Earth screen's "Searching"). */
+  placement?: 'corner' | 'center';
   label?: string;
 }
 
-export default function BlimkinCloud({ appearance, children, onCloudClick, onClose, label }: BlimkinCloudProps) {
+export default function BlimkinCloud({
+  appearance,
+  children,
+  onCloudClick,
+  onClose,
+  label,
+  placement = 'corner',
+}: BlimkinCloudProps) {
   const [phase, setPhase] = useState<Phase>('gone');
   const [shownKey, setShownKey] = useState<string | null>(null);
   // Where he stands: his corner, or just over the field being typed in.
@@ -142,10 +152,16 @@ export default function BlimkinCloud({ appearance, children, onCloudClick, onClo
       style={
         anchor
           ? { left: `${anchor.left}px`, bottom: `${anchor.bottom}px` }
-          : {
-              left: 'calc(1rem + env(safe-area-inset-left))',
-              bottom: 'calc(1rem + env(safe-area-inset-bottom))',
-            }
+          : placement === 'center'
+            ? {
+                // The cloud (up and right of him) centred on the screen.
+                left: `max(0.5rem, calc(50% - ${(SPRITE_W * 0.72 + 6.5).toFixed(2)}rem))`,
+                bottom: `calc(50% - ${(SPRITE_H * 0.55 + 1.5).toFixed(2)}rem)`,
+              }
+            : {
+                left: 'calc(1rem + env(safe-area-inset-left))',
+                bottom: 'calc(1rem + env(safe-area-inset-bottom))',
+              }
       }
     >
       <div style={{ position: 'relative', width: `${SPRITE_W}rem`, height: `${SPRITE_H}rem` }}>
