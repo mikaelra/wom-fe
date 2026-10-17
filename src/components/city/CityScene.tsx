@@ -18,13 +18,17 @@ import Bay from '@/components/city/Bay';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import { sunIsDown } from '@/lib/skyLocal';
 import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
+// Kept in lib/cityCamera.ts (no three.js there): the city page needs them
+// without loading this scene in text mode.
+import { CITY_CAMERA, CITY_FOV, EYE, EYE_RADIUS } from '@/lib/cityCamera';
+export { CITY_CAMERA, CITY_FOV, EYE };
 // Temple left, Senate right, signpost between (§1.1). In lib/ so the
 // left/right pairing with the signpost's arms can be tested.
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION, MARKET_POSITION,
   SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION, RANKED_FORK_SIGNPOST_ROTATION_Y,
   RANKED_FORK_VIEW_PIN, RANKED_FORK_VIEW_OFFSET, BAY_POSITION, BAY_ROTATION_Y,
-  SEA_LEVEL, LAND_LEVEL, EYE_HEIGHT,
+  SEA_LEVEL, LAND_LEVEL,
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
 import TempleTableau from '@/components/city/TempleTableau';
@@ -34,6 +38,8 @@ import { fovAfterPinch, fovAfterWheel, rotateSpeedForFov } from '@/lib/cityZoom'
 import type { BossfightRoster } from '@/lib/api';
 import type { CityPresence } from '@/lib/schemas';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
+import { BACK_COLOR, BOSSFIGHT_COLOR, EARTH_COLOR, MARKET_COLOR, RANKED_COLOR } from '@/components/city/signpostColors';
+import { rankedTopSign } from '@/lib/rankedSign';
 
 /**
  * The Athens city scene (docs/CITY_SCENE_PLAN.md §5).
@@ -64,24 +70,15 @@ import { useClickNotDrag } from '@/lib/useClickNotDrag';
  * the measurements behind them.
  */
 
-/** Where the player stands: eye height above the GROUND, at the origin. Was
- *  measured from the sea until there was ground to stand on. */
-export const EYE: [number, number, number] = [0, LAND_LEVEL + EYE_HEIGHT, 0];
-/** How far the camera sits from the pin. Small enough to read as rotating in
- *  place, large enough to keep OrbitControls' maths well-conditioned. */
-const EYE_RADIUS = 0.01;
+
 /** The timewarp's weather overhead: inside the sphere the Sun, the Moon
  *  and the planets are placed on, so the buildings stand in front of it. */
 const TIMEWARP_DOME_R = SKY_R * 0.9;
-/** Start pose: offset along +Z of the pin, so the default view looks toward
- *  -Z -- where the signpost and both buildings stand. */
-export const CITY_CAMERA: [number, number, number] = [EYE[0], EYE[1], EYE[2] + EYE_RADIUS];
+
 /** The entry pose as a unit offset direction, for GuidedView: a hair south
  *  of the pin, looking north. The fork's is this turned onto its face. */
 const CITY_VIEW_OFFSET: readonly [number, number, number] = [0, 0, 1];
-/** Wider than the lobby's 75: standing among buildings and looking up wants
- *  more sky in frame than a table-top scene does. */
-export const CITY_FOV = 70;
+
 
 /**
  * Keeps a gaze label at its authored pixel size (docs/CITY_SCENE_PLAN.md §7).
@@ -106,19 +103,7 @@ const MAX_POLAR = Math.PI * 0.86;     // well below the horizon, short of invert
 const ROTATE_SPEED = -0.35;
 
 
-const BOSSFIGHT_COLOR = '#4da6ff';
-const RANKED_COLOR = '#ff6666';
-/** Parchment yellow, matching Market.tsx's accent light: the right arm and
- *  the building it pairs with read as one colour from a distance, like the
- *  temple/Senate. (Was green; swapped with EARTH's parchment.) */
-const MARKET_COLOR = '#e8d9a0';
 const LIT_MARKET = '#fffbea';
-/** Green: the way back to the world map. (Was parchment; swapped with the
- *  Market's green.) */
-const EARTH_COLOR = '#5fd88a';
-/** Parchment rather than a third saturated hue: the fork's way back to the
- *  city is not a third destination competing with the two fights. */
-const BACK_COLOR = '#e8d9a0';
 
 /**
  * The light Hades keeps burning (docs/CITY_SCENE_PLAN.md §5.2).
@@ -176,6 +161,8 @@ export interface CitySceneProps {
   /** Enter a bot-ranked game against the field of other players' trained
    *  AIs (docs/MY_AI.md §4) -- the BOTS arm of the fork signpost.
    *  Your own AI isn't in it; it competes on its own in the queue. */
+  /** Open with the camera at the ranked fork's signpost (?board=ranked). */
+  startAtFork?: boolean;
   onBotRanked: () => void;
   rankedLabel: string;
   rankedSublabel?: string | null;
@@ -388,6 +375,7 @@ export default function CityScene({
   roster,
   onRanked,
   onBotRanked,
+  startAtFork = false,
   rankedLabel,
   rankedSublabel,
   botRankedLabel,
@@ -401,8 +389,15 @@ export default function CityScene({
   // The city's primary RANKED arm doesn't queue -- it walks the camera over
   // to the fork signpost between the two Senates, where you pick PLAYERS or
   // BOTS. The fork's BACK arm walks it home again (§5.2b).
-  const [view, setView] = useState<'city' | 'fork'>('city');
+  // Back from a ranked game (?board=ranked), the camera starts at the
+  // ranked fork's signpost (Mikael, 2026-10-12).
+  const [view, setView] = useState<'city' | 'fork'>(startAtFork ? 'fork' : 'city');
   const focusRanked = () => setView('fork');
+  const rankedTop = rankedTopSign(
+    { label: rankedLabel, sublabel: rankedSublabel, enter: onRanked },
+    { label: botRankedLabel, sublabel: botRankedSublabel, enter: onBotRanked },
+    focusRanked,
+  );
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
   const { placements, sky, nightness, sunAltitude } = useCitySky(date, realLat, realLng, EYE);
@@ -495,12 +490,14 @@ export default function CityScene({
       // Bossfight without being lesser than it.
       side: 'right',
       tier: 0.5,
-      label: rankedLabel,
-      sublabel: rankedSublabel,
+      // RETURN TO MATCH while a match of yours is on, straight back to it
+      // (lib/rankedSign.ts); otherwise RANKED.
+      label: rankedTop.label,
+      sublabel: rankedTop.sublabels[0] ?? null,
       color: RANKED_COLOR,
       // Walks the camera to the fork -- it stands for both ladders, so
       // it pairs with no single building.
-      onActivate: focusRanked,
+      onActivate: rankedTop.onActivate,
     },
     {
       // A third full-size destination, hanging below RANKED on the right the
@@ -633,28 +630,19 @@ export default function CityScene({
           decay={TEMPLE_GLOW_DECAY}
         />
 
-        {/* The human ladder. Clicking it enters ranked directly, the same
-            as the PLAYERS arm it pairs with -- exactly how the Temple and
-            Market buildings work. */}
-        <BuildingTarget
-          position={SENATE_POSITION}
-          onActivate={onRanked}
-          onHoverChange={setPlayersHot}
-        >
+        {/* The human ladder. Not a way in (Mikael, 2026-10-12): ranked is
+            entered only from the signposts -- it lights up with the PLAYERS
+            arm it pairs with. */}
+        <group position={SENATE_POSITION}>
           <Senate color={playersHot ? LIT_RANKED : PLAIN} />
-        </BuildingTarget>
+        </group>
 
         {/* The bot ladder, touching the first at a corner (docs/MY_AI.md
             §9.1). A plain second Senate until the /modelling building
-            exists. Clicking it starts a bot-ranked game, the same as the
-            BOTS arm it pairs with. */}
-        <BuildingTarget
-          position={SENATE_BOT_POSITION}
-          onActivate={onBotRanked}
-          onHoverChange={setBotsHot}
-        >
+            exists. Not a way in either: it lights up with the BOTS arm. */}
+        <group position={SENATE_BOT_POSITION}>
           <Senate color={botsHot ? LIT_RANKED : PLAIN} />
-        </BuildingTarget>
+        </group>
 
         <Signpost
           position={RANKED_FORK_SIGNPOST_POSITION}
