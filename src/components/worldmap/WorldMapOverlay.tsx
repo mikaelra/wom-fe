@@ -9,6 +9,7 @@ import RopedInput from '@/components/hud/RopedInput';
 import SceneTopBar from '@/components/hud/SceneTopBar';
 import { useToast } from '@/components/Toast';
 import { playMusic, HOME_MUSIC } from '@/lib/music';
+import CameraSpeedButton from '@/components/hud/CameraSpeedButton';
 
 export default function WorldMapOverlay({
   clock,
@@ -117,7 +118,7 @@ export default function WorldMapOverlay({
     <>
       {/* Rules, music and the user menu, shared with the city scene so the
           top bar is continuous between them (locked decision 4). */}
-      <SceneTopBar belowRules={clock} />
+      <SceneTopBar belowRules={clock} belowSound={<CameraSpeedButton />} />
 
       {/* Bottom: lobby controls */}
       <div className="absolute bottom-8 left-0 right-0 z-20 flex flex-col items-center gap-2 pointer-events-none">
@@ -125,7 +126,7 @@ export default function WorldMapOverlay({
           className="pointer-events-auto flex flex-wrap justify-center items-center px-3"
           onSubmit={(e) => { e.preventDefault(); handleJoinLobby(); }}
         >
-          <RopedInput width={184} height={54} innerPadding="8px 11px">
+          <RopedInput width={184} height={54} innerPadding="0.5rem 0.6875rem">
             <input
               type="text"
               placeholder="Enter lobby code..."

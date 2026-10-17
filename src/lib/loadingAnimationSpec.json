@@ -1,5 +1,5 @@
 {
-  "generatedBy": "wom-tools/animation-generation/loading_animation.py (v14a)",
+  "generatedBy": "wom-tools/animation-generation/loading_animation.py (v16)",
   "color": "#ff0000",
   "colors": [
     "#ff0000",
@@ -11,11 +11,12 @@
     true
   ],
   "mix": {
-    "v14": 0.618034,
-    "wheel": 0.236068,
-    "rainbow": 0.09017,
-    "v11": 0.034442,
-    "v10": 0.021286
+    "v16": 0.618034,
+    "v14": 0.236068,
+    "wheel": 0.09017,
+    "rainbow": 0.034442,
+    "v11": 0.013155,
+    "v10": 0.008131
   },
   "rainbow": {
     "colors": [
@@ -34,6 +35,19 @@
   },
   "v14": {
     "trailMaxDegrees": 100.0
+  },
+  "v16": {
+    "trailMaxDegrees": 100.0,
+    "grow": {
+      "holdBefore": 0.5,
+      "duration": 1.0,
+      "speed": 3.0
+    },
+    "shrink": {
+      "duration": 1.0,
+      "speed": 4.845
+    },
+    "baseTurn": 120.0
   },
   "lineRadius": 0.06604,
   "extent": 1.096575,

@@ -12,14 +12,14 @@
  * test could catch has to sit outside one.
  */
 
-export type ModellingModelId = 'ranked' | 'market' | 'senate-city' | 'bay' | 'pen';
+export type ModellingModelId = 'ranked' | 'market' | 'senate-city' | 'bay' | 'pen' | 'signpost';
 
 export interface ModellingModel {
   id: ModellingModelId;
   /** Button caption. */
   label: string;
   /** The signpost-arm colour the building answers to, so the buttons read
-   *  the same way the city's arms do: red ranked, green market. */
+   *  the same way the city's arms do: red ranked, parchment-yellow market. */
   accent: string;
   /** One line under the button saying what you are looking at. */
   blurb: string;
@@ -40,7 +40,7 @@ export const MODELLING_MODELS: readonly ModellingModel[] = [
   {
     id: 'market',
     label: 'Market',
-    accent: '#5fd88a',
+    accent: '#e8d9a0',
     blurb: 'The agora stall-row that stands on the city’s right hand.',
   },
   {
@@ -62,6 +62,12 @@ export const MODELLING_MODELS: readonly ModellingModel[] = [
     blurb: 'Meshy feather quill for the new-moon Pen (public/models/relics/pen_v1.glb), texture cut to 1024 -- the model the new-moon merchant stages.',
     glb: '/models/relics/pen_v1.glb',
     thumbnail: '/models/relics/pen_v1.thumbnail.png',
+  },
+  {
+    id: 'signpost',
+    label: 'Signpost',
+    accent: '#c89a5a',
+    blurb: 'The city signpost, carved: lettering burnt into the planks and painted in each arm’s colour (components/city/CarvedSignpost.tsx).',
   },
 ] as const;
 
