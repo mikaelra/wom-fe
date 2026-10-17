@@ -112,11 +112,11 @@ EYE_L, EYE_R = (7.5, 8.5), (24.5, 8.5)  # on pixel centres, mirrored
 
 def bling_mouth(x):
     """Bling's mouth: the middle smiles (it sags a little), and from each side
-    of it the ends slope down, steeply, towards the cheeks (Mikael, 2026-10-17)."""
+    of it the ends slope down gently towards the cheeks (Mikael, 2026-10-17)."""
     t = abs(x - 16) / 12.6
     if t <= 0.5:
         return 20.4 + 2.4 * (1 - (t / 0.5) ** 2)
-    return 20.4 + 4.2 * ((t - 0.5) / 0.5) ** 1.4
+    return 20.4 + 2.4 * ((t - 0.5) / 0.5)  # a gentle, straight ramp down
 
 
 # skin, belly (the lower face): sampled from the 3D thumbnails. sclera / iris
