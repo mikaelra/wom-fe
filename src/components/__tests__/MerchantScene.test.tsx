@@ -23,6 +23,32 @@ beforeEach(() => {
   mockedPurchase.mockReset();
 });
 
+describe('MerchantScene in Low Definition', () => {
+  it("draws the Stone he sells on the left and the merchant's 32x32 portrait on the right, with no 3D model", () => {
+    render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} textOnly />);
+
+    const stage = screen.getByTestId('pixel-stage');
+    const pictures = Array.from(stage.querySelectorAll('img')).map((i) => i.getAttribute('src'));
+    expect(pictures).toEqual(['/pixel/stone.png', '/pixel/merchant_v1.png']); // relic on the left, merchant on the right; plain: no aura here
+    expect(screen.queryByTestId('merchant-model')).not.toBeInTheDocument();
+  });
+
+  it('draws the Lady merchant at a conjunction and the Paper at a full moon', () => {
+    const lady = { ...stoneOffer(), trigger_kind: 'conjunction' } as MerchantOffer;
+    const { unmount } = render(<MerchantScene offer={lady} token="t" onClose={vi.fn()} onPurchased={vi.fn()} textOnly />);
+    expect(screen.getByAltText(lady.merchant_name)).toHaveAttribute('src', '/pixel/lady_merchant_v1.png');
+    unmount();
+    render(<MerchantScene offer={paperOffer()} token="t" onClose={vi.fn()} onPurchased={vi.fn()} textOnly />);
+    expect(screen.getByAltText('Paper')).toHaveAttribute('src', '/pixel/paper.png');
+  });
+
+  it('keeps the 3D stage for SD and HD', async () => {
+    render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+    expect(screen.queryByTestId('pixel-stage')).not.toBeInTheDocument();
+    expect((await screen.findAllByTestId('merchant-model')).length).toBeGreaterThan(0);
+  });
+});
+
 describe('MerchantScene', () => {
   it('shows the offer and makes no API call until Trade is clicked', () => {
     render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
@@ -154,7 +180,7 @@ describe('MerchantScene', () => {
       expect(line.nextElementSibling).toHaveTextContent('3 Hades’ Coins');
       expect(screen.getByRole('button', { name: /Trade for 3/ })).toBeEnabled();
       const models = screen.getAllByTestId('merchant-model').map((el) => el.getAttribute('data-url'));
-      expect(models).toContain('/models/relics/paper_v1.glb');
+      expect(models).toContain('/models/relics/paper_v2.glb');
       // The Lady Merchant stands behind the counter at a conjunction.
       expect(models).toContain('/models/lady_merchant_v1.glb');
       expect(models).not.toContain('/models/merchant_v1.glb');

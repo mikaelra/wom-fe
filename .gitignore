@@ -80,3 +80,7 @@ next-env.d.ts
 
 # /modelling prompt-box transcript (temporary dev page)
 .modelling/
+
+# Python bytecode
+__pycache__/
+*.pyc

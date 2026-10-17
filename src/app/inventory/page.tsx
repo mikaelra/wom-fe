@@ -7,16 +7,20 @@ import { timewarpParamFor } from '@/lib/timewarpFx';
 import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRules, type TranscribedEntry } from '@/lib/api';
 import { ledgerMarks } from '@/lib/market';
 import { getStoredAccountToken } from '@/lib/http';
-import { skinColor, skinLabel, skinThumbnailUrl, skinUrl, sortSkins } from '@/lib/frogSkins';
+import { skinColor, skinLabel, sortSkins } from '@/lib/frogSkins';
+import { PIXEL_ARTIFACT_URL, PIXEL_MY_AI_COIN_URL, pixelImageStyle, skinPicture, withAura } from '@/lib/pixelArt';
+import { useTextMode } from '@/lib/textMode';
 import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
 import { wheelKindFromString, wheelKindLabel } from '@/lib/wheelGeometry';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import WheelSpinModal from '@/components/WheelSpinModal';
 import TradeUpModal from '@/components/TradeUpModal';
+import SkinDetailModal from '@/components/SkinDetailModal';
 import RelicCoin from '@/components/RelicCoin';
 import ArtifactLedgerModal from '@/components/ArtifactLedgerModal';
 import RevertTimeModal from '@/components/merchant/RevertTimeModal';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
+import SkinPreview from '@/components/SkinPreview';
 import { useToast } from '@/components/Toast';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
@@ -58,6 +62,9 @@ function groupWheels(wheels: WheelEntry[]): WheelGroup[] {
 export default function InventoryPage() {
   const router = useRouter();
   const { showError } = useToast();
+  // Low Definition shows 32x32 pictures where the others show 3D models
+  // (lib/pixelArt.ts); null until the mode is known, when nothing 3D starts.
+  const lowDefinition = useTextMode();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [equippedSkin, setEquippedSkin] = useState(DEFAULT_SKIN);
@@ -91,6 +98,8 @@ export default function InventoryPage() {
   const [spinningWheel, setSpinningWheel] = useState<{ id: number; kind: string } | null>(null);
   const [tradeUpRules, setTradeUpRules] = useState<Record<string, TradeUpRule>>({});
   const [tradingUp, setTradingUp] = useState<{ skin: string; owned: number; rule: TradeUpRule } | null>(null);
+  // The skin whose picture was clicked, shown bigger -- with Trade up (SkinDetailModal).
+  const [viewingSkin, setViewingSkin] = useState<string | null>(null);
   // Set when we're logged out but localStorage remembers a name+email pair
   // (i.e. a claim was submitted from this browser) -- covers verifying that
   // claim's email link on a different device (a phone) than this one, which
@@ -300,7 +309,11 @@ export default function InventoryPage() {
             {/* Bot-game credits -- the same balance shown on the My AI page
                 (wom-be /inventory's ai_credits). A small box above Relics. */}
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl px-5 py-4 mb-6 flex items-center justify-between gap-3">
-              <div>
+              {lowDefinition && (
+                // eslint-disable-next-line @next/next/no-img-element -- a small static file from public/
+                <img src={withAura(PIXEL_MY_AI_COIN_URL)} alt="" className="h-10 w-10 shrink-0 mr-3" style={pixelImageStyle} draggable={false} data-testid="my-ai-coin-pixel" />
+              )}
+              <div className="mr-auto">
                 <p className="text-sm font-semibold">My AI credits</p>
                 <p className="text-2xl font-bold text-amber-300 leading-tight">{aiCredits}</p>
               </div>
@@ -407,7 +420,7 @@ export default function InventoryPage() {
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4">Skins</h2>
               <div className="w-40 h-40 mx-auto mb-6">
-                <SpinningModelViewer key={equippedSkin} url={skinUrl(equippedSkin)} targetSize={1.8} spinSpeed={0.6} />
+                <SkinPreview skin={equippedSkin} targetSize={1.8} spinSpeed={0.6} />
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {ownedSkins.map(({ skin, count }) => {
@@ -417,18 +430,22 @@ export default function InventoryPage() {
                       key={skin}
                       className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
                     >
-                      <div
-                        className="w-16 h-16 rounded-full border-2 border-white/20 overflow-hidden"
-                        style={{ background: skinColor(skin) }}
+                      <button
+                        type="button"
+                        onClick={() => setViewingSkin(skin)}
+                        aria-label={`Show ${skinLabel(skin)} bigger`}
+                        className={`w-16 h-16 overflow-hidden p-0 cursor-zoom-in ${lowDefinition ? 'bg-transparent border-0' : 'rounded-full border-2 border-white/20'}`}
+                        style={lowDefinition ? undefined : { background: skinColor(skin) }}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- a small
                             fixed set of local static assets, not remote/user content */}
                         <img
-                          src={skinThumbnailUrl(skin)}
+                          src={skinPicture(skin, lowDefinition === true, true)}
                           alt=""
-                          className="w-full h-full object-cover"
+                          className={`w-full h-full ${lowDefinition ? 'object-contain' : 'object-cover'}`}
+                          style={lowDefinition ? pixelImageStyle : undefined}
                         />
-                      </div>
+                      </button>
                       <p className="text-sm font-semibold capitalize text-center">{skinLabel(skin)}</p>
                       {count > 1 && <p className="text-xs text-white/50">×{count}</p>}
                       <div className="flex items-center justify-center gap-2 flex-wrap">
@@ -442,15 +459,6 @@ export default function InventoryPage() {
                             className="text-xs px-3 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             {equipping === skin ? 'Equipping…' : 'Equip'}
-                          </button>
-                        )}
-                        {tradeUpRules[skin] && (
-                          <button
-                            type="button"
-                            onClick={() => setTradingUp({ skin, owned: count, rule: tradeUpRules[skin] })}
-                            className="text-xs px-3 py-1 rounded-md bg-amber-700/80 text-amber-200 border border-amber-600 hover:bg-amber-600/80 transition-colors cursor-pointer"
-                          >
-                            Trade up
                           </button>
                         )}
                       </div>
@@ -489,7 +497,16 @@ export default function InventoryPage() {
                     }
                     className="w-28 h-28 shrink-0 bg-transparent border-0 p-0 cursor-pointer"
                   >
-                    {artifactUrl ? (
+                    {lowDefinition === null ? null : lowDefinition ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- a small static file from public/
+                      <img
+                        src={withAura(PIXEL_ARTIFACT_URL)}
+                        alt=""
+                        className="w-full h-full object-contain"
+                        style={pixelImageStyle}
+                        draggable={false}
+                      />
+                    ) : artifactUrl ? (
                       <SpinningModelViewer
                         url={artifactUrl}
                         targetSize={1.8}
@@ -581,6 +598,21 @@ export default function InventoryPage() {
           onClose={() => setSpinningWheel(null)}
           onSpun={handleSpun}
           onEquipped={setEquippedSkin}
+        />
+      )}
+
+      {viewingSkin !== null && (
+        <SkinDetailModal
+          skin={viewingSkin}
+          count={ownedSkins.find((o) => o.skin === viewingSkin)?.count ?? 1}
+          canTradeUp={!!tradeUpRules[viewingSkin]}
+          onTradeUp={() => {
+            const rule = tradeUpRules[viewingSkin];
+            const owned = ownedSkins.find((o) => o.skin === viewingSkin)?.count ?? 1;
+            setViewingSkin(null);
+            if (rule) setTradingUp({ skin: viewingSkin, owned, rule });
+          }}
+          onClose={() => setViewingSkin(null)}
         />
       )}
 

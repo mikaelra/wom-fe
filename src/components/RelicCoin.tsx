@@ -4,6 +4,8 @@ import { useGLTF } from '@react-three/drei';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 // The model urls: lib/relics.ts (no three.js there).
 import { COIN_MODEL_URL, RELIC_MODEL_URLS, relicModelUrl } from '@/lib/relics';
+import { PIXEL_COIN_URL, pixelImageStyle, pixelRelicUrl, withAura } from '@/lib/pixelArt';
+import { useTextMode } from '@/lib/textMode';
 export { relicModelUrl };
 
 
@@ -21,6 +23,17 @@ const RELIC_THUMBNAIL_URLS: Record<string, string> = {
 // browsers' concurrent-WebGL-context limits. Revisit with a shared/View-based
 // canvas if that stops being true.
 export default function RelicCoin({ relicName }: { relicName?: string } = {}) {
+  const lowDefinition = useTextMode();
+  // Low Definition (lib/pixelArt.ts): the relic's 32x32 picture, or its glyph
+  // -- never a 3D model. Nothing is drawn until the mode is known, so a
+  // Low Definition player never starts loading one.
+  if (lowDefinition === null) return null;
+  if (lowDefinition) {
+    // Any relic without a picture of its own is the gold coin, as it is in 3D.
+    const url = pixelRelicUrl(relicName, true) ?? withAura(PIXEL_COIN_URL);
+    // eslint-disable-next-line @next/next/no-img-element -- a small static file from public/
+    return <img src={url} alt={relicName} className="w-full h-full object-contain" style={pixelImageStyle} draggable={false} />;
+  }
   const thumbnail = relicName && RELIC_THUMBNAIL_URLS[relicName];
   if (thumbnail) {
     // eslint-disable-next-line @next/next/no-img-element -- a small static file from public/, same as the inventory's skin previews

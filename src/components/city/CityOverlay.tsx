@@ -31,7 +31,7 @@ export default function CityOverlay({
           The way back to Earth is NOT here: it is a sign on the signpost,
           under the Bossfight arm, so leaving the city is a thing in the
           world rather than a button floating over it. */}
-      <SceneTopBar belowRules={clock} />
+      <SceneTopBar belowRules={clock} showSoundEffects={false} />
 
       {/* No city nameplate. The scene says where you are far better than a
           caption does -- the temple, the signpost and the sky over Greece

@@ -10,7 +10,8 @@ import MusicToggleButton from '@/components/audio/MusicToggleButton';
 import SfxToggleButton from '@/components/audio/SfxToggleButton';
 import { BOT_TYPES } from '@/lib/botTypes';
 import { CITY_PATH, RANKED_CITY_PATH } from '@/lib/cities';
-import { RELIC_BADGE_EMOJI, RELIC_SELECT_CAPTION } from '@/lib/relics';
+import { DEFAULT_RELIC_BADGE_EMOJI, RELIC_BADGE_EMOJI, RELIC_SELECT_CAPTION } from '@/lib/relics';
+import { pixelImageStyle, pixelRelicUrl } from '@/lib/pixelArt';
 import { useToast } from '@/components/Toast';
 import { getPlayerRelics } from '@/lib/api';
 import { getMutedPlayers, hideMuted, useMutedPlayers } from '@/lib/chatMute';
@@ -165,8 +166,8 @@ function WaitingForStart() {
   );
 }
 
-/** Before a player's name, the size of an emoji: their skin's thumbnail,
- *  or a bot's emoji (lib/playerThumbnail.ts). */
+/** Before a player's name: their skin's 32x32 face, the robot frog's for a
+ *  My AI agent, or a bot's emoji (lib/playerThumbnail.ts). */
 function PlayerThumbnail({ player }: { player: Player }) {
   const [missing, setMissing] = useState(false);
   const mark = playerMark(player);
@@ -177,10 +178,29 @@ function PlayerThumbnail({ player }: { player: Player }) {
     <img
       src={mark.url}
       alt=""
-      width={20}
-      height={20}
-      className="inline-block w-5 h-5 rounded-full object-cover"
+      width={24}
+      height={24}
+      className="inline-block w-6 h-6 align-middle"
+      style={pixelImageStyle}
+      draggable={false}
       onError={() => setMissing(true)}
+    />
+  );
+}
+
+/** A relic's glyph in the text match: its 32x32 picture where it has one
+ *  (the Stone, the Pen, the Paper), otherwise its emoji. */
+function RelicGlyph({ name, fallback }: { name: string; fallback?: string }) {
+  const url = pixelRelicUrl(name);
+  if (!url) return <>{RELIC_BADGE_EMOJI[name] ?? fallback ?? DEFAULT_RELIC_BADGE_EMOJI}</>;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets
+    <img
+      src={url}
+      alt={name}
+      className="inline-block h-[1.25em] w-[1.25em] align-[-0.25em]"
+      style={pixelImageStyle}
+      draggable={false}
     />
   );
 }
@@ -284,7 +304,12 @@ function RelicPicker({
         className="w-full flex items-center justify-between font-semibold text-xl text-gray-100 bg-transparent border-none cursor-pointer"
       >
         <span>
-          Relics {chosen.map((r) => RELIC_BADGE_EMOJI[r.name]).join(' ')}
+          Relics{' '}
+          {chosen.map((r) => (
+            <span key={String(r.id)} className="mr-1">
+              <RelicGlyph name={r.name} />
+            </span>
+          ))}
         </span>
         <span className="text-gray-400 text-sm">{open ? '▲' : '▼'}</span>
       </button>
@@ -317,7 +342,7 @@ function RelicPicker({
                   className={`relative ${selected && !coolingHere ? 'line-through decoration-[3px]' : ''}`}
                   style={selected && !coolingHere ? { textDecorationColor: '#450a0a' } : undefined}
                 >
-                  {RELIC_BADGE_EMOJI[r.name]} {RELIC_SELECT_CAPTION[r.name]} (×{r.count})
+                  <RelicGlyph name={r.name} /> {RELIC_SELECT_CAPTION[r.name]} (×{r.count})
                 </span>
               </button>
             );
@@ -724,7 +749,7 @@ export default function TextLobby({
                   {!gameStarted &&
                     (p.selected_relic_ids ?? []).map((id) => {
                       const relic = relics.find((r) => Number(r.id) === id);
-                      return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
+                      return <span key={id}>{relic ? <RelicGlyph name={relic.name} fallback="🪙" /> : '🪙'}</span>;
                     })}
                 </span>
                 {rankedList && (

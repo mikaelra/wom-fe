@@ -75,6 +75,7 @@ beforeEach(() => {
   mockedPostCheckout.mockReset();
   mockedResolveAccountSession.mockReset();
   mockedClaimName.mockReset();
+  localStorage.setItem('textMode', 'off'); // SD/HD unless a test says otherwise: web opens in Low Definition
 });
 
 afterEach(() => {
@@ -115,6 +116,39 @@ describe('ShopPage', () => {
     expect(screen.getByText('gold - 30%')).toBeInTheDocument();
     expect(screen.getByText('rainbow - 6.67%')).toBeInTheDocument();
     expect(screen.getByText('bling - 0.33%')).toBeInTheDocument();
+  });
+
+  it('shows a skin as its 32x32 face and the My AI coin as pixels in Low Definition, with no 3D preview', async () => {
+    loginAs();
+    localStorage.setItem('textMode', 'on');
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [SKIN_PRODUCT, AI_CREDITS_PRODUCT],
+    });
+    const { container } = render(<ShopPage />);
+    await flush();
+    await flush();
+
+    expect(screen.queryByTestId('skin-preview')).not.toBeInTheDocument();
+    expect(container.querySelector('img[src="/pixel2/cherub_v1.png"]')).not.toBeNull();
+    expect(screen.getByTestId('my-ai-coin')).toHaveAttribute('src', '/pixel2/my_ai_coin.png');
+    expect(screen.getByTestId('my-ai-coin').style.imageRendering).toBe('pixelated');
+  });
+
+  it('gives the Special Wheel a purple glow in the shop, and its aura picture in Low Definition', async () => {
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
+    });
+    const { unmount } = render(<ShopPage />);
+    await flush();
+    const glowing = screen.getByTestId('special-wheel-icon');
+    expect(glowing.style.filter).toContain('168, 85, 247');
+    unmount();
+
+    localStorage.setItem('textMode', 'on');
+    render(<ShopPage />);
+    await flush();
+    await flush();
+    expect(screen.getByTestId('special-wheel-icon')).toHaveAttribute('src', '/pixel2/special-wheel.png');
   });
 
   it('renders a skin product generically', async () => {

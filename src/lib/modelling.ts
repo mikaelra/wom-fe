@@ -12,7 +12,7 @@
  * test could catch has to sit outside one.
  */
 
-export type ModellingModelId = 'ranked' | 'market' | 'senate-city' | 'bay' | 'pen' | 'signpost';
+export type ModellingModelId = 'ranked' | 'market' | 'senate-city' | 'bay' | 'pen' | 'signpost' | 'blimkin';
 
 export interface ModellingModel {
   id: ModellingModelId;
@@ -26,7 +26,8 @@ export interface ModellingModel {
   /** A finished model file (Meshy, via wom-tools/model-generation) shown
    *  instead of a procedural component. Served from public/. */
   glb?: string;
-  /** Meshy's own render of that model, shown beside the controls. */
+  /** A flat picture of that model, shown beside the controls (Meshy's own
+   *  render, or one made by scripts/render-glb-thumbnail.py). */
   thumbnail?: string;
 }
 
@@ -62,6 +63,15 @@ export const MODELLING_MODELS: readonly ModellingModel[] = [
     blurb: 'Meshy feather quill for the new-moon Pen (public/models/relics/pen_v1.glb), texture cut to 1024 -- the model the new-moon merchant stages.',
     glb: '/models/relics/pen_v1.glb',
     thumbnail: '/models/relics/pen_v1.thumbnail.png',
+  },
+  {
+    id: 'blimkin',
+    label: 'Blimkin',
+    accent: '#ffd214',
+    blurb:
+      'Blimkin in 3D (public/models/blimkin_v1.glb): a short, fat banana with a spike at its tip. Built by scripts/make-blimkin-model.py, so type a change in the prompt box and it is re-made.',
+    glb: '/models/blimkin_v1.glb',
+    thumbnail: '/models/blimkin_v1.thumbnail.png',
   },
   {
     id: 'signpost',

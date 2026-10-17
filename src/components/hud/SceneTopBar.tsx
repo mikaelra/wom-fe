@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logOut, getInventory } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
-import { skinColor, skinThumbnailUrl } from '@/lib/frogSkins';
+import { skinColor } from '@/lib/frogSkins';
+import { pixelImageStyle, skinPicture } from '@/lib/pixelArt';
+import { useTextMode } from '@/lib/textMode';
 import { steamNameToShow } from '@/lib/displayName';
 import RopedButton from '@/components/hud/RopedButton';
 import RulesModal from '@/components/lobby/RulesModal';
@@ -31,11 +33,15 @@ import SfxToggleButton from '@/components/audio/SfxToggleButton';
 export default function SceneTopBar({
   belowRules,
   belowSound,
+  showSoundEffects = true,
 }: {
   /** Drawn directly under the Rules button -- the Earth screen's clock. */
   belowRules?: ReactNode;
   /** Under the sound buttons: the Earth's camera speed (CameraSpeedButton). */
   belowSound?: ReactNode;
+  /** The sound-effects button. Earth and the city have no effects, only the music (Mikael,
+   *  2026-10-17), so they turn it off; the market keeps it for the sounds it will get. */
+  showSoundEffects?: boolean;
 } = {}) {
   const router = useRouter();
   const [loggedInName, setLoggedInName] = useState('');
@@ -43,6 +49,7 @@ export default function SceneTopBar({
   // game name (Settings -> Connections, src/lib/displayName.ts); else null.
   const [steamName, setSteamName] = useState<string | null>(null);
   // The account's equipped skin, once known; null shows no avatar at all.
+  const lowDefinition = useTextMode() === true;
   const [equippedSkin, setEquippedSkin] = useState<string | null>(null);
   // True while the real equipped skin is being fetched -- see the avatar
   // span below, which shows a plain blinking-green placeholder meanwhile
@@ -175,8 +182,9 @@ export default function SceneTopBar({
           {/* The sound-effects toggle was only ever rendered in the lobby
               (LobbyOverlay), so every screen carrying this bar -- the city
               included -- offered a music button and no way at all to mute
-              the effects. */}
-          <SfxToggleButton />
+              the effects. Earth and the city have none to mute now, so they
+              leave it out (showSoundEffects). */}
+          {showSoundEffects && <SfxToggleButton />}
           {belowSound}
           </div>
         </div>
@@ -243,9 +251,10 @@ export default function SceneTopBar({
                   {!skinLoading && equippedSkin && (
                     // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets, not remote/user content
                     <img
-                      src={skinThumbnailUrl(equippedSkin)}
+                      src={skinPicture(equippedSkin, lowDefinition)}
                       alt=""
                       className="w-full h-full object-cover"
+                      style={lowDefinition ? pixelImageStyle : undefined}
                     />
                   )}
                 </span>
