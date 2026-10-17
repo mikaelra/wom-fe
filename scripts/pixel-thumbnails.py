@@ -110,10 +110,10 @@ FROGS = {
     'frog_pink_v1': dict(skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
     'frog_purple_v1': dict(skin='#cfa0ea', belly='#f0e6f0', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
     'frog_red_v1': dict(skin='#ff4a2e', belly='#ecd8d8', sclera='#eef0dc', iris='#000000', pupil='#000000', ir=2.95, pr=2.95),
-    'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#f6edd8', iris='#d9c29c', iris_edge='#a67f4f', pupil='#0a0502', ir=2.95, pr=0, diamond=4),
-    'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#5a3a08', iris='#b01828', iris_edge='#5a0a14', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
+    'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#b98650', iris='#b98650', pupil='#0a0502', ir=2.95, pr=0, diamond=4),
+    'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#a81426', iris='#a81426', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
     'frog_silver_v1': dict(skin='#62646e', belly='#52545e', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#dce0ea'),
-    'frog_bling_v1': dict(mouth=(23, -2.8), skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#08081a', ir=3.0, pr=1.6, sparkle=True),
+    'frog_bling_v1': dict(mouth=(23, -2.8), skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#2a1860', bar='#000000', py=0, ir=3.0, pr=1.75, sparkle=True),
     'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True),
 }
 
@@ -169,15 +169,20 @@ def draw_frog(c, p, dark_outline='#15121e'):
         c.fill(s['head'] & (CX < 5) & (YY >= 16), rgb('#ff3a2c'))
         c.fill(s['head'] & (CX > 27) & (YY >= 16), rgb('#ff3a2c'))
     c.rim(s['skin'], hi, lo)
-    if p.get('sparkle'):  # diamonds over the middle of the face and the lower face
+    if p.get('sparkle'):  # fine glitter over the middle of the face and the lower face
         wear = ((CX >= 8.5) & (CX <= 23.5) & (CY >= 9.5) & s['head']) | s['belly']
-        for y in range(10, 28, 4):
-            for x in range(6 + (2 if (y // 4) % 2 else 0), 27, 4):
-                if wear[y : y + 2, x : x + 2].all():
+        grain = np.random.default_rng(7).random((N, N)) * 100  # seeded: the same glitter every run
+        for y in range(N):
+            for x in range(N):
+                if not wear[y, x]:
+                    continue
+                h = grain[y, x]
+                if h < 22:
                     c.dot(x, y, (255, 255, 255))
-                    c.dot(x + 1, y, rgb('#e4faff'))
-                    c.dot(x, y + 1, rgb('#e4faff'))
-                    c.dot(x + 1, y + 1, rgb('#8fd8ee'))
+                elif h < 34:
+                    c.dot(x, y, rgb('#c8f4ff'))
+                elif h < 40:
+                    c.dot(x, y, rgb('#9fe6c0'))
     outline = rgb(dark_outline)
     line_col = darken(skin, 0.7) if sum(skin) > 150 else outline
     for x in range(4, 29):
@@ -211,7 +216,10 @@ def draw_frog(c, p, dark_outline='#15121e'):
         if p.get('diamond'):
             c.fill(diamond(cx, cy, p['diamond']), rgb(p['pupil']))
         else:
-            c.fill(ell(cx, cy + 0.3, p['pr'] * EYE_SCALE, p['pr'] * EYE_SCALE), rgb(p['pupil']))
+            c.fill(ell(cx, cy + p.get('py', 0.3), p['pr'] * EYE_SCALE, p['pr'] * EYE_SCALE), rgb(p['pupil']))
+        if p.get('bar'):  # a black line through the pupil, side to side across the iris
+            row = int(cy - 0.5 + p.get('py', 0.3))
+            c.fill((YY == row) & (np.abs(CX - cx) <= ir), rgb(p['bar']))
         c.dot(int(cx - 2), int(cy - 2), (255, 255, 255))
         c.dot(int(cx - 1), int(cy - 2), (255, 255, 255))
     # a gloss mark on the forehead
