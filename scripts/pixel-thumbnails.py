@@ -117,8 +117,8 @@ FROGS = {
     'frog_green_v1': dict(mouth=(20.8, 2.3), curl=True, skin='#d8ea6a', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
     'frog_blue_v1': dict(skin='#a8e0ee', belly='#f0f0f0', sclera='#f4f4f4', iris='#000000', pupil='#000000', ir=2.9, pr=2.9),
     'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#4a3a34', iris_edge='#8a6a56', speck='#b09a86', pupil='#0b0807', ir=2.95, pr=0, diamond=4),
-    'frog_pink_v1': dict(skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
-    'frog_purple_v1': dict(skin='#cfa0ea', belly='#f0e6f0', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
+    'frog_pink_v1': dict(gloss=True, skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
+    'frog_purple_v1': dict(gloss=True, skin='#cfa0ea', belly='#f0e6f0', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
     'frog_red_v1': dict(skin='#ff4a2e', belly='#ecd8d8', sclera='#eef0dc', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95),
     'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#b98650', iris='#b98650', pupil='#0a0502', ir=2.95, pr=0, diamond=4),
     'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#a81426', iris='#a81426', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
@@ -250,6 +250,10 @@ def draw_frog(c, p, dark_outline='#15121e'):
             c.fill((YY == row) & (np.abs(CX - cx) <= ir), rgb(p['bar']))
         c.dot(int(cx - 2), int(cy - 2), (255, 255, 255))
         c.dot(int(cx - 1), int(cy - 2), (255, 255, 255))
+        if p.get('gloss'):  # a little white at the lower left of the pupil, as on the 3D model
+            ax, ay = int(cx - 0.5), int(cy - 0.5)
+            c.dot(ax - 1, ay + 1, (255, 255, 255))
+            c.dot(ax, ay + 1, (255, 255, 255))
     # a gloss mark on the forehead
     for x in (14, 15, 16):
         c.dot(x, 11, hi)
@@ -523,21 +527,6 @@ def merchant_lady():
     for x, y in [(15, 4), (18, 5), (21, 6), (9, 9), (23, 9), (13, 7)]:
         c.dot(x, y, rgb(HAIR_LO))
     merchant_face(c)
-    gold = rgb('#d8a630')
-    for cx in (12.5, 19.5):  # round gold glasses, a pixel thick
-        c.fill(ell(cx, 14.0, 3.5, 3.4) & ~ell(cx, 14.0, 2.5, 2.4), gold)
-    c.fill((YY == 13) & (XX >= 15) & (XX <= 16), gold)  # the bridge
-    # near-white, faintly blue lenses in two layers, a milky one over a paler
-    # blue, with a glint; the eyes show through them only dimly
-    for cx in (12.5, 19.5):
-        lens = ell(cx, 14.0, 2.5, 2.4)
-        c.fill(lens, rgb('#f1f9fd'))
-        c.fill(lens & (CX + CY > cx + 14.0 + 1.4), rgb('#d3e8f4'))
-        c.dot(int(cx - 1.5), 12, (255, 255, 255))
-    merchant_eyes(c, y=13, color='#8aa3bc')  # the eyes, dim behind the glass
-    for x in (7, 25):  # the glasses' cords, hanging by the ears
-        for y in range(15, 21):
-            c.dot(x, y, rgb('#f2f0f0'))
     c.fill((YY == 20) & (XX >= 14) & (XX <= 18), rgb('#cf6f60'))  # her smile
     c.dot(13, 19, rgb('#cf6f60'))
     c.dot(19, 19, rgb('#cf6f60'))
