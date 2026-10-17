@@ -200,6 +200,28 @@ describe('MatchCloud', () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith('/lobby?id=BOSS1'));
   });
 
+  it('brings the ranked match before a bossfight that started, and the bossfight once it is closed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    rememberSeat('bossfight', 'BOSS1');
+    vi.mocked(getBossfightRoster).mockResolvedValue({
+      lobby_id: 'BOSS1',
+      round: 1,
+      start_time: null,
+      players: [{ name: 'Alice', skin: null, alive: true, spectator: false, bot: false }],
+    });
+    vi.mocked(getActiveRankedLobby).mockResolvedValue(found);
+    renderCloud();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3100);
+    });
+    // Both have news; ranked is first (ranked, bot ranked, bossfight, casual).
+    expect(screen.getByText('You are currently in a lobby.')).toBeInTheDocument();
+    expect(screen.queryByText('Bossfight started.')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.getByText('Bossfight started.')).toBeInTheDocument();
+  });
+
   it('keeps the bossfight cloud up until the cross closes it', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     rememberSeat('bossfight', 'BOSS1');

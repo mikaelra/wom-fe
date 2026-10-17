@@ -19,6 +19,9 @@ import { RANKED, SEARCHING, STILL_QUEUING, lobbyStartedCloud, onLobbyPage, ranke
 //      where the signpost says it, and on the match's own page;
 //   4. on the Earth screen while queued for ranked: "Searching" (black)
 //      "Ranked" (red).
+// When several have news, the one that matters most comes first: ranked,
+// then bot ranked, then bossfight, then casual (Mikael, 2026-10-17); the
+// rest follow as the ones above are closed.
 // Each cloud stays up until its cross closes it; a closed ranked cloud comes
 // back when there's news (found -> started). Mounted once, in the root
 // layout, inside <RankedQueueProvider>.
@@ -143,15 +146,6 @@ export default function MatchCloud() {
     );
   }
 
-  if (notice) {
-    const content = lobbyStartedCloud(notice.kind);
-    return (
-      <BlimkinCloud appearance={`seat:${notice.lobbyId}`} label={content.lines[0]} onClose={dismiss}>
-        <Lines content={content} onAction={() => void joinSeat(notice)} />
-      </BlimkinCloud>
-    );
-  }
-
   const inCity = !!pathname?.startsWith('/city');
   const rankedKey = match ? `ranked:${match.lobbyId}:${match.started ? 'started' : 'found'}` : null;
   if (match && rankedKey && !closed.has(rankedKey) && !inCity && !isShown(match.lobbyId)) {
@@ -164,6 +158,15 @@ export default function MatchCloud() {
         onClose={() => close(rankedKey)}
       >
         <Lines content={content} onAction={joinRanked} />
+      </BlimkinCloud>
+    );
+  }
+
+  if (notice) {
+    const content = lobbyStartedCloud(notice.kind);
+    return (
+      <BlimkinCloud appearance={`seat:${notice.lobbyId}`} label={content.lines[0]} onClose={dismiss}>
+        <Lines content={content} onAction={() => void joinSeat(notice)} />
       </BlimkinCloud>
     );
   }
