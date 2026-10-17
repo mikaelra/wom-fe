@@ -721,29 +721,40 @@ BLIM, BLIM_LIT, BLIM_DARK, BLIM_INK, BLIM_EYE = '#ffd214', '#ffe97a', '#e1a500',
 
 
 def blimkin():
-    """Blimkin, as he stands in the statusline (lib/blimkinSprite.ts): the yellow
-    gremlin with a spike on his head and another on his left, arms hanging out
-    from his sides, two red eyes in black sockets looking right, a flat black
-    mouth, an amber underside and two thin legs. A first try, to refine."""
+    """Blimkin as a short, fat banana standing on end with a spike at its tip
+    (Mikael, 2026-10-17): the statusline gremlin's yellow, red eyes in black
+    sockets looking right, a flat black mouth, an amber underside, arms hanging
+    out from the sides and two thin legs. A second try, to refine."""
     c = Canvas()
-    body = ell(16, 17.5, 10.2, 8.6)
-    poly(c, [(16, 1), (11.5, 10), (20.5, 10)], rgb(BLIM))            # the big spike
-    poly(c, [(3, 13), (9, 10), (9, 17)], rgb(BLIM))                  # the small one, on his left
-    poly(c, [(29.5, 21), (25, 18.5), (25, 23.5)], rgb(BLIM_DARK))    # a nub on his right, amber
-    line(c, [(7, 21), (3, 25)], rgb(BLIM))                           # arms hanging out from the sides
-    line(c, [(8, 22), (4, 26)], rgb(BLIM))
-    line(c, [(25, 21), (29, 25)], rgb(BLIM))
-    line(c, [(24, 22), (28, 26)], rgb(BLIM))
-    line(c, [(13, 26), (11, 30)], rgb(BLIM))                         # legs
-    line(c, [(19, 26), (21, 30)], rgb(BLIM))
+    ts = np.linspace(0, 1, 90)
+    body = np.zeros((N, N), dtype=bool)
+    for t in ts:  # the banana: a fat crescent, bulging to the left, leaning right at the top
+        cx = 18.0 + 7.0 * (t - 0.56) - 2.0 * math.sin(math.pi * t)
+        cy = 25.5 - 17.0 * t
+        r = 3.4 + 4.8 * math.sin(math.pi * (0.06 + 0.88 * t)) ** 0.8
+        body |= ell(cx, cy, r, r * 0.95)
     c.fill(body, rgb(BLIM))
-    c.fill(body & (CY >= 22.2), rgb(BLIM_DARK))                      # the amber underside
-    c.fill(body & (CX + CY < 20), rgb(BLIM_LIT))                     # the lit upper left
-    c.fill(body & (CX + CY < 17.5) & (CX + CY >= 15.5), rgb(BLIM_LIT))
-    for x0 in (8, 18):                                               # eyes: black sockets, red looking right
+    poly(c, [(20.5, 0.5), (16.0, 9.0), (23.0, 8.0)], rgb(BLIM))      # the spike at the tip, leaning right
+    line(c, [(19, 9), (21, 3)], rgb(BLIM))
+    c.fill(body & (CY >= 22.5), rgb(BLIM_DARK))                      # the amber underside
+    c.fill(body & (CX + CY < 21) & (CX < 14), rgb(BLIM_LIT))         # the lit left
+    c.fill(body & (CX < 9.6) & (CY > 12), rgb(BLIM_LIT))
+    for x0 in (10, 17):                                              # eyes: black sockets, red looking right
         c.fill((YY >= 13) & (YY <= 17) & (XX >= x0) & (XX <= x0 + 4), rgb(BLIM_INK))
         c.fill((YY >= 14) & (YY <= 16) & (XX >= x0 + 2) & (XX <= x0 + 3), rgb(BLIM_EYE))
-    c.fill((YY >= 20) & (YY <= 21) & (XX >= 11) & (XX <= 20), rgb(BLIM_INK))   # the mouth
+    c.fill((YY >= 20) & (YY <= 21) & (XX >= 12) & (XX <= 20), rgb(BLIM_INK))   # the mouth
+    def edge(y, left):  # the body's outermost pixel on row y
+        xs = np.nonzero(body[y])[0]
+        return int(xs.min() if left else xs.max())
+
+    lx, rx = edge(20, True), edge(19, False)
+    for dy in (0, 1):                                                # arms hanging out from the sides
+        line(c, [(lx + 1, 20 + dy), (lx - 3, 24 + dy)], rgb(BLIM))
+        line(c, [(rx - 1, 19 + dy), (rx + 3, 23 + dy)], rgb(BLIM))
+    bottom = max(y for y in range(N) if body[y].any())
+    bl, br = edge(bottom, True), edge(bottom, False)
+    line(c, [(bl + 3, bottom - 1), (bl + 1, 31)], rgb(BLIM))         # legs
+    line(c, [(br - 2, bottom - 1), (br, 31)], rgb(BLIM))
     c.outline(rgb(BLIM_INK))
     return c
 
