@@ -7,6 +7,7 @@ import {
   BOT_QUEUE_MAX_AGE_MS,
   askDue,
   clearQueue,
+  questionLapsed,
   forgetBotQueue,
   readBotQueue,
   rememberBotQueue,
@@ -155,11 +156,24 @@ describe('matchCloud', () => {
       expect(askDue(q, STILL_QUEUING_AFTER_MS, true)).toBe(false);
     });
 
-    it('renews every few minutes, but not while the question is open', () => {
+    it('renews every 30 seconds, for 30 more minutes while the question is open', () => {
       const q = { name: 'Oni', queuedAt: 0, heardAt: 0 };
+      expect(RENEW_EVERY_MS).toBe(30_000);
       expect(renewDue(q, RENEW_EVERY_MS - 1)).toBe(false);
       expect(renewDue(q, RENEW_EVERY_MS)).toBe(true);
-      expect(renewDue({ ...q, askedAt: 1 }, RENEW_EVERY_MS * 3)).toBe(false);
+      expect(renewDue({ ...q, askedAt: 0 }, STILL_QUEUING_AFTER_MS - 1)).toBe(true);
+      expect(renewDue({ ...q, askedAt: 0 }, STILL_QUEUING_AFTER_MS)).toBe(false);
+    });
+
+    it('counts an unanswered question as lapsed once the server has dropped it', () => {
+      const q = { name: 'Oni', queuedAt: 0, heardAt: 0, askedAt: 0 };
+      expect(questionLapsed(q, STILL_QUEUING_AFTER_MS + QUEUE_STALE_MS - 1)).toBe(false);
+      expect(questionLapsed(q, STILL_QUEUING_AFTER_MS + QUEUE_STALE_MS)).toBe(true);
+      expect(questionLapsed({ name: 'Oni', queuedAt: 0, heardAt: 0 }, 10 ** 9)).toBe(false);
+    });
+
+    it('lets go of the queue two minutes after the app went away', () => {
+      expect(QUEUE_STALE_MS).toBe(120_000);
     });
 
     it('remembers "do not ask me again"', () => {

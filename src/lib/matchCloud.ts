@@ -137,11 +137,13 @@ export const DONT_ASK_KEY = 'wom.rankedQueue.dontAsk';
 
 /** When Blimkin asks whether you still want to be in the queue. */
 export const STILL_QUEUING_AFTER_MS = 30 * 60 * 1000;
-/** How often the app tells wom-be the queue is still with it. */
-export const RENEW_EVERY_MS = 5 * 60 * 1000;
-/** wom-be's RANKED_QUEUE_STALE_SECONDS: unheard from this long, the server
- *  has dropped the entry. */
-export const QUEUE_STALE_MS = 30 * 60 * 1000;
+/** How often the app tells wom-be the queue is still with it -- only while
+ *  the app is open and showing. */
+export const RENEW_EVERY_MS = 30 * 1000;
+/** wom-be's RANKED_QUEUE_AWAY_SECONDS: once the app has been away this long
+ *  (in the background, closed, phone locked) the server drops the queue, so
+ *  nobody is matched into a game they aren't there for (Mikael, 2026-10-17). */
+export const QUEUE_STALE_MS = 2 * 60 * 1000;
 
 export interface StoredQueue {
   name: string;
@@ -185,10 +187,16 @@ export function askDue(q: StoredQueue, now: number, dontAsk: boolean): boolean {
   return !dontAsk && q.askedAt === undefined && now - q.queuedAt >= STILL_QUEUING_AFTER_MS;
 }
 
-/** Whether to renew now. Not while the question is open: unanswered, the
- *  queue lapses on the server. */
+/** Whether to renew now. While the 30-minute question is open the queue is
+ *  kept for another 30 minutes, then left to lapse if nobody answers. */
 export function renewDue(q: StoredQueue, now: number): boolean {
-  return q.askedAt === undefined && now - q.heardAt >= RENEW_EVERY_MS;
+  if (q.askedAt !== undefined && now - q.askedAt >= STILL_QUEUING_AFTER_MS) return false;
+  return now - q.heardAt >= RENEW_EVERY_MS;
+}
+
+/** The question went unanswered long enough that the queue has lapsed. */
+export function questionLapsed(q: StoredQueue, now: number): boolean {
+  return q.askedAt !== undefined && now - q.askedAt >= STILL_QUEUING_AFTER_MS + QUEUE_STALE_MS;
 }
 
 // --- the bot-ranked queue, remembered so a match found away is noticed -------

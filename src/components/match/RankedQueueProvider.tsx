@@ -8,10 +8,10 @@ import { useRankedQueue } from '@/lib/useRankedQueue';
 import { isIosApp } from '@/lib/appleShop';
 import { notifyRankedStarted } from '@/lib/matchNotice';
 import {
-  QUEUE_STALE_MS,
   askDue,
   clearQueue,
   onLobbyPage,
+  questionLapsed,
   readDontAsk,
   readQueue,
   renewDue,
@@ -34,7 +34,7 @@ const FORMING_POLL_MS = 2000;
 /** Once it has started, only to notice when it is over. */
 const STARTED_POLL_MS = 10000;
 /** How often the queue's 30-minute question and its renewal are checked. */
-const QUEUE_CHECK_MS = 15000;
+const QUEUE_CHECK_MS = 10000;
 
 export interface RankedQueueApi {
   status: 'idle' | 'searching';
@@ -111,6 +111,9 @@ export default function RankedQueueProvider({ children }: { children: React.Reac
         clearQueue();
         throw err;
       }
+      // At once, so wom-be counts this queue as one that leaves when the
+      // app goes away (RANKED_QUEUE_AWAY_SECONDS), not after half an hour.
+      renewRankedQueue(name).catch(() => undefined);
     },
     [queueStart],
   );
@@ -187,26 +190,33 @@ export default function RankedQueueProvider({ children }: { children: React.Reac
     notifyRankedStarted().catch(() => undefined);
   }, [lobbyId, started]);
 
-  // While searching: ask after 30 minutes, and keep wom-be's entry alive.
+  // While searching and the app is showing: ask after 30 minutes, and keep
+  // wom-be's entry alive. Away for 2 minutes -- in the background, closed,
+  // phone locked -- and the server drops it (Mikael, 2026-10-17), so the
+  // app stops checking in while hidden, and on coming back lets go of a
+  // queue the server no longer has.
   useEffect(() => {
     if (status !== 'searching') return;
     const check = () => {
+      if (document.visibilityState === 'hidden') return;
       const q = readQueue();
       if (!q) return;
       const now = Date.now();
-      if (askDue(q, now, readDontAsk())) {
-        writeQueue({ ...q, askedAt: now });
-        setAsking(true);
-        return;
-      }
-      if (q.askedAt !== undefined && now - q.heardAt >= QUEUE_STALE_MS) {
-        // Never answered: wom-be has dropped the entry by now.
+      if (!resumable(q, now) || questionLapsed(q, now)) {
         void cancelQueue();
         return;
       }
+      if (askDue(q, now, readDontAsk())) {
+        writeQueue({ ...q, askedAt: now });
+        setAsking(true);
+      }
       if (renewDue(q, now)) {
         renewRankedQueue(q.name)
-          .then(() => {
+          .then(({ status: renewed }) => {
+            if (renewed === 'not_queued') {
+              void cancelQueue();
+              return;
+            }
             const latest = readQueue();
             if (latest) writeQueue({ ...latest, heardAt: Date.now() });
           })
@@ -216,7 +226,11 @@ export default function RankedQueueProvider({ children }: { children: React.Reac
       }
     };
     const id = setInterval(check, QUEUE_CHECK_MS);
-    return () => clearInterval(id);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', check);
+    };
   }, [status, cancelQueue]);
 
   const answerStillQueuing = useCallback(
@@ -231,6 +245,7 @@ export default function RankedQueueProvider({ children }: { children: React.Reac
       if (!q) return;
       const now = Date.now();
       writeQueue({ name: q.name, queuedAt: now, heardAt: q.heardAt });
+      // A "Yes" after the queue has already lapsed starts it again.
       renewRankedQueue(q.name)
         .then(() => {
           const latest = readQueue();
