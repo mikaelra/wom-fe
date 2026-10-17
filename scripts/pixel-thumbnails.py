@@ -527,14 +527,14 @@ def merchant_lady():
     for cx in (12.5, 19.5):  # round gold glasses, a pixel thick
         c.fill(ell(cx, 14.0, 3.5, 3.4) & ~ell(cx, 14.0, 2.5, 2.4), gold)
     c.fill((YY == 13) & (XX >= 15) & (XX <= 16), gold)  # the bridge
-    # light blue lenses in two layers, a lighter one over a deeper one, with a
-    # glint; the eyes are drawn on top in a blue-tinted dark so they show through
+    # near-white, faintly blue lenses in two layers, a milky one over a paler
+    # blue, with a glint; the eyes show through them only dimly
     for cx in (12.5, 19.5):
         lens = ell(cx, 14.0, 2.5, 2.4)
-        c.fill(lens, rgb('#cdeefb'))
-        c.fill(lens & (CX + CY > cx + 14.0 + 0.6), rgb('#9fd3ee'))
+        c.fill(lens, rgb('#f1f9fd'))
+        c.fill(lens & (CX + CY > cx + 14.0 + 1.4), rgb('#d3e8f4'))
         c.dot(int(cx - 1.5), 12, (255, 255, 255))
-    merchant_eyes(c, y=13, color='#26405e')  # the eyes, seen through the glass
+    merchant_eyes(c, y=13, color='#8aa3bc')  # the eyes, dim behind the glass
     for x in (7, 25):  # the glasses' cords, hanging by the ears
         for y in range(15, 21):
             c.dot(x, y, rgb('#f2f0f0'))
