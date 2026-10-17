@@ -12,6 +12,8 @@ import AgePrompt from "@/components/AgePrompt";
 import MoonNotifications from "@/components/MoonNotifications";
 import IosZoomReset from "@/components/IosZoomReset";
 import RestoreAfterReload from "@/components/RestoreAfterReload";
+import RankedQueueProvider from "@/components/match/RankedQueueProvider";
+import MatchCloud from "@/components/match/MatchCloud";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,16 +53,19 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ToastProvider>
-          <ErrorBoundary>{children}</ErrorBoundary>
-          <LoadingOverlay />
-          <AppleTransactionSync />
-          <SteamWelcome />
-          <AppleWelcome />
-          <AgePrompt />
-          <TextModeOffer />
-          <MoonNotifications />
-          <IosZoomReset />
-          <RestoreAfterReload />
+          <RankedQueueProvider>
+            <ErrorBoundary>{children}</ErrorBoundary>
+            <MatchCloud />
+            <LoadingOverlay />
+            <AppleTransactionSync />
+            <SteamWelcome />
+            <AppleWelcome />
+            <AgePrompt />
+            <TextModeOffer />
+            <MoonNotifications />
+            <IosZoomReset />
+            <RestoreAfterReload />
+          </RankedQueueProvider>
         </ToastProvider>
       </body>
     </html>

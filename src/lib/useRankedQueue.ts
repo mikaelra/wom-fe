@@ -66,7 +66,15 @@ const ACTIVE_MATCH_POLL_MS = 4000;
  * Layer 2 alone fixes the reported symptom; layer 1 is what keeps the push
  * (and so the instant entry) working in the first place.
  */
-export function useRankedQueue() {
+export interface UseRankedQueueOptions {
+  /** Called instead of entering the lobby when a match is found: the queue
+   *  that follows the player around (components/match/RankedQueueProvider)
+   *  leaves them where they are and lets Blimkin tell them. The token is
+   *  already stored for the lobby page. */
+  onMatch?: (lobbyId: string) => void;
+}
+
+export function useRankedQueue({ onMatch }: UseRankedQueueOptions = {}) {
   const router = useRouter();
   const [status, setStatus] = useState<RankedQueueStatus>('idle');
   const unsubscribeRef = useRef<(() => void) | null>(null);
@@ -110,13 +118,21 @@ export function useRankedQueue() {
       // to arrive now wins, which is exactly the one still valid
       // server-side.
       setStoredToken(lobbyId, token);
+      if (onMatch) {
+        if (enteredRef.current) return;
+        enteredRef.current = true;
+        stopListening();
+        setStatus('idle');
+        onMatch(lobbyId);
+        return;
+      }
       getSocket().emit('join_room', { lobby_id: lobbyId, token });
       if (enteredRef.current) return;
       enteredRef.current = true;
       stopListening();
       router.push(`/lobby?id=${lobbyId}`);
     },
-    [router, stopListening]
+    [router, stopListening, onMatch]
   );
 
   const startQueue = useCallback(

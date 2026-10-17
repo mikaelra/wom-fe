@@ -454,6 +454,16 @@ export const RankedActiveResponseSchema = z.object({
   token: z.string().nullable(),
   ranked_countdown_deadline: z.string().nullable(),
   started: z.boolean(),
+  // Who else is seated and the headcount, for Blimkin's cloud and the
+  // signpost (wom-be 2026-10-17). Optional: an older backend omits them.
+  players: z.array(z.string()).optional(),
+  player_count: z.number().int().optional(),
+  max_players: z.number().int().optional(),
+});
+
+// POST /ranked/queue/renew -- the app still has the queue with it.
+export const RankedQueueRenewResponseSchema = z.object({
+  status: z.enum(['renewed', 'not_queued']),
 });
 
 // GET /well/profile/<name> -- discovery-style: `rewards` only ever lists

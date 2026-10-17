@@ -62,6 +62,7 @@ import {
   CheckClaimVerifiedResponseSchema,
   PlayerProfileResponseSchema,
   RankedActiveResponseSchema,
+  RankedQueueRenewResponseSchema,
   RankedProfileResponseSchema,
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
@@ -253,6 +254,15 @@ export async function joinRankedQueue(playerName: string): Promise<{ status: str
   return data;
 }
 
+/** The queue is still with the app: keeps wom-be from dropping it as stale. */
+export async function renewRankedQueue(playerName: string): Promise<{ status: 'renewed' | 'not_queued' }> {
+  return request('/ranked/queue/renew', RankedQueueRenewResponseSchema, {
+    quiet: true,
+    body: { name: playerName, ...rankedCredentials(playerName) },
+    defaultErrorMessage: 'Failed to renew the ranked queue.',
+  });
+}
+
 export async function leaveRankedQueue(playerName: string): Promise<{ status: string; was_queued: boolean }> {
   return request('/ranked/queue/leave', RankedQueueLeaveResponseSchema, {
     body: { name: playerName, ...rankedCredentials(playerName) },
@@ -299,8 +309,17 @@ export async function getRankedRanks(playerName: string): Promise<RankedRanks> {
 }
 
 export async function getActiveRankedLobby(
-  playerName: string
-): Promise<{ lobby_id: string | null; token: string | null; ranked_countdown_deadline: string | null; started: boolean }> {
+  playerName: string,
+  { peek = false }: { peek?: boolean } = {},
+): Promise<{
+  lobby_id: string | null;
+  token: string | null;
+  ranked_countdown_deadline: string | null;
+  started: boolean;
+  players?: string[];
+  player_count?: number;
+  max_players?: number;
+}> {
   const credentials = rankedCredentials(playerName);
   // Nothing to prove who we are with -- the backend would 403, and a
   // player who never queued (or queued on another browser, logged out)
@@ -310,7 +329,9 @@ export async function getActiveRankedLobby(
   }
   return request('/ranked/active', RankedActiveResponseSchema, {
     quiet: true, // polled
-    body: { name: playerName, ...credentials },
+    // peek: report the match without minting a lobby token -- every mint
+    // invalidates the token the player joined with.
+    body: { name: playerName, ...credentials, ...(peek ? { peek: true } : {}) },
     defaultErrorMessage: 'Failed to check for an active ranked match.',
   });
 }
@@ -1154,6 +1175,7 @@ export async function leaveBotRankedQueue(
 
 export async function getActiveBotRankedLobby(
   accountToken: string,
+  { peek = false }: { peek?: boolean } = {},
 ): Promise<{
   lobby_id: string | null;
   token: string | null;
@@ -1162,7 +1184,7 @@ export async function getActiveBotRankedLobby(
 }> {
   return request('/my_ai/bot_ranked/active', MyAiBotRankedActiveResponseSchema, {
     quiet: true, // polled
-    body: { token: accountToken },
+    body: { token: accountToken, ...(peek ? { peek: true } : {}) },
     defaultErrorMessage: 'Failed to check for an active bot-ranked match.',
   });
 }
