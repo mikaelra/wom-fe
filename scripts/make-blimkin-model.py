@@ -42,7 +42,7 @@ class Mesh:
         self.f += (faces + base).tolist()
 
 
-def tube(mesh, pts, radii, color_fn, segs=28, cap_start=True, cap_end=True):
+def tube(mesh, pts, radii, color_fn, segs=28, cap_start=True, cap_end=True, deform=None):
     """A tube along a 3D polyline; radii[i] = (rx, rz) of the ring at pts[i]."""
     pts = np.asarray(pts, float)
     rings, cols = [], []
@@ -54,6 +54,8 @@ def tube(mesh, pts, radii, color_fn, segs=28, cap_start=True, cap_end=True):
         w = np.cross(t, u); w /= np.linalg.norm(w)
         rx, rz = radii[i]
         ring = [p + rx * math.cos(a) * u + rz * math.sin(a) * w for a in np.linspace(0, 2 * math.pi, segs, endpoint=False)]
+        if deform:
+            ring = [deform(q, p) for q in ring]
         rings.append(ring)
         cols.append([color_fn(q) for q in ring])
     verts, colors, faces = [], [], []
@@ -96,44 +98,112 @@ def box(mesh, centre, size, color):
 
 # --- the shape, in metres-ish: the banana is 1.0 tall, standing on legs 0.3 long ---
 BASE_Y, HEIGHT = 0.30, 1.0
+TOP = 1.42  # where the cone ends, in the body's own 0..1 units (1.0 is the top of the old banana)
 
 
 def centre(t):
-    return 0.0 + 0.42 * (t - 0.56) - 0.12 * math.sin(math.pi * t) + 0.06, BASE_Y + HEIGHT * t
+    lean = min(t, 1.0) + 0.3 * max(t - 1.0, 0.0)  # the spike leans on more gently than the banana
+    return 0.0 + 0.42 * (lean - 0.56) - 0.12 * math.sin(math.pi * min(t, 1.0)) + 0.06, BASE_Y + HEIGHT * t
+
+
+def bulb(t):
+    return 0.07 + 0.36 * math.sin(math.pi * (0.03 + 0.94 * t)) ** 0.7
+
+
+def _cone_start():
+    """Where the body turns into the spike: the cone's slope matches the bulb's
+    there, so the left side runs on from the sphere without a corner."""
+    best, at = 9.0, 0.8
+    for k in range(550, 950):
+        t = k / 1000
+        slope = (bulb(t + 1e-4) - bulb(t - 1e-4)) / 2e-4
+        err = abs(slope + bulb(t) / (TOP - t))
+        if err < best:
+            best, at = err, t
+    return at
+
+
+T0 = _cone_start()
 
 
 def radius(t):
-    return 0.07 + 0.36 * math.sin(math.pi * (0.03 + 0.94 * t)) ** 0.7
+    """The body's radius from its foot to the tip of the spike: the fat bulb,
+    then one straight cone."""
+    if t <= T0:
+        return bulb(t)
+    return max(bulb(T0) * (TOP - t) / (TOP - T0), 0.002)
+
+
+def smooth(x):
+    x = min(max(x, 0.0), 1.0)
+    return x * x * (3 - 2 * x)
+
+
+# What sits in the face, and how far the body gives way round it so each is set a
+# little into him (x, y of the centre relative to the face centre; half sizes).
+FACE_T = 0.56
+DENT, DENT_MARGIN = 0.05, 0.05
+FACE_PARTS = {  # name: (dx, dy, half width, half height)
+    'eye_l': (-0.17, 0.08, 0.095, 0.095),
+    'eye_r': (0.17, 0.08, 0.095, 0.095),
+    'mouth': (0.0, -0.17, 0.17, 0.03),
+}
+
+
+def dent_depth(x, y):
+    """How far the body surface is pushed in at (x, y) on the front of the face."""
+    fx, fy = centre(FACE_T)
+    depth = 0.0
+    for dx, dy, hw, hh in FACE_PARTS.values():
+        ox = max(abs(x - (fx + dx)) - hw, 0.0)
+        oy = max(abs(y - (fy + dy)) - hh, 0.0)
+        d = math.hypot(ox, oy)
+        depth = max(depth, DENT * (1.0 - smooth(d / DENT_MARGIN)))
+    return depth
+
+
+def carve_face(q, p):
+    """Pushes a body-surface point q (of the ring centred at p) towards the ring's
+    axis where the eyes and mouth sit, on the front only."""
+    front = q[2] - p[2]
+    if front <= 0.0:
+        return q
+    d = dent_depth(q[0], q[1]) * smooth(front / 0.12)
+    if d <= 0.0:
+        return q
+    axis = np.array([q[0] - p[0], q[1] - p[1], q[2] - p[2]])
+    return q - axis / (np.linalg.norm(axis) + 1e-9) * d
 
 
 def build():
     m = Mesh()
-    ts = np.linspace(0, 1, 44)
+    ts = np.linspace(0, TOP, 150)
     body_pts = [(*centre(t), 0.0) for t in ts]
     body_r = [(radius(t), radius(t) * 0.86) for t in ts]
     underside = BASE_Y + HEIGHT * 0.34
-    tube(m, body_pts, body_r, lambda q: AMBER if q[1] < underside else YELLOW)
-    # the spike at the tip: a tapering tube curving up and to his right
-    tip = np.array([*centre(0.96), 0.0])
-    sp = [tip + np.array([0.12 * s**1.5, 0.64 * s, 0.0]) for s in np.linspace(0, 1, 18)]
-    tube(m, sp, [(0.20 * (1 - s) ** 0.8 + 0.004, 0.18 * (1 - s) ** 0.8 + 0.004) for s in np.linspace(0, 1, 18)],
-         lambda q: YELLOW, segs=20, cap_start=False)
-    # the face, at t = 0.56: eyes, looking to his right, and the mouth
-    cx, cy = centre(0.56)
-    rz = radius(0.56) * 0.86
+    tube(m, body_pts, body_r, lambda q: AMBER if q[1] < underside else YELLOW, segs=72, deform=carve_face)
+    # the face: each part set in its dent, its front a little proud of the dented surface
+    fx, fy = centre(FACE_T)
+    rz = radius(FACE_T) * 0.86
+    front = rz - DENT + 0.03
     for dx in (-0.17, 0.17):
-        box(m, (cx + dx, cy + 0.08, rz * 0.93), (0.19, 0.19, 0.10), INK)
-        box(m, (cx + dx + 0.035, cy + 0.08, rz * 0.93 + 0.045), (0.09, 0.09, 0.07), RED)
-    box(m, (cx, cy - 0.17, rz * 0.9), (0.34, 0.06, 0.10), INK)
-    # arms hanging out from the sides, legs below
+        box(m, (fx + dx, fy + 0.08, front - 0.05), (0.19, 0.19, 0.10), INK)
+        box(m, (fx + dx + 0.035, fy + 0.08, front - 0.005), (0.09, 0.09, 0.07), RED)
+    box(m, (fx, fy - 0.17, front - 0.05), (0.34, 0.06, 0.10), INK)
+    # arms hanging out from the sides, legs below: stiff, but they grow out of the
+    # body -- rooted deep inside it and flaring where they leave it
     for sgn in (-1, 1):
         ay = BASE_Y + HEIGHT * 0.36
-        ax = centre(0.36)[0] + sgn * radius(0.36) * 0.9
-        pts = [(ax + sgn * 0.30 * s, ay - 0.30 * s, 0.0) for s in np.linspace(0, 1, 8)]
-        tube(m, pts, [(0.045, 0.045)] * 8, lambda q: YELLOW, segs=12)
+        ax = centre(0.36)[0] + sgn * radius(0.36) * 0.55
+        n = 12
+        pts = [(ax + sgn * 0.50 * s, ay - 0.50 * s, 0.0) for s in np.linspace(0, 1, n)]
+        flare = [0.045 + 0.075 * math.exp(-5.5 * s) for s in np.linspace(0, 1, n)]
+        tube(m, pts, [(f, f) for f in flare], lambda q: YELLOW, segs=16, cap_start=False)
         lx = centre(0.04)[0] + sgn * 0.13
-        pts = [(lx + sgn * 0.02 * s, BASE_Y + 0.02 - 0.32 * s, 0.0) for s in np.linspace(0, 1, 6)]
-        tube(m, pts, [(0.045, 0.045)] * 6, lambda q: YELLOW, segs=12)
+        n = 8
+        pts = [(lx + sgn * 0.02 * s, BASE_Y + 0.14 - 0.46 * s, 0.0) for s in np.linspace(0, 1, n)]
+        flare = [0.045 + 0.07 * math.exp(-6 * s) for s in np.linspace(0, 1, n)]
+        tube(m, pts, [(f, f) for f in flare], lambda q: AMBER if q[1] > BASE_Y - 0.05 else YELLOW, segs=16, cap_start=False)
     return m
 
 
