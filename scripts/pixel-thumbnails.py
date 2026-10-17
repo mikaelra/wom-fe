@@ -109,7 +109,7 @@ FROGS = {
     'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#4a3a34', iris_edge='#8a6a56', speck='#b09a86', pupil='#0b0807', ir=2.95, pr=0, diamond=4),
     'frog_pink_v1': dict(skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
     'frog_purple_v1': dict(skin='#cfa0ea', belly='#f0e6f0', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
-    'frog_red_v1': dict(skin='#ff4a2e', belly='#ecd8d8', sclera='#eef0dc', iris='#000000', pupil='#000000', ir=2.95, pr=2.95),
+    'frog_red_v1': dict(skin='#ff4a2e', belly='#ecd8d8', sclera='#eef0dc', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95),
     'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#b98650', iris='#b98650', pupil='#0a0502', ir=2.95, pr=0, diamond=4),
     'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#a81426', iris='#a81426', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
     'frog_silver_v1': dict(skin='#62646e', belly='#52545e', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#dce0ea'),
@@ -170,7 +170,7 @@ def draw_frog(c, p, dark_outline='#15121e'):
         c.fill(s['head'] & (CX > 27) & (YY >= 16), rgb('#ff3a2c'))
     c.rim(s['skin'], hi, lo)
     if p.get('sparkle'):  # fine glitter over the middle of the face and the lower face
-        wear = ((CX >= 8.5) & (CX <= 23.5) & (CY >= 9.5) & s['head']) | s['belly']
+        wear = ((np.abs(CX - 16) <= 4.8) & (CY >= 9.5) & s['head']) | s['belly']
         grain = np.random.default_rng(7).random((N, N)) * 100  # seeded: the same glitter every run
         for y in range(N):
             for x in range(N):
@@ -209,7 +209,7 @@ def draw_frog(c, p, dark_outline='#15121e'):
             c.fill(ell(cx, cy + 0.3, ir, ir), rgb(p['iris_edge']))
             c.fill(ell(cx, cy + 0.3, ir - 0.9, ir - 0.9), rgb(p['iris']))
         else:
-            c.fill(ell(cx, cy + 0.3, ir, ir), rgb(p['iris']))
+            c.fill(ell(cx, cy + p.get('py', 0.3), ir, ir), rgb(p['iris']))
         if p.get('speck'):
             for dx, dy in SPECKS:
                 c.dot(int(cx + dx), int(cy + dy), rgb(p['speck']))
