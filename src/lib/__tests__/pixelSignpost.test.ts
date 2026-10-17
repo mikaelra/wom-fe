@@ -255,11 +255,43 @@ describe('the Moon in the city sky', () => {
         fills.push(String(this.fillStyle));
       },
     };
-    const moonHigh = { sun: { alt: -30, az: 0 }, moon: { alt: 50, az: 180 } };
-    drawSignpostScene(ctx, 120, 200, [], { ...moonHigh, moonPhase: 180 });
+    const moonRising = { sun: { alt: -30, az: 0 }, moon: { alt: 6, az: 100 } };
+    drawSignpostScene(ctx, 120, 200, [], { ...moonRising, moonPhase: 180 });
     expect(fills).toContain('#e8ecf5');
     fills.length = 0;
-    drawSignpostScene(ctx, 120, 200, [], { ...moonHigh, moonPhase: 0 });
+    drawSignpostScene(ctx, 120, 200, [], { ...moonRising, moonPhase: 0 });
     expect(fills).not.toContain('#e8ecf5');
+  });
+
+  it('is never drawn in the south: high up it is out of the picture, low it keeps to the edges', () => {
+    const fillsFor = (moon: { alt: number; az: number }) => {
+      const xs: number[] = [];
+      let colour = '';
+      const ctx = {
+        get fillStyle() {
+          return colour;
+        },
+        set fillStyle(c: string | CanvasGradient | CanvasPattern) {
+          colour = String(c);
+        },
+        fillRect(x: number) {
+          if (colour === '#e8ecf5') xs.push(x);
+        },
+      };
+      drawSignpostScene(ctx, 120, 200, [], { sun: { alt: -30, az: 0 }, moon, moonPhase: 180 });
+      return xs;
+    };
+    expect(fillsFor({ alt: 25, az: 176 })).toEqual([]); // high in the south: not drawn
+    expect(fillsFor({ alt: 50, az: 180 })).toEqual([]);
+    const rising = fillsFor({ alt: 6, az: 100 }); // low in the east: in from the right edge
+    expect(rising.length).toBeGreaterThan(0);
+    expect(Math.min(...rising)).toBeGreaterThan(120 * 0.7);
+    const setting = fillsFor({ alt: 6, az: 260 }); // low in the west: in from the left edge
+    expect(Math.max(...setting)).toBeLessThan(120 * 0.3);
+    // Low in the south (a winter Moon): still not in the middle -- at the edge of the side it is on.
+    const lowSouthEast = fillsFor({ alt: 6, az: 178 });
+    expect(Math.min(...lowSouthEast)).toBeGreaterThan(120 * 0.7);
+    const lowSouthWest = fillsFor({ alt: 6, az: 182 });
+    expect(Math.max(...lowSouthWest)).toBeLessThan(120 * 0.3);
   });
 });

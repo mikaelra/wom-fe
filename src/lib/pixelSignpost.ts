@@ -382,16 +382,22 @@ export function drawSignpostScene(
     return mix(sky.top, sky.horizon, band / (BANDS - 1));
   };
   const dim = daylightDim(bodies.sun.alt);
-  if (bodies.moon.alt > 0) {
-    const [mx, my] = skyXY(bodies.moon, w, horizonY);
+  // Nothing is drawn in the south, the middle (Mikael, 2026-10-17): the Moon
+  // too keeps to the Sun's path, rising in from the right edge and setting in
+  // from the left, and is out of the picture while it is high.
+  const moonAt = bodies.moon.alt > 0 ? riseSetXY(bodies.moon, w, horizonY) : null;
+  if (moonAt) {
+    const [mx, my] = moonAt;
     // In its phase (lib/pixelMoon.ts), the dark side faint against the sky
     // behind it; by day the whole of it washed toward that sky.
     const behind = skyAtY(my);
     const lit = mix(MOON_LIT, behind, dim * MOON_DAY_DIM);
-    // Lit toward where the Sun really is, below the horizon too.
+    // Lit toward where the Sun really is, below the horizon too: the way from
+    // the Moon's true place on the compass strip to the Sun's.
+    const [trueX, trueY] = skyXY(bodies.moon, w, horizonY);
     const sunX = ((270 - bodies.sun.az) / 180) * w;
     const sunY = horizonY - (bodies.sun.alt / 90) * horizonY;
-    drawMoon(ctx, mx, my, 5, bodies.moonPhase ?? 180, { lit, dark: mix(lit, behind, 0.75) }, [sunX - mx, sunY - my]);
+    drawMoon(ctx, mx, my, 5, bodies.moonPhase ?? 180, { lit, dark: mix(lit, behind, 0.75) }, [sunX - trueX, sunY - trueY]);
   }
   // The planets on the Sun's path as they rise and set, under it where they
   // meet it.
