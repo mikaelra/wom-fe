@@ -95,35 +95,64 @@ class Canvas:
 
 
 # ---------------------------------------------------------------- frogs ----
+# Only the face (Mikael, 2026-10-17): the head and its two eyes fill the
+# whole grid, no body.
 
-EYE_L, EYE_R = (8.5, 8.6), (23.5, 8.6)
+EYE_L, EYE_R = (7.5, 8.5), (24.5, 8.5)  # on pixel centres, mirrored
 
-# skin, belly: sampled. sclera / iris / pupil: the eye as it looks in the 3D
-# thumbnail. pr: pupil radius. ir: iris radius.
+# skin, belly (the lower face): sampled from the 3D thumbnails. sclera / iris
+# / pupil: the eye as it looks there. pr: pupil radius, ir: iris radius, in
+# the units of the old body drawing (the face scales them up).
 FROGS = {
     'frog_green_v1': dict(skin='#d8ea6a', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
     'frog_blue_v1': dict(skin='#a8e0ee', belly='#f0f0f0', sclera='#f4f4f4', iris='#000000', pupil='#000000', ir=2.9, pr=2.9),
-    'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#3a2b25', pupil='#0b0807', ir=2.7, pr=1.6),
+    'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#4a3a34', iris_edge='#8a6a56', speck='#b09a86', pupil='#0b0807', ir=2.95, pr=0, pin=dict(rx=4.7, ry=4.7, nw=1, ns=3)),
     'frog_pink_v1': dict(skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
     'frog_purple_v1': dict(skin='#cfa0ea', belly='#f0e6f0', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
-    'frog_red_v1': dict(skin='#ff4a2e', belly='#ecd8d8', sclera='#eef0dc', iris='#000000', pupil='#000000', ir=2.8, pr=2.8),
-    'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#c99650', iris='#150802', pupil='#000000', ir=2.7, pr=1.7),
-    'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#3c0008', iris='#a31423', pupil='#1a0003', ir=2.8, pr=1.6, hi='#e2b04a'),
+    'frog_red_v1': dict(skin='#ff4a2e', belly='#ecd8d8', sclera='#eef0dc', rim='#0a0a0a', iris='#000000', pupil='#000000', ir=2.3, pr=2.3),
+    'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#f6edd8', iris='#d9c29c', iris_edge='#a67f4f', pupil='#0a0502', ir=2.95, pr=0, pin=dict(rx=4.7, ry=4.7, nw=1, ns=3)),
+    'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#5a3a08', iris='#b01828', iris_edge='#5a0a14', pupil='#0c0002', ir=2.95, pr=0, pin=dict(rx=4.8, ry=3.3, nw=1, ns=2, sides=False), hi='#e2b04a'),
     'frog_silver_v1': dict(skin='#3a3a40', belly='#2c2c32', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#c4c8d2'),
-    'frog_bling_v1': dict(skin='#55cc34', belly='#d6e8c0', sclera='#44b8b0', iris='#6a38a8', pupil='#10102a', ir=2.7, pr=1.6, sparkle=True),
+    'frog_bling_v1': dict(skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#08081a', ir=3.0, pr=1.6, sparkle=True),
     'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True),
 }
 
 
+
+EYE_SCALE = 1.32
+
+
+def pincushion(cx, cy, rx, ry, nw, ns, sides=True):
+    """A round pupil with a notch cut into each side -- a square with concave
+    sides ("inverse square"), the pupil of the orange, yellow and gold frogs.
+    (cx, cy) is a pixel centre; a notch is nw pixels either side of the axis
+    and ns or more pixels out."""
+    ax, ay = int(cx - 0.5), int(cy - 0.5)
+    dx, dy = XX - ax, YY - ay
+    m = (dx / rx) ** 2 + (dy / ry) ** 2 <= 1.0
+    m &= ~((np.abs(dx) <= nw) & (np.abs(dy) >= ns))  # the top and bottom
+    if sides:
+        m &= ~((np.abs(dy) <= nw) & (np.abs(dx) >= ns + 1))  # the left and right
+    return m
+
+
+SPECKS = [(-2, -1), (2, -2), (-1, 2), (2, 1), (0, -3), (-3, 1), (3, 0), (1, 3), (-2, 3), (-3, -2)]
+
+
+def mouth_y(x):
+    """The smile: its ends sit higher than its middle."""
+    return 20 + round(3.2 * (1 - ((x - 16) / 12.6) ** 2))
+
+
 def frog_shapes():
-    head = ell(16, 14, 12.5, 6.8)
-    bumps = ell(*EYE_L, 4.9, 4.9) | ell(*EYE_R, 4.9, 4.9)
-    body = ell(16, 25.5, 8.6, 8.2)
-    arms = ell(6.6, 24.5, 2.3, 5.2) | ell(25.4, 24.5, 2.3, 5.2)
-    feet = ell(5.2, 30, 3.8, 1.9) | ell(26.8, 30, 3.8, 1.9)
-    skin = head | bumps | body | arms | feet
-    belly = ell(16, 25, 5.8, 8.0) & (YY >= 16) & body
-    return dict(head=head, bumps=bumps, body=body, arms=arms, feet=feet, skin=skin, belly=belly)
+    head = ell(16, 18, 15.4, 10.8)
+    bumps = ell(*EYE_L, 6.1, 6.1) | ell(*EYE_R, 6.1, 6.1)
+    skin = head | bumps
+    below = np.zeros((N, N), dtype=bool)  # the lower face, under the smile
+    for x in range(N):
+        below[mouth_y(x) + 1 :, x] = True
+    belly = below & head
+    return dict(head=head, bumps=bumps, skin=skin, belly=belly)
 
 
 def draw_frog(c, p, dark_outline='#15121e'):
@@ -134,37 +163,56 @@ def draw_frog(c, p, dark_outline='#15121e'):
     c.fill(s['skin'], skin)
     c.fill(s['belly'], belly)
     if p.get('rainbow'):
-        c.fill(ell(16, 12, 4.2, 3.0) & s['head'], rgb('#c4ee8c'))  # the lime forehead
-        c.fill(s['arms'] & (YY >= 20), rgb('#ff3a2c'))
-        c.fill(s['feet'] & (CX < 16), rgb('#9a3cff'))
-        c.fill(s['feet'] & (CX >= 16), rgb('#3a6cff'))
-        c.fill(s['feet'] & (YY >= 30) & ((XX % 3) == 0), rgb('#ff40c0'))
-        c.fill(s['belly'] & (YY >= 24), rgb('#c4ee8c'))
+        c.fill(ell(16, 14.5, 5.0, 3.4) & s['head'], rgb('#c4ee8c'))  # the lime forehead
+        c.fill(s['belly'] & (YY >= 26), rgb('#c4ee8c'))
+        c.fill(s['head'] & (CX < 5) & (YY >= 16), rgb('#ff3a2c'))
+        c.fill(s['head'] & (CX > 27) & (YY >= 16), rgb('#ff3a2c'))
     c.rim(s['skin'], hi, lo)
-    # the chin: a lighter band under the mouth
-    # mouth: a wide smile, ends higher than the middle
     outline = rgb(dark_outline)
-    for x in range(7, 26):
-        y = 14 + round(2.2 * (1 - ((x - 16) / 9.6) ** 2))
-        c.dot(x, y, darken(skin, 0.7) if sum(skin) > 150 else outline)
+    line_col = darken(skin, 0.7) if sum(skin) > 150 else outline
+    for x in range(4, 29):
+        c.dot(x, mouth_y(x), line_col)
+    # the corners of the smile curl up
+    c.dot(3, mouth_y(4) - 1, line_col)
+    c.dot(28, mouth_y(28) - 1, line_col)
     # nostrils
-    c.dot(14, 11, lo)
-    c.dot(18, 11, lo)
+    for x in (13, 18):
+        c.dot(x, 15, lo)
+        c.dot(x + 1, 15, lo)
     # eyes
     for cx, cy in (EYE_L, EYE_R):
-        c.fill(ell(cx, cy, 3.7, 3.7), rgb(p['sclera']))
-        c.fill(ell(cx, cy + 0.2, p['ir'], p['ir']), rgb(p['iris']))
-        c.fill(ell(cx, cy + 0.2, p['pr'], p['pr']), rgb(p['pupil']))
-        c.dot(int(cx - 1.5), int(cy - 1.5), (255, 255, 255))
+        if p.get('rim'):
+            c.fill(ell(cx, cy, 4.9, 4.9), rgb(p['rim']))
+            c.fill(ell(cx, cy, 4.1, 4.1), rgb(p['sclera']))
+        else:
+            c.fill(ell(cx, cy, 4.9, 4.9), rgb(p['sclera']))
+        ir = p['ir'] * EYE_SCALE
+        if p.get('crescent'):  # the edge shows only along the bottom
+            c.fill(ell(cx, cy + 0.3, ir, ir), rgb(p['iris_edge']))
+            c.fill(ell(cx, cy - 0.5, ir - 0.2, ir - 0.2) & ell(cx, cy + 0.3, ir, ir), rgb(p['iris']))
+        elif p.get('iris_edge'):
+            c.fill(ell(cx, cy + 0.3, ir, ir), rgb(p['iris_edge']))
+            c.fill(ell(cx, cy + 0.3, ir - 0.9, ir - 0.9), rgb(p['iris']))
+        else:
+            c.fill(ell(cx, cy + 0.3, ir, ir), rgb(p['iris']))
+        if p.get('speck'):
+            for dx, dy in SPECKS:
+                c.dot(int(cx + dx), int(cy + dy), rgb(p['speck']))
+        if p.get('pin'):
+            c.fill(pincushion(cx, cy, **p['pin']), rgb(p['pupil']))
+        else:
+            c.fill(ell(cx, cy + 0.3, p['pr'] * EYE_SCALE, p['pr'] * EYE_SCALE), rgb(p['pupil']))
+        c.dot(int(cx - 2), int(cy - 2), (255, 255, 255))
+        c.dot(int(cx - 1), int(cy - 2), (255, 255, 255))
     # a gloss mark on the forehead
-    c.dot(15, 10, hi)
-    c.dot(14, 10, hi)
+    for x in (14, 15, 16):
+        c.dot(x, 11, hi)
+    c.dot(14, 12, hi)
     if p.get('sparkle'):
-        for x, y in [(12, 13), (20, 12), (15, 21), (19, 23), (14, 26), (17, 28), (10, 22), (22, 20), (6, 20), (26, 21), (16, 18)]:
+        for x, y in [(12, 15), (21, 14), (9, 20), (23, 19), (16, 17), (6, 16), (26, 16), (14, 24), (19, 26), (11, 27), (22, 25)]:
             c.dot(x, y, (255, 255, 255))
-        for x, y in [(13, 21), (18, 25), (15, 24)]:
+        for x, y in [(13, 22), (18, 22), (16, 27)]:
             c.dot(x, y, rgb('#b8f0ff'))
-    # outline last, around everything drawn
     c.outline(darken(skin, 0.78) if sum(skin) > 200 else outline)
 
 
@@ -178,19 +226,44 @@ def frog(name):
 
 
 def artifact():
-    """The white frog in the void (public/images/artifacts), black and glowing."""
-    c = Canvas('#000000')
-    # a dithered halo
-    d = np.sqrt((CX - 16) ** 2 + (CY - 17) ** 2)
-    for r, col, dither in [(17.5, '#1c1c22', 1), (15.5, '#2e2e38', 1), (13.5, '#444452', 1)]:
-        ring = (d <= r) & (((XX + YY) % 2 == 0) if dither else True)
-        c.fill(ring, rgb(col))
-    p = dict(skin='#e6e4de', belly='#fbfaf4', sclera='#cfcdc6', iris='#000000', pupil='#000000', ir=3.0, pr=3.0, hi='#ffffff')
-    # draw the frog on a transparent layer, then stamp it over the halo
-    f = Canvas()
-    draw_frog(f, p, dark_outline='#2a2a30')
-    m = f.px[:, :, 3] > 0
-    c.px[m] = f.px[m]
+    """The artifact is the rolled scroll (public/skins/items/pergament_v1.glb):
+    parchment with a narrow waist, a gold-brown cord tied round it, the
+    inside of the roll showing at the top."""
+    c = Canvas()
+    parch, light, dark = rgb('#dcc38c'), rgb('#ecd9a8'), rgb('#b69a62')
+    half = lambda y: 6.6 - 2.6 * math.sin(math.pi * (y - 3) / 26) ** 1.2  # wider at the ends
+    body = np.zeros((N, N), dtype=bool)
+    for y in range(4, 30):
+        h = half(y)
+        body[y, :] = np.abs(CX[0] - 16) <= h
+    c.fill(body, parch)
+    c.fill(body & (CX < 13.0), light)
+    c.fill(body & (CX >= 18.4), dark)
+    c.fill(body & (CX >= 20.8), darken(dark, 0.18))
+    # the top opening: the inside of the roll
+    c.fill(ell(16, 4.2, 6.7, 2.0), rgb('#8a6a34'))
+    c.fill(ell(16, 4.0, 4.6, 1.2), rgb('#f2e2b4'))
+    c.fill(ell(16, 4.1, 2.0, 0.6), rgb('#8a6a34'))
+    # the bottom edge
+    c.fill(ell(16, 29.6, 6.6, 1.0) & ~body, dark)
+    # the cord: a band round the waist, a loop, two tails
+    cord, cord_hi, cord_lo = rgb('#a8832a'), rgb('#c8a248'), rgb('#6e5214')
+    band = (YY >= 15) & (YY <= 17) & (np.abs(CX - 16) <= half(16) + 0.9)
+    c.fill(band, cord)
+    c.fill(band & (YY == 15), cord_hi)
+    c.fill(band & (YY == 17), cord_lo)
+    for x, y in [(23, 15), (24, 14), (25, 14), (25, 15), (24, 16)]:
+        c.dot(x, y, cord)
+    c.dot(24, 15, rgb('#070b15'))
+    c.dot(23, 14, cord_hi)
+    for x, y in [(22, 18), (22, 19), (22, 20), (23, 21), (24, 18), (24, 19), (25, 20)]:
+        c.dot(x, y, cord)
+    # grain and a few ink marks on the parchment
+    for x, y in [(12, 8), (14, 11), (11, 22), (13, 25), (15, 27), (17, 9), (18, 23), (12, 12)]:
+        c.dot(x, y, dark)
+    c.dot(11, 10, rgb('#6e5a38'))
+    c.dot(11, 11, rgb('#6e5a38'))
+    c.outline(rgb('#3a2c14'))
     return c
 
 

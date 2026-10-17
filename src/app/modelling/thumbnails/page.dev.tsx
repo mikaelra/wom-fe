@@ -13,7 +13,7 @@ export default function PixelThumbnailsPage() {
       <h1 className="text-2xl font-bold mb-1">8-bit thumbnails</h1>
       <p className="text-gray-400 mb-6">
         Drawn on a 32x32 grid by scripts/pixel-thumbnails.py. New on the left, today&apos;s picture on the right (where
-        there is one), then the new one at 48px and 24px.
+        there is one), then the new one at 48px and 24px. Frogs are faces only.
       </p>
       {PIXEL_GROUPS.map((group) => (
         <section key={group.title} className="mb-10">

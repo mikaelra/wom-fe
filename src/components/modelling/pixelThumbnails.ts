@@ -42,7 +42,7 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
     items: [
       { id: 'wheel', label: 'Wheel', was: '/images/wheel.png' },
       { id: 'special-wheel', label: 'Special Wheel', was: '/images/special-wheel.png' },
-      { id: 'artifact', label: 'Artifact (the white frog in the void)' },
+      { id: 'artifact', label: 'Artifact (the scroll, its 3D model)' },
     ],
   },
 ];
