@@ -91,6 +91,17 @@ describe('MatchCloud', () => {
     expect(screen.getByText('3/6')).toBeInTheDocument();
   });
 
+  it('goes into the lobby before it starts with Join Lobby', async () => {
+    vi.mocked(getActiveRankedLobby).mockImplementation(async (_name, opts) =>
+      opts?.peek ? found : { ...found, token: 'tok-early' },
+    );
+    renderCloud();
+
+    await screen.findByText('You are currently in a lobby.');
+    fireEvent.click(screen.getByText('Join Lobby'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/lobby?id=RNKD'));
+  });
+
   it('says the game has started and joins it on Join Game', async () => {
     vi.mocked(getActiveRankedLobby).mockImplementation(async (_name, opts) =>
       opts?.peek ? { ...found, started: true } : { ...found, started: true, token: 'tok-go' },

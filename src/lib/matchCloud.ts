@@ -49,15 +49,19 @@ export const JOIN_GAME = 'Join Game';
 export const JOIN_LOBBY = 'Join Lobby';
 
 /** The ranked cloud: who you're up against, or (tapped) the countdown and the
- *  headcount, or that the game has started. */
+ *  headcount -- with Join Lobby, so you can go in before it starts (Mikael,
+ *  2026-10-17) -- or that the game has started, with Join Game. */
 export function rankedCloud(match: RankedMatch, secondsLeft: number | null, expanded: boolean): CloudContent {
   if (match.started) return { lines: [GAME_STARTED], action: JOIN_GAME };
   if (expanded) {
-    return { lines: [secondsLeft != null ? `Starts in ${secondsLeft}s` : 'Starting soon', countLine(match)] };
+    return {
+      lines: [secondsLeft != null ? `Starts in ${secondsLeft}s` : 'Starting soon', countLine(match)],
+      action: JOIN_LOBBY,
+    };
   }
   const lines = ['You are currently in a lobby.'];
   if (match.players.length) lines.push(`Against: ${match.players.join(', ')}`);
-  return { lines };
+  return { lines, action: JOIN_LOBBY };
 }
 
 /** The ranked arm's second line while a match is on, in the signpost's own

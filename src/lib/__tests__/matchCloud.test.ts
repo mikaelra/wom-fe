@@ -58,6 +58,7 @@ describe('matchCloud', () => {
     it('says you are in a lobby and who you are up against', () => {
       expect(rankedCloud(match, 20, false)).toEqual({
         lines: ['You are currently in a lobby.', 'Against: Oni, Skoober'],
+        action: 'Join Lobby',
       });
     });
 
@@ -65,8 +66,8 @@ describe('matchCloud', () => {
       expect(rankedCloud({ ...match, players: [] }, null, false).lines).toEqual(['You are currently in a lobby.']);
     });
 
-    it('tapped, shows only the countdown and X/6', () => {
-      expect(rankedCloud(match, 12, true)).toEqual({ lines: ['Starts in 12s', '3/6'] });
+    it('tapped, shows only the countdown and X/6, still with Join Lobby', () => {
+      expect(rankedCloud(match, 12, true)).toEqual({ lines: ['Starts in 12s', '3/6'], action: 'Join Lobby' });
       expect(rankedCloud(match, null, true).lines[0]).toBe('Starting soon');
     });
 
