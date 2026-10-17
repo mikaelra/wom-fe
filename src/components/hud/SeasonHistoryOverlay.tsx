@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getSeasonHistory } from '@/lib/api';
-import type { SeasonHistoryEntry } from '@/lib/schemas';
-import RankBadge from '@/components/hud/RankBadge';
+import { getRankedRanks, getSeasonHistory } from '@/lib/api';
+import type { RankedRanks, SeasonHistoryEntry } from '@/lib/schemas';
+import RankBadge, { tierRank } from '@/components/hud/RankBadge';
 import LoadingState from '@/components/loading/LoadingState';
 
 type Ladder = 'human' | 'ai';
@@ -25,9 +25,18 @@ export default function SeasonHistoryOverlay({
   const [ladder, setLadder] = useState<Ladder>('human');
   const [history, setHistory] = useState<{ human: SeasonHistoryEntry[]; ai: SeasonHistoryEntry[] } | null>(null);
   const [error, setError] = useState('');
+  // Every rank ever reached, on either ladder -- in with the seasons'
+  // ranks (Mikael, 2026-10-12). Their own fetch, so a failure leaves the
+  // seasons showing.
+  const [reached, setReached] = useState<RankedRanks | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    getRankedRanks(playerName)
+      .then((data) => {
+        if (!cancelled) setReached(data);
+      })
+      .catch(() => {});
     getSeasonHistory(playerName)
       .then((data) => {
         if (!cancelled) setHistory(data);
@@ -49,6 +58,10 @@ export default function SeasonHistoryOverlay({
   }, [onClose]);
 
   const entries = history ? history[ladder] : [];
+  // Highest first; the same rank in several seasons, the latest first.
+  const ranksReached = [...(reached ? (ladder === 'human' ? reached.ranks : (reached.ai_ranks ?? [])) : [])].sort(
+    (a, b) => tierRank(b.tier) - tierRank(a.tier) || (b.at ?? '').localeCompare(a.at ?? ''),
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
@@ -124,6 +137,22 @@ export default function SeasonHistoryOverlay({
                 </li>
               ))}
             </ul>
+          )}
+          {ranksReached.length > 0 && (
+            <>
+              <h3 className="text-sm font-semibold text-white/70 mt-5 mb-2">Ranks reached</h3>
+              <ul className="space-y-2">
+                {ranksReached.map((r) => (
+                  <li
+                    key={`${r.season}-${r.tier}`}
+                    className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2"
+                  >
+                    <span className="text-sm text-white/70">{r.season}</span>
+                    <RankBadge tier={r.tier} placement={null} playerName={playerName} />
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </div>
       </div>

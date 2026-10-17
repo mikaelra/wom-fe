@@ -7,6 +7,7 @@ import { getStoredAccountToken, setStoredToken } from '@/lib/http';
 import { useBotRankedQueue } from '@/lib/useBotRankedQueue';
 import { useCountdown } from '@/lib/useCountdown';
 import { useToast } from '@/components/Toast';
+import { RETURN_TO_MATCH } from '@/lib/rankedSign';
 
 /**
  * Joining, watching and rejoining the bot-ranked queue -- the BOTS arm of
@@ -116,7 +117,7 @@ export function useEnterBotRanked(): BotRankedEntry {
   if (status === 'searching') {
     sublabel = `SEARCHING${'.'.repeat(searchingDots)}`;
   } else if (status === 'activeMatch') {
-    label = 'RETURN TO MATCH';
+    label = RETURN_TO_MATCH;
     sublabel = activeMatch?.started
       ? 'GAME STARTED!'
       : activeMatchSecondsLeft != null

@@ -8,8 +8,16 @@ import { claimLoadingScreen } from '@/lib/loadingTracker';
  * yet (a page, scene or panel). It draws nothing itself -- while it is
  * mounted the loading overlay (<LoadingOverlay>) covers the screen with the
  * loading animation -- and leaves a status for screen readers.
+ * `overSuppression` shows it even on a page that switched the overlay off
+ * (<NoLoadingOverlay>).
  */
-export default function LoadingState({ label = 'Loading' }: { label?: string }) {
-  useEffect(() => claimLoadingScreen(), []);
+export default function LoadingState({
+  label = 'Loading',
+  overSuppression = false,
+}: {
+  label?: string;
+  overSuppression?: boolean;
+}) {
+  useEffect(() => claimLoadingScreen(overSuppression), [overSuppression]);
   return <div role="status" aria-label={label} className="sr-only" />;
 }

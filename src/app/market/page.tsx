@@ -358,7 +358,7 @@ export default function MarketPage() {
           />
         </section>
 
-        <aside className="min-h-[300px] lg:h-[calc(100vh-9rem)]">
+        <aside className="min-h-[18.75rem] lg:h-[calc(100vh-9rem)]">
           <MarketChatPanel
             messages={chat}
             canChat={canChat}

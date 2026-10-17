@@ -5,6 +5,7 @@ import { getSeasonHistory } from '@/lib/api';
 
 vi.mock('@/lib/api', () => ({
   getSeasonHistory: vi.fn(),
+  getRankedRanks: vi.fn(async () => ({ ranks: [], ai_ranks: [] })),
 }));
 
 const history = {

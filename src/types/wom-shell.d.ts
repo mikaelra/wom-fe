@@ -29,6 +29,12 @@ declare global {
       /** Calls `listener` when the player answers a Steam Wallet purchase
        *  dialog; orderId is the backend's order id. Returns an unsubscribe. */
       onSteamPurchaseAnswer(listener: (answer: { orderId: string; authorized: boolean }) => void): () => void;
+      /** Linux only (no Steam overlay there): opens a Steam web purchase's
+       *  approval page in the Steam client. Absent on other platforms. */
+      openSteamPurchasePage?(url: string): void;
+      /** Linux only: brings the game window back to the front, once a
+       *  Steam web purchase is granted. Absent on other platforms. */
+      raiseWindow?(): void;
       /** Closes the game window and exits. */
       quit(): void;
     };

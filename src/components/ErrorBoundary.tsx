@@ -2,6 +2,7 @@
 
 import { Component, type ReactNode } from 'react';
 import * as Sentry from '@sentry/nextjs';
+import { reloadPage } from '@/lib/reloadPage';
 
 interface Props {
   children: ReactNode;
@@ -45,7 +46,7 @@ export class ErrorBoundary extends Component<Props, State> {
         >
           <p>Something went wrong.</p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => reloadPage()}
             style={{
               padding: '0.5rem 1.5rem',
               borderRadius: '0.5rem',

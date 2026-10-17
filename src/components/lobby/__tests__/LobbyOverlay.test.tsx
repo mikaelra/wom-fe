@@ -103,8 +103,21 @@ describe('renderGameOver', () => {
     expect(screen.getByText('You won! 👑')).toBeInTheDocument();
   });
 
-  it('shows the winner\'s name when someone else won', () => {
+  it('names the winner, and never says "You lost", when someone else won', () => {
     render(<>{renderGameOver({ ...opts, state: { ...opts.state, winner: 'Bob' } })}</>);
+    expect(screen.getByText('Game Over! Bob wins!')).toBeInTheDocument();
+    expect(screen.queryByText(/You lost/)).toBeNull();
+  });
+
+  it('just names the winner to a spectator', () => {
+    render(
+      <>
+        {renderGameOver({
+          ...opts,
+          state: { ...opts.state, winner: 'Bob', players: [{ ...basePlayer, spectator: true }] },
+        })}
+      </>,
+    );
     expect(screen.getByText('Game Over! Bob wins!')).toBeInTheDocument();
   });
 

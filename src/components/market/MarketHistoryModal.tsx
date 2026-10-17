@@ -91,7 +91,7 @@ export default function MarketHistoryModal({
                   </span>
                   <time
                     dateTime={t.completed_at}
-                    className="shrink-0 text-[11px] tabular-nums text-white/40"
+                    className="shrink-0 text-[0.6875rem] tabular-nums text-white/40"
                   >
                     {formatWhen(t.completed_at)}
                   </time>

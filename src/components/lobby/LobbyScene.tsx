@@ -24,6 +24,8 @@ import SelectionGlow from '@/components/lobby/SelectionGlow';
 import KillFireEffect from '@/components/lobby/KillFireEffect';
 import DamageNumberEffect from '@/components/lobby/DamageNumberEffect';
 import DenyRingEffect from '@/components/lobby/DenyRingEffect';
+
+import ShaderWarmup from '@/components/lobby/ShaderWarmup';
 import InstakillBurstEffect, { INSTAKILL_KILL_COLOR, INSTAKILL_BLOCK_COLOR } from '@/components/lobby/InstakillBurstEffect';
 import { PlayerWithName, LostSoulModel, WinnerCrown, WellCrown, LOST_SOUL_POSITIONS, BOSS_MAX_HP, type InfoRevealBadge } from '@/components/lobby/PlayerAvatars';
 import { FreshHtml } from '@/components/hud/FreshHtml';
@@ -69,6 +71,9 @@ import { useLobbyGame } from '@/lib/useLobbyGame';
 import type { LobbyState } from '@/types/game';
 import { useMutedPlayers } from '@/lib/chatMute';
 import { useChatText } from '@/lib/chatFilter';
+
+// The deny rings round Hades, twice a player's (Mikael, 2026-10-12).
+const HADES_DENY_RING_SCALE = 2;
 
 
 // ── Sea & sky tuning ────────────────────────────────────────────────────────
@@ -252,7 +257,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
   const [wellWinFx, setWellWinFx] = useState<WellWinFx[]>([]);
   const [killFireEvents, setKillFireEvents] = useState<KillFireEvent[]>([]);
   const [damageNumberEvents, setDamageNumberEvents] = useState<DamageNumberEvent[]>([]);
-  const [denyRingFx, setDenyRingFx] = useState<{ id: string; pos: [number, number, number] }[]>([]);
+  const [denyRingFx, setDenyRingFx] = useState<{ id: string; pos: [number, number, number]; scale?: number }[]>([]);
   // Denier glow: only shown to the denied player themself, under whoever
   // denied them -- see the same trigger effect as denyRingFx below. A
   // single persistent SelectionGlow (position parked, active toggled) like
@@ -790,7 +795,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
     const pos = posMapRef.current.get(target);
     if (pos) {
       const id = `deny-${target}-${Date.now()}`;
-      setDenyRingFx((fx) => [...fx, { id, pos }]);
+      // Hades gets rings twice the size: his body is that much bigger.
+      const isBoss = !!state?.players.find((p) => p.name === target)?.boss;
+      setDenyRingFx((fx) => [...fx, { id, pos, scale: isBoss ? HADES_DENY_RING_SCALE : 1 }]);
     }
     // Denier glow: only the denied player themself sees this one, under
     // whoever denied them.
@@ -798,7 +805,9 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
       const denierPos = posMapRef.current.get(denier);
       if (denierPos) triggerDenierGlow(denierPos);
     }
-  }, [state?.deny_target, state?.deny_denier, playerName, triggerDenierGlow]);
+    // state?.players: only read for whether the target is Hades; a re-run
+    // for any other change returns early above (same target as before).
+  }, [state?.deny_target, state?.deny_denier, state?.players, playerName, triggerDenierGlow]);
 
   // Well-winner glow: fires every time someone wins the Well, including the
   // same player winning again -- so this can't just watch "did wellwinner
@@ -1400,6 +1409,10 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         );
       })}
 
+      {/* The deny prompt, its rings and (in a bossfight) the lost souls,
+          compiled onto the GPU before they're first needed. */}
+      <ShaderWarmup lostSouls={!!state?.boss_fight} />
+
       {/* Lost soul names + attack buttons — immediate; mesh loads lazily inside LostSoulModel */}
       {lostSouls.map((soul, i) => {
         const pos = LOST_SOUL_POSITIONS[i % LOST_SOUL_POSITIONS.length];
@@ -1834,6 +1847,7 @@ export default function LobbyScene({ state, playerName, lobbyId, currentAction, 
         <DenyRingEffect
           key={fx.id}
           position={fx.pos}
+          scale={fx.scale}
           onDone={() => setDenyRingFx((e) => e.filter((x) => x.id !== fx.id))}
         />
       ))}

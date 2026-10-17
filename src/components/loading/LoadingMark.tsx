@@ -13,9 +13,11 @@ import {
   segmentsAt,
   specFor,
   v14ColorAt,
+  v16ColorAt,
   wheelColorAt,
 } from '@/lib/loadingAnimation';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
+import { currentUiScale, rem } from '@/lib/uiScale';
 
 /**
  * The World of Mythos loading animation (src/lib/loadingAnimation.ts), drawn
@@ -28,7 +30,9 @@ import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
  *
  * Each time it mounts, and again at the end of every whole loop, it picks a
  * version at random by the spec's mix (the golden mean, newest first) --
- * at the end of a loop always a different one from the loop just shown: v14 (the center lines alone
+ * at the end of a loop always a different one from the loop just shown: v16
+ * (v14 grown out of a point and retracted into it, turning all the way
+ * through, the hue once round the wheel), v14 (the center lines alone
  * unfolding into the cube and back), v13 (the wheel, the hue once round the
  * colour wheel per loop), v12 (the rainbow, red with the spin running round
  * the rainbow), v11 or v10 (in red, yellow or blue, from the bare hexagon or
@@ -59,8 +63,10 @@ export default function LoadingMark({
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(size * dpr);
-    canvas.height = Math.round(size * dpr);
+    // Sharp at the UI scale too: it is drawn at rem(size) (lib/uiScale.ts).
+    const res = size * dpr * currentUiScale();
+    canvas.width = Math.round(res);
+    canvas.height = Math.round(res);
 
     // One loop's figure: a given colour plays the single-colour figure, and
     // a given colour or start stays fixed across loops.
@@ -72,7 +78,7 @@ export default function LoadingMark({
         loop: loopDuration(spec),
         color: colorProp ?? variant.color,
         startFoldedOut: startProp ?? variant.startFoldedOut,
-        colorAt: { v14: v14ColorAt, wheel: wheelColorAt, rainbow: rainbowColorAt, v11: undefined, v10: undefined }[kind],
+        colorAt: { v16: v16ColorAt, v14: v14ColorAt, wheel: wheelColorAt, rainbow: rainbowColorAt, v11: undefined, v10: undefined }[kind],
       };
     };
     let variant = firstVariant;
@@ -131,7 +137,7 @@ export default function LoadingMark({
       aria-label={label}
       width={size}
       height={size}
-      style={{ width: size, height: size }}
+      style={{ width: rem(size), height: rem(size) }}
       className={className}
     />
   );

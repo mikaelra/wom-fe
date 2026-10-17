@@ -54,7 +54,7 @@ const MAX_AI_CREDITS_PER_ITEM = 1000;
 
 function CategoryHeader({ label }: { label: string }) {
   return (
-    <p className="w-full text-[10px] uppercase tracking-wide text-white/40 mt-2 first:mt-0 mb-1">
+    <p className="w-full text-[0.625rem] uppercase tracking-wide text-white/40 mt-2 first:mt-0 mb-1">
       {label}
     </p>
   );

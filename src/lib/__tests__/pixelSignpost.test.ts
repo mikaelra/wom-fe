@@ -1,0 +1,265 @@
+import { describe, expect, it } from 'vitest';
+import {
+  drawSignpostScene,
+  drawText,
+  layoutBoard,
+  mix,
+  skyBodies,
+  skyFor,
+  skyXY,
+  riseSetXY,
+  daylightDim,
+  signpostMinWidth,
+  signpostPixelSize,
+  SIGNPOST_PX,
+  SKY_PLANETS,
+  RISE_SET_ALT,
+  textWidth,
+  wrap,
+  type Board,
+  type Painter,
+} from '@/lib/pixelSignpost';
+
+function recorder(w: number, h: number) {
+  const pixels = new Map<string, string>();
+  const ctx: Painter = {
+    fillStyle: '#000000',
+    fillRect(x, y, rw, rh) {
+      for (let j = 0; j < rh; j++)
+        for (let i = 0; i < rw; i++) {
+          const px = x + i;
+          const py = y + j;
+          if (px >= 0 && py >= 0 && px < w && py < h) pixels.set(`${px},${py}`, String(this.fillStyle));
+        }
+    },
+  };
+  return { ctx, pixels };
+}
+
+const BOARDS: Board[] = [
+  { label: 'RANKED', color: '#ff6666', side: 'left', row: 0 },
+  { label: 'HADES', color: '#4da6ff', side: 'right', row: 0 },
+  { label: 'MARKET', color: '#e8d9a0', side: 'left', row: 1 },
+  { label: 'EARTH', color: '#5fd88a', side: 'right', row: 1 },
+];
+
+describe('pixel font', () => {
+  it('measures and wraps by whole words', () => {
+    expect(textWidth('HADES')).toBe(19);
+    expect(textWidth('HADES', 2)).toBe(34);
+    expect(wrap('return to match', 40)).toEqual(['RETURN TO', 'MATCH']);
+    expect(wrap('EARTH', 40)).toEqual(['EARTH']);
+  });
+
+  it('draws letters, and nothing for a space', () => {
+    const { ctx, pixels } = recorder(20, 10);
+    drawText(ctx, 'H I', 0, 0, '#ffffff');
+    expect(pixels.size).toBe(11 + 9); // H's pixels, then I's
+  });
+});
+
+describe('the sky', () => {
+  it('goes from day to golden hour, twilight and night with the Sun', () => {
+    expect(skyFor(40).stars).toBe(0);
+    expect(skyFor(5).horizon).toBe('#f3b05a');
+    expect(skyFor(-3).light).toBeLessThan(skyFor(5).light);
+    expect(skyFor(-20).stars).toBe(1);
+  });
+
+  it('finds the Sun high over Athens at noon and below it at midnight', () => {
+    expect(skyBodies(new Date('2026-06-21T10:00:00Z'), 37.98, 23.73).sun.alt).toBeGreaterThan(60);
+    expect(skyBodies(new Date('2026-06-21T22:00:00Z'), 37.98, 23.73).sun.alt).toBeLessThan(-10);
+  });
+
+  it('puts the east on the right, the west on the left, south in the middle, and higher up higher', () => {
+    expect(skyXY({ alt: 0, az: 90 }, 100, 60)).toEqual([100, 60]);
+    expect(skyXY({ alt: 0, az: 270 }, 100, 60)).toEqual([0, 60]);
+    expect(skyXY({ alt: 90, az: 180 }, 100, 60)).toEqual([50, 0]);
+  });
+
+  it('hides the Sun in the day, overhead, and below the horizon', () => {
+    expect(riseSetXY({ alt: RISE_SET_ALT + 1, az: 200 }, 100, 60)).toBeNull();
+    expect(riseSetXY({ alt: 60, az: 180 }, 100, 60)).toBeNull();
+    expect(riseSetXY({ alt: -2, az: 250 }, 100, 60)).toBeNull();
+  });
+
+  it('slopes the setting Sun down in from the left edge, wherever it really sets', () => {
+    const high = riseSetXY({ alt: RISE_SET_ALT, az: 230 }, 100, 60)!; // a winter sunset, south-west
+    const low = riseSetXY({ alt: 0, az: 320 }, 100, 60)!; // a summer one, north-west
+    expect(high).toEqual([0, 24]);
+    expect(low).toEqual([22, 60]);
+  });
+
+  it('raises the rising Sun up and out past the right edge', () => {
+    expect(riseSetXY({ alt: 0, az: 40 }, 100, 60)).toEqual([78, 60]);
+    expect(riseSetXY({ alt: RISE_SET_ALT, az: 130 }, 100, 60)).toEqual([100, 24]);
+  });
+
+  it('knows where the planets are -- Saturn just risen over Athens on the evening of 13 Oct 2026', () => {
+    const { planets } = skyBodies(new Date('2026-10-13T15:45:00Z'), 37.98, 23.73);
+    expect(Object.keys(planets).sort()).toEqual([...SKY_PLANETS].sort());
+    expect(planets.Saturn!.alt).toBeGreaterThan(0);
+    expect(planets.Saturn!.alt).toBeLessThan(RISE_SET_ALT);
+    expect(planets.Saturn!.az).toBeLessThan(180); // rising, in the east
+  });
+
+  it('draws a planet on the rise/set path while it is low, and not once it is high', () => {
+    const SATURN = '#a16300';
+    const draw = (alt: number) => {
+      const { ctx, pixels } = recorder(130, 281);
+      drawSignpostScene(ctx, 130, 281, [], {
+        sun: { alt: -30, az: 0 },
+        moon: { alt: -30, az: 0 },
+        planets: { Saturn: { alt, az: 100 } },
+      });
+      return [...pixels.entries()].filter(([, c]) => c === SATURN).map(([k]) => k);
+    };
+    const low = draw(4);
+    expect(low.length).toBe(9); // a 3x3 dot
+    expect(draw(RISE_SET_ALT + 5)).toEqual([]);
+  });
+
+  it('washes the Moon and the planets into the sky by day, not at night', () => {
+    expect(daylightDim(40)).toBeGreaterThan(daylightDim(5));
+    expect(daylightDim(5)).toBeGreaterThan(daylightDim(-3));
+    expect(daylightDim(-20)).toBe(0);
+    const SATURN = '#a16300';
+    const colours = (sunAlt: number) => {
+      const { ctx, pixels } = recorder(130, 281);
+      drawSignpostScene(ctx, 130, 281, [], {
+        sun: { alt: sunAlt, az: 180 },
+        moon: { alt: -30, az: 0 },
+        planets: { Saturn: { alt: 4, az: 100 } },
+      });
+      return new Set(pixels.values());
+    };
+    expect(colours(-30)).toContain(SATURN); // night: its own colour
+    expect(colours(40)).not.toContain(SATURN); // day: washed toward the sky
+  });
+
+  it('grows the sky pixels with the UI scale, and fits the boards on a watch-sized screen', () => {
+    const labels = BOARDS.map((b) => b.label);
+    expect(signpostPixelSize(390, 844, labels)).toBe(SIGNPOST_PX); // a phone: unchanged
+    expect(signpostPixelSize(1366, 1024, labels)).toBeCloseTo(SIGNPOST_PX * (1024 / 600));
+    for (const [w, h] of [[410, 502], [205, 251]]) {
+      const px = signpostPixelSize(w, h, labels);
+      const skyW = Math.ceil(w / px);
+      expect(skyW).toBeGreaterThanOrEqual(signpostMinWidth(labels));
+      for (const b of BOARDS) {
+        const box = layoutBoard(b, skyW, Math.ceil(h / px));
+        expect(box.scale).toBe(2); // big lettering, nothing wrapped or cut
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.w).toBeLessThanOrEqual(skyW);
+      }
+    }
+  });
+
+  it('mixes colours', () => {
+    expect(mix('#000000', '#ffffff', 0.5)).toBe('#808080');
+  });
+});
+
+describe('the signpost', () => {
+  it('hangs the boards either side of the post, top row over bottom', () => {
+    const [ranked, hades, market] = BOARDS.map((b) => layoutBoard(b, 130, 281));
+    expect(ranked.x + ranked.w).toBeLessThanOrEqual(65);
+    expect(hades.x).toBeGreaterThanOrEqual(65);
+    expect(market.y).toBeGreaterThan(ranked.y + ranked.h);
+  });
+
+  it("wraps a long board's words to fit its half of a phone", () => {
+    const box = layoutBoard({ label: 'RETURN TO MATCH', color: '#fff', side: 'left', row: 0 }, 130, 281);
+    expect(box.lines.length).toBe(2);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+  });
+
+  it('makes every board the same size, whatever is written on it', () => {
+    const boxes = [...BOARDS, { label: 'PLAYERS', color: '#fff', side: 'left', row: 0 } as Board].map((b) =>
+      layoutBoard(b, 130, 281),
+    );
+    expect(new Set(boxes.map((b) => `${b.w}x${b.h}`)).size).toBe(1);
+    expect(boxes.every((b) => b.scale === 2)).toBe(true); // big lettering, close up
+    expect(boxes[0].x).toBe(0); // out to the screen's edge
+  });
+
+  it("falls back to small lettering, same board, when a label won't fit big", () => {
+    const long = layoutBoard({ label: 'RETURN TO MATCH', color: '#fff', side: 'right', row: 0 }, 130, 281);
+    const short = layoutBoard({ label: 'BOTS', color: '#fff', side: 'right', row: 0 }, 130, 281);
+    expect(long.scale).toBe(1);
+    expect([long.w, long.h]).toEqual([short.w, short.h]);
+  });
+
+  it('writes the white info over its board in the pixel font, digits and all', () => {
+    const w = 130;
+    const h = 281;
+    const { ctx, pixels } = recorder(w, h);
+    const board: Board = { label: 'HADES', color: '#4da6ff', side: 'right', row: 0, info: 'BOSSFIGHT IN 2:05' };
+    drawSignpostScene(ctx, w, h, [board], skyBodies(new Date('2026-06-21T22:00:00Z'), 37.98, 23.73));
+    const box = layoutBoard(board, w, h);
+    const whiteAbove = [...pixels.entries()].filter(([k, c]) => {
+      const [x, y] = k.split(',').map(Number);
+      return c === '#ffffff' && y < box.y && y > box.y - 20 && x >= box.x && x < box.x + box.w;
+    });
+    expect(whiteAbove.length).toBeGreaterThan(40);
+  });
+
+  it('draws the whole scene, lettering in each arm colour', () => {
+    const w = 130;
+    const h = 281;
+    const { ctx, pixels } = recorder(w, h);
+    drawSignpostScene(ctx, w, h, BOARDS, { sun: { alt: 5, az: 290 }, moon: { alt: -20, az: 0 } });
+    expect(pixels.size).toBe(w * h);
+    const colours = new Set(pixels.values());
+    for (const b of BOARDS) expect(colours).toContain(b.color);
+    expect(colours).toContain('#ffe600'); // the Sun, setting
+  });
+
+  it('leaves the Sun out at noon -- it is overhead', () => {
+    const w = 130;
+    const h = 281;
+    const { ctx, pixels } = recorder(w, h);
+    drawSignpostScene(ctx, w, h, BOARDS, skyBodies(new Date('2026-06-21T10:00:00Z'), 37.98, 23.73));
+    expect(new Set(pixels.values())).not.toContain('#ffe600');
+  });
+
+  it("sparks a timewarp's colours across the sky while it glows", () => {
+    const w = 130;
+    const h = 281;
+    const bodies = skyBodies(new Date('2026-06-21T10:00:00Z'), 37.98, 23.73);
+    const warp = recorder(w, h);
+    drawSignpostScene(warp.ctx, w, h, BOARDS, bodies, { glow: 1, colors: ['#ce70ff'] });
+    expect([...warp.pixels.values()]).toContain('#ce70ff');
+    const calm = recorder(w, h);
+    drawSignpostScene(calm.ctx, w, h, BOARDS, bodies, { glow: 0, colors: ['#ce70ff'] });
+    expect([...calm.pixels.values()]).not.toContain('#ce70ff');
+  });
+
+  it("doesn't stretch the boards across a laptop's screen", () => {
+    const phone = layoutBoard(BOARDS[0], 130, 281);
+    const laptop = layoutBoard(BOARDS[0], 480, 300);
+    expect(laptop.w).toBeLessThan(80);
+    expect(laptop.w).toBeGreaterThanOrEqual(phone.w);
+    expect(laptop.x + laptop.w).toBe(240 - 4); // still against the post
+    expect(layoutBoard({ label: 'PLAYERS', color: '#fff', side: 'left', row: 0 }, 480, 300).scale).toBe(2);
+  });
+});
+
+describe('the Moon in the city sky', () => {
+  it('knows its phase, and draws it: a new Moon is all dark', () => {
+    const bodies = skyBodies(new Date('2026-10-26T21:00:00Z'), 37.98, 23.73);
+    expect(bodies.moonPhase).toBeGreaterThan(170); // full, that night
+    const fills: string[] = [];
+    const ctx = {
+      fillStyle: '' as string | CanvasGradient | CanvasPattern,
+      fillRect() {
+        fills.push(String(this.fillStyle));
+      },
+    };
+    const moonHigh = { sun: { alt: -30, az: 0 }, moon: { alt: 50, az: 180 } };
+    drawSignpostScene(ctx, 120, 200, [], { ...moonHigh, moonPhase: 180 });
+    expect(fills).toContain('#e8ecf5');
+    fills.length = 0;
+    drawSignpostScene(ctx, 120, 200, [], { ...moonHigh, moonPhase: 0 });
+    expect(fills).not.toContain('#e8ecf5');
+  });
+});

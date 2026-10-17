@@ -71,7 +71,7 @@ export interface ClientToServerEvents {
   // race this call ahead of the session token being set (see SceneOverlay's
   // rejoin() -- the backend just responds "invalid session token" in that
   // case, same as any other unauthenticated join_room).
-  join_room: (payload: { lobby_id: string; token: string | null }) => void;
+  join_room: (payload: { lobby_id: string; token: string | null; account_token?: string }) => void;
   leave_room: (payload: { lobby_id: string }) => void;
   start_game: (payload: { lobby_id: string }) => void;
   kick_player: (payload: { lobby_id: string; target: string }) => void;
