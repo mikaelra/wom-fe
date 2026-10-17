@@ -195,7 +195,8 @@ describe('InventoryPage', () => {
     mockedSpinWheel.mockReturnValue(new Promise(() => {})); // never resolves; only the open state matters here
     fireEvent.click(screen.getByRole('button', { name: /Use Wheel/ }));
 
-    expect(screen.getByText('🎡')).toBeInTheDocument();
+    // the spin modal shows the wheel icon too, beside the button's
+    expect(screen.getAllByTestId('wheel-icon')).toHaveLength(2);
   });
 
   it('shows the backend error and a login link when the session is invalid', async () => {
@@ -314,7 +315,7 @@ describe('InventoryPage', () => {
     render(<InventoryPage />);
     await flush();
 
-    expect(screen.getByRole('button', { name: '🎡 Use Wheel ×3' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Use Wheel ×3' })).toBeInTheDocument();
   });
 
   it('labels a special-kind wheel "Special Wheel", not the raw backend kind', async () => {
@@ -327,7 +328,10 @@ describe('InventoryPage', () => {
     render(<InventoryPage />);
     await flush();
 
-    expect(screen.getByRole('button', { name: '🎡 Use Special Wheel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Use Special Wheel' })).toBeInTheDocument();
+    // and shows the Special Wheel's own icon, not the normal wheel's
+    expect(screen.getByTestId('special-wheel-icon')).toBeInTheDocument();
+    expect(screen.queryByTestId('wheel-icon')).not.toBeInTheDocument();
   });
 
   it('shows a Shop link and empty-state CTA when there are no wheels', async () => {
