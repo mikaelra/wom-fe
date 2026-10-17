@@ -114,7 +114,7 @@ EYE_L, EYE_R = (7.5, 8.5), (24.5, 8.5)  # on pixel centres, mirrored
 # / pupil: the eye as it looks there. pr: pupil radius, ir: iris radius, in
 # the units of the old body drawing (the face scales them up).
 FROGS = {
-    'frog_green_v1': dict(mouth=(20, 3.2), curl=True, skin='#d8ea6a', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
+    'frog_green_v1': dict(mouth=(20.8, 2.3), curl=True, skin='#d8ea6a', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
     'frog_blue_v1': dict(skin='#a8e0ee', belly='#f0f0f0', sclera='#f4f4f4', iris='#000000', pupil='#000000', ir=2.9, pr=2.9),
     'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#4a3a34', iris_edge='#8a6a56', speck='#b09a86', pupil='#0b0807', ir=2.95, pr=0, diamond=4),
     'frog_pink_v1': dict(skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
