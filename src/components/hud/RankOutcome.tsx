@@ -10,7 +10,7 @@ import RankBadge from '@/components/hud/RankBadge';
 // (or "Ranked down.") lands with it -- the glow only going up; how many
 // games in a row you've been at it. No word when the
 // rank stayed the same. Still in placement: the unranked emblem and how
-// many games until a rank.
+// many games until rank.
 
 /** How long the old rank shows before it turns into the new one. */
 export const RANK_UP_HOLD_MS = 900;
@@ -96,7 +96,7 @@ export default function RankOutcome({ result, playerName }: { result: RankedResu
       <p className="mb-2 flex items-center justify-center gap-2 flex-wrap">
         <RankBadge tier={null} />
         <span className="text-white/60 text-sm">
-          {left} {left === 1 ? 'game' : 'games'} until a rank
+          {left} {left === 1 ? 'game' : 'games'} until rank
         </span>
       </p>
     );

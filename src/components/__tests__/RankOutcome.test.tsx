@@ -70,7 +70,7 @@ describe('RankOutcome', () => {
     expect(screen.getByText('4 games at Wizard I')).toBeTruthy();
   });
 
-  it('in placement shows the unranked emblem and the games until a rank', () => {
+  it('in placement shows the unranked emblem and the games until rank', () => {
     const { rerender } = render(
       <RankOutcome
         result={{ tier_before: null, tier_after: null, promoted: null, games_until_rank: 6 }}
@@ -78,11 +78,11 @@ describe('RankOutcome', () => {
       />,
     );
     expect(screen.getByText('Unranked')).toBeTruthy();
-    expect(screen.getByText('6 games until a rank')).toBeTruthy();
+    expect(screen.getByText('6 games until rank')).toBeTruthy();
     rerender(
       <RankOutcome result={{ tier_before: null, tier_after: null, promoted: null, games_until_rank: 1 }} playerName="Oni" />,
     );
-    expect(screen.getByText('1 game until a rank')).toBeTruthy();
+    expect(screen.getByText('1 game until rank')).toBeTruthy();
   });
 
   it('says it went down, and shows nothing while the rank is hidden', () => {
