@@ -56,6 +56,12 @@ describe('pixel font', () => {
     drawText(ctx, 'H I', 0, 0, '#ffffff');
     expect(pixels.size).toBe(11 + 9); // H's pixels, then I's
   });
+
+  it('draws the slash in a headcount like 2/6', () => {
+    const { ctx, pixels } = recorder(20, 10);
+    drawText(ctx, '/', 0, 0, '#ffffff');
+    expect(pixels.size).toBe(5);
+  });
 });
 
 describe('the sky', () => {
