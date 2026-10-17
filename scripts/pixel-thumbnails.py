@@ -98,7 +98,7 @@ class Canvas:
         self.px[:, :, :3] = np.clip(rgbs, 0, 255).astype(np.uint8)
 
     def save(self, name):
-        os.makedirs(OUT, exist_ok=True)
+        os.makedirs(os.path.dirname(os.path.join(OUT, name)), exist_ok=True)
         im = Image.fromarray(self.px).resize((N * SCALE, N * SCALE), Image.NEAREST)
         im.save(os.path.join(OUT, name))
         return im
@@ -117,8 +117,8 @@ FROGS = {
     'frog_green_v1': dict(mouth=(20.8, 2.3), curl=True, skin='#d8ea6a', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
     'frog_blue_v1': dict(skin='#a8e0ee', belly='#f0f0f0', sclera='#f4f4f4', iris='#000000', pupil='#000000', ir=2.9, pr=2.9),
     'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#4a3a34', iris_edge='#8a6a56', speck='#b09a86', pupil='#0b0807', ir=2.95, pr=0, diamond=4),
-    'frog_pink_v1': dict(gloss=True, eye_outline=2, skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
-    'frog_purple_v1': dict(gloss=True, eye_outline=2, skin='#cfa0ea', belly='#f0e6f0', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
+    'frog_pink_v1': dict(gloss=True, no_glint=True, skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', py=0, ir=2.65, pr=2.65),
+    'frog_purple_v1': dict(gloss=True, no_glint=True, skin='#cfa0ea', belly='#f0e6f0', sclera='#ffffff', iris='#111111', pupil='#000000', py=0, ir=2.65, pr=2.65),
     'frog_red_v1': dict(skin='#ff4a2e', belly='#ecd8d8', sclera='#eef0dc', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95),
     'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#b98650', iris='#b98650', pupil='#0a0502', ir=2.95, pr=0, diamond=4),
     'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#a81426', iris='#a81426', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
@@ -149,6 +149,8 @@ DEFAULT_MOUTH = (21.6, 1.0)  # a natural, nearly flat mouth
 def mouth_y(x, mouth=DEFAULT_MOUTH):
     """The mouth line: `ends` is where it meets the cheeks, `amp` how far its
     middle sits below them -- a smile if positive, an arch if negative."""
+    if callable(mouth):
+        return int(round(mouth(x)))
     ends, amp = mouth
     return int(round(ends + amp * (1 - ((x - 16) / 12.6) ** 2)))
 
@@ -224,8 +226,6 @@ def draw_frog(c, p, dark_outline='#15121e'):
         c.dot(x + 1, 15, lo)
     # eyes
     for cx, cy in (EYE_L, EYE_R):
-        if p.get('eye_outline'):  # a black border round the white, this many pixels thick
-            c.fill(ell(cx, cy, 4.9 + p['eye_outline'], 4.9 + p['eye_outline']) & s['skin'], (10, 10, 14))
         if p.get('rim'):
             c.fill(ell(cx, cy, 4.9, 4.9), rgb(p['rim']))
             c.fill(ell(cx, cy, 4.1, 4.1), rgb(p['sclera']))
@@ -250,9 +250,11 @@ def draw_frog(c, p, dark_outline='#15121e'):
         if p.get('bar'):  # a black line through the pupil, side to side across the iris
             row = int(cy - 0.5 + p.get('py', 0.3))
             c.fill((YY == row) & (np.abs(CX - cx) <= ir), rgb(p['bar']))
-        c.dot(int(cx - 2), int(cy - 2), (255, 255, 255))
-        c.dot(int(cx - 1), int(cy - 2), (255, 255, 255))
-        if p.get('gloss'):  # a little white at the lower left of the pupil, as on the 3D model
+        if not p.get('no_glint'):
+            c.dot(int(cx - 2), int(cy - 2), (255, 255, 255))
+            c.dot(int(cx - 1), int(cy - 2), (255, 255, 255))
+        if p.get('gloss'):  # a little white at the lower left of the pupil, as on the 3D model,
+            # kept two pixels or more from the pupil's edge
             ax, ay = int(cx - 0.5), int(cy - 0.5)
             c.dot(ax - 1, ay + 1, (255, 255, 255))
             c.dot(ax, ay + 1, (255, 255, 255))
@@ -536,6 +538,31 @@ def merchant_lady():
     return c
 
 
+def _bling_mouth_b(x):
+    """The middle smiles (it sags), the ends hook down: the opposite curve."""
+    t = abs(x - 16) / 12.6
+    if t <= 0.55:
+        return 21 + 2.4 * (1 - (t / 0.55) ** 2)
+    return 21 + 3.4 * ((t - 0.55) / 0.45) ** 2
+
+
+def _bling_mouth_c(x):
+    """The middle bows up, the ends curl back up: the other way round."""
+    t = abs(x - 16) / 12.6
+    if t <= 0.6:
+        return 23.5 - 3.2 * (1 - (t / 0.6) ** 2)
+    return 23.5 - 3.0 * ((t - 0.6) / 0.4) ** 2
+
+
+def bling_mouth_options():
+    out = {}
+    for key, mouth in (('a', FROGS['frog_bling_v1']['mouth']), ('b', _bling_mouth_b), ('c', _bling_mouth_c)):
+        c = Canvas()
+        draw_frog(c, dict(FROGS['frog_bling_v1'], mouth=mouth))
+        out[f'options/bling_mouth_{key}'] = c
+    return out
+
+
 def artifacts_list():
     out = {n: frog(n) for n in FROGS}
     out['cherub_v1'] = cherub()
@@ -545,6 +572,7 @@ def artifacts_list():
     out['pen'] = pen()
     out['paper'] = paper()
     out['stone'] = stone()
+    out.update(bling_mouth_options())
     out['wheel'] = wheel('#1c1cf0', '#e8d020', '#7a1c46')
     out['special-wheel'] = wheel('#8a18ff', '#22e022', '#a0306e')
     return out

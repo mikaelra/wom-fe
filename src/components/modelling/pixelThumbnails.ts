@@ -30,6 +30,14 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
     ],
   },
   {
+    title: "Bling's mouth: pick one",
+    items: [
+      { id: 'options/bling_mouth_a', label: 'A: arch (now)' },
+      { id: 'options/bling_mouth_b', label: 'B: middle smiles, ends hook down' },
+      { id: 'options/bling_mouth_c', label: 'C: middle bows up, ends curl up' },
+    ],
+  },
+  {
     title: 'The merchants (portraits)',
     items: [
       { id: 'merchant_v1', label: 'Merchant' },
