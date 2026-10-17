@@ -104,16 +104,16 @@ EYE_L, EYE_R = (7.5, 8.5), (24.5, 8.5)  # on pixel centres, mirrored
 # / pupil: the eye as it looks there. pr: pupil radius, ir: iris radius, in
 # the units of the old body drawing (the face scales them up).
 FROGS = {
-    'frog_green_v1': dict(skin='#d8ea6a', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
+    'frog_green_v1': dict(mouth=(20, 3.2), curl=True, skin='#d8ea6a', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
     'frog_blue_v1': dict(skin='#a8e0ee', belly='#f0f0f0', sclera='#f4f4f4', iris='#000000', pupil='#000000', ir=2.9, pr=2.9),
-    'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#4a3a34', iris_edge='#8a6a56', speck='#b09a86', pupil='#0b0807', ir=2.95, pr=0, pin=dict(rx=4.7, ry=4.7, nw=1, ns=3)),
+    'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#4a3a34', iris_edge='#8a6a56', speck='#b09a86', pupil='#0b0807', ir=2.95, pr=0, diamond=4),
     'frog_pink_v1': dict(skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
     'frog_purple_v1': dict(skin='#cfa0ea', belly='#f0e6f0', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
     'frog_red_v1': dict(skin='#ff4a2e', belly='#ecd8d8', sclera='#eef0dc', rim='#0a0a0a', iris='#000000', pupil='#000000', ir=2.3, pr=2.3),
-    'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#f6edd8', iris='#d9c29c', iris_edge='#a67f4f', pupil='#0a0502', ir=2.95, pr=0, pin=dict(rx=4.7, ry=4.7, nw=1, ns=3)),
-    'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#5a3a08', iris='#b01828', iris_edge='#5a0a14', pupil='#0c0002', ir=2.95, pr=0, pin=dict(rx=4.8, ry=3.3, nw=1, ns=2, sides=False), hi='#e2b04a'),
-    'frog_silver_v1': dict(skin='#3a3a40', belly='#2c2c32', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#c4c8d2'),
-    'frog_bling_v1': dict(skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#08081a', ir=3.0, pr=1.6, sparkle=True),
+    'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#f6edd8', iris='#d9c29c', iris_edge='#a67f4f', pupil='#0a0502', ir=2.95, pr=0, diamond=4),
+    'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#5a3a08', iris='#b01828', iris_edge='#5a0a14', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
+    'frog_silver_v1': dict(skin='#62646e', belly='#52545e', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#dce0ea'),
+    'frog_bling_v1': dict(mouth=(23, -2.8), skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#08081a', ir=3.0, pr=1.6, sparkle=True),
     'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True),
 }
 
@@ -122,59 +122,69 @@ FROGS = {
 EYE_SCALE = 1.32
 
 
-def pincushion(cx, cy, rx, ry, nw, ns, sides=True):
-    """A round pupil with a notch cut into each side -- a square with concave
-    sides ("inverse square"), the pupil of the orange, yellow and gold frogs.
-    (cx, cy) is a pixel centre; a notch is nw pixels either side of the axis
-    and ns or more pixels out."""
+def diamond(cx, cy, r):
+    """A square turned onto its corners -- they point up, down, left and
+    right of the eye -- the pupil of the orange, yellow and gold frogs.
+    (cx, cy) is a pixel centre."""
     ax, ay = int(cx - 0.5), int(cy - 0.5)
-    dx, dy = XX - ax, YY - ay
-    m = (dx / rx) ** 2 + (dy / ry) ** 2 <= 1.0
-    m &= ~((np.abs(dx) <= nw) & (np.abs(dy) >= ns))  # the top and bottom
-    if sides:
-        m &= ~((np.abs(dy) <= nw) & (np.abs(dx) >= ns + 1))  # the left and right
-    return m
+    return np.abs(XX - ax) + np.abs(YY - ay) <= r
 
 
 SPECKS = [(-2, -1), (2, -2), (-1, 2), (2, 1), (0, -3), (-3, 1), (3, 0), (1, 3), (-2, 3), (-3, -2)]
 
 
-def mouth_y(x):
-    """The smile: its ends sit higher than its middle."""
-    return 20 + round(3.2 * (1 - ((x - 16) / 12.6) ** 2))
+DEFAULT_MOUTH = (21.6, 1.0)  # a natural, nearly flat mouth
 
 
-def frog_shapes():
+def mouth_y(x, mouth=DEFAULT_MOUTH):
+    """The mouth line: `ends` is where it meets the cheeks, `amp` how far its
+    middle sits below them -- a smile if positive, an arch if negative."""
+    ends, amp = mouth
+    return int(round(ends + amp * (1 - ((x - 16) / 12.6) ** 2)))
+
+
+def frog_shapes(mouth=DEFAULT_MOUTH):
     head = ell(16, 18, 15.4, 10.8)
     bumps = ell(*EYE_L, 6.1, 6.1) | ell(*EYE_R, 6.1, 6.1)
     skin = head | bumps
     below = np.zeros((N, N), dtype=bool)  # the lower face, under the smile
     for x in range(N):
-        below[mouth_y(x) + 1 :, x] = True
+        below[mouth_y(x, mouth) + 1 :, x] = True
     belly = below & head
     return dict(head=head, bumps=bumps, skin=skin, belly=belly)
 
 
 def draw_frog(c, p, dark_outline='#15121e'):
-    s = frog_shapes()
+    mouth = p.get('mouth', DEFAULT_MOUTH)
+    s = frog_shapes(mouth)
     skin, belly = rgb(p['skin']), rgb(p['belly'])
     hi = rgb(p['hi']) if 'hi' in p else lighten(skin, 0.35)
     lo = darken(skin, 0.22)
     c.fill(s['skin'], skin)
     c.fill(s['belly'], belly)
     if p.get('rainbow'):
-        c.fill(ell(16, 14.5, 5.0, 3.4) & s['head'], rgb('#c4ee8c'))  # the lime forehead
+        lime = ((np.abs(CX - 16) <= 5.8) & (CY <= 16.5)) | ell(16, 15.5, 4.6, 3.0)
+        c.fill(lime & s['skin'], rgb('#c4ee8c'))  # the lime stripe: nose to the top of the skull, a little onto the eyes
         c.fill(s['belly'] & (YY >= 26), rgb('#c4ee8c'))
         c.fill(s['head'] & (CX < 5) & (YY >= 16), rgb('#ff3a2c'))
         c.fill(s['head'] & (CX > 27) & (YY >= 16), rgb('#ff3a2c'))
     c.rim(s['skin'], hi, lo)
+    if p.get('sparkle'):  # diamonds over the middle of the face and the lower face
+        wear = ((CX >= 8.5) & (CX <= 23.5) & (CY >= 9.5) & s['head']) | s['belly']
+        for y in range(10, 28, 4):
+            for x in range(6 + (2 if (y // 4) % 2 else 0), 27, 4):
+                if wear[y : y + 2, x : x + 2].all():
+                    c.dot(x, y, (255, 255, 255))
+                    c.dot(x + 1, y, rgb('#e4faff'))
+                    c.dot(x, y + 1, rgb('#e4faff'))
+                    c.dot(x + 1, y + 1, rgb('#8fd8ee'))
     outline = rgb(dark_outline)
     line_col = darken(skin, 0.7) if sum(skin) > 150 else outline
     for x in range(4, 29):
-        c.dot(x, mouth_y(x), line_col)
-    # the corners of the smile curl up
-    c.dot(3, mouth_y(4) - 1, line_col)
-    c.dot(28, mouth_y(28) - 1, line_col)
+        c.dot(x, mouth_y(x, mouth), line_col)
+    if p.get('curl'):  # the corners of a real smile curl up
+        c.dot(3, mouth_y(4, mouth) - 1, line_col)
+        c.dot(28, mouth_y(28, mouth) - 1, line_col)
     # nostrils
     for x in (13, 18):
         c.dot(x, 15, lo)
@@ -198,8 +208,8 @@ def draw_frog(c, p, dark_outline='#15121e'):
         if p.get('speck'):
             for dx, dy in SPECKS:
                 c.dot(int(cx + dx), int(cy + dy), rgb(p['speck']))
-        if p.get('pin'):
-            c.fill(pincushion(cx, cy, **p['pin']), rgb(p['pupil']))
+        if p.get('diamond'):
+            c.fill(diamond(cx, cy, p['diamond']), rgb(p['pupil']))
         else:
             c.fill(ell(cx, cy + 0.3, p['pr'] * EYE_SCALE, p['pr'] * EYE_SCALE), rgb(p['pupil']))
         c.dot(int(cx - 2), int(cy - 2), (255, 255, 255))
@@ -208,11 +218,6 @@ def draw_frog(c, p, dark_outline='#15121e'):
     for x in (14, 15, 16):
         c.dot(x, 11, hi)
     c.dot(14, 12, hi)
-    if p.get('sparkle'):
-        for x, y in [(12, 15), (21, 14), (9, 20), (23, 19), (16, 17), (6, 16), (26, 16), (14, 24), (19, 26), (11, 27), (22, 25)]:
-            c.dot(x, y, (255, 255, 255))
-        for x, y in [(13, 22), (18, 22), (16, 27)]:
-            c.dot(x, y, rgb('#b8f0ff'))
     c.outline(darken(skin, 0.78) if sum(skin) > 200 else outline)
 
 
@@ -338,8 +343,6 @@ def paper():
     cut = sheet & (XX >= 19) & (YY <= 9) & ((XX - 19) + (9 - YY) >= 5)
     c.px[cut] = 0
     c.fill(sheet & (XX >= 19) & (YY <= 9) & ((XX - 19) + (9 - YY) < 5) & ((XX - 19) + (9 - YY) >= 3), rgb('#c2ab72'))
-    for row, ln in [(11, 12), (14, 9), (17, 12), (20, 8), (23, 11)]:
-        c.fill((YY == row) & (XX >= 9) & (XX < 9 + ln), rgb('#6e5a38'))
     c.outline(rgb('#3a2e1a'))
     return c
 
