@@ -13,11 +13,13 @@ import { STILL_QUEUING, lobbyStartedCloud, onLobbyPage, rankedCloud, type CloudC
 
 // What Blimkin comes out to say, and where (Mikael, 2026-10-17):
 //   1. "Do you still want to be in the queue?" after 30 minutes of ranked;
-//   2. a bossfight or bot-ranked game you're seated in has started (5s);
+//   2. a bossfight or bot-ranked game you're seated in has started;
 //   3. your ranked match: found (who you're up against; tap for the
 //      countdown and X/6), then started (Join Game) -- except in the city,
 //      where the signpost says it, and on the match's own page.
-// Mounted once, in the root layout, inside <RankedQueueProvider>.
+// Each cloud stays up until its cross closes it; a closed ranked cloud comes
+// back when there's news (found -> started). Mounted once, in the root
+// layout, inside <RankedQueueProvider>.
 
 function Lines({ content, onAction }: { content: CloudContent; onAction?: () => void }) {
   return (
@@ -65,6 +67,20 @@ export default function MatchCloud() {
 
   const [dontAsk, setDontAsk] = useState(false);
 
+  // Clouds closed with the cross, by appearance key.
+  const [closed, setClosed] = useState<Set<string>>(() => new Set());
+  const close = useCallback((key: string) => setClosed((prev) => new Set(prev).add(key)), []);
+  // The 30-minute question is asked again after the next 30 minutes.
+  useEffect(() => {
+    if (rq.asking) return;
+    setClosed((prev) => {
+      if (!prev.has('still-queuing')) return prev;
+      const next = new Set(prev);
+      next.delete('still-queuing');
+      return next;
+    });
+  }, [rq.asking]);
+
   const joinRanked = useCallback(() => {
     rq.joinMatch().catch((err) => showError(err instanceof Error ? err.message : 'Failed to join the match.'));
   }, [rq, showError]);
@@ -86,9 +102,9 @@ export default function MatchCloud() {
     [dismiss, router, showError],
   );
 
-  if (rq.asking) {
+  if (rq.asking && !closed.has('still-queuing')) {
     return (
-      <BlimkinCloud appearance="still-queuing" label={STILL_QUEUING.question}>
+      <BlimkinCloud appearance="still-queuing" label={STILL_QUEUING.question} onClose={() => close('still-queuing')}>
         <p className="font-semibold">{STILL_QUEUING.question}</p>
         <div className="mt-2 flex gap-2">
           <button
@@ -117,20 +133,22 @@ export default function MatchCloud() {
   if (notice) {
     const content = lobbyStartedCloud(notice.kind);
     return (
-      <BlimkinCloud appearance={`seat:${notice.lobbyId}`} label={content.lines[0]}>
+      <BlimkinCloud appearance={`seat:${notice.lobbyId}`} label={content.lines[0]} onClose={dismiss}>
         <Lines content={content} onAction={() => void joinSeat(notice)} />
       </BlimkinCloud>
     );
   }
 
   const inCity = !!pathname?.startsWith('/city');
-  if (match && !inCity && !isShown(match.lobbyId)) {
+  const rankedKey = match ? `ranked:${match.lobbyId}:${match.started ? 'started' : 'found'}` : null;
+  if (match && rankedKey && !closed.has(rankedKey) && !inCity && !isShown(match.lobbyId)) {
     const content = rankedCloud(match, secondsLeft, expanded);
     return (
       <BlimkinCloud
-        appearance={`ranked:${match.lobbyId}:${match.started ? 'started' : 'found'}`}
+        appearance={rankedKey}
         label={content.lines.join(' ')}
         onCloudClick={match.started ? joinRanked : () => setExpanded((x) => !x)}
+        onClose={() => close(rankedKey)}
       >
         <Lines content={content} onAction={joinRanked} />
       </BlimkinCloud>

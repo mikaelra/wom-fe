@@ -12,7 +12,9 @@
 // queue Blimkin asks whether you still want to be in it.
 //
 // Bossfight and bot ranked: seated in the lobby but somewhere else when the
-// game starts, Blimkin gives a 5 second cloud with Join Lobby.
+// game starts, Blimkin brings a cloud with Join Lobby.
+//
+// Every cloud stays up until the cross in its corner closes it.
 
 /** A ranked match found for this player, as /ranked/active reports it. */
 export interface RankedMatch {
@@ -68,13 +70,11 @@ export function rankedSignSublabel(match: RankedMatch, secondsLeft: number | nul
 
 export type SeatKind = 'bossfight' | 'bot_ranked';
 
-/** The 5 second cloud when a bossfight or bot-ranked game you're seated in
- *  starts while you're elsewhere. */
+/** The cloud when a bossfight or bot-ranked game you're seated in starts
+ *  while you're elsewhere. */
 export function lobbyStartedCloud(kind: SeatKind): CloudContent {
   return { lines: [kind === 'bossfight' ? 'Bossfight started.' : 'Bot ranked game started.'], action: JOIN_LOBBY };
 }
-
-export const LOBBY_START_NOTICE_MS = 5000;
 
 export const STILL_QUEUING = {
   question: 'Do you still want to be in the queue?',

@@ -125,7 +125,7 @@ describe('MatchCloud', () => {
     expect(localStorage.getItem('wom.rankedQueue')).toBeNull();
   });
 
-  it('gives a 5 second Join Lobby cloud when a bossfight you sat in starts while you are away', async () => {
+  it('gives a Join Lobby cloud when a bossfight you sat in starts while you are away', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     rememberSeat('bossfight', 'BOSS1');
     vi.mocked(getBossfightRoster).mockResolvedValue({
@@ -146,7 +146,7 @@ describe('MatchCloud', () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith('/lobby?id=BOSS1'));
   });
 
-  it('lets the bossfight cloud go after 5 seconds', async () => {
+  it('keeps the bossfight cloud up until the cross closes it', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     rememberSeat('bossfight', 'BOSS1');
     vi.mocked(getBossfightRoster).mockResolvedValue({
@@ -161,9 +161,24 @@ describe('MatchCloud', () => {
     });
     expect(screen.getByText('Bossfight started.')).toBeInTheDocument();
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(5100);
+      await vi.advanceTimersByTimeAsync(60_000);
     });
+    expect(screen.getByText('Bossfight started.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.queryByText('Bossfight started.')).toBeNull();
+  });
+
+  it('closes the ranked cloud with the cross, and brings it back when the game starts', async () => {
+    let started = false;
+    vi.mocked(getActiveRankedLobby).mockImplementation(async () => ({ ...found, started }));
+    renderCloud();
+
+    expect(await screen.findByText('You are currently in a lobby.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByText('You are currently in a lobby.')).toBeNull();
+
+    started = true;
+    expect(await screen.findByText('Game started.', {}, { timeout: 4000 })).toBeInTheDocument();
   });
 
   it('says nothing if the player is on that lobby page when it starts', async () => {

@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getActiveBotRankedLobby, getBossfightRoster } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
-import { LOBBY_START_NOTICE_MS, forgetSeat, readSeat, type Seat } from '@/lib/matchCloud';
+import { forgetSeat, readSeat, type Seat } from '@/lib/matchCloud';
 
 // A bossfight or bot-ranked lobby the player is seated in, watched while they
-// are anywhere else in the app: when its game starts, Blimkin gives a
-// 5 second cloud with Join Lobby (Mikael, 2026-10-17). The seat is written
+// are anywhere else in the app: when its game starts, Blimkin brings a cloud
+// with Join Lobby that stays up until it's closed (Mikael, 2026-10-17). The seat is written
 // where the player joins (lib/useEnterBossfight, lib/useBotRankedQueue).
 // Both checks are peeks: the bossfight roster is public, and bot ranked's
 // /active is asked with peek, so neither ever mints a lobby token.
@@ -39,9 +39,9 @@ async function seatStarted(seat: Seat): Promise<boolean | null> {
   return active.started;
 }
 
-/** The seat whose game just started, for LOBBY_START_NOTICE_MS; null
- *  otherwise. `isShown(lobbyId)` says whether the player is looking at that
- *  lobby already (then nothing is announced). */
+/** The seat whose game started, until dismissed; null otherwise.
+ *  `isShown(lobbyId)` says whether the player is looking at that lobby
+ *  already (then nothing is announced). */
 export function useLobbyStartNotice(isShown: (lobbyId: string) => boolean): {
   notice: Seat | null;
   dismiss: () => void;
@@ -49,12 +49,7 @@ export function useLobbyStartNotice(isShown: (lobbyId: string) => boolean): {
   const [notice, setNotice] = useState<Seat | null>(null);
   const isShownRef = useRef(isShown);
   isShownRef.current = isShown;
-  const hideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const dismiss = useCallback(() => {
-    if (hideRef.current) clearTimeout(hideRef.current);
-    setNotice(null);
-  }, []);
+  const dismiss = useCallback(() => setNotice(null), []);
 
   useEffect(() => {
     let busy = false;
@@ -66,11 +61,7 @@ export function useLobbyStartNotice(isShown: (lobbyId: string) => boolean): {
         .then((started) => {
           if (started === false) return;
           forgetSeat(seat.lobbyId);
-          if (started && !isShownRef.current(seat.lobbyId)) {
-            setNotice(seat);
-            if (hideRef.current) clearTimeout(hideRef.current);
-            hideRef.current = setTimeout(() => setNotice(null), LOBBY_START_NOTICE_MS);
-          }
+          if (started && !isShownRef.current(seat.lobbyId)) setNotice(seat);
         })
         .catch(() => {
           // Tried again on the next tick.
@@ -79,10 +70,7 @@ export function useLobbyStartNotice(isShown: (lobbyId: string) => boolean): {
           busy = false;
         });
     }, WATCH_MS);
-    return () => {
-      clearInterval(id);
-      if (hideRef.current) clearTimeout(hideRef.current);
-    };
+    return () => clearInterval(id);
   }, []);
 
   return { notice, dismiss };

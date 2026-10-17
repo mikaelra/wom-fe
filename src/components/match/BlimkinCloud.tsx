@@ -6,8 +6,9 @@ import { BLIMKIN_BREATHE, BLIMKIN_COLS, BLIMKIN_IDLE, BLIMKIN_ROWS, type Blimkin
 // Blimkin bringing a message (Mikael, 2026-10-17): "a void in wherever is
 // created and Blimkin comes out and breathes out the cloud with the
 // information before he exits into the void again." He looks exactly as he
-// does in the statusline (lib/blimkinSprite.ts). The cloud stays after he
-// has gone, until whoever shows it takes it away.
+// does in the statusline (lib/blimkinSprite.ts). The cloud stays up after he
+// has gone, until the cross in its top-right corner closes it (Mikael,
+// 2026-10-17) or whoever shows it takes it away.
 //
 // A new `appearance` key brings him again; the same key with new content
 // only changes the cloud's words (a countdown ticking, the cloud tapped).
@@ -77,10 +78,12 @@ export interface BlimkinCloudProps {
   children?: React.ReactNode;
   /** Tapping the cloud itself (buttons inside it stop the tap). */
   onCloudClick?: () => void;
+  /** The cross in the cloud's top-right corner. */
+  onClose?: () => void;
   label?: string;
 }
 
-export default function BlimkinCloud({ appearance, children, onCloudClick, label }: BlimkinCloudProps) {
+export default function BlimkinCloud({ appearance, children, onCloudClick, onClose, label }: BlimkinCloudProps) {
   const [phase, setPhase] = useState<Phase>('gone');
   const [shownKey, setShownKey] = useState<string | null>(null);
 
@@ -178,7 +181,35 @@ export default function BlimkinCloud({ appearance, children, onCloudClick, label
           {/* Puffs trailing back to where his mouth was. */}
           <span aria-hidden="true" style={puff('-0.55rem', '-0.35rem', '0.7rem')} />
           <span aria-hidden="true" style={puff('-1.05rem', '-0.85rem', '0.42rem')} />
-          {children}
+          {onClose && (
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="cursor-pointer"
+              style={{
+                position: 'absolute',
+                top: '0.3rem',
+                right: '0.45rem',
+                width: '1.4rem',
+                height: '1.4rem',
+                lineHeight: '1.4rem',
+                textAlign: 'center',
+                fontSize: '1rem',
+                fontWeight: 700,
+                color: '#111',
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
+          )}
+          <div style={{ paddingRight: onClose ? '1.1rem' : undefined }}>{children}</div>
         </div>
       </div>
     </div>
