@@ -133,7 +133,7 @@ FROGS = {
     'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#a81426', iris='#a81426', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
     'frog_silver_v1': dict(skin='#62646e', belly='#52545e', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#dce0ea'),
     'frog_bling_v1': dict(mouth=bling_mouth, skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#2a1860', bar='#000000', py=0, ir=3.0, pr=1.75, sparkle=True),
-    'frog_robot_v1': dict(mouth=(20.6, 2.6), smile_thick=2, no_glint=True, center_dot=True, skin='#80838a', belly='#8d9098', sclera='#000000', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95, hi='#cfd2da'),
+    'frog_robot_v1': dict(mouth=(20.6, 2.6), smile_thick=2, plates=True, no_glint=True, center_dot=True, skin='#80838a', belly='#8d9098', sclera='#000000', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95, hi='#cfd2da'),
     'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True, adaptive_rim=True),
 }
 
@@ -307,6 +307,34 @@ def draw_frog(c, p, dark_outline='#15121e'):
     for x in (14, 15, 16):
         c.dot(x, 11, hi)
     c.dot(14, 12, hi)
+    if p.get('plates'):
+        # The head is built of metal pieces: one black pixel seam down from the top middle
+        # of the head and one across the face between the nose and the mouth, with
+        # rivets in parallel to them, a gap apart, wherever there is room.
+        black = (0, 0, 0)
+        rivet = darken(skin, 0.5)
+        plain = {tuple(skin), tuple(belly)}
+
+        def is_plain(x, y):
+            return 0 <= x < N and 0 <= y < N and tuple(int(v) for v in c.px[y, x, :3]) in plain and c.px[y, x, 3] > 0
+
+        def seam(x, y):
+            if s['skin'][y, x] and int(c.px[y, x, :3].sum()) > 90:   # not over an eye, the mouth or the outline
+                c.dot(x, y, black)
+
+        vx, hy = 16, 18
+        top = next(y for y in range(N) if s['skin'][y, vx])
+        for y in range(top, hy + 1):
+            seam(vx, y)
+        for x in range(2, 30):
+            seam(x, hy)
+        def room(x, y):  # the rivet's own pixel and the four around it are plain metal
+            return all(is_plain(x + dx, y + dy) for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)))
+        spots = [(vx + side * 2, y) for side in (-1, 1) for y in range(top + 2, hy - 1, 3)]       # beside the vertical
+        spots += [(x, hy + side * 2) for side in (-1, 1) for x in range(4, 29, 3)]                # along the horizontal
+        for x, y in spots:
+            if room(x, y):
+                c.dot(x, y, rivet)
     c.outline(darken(skin, 0.78) if sum(skin) > 200 else outline)
 
 
