@@ -21,6 +21,7 @@ import {
   readQueue,
   readSeat,
   rememberSeat,
+  seatPriority,
   renewDue,
   resumable,
   shownCount,
@@ -98,6 +99,7 @@ describe('matchCloud', () => {
   it('gives bossfight and bot ranked a Join Lobby cloud', () => {
     expect(lobbyStartedCloud('bossfight')).toEqual({ lines: ['Bossfight started.'], action: 'Join Lobby' });
     expect(lobbyStartedCloud('bot_ranked')).toEqual({ lines: ['Bot ranked game started.'], action: 'Join Lobby' });
+    expect(lobbyStartedCloud('casual')).toEqual({ lines: ['Casual game started.'], action: 'Join Lobby' });
   });
 
   it('knows when the page shown is that lobby', () => {
@@ -115,6 +117,30 @@ describe('matchCloud', () => {
       expect(readQueue(s)).toEqual({ name: 'Oni', queuedAt: 1, heardAt: 2 });
       clearQueue(s);
       expect(readQueue(s)).toBeNull();
+    });
+
+    it('holds one seat per kind and gives the most pressing: bot ranked, bossfight, casual', () => {
+      const s = memory();
+      rememberSeat('casual', 'C1', 0, s);
+      expect(readSeat(1, s)?.kind).toBe('casual');
+      rememberSeat('bossfight', 'B1', 0, s);
+      expect(readSeat(1, s)?.kind).toBe('bossfight');
+      rememberSeat('bot_ranked', 'A1', 0, s);
+      expect(readSeat(1, s)?.kind).toBe('bot_ranked');
+      forgetSeat('A1', s);
+      expect(readSeat(1, s)?.kind).toBe('bossfight');
+      forgetSeat('B1', s);
+      expect(readSeat(1, s)).toEqual({ kind: 'casual', lobbyId: 'C1', at: 0 });
+      expect(seatPriority('bot_ranked')).toBeLessThan(seatPriority('bossfight'));
+      expect(seatPriority('bossfight')).toBeLessThan(seatPriority('casual'));
+    });
+
+    it('reads the single seat an older build wrote', () => {
+      const s = memory();
+      s.setItem('wom.seatedLobby', JSON.stringify({ kind: 'bossfight', lobbyId: 'B9', at: 5 }));
+      expect(readSeat(6, s)).toEqual({ kind: 'bossfight', lobbyId: 'B9', at: 5 });
+      forgetSeat('B9', s);
+      expect(s.getItem('wom.seatedLobby')).toBeNull();
     });
 
     it('ignores junk', () => {

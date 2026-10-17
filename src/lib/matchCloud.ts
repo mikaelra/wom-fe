@@ -80,12 +80,13 @@ export function rankedSignSublabel(match: RankedMatch, secondsLeft: number | nul
   return `${clock}\n${countLine(match)}`;
 }
 
-export type SeatKind = 'bossfight' | 'bot_ranked';
+export type SeatKind = 'bossfight' | 'bot_ranked' | 'casual';
 
-/** The cloud when a bossfight or bot-ranked game you're seated in starts
- *  while you're elsewhere. */
+/** The cloud when a bossfight, bot-ranked or casual (private) game you're
+ *  seated in starts while you're elsewhere. */
 export function lobbyStartedCloud(kind: SeatKind): CloudContent {
-  return { lines: [kind === 'bossfight' ? 'Bossfight started.' : 'Bot ranked game started.'], action: JOIN_LOBBY };
+  const line = { bossfight: 'Bossfight started.', bot_ranked: 'Bot ranked game started.', casual: 'Casual game started.' }[kind];
+  return { lines: [line], action: JOIN_LOBBY };
 }
 
 export const STILL_QUEUING = {
@@ -230,7 +231,7 @@ export function forgetBotQueue(storage: Storage | null = local()) {
   remove(BOT_QUEUE_KEY, storage);
 }
 
-// --- a seat in a bossfight or bot-ranked lobby -----------------------------
+// --- a seat in a bossfight, bot-ranked or casual lobby ---------------------
 
 export const SEAT_KEY = 'wom.seatedLobby';
 /** A seat older than this is forgotten: no game waits that long. */
@@ -242,20 +243,54 @@ export interface Seat {
   at: number;
 }
 
-export function rememberSeat(kind: SeatKind, lobbyId: string, now = Date.now(), storage: Storage | null = local()) {
-  writeJson(SEAT_KEY, { kind, lobbyId, at: now }, storage);
+/** Which seat Blimkin speaks for first when several have news: bot ranked,
+ *  then bossfight, then casual (Mikael, 2026-10-17; a ranked match comes
+ *  before all of them, through the queue). Lower is more pressing. */
+const SEAT_ORDER: readonly SeatKind[] = ['bot_ranked', 'bossfight', 'casual'];
+
+export function seatPriority(kind: SeatKind): number {
+  return SEAT_ORDER.indexOf(kind);
 }
 
+type SeatEntry = { lobbyId: string; at: number };
+type SeatMap = Partial<Record<SeatKind, SeatEntry>>;
+
+/** One seat per kind. (An older build wrote a single seat; it is read as one.) */
+function readSeats(storage: Storage | null): SeatMap {
+  const raw = readJson<Record<string, unknown>>(SEAT_KEY, storage);
+  if (!raw || typeof raw !== 'object') return {};
+  if (typeof raw.kind === 'string') return { [raw.kind]: { lobbyId: raw.lobbyId, at: raw.at } } as SeatMap;
+  return raw as SeatMap;
+}
+
+export function rememberSeat(kind: SeatKind, lobbyId: string, now = Date.now(), storage: Storage | null = local()) {
+  writeJson(SEAT_KEY, { ...readSeats(storage), [kind]: { lobbyId, at: now } }, storage);
+}
+
+/** The most pressing seat still held, if any. */
 export function readSeat(now = Date.now(), storage: Storage | null = local()): Seat | null {
-  const seat = readJson<Seat>(SEAT_KEY, storage);
-  if (!seat || (seat.kind !== 'bossfight' && seat.kind !== 'bot_ranked') || typeof seat.lobbyId !== 'string') return null;
-  if (typeof seat.at !== 'number' || now - seat.at > SEAT_MAX_AGE_MS) return null;
-  return seat;
+  const seats = readSeats(storage);
+  for (const kind of SEAT_ORDER) {
+    const e = seats[kind];
+    if (e && typeof e.lobbyId === 'string' && typeof e.at === 'number' && now - e.at <= SEAT_MAX_AGE_MS) {
+      return { kind, lobbyId: e.lobbyId, at: e.at };
+    }
+  }
+  return null;
 }
 
 /** Forget the seat -- only that lobby's, so a newer seat isn't dropped by a
  *  late answer about an old one. */
 export function forgetSeat(lobbyId: string, storage: Storage | null = local()) {
-  const seat = readJson<Seat>(SEAT_KEY, storage);
-  if (seat?.lobbyId === lobbyId) remove(SEAT_KEY, storage);
+  const seats = readSeats(storage);
+  let changed = false;
+  for (const kind of SEAT_ORDER) {
+    if (seats[kind]?.lobbyId === lobbyId) {
+      delete seats[kind];
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  if (Object.keys(seats).length) writeJson(SEAT_KEY, seats, storage);
+  else remove(SEAT_KEY, storage);
 }

@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ToastProvider } from '@/components/Toast';
 import RankedQueueProvider from '@/components/match/RankedQueueProvider';
 import MatchCloud from '@/components/match/MatchCloud';
-import { getActiveBotRankedLobby, getActiveRankedLobby, getBossfightRoster } from '@/lib/api';
+import { getActiveBotRankedLobby, getActiveRankedLobby, getBossfightRoster, getLobbyStatus } from '@/lib/api';
 import { useRankedQueueContext } from '@/components/match/RankedQueueProvider';
 import { rememberBotQueue, rememberSeat, writeQueue, STILL_QUEUING_AFTER_MS } from '@/lib/matchCloud';
 import { setStoredAccountToken } from '@/lib/http';
@@ -24,6 +24,7 @@ vi.mock('@/lib/api', () => ({
   rankedCredentials: (name: string) => ({ ticket: `ticket-for-${name}` }),
   getBossfightRoster: vi.fn(),
   getActiveBotRankedLobby: vi.fn(),
+  getLobbyStatus: vi.fn(),
 }));
 
 vi.mock('@/lib/matchNotice', () => ({ notifyRankedStarted: vi.fn() }));
@@ -63,6 +64,7 @@ beforeEach(() => {
   // Skip Blimkin's entrance: the cloud is there at once.
   window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as never;
   vi.mocked(getActiveRankedLobby).mockReset().mockResolvedValue(noMatch);
+  vi.mocked(getLobbyStatus).mockReset().mockResolvedValue({ started: false, over: false });
   vi.mocked(getBossfightRoster).mockReset().mockResolvedValue({ lobby_id: null, round: 0, start_time: null, players: [] });
   vi.mocked(getActiveBotRankedLobby).mockReset().mockResolvedValue({
     lobby_id: null, token: null, ai_ranked_countdown_deadline: null, started: false,
@@ -270,6 +272,53 @@ describe('MatchCloud', () => {
     expect(screen.getByText('Bossfight started.')).toBeInTheDocument();
   });
 
+  it('gives a Join Lobby cloud when a casual lobby you sat in starts while you are away, last in the order', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    rememberSeat('casual', 'CAS1');
+    rememberSeat('bossfight', 'BOSS1');
+    vi.mocked(getLobbyStatus).mockResolvedValue({ started: true, over: false });
+    vi.mocked(getBossfightRoster).mockResolvedValue({
+      lobby_id: 'BOSS1',
+      round: 1,
+      start_time: null,
+      players: [{ name: 'Alice', skin: null, alive: true, spectator: false, bot: false }],
+    });
+    renderCloud();
+    // The bossfight is the more pressing: it is said first.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3100);
+    });
+    expect(screen.getByText('Bossfight started.')).toBeInTheDocument();
+    expect(screen.queryByText('Casual game started.')).toBeNull();
+
+    // Closed, the casual game follows.
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3100);
+    });
+    expect(screen.getByText('Casual game started.')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Join Lobby'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/lobby?id=CAS1'));
+  });
+
+  it('says nothing for a casual lobby that has not started, or is gone', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    rememberSeat('casual', 'CAS1');
+    renderCloud();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3100);
+    });
+    expect(screen.queryByText('Casual game started.')).toBeNull();
+    expect(localStorage.getItem('wom.seatedLobby')).not.toBeNull(); // still waiting for it
+
+    vi.mocked(getLobbyStatus).mockResolvedValue(null);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3100);
+    });
+    expect(screen.queryByText('Casual game started.')).toBeNull();
+    expect(localStorage.getItem('wom.seatedLobby')).toBeNull(); // gone: forgotten
+  });
+
   it('keeps the bossfight cloud up until the cross closes it', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     rememberSeat('bossfight', 'BOSS1');
@@ -340,7 +389,7 @@ describe('MatchCloud', () => {
       await vi.advanceTimersByTimeAsync(3100);
     });
     expect(localStorage.getItem('wom.botRankedQueue')).toBeNull();
-    expect(JSON.parse(localStorage.getItem('wom.seatedLobby')!).lobbyId).toBe('AIQ2');
+    expect(JSON.parse(localStorage.getItem('wom.seatedLobby')!).bot_ranked.lobbyId).toBe('AIQ2');
     expect(screen.queryByText('Bot ranked game started.')).toBeNull();
 
     started = true;

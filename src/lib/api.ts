@@ -8,6 +8,7 @@ import {
   getStoredRankedTicket,
   setStoredRankedTicket,
 } from '@/lib/http';
+import { rememberSeat } from '@/lib/matchCloud';
 import type { z } from 'zod';
 import type { Relic } from '@/types/game';
 import type { SeasonHistoryEntry, MerchantOfferSchema, MerchantEventSchema } from '@/lib/schemas';
@@ -28,6 +29,7 @@ import {
   GetBossfightLobbyResponseSchema,
   GetNextBossfightTimeResponseSchema,
   BossfightRosterResponseSchema,
+  LobbyStatusResponseSchema,
   MerchantOfferResponseSchema,
   MerchantPurchaseResponseSchema,
   MerchantRevertTimeResponseSchema,
@@ -116,7 +118,24 @@ export async function createLobby(name: string, email: string): Promise<{ lobby_
     defaultErrorMessage: 'Create lobby failed',
   });
   setStoredToken(data.lobby_id, data.token);
+  // So Blimkin can say when it starts if the player goes elsewhere meanwhile.
+  rememberSeat('casual', data.lobby_id);
   return data;
+}
+
+/** Whether a lobby has started (a round has been played or is on) or is over;
+ *  null once it is gone. A read, for the casual-game cloud. */
+export async function getLobbyStatus(lobbyId: string): Promise<{ started: boolean; over: boolean } | null> {
+  try {
+    const data = await request(`/lobby_status/${encodeURIComponent(lobbyId)}`, LobbyStatusResponseSchema, {
+      quiet: true, // polled
+      defaultErrorMessage: 'Failed to read the lobby',
+    });
+    return { started: data.round > 0, over: data.gameover };
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 export async function joinLobby(joinCode: string, name: string, email: string): Promise<void> {
@@ -125,6 +144,7 @@ export async function joinLobby(joinCode: string, name: string, email: string): 
       unsubJoined();
       unsubError();
       setStoredToken(data.lobby_id, data.token);
+      rememberSeat('casual', data.lobby_id);
       resolve();
     });
     const unsubError = subscribe('error', (data) => {

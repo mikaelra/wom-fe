@@ -39,6 +39,12 @@ export const GetNextBossfightTimeResponseSchema = z.object({
  * backend ever starts sending more, this schema strips it rather than
  * letting it reach the scene.
  */
+/** GET /lobby_status/<id>: whether a lobby has started or is over. */
+export const LobbyStatusResponseSchema = z.object({
+  round: z.number(),
+  gameover: z.boolean(),
+});
+
 export const BossfightRosterResponseSchema = z.object({
   lobby_id: z.string().nullable(),
   round: z.number().int(),

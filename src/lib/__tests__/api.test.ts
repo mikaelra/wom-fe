@@ -11,6 +11,7 @@ import {
   createLobby,
   equipSkin,
   getInventory,
+  getLobbyStatus,
   getPlayerMessages,
   getActiveRankedLobby,
   getPlayerProfile,
@@ -126,6 +127,23 @@ const POST_JSON = {
   method: 'POST',
   headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
 };
+
+describe('getLobbyStatus', () => {
+  it('says whether a lobby has started and whether it is over', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ round: 0, gameover: false }));
+    expect(await getLobbyStatus('abc')).toEqual({ started: false, over: false });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/lobby_status/abc`, expect.anything());
+    fetchMock.mockResolvedValue(jsonResponse({ round: 3, gameover: true }));
+    expect(await getLobbyStatus('abc')).toEqual({ started: true, over: true });
+  });
+
+  it('is null for a lobby that is gone, and fails on any other error', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Lobby not found' }, 404));
+    expect(await getLobbyStatus('NOPE')).toBeNull();
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'boom' }, 500));
+    await expect(getLobbyStatus('abc')).rejects.toBeInstanceOf(ApiError);
+  });
+});
 
 describe('joinRankedQueue', () => {
   it('posts the name and stores the ranked ticket it gets back', async () => {
