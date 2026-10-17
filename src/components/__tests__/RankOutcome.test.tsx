@@ -32,6 +32,21 @@ describe('RankOutcome', () => {
     expect(screen.getByText('Ranked up!')).toBeTruthy();
   });
 
+  it('on a rank down turns the old rank into the new one too, then says so', () => {
+    vi.useFakeTimers();
+    render(
+      <RankOutcome result={{ tier_before: 'Djinn I', tier_after: 'Troll III', promoted: false }} playerName="Oni" />,
+    );
+    expect(screen.getByText('Djinn I')).toBeTruthy();
+    expect(screen.getByLabelText('Ranked down from Djinn I to Troll III')).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(RANK_UP_HOLD_MS + 1000);
+    });
+    expect(screen.queryByText('Djinn I')).toBeNull();
+    expect(screen.getByText('Troll III')).toBeTruthy();
+    expect(screen.getByText('Ranked down.')).toBeTruthy();
+  });
+
   it('shows the new rank at once when motion is reduced', () => {
     const before = window.matchMedia;
     window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as never;
