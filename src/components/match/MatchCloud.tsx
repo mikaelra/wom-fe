@@ -9,14 +9,16 @@ import { getActiveBotRankedLobby } from '@/lib/api';
 import { getStoredAccountToken, setStoredToken } from '@/lib/http';
 import { useCountdown } from '@/lib/useCountdown';
 import { useToast } from '@/components/Toast';
-import { STILL_QUEUING, lobbyStartedCloud, onLobbyPage, rankedCloud, type CloudContent, type Seat } from '@/lib/matchCloud';
+import { RANKED, SEARCHING, STILL_QUEUING, lobbyStartedCloud, onLobbyPage, rankedCloud, type CloudContent, type Seat } from '@/lib/matchCloud';
 
 // What Blimkin comes out to say, and where (Mikael, 2026-10-17):
 //   1. "Do you still want to be in the queue?" after 30 minutes of ranked;
 //   2. a bossfight or bot-ranked game you're seated in has started;
 //   3. your ranked match: found (who you're up against; tap for the
 //      countdown and X/6), then started (Join Game) -- except in the city,
-//      where the signpost says it, and on the match's own page.
+//      where the signpost says it, and on the match's own page;
+//   4. on the Earth screen while queued for ranked: "Searching" (black)
+//      "Ranked" (red).
 // Each cloud stays up until its cross closes it; a closed ranked cloud comes
 // back when there's news (found -> started). Mounted once, in the root
 // layout, inside <RankedQueueProvider>.
@@ -70,6 +72,17 @@ export default function MatchCloud() {
   // Clouds closed with the cross, by appearance key.
   const [closed, setClosed] = useState<Set<string>>(() => new Set());
   const close = useCallback((key: string) => setClosed((prev) => new Set(prev).add(key)), []);
+  // Closed while searching: back with the next queue.
+  useEffect(() => {
+    if (rq.status === 'searching') return;
+    setClosed((prev) => {
+      if (!prev.has('searching')) return prev;
+      const next = new Set(prev);
+      next.delete('searching');
+      return next;
+    });
+  }, [rq.status]);
+
   // The 30-minute question is asked again after the next 30 minutes.
   useEffect(() => {
     if (rq.asking) return;
@@ -151,6 +164,16 @@ export default function MatchCloud() {
         onClose={() => close(rankedKey)}
       >
         <Lines content={content} onAction={joinRanked} />
+      </BlimkinCloud>
+    );
+  }
+
+  if (rq.status === 'searching' && pathname === '/' && !closed.has('searching')) {
+    return (
+      <BlimkinCloud appearance="searching" label={`${SEARCHING} ${RANKED}`} onClose={() => close('searching')}>
+        <p className="font-semibold">
+          <span className="text-[#111]">{SEARCHING}</span> <span className="text-red-600">{RANKED}</span>
+        </p>
       </BlimkinCloud>
     );
   }

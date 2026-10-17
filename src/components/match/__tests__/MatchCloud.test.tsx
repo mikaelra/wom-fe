@@ -4,6 +4,7 @@ import { ToastProvider } from '@/components/Toast';
 import RankedQueueProvider from '@/components/match/RankedQueueProvider';
 import MatchCloud from '@/components/match/MatchCloud';
 import { getActiveBotRankedLobby, getActiveRankedLobby, getBossfightRoster } from '@/lib/api';
+import { useRankedQueueContext } from '@/components/match/RankedQueueProvider';
 import { rememberBotQueue, rememberSeat, writeQueue, STILL_QUEUING_AFTER_MS } from '@/lib/matchCloud';
 import { setStoredAccountToken } from '@/lib/http';
 
@@ -111,6 +112,39 @@ describe('MatchCloud', () => {
     expect(await screen.findByText('Game started.')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Join Game'));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/lobby?id=RNKD'));
+  });
+
+  it('says "Searching Ranked" on the Earth screen while queued, and only there', async () => {
+    function Queue() {
+      const rq = useRankedQueueContext();
+      return (
+        <button type="button" onClick={() => void rq.startQueue('Alice')}>
+          queue
+        </button>
+      );
+    }
+    const { rerender } = render(
+      <ToastProvider>
+        <RankedQueueProvider>
+          <Queue />
+          <MatchCloud />
+        </RankedQueueProvider>
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByText('queue'));
+    expect(await screen.findByText('Searching')).toBeInTheDocument();
+    expect(screen.getByText('Ranked').className).toContain('text-red-600');
+
+    pathname = '/market';
+    rerender(
+      <ToastProvider>
+        <RankedQueueProvider>
+          <Queue />
+          <MatchCloud />
+        </RankedQueueProvider>
+      </ToastProvider>,
+    );
+    expect(screen.queryByText('Searching')).toBeNull();
   });
 
   it('stays away in the city, where the signpost says it', async () => {

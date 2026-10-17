@@ -45,6 +45,10 @@ export interface CloudContent {
 }
 
 export const GAME_STARTED = 'Game started.';
+/** Blimkin's cloud on the Earth screen while queued for ranked (Mikael,
+ *  2026-10-17): "Searching" in black, "Ranked" in red. */
+export const SEARCHING = 'Searching';
+export const RANKED = 'Ranked';
 export const JOIN_GAME = 'Join Game';
 export const JOIN_LOBBY = 'Join Lobby';
 
