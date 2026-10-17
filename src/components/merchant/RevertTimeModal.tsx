@@ -170,7 +170,7 @@ export default function RevertTimeModal({
   // Every copy's own time -- the one chosen is the one Timewarp spends.
   const copyList = (
     <div className="mb-4 text-left">
-      <p className="text-white/50 text-[11px] uppercase tracking-wide mb-1">
+      <p className="text-white/50 text-[0.6875rem] uppercase tracking-wide mb-1">
         {copies.length > 1 ? 'Choose a time' : `This ${relic.name} was bought`}
       </p>
       <div role={copies.length > 1 ? 'radiogroup' : undefined} className="flex flex-col gap-2">

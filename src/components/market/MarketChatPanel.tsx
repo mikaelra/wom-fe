@@ -100,7 +100,7 @@ export default function MarketChatPanel({
           type="button"
           onClick={() => setShowFrogs((v) => !v)}
           aria-expanded={showFrogs}
-          className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
+          className={`px-2 py-1 rounded-md text-[0.6875rem] font-semibold transition-colors cursor-pointer ${
             showFrogs ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-white/10 hover:bg-white/20'
           }`}
         >
@@ -148,7 +148,7 @@ export default function MarketChatPanel({
             </div>
             <time
               dateTime={m.timestamp}
-              className="shrink-0 text-[11px] tabular-nums text-white/30 pt-0.5"
+              className="shrink-0 text-[0.6875rem] tabular-nums text-white/30 pt-0.5"
             >
               {formatClock(m.timestamp)}
             </time>

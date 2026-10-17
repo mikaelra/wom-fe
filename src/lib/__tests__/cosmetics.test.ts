@@ -58,7 +58,7 @@ describe('labels', () => {
   });
 
   it('describes the artifact cosmetic', () => {
-    expect(cosmeticDescription(ARTIFACT)).toBe('A single piece of paper, once pulled from a well.');
+    expect(cosmeticDescription(ARTIFACT)).toBe('This ancient gif claims to be the source');
   });
 
   it('returns an empty description rather than undefined for unknowns', () => {
