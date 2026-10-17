@@ -452,6 +452,10 @@ function SideList({
  * type a fresh number. This keeps its own string draft: type anything
  * (including empty) while focused; a valid whole number >= 1 commits
  * live; on blur an invalid or empty box reverts to the last good value.
+ *
+ * Tapping it selects the whole number, so the next digit typed replaces it
+ * -- the caret used to land before the "1" and a typed 5 made "51" (Mikael,
+ * 2026-10-17, on his phone).
  */
 export function QtyInput({
   value,
@@ -494,6 +498,16 @@ export function QtyInput({
         setDraft(String(n ?? value));
         if (n !== null && n !== value) onCommit(n);
       }}
+      onFocus={(e) => {
+        const el = e.currentTarget;
+        el.select();
+        // iOS Safari places the caret after focus; select again once it has.
+        requestAnimationFrame(() => {
+          if (document.activeElement === el) el.setSelectionRange(0, el.value.length);
+        });
+      }}
+      // Lifting the finger would otherwise drop the selection just made.
+      onMouseUp={(e) => e.preventDefault()}
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
       }}

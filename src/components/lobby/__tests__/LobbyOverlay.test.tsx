@@ -192,7 +192,8 @@ describe('renderGameOver', () => {
     );
     expect(screen.getByText('Djinn II')).toBeInTheDocument();
     expect(screen.getByText('Ranked up!')).toBeInTheDocument();
-    expect(screen.queryByText('Djinn I')).not.toBeInTheDocument();
+    // The old rank shows first, turning into the new one (Mikael, 2026-10-17).
+    expect(screen.getByText('Djinn I')).toBeInTheDocument();
     expect(screen.queryByText(/rating/)).not.toBeInTheDocument();
   });
 
