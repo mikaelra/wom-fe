@@ -324,14 +324,16 @@ def draw_frog(c, p, dark_outline='#15121e'):
 
         vx, hy = 16, 18
         top = next(y for y in range(N) if s['skin'][y, vx])
-        for y in range(top, hy + 1):
+        bottom = max(y for y in range(N) if s['skin'][y, vx])        # the chin
+        for y in range(top, bottom + 1):                              # right through the smile
             seam(vx, y)
         for x in range(2, 30):
             seam(x, hy)
         def room(x, y):  # the rivet's own pixel and the four around it are plain metal
             return all(is_plain(x + dx, y + dy) for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)))
-        spots = [(vx + side * 2, y) for side in (-1, 1) for y in range(top + 2, hy - 1, 3)]       # beside the vertical
-        spots += [(x, hy + side * 2) for side in (-1, 1) for x in range(4, 29, 3)]                # along the horizontal
+        gap = 5   # a pin every 5th pixel
+        spots = [(vx + side * 2, y) for side in (-1, 1) for y in range(top + 2, bottom - 1, gap)]  # beside the vertical
+        spots += [(x, hy + side * 2) for side in (-1, 1) for x in range(4, 29, gap)]               # along the horizontal
         for x, y in spots:
             if room(x, y):
                 c.dot(x, y, rivet)
