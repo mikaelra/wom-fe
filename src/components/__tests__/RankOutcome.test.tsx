@@ -1,22 +1,46 @@
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
 
 vi.mock('@/lib/api', () => ({ getRankedProfile: vi.fn(async () => ({ tier: null, ranked_games_played: 0 })) }));
 
-import RankOutcome from '@/components/hud/RankOutcome';
+import RankOutcome, { RANK_UP_HOLD_MS } from '@/components/hud/RankOutcome';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('RankOutcome', () => {
-  it('says the rank went up, with the games at it', () => {
+  it('on a rank up turns the old rank into the new one, then says so (2026-10-17)', () => {
+    vi.useFakeTimers();
     render(
       <RankOutcome
         result={{ tier_before: 'Troll I', tier_after: 'Troll II', promoted: true, games_at_tier: 1 }}
         playerName="Oni"
       />,
     );
-    expect(screen.getByText('Ranked up!')).toBeTruthy();
-    // ...then the rank it came from.
+    // First the old rank, the new one waiting under it.
     expect(screen.getByText('Troll I')).toBeTruthy();
+    expect(screen.getByLabelText('Ranked up from Troll I to Troll II')).toBeTruthy();
     expect(screen.getByText('1 game at Troll II')).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(RANK_UP_HOLD_MS + 1000);
+    });
+    // Then only the new rank, and Ranked up!
+    expect(screen.queryByText('Troll I')).toBeNull();
+    expect(screen.getByText('Troll II')).toBeTruthy();
+    expect(screen.getByText('Ranked up!')).toBeTruthy();
+  });
+
+  it('shows the new rank at once when motion is reduced', () => {
+    const before = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as never;
+    render(
+      <RankOutcome result={{ tier_before: 'Troll I', tier_after: 'Troll II', promoted: true }} playerName="Oni" />,
+    );
+    expect(screen.queryByText('Troll I')).toBeNull();
+    expect(screen.getByText('Troll II')).toBeTruthy();
+    window.matchMedia = before;
   });
 
   it('has no word for staying the same, only how long it has (2026-10-17)', () => {
