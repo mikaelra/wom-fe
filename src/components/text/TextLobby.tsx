@@ -614,8 +614,12 @@ export default function TextLobby({
   const attackable = (p: { name: string; hp: number; spectator?: boolean }) =>
     canChoose && p.name !== playerName && p.hp > 0 && !p.spectator;
   const leftColumnWidth = 'w-36';
-  // Ranked lobbies show each player's rank in the list.
-  const rankedList = !!state?.ranked;
+  // The only time ranks are shown to the others is at the end of a ranked
+  // match, bot-ranked included -- never while it is played, never in casual
+  // (private) lobbies or bossfights (Mikael, 2026-10-17). A bot-ranked list
+  // ranks only the bots: a person there has none.
+  const rankedList = gameOver && (!!state?.ranked || !!state?.ai_ranked);
+  const showsRank = (p: { rank_tier?: string | null }) => !!state?.ranked || !!p.rank_tier;
   const playersCard = (
     <>
       <div className={compact ? compactCard : card}>
@@ -705,7 +709,7 @@ export default function TextLobby({
                 </span>
                 {rankedList && (
                   <span className="shrink-0 flex justify-end">
-                    <RankBadge tier={p.rank_tier ?? null} playerName={p.name} />
+                    {showsRank(p) && <RankBadge tier={p.rank_tier ?? null} playerName={p.name} />}
                   </span>
                 )}
                 <span className="flex items-center gap-2">
@@ -942,10 +946,17 @@ export default function TextLobby({
       )}
     </>
   );
+  // A soft green box for the winner, a soft red one for anyone else who played
+  // (Mikael, 2026-10-17); the words are the same.
+  const lost = !!myPlayer && !myPlayer.spectator && state?.winner !== playerName;
   const gameOverCard = (
     <>
       {gameOver && (
-        <div className="w-full bg-green-950/60 border border-green-700 text-green-300 p-4 rounded-xl mt-4 text-center">
+        <div
+          className={`w-full p-4 rounded-xl mt-4 text-center border ${
+            lost ? 'bg-red-950/60 border-red-700 text-red-300' : 'bg-green-950/60 border-green-700 text-green-300'
+          }`}
+        >
           <p className="text-xl font-semibold mb-3">🎉 Game Over! {winnerName} has won the game!</p>
           <RankOutcome result={state?.ranked_results?.[playerName]} playerName={playerName} />
           {/* Home, and beside it the city -- the pair from the top corner. */}

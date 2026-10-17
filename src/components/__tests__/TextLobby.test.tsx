@@ -631,8 +631,8 @@ describe('TextLobby title and PC layout', () => {
     expect(screen.getByText('3 games at Wizard I')).toBeTruthy();
   });
 
-  it('in a ranked lobby shows each player\'s rank left of the name (2026-10-17)', async () => {
-    const base = lobby({ round: 1, ranked: true });
+  it('at the end of a ranked match shows each player\'s rank left of the name (2026-10-17)', async () => {
+    const base = lobby({ round: 4, ranked: true, gameover: true, winner: 'Oni' });
     await show({
       ...base,
       players: base.players.map((p, i) => ({ ...p, rank_tier: i === 0 ? 'Djinn II' : null })),
@@ -645,9 +645,41 @@ describe('TextLobby title and PC layout', () => {
     expect(screen.getAllByText('Unranked').length).toBe(base.players.length - 1);
   });
 
-  it('shows no ranks outside ranked lobbies', async () => {
+  it('shows no ranks outside ranked lobbies, nor while a ranked match is played', async () => {
     await show(lobby({ round: 1 }));
     expect(screen.queryByText('Unranked')).toBeNull();
+    cleanup();
+    const base = lobby({ round: 2, ranked: true });
+    await show({ ...base, players: base.players.map((p) => ({ ...p, rank_tier: 'Djinn II' })) });
+    expect(screen.queryByText('Djinn II')).toBeNull();
+    expect(screen.queryByText('Unranked')).toBeNull();
+  });
+
+  it('never shows ranks in a private match or a bossfight, even at the end', async () => {
+    const base = lobby({ round: 4, gameover: true, winner: 'Oni' });
+    await show({ ...base, players: base.players.map((p) => ({ ...p, rank_tier: 'Djinn II' })) });
+    expect(screen.queryByText('Djinn II')).toBeNull();
+    cleanup();
+    const boss = lobby({ round: 4, gameover: true, winner: 'Oni', boss_fight: true });
+    await show({ ...boss, players: boss.players.map((p) => ({ ...p, rank_tier: 'Djinn II' })) });
+    expect(screen.queryByText('Djinn II')).toBeNull();
+  });
+
+  it('at the end of a bot-ranked match ranks only those that have one', async () => {
+    const base = lobby({ round: 4, ai_ranked: true, gameover: true, winner: 'Oni' });
+    await show({ ...base, players: base.players.map((p, i) => ({ ...p, rank_tier: i === 1 ? 'Djinn II' : null })) });
+    expect(screen.getByText('Djinn II')).toBeTruthy();
+    expect(screen.queryByText('Unranked')).toBeNull();
+  });
+
+  it('ends in a soft green box for the winner and a soft red one for the rest, with the same words', async () => {
+    await show(lobby({ round: 3, gameover: true, winner: 'Oni' }));
+    expect(screen.getByText(/Game Over!/).parentElement!.className).toContain('bg-green-950');
+    cleanup();
+    await show(lobby({ round: 3, gameover: true, winner: 'Toad' }));
+    const box = screen.getByText(/Game Over! Toad has won the game!/).parentElement!;
+    expect(box.className).toContain('bg-red-950');
+    expect(box.className).not.toContain('green');
   });
 });
 
