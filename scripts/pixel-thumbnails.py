@@ -109,7 +109,7 @@ FROGS = {
     'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#4a3a34', iris_edge='#8a6a56', speck='#b09a86', pupil='#0b0807', ir=2.95, pr=0, diamond=4),
     'frog_pink_v1': dict(skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
     'frog_purple_v1': dict(skin='#cfa0ea', belly='#f0e6f0', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
-    'frog_red_v1': dict(skin='#ff4a2e', belly='#ecd8d8', sclera='#eef0dc', rim='#0a0a0a', iris='#000000', pupil='#000000', ir=2.3, pr=2.3),
+    'frog_red_v1': dict(skin='#ff4a2e', belly='#ecd8d8', sclera='#eef0dc', iris='#000000', pupil='#000000', ir=2.95, pr=2.95),
     'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#f6edd8', iris='#d9c29c', iris_edge='#a67f4f', pupil='#0a0502', ir=2.95, pr=0, diamond=4),
     'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#5a3a08', iris='#b01828', iris_edge='#5a0a14', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
     'frog_silver_v1': dict(skin='#62646e', belly='#52545e', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#dce0ea'),
