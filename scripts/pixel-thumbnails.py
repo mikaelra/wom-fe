@@ -320,7 +320,9 @@ def dagger(c):
     for x, y in [(8, 19), (9, 19), (8, 20)]:  # the hand round the grip
         d.dot(x, y, rgb('#f1c9b0'))
     m = d.alpha()
-    c.fill(dilate(m) & ~m & c.alpha(), rgb('#4a4660'))  # a dark edge where it lies on the dress
+    # a dark edge where it lies on the dress -- not over the arm that holds it
+    skin = np.all(c.px[:, :, :3] == np.array(rgb('#f1c9b0')), axis=2)
+    c.fill(dilate(m) & ~m & c.alpha() & ~skin, rgb('#4a4660'))
     c.px[m] = d.px[m]
 
 
