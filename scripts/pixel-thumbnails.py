@@ -294,30 +294,30 @@ def line(c, pts, color):
 
 
 def dagger(c):
-    """The cherub's small dagger, held across its chest as in the 3D model:
+    """The cherub's small dagger (0.8x its first size), held across its chest as in the 3D model:
     gold pommel, brown grip in the hand, gold crossguard, a steel blade
     tapering up and to the right."""
     d = Canvas()
     gold, gold_lo, grip = rgb('#d8a830'), rgb('#8a5a14'), rgb('#8a4a30')
-    for x, y in [(4, 21), (5, 21), (4, 22), (5, 22)]:  # the pommel
+    for x, y in [(5, 21), (6, 21), (5, 22), (6, 22)]:  # the pommel
         d.dot(x, y, gold)
-    d.dot(5, 22, gold_lo)
-    for x, y in [(6, 21), (7, 20), (8, 20), (9, 19)]:  # the grip
+    d.dot(6, 22, gold_lo)
+    for x, y in [(7, 21), (8, 20), (9, 20)]:  # the grip
         d.dot(x, y, grip)
-    for x, y in [(10, 17), (10, 18), (11, 18), (10, 19), (11, 19), (11, 20), (10, 21), (11, 21)]:  # the crossguard
+    for x, y in [(10, 18), (10, 19), (11, 19), (10, 20), (11, 20), (10, 21)]:  # the crossguard
         d.dot(x, y, gold)
-    d.dot(11, 19, gold_lo)
-    for i in range(11):  # the blade
+    d.dot(11, 20, gold_lo)
+    for i in range(8):  # the blade
         x = 12 + i
         yc = 19 - round(i * 0.4)
-        half = 1 if i < 7 else 0
+        half = 1 if i < 5 else 0
         d.dot(x, yc - half, rgb('#f2f5fb'))
         if half:
             d.dot(x, yc, rgb('#c4c9d8'))
             d.dot(x, yc + 1, rgb('#6a6e82'))
         else:
             d.dot(x, yc, rgb('#c4c9d8'))
-    for x, y in [(8, 19), (9, 20), (8, 20)]:  # the hand round the grip
+    for x, y in [(8, 19), (9, 19), (8, 20)]:  # the hand round the grip
         d.dot(x, y, rgb('#f1c9b0'))
     m = d.alpha()
     c.fill(dilate(m) & ~m & c.alpha(), rgb('#4a4660'))  # a dark edge where it lies on the dress
