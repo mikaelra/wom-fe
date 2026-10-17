@@ -246,12 +246,13 @@ export default function SceneTopBar({
                       ? 'w-7 h-7 rounded-full border border-white/20 overflow-hidden shrink-0 avatar-loading-blink'
                       : 'w-7 h-7 rounded-full border border-white/20 overflow-hidden shrink-0'
                   }
-                  style={skinLoading || !equippedSkin ? undefined : { background: skinColor(equippedSkin) }}
+                  // Low Definition: the skin's own aura is the backdrop (as in the inventory), not a flat colour.
+                  style={skinLoading || !equippedSkin || lowDefinition ? undefined : { background: skinColor(equippedSkin) }}
                 >
                   {!skinLoading && equippedSkin && (
                     // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets, not remote/user content
                     <img
-                      src={skinPicture(equippedSkin, lowDefinition)}
+                      src={skinPicture(equippedSkin, lowDefinition, true)}
                       alt=""
                       className="w-full h-full object-cover"
                       style={lowDefinition ? pixelImageStyle : undefined}

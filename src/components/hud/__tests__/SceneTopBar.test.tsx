@@ -41,14 +41,15 @@ function avatarSpan(container: HTMLElement): HTMLElement {
 }
 
 describe('SceneTopBar avatar in Low Definition', () => {
-  it("shows the equipped skin's 32x32 face, with square pixels", async () => {
+  it("shows the equipped skin's 32x32 face on its own aura, with square pixels, not on a flat colour", async () => {
     localStorage.setItem('textMode', 'on');
     mockedGetInventory.mockResolvedValue(inventory('frog_pink_v1'));
     const { container } = render(<SceneTopBar />);
     await screen.findByText('Alice');
     await waitFor(() => expect(avatarSpan(container).querySelector('img')).not.toBeNull());
-    await waitFor(() => expect(avatarSpan(container).querySelector('img')).toHaveAttribute('src', '/pixel/frog_pink_v1.png'));
+    await waitFor(() => expect(avatarSpan(container).querySelector('img')).toHaveAttribute('src', '/pixel2/frog_pink_v1.png'));
     expect(avatarSpan(container).querySelector('img')!.style.imageRendering).toBe('pixelated');
+    expect(avatarSpan(container).style.background).toBe(''); // the aura is the backdrop
   });
 
   it('keeps the rendered thumbnail in SD and HD', async () => {
@@ -56,6 +57,7 @@ describe('SceneTopBar avatar in Low Definition', () => {
     const { container } = render(<SceneTopBar />);
     await screen.findByText('Alice');
     await waitFor(() => expect(avatarSpan(container).querySelector('img')).toHaveAttribute('src', '/skins/thumbnails/frog_pink_v1.png'));
+    expect(avatarSpan(container).style.background).not.toBe(''); // SD and HD keep the skin's colour behind it
   });
 });
 
