@@ -100,10 +100,10 @@ export interface CarvedSignpostArm {
 
 /** The city signpost's arms, so the sandbox starts from what is live. */
 export const DEFAULT_CARVED_ARMS: CarvedSignpostArm[] = [
-  { side: 'left', label: 'HADES', color: '#4da6ff' },
-  { side: 'right', tier: 0.5, label: 'RANKED', color: '#ff6666' },
-  { side: 'left', tier: 1, label: 'EARTH', color: '#5fd88a' },
-  { side: 'right', tier: 1.5, label: 'MARKET', color: '#e8d9a0' },
+  { side: 'right', label: 'HADES', color: '#4da6ff' },
+  { side: 'left', label: 'RANKED', color: '#ff6666' },
+  { side: 'right', tier: 1, label: 'EARTH', color: '#5fd88a' },
+  { side: 'left', tier: 1, label: 'MARKET', color: '#e8d9a0' },
 ];
 
 function makeCanvas(w: number, h: number) {

@@ -9,16 +9,18 @@ import {
 
 // Scene compass (lib/citySkyGeometry.ts): -Z is north, +X is east, and the
 // default camera looks down -Z. So -X is the viewer's LEFT and -Z is in
-// front of them.
+// front of them. The city reads as the text signpost does (Mikael,
+// 2026-10-17): HADES and the harbor on the right, RANKED and the market on
+// the left.
 
 describe('which building is on which side', () => {
-  it('puts the Temple on the LEFT, where the signpost\'s left arm points', () => {
+  it('puts the Temple on the RIGHT, where the signpost\'s HADES arm points', () => {
     // The one invariant that must never break. Swap these and the scene
     // still renders perfectly, the hover highlighting still pairs an arm
     // with a building, and every player is sent to the wrong fight.
-    // Temple -> Bossfight (left arm), Senate -> Ranked (right arm), §1.1.
-    expect(TEMPLE_POSITION[0]).toBeLessThan(0);
-    expect(SENATE_POSITION[0]).toBeGreaterThan(0);
+    // Temple -> Bossfight (right arm), Senate -> Ranked (left arm), §1.1.
+    expect(TEMPLE_POSITION[0]).toBeGreaterThan(0);
+    expect(SENATE_POSITION[0]).toBeLessThan(0);
   });
 
   it('keeps them on opposite sides of the signpost, not merely both off-centre', () => {
@@ -28,17 +30,17 @@ describe('which building is on which side', () => {
 });
 
 describe('the Market (wom-be docs/MARKET_PLAN.md §3.2)', () => {
-  it('sits in the back-right quadrant: right of centre, behind the viewer', () => {
-    // "south-east" -- right is +X, "back" (away from a viewer looking
-    // north / down -Z) is +Z. Pairs with the signpost's right-side MARKET
-    // arm, same as Senate on the right.
-    expect(MARKET_POSITION[0]).toBeGreaterThan(0);
+  it('sits in the back-left quadrant: left of centre, behind the viewer', () => {
+    // "south-west" -- left is -X, "back" (away from a viewer looking
+    // north / down -Z) is +Z. Pairs with the signpost's left-side MARKET
+    // arm, same as the Senate on the left.
+    expect(MARKET_POSITION[0]).toBeLessThan(0);
     expect(MARKET_POSITION[2]).toBeGreaterThan(0);
   });
 
-  it('leaves the back-left (south-west) quadrant clear for a later building', () => {
-    // §3.2 reserves -X / +Z. The Market must not stray into it.
-    expect(MARKET_POSITION[0]).toBeGreaterThan(0);
+  it('leaves the back-right (south-east) quadrant to the Bay', () => {
+    expect(MARKET_POSITION[0]).toBeLessThan(0);
+    expect(BAY_POSITION[0]).toBeGreaterThan(0);
   });
 
   it('stands on the land like the rest of the city', () => {
@@ -51,8 +53,8 @@ describe('the Market (wom-be docs/MARKET_PLAN.md §3.2)', () => {
 });
 
 describe('the Bay', () => {
-  it('takes the back-left (south-west) quadrant the Market left clear', () => {
-    expect(BAY_POSITION[0]).toBeLessThan(0);
+  it('takes the back-right (south-east) quadrant, across from the Market', () => {
+    expect(BAY_POSITION[0]).toBeGreaterThan(0);
     expect(BAY_POSITION[2]).toBeGreaterThan(0);
   });
 
@@ -97,15 +99,15 @@ describe('depth', () => {
 
 describe('the temple has the room its size needs', () => {
   it('keeps its bulk clear of the centre line, so the signpost is not inside it', () => {
-    // Its old position (x = -15) put the right-hand edge of a 35.7-wide
-    // model past x = 0 -- the signpost stood inside the building's footprint
+    // A position near x = 15 would put the inner edge of a 35.7-wide model
+    // past x = 0 -- the signpost standing inside the building's footprint
     // and the viewer inside its bounding box.
-    const rightEdge = TEMPLE_POSITION[0] + TEMPLE_EXTENT.x;
-    expect(rightEdge).toBeLessThan(SIGNPOST_POSITION[0]);
+    const innerEdge = TEMPLE_POSITION[0] - TEMPLE_EXTENT.x;
+    expect(innerEdge).toBeGreaterThan(SIGNPOST_POSITION[0]);
   });
 
   it('does not reach across into the Senate', () => {
-    expect(TEMPLE_POSITION[0] + TEMPLE_EXTENT.x).toBeLessThan(SENATE_POSITION[0]);
+    expect(TEMPLE_POSITION[0] - TEMPLE_EXTENT.x).toBeGreaterThan(SENATE_POSITION[0]);
   });
 });
 
@@ -119,10 +121,10 @@ describe('the ranked fork', () => {
   const midZ = (SENATE_POSITION[2] + SENATE_BOT_POSITION[2]) / 2;
 
   it('turns the post a clean quarter, along the Senate diagonal', () => {
-    expect(rot).toBeCloseTo(Math.PI / 4, 6);
+    expect(rot).toBeCloseTo(-Math.PI / 4, 6);
     // The two Senate origins really are on a 45 line -- the turn follows it.
     expect(SENATE_BOT_POSITION[0] - SENATE_POSITION[0])
-      .toBeCloseTo(-(SENATE_BOT_POSITION[2] - SENATE_POSITION[2]), 6);
+      .toBeCloseTo(SENATE_BOT_POSITION[2] - SENATE_POSITION[2], 6);
   });
 
   it('pushes the post out of the colonnade, along its face, onto open ground', () => {
@@ -134,8 +136,8 @@ describe('the ranked fork', () => {
     expect(outX / Math.hypot(outX, outZ)).toBeCloseTo(face[0], 6);
     expect(outZ / Math.hypot(outX, outZ)).toBeCloseTo(face[1], 6);
     expect(RANKED_FORK_SIGNPOST_POSITION[1]).toBe(LAND_LEVEL);
-    // Clear of both halls: east of the original Senate, south of the bot one.
-    expect(RANKED_FORK_SIGNPOST_POSITION[0]).toBeGreaterThan(SENATE_POSITION[0]);
+    // Clear of both halls: west of the original Senate, south of the bot one.
+    expect(RANKED_FORK_SIGNPOST_POSITION[0]).toBeLessThan(SENATE_POSITION[0]);
     expect(RANKED_FORK_SIGNPOST_POSITION[2]).toBeGreaterThan(SENATE_BOT_POSITION[2]);
   });
 
