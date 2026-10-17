@@ -7,9 +7,10 @@ import { timewarpEventLabels } from '@/lib/merchant';
 import { formatWorldClock } from '@/lib/worldClock';
 import { useCountdown } from '@/lib/useCountdown';
 import type { Relic } from '@/types/game';
+import RelicCoin from '@/components/RelicCoin';
 
 type Props = {
-  /** A merchant relic -- Stone of Vitality or Paper. */
+  /** A merchant relic -- Stone of Vitality, Paper or Pen. */
   relic: Relic;
   /** Whether time is turned back right now, and to when -- the status line. */
   reverted: boolean;
@@ -55,7 +56,7 @@ export function formatCountdown(totalSeconds: number): string {
 }
 
 /**
- * Clicking a merchant relic's model (Stone of Vitality, Paper) in the
+ * Clicking a merchant relic's model (Stone of Vitality, Paper, Pen) in the
  * Inventory opens this -- mirrors ArtifactLedgerModal being what clicking
  * your artifact opens.
  *
@@ -169,7 +170,7 @@ export default function RevertTimeModal({
   // Every copy's own time -- the one chosen is the one Timewarp spends.
   const copyList = (
     <div className="mb-4 text-left">
-      <p className="text-white/50 text-[11px] uppercase tracking-wide mb-1">
+      <p className="text-white/50 text-[0.6875rem] uppercase tracking-wide mb-1">
         {copies.length > 1 ? 'Choose a time' : `This ${relic.name} was bought`}
       </p>
       <div role={copies.length > 1 ? 'radiogroup' : undefined} className="flex flex-col gap-2">
@@ -215,6 +216,11 @@ export default function RevertTimeModal({
         <h2 id="revert-time-heading" className="text-lg font-bold mb-1">
           {relic.name}
         </h2>
+        {/* The relic's picture from its inventory card, at 1.5x that card's
+            64px (w-16) -- the Pen's thumbnail, the others' model. */}
+        <div className="w-24 h-24 mx-auto mb-2 overflow-hidden" data-testid="revert-relic-picture">
+          <RelicCoin relicName={relic.name} />
+        </div>
         {relic.flavour_text && <p className="text-white/50 text-xs mb-4">{relic.flavour_text}</p>}
 
         <h3 className="text-base font-bold mb-1">Time Warp</h3>

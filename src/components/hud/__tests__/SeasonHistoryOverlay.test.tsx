@@ -5,6 +5,7 @@ import { getSeasonHistory } from '@/lib/api';
 
 vi.mock('@/lib/api', () => ({
   getSeasonHistory: vi.fn(),
+  getRankedRanks: vi.fn(async () => ({ ranks: [], ai_ranks: [] })),
 }));
 
 const history = {
@@ -24,7 +25,7 @@ describe('SeasonHistoryOverlay', () => {
     vi.mocked(getSeasonHistory).mockResolvedValue(history);
     render(<SeasonHistoryOverlay playerName="Oni" onClose={vi.fn()} />);
 
-    expect(screen.getByText('Loading…')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
     expect(await screen.findByText('Fall 2026')).toBeInTheDocument();
     expect(screen.getByText('Summer 2026')).toBeInTheDocument();
     expect(screen.getByText('Warlock')).toBeInTheDocument();

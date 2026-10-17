@@ -28,6 +28,11 @@ describe('MerchantScene', () => {
     render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
 
     expect(screen.getByText('Stone of Vitality')).toBeInTheDocument();
+    // His line about it, between its name and its price.
+    const line = screen.getByText('A stone which exudes vitality');
+    expect(line.previousElementSibling).toHaveTextContent('Stone of Vitality');
+    expect(line.nextElementSibling).toHaveTextContent('5 Hades’ Coins');
+    expect(screen.queryByText(/One could write/)).not.toBeInTheDocument();
     expect(screen.getByText((_, el) => el?.textContent === "5 Hades’ Coins")).toBeInTheDocument();
     expect(mockedPurchase).not.toHaveBeenCalled();
   });
@@ -93,21 +98,46 @@ describe('MerchantScene', () => {
     act(() => screen.getByRole('button', { name: /Trade for 5/ }).click());
 
     await waitFor(() =>
-      expect(screen.getByText('Log in to trade with The Merchant.')).toBeInTheDocument(),
+      expect(screen.getByText('Log in to trade with John Dee.')).toBeInTheDocument(),
     );
     expect(mockedPurchase).not.toHaveBeenCalled();
   });
 
-  it('says he appears around the full moon', () => {
+  it('has John Dee say one of his lines, timewarp or not', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
     render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
 
-    expect(screen.getByText('Appears around the full moon')).toBeInTheDocument();
+    expect(screen.getByText('“The All is Mind.”')).toBeInTheDocument();
+    expect(screen.queryByText(/Appears around/)).not.toBeInTheDocument();
   });
 
-  it('says a revert brought him when time is turned back', () => {
-    render(<MerchantScene offer={stoneOffer({ reverted: true })} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+  it('has John Dee say one of his lines at the new moon too', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+    render(<MerchantScene offer={{ ...OFFER, trigger_kind: 'new_moon', item_name: 'Pen' }} token="t"
+      onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
 
-    expect(screen.getByText('Someone timewarped to bring The Merchant here')).toBeInTheDocument();
+    expect(screen.getByText('“The All is Mind.”')).toBeInTheDocument();
+    expect(screen.getByText('For writing with')).toBeInTheDocument();
+  });
+
+  it('has John Dee say one of his lines when a timewarp brought him', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+    render(<MerchantScene offer={stoneOffer({ reverted: true })} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
+
+    expect(screen.getByText('John Dee')).toBeInTheDocument();
+    expect(screen.getByText('“The All is Mind.”')).toBeInTheDocument();
+  });
+
+  it('has Hildegard von Bingen say one of hers at a conjunction', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    render(<MerchantScene offer={paperOffer({ reverted: true })} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
+
+    expect(screen.getByText('Hildegard von Bingen')).toBeInTheDocument();
+    expect(screen.getByText('“Modern life lacks softness.”')).toBeInTheDocument();
   });
 
   describe('the Merchant at a conjunction', () => {
@@ -116,8 +146,12 @@ describe('MerchantScene', () => {
     it('sells Paper for 3, staging the Paper model', () => {
       render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
 
-      expect(screen.getByText('The Merchant')).toBeInTheDocument();
+      expect(screen.getByText('Hildegard von Bingen')).toBeInTheDocument();
       expect(screen.getByText('Paper')).toBeInTheDocument();
+      // He says something about it, between its name and its price.
+      const line = screen.getByText('One could write something on this');
+      expect(line.previousElementSibling).toHaveTextContent('Paper');
+      expect(line.nextElementSibling).toHaveTextContent('3 Hades’ Coins');
       expect(screen.getByRole('button', { name: /Trade for 3/ })).toBeEnabled();
       const models = screen.getAllByTestId('merchant-model').map((el) => el.getAttribute('data-url'));
       expect(models).toContain('/models/relics/paper_v1.glb');
@@ -142,18 +176,35 @@ describe('MerchantScene', () => {
       render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
       const paperBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
 
-      expect(stone.w).toBe('40px');
-      expect(paperBox.style.width).toBe('160px');
-      expect(paperBox.style.height).toBe('160px');
+      expect(stone.w).toBe('2.5rem'); // 40px, in rem to grow with the UI scale
+      expect(paperBox.style.width).toBe('10rem');
+      expect(paperBox.style.height).toBe('10rem');
       expect(paperBox.style.bottom).toBe(stone.bottom);
-      // Same centre: 60px further left for a box 120px wider.
-      expect(parseFloat(paperBox.style.left)).toBe(stone.left - 60);
+      // Same centre: 60px (3.75rem) further left for a box 120px wider.
+      expect(parseFloat(paperBox.style.left)).toBe(stone.left - 3.75);
     });
 
-    it('says he appears around conjunctions -- never the particular one', () => {
-      render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+    it('stages the Pen at 4x the Stone\'s size too, same centre', () => {
+      const { unmount } = render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const stoneBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
+      const stone = { bottom: stoneBox.style.bottom, left: parseFloat(stoneBox.style.left) };
+      unmount();
 
-      expect(screen.getByText('Appears around conjunctions')).toBeInTheDocument();
+      render(<MerchantScene offer={{ ...OFFER, trigger_kind: 'new_moon', item_name: 'Pen' }} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const penBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
+
+      expect(penBox.style.width).toBe('10rem');
+      expect(penBox.style.height).toBe('10rem');
+      expect(penBox.style.bottom).toBe(stone.bottom);
+      expect(parseFloat(penBox.style.left)).toBe(stone.left - 3.75);
+    });
+
+    it('says one of her lines -- never the particular conjunction', () => {
+      const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+      render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      random.mockRestore();
+
+      expect(screen.getByText('“Modern life lacks softness.”')).toBeInTheDocument();
       expect(screen.queryByText(/Mercury|Jupiter|Libra/)).not.toBeInTheDocument();
     });
 

@@ -60,6 +60,15 @@ describe('timewarpParamFor', () => {
     ])).toBe('full_moon,Mercury-Jupiter');
   });
 
+  it('names the new moon, which a Pen brings back, in John Dee\'s purple', () => {
+    const value = timewarpParamFor([{ kind: 'new_moon', key: '' }]);
+    expect(value).toBe('new_moon');
+    expect(parseTimewarp(value, null)).toMatchObject({
+      colors: [FULL_MOON_MERCHANT_COLOR],
+      events: [{ kind: 'new_moon', key: '', bodies: ['Moon'] }],
+    });
+  });
+
   it('is the full moon for nothing at all', () => {
     expect(timewarpParamFor([])).toBe('full_moon');
   });
@@ -121,6 +130,15 @@ describe('the pins during a timewarp', () => {
     expect(timewarpFrame(TIMEWARP_DURATION_MS).markers).toBe(1);
   });
 
+  it('stay hidden from the start when they are already the moment warped to\'s, and only come in at the end', () => {
+    expect(timewarpFrame(0, true).markers).toBe(0);
+    expect(timewarpFrame(MARKERS_OUT_MS / 2, true).markers).toBe(0);
+    expect(timewarpFrame(TIMEWARP_DURATION_MS - MARKERS_IN_MS - 1, true).markers).toBe(0);
+    expect(timewarpFrame(TIMEWARP_DURATION_MS - MARKERS_IN_MS / 2, true).markers)
+      .toBe(timewarpFrame(TIMEWARP_DURATION_MS - MARKERS_IN_MS / 2).markers);
+    expect(timewarpFrame(TIMEWARP_DURATION_MS, true).markers).toBe(1);
+  });
+
   it('fade their DOM labels through CSS variables, and take no clicks while gone', () => {
     // A stand-in element: these tests run without a DOM.
     const props = new Map<string, string>();
@@ -146,7 +164,7 @@ describe('the pins during a timewarp', () => {
 
 describe('TIMEWARP_TEST_MOMENTS', () => {
   it('covers every pair of planets once', () => {
-    const pairs = TIMEWARP_TEST_MOMENTS.filter((m) => !m.value.includes(',') && m.value !== 'full_moon');
+    const pairs = TIMEWARP_TEST_MOMENTS.filter((m) => !m.value.includes(',') && !m.value.endsWith('_moon'));
     expect(pairs.map((m) => m.value).sort()).toEqual([
       'Jupiter-Saturn', 'Mars-Jupiter', 'Mars-Saturn', 'Mercury-Jupiter', 'Mercury-Mars',
       'Mercury-Saturn', 'Mercury-Venus', 'Venus-Jupiter', 'Venus-Mars', 'Venus-Saturn',

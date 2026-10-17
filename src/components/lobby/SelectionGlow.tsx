@@ -27,7 +27,7 @@ const GRADIENT_TEXTURE_SIZE = 128;
 // SelectionGlow instance rather than per-mount, since it's colour-neutral
 // (tinted via the material's `color`, not baked into the texture).
 let sharedGradientTexture: THREE.Texture | null = null;
-function getGradientTexture(): THREE.Texture {
+export function getGradientTexture(): THREE.Texture {
   if (sharedGradientTexture) return sharedGradientTexture;
   const size = GRADIENT_TEXTURE_SIZE;
   const canvas = document.createElement('canvas');

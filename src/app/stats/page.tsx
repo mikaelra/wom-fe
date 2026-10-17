@@ -7,7 +7,9 @@ import { getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
 import RankBadge from '@/components/hud/RankBadge';
 import SeasonTimer from '@/components/hud/SeasonTimer';
 import SeasonHistoryOverlay from '@/components/hud/SeasonHistoryOverlay';
+import RankedGamesOverlay from '@/components/hud/RankedGamesOverlay';
 import { CITY_PATH } from '@/lib/cities';
+import LoadingState from '@/components/loading/LoadingState';
 
 // Labels/emoji for every key in wom-be's config.WELL_REWARDS, matching the
 // emoji already used in that reward's in-game message (engine/rewards.py)
@@ -26,6 +28,9 @@ const WELL_REWARD_LABELS: Record<string, { label: string; emoji: string }> = {
   reveal_info: { label: 'Reveal Info', emoji: '🔍' },
 };
 
+const linkButton =
+  'bg-transparent border-none p-0 text-sm text-blue-400 underline hover:text-blue-300 cursor-pointer';
+
 export default function StatsPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -33,6 +38,7 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [tier, setTier] = useState<string | null>(null);
+  const [principalityRank, setPrincipalityRank] = useState<number | null>(null);
   const [rankedGamesPlayed, setRankedGamesPlayed] = useState(0);
   const [wellWins, setWellWins] = useState(0);
   const [wellRewards, setWellRewards] = useState<
@@ -42,7 +48,9 @@ export default function StatsPage() {
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [wins, setWins] = useState(0);
   const [kills, setKills] = useState(0);
+  const [bossesDefeated, setBossesDefeated] = useState(0);
   const [showSeasons, setShowSeasons] = useState(false);
+  const [showGames, setShowGames] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -59,6 +67,7 @@ export default function StatsPage() {
     Promise.all([
       getRankedProfile(name).then((data) => {
         setTier(data.tier);
+        setPrincipalityRank(data.principality_rank ?? null);
         setRankedGamesPlayed(data.ranked_games_played);
       }),
       getWellProfile(name).then((data) => {
@@ -70,6 +79,7 @@ export default function StatsPage() {
         setGamesPlayed(data.played_games);
         setWins(data.wins);
         setKills(data.kills);
+        setBossesDefeated(data.bosses_defeated ?? 0);
       }),
     ])
       .catch((err: unknown) => {
@@ -135,9 +145,12 @@ export default function StatsPage() {
         {showSeasons && playerName && (
           <SeasonHistoryOverlay playerName={playerName} onClose={() => setShowSeasons(false)} />
         )}
+        {showGames && playerName && (
+          <RankedGamesOverlay playerName={playerName} onClose={() => setShowGames(false)} />
+        )}
 
         {loading ? (
-          <p className="text-white/70">Loading…</p>
+          <LoadingState />
         ) : loadError ? (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <p className="text-red-400 mb-3">{loadError}</p>
@@ -164,7 +177,7 @@ export default function StatsPage() {
               </div>
               {tier ? (
                 <>
-                  <RankBadge tier={tier} className="text-base px-3 py-1" />
+                  <RankBadge tier={tier} placement={principalityRank} className="text-base px-3 py-1" />
                   <SeasonTimer className="text-sm mt-3" />
                 </>
               ) : (
@@ -173,6 +186,13 @@ export default function StatsPage() {
                   <p className="text-sm text-white/50 mt-3">{placementMessage}</p>
                 </>
               )}
+              {/* This season's ranked games. Every rank ever seen is under
+                  Seasons, with the ranks of each season. */}
+              <div className="flex gap-4 mt-3">
+                <button type="button" onClick={() => setShowGames(true)} className={linkButton}>
+                  Games
+                </button>
+              </div>
             </div>
 
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
@@ -193,6 +213,9 @@ export default function StatsPage() {
                 {avgKillsPerGame !== null && (
                   <span className="text-white/40"> ({avgKillsPerGame}/game)</span>
                 )}
+              </p>
+              <p className="text-sm text-white/50 mt-1">
+                Bosses defeated: <span className="text-white font-semibold">{bossesDefeated}</span>
               </p>
             </div>
 
@@ -230,7 +253,7 @@ export default function StatsPage() {
                             style={{ width: `${actualWidthPercent}%` }}
                           />
                           <div
-                            className="absolute top-[7px] bottom-[7px] left-[7px] bg-red-900/25 rounded-lg"
+                            className="absolute top-[0.4375rem] bottom-[0.4375rem] left-[0.4375rem] bg-red-900/25 rounded-lg"
                             style={{ width: `${expectedWidthPercent}%` }}
                             title="True well odds"
                           />

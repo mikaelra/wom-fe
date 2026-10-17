@@ -13,6 +13,14 @@ describe('formatWorldClock', () => {
     expect(formatWorldClock(local(2026, 1, 9, 0, 0))).toBe('00:00 09.01.2026');
     expect(formatWorldClock(local(2026, 12, 31, 23, 59))).toBe('23:59 31.12.2026');
   });
+
+  it('shows a given timezone\'s time instead of the viewer\'s, through DST and across midnight', () => {
+    // Athens is UTC+3 in summer, UTC+2 in winter
+    expect(formatWorldClock(new Date('2028-10-03T12:00:00Z'), 'Europe/Athens')).toBe('15:00 03.10.2028');
+    expect(formatWorldClock(new Date('2026-01-09T22:30:00Z'), 'Europe/Athens')).toBe('00:30 10.01.2026');
+    expect(formatWorldClock(new Date('2026-07-01T21:05:00Z'), 'America/New_York')).toBe('17:05 01.07.2026');
+    expect(formatWorldClock(new Date('2026-07-01T00:00:00Z'), 'UTC')).toBe('00:00 01.07.2026');
+  });
 });
 
 describe('worldClockReading', () => {

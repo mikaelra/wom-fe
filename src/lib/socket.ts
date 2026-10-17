@@ -65,12 +65,13 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
-  join_lobby: (payload: { lobby_id: string; name: string; email: string }) => void;
+  // account_token: a Steam player's name is proven by their account session (no email).
+  join_lobby: (payload: { lobby_id: string; name: string; email: string; account_token?: string }) => void;
   // token is nullable, not just string, because a reconnect can legitimately
   // race this call ahead of the session token being set (see SceneOverlay's
   // rejoin() -- the backend just responds "invalid session token" in that
   // case, same as any other unauthenticated join_room).
-  join_room: (payload: { lobby_id: string; token: string | null }) => void;
+  join_room: (payload: { lobby_id: string; token: string | null; account_token?: string }) => void;
   leave_room: (payload: { lobby_id: string }) => void;
   start_game: (payload: { lobby_id: string }) => void;
   kick_player: (payload: { lobby_id: string; target: string }) => void;
@@ -84,8 +85,10 @@ export interface ClientToServerEvents {
   }) => void;
   submit_deny_target: (payload: { lobby_id: string; target: string }) => void;
   send_message: (payload: { lobby_id: string; message: string }) => void;
-  join_ranked_queue: (payload: { name: string }) => void;
-  join_ai_ranked_queue: (payload: { name: string }) => void;
+  // Both rooms receive a lobby session token, so joining takes proof: the
+  // ranked ticket or the account session (wom-be docs/PROTOCOL.md).
+  join_ranked_queue: (payload: { name: string; ticket?: string; token?: string }) => void;
+  join_ai_ranked_queue: (payload: { token: string }) => void;
   // No payload and no token: a watcher is deliberately NOT in the lobby,
   // and asking must never put them in it.
   watch_bossfight: () => void;

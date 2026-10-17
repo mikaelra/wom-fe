@@ -12,12 +12,21 @@ import {
  * moon, a conjunction's two planets in horizontal bands (lib/worldClock.ts).
  * Red only when a timewarp has no colours to show. Over the timewarp's hour
  * the colour greys out from the left: half grey at half an hour.
+ *
+ * On the viewer's own clock (the Earth screen), or `timeZone`'s when given:
+ * the city scene shows Greece's time, timewarped or not.
  */
 export default function WorldClock({
   warpColors = [],
   revertExpiresAt = null,
+  timeZone,
   ...props
-}: Omit<WorldClockInput, 'now'> & { warpColors?: readonly string[]; revertExpiresAt?: string | null }) {
+}: Omit<WorldClockInput, 'now'> & {
+  warpColors?: readonly string[];
+  revertExpiresAt?: string | null;
+  /** An IANA zone to show the time in; the viewer's own when absent. */
+  timeZone?: string;
+}) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -46,7 +55,7 @@ export default function WorldClock({
             : undefined
         }
       >
-        {formatWorldClock(date)}
+        {formatWorldClock(date, timeZone)}
       </span>
     </div>
   );

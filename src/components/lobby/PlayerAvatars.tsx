@@ -330,6 +330,7 @@ export const PlayerWithName = memo(function PlayerWithName({
   actionCue,
   instakillActive,
   chatBubble,
+  muted = false,
   isBoss,
   bossHp,
   bossMaxHp,
@@ -375,6 +376,8 @@ export const PlayerWithName = memo(function PlayerWithName({
    *  Attack button(s) -- see globals.css' instakill-flame. */
   instakillActive?: boolean;
   chatBubble?: string;
+  /** Muted from chat (lib/chatMute.ts): a mute symbol beside the name. */
+  muted?: boolean;
   isBoss?: boolean;
   bossHp?: number;
   bossMaxHp?: number;
@@ -565,6 +568,7 @@ export const PlayerWithName = memo(function PlayerWithName({
               {name}
               {isWinner && ' 👑'}
               {isDead && ' ☠️'}
+              {muted && ' 🔇'}
             </div>
 
             {/* Lobby-wait controls: kick (admin, other players only), relic pick
@@ -705,7 +709,7 @@ export const LOST_SOUL_POSITIONS: [number, number, number][] = [
 ];
 
 // GLB-only sub-component so Suspense can wrap the model without blocking the HTML labels.
-function LostSoulMesh() {
+export function LostSoulMesh() {
   const { scene } = useGLTF('/models/lost_soul_v2.glb');
   const sceneClone = useMemo(() => scene.clone(), [scene]);
   return <primitive object={sceneClone} scale={0.4} />;

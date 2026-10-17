@@ -193,8 +193,8 @@ free assets:
    lighting mood should change.
 3. **Next.js starter SVGs** in `public/` (`next.svg`, `vercel.svg`,
    `globe.svg`, `file.svg`, `window.svg`) — unused cruft, delete.
-4. **Logo**: `public/wom.svg` + `src/app/icon.svg` — confirm these are
-   original; the favicon/logo should get the homemade treatment too.
+4. **Logo**: done — the new homemade logo (generated in wom-tools,
+   see `branding/README.md`) replaces `public/wom.svg` + the favicons.
 
 ## 7. Unused art to prune (or consciously revive)
 
