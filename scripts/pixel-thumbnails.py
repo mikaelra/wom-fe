@@ -133,7 +133,7 @@ FROGS = {
     'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#a81426', iris='#a81426', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
     'frog_silver_v1': dict(skin='#62646e', belly='#52545e', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#dce0ea'),
     'frog_bling_v1': dict(mouth=bling_mouth, skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#2a1860', bar='#000000', py=0, ir=3.0, pr=1.75, sparkle=True),
-    'frog_robot_v1': dict(mouth=(20.6, 2.6), smile_thick=2, plates=True, no_glint=True, center_dot=True, skin='#80838a', belly='#8d9098', sclera='#000000', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95, hi='#cfd2da'),
+    'frog_robot_v1': dict(mouth=(20.6, 2.6), smile_thick=2, plates=True, seam_x=7, no_glint=True, center_dot=True, skin='#80838a', belly='#8d9098', sclera='#000000', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95, hi='#cfd2da'),
     'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True, adaptive_rim=True),
 }
 
@@ -319,10 +319,12 @@ def draw_frog(c, p, dark_outline='#15121e'):
             return 0 <= x < N and 0 <= y < N and tuple(int(v) for v in c.px[y, x, :3]) in plain and c.px[y, x, 3] > 0
 
         def seam(x, y):
-            if s['skin'][y, x] and int(c.px[y, x, :3].sum()) > 90:   # not over an eye, the mouth or the outline
+            # a black seam through a black eye is invisible, so it is left to the eye (and its white dot)
+            in_eye = any(math.hypot(x + 0.5 - ex, y + 0.5 - ey) <= 4.95 for ex, ey in (EYE_L, EYE_R))
+            if s['skin'][y, x] and not in_eye and int(c.px[y, x, :3].sum()) > 90:   # not over the outline
                 c.dot(x, y, black)
 
-        vx, hy = 16, 18
+        vx, hy = p.get('seam_x', 16), 18   # the vertical seam: down the middle, or through an eye
         top = next(y for y in range(N) if s['skin'][y, vx])
         bottom = max(y for y in range(N) if s['skin'][y, vx])        # the chin
         for y in range(top, bottom + 1):                              # right through the smile
