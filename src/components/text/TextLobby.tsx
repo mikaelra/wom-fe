@@ -618,7 +618,11 @@ export default function TextLobby({
   // match, bot-ranked included -- never while it is played, never in casual
   // (private) lobbies or bossfights (Mikael, 2026-10-17). A bot-ranked list
   // ranks only the bots: a person there has none.
-  const rankedList = gameOver && (!!state?.ranked || !!state?.ai_ranked);
+  // Not after a game that timed out, though (everyone still alive went
+  // quiet, no winner): it isn't rated, so no ranks at all (Mikael, 2026-10-17).
+  const timedOut =
+    gameOver && !state?.winner && !!state?.players.some((p) => !p.bot && !p.spectator && p.alive);
+  const rankedList = gameOver && !timedOut && (!!state?.ranked || !!state?.ai_ranked);
   const showsRank = (p: { rank_tier?: string | null }) => !!state?.ranked || !!p.rank_tier;
   const playersCard = (
     <>

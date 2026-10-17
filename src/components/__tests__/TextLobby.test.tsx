@@ -655,6 +655,13 @@ describe('TextLobby title and PC layout', () => {
     expect(screen.queryByText('Unranked')).toBeNull();
   });
 
+  it('shows no ranks after a ranked match that timed out (2026-10-17)', async () => {
+    const base = lobby({ round: 3, ranked: true, gameover: true, winner: null });
+    await show({ ...base, players: base.players.map((p) => ({ ...p, rank_tier: 'Djinn II', alive: true })) });
+    expect(screen.queryByText('Djinn II')).toBeNull();
+    expect(screen.queryByText('Unranked')).toBeNull();
+  });
+
   it('never shows ranks in a private match or a bossfight, even at the end', async () => {
     const base = lobby({ round: 4, gameover: true, winner: 'Oni' });
     await show({ ...base, players: base.players.map((p) => ({ ...p, rank_tier: 'Djinn II' })) });
