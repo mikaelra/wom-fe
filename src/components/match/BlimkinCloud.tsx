@@ -1,8 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { anchorOverField, typingField } from '@/lib/blimkinAnchor';
 import { getEarthOnScreen, subscribeEarthOnScreen, type ScreenPoint } from '@/lib/earthOnScreen';
+import { useTextMode } from '@/lib/textMode';
+
+// Standard and High Definition show him in 3D; Low Definition has no 3D, so it
+// keeps his 8-bit picture. Loaded only when a cloud is up in those modes.
+const BlimkinModel3D = dynamic(() => import('@/components/match/BlimkinModel3D'), { ssr: false });
 
 // Blimkin bringing a message (Mikael, 2026-10-17): "a void in wherever is
 // created and Blimkin comes out and breathes out the cloud with the
@@ -53,24 +59,29 @@ function prefersReducedMotion(): boolean {
 }
 
 function Sprite({ breathing }: { breathing: boolean }) {
+  const lowDefinition = useTextMode();
+  // Nothing until the mode is known, so a Low Definition player never starts
+  // loading a 3D model.
+  if (lowDefinition === null) return null;
+  const style = {
+    display: 'block',
+    width: `${SPRITE_W}rem`,
+    height: `${SPRITE_H}rem`,
+    // Breathing the cloud out: he swells, then settles.
+    transform: breathing ? 'scale(1.06, 0.95)' : 'none',
+    transformOrigin: '50% 100%',
+    transition: 'transform 220ms ease-out',
+  } as const;
+  if (lowDefinition) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- a small static file from public/
+      <img src={BLIMKIN_URL} alt="" aria-hidden="true" draggable={false} style={{ ...style, imageRendering: 'pixelated' }} />
+    );
+  }
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- a small static file from public/
-    <img
-      src={BLIMKIN_URL}
-      alt=""
-      aria-hidden="true"
-      draggable={false}
-      style={{
-        display: 'block',
-        width: `${SPRITE_W}rem`,
-        height: `${SPRITE_H}rem`,
-        imageRendering: 'pixelated',
-        // Breathing the cloud out: he swells, then settles.
-        transform: breathing ? 'scale(1.06, 0.95)' : 'none',
-        transformOrigin: '50% 100%',
-        transition: 'transform 220ms ease-out',
-      }}
-    />
+    <div aria-hidden="true" data-testid="blimkin-3d" style={style}>
+      <BlimkinModel3D />
+    </div>
   );
 }
 
