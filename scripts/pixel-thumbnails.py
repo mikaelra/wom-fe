@@ -110,6 +110,15 @@ class Canvas:
 
 EYE_L, EYE_R = (7.5, 8.5), (24.5, 8.5)  # on pixel centres, mirrored
 
+def bling_mouth(x):
+    """Bling's mouth: the middle smiles (it sags a little), and from each side
+    of it the ends slope down, steeply, towards the cheeks (Mikael, 2026-10-17)."""
+    t = abs(x - 16) / 12.6
+    if t <= 0.5:
+        return 20.4 + 2.4 * (1 - (t / 0.5) ** 2)
+    return 20.4 + 4.2 * ((t - 0.5) / 0.5) ** 1.4
+
+
 # skin, belly (the lower face): sampled from the 3D thumbnails. sclera / iris
 # / pupil: the eye as it looks there. pr: pupil radius, ir: iris radius, in
 # the units of the old body drawing (the face scales them up).
@@ -123,7 +132,7 @@ FROGS = {
     'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#b98650', iris='#b98650', pupil='#0a0502', ir=2.95, pr=0, diamond=4),
     'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#a81426', iris='#a81426', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
     'frog_silver_v1': dict(skin='#62646e', belly='#52545e', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#dce0ea'),
-    'frog_bling_v1': dict(mouth=(23, -2.8), skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#2a1860', bar='#000000', py=0, ir=3.0, pr=1.75, sparkle=True),
+    'frog_bling_v1': dict(mouth=bling_mouth, skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#2a1860', bar='#000000', py=0, ir=3.0, pr=1.75, sparkle=True),
     'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True, adaptive_rim=True),
 }
 
@@ -216,7 +225,9 @@ def draw_frog(c, p, dark_outline='#15121e'):
     outline = rgb(dark_outline)
     line_col = darken(skin, 0.7) if sum(skin) > 150 else outline
     for x in range(4, 29):
-        c.dot(x, mouth_y(x, mouth), line_col)
+        y = mouth_y(x, mouth)
+        if s['skin'][y, x]:
+            c.dot(x, y, line_col)
     if p.get('curl'):  # the corners of a real smile curl up
         c.dot(3, mouth_y(4, mouth) - 1, line_col)
         c.dot(28, mouth_y(28, mouth) - 1, line_col)
@@ -538,31 +549,6 @@ def merchant_lady():
     return c
 
 
-def _bling_mouth_b(x):
-    """The middle smiles (it sags), the ends hook down: the opposite curve."""
-    t = abs(x - 16) / 12.6
-    if t <= 0.55:
-        return 21 + 2.4 * (1 - (t / 0.55) ** 2)
-    return 21 + 3.4 * ((t - 0.55) / 0.45) ** 2
-
-
-def _bling_mouth_c(x):
-    """The middle bows up, the ends curl back up: the other way round."""
-    t = abs(x - 16) / 12.6
-    if t <= 0.6:
-        return 23.5 - 3.2 * (1 - (t / 0.6) ** 2)
-    return 23.5 - 3.0 * ((t - 0.6) / 0.4) ** 2
-
-
-def bling_mouth_options():
-    out = {}
-    for key, mouth in (('a', FROGS['frog_bling_v1']['mouth']), ('b', _bling_mouth_b), ('c', _bling_mouth_c)):
-        c = Canvas()
-        draw_frog(c, dict(FROGS['frog_bling_v1'], mouth=mouth))
-        out[f'options/bling_mouth_{key}'] = c
-    return out
-
-
 def artifacts_list():
     out = {n: frog(n) for n in FROGS}
     out['cherub_v1'] = cherub()
@@ -572,7 +558,6 @@ def artifacts_list():
     out['pen'] = pen()
     out['paper'] = paper()
     out['stone'] = stone()
-    out.update(bling_mouth_options())
     out['wheel'] = wheel('#1c1cf0', '#e8d020', '#7a1c46')
     out['special-wheel'] = wheel('#8a18ff', '#22e022', '#a0306e')
     return out
