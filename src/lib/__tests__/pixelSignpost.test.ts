@@ -8,6 +8,8 @@ import {
   skyFor,
   skyXY,
   riseSetXY,
+  moonXY,
+  HORIZON,
   daylightDim,
   signpostMinWidth,
   signpostPixelSize,
@@ -255,11 +257,60 @@ describe('the Moon in the city sky', () => {
         fills.push(String(this.fillStyle));
       },
     };
-    const moonHigh = { sun: { alt: -30, az: 0 }, moon: { alt: 50, az: 180 } };
-    drawSignpostScene(ctx, 120, 200, [], { ...moonHigh, moonPhase: 180 });
+    const moonRising = { sun: { alt: -30, az: 0 }, moon: { alt: 6, az: 100 } };
+    drawSignpostScene(ctx, 120, 200, [], { ...moonRising, moonPhase: 180 });
     expect(fills).toContain('#e8ecf5');
     fills.length = 0;
-    drawSignpostScene(ctx, 120, 200, [], { ...moonHigh, moonPhase: 0 });
+    drawSignpostScene(ctx, 120, 200, [], { ...moonRising, moonPhase: 0 });
     expect(fills).not.toContain('#e8ecf5');
+  });
+
+  it('is never drawn in the south: it keeps to the Sun\'s path, west on the left, east on the right', () => {
+    const fillsFor = (moon: { alt: number; az: number }) => {
+      const xs: number[] = [];
+      const ys: number[] = [];
+      let colour = '';
+      const ctx = {
+        get fillStyle() {
+          return colour;
+        },
+        set fillStyle(c: string | CanvasGradient | CanvasPattern) {
+          colour = String(c);
+        },
+        fillRect(x: number, y: number) {
+          if (colour === '#e8ecf5') {
+            xs.push(x);
+            ys.push(y);
+          }
+        },
+      };
+      drawSignpostScene(ctx, 120, 200, [], { sun: { alt: -30, az: 0 }, moon, moonPhase: 180 });
+      return { xs, ys };
+    };
+    // High in the south-east, or over the path's end: not drawn.
+    expect(fillsFor({ alt: 25, az: 150 }).xs).toEqual([]);
+    expect(fillsFor({ alt: 50, az: 200 }).xs).toEqual([]);
+    // The real sky at 19:35 on 17 Oct 2026 over Athens: the Moon 24 degrees up
+    // in the south-west, Mercury at the horizon -- the Moon is on the left,
+    // higher up the path than Mercury would be.
+    const evening = fillsFor({ alt: 24, az: 193 });
+    expect(Math.max(...evening.xs)).toBeLessThan(120 * 0.2);
+    const [mercuryX, mercuryY] = riseSetXY({ alt: 0, az: 244 }, 120, Math.round(HORIZON * 200))!;
+    expect(Math.max(...evening.xs)).toBeLessThan(mercuryX);
+    expect(Math.max(...evening.ys)).toBeLessThan(mercuryY);
+    // The path itself: the Moon's spot moves up and out to the edge as it climbs.
+    const horizonY = Math.round(HORIZON * 200);
+    expect(moonXY({ alt: 0, az: 250 }, 120, horizonY)).toBeNull(); // not up yet
+    expect(moonXY({ alt: 41, az: 250 }, 120, horizonY)).toBeNull(); // past the path's end
+    const low = moonXY({ alt: 2, az: 250 }, 120, horizonY)!;
+    const high = moonXY({ alt: 30, az: 250 }, 120, horizonY)!;
+    expect(high[0]).toBeLessThan(low[0]);
+    expect(high[1]).toBeLessThan(low[1]);
+    // Low in the east: in from the right edge.
+    const rising = fillsFor({ alt: 6, az: 100 });
+    expect(Math.min(...rising.xs)).toBeGreaterThan(120 * 0.7);
+    // Just inside the west bound it is on the left, just outside the east bound on the right.
+    expect(Math.max(...fillsFor({ alt: 6, az: 171 }).xs)).toBeLessThan(120 * 0.3);
+    expect(Math.min(...fillsFor({ alt: 6, az: 129 }).xs)).toBeGreaterThan(120 * 0.7);
   });
 });
