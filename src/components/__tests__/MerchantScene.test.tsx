@@ -24,12 +24,12 @@ beforeEach(() => {
 });
 
 describe('MerchantScene in Low Definition', () => {
-  it("draws the merchant's 32x32 portrait and the Stone he sells, with no 3D model", () => {
+  it("draws the Stone he sells on the left and the merchant's 32x32 portrait on the right, with no 3D model", () => {
     render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} textOnly />);
 
     const stage = screen.getByTestId('pixel-stage');
     const pictures = Array.from(stage.querySelectorAll('img')).map((i) => i.getAttribute('src'));
-    expect(pictures).toEqual(['/pixel/merchant_v1.png', '/pixel/stone.png']) // plain: no aura in the merchant window;
+    expect(pictures).toEqual(['/pixel/stone.png', '/pixel/merchant_v1.png']); // relic on the left, merchant on the right; plain: no aura here
     expect(screen.queryByTestId('merchant-model')).not.toBeInTheDocument();
   });
 

@@ -129,20 +129,11 @@ export default function MerchantScene({ offer, token, onClose, onPurchased, text
             covers his middle like a real counter), the Stone last (so it
             reads as sitting on the table, not embedded in it). */}
         {/* Low Definition: no 3D stage. The merchant's 32x32 portrait and the
-            relic he sells, resting on his counter (lib/pixelArt.ts) -- plain,
+            relic he sells (left) and the merchant (right), on his counter (lib/pixelArt.ts) -- plain,
             without the aura the inventory's pictures have (Mikael, 2026-10-17). */}
         {textOnly && (
           <div data-testid="pixel-stage" className="mt-3 px-6">
             <div className="flex items-end justify-center gap-6">
-              {pixelMerchantUrl(merchantModel) && (
-                // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets
-                <img
-                  src={pixelMerchantUrl(merchantModel)!}
-                  alt={offer.merchant_name}
-                  draggable={false}
-                  style={{ ...pixelImageStyle, width: rem(128), height: rem(128) }}
-                />
-              )}
               {pixelRelicUrl(offer.item_name) && (
                 // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets
                 <img
@@ -151,6 +142,15 @@ export default function MerchantScene({ offer, token, onClose, onPurchased, text
                   draggable={false}
                   className={reducedMotion ? '' : 'merchant-stone-hover'}
                   style={{ ...pixelImageStyle, width: rem(96), height: rem(96) }}
+                />
+              )}
+              {pixelMerchantUrl(merchantModel) && (
+                // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets
+                <img
+                  src={pixelMerchantUrl(merchantModel)!}
+                  alt={offer.merchant_name}
+                  draggable={false}
+                  style={{ ...pixelImageStyle, width: rem(128), height: rem(128) }}
                 />
               )}
             </div>
