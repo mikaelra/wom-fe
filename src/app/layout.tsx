@@ -6,8 +6,12 @@ import { ToastProvider } from "@/components/Toast";
 import LoadingOverlay from "@/components/loading/LoadingOverlay";
 import AppleTransactionSync from "@/components/shop/AppleTransactionSync";
 import SteamWelcome from "@/components/steam/SteamWelcome";
+import AppleWelcome from "@/components/account/AppleWelcome";
+import TextModeOffer from "@/components/TextModeOffer";
 import AgePrompt from "@/components/AgePrompt";
 import MoonNotifications from "@/components/MoonNotifications";
+import IosZoomReset from "@/components/IosZoomReset";
+import RestoreAfterReload from "@/components/RestoreAfterReload";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,8 +55,12 @@ export default function RootLayout({
           <LoadingOverlay />
           <AppleTransactionSync />
           <SteamWelcome />
+          <AppleWelcome />
           <AgePrompt />
+          <TextModeOffer />
           <MoonNotifications />
+          <IosZoomReset />
+          <RestoreAfterReload />
         </ToastProvider>
       </body>
     </html>

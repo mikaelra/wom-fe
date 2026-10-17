@@ -47,6 +47,9 @@ import {
   ResolveAccountSessionResponseSchema,
   DeleteAccountResponseSchema,
   AgeAffirmResponseSchema,
+  ConnectionsResponseSchema,
+  EntitlementsResponseSchema,
+  ConnectWebResponseSchema,
   ChatReportResponseSchema,
   LogOutResponseSchema,
   ClaimPendingWheelResponseSchema,
@@ -63,6 +66,10 @@ import {
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
   SeasonHistoryResponseSchema,
+  RankedGamesResponseSchema,
+  RankedRanksResponseSchema,
+  type RankedGames,
+  type RankedRanks,
   SeasonInfoResponseSchema,
   WellProfileResponseSchema,
   ShopProductsResponseSchema,
@@ -85,6 +92,7 @@ import {
 } from '@/lib/schemas';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import type { MarketCatalog, MarketItemInput, MarketListing, MarketTrade } from '@/lib/market';
+import { GAMES_PER_PAGE } from '@/lib/paging';
 
 export type ShopProduct = {
   id: string;
@@ -252,7 +260,9 @@ export async function leaveRankedQueue(playerName: string): Promise<{ status: st
   });
 }
 
-export async function getRankedProfile(playerName: string): Promise<{ tier: string | null; ranked_games_played: number }> {
+export async function getRankedProfile(
+  playerName: string,
+): Promise<{ tier: string | null; ranked_games_played: number; principality_rank?: number | null }> {
   return request(`/ranked/profile/${encodeURIComponent(playerName)}`, RankedProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch ranked profile.',
   });
@@ -269,6 +279,22 @@ export async function getSeasonHistory(
 ): Promise<{ human: SeasonHistoryEntry[]; ai: SeasonHistoryEntry[] }> {
   return request(`/ranked/season_history/${encodeURIComponent(playerName)}`, SeasonHistoryResponseSchema, {
     defaultErrorMessage: 'Failed to fetch season history.',
+  });
+}
+
+/** This season's ranked games, a page at a time, newest first. */
+export async function getRankedGames(playerName: string, page = 1, perPage = GAMES_PER_PAGE): Promise<RankedGames> {
+  return request(
+    `/ranked/games/${encodeURIComponent(playerName)}?page=${page}&per_page=${perPage}`,
+    RankedGamesResponseSchema,
+    { defaultErrorMessage: 'Failed to load games.' },
+  );
+}
+
+/** Every rank the player has ever been shown in ranked, all seasons. */
+export async function getRankedRanks(playerName: string): Promise<RankedRanks> {
+  return request(`/ranked/ranks/${encodeURIComponent(playerName)}`, RankedRanksResponseSchema, {
+    defaultErrorMessage: 'Failed to load ranks.',
   });
 }
 
@@ -300,7 +326,7 @@ export async function getWellProfile(playerName: string): Promise<{
 
 export async function getPlayerProfile(
   playerName: string,
-): Promise<{ created_at: string | null; played_games: number; wins: number; kills: number }> {
+): Promise<{ created_at: string | null; played_games: number; wins: number; kills: number; bosses_defeated?: number }> {
   return request(`/player/profile/${encodeURIComponent(playerName)}`, PlayerProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch player profile.',
   });
@@ -588,6 +614,12 @@ export async function confirmEmailVerification(
     // login -- store the session so e.g. a claim_wheel redirect into
     // /inventory actually shows something instead of "log in first".
     if (data.session_token) setStoredAccountToken(data.session_token);
+    // A connect_web link opens in a browser that has never seen this
+    // account: remember who is logged in, as the login page does.
+    if (data.name && data.email) {
+      localStorage.setItem('playerName', data.name);
+      localStorage.setItem('playerEmail', data.email);
+    }
     return data;
   } catch (e) {
     if (e instanceof ApiError) {
@@ -654,6 +686,32 @@ export async function affirmAge(token: string): Promise<void> {
   });
 }
 
+/** Settings -> Connections: where else the logged-in account plays. */
+export async function getConnections(token: string): Promise<z.infer<typeof ConnectionsResponseSchema>> {
+  return request('/account/connections', ConnectionsResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Could not load your connections.',
+  });
+}
+
+/** What the logged-in account has paid for beyond items -- HD textures on
+ *  the web (lib/hdTextures.ts). */
+export async function getEntitlements(token: string): Promise<z.infer<typeof EntitlementsResponseSchema>> {
+  return request('/account/entitlements', EntitlementsResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Could not load your account.',
+  });
+}
+
+/** Email a link that lets this account log in on the web too (an account
+ *  without an email -- one made on Steam). */
+export async function connectWeb(token: string, email: string): Promise<void> {
+  await request('/account/connect_web', ConnectWebResponseSchema, {
+    body: { token, email },
+    defaultErrorMessage: 'Could not send the email.',
+  });
+}
+
 /** Report another player's chat message (wom-be routes/chat_report.py).
  *  `token` is null for a player without an account. */
 export async function reportChatMessage(
@@ -696,27 +754,74 @@ export async function postCheckout(
   });
 }
 
+// Each Steam call also sends the Steam account's name (steamName), which the
+// backend keeps for Settings -> Connections on other devices.
+
 /** Log in with a Steam auth ticket (src/lib/steamAccount.ts). */
-export async function postSteamLogin(ticket: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+export async function postSteamLogin(
+  ticket: string,
+  steamName: string | null = null
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
   return request('/auth/steam', SteamAuthResponseSchema, {
-    body: { ticket },
+    body: { ticket, steam_name: steamName },
     defaultErrorMessage: 'Steam login failed.',
   });
 }
 
 /** A new account for this Steam account ("Play now"). */
-export async function postSteamCreate(ticket: string, name: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+export async function postSteamCreate(
+  ticket: string,
+  name: string,
+  steamName: string | null = null
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
   return request('/auth/steam/create', SteamAuthResponseSchema, {
-    body: { ticket, name },
+    body: { ticket, name, steam_name: steamName },
     defaultErrorMessage: 'Could not create the account.',
   });
 }
 
 /** This Steam account logs into the logged-in account from now on. */
-export async function postSteamLink(ticket: string, token: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+export async function postSteamLink(
+  ticket: string,
+  token: string,
+  steamName: string | null = null
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
   return request('/auth/steam/link', SteamAuthResponseSchema, {
-    body: { ticket, token },
+    body: { ticket, token, steam_name: steamName },
     defaultErrorMessage: 'Could not link your Steam account.',
+  });
+}
+
+// The iOS app logs in with its signed AppTransaction (src/lib/appleAccount.ts,
+// wom-be routes/apple_auth.py); the answers are the Steam calls' answers.
+
+/** Log in with the Apple account the iOS app was got with. */
+export async function postAppleLogin(appTransaction: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/apple', SteamAuthResponseSchema, {
+    body: { app_transaction: appTransaction },
+    defaultErrorMessage: 'Apple login failed.',
+  });
+}
+
+/** A new account for this Apple account ("Play now"). */
+export async function postAppleCreate(
+  appTransaction: string,
+  name: string
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/apple/create', SteamAuthResponseSchema, {
+    body: { app_transaction: appTransaction, name },
+    defaultErrorMessage: 'Could not create the account.',
+  });
+}
+
+/** This Apple account logs into the logged-in account from now on. */
+export async function postAppleLink(
+  appTransaction: string,
+  token: string
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/apple/link', SteamAuthResponseSchema, {
+    body: { app_transaction: appTransaction, token },
+    defaultErrorMessage: 'Could not link your Apple account.',
   });
 }
 
@@ -743,16 +848,19 @@ export async function postAppleVerify(
   });
 }
 
-/** Start a Steam Wallet purchase in the Steam build (src/lib/steamShop.ts). */
+/** Start a Steam Wallet purchase in the Steam build (src/lib/steamShop.ts).
+ *  `web` makes it a web purchase, approved on the page in steam_url (Linux,
+ *  which has no Steam overlay). */
 export async function postSteamInit(
   token: string,
   product: string,
   quantity: number,
   confirmDuplicate: boolean,
-  language: string
+  language: string,
+  web = false
 ): Promise<z.infer<typeof SteamInitResponseSchema>> {
   return request('/shop/steam/init', SteamInitResponseSchema, {
-    body: { token, product, quantity, confirm_duplicate: confirmDuplicate, language },
+    body: { token, product, quantity, confirm_duplicate: confirmDuplicate, language, ...(web ? { web: true } : {}) },
     defaultErrorMessage: 'Failed to start the purchase.',
   });
 }
@@ -766,6 +874,19 @@ export async function postSteamFinalize(
   return request('/shop/steam/finalize', SteamFinalizeResponseSchema, {
     body: { token, order_id: orderId, authorized },
     defaultErrorMessage: 'Failed to complete the purchase.',
+  });
+}
+
+/** Ask whether a Steam web purchase has been approved yet: "fulfilled",
+ *  "pending", or anything else when it won't go through. */
+export async function postSteamCheck(
+  token: string,
+  orderId: number
+): Promise<z.infer<typeof SteamFinalizeResponseSchema>> {
+  return request('/shop/steam/finalize', SteamFinalizeResponseSchema, {
+    body: { token, order_id: orderId, check: true },
+    defaultErrorMessage: 'Failed to check the purchase.',
+    quiet: true, // polled
   });
 }
 
@@ -995,9 +1116,9 @@ export async function saveMyAiSettings(
   });
 }
 
-export async function getMyAiMatches(token: string): Promise<MyAiMatches> {
+export async function getMyAiMatches(token: string, page = 1, perPage = GAMES_PER_PAGE): Promise<MyAiMatches> {
   return request('/my_ai/matches', MyAiMatchesSchema, {
-    body: { token },
+    body: { token, page, per_page: perPage },
     defaultErrorMessage: 'Failed to load match history.',
   });
 }

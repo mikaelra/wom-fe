@@ -83,6 +83,9 @@ export const RankedResultSchema = z.object({
   tier_before: z.string().nullable(),
   tier_after: z.string().nullable(),
   promoted: z.boolean().nullable(),
+  // Games in a row at tier_after, this one included (wom-be #263); human
+  // ranked only, optional while an older backend may answer without it.
+  games_at_tier: z.number().int().nullable().optional(),
 });
 export type RankedResult = z.infer<typeof RankedResultSchema>;
 

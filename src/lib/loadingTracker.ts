@@ -13,17 +13,18 @@
 //   they last a moment (see useLoadingOverlay).
 //
 // A page can switch the overlay off entirely while it is mounted
-// (<NoLoadingOverlay>, e.g. live lobbies, where it would get in the way).
+// (<NoLoadingOverlay>, e.g. live lobbies, where it would get in the way) --
+// all but a screen that claims it over that (<LoadingState overSuppression>,
+// a text lobby reconnecting: there is no play to get in the way of).
 //
 // A plain module-level store (subscribe + snapshot) rather than React
 // context, so request() can report without being a component.
 
 let requests = 0;
 let assetsLoading = false;
-let assetProgress = 1;
-let assetsGradual = false;
 let suppressed = 0;
 let screens = 0;
+let urgentScreens = 0;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -55,21 +56,11 @@ export function requestsInFlight(): number {
   return requests;
 }
 
-/** A scene's 3D assets started / stopped loading; `progress` is how much of
- *  them has loaded, 0..1 (defaults: 0 when starting, 1 when done). `gradual`
- *  marks a scene whose loading screen fades as it renders (the earth). */
-export function setAssetsLoading(active: boolean, progress = active ? 0 : 1, gradual = false): void {
-  const p = Math.min(1, Math.max(0, progress));
-  if (assetsLoading === active && assetProgress === p && assetsGradual === gradual) return;
+/** A scene's 3D assets started / stopped loading. */
+export function setAssetsLoading(active: boolean): void {
+  if (assetsLoading === active) return;
   assetsLoading = active;
-  assetProgress = p;
-  assetsGradual = gradual;
   emit();
-}
-
-/** Whether the scene loading now fades its loading screen as it renders. */
-export function isAssetsGradual(): boolean {
-  return assetsGradual;
 }
 
 /** Switch the loading overlay off while the caller is mounted; returns the
@@ -94,20 +85,18 @@ export function isAssetsLoading(): boolean {
   return assetsLoading;
 }
 
-/** How much of the scene's assets has loaded, 0..1 (1 when nothing loads). */
-export function assetLoadProgress(): number {
-  return assetProgress;
-}
-
-/** A screen is waiting for its content; returns the release. */
-export function claimLoadingScreen(): () => void {
-  screens += 1;
+/** A screen is waiting for its content; returns the release. With
+ *  `overSuppression`, shown even while a page has the overlay switched off. */
+export function claimLoadingScreen(overSuppression = false): () => void {
+  if (overSuppression) urgentScreens += 1;
+  else screens += 1;
   emit();
   let released = false;
   return () => {
     if (released) return;
     released = true;
-    screens -= 1;
+    if (overSuppression) urgentScreens -= 1;
+    else screens -= 1;
     emit();
   };
 }
@@ -119,16 +108,20 @@ export function isBackgroundLoading(): boolean {
 
 /** True while a <LoadingState> (a screen waiting for its content) is up. */
 export function isScreenLoading(): boolean {
-  return screens > 0;
+  return screens > 0 || urgentScreens > 0;
+}
+
+/** True while a <LoadingState overSuppression> is up. */
+export function isUrgentScreenLoading(): boolean {
+  return urgentScreens > 0;
 }
 
 /** Test hook: forget all state. */
 export function resetLoadingTracker(): void {
   requests = 0;
   assetsLoading = false;
-  assetProgress = 1;
-  assetsGradual = false;
   suppressed = 0;
   screens = 0;
+  urgentScreens = 0;
   emit();
 }

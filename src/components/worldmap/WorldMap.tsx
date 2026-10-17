@@ -22,13 +22,17 @@ import {
   getSky, computeAspects, raDecToVec3,
   type BodyAspect, type AspectBody,
 } from '@/lib/astrology';
-import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
+import { useHdTextures } from '@/lib/hdTextures';
 import { earthTexturePaths } from '@/lib/ktx2Textures';
 import { useGameTextures } from '@/lib/useGameTextures';
+import { isHudLoadingMarkOn, reportHudMarkSize, toggleHudLoadingMark, useHudHidden } from '@/lib/hudHidden';
+import { useCameraSpeed } from '@/lib/cameraSpeed';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
 const PLANET_R = 46;
+/** The no-HUD loading animation's size, as a fraction of the Earth's on screen. */
+const HUD_MARK_EARTH_FRACTION = 0.5;
 /** The globe, as something that can hide a body from the gaze labels. */
 const GLOBE_OCCLUDER = { center: new THREE.Vector3(0, 0, 0), radius: 2.5 };
 const RAD = Math.PI / 180;
@@ -177,14 +181,13 @@ function makeMoonFresnelMat(aspect: Pick<BodyAspect, 'auraColor' | 'strength'>) 
 
 const jupiterTexturePath = (): string => '/textures/jupiter/jupiter2_1k.jpg';
 
-// Web: a JPEG re-encode of the source PNG (12 MB → ~0.6 MB, the material
-// ignores alpha so nothing is lost) at 4000x2000 -- kept small since every
-// web visitor downloads it over the network. Native (Capacitor) / Steam
-// (Electron) builds bundle their assets locally instead of fetching them,
-// and are a paid product, so they use the full-resolution panorama
-// (8000x4000, MilkyWay-extreme.png as KTX2 -- MilkyWay-Stars.png is the same shot
-// but with a survey reference grid/star-name overlay baked in, not a game
-// asset) for the extra visual value. See docs/MOBILE_AND_STEAM_PLAN.md.
+// Without HD: a JPEG re-encode of the source PNG (12 MB → ~0.6 MB, the
+// material ignores alpha so nothing is lost) at 4000x2000 -- kept small since
+// every web visitor downloads it over the network. With HD (lib/hdTextures.ts:
+// the paid apps, and web accounts that have paid): the full-resolution
+// panorama (8000x4000, assets-src/.../MilkyWay-extreme.png as KTX2 --
+// MilkyWay-Stars.png is the same shot but with a survey reference
+// grid/star-name overlay baked in, not a game asset).
 
 // Preload async textures early so they are likely cached by the time their
 // phase is reached.
@@ -204,7 +207,7 @@ useTexture.preload(jupiterTexturePath());
 
 const Starfield = memo(function Starfield() {
   const circleTex = useTexture('/textures/stars/circle.png');
-  const [milkyWayTex] = useGameTextures([milkyWayTexturePath(IS_NATIVE_BUILD)]);
+  const [milkyWayTex] = useGameTextures([milkyWayTexturePath(useHdTextures())]);
 
   // BackSide sphere UVs mirror the panorama left/right; this un-flips it.
   useMemo(() => orientMilkyWayTexture(milkyWayTex), [milkyWayTex]);
@@ -912,6 +915,7 @@ const PlanetSprites = memo(function PlanetSprites({
   // getSky() read) when a revert starts or ends despite `phase` staying
   // put. See the WorldMapProps comment on skyRevertKey.
   void skyRevertKey;
+  const hudHidden = useHudHidden();
   const groupRef = useRef<THREE.Group>(null);
   const sky = getSky();
   const aspects = useMemo(() => computeAspects(sky), [sky]);
@@ -934,11 +938,22 @@ const PlanetSprites = memo(function PlanetSprites({
   // The group starts unturned on every mount; so does the shared count,
   // rather than carrying a previous visit's turn for its first frame.
   useEffect(() => { skyDrift.angle = 0; }, []);
-  useFrame(() => {
+  useFrame((state) => {
     if (!groupRef.current) return;
     groupRef.current.rotation.y += skyStep();
     // Shared, so a merchant marker can stand under a body in this sky.
     skyDrift.angle = groupRef.current.rotation.y;
+    // The no-HUD loading animation is drawn half the Earth's size on screen
+    // (lib/hudHidden.ts). The globe sits at the origin; its outline is the
+    // sphere's true silhouette, asin(R / distance) off centre, so this stays
+    // right with the camera in close.
+    if (isHudLoadingMarkOn()) {
+      const camera = state.camera as THREE.PerspectiveCamera;
+      const distance = Math.max(camera.position.length(), GLOBE_RADIUS * 1.0001);
+      const earthRadiusPx = (Math.tan(Math.asin(GLOBE_RADIUS / distance))
+        / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) * (state.size.height / 2);
+      reportHudMarkSize(HUD_MARK_EARTH_FRACTION * 2 * earthRadiusPx);
+    }
   });
 
   // Only bodies that have actually been revealed get a label -- otherwise a
@@ -1039,7 +1054,7 @@ const PlanetSprites = memo(function PlanetSprites({
       {/* Inside the drifting group, so labels ride with their bodies. The
           globe occludes: a planet on the far side must not be named through
           the Earth (§7.2). */}
-      <SkyLabels bodies={labelBodies} occluder={GLOBE_OCCLUDER} offset={PLANET_LABEL_OFFSET} />
+      {!hudHidden && <SkyLabels bodies={labelBodies} occluder={GLOBE_OCCLUDER} offset={PLANET_LABEL_OFFSET} />}
     </group>
   );
 });
@@ -1057,6 +1072,7 @@ interface GlobeProps {
 
 function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: GlobeProps) {
   const cloudsRef = useRef<THREE.Mesh>(null);
+  const hudHidden = useHudHidden();
 
   // Epicenter for the crackle effect — Athens on the globe surface
   const athensEpicenter = useMemo(() => {
@@ -1064,15 +1080,13 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
     return new THREE.Vector3(x, y, z);
   }, []);
 
-  // Web always uses 1k earth textures (downloaded over the network by every
-  // visitor). Native (Capacitor) / Steam (Electron) builds bundle assets
-  // locally and are a paid product, so they get the full 4k tier -- as KTX2,
-  // which stays GPU-compressed (lib/ktx2Textures.ts). extreme-res exists on
-  // disk too but is missing the earthmap/bump/lights files (only spec +
-  // cloud-alpha), so high-res/4k is the highest complete tier available.
-  // Cloud textures are the same file in both folders, so always pulled from
-  // high-res regardless of tier.
-  const [earthMap, specularMap, bumpMap, lightsMap] = useGameTextures(earthTexturePaths(IS_NATIVE_BUILD));
+  // 1k earth textures without HD (downloaded over the network by every web
+  // visitor); with HD (lib/hdTextures.ts) the full 4k tier -- as KTX2, which
+  // stays GPU-compressed (lib/ktx2Textures.ts). assets-src/.../extreme-res is
+  // missing the earthmap/bump/lights files (only spec + cloud-alpha), so 4k
+  // is the highest complete tier available. Cloud textures are the same file
+  // in both tiers, so always pulled from high-res regardless.
+  const [earthMap, specularMap, bumpMap, lightsMap] = useGameTextures(earthTexturePaths(useHdTextures()));
   const [cloudsMap, cloudsTrans] = useTexture([
     '/textures/earth/high-res/04_earthcloudmap.jpg',
     '/textures/earth/high-res/05_earthcloudmaptrans.jpg',
@@ -1117,7 +1131,15 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
   useFrame(() => { if (cloudsRef.current) cloudsRef.current.rotation.y += 0.000075; });
 
   return (
-    <group rotation={[0, earthRot, 0]}>
+    <group
+      rotation={[0, earthRot, 0]}
+      // With the HUD hidden, a tap on the globe (not the end of a drag to
+      // turn it) turns the loading animation on and off (lib/hudHidden.ts).
+      onClick={hudHidden ? (e) => {
+        e.stopPropagation();
+        if (e.delta <= 4) toggleHudLoadingMark();
+      } : undefined}
+    >
       <mesh geometry={geo}>
         <meshPhongMaterial
           map={earthMap}
@@ -1138,8 +1160,9 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
       <mesh geometry={geo} material={moonFresnelMat} scale={1.018} />
 
       {/* The pins -- Greece's sword and the merchants -- leave while a
-          timewarp spins the globe and fade slowly back at the end. */}
-      <TimewarpFade>
+          timewarp spins the globe and fade slowly back at the end. Gone
+          altogether while the HUD is hidden (lib/hudHidden.ts). */}
+      {!hudHidden && <TimewarpFade>
       {CITIES.map((city) => (
         <CityMarker
           key={city.id}
@@ -1164,7 +1187,7 @@ function Globe({ onCityClick, onReady, merchantMarkers = [], onMerchantClick }: 
 
       {/* Crackle electricity radiating from the sword's impact point */}
       <GlobeCrackleEffect epicenter={athensEpicenter} radius={GLOBE_RADIUS} />
-      </TimewarpFade>
+      </TimewarpFade>}
     </group>
   );
 }
@@ -1260,6 +1283,8 @@ export default function WorldMap({
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
   const [globeReady, setGlobeReady] = useState(false);
+  // How fast the camera turns round the Earth (CameraSpeedButton).
+  const cameraSpeed = useCameraSpeed();
 
   // Phase 1: mount the Globe immediately.
   useEffect(() => { setPhase(1); }, []);
@@ -1338,7 +1363,7 @@ export default function WorldMap({
         minDistance={4}
         maxDistance={18}
         autoRotate
-        autoRotateSpeed={0.4}
+        autoRotateSpeed={0.4 * cameraSpeed}
         maxPolarAngle={Math.PI * 0.80}
         minPolarAngle={Math.PI * 0.10}
       />

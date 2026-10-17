@@ -21,7 +21,7 @@ describe('LoadingMark', () => {
     render(<LoadingMark size={40} label="Loading relics" />);
     const canvas = screen.getByRole('img', { name: 'Loading relics' });
     expect(canvas.tagName).toBe('CANVAS');
-    expect(canvas).toHaveStyle({ width: '40px', height: '40px' });
+    expect(canvas).toHaveStyle({ width: '2.5rem', height: '2.5rem' }); // 40px, growing with the UI scale
   });
 
   it('plays a version picked at random as it mounts, or a given colour', () => {
@@ -46,7 +46,7 @@ describe('LoadingMark', () => {
       }
       return 1;
     });
-    const random = vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.995);
 
     // the oldest share: v10, here in blue
     const { unmount } = render(<LoadingMark />);
@@ -54,7 +54,7 @@ describe('LoadingMark', () => {
     unmount();
 
     // the rainbow: mid-spin it is no longer red
-    random.mockReturnValue(0.9);
+    random.mockReturnValue(0.96);
     const [start, end] = spinWindow(LOADING_SPEC);
     at = ((start + end) / 2) * 1000;
     scheduled = false;
@@ -65,7 +65,7 @@ describe('LoadingMark', () => {
 
     // the wheel: the sharp figure (the frame's first stroke) in its colour
     // at that time; the trail behind it in earlier colours
-    random.mockReturnValue(0.7);
+    random.mockReturnValue(0.9);
     scheduled = false;
     const first = strokes.length;
     const wheel = render(<LoadingMark />);
@@ -90,7 +90,7 @@ describe('LoadingMark', () => {
     // v11 plays from the hexagon: its first frame touches nothing at the center
     const moves: [number, number][] = [];
     (ctx as Record<string, unknown>).moveTo = (x: number, y: number) => moves.push([x, y]);
-    random.mockReturnValue(0.97);
+    random.mockReturnValue(0.985);
     at = 0;
     scheduled = false;
     render(<LoadingMark />);
@@ -111,7 +111,7 @@ describe('LoadingState', () => {
 });
 
 describe('LoadingOverlay', () => {
-  it('covers the screen, half grey at first, at once for a screen waiting on content, for at least one whole loop', () => {
+  it('covers the screen, with no background, at once for a screen waiting on content, for at least one whole loop', () => {
     vi.useFakeTimers();
     const { rerender } = render(
       <>
@@ -121,7 +121,7 @@ describe('LoadingOverlay', () => {
     );
     const el = overlay();
     expect(el).toBeInTheDocument();
-    expect(el).toHaveStyle({ background: 'rgba(128, 128, 128, 0.5)' });
+    expect(el?.getAttribute('style')).toBeNull();
     expect(el).toHaveClass('fixed', 'inset-0');
 
     // content arrives quickly: the animation still plays its whole turn

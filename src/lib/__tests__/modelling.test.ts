@@ -11,7 +11,7 @@ import {
 
 describe('the /modelling model list', () => {
   it('offers the buildings being sculpted, the Senate at city size, and the Meshy pen', () => {
-    expect(MODELLING_MODELS.map((m) => m.id)).toEqual(['ranked', 'market', 'senate-city', 'bay', 'pen']);
+    expect(MODELLING_MODELS.map((m) => m.id)).toEqual(['ranked', 'market', 'senate-city', 'bay', 'pen', 'signpost']);
   });
 
   it('points every model-file entry at a .glb under public/models, with a thumbnail', () => {

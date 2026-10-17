@@ -9,7 +9,7 @@ import { ledgerMarks } from '@/lib/market';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel, skinThumbnailUrl, skinUrl, sortSkins } from '@/lib/frogSkins';
 import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
-import { wheelKindLabel } from '@/lib/wheelGeometry';
+import { wheelKindFromString, wheelKindLabel } from '@/lib/wheelGeometry';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import WheelSpinModal from '@/components/WheelSpinModal';
 import TradeUpModal from '@/components/TradeUpModal';
@@ -25,6 +25,7 @@ import { REVERT_RELIC_NAMES } from '@/lib/merchant';
 import { CONSUMABLE_RELIC_NAMES, type Relic } from '@/types/game';
 import { CITY_PATH } from '@/lib/cities';
 import LoadingState from '@/components/loading/LoadingState';
+import WheelIcon from '@/components/WheelIcon';
 
 type SkinEntry = { skin: string; count: number };
 type ArtifactEntry = {
@@ -256,6 +257,14 @@ export default function InventoryPage() {
             >
               🏛️
             </Link>
+            {/* Straight to the market, to sell or buy (Mikael, 2026-10-12). */}
+            <Link
+              href="/market"
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-base font-semibold hover:bg-white/20 transition-colors no-underline"
+              aria-label="Go to the market"
+            >
+              Market
+            </Link>
           </span>
           <h1 className="text-2xl font-bold tracking-wide">Inventory</h1>
         </div>
@@ -343,7 +352,7 @@ export default function InventoryPage() {
                       )}
                       <p className="text-sm font-semibold text-center">{relic.name}</p>
                       {CONSUMABLE_RELIC_NAMES.has(relic.name) && (
-                        <span className="text-[10px] uppercase tracking-wide text-amber-400/80 border border-amber-400/30 rounded px-1.5 py-0.5">
+                        <span className="text-[0.625rem] uppercase tracking-wide text-amber-400/80 border border-amber-400/30 rounded px-1.5 py-0.5">
                           Consumable
                         </span>
                       )}
@@ -378,7 +387,7 @@ export default function InventoryPage() {
                       onClick={() => setSpinningWheel({ id: group.id, kind: group.kind })}
                       className="px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-semibold hover:bg-amber-600/80 transition-colors cursor-pointer"
                     >
-                      🎡 Use {wheelKindLabel(group.kind)}{group.count > 1 ? ` ×${group.count}` : ''}
+                      <WheelIcon special={wheelKindFromString(group.kind) === 'special'} /> Use {wheelKindLabel(group.kind)}{group.count > 1 ? ` ×${group.count}` : ''}
                     </button>
                   ))}
                 </div>

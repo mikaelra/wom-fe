@@ -1,13 +1,13 @@
 'use client';
 
-import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
 import WorldClock from '@/components/worldmap/WorldClock';
 import TimewarpPanel from '@/components/worldmap/TimewarpPanel';
-import { timewarpColorsFor } from '@/lib/timewarpFx';
+import { timewarpColorsFor, timewarpFxState } from '@/lib/timewarpFx';
+import { getSky } from '@/lib/astrology';
 import { useTimewarpFx } from '@/lib/useTimewarpFx';
 import { useTimewarpRun } from '@/lib/useTimewarpRun';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
@@ -15,13 +15,23 @@ import type { City } from '@/lib/cities';
 import { useMerchantOffer } from '@/lib/useMerchantOffer';
 import { MERCHANT_MARKER_LABEL, merchantMarkerColors, merchantSkyBodies } from '@/lib/merchant';
 import { getStoredAccountToken } from '@/lib/http';
-import AssetLoadingReporter from '@/components/loading/AssetLoadingReporter';
 import ExitGamePrompt from '@/components/ExitGamePrompt';
+import HudToggle from '@/components/worldmap/HudToggle';
+import HudLoadingMark from '@/components/worldmap/HudLoadingMark';
+import { useHudHidden, useHudLoadingMark } from '@/lib/hudHidden';
+import { useTextMode } from '@/lib/textMode';
+import { watch3dScene } from '@/lib/textModeOffer';
 
+// three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
+// is, and the renderer is never downloaded.
+const Canvas = dynamic(() => import('@react-three/fiber').then((m) => m.Canvas), { ssr: false });
+const ContextLossRecovery = dynamic(() => import('@/components/hud/ContextLossRecovery'), { ssr: false });
+const AssetLoadingReporter = dynamic(() => import('@/components/loading/AssetLoadingReporter'), { ssr: false });
 const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
 
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
 const MerchantScene = dynamic(() => import('@/components/merchant/MerchantScene'), { ssr: false });
+const TextHome = dynamic(() => import('@/components/text/TextHome'), { ssr: false });
 
 /**
  * The world map — the game's home screen (docs/CITY_SCENE_PLAN.md §4.4).
@@ -42,6 +52,14 @@ export default function Page() {
   // Defer Canvas mount by one paint frame so the UI controls render and
   // become interactive before the WebGL context initialises.
   const [sceneReady, setSceneReady] = useState(false);
+  // Text mode (lib/textMode.ts): no globe, its markers as text (TextHome).
+  const textMode = useTextMode();
+  // A 3D scene up: marked, so a crash in it offers text mode next start
+  // (lib/textModeOffer.ts).
+  useEffect(() => (textMode === false ? watch3dScene() : undefined), [textMode]);
+  // Text mode too: the eye leaves just the 8-bit sky (TextHome's hideLinks).
+  const hudHidden = useHudHidden();
+  const hudLoadingMark = useHudLoadingMark();
 
   // Set once the city route has been asked for but this page is still
   // mounted. Never cleared: the only way out is the navigation itself, and
@@ -125,8 +143,13 @@ export default function Page() {
   const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
     timewarpRun,
     timewarpRunId,
-    skyReady,
+    // Text mode has no globe to wait on: its sky is ready at once.
+    skyReady || textMode === true,
   );
+  // The text sky's moment: the timewarp's, running through time while it
+  // plays (redrawn each of its steps), or a reverted sky's; else none, and
+  // it keeps time itself.
+  const textSkyDate = textMode && (timewarpPlaying || reverted) ? getSky().date : undefined;
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setSceneReady(true));
@@ -158,7 +181,7 @@ export default function Page() {
 
   return (
     <div style={{ width: '100%', height: '100dvh', position: 'relative', overflow: 'hidden', background: '#070b15' }}>
-      <WorldMapOverlay
+      {!hudHidden && <WorldMapOverlay
         clock={
           <WorldClock
             reverted={reverted}
@@ -169,9 +192,23 @@ export default function Page() {
             warpColors={timewarpColorsFor(merchantOffers.map((o) => o.event))}
           />
         }
-      />
-      <AssetLoadingReporter gradual />
-      {sceneReady && (
+      />}
+      {textMode && (
+        <TextHome
+          hideLinks={hudHidden}
+          offers={merchantOffers}
+          onEnterCity={handleCityClick}
+          onOpenMerchant={(o) => setOpenMerchantKey(merchantKey(o))}
+          skyDate={textSkyDate}
+          timewarp={timewarpPlaying && timewarpRun ? { glow: timewarpFxState.glow, colors: timewarpRun.spec.colors } : null}
+        />
+      )}
+      {textMode !== null && <HudToggle />}
+      {/* With the HUD hidden, a tap on the globe loops the loading animation
+          where the loading screen shows it, half the Earth's size (lib/hudHidden.ts). */}
+      {hudLoadingMark && <HudLoadingMark />}
+      {textMode === false && <AssetLoadingReporter />}
+      {sceneReady && textMode === false && (
         <Canvas
           camera={{ position: [0, 3, 10.5], fov: 50 }}
           // Same containment as the city's canvas, for the same reason: the
@@ -184,6 +221,7 @@ export default function Page() {
           // its z-20 against this container's auto is.
           style={{ isolation: 'isolate' }}
         >
+          <ContextLossRecovery />
           <WorldMap
             onCityClick={handleCityClick}
             merchantMarkers={merchantMarkers}
@@ -211,6 +249,7 @@ export default function Page() {
           token={getStoredAccountToken()}
           onClose={() => setOpenMerchantKey(null)}
           onPurchased={refreshMerchantOffer}
+          textOnly={!!textMode}
         />
       )}
 

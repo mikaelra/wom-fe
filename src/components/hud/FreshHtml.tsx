@@ -5,6 +5,7 @@ import * as ReactDOM from 'react-dom/client';
 import { Vector3, PerspectiveCamera, OrthographicCamera, type Camera, type Group } from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
 import type { ReactNode } from 'react';
+import { currentUiScale } from '@/lib/uiScale';
 
 function screenPosition(el: Group, camera: Camera, size: { width: number; height: number }): [number, number] {
   const objectPos = new Vector3().setFromMatrixPosition(el.matrixWorld);
@@ -142,7 +143,9 @@ export function FreshHtml({
     const [x, y] = screenPosition(group.current, camera, size);
     el.style.display = isBehindCamera(group.current, camera) ? 'none' : 'block';
     el.style.zIndex = `${zIndexFor(group.current, camera, zIndexRange)}`;
-    const scale = distanceFactor === undefined ? 1 : distanceScale(group.current, camera) * distanceFactor;
+    // Times the UI scale (lib/uiScale.ts): labels in the world grow with the
+    // viewport like the rest of the UI.
+    const scale = (distanceFactor === undefined ? 1 : distanceScale(group.current, camera) * distanceFactor) * currentUiScale();
     el.style.transform = `translate3d(${x}px,${y}px,0) scale(${scale})`;
   });
 

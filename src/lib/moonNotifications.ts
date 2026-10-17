@@ -7,7 +7,7 @@
 // and then. <MoonNotifications> in the root layout runs it, on iOS only.
 
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { MERCHANT_WINDOW_MS, skyEventsBetween, type SkyEventKind } from '@/lib/skyCalendar';
+import { MERCHANT_WINDOW_MS, skyEventsBetween } from '@/lib/skyCalendar';
 
 /** How far ahead notifications are scheduled -- about six of each moon and
  *  a handful of conjunctions, well under iOS's 64 pending. */
@@ -20,12 +20,8 @@ const MAX_PENDING = 60;
 const EARLIEST_HOUR = 9;
 const LATEST_HOUR = 21;
 
-// The user's wording.
-const TEXT: Record<SkyEventKind, { title: string; body: string }> = {
-  full_moon: { title: 'Full moon', body: 'A merchant has arrived' },
-  new_moon: { title: 'New moon', body: 'A merchant has arrived' },
-  conjunction: { title: 'Conjunction', body: 'A merchant has arrived' },
-};
+// The user's wording, the same for every merchant.
+const TEXT = { title: 'World of Mythos', body: 'A merchant has arrived' };
 
 export interface MoonNotification {
   title: string;
@@ -47,7 +43,7 @@ export function daytime(at: Date): Date {
 export function moonNotificationSchedule(now: Date, days = HORIZON_DAYS): MoonNotification[] {
   const end = new Date(now.getTime() + days * 86400 * 1000);
   return skyEventsBetween(now, end)
-    .map((e) => ({ ...TEXT[e.kind], arrival: new Date(e.at.getTime() - MERCHANT_WINDOW_MS) }))
+    .map((e) => ({ ...TEXT, arrival: new Date(e.at.getTime() - MERCHANT_WINDOW_MS) }))
     .filter((n) => n.arrival > now)
     .slice(0, MAX_PENDING)
     .map(({ title, body, arrival }) => ({ title, body, at: daytime(arrival) }));

@@ -5,15 +5,19 @@ import {
   LOADING_SPEC,
   echoColors,
   echoesAt,
+  loopDuration,
   pickLoadingVariant,
+  pickNextLoadingVariant,
   poseAt,
   rainbowColorAt,
   segmentsAt,
   specFor,
   v14ColorAt,
+  v16ColorAt,
   wheelColorAt,
 } from '@/lib/loadingAnimation';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
+import { currentUiScale, rem } from '@/lib/uiScale';
 
 /**
  * The World of Mythos loading animation (src/lib/loadingAnimation.ts), drawn
@@ -24,9 +28,11 @@ import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
  * same way the design renders them. With reduced motion it holds still on
  * the first frame.
  *
- * Each time it mounts -- so each time loading shows, since the overlay
- * unmounts it in between -- it picks a version at random by the spec's
- * mix (the golden mean, newest first): v14 (the center lines alone
+ * Each time it mounts, and again at the end of every whole loop, it picks a
+ * version at random by the spec's mix (the golden mean, newest first) --
+ * at the end of a loop always a different one from the loop just shown: v16
+ * (v14 grown out of a point and retracted into it, turning all the way
+ * through, the hue once round the wheel), v14 (the center lines alone
  * unfolding into the cube and back), v13 (the wheel, the hue once round the
  * colour wheel per loop), v12 (the rainbow, red with the spin running round
  * the rainbow), v11 or v10 (in red, yellow or blue, from the bare hexagon or
@@ -49,11 +55,7 @@ export default function LoadingMark({
   className?: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const [variant] = useState(() => pickLoadingVariant(LOADING_SPEC));
-  // a given colour plays the single-colour figure
-  const kind = colorProp === undefined ? variant.kind : 'v10';
-  const color = colorProp ?? variant.color;
-  const startFoldedOut = startProp ?? variant.startFoldedOut;
+  const [firstVariant] = useState(() => pickLoadingVariant(LOADING_SPEC));
   const reducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
@@ -61,13 +63,30 @@ export default function LoadingMark({
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(size * dpr);
-    canvas.height = Math.round(size * dpr);
-    const spec = specFor(LOADING_SPEC, kind);
-    const colorAt = { v14: v14ColorAt, wheel: wheelColorAt, rainbow: rainbowColorAt, v11: undefined, v10: undefined }[kind];
-    const scale = canvas.width / 2 / spec.extent;
+    // Sharp at the UI scale too: it is drawn at rem(size) (lib/uiScale.ts).
+    const res = size * dpr * currentUiScale();
+    canvas.width = Math.round(res);
+    canvas.height = Math.round(res);
+
+    // One loop's figure: a given colour plays the single-colour figure, and
+    // a given colour or start stays fixed across loops.
+    const figure = (variant: typeof firstVariant) => {
+      const kind = colorProp === undefined ? variant.kind : 'v10';
+      const spec = specFor(LOADING_SPEC, kind);
+      return {
+        spec,
+        loop: loopDuration(spec),
+        color: colorProp ?? variant.color,
+        startFoldedOut: startProp ?? variant.startFoldedOut,
+        colorAt: { v16: v16ColorAt, v14: v14ColorAt, wheel: wheelColorAt, rainbow: rainbowColorAt, v11: undefined, v10: undefined }[kind],
+      };
+    };
+    let variant = firstVariant;
+    let shown = figure(variant);
 
     const draw = (t: number) => {
+      const { spec, color, startFoldedOut, colorAt } = shown;
+      const scale = canvas.width / 2 / spec.extent;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(scale, 0, 0, scale, canvas.width / 2, canvas.height / 2);
@@ -94,14 +113,22 @@ export default function LoadingMark({
       return;
     }
     let frame = 0;
-    const start = performance.now();
+    let loopStart = performance.now();
     const tick = (now: number) => {
-      draw((now - start) / 1000);
+      let t = (now - loopStart) / 1000;
+      if (t >= shown.loop) {
+        // A whole loop played: the next one is a different version.
+        loopStart += shown.loop * 1000;
+        t -= shown.loop;
+        variant = pickNextLoadingVariant(LOADING_SPEC, variant);
+        shown = figure(variant);
+      }
+      draw(t);
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [size, color, kind, startFoldedOut, reducedMotion]);
+  }, [size, colorProp, startProp, firstVariant, reducedMotion]);
 
   return (
     <canvas
@@ -110,7 +137,7 @@ export default function LoadingMark({
       aria-label={label}
       width={size}
       height={size}
-      style={{ width: size, height: size }}
+      style={{ width: rem(size), height: rem(size) }}
       className={className}
     />
   );
