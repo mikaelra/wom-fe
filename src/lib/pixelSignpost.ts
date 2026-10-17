@@ -185,6 +185,31 @@ export function riseSetXY(sun: HorizonPos, w: number, horizonY: number): [number
   return [Math.round(x), Math.round(y)];
 }
 
+/** The Moon follows the Sun's path, and stays on it longer: it is out of the
+ *  picture only above this height (Mikael, 2026-10-17). */
+export const MOON_PATH_ALT = 40;
+/** Nothing is drawn in the south: the Moon is on the west (left) path from this
+ *  compass bearing round to the north, on the east (right) path from the north
+ *  round to the other, and out of the picture between the two. */
+export const MOON_WEST_FROM_AZ = 170;
+export const MOON_EAST_TO_AZ = 130;
+
+/** Where the Moon is drawn, or null while it is not. It keeps to the Sun's
+ *  path, up and out past the left edge when it is in the west (following the
+ *  planets that have just set), in from the right edge when it is in the east;
+ *  higher up it is further along that path. Its place on the path comes from
+ *  its height alone -- the south, in between, is left empty. */
+export function moonXY(moon: HorizonPos, w: number, horizonY: number): [number, number] | null {
+  if (moon.alt <= 0 || moon.alt > MOON_PATH_ALT) return null;
+  const west = moon.az >= MOON_WEST_FROM_AZ;
+  if (!west && moon.az > MOON_EAST_TO_AZ) return null;
+  const up = moon.alt / MOON_PATH_ALT;
+  const fromEdge = (1 - up) * EDGE_SPAN * w;
+  const x = west ? fromEdge : w - fromEdge;
+  const y = horizonY - up * EDGE_HEIGHT * horizonY;
+  return [Math.round(x), Math.round(y)];
+}
+
 /** How far the daylight washes the Moon and the planets into the sky behind
  *  them (0 none .. 1 gone), from the Sun's height: all but gone in full day,
  *  faint at golden hour, a little in twilight, not at all at night -- the
@@ -383,9 +408,9 @@ export function drawSignpostScene(
   };
   const dim = daylightDim(bodies.sun.alt);
   // Nothing is drawn in the south, the middle (Mikael, 2026-10-17): the Moon
-  // too keeps to the Sun's path, rising in from the right edge and setting in
-  // from the left, and is out of the picture while it is high.
-  const moonAt = bodies.moon.alt > 0 ? riseSetXY(bodies.moon, w, horizonY) : null;
+  // follows the Sun's path, down the left side after the planets that have
+  // just set, and in from the right when it rises.
+  const moonAt = moonXY(bodies.moon, w, horizonY);
   if (moonAt) {
     const [mx, my] = moonAt;
     // In its phase (lib/pixelMoon.ts), the dark side faint against the sky

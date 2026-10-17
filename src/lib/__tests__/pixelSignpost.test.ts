@@ -8,6 +8,8 @@ import {
   skyFor,
   skyXY,
   riseSetXY,
+  moonXY,
+  HORIZON,
   daylightDim,
   signpostMinWidth,
   signpostPixelSize,
@@ -263,9 +265,10 @@ describe('the Moon in the city sky', () => {
     expect(fills).not.toContain('#e8ecf5');
   });
 
-  it('is never drawn in the south: high up it is out of the picture, low it keeps to the edges', () => {
+  it('is never drawn in the south: it keeps to the Sun\'s path, west on the left, east on the right', () => {
     const fillsFor = (moon: { alt: number; az: number }) => {
       const xs: number[] = [];
+      const ys: number[] = [];
       let colour = '';
       const ctx = {
         get fillStyle() {
@@ -274,24 +277,40 @@ describe('the Moon in the city sky', () => {
         set fillStyle(c: string | CanvasGradient | CanvasPattern) {
           colour = String(c);
         },
-        fillRect(x: number) {
-          if (colour === '#e8ecf5') xs.push(x);
+        fillRect(x: number, y: number) {
+          if (colour === '#e8ecf5') {
+            xs.push(x);
+            ys.push(y);
+          }
         },
       };
       drawSignpostScene(ctx, 120, 200, [], { sun: { alt: -30, az: 0 }, moon, moonPhase: 180 });
-      return xs;
+      return { xs, ys };
     };
-    expect(fillsFor({ alt: 25, az: 176 })).toEqual([]); // high in the south: not drawn
-    expect(fillsFor({ alt: 50, az: 180 })).toEqual([]);
-    const rising = fillsFor({ alt: 6, az: 100 }); // low in the east: in from the right edge
-    expect(rising.length).toBeGreaterThan(0);
-    expect(Math.min(...rising)).toBeGreaterThan(120 * 0.7);
-    const setting = fillsFor({ alt: 6, az: 260 }); // low in the west: in from the left edge
-    expect(Math.max(...setting)).toBeLessThan(120 * 0.3);
-    // Low in the south (a winter Moon): still not in the middle -- at the edge of the side it is on.
-    const lowSouthEast = fillsFor({ alt: 6, az: 178 });
-    expect(Math.min(...lowSouthEast)).toBeGreaterThan(120 * 0.7);
-    const lowSouthWest = fillsFor({ alt: 6, az: 182 });
-    expect(Math.max(...lowSouthWest)).toBeLessThan(120 * 0.3);
+    // High in the south-east, or over the path's end: not drawn.
+    expect(fillsFor({ alt: 25, az: 150 }).xs).toEqual([]);
+    expect(fillsFor({ alt: 50, az: 200 }).xs).toEqual([]);
+    // The real sky at 19:35 on 17 Oct 2026 over Athens: the Moon 24 degrees up
+    // in the south-west, Mercury at the horizon -- the Moon is on the left,
+    // higher up the path than Mercury would be.
+    const evening = fillsFor({ alt: 24, az: 193 });
+    expect(Math.max(...evening.xs)).toBeLessThan(120 * 0.2);
+    const [mercuryX, mercuryY] = riseSetXY({ alt: 0, az: 244 }, 120, Math.round(HORIZON * 200))!;
+    expect(Math.max(...evening.xs)).toBeLessThan(mercuryX);
+    expect(Math.max(...evening.ys)).toBeLessThan(mercuryY);
+    // The path itself: the Moon's spot moves up and out to the edge as it climbs.
+    const horizonY = Math.round(HORIZON * 200);
+    expect(moonXY({ alt: 0, az: 250 }, 120, horizonY)).toBeNull(); // not up yet
+    expect(moonXY({ alt: 41, az: 250 }, 120, horizonY)).toBeNull(); // past the path's end
+    const low = moonXY({ alt: 2, az: 250 }, 120, horizonY)!;
+    const high = moonXY({ alt: 30, az: 250 }, 120, horizonY)!;
+    expect(high[0]).toBeLessThan(low[0]);
+    expect(high[1]).toBeLessThan(low[1]);
+    // Low in the east: in from the right edge.
+    const rising = fillsFor({ alt: 6, az: 100 });
+    expect(Math.min(...rising.xs)).toBeGreaterThan(120 * 0.7);
+    // Just inside the west bound it is on the left, just outside the east bound on the right.
+    expect(Math.max(...fillsFor({ alt: 6, az: 171 }).xs)).toBeLessThan(120 * 0.3);
+    expect(Math.min(...fillsFor({ alt: 6, az: 129 }).xs)).toBeGreaterThan(120 * 0.7);
   });
 });
