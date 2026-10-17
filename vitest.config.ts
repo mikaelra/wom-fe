@@ -28,6 +28,15 @@ export default defineConfig({
           setupFiles: ['./vitest.setup.ts'],
         },
       },
+      {
+        // The Electron/Steam shell (docs/MOBILE_AND_STEAM_PLAN.md §10) --
+        // plain Node CommonJS, no electron import in what's tested.
+        test: {
+          name: 'electron',
+          environment: 'node',
+          include: ['electron/**/*.test.js'],
+        },
+      },
     ],
     coverage: {
       provider: 'v8',
@@ -113,11 +122,34 @@ export default defineConfig({
       // plus SettingsPage's own RTL test (real hook, mocked
       // @/lib/api calls) pushed the suite to ~67.2/60.84/64.23/68.49
       // (stable across repeated runs).
+      // Raised for docs/ASPECTS_PLAN.md's planetary-aspects system:
+      // src/lib/astrology.ts (93.81% stmts on its own) and
+      // src/lib/astrologyPresets.ts, both new and both in the src/lib
+      // glob, pushed the suite to ~79.27/72.23/76.78/79.81 (stable across
+      // repeated runs) -- astrologyPresets.ts's uncovered lines are its
+      // window.location-reading functions, which a node-environment test
+      // can't exercise (same category as every other window-gated
+      // function already excluded from this ratchet's 100% elsewhere).
+      // Raised for the Market (wom-be docs/MARKET_PLAN.md, direct-swap
+      // §1A): src/lib/market.ts (pure helpers) and
+      // src/lib/useMarketConnection.ts (the board+chat socket hook, tested
+      // with renderHook + a mocked @/lib/socket the way useLobbyConnection
+      // is), both new and both in the src/lib glob, pushed the suite to
+      // ~82.23/73.72/78.2/83.77 (stable across repeated runs).
+      // Raised nothing for /modelling (the temporary model sandbox): its
+      // two new lib files, modelling.ts (the framing maths) and
+      // modellingPrompts.ts (the prompt box's transcript parsing/merging),
+      // are both inside the src/lib glob and both well covered by their own
+      // tests, pushing the suite to ~82.65/74.55/78.92/84.17. Left at the
+      // existing numbers deliberately rather than ratcheted up: this page
+      // is built to be DELETED whole once the real models land, and a
+      // threshold resting on coverage that leaves with it would fail the
+      // commit that removes it.
       thresholds: {
-        statements: 66,
-        branches: 60,
-        functions: 63,
-        lines: 67,
+        statements: 80,
+        branches: 72,
+        functions: 76,
+        lines: 82,
       },
     },
   },

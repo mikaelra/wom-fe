@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
-import * as THREE from 'three';
+import { merchantState, paperOffer, revertedState, stoneOffer } from '@/lib/__tests__/merchantFixtures';
+import { FULL_MOON_MERCHANT_COLOR } from '@/lib/merchant';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { CSSProperties, ReactNode } from 'react';
 import Page from '@/app/page';
 import {
   checkName,
@@ -11,15 +12,15 @@ import {
   getActiveRankedLobby,
   joinRankedQueue,
   leaveRankedQueue,
+  getMerchantOffer,
 } from '@/lib/api';
 import type { City } from '@/lib/cities';
-import type { RankedLabelInfo } from '@/components/worldmap/CityMarker';
-import { ToastProvider } from '@/components/Toast';
 import * as socketModule from '@/lib/socket';
 
 const push = vi.fn();
+const replace = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, replace }),
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -30,6 +31,10 @@ vi.mock('@/lib/api', () => ({
   getActiveRankedLobby: vi.fn(),
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
+  // docs/MERCHANT_PLAN.md's useMerchantOffer polls this on every mount of
+  // this page -- no offer, so the ??? marker this suite isn't testing
+  // stays off rather than the hook silently failing every poll.
+  getMerchantOffer: vi.fn().mockResolvedValue(merchantState()),
 }));
 
 // Same fake-subscribe pattern as WorldMapOverlay.test.tsx -- useRankedQueue
@@ -66,31 +71,61 @@ const socket = socketModule as unknown as {
 // @react-three/fiber's real Canvas needs a WebGL context jsdom can't provide.
 // Rendering children directly (no real <canvas>) keeps the rest of the page's
 // own logic (out of scope: WorldMap's 3D city picking, WorldMapOverlay's own
-// already-tested UI) testable without touching R3F at all. A non-Athens/
-// vault/rules city click sets `selectedCity`, mounting the City Hub view's
-// CameraAnimator, which calls the real useThree() at render time (not just
-// inside its useFrame callback, which never fires here) -- a real
-// THREE.PerspectiveCamera (pure math, no WebGL) satisfies its
-// `camera.position.clone()` call without needing a hand-rolled stub.
+// already-tested UI) testable without touching R3F at all.
+//
+// This used to stub useFrame and useThree as well, because a non-Athens city
+// click mounted the City Hub view's CameraAnimator, which called useThree()
+// at render time. Step 12 deleted that whole branch, so Canvas is now the
+// only thing the page takes from R3F.
+// Needs a real R3F renderer (useThree); nothing to test here.
+vi.mock('@/components/hud/ContextLossRecovery', () => ({ default: () => null }));
+
 vi.mock('@react-three/fiber', () => ({
-  Canvas: ({ children }: { children?: ReactNode }) => <>{children}</>,
-  useFrame: () => {},
-  useThree: () => ({ camera: new THREE.PerspectiveCamera(), size: { width: 1024, height: 768 } }),
+  // Renders the wrapper R3F would, style included: the city markers' labels
+  // are appended into exactly this element, so its stacking behaviour is
+  // what keeps them off the top bar.
+  Canvas: ({ children, style }: { children?: ReactNode; style?: CSSProperties }) => (
+    <div data-testid="canvas-container" style={style}>
+      {children}
+    </div>
+  ),
 }));
 
-const ATHENS: City = { id: 1, name: 'Athens', country: 'Greece', lat: 0, lng: 0, color: '#fff', tag: '' };
-const VAULT: City = { id: 2, name: 'Vault City', country: '', lat: 0, lng: 0, color: '#fff', tag: '', isVault: true };
-const RULES: City = { id: 3, name: 'Rules City', country: '', lat: 0, lng: 0, color: '#fff', tag: '', isRules: true };
-const NEW_YORK: City = { id: 4, name: 'New York', country: 'USA', lat: 0, lng: 0, color: '#fff', tag: '' };
+const ATHENS: City = { id: 1, name: 'Athens', country: 'Greece', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '' };
+const VAULT: City = { id: 2, name: 'Vault City', country: '', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '', isVault: true };
+const RULES: City = { id: 3, name: 'Rules City', country: '', lat: 0, lng: 0, realLat: 0, realLng: -1.3, color: '#fff', tag: '', isRules: true };
 
 let cityClickHandler: ((city: City) => void) | undefined;
-let lastRankedInfo: RankedLabelInfo | undefined;
+let lastSkyRevertKey: string | null | undefined;
+let lastMerchantMarkers: { key: string; color: string; outline: string | null; label: string; bodies: string[] }[] = [];
+let merchantClickHandler: ((key: string) => void) | undefined;
+let lastTimewarpColors: string[] | null | undefined;
+let skyReadyHandler: (() => void) | undefined;
 vi.mock('@/components/worldmap/WorldMap', () => ({
-  default: ({ onCityClick, rankedInfo }: { onCityClick: (city: City) => void; rankedInfo?: RankedLabelInfo }) => {
+  default: ({
+    onCityClick, skyRevertKey, merchantMarkers, onMerchantClick, timewarpColors, onSkyReady,
+  }: {
+    onCityClick: (city: City) => void;
+    skyRevertKey?: string | null;
+    merchantMarkers?: { key: string; color: string; outline: string | null; label: string; bodies: string[] }[];
+    onMerchantClick?: (key: string) => void;
+    timewarpColors?: string[] | null;
+    onSkyReady?: () => void;
+  }) => {
+    lastTimewarpColors = timewarpColors;
+    skyReadyHandler = onSkyReady;
     cityClickHandler = onCityClick;
-    lastRankedInfo = rankedInfo;
+    lastSkyRevertKey = skyRevertKey;
+    lastMerchantMarkers = merchantMarkers ?? [];
+    merchantClickHandler = onMerchantClick;
     return null;
   },
+}));
+
+vi.mock('@/components/merchant/MerchantScene', () => ({
+  default: ({ offer }: { offer: { merchant_name: string; item_name: string } }) => (
+    <div data-testid="merchant-scene">{offer.merchant_name}: {offer.item_name}</div>
+  ),
 }));
 
 vi.mock('@/components/worldmap/WorldMapOverlay', () => ({
@@ -117,12 +152,13 @@ const clickCity = async (city: City) => {
   await act(async () => { cityClickHandler!(city); await flush(); });
 };
 const clickAthens = () => clickCity(ATHENS);
-const clickNewYork = () => clickCity(NEW_YORK);
 
 beforeEach(() => {
+  // These tests are about the 3D game; the web's default is text mode.
+  localStorage.setItem('textMode', 'off');
   push.mockClear();
   cityClickHandler = undefined;
-  lastRankedInfo = undefined;
+  lastSkyRevertKey = undefined;
   mockedCheckName.mockReset();
   mockedLogInUser.mockReset();
   mockedVerifyLoginCode.mockReset();
@@ -130,6 +166,7 @@ beforeEach(() => {
   mockedGetActiveRankedLobby.mockReset();
   mockedJoinRankedQueue.mockReset();
   mockedLeaveRankedQueue.mockReset();
+  vi.mocked(getMerchantOffer).mockReset().mockResolvedValue(merchantState());
   // Harmless "no active ranked match" default for every test that isn't
   // specifically exercising the New York ranked flow.
   mockedGetActiveRankedLobby.mockResolvedValue({
@@ -143,245 +180,245 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('Page (world map view, Athens raid popup)', () => {
-  it('opens the Athens popup when logged out', async () => {
+describe('Page (world map view, city routing)', () => {
+  it('routes to the Athens city scene instead of entering the bossfight', async () => {
     render(<Page />);
     await clickAthens();
-    expect(screen.getByText('Enter the Hades Raid')).toBeInTheDocument();
+
+    expect(push).toHaveBeenCalledWith(`/city?id=${ATHENS.id}`);
+    // The bossfight gate moved into the city scene (docs/CITY_SCENE_PLAN.md
+    // §4.4). The world map must not open it, and must not reach for the
+    // bossfight endpoints at all -- not even the name check.
+    expect(screen.queryByText('Enter the Hades Bossfight')).not.toBeInTheDocument();
+    expect(mockedGetBossfightLobby).not.toHaveBeenCalled();
     expect(mockedCheckName).not.toHaveBeenCalled();
+  });
+
+  it('raises the loading curtain on the click, not after the route change', async () => {
+    render(<Page />);
+    // Nothing to see until the sword is actually tapped.
+    expect(screen.queryByRole('status', { name: /^Entering / })).not.toBeInTheDocument();
+
+    await clickAthens();
+
+    // The route change and the city chunk's download both happen while this
+    // page is still mounted, so without this a tap looks like it did
+    // nothing at all.
+    expect(screen.getByRole('status', { name: /^Entering / })).toBeInTheDocument();
+  });
+
+  it('routes to the city the same way when already logged in', async () => {
+    // Previously this was the "skip the popup, go straight in" path. There
+    // is no longer a fast path on the world map: everyone goes to the city.
+    localStorage.setItem('playerName', 'Alice');
+    render(<Page />);
+    await clickAthens();
+
+    expect(push).toHaveBeenCalledWith(`/city?id=${ATHENS.id}`);
+    expect(mockedGetBossfightLobby).not.toHaveBeenCalled();
   });
 
   it('navigates directly to the vault for a vault city, without opening the popup', async () => {
     render(<Page />);
     await clickCity(VAULT);
     expect(push).toHaveBeenCalledWith('/vault');
-    expect(screen.queryByText('Enter the Hades Raid')).not.toBeInTheDocument();
+    expect(screen.queryByText('Enter the Hades Bossfight')).not.toBeInTheDocument();
   });
 
   it('navigates directly to the rules for a rules city, without opening the popup', async () => {
     render(<Page />);
     await clickCity(RULES);
     expect(push).toHaveBeenCalledWith('/rules');
-    expect(screen.queryByText('Enter the Hades Raid')).not.toBeInTheDocument();
-  });
-
-  it('enters the raid directly, skipping checkName, when already logged in', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedGetBossfightLobby.mockResolvedValue({ lobby_id: 'AAAA', start_time: '2026-01-01T00:00:00Z' });
-    render(<Page />);
-
-    await clickAthens();
-
-    expect(mockedCheckName).not.toHaveBeenCalled();
-    expect(screen.queryByText('Enter the Hades Raid')).not.toBeInTheDocument();
-    expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
-    expect(push).toHaveBeenCalledWith('/lobby/AAAA');
-  });
-
-  it('enters the raid for an unclaimed name, writing localStorage with no email', async () => {
-    mockedCheckName.mockResolvedValue({ claimed: false });
-    mockedGetBossfightLobby.mockResolvedValue({ lobby_id: 'BBBB', start_time: '2026-01-01T00:00:00Z' });
-    render(<Page />);
-
-    await clickAthens();
-    fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Enter Raid'));
-      await flush();
-    });
-
-    expect(mockedCheckName).toHaveBeenCalledWith('Alice');
-    expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
-    expect(localStorage.getItem('playerName')).toBe('Alice');
-    expect(localStorage.getItem('playerEmail')).toBeNull();
-    expect(push).toHaveBeenCalledWith('/lobby/BBBB');
-  });
-
-  it('shows the email step for a claimed name, and enters the raid on successful login', async () => {
-    mockedCheckName.mockResolvedValue({ claimed: true });
-    mockedLogInUser.mockResolvedValue({ success: true });
-    mockedGetBossfightLobby.mockResolvedValue({ lobby_id: 'CCCC', start_time: '2026-01-01T00:00:00Z' });
-    render(<Page />);
-
-    await clickAthens();
-    fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Enter Raid'));
-      await flush();
-    });
-    expect(
-      screen.getByText('This name is claimed. Type your email if you have claimed this username.'),
-    ).toBeInTheDocument();
-
-    fireEvent.change(screen.getByPlaceholderText('email'), { target: { value: 'alice@example.com' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Log in'));
-      await flush();
-    });
-
-    expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
-    expect(localStorage.getItem('playerName')).toBe('Alice');
-    expect(localStorage.getItem('playerEmail')).toBe('alice@example.com');
-    expect(push).toHaveBeenCalledWith('/lobby/CCCC');
-  });
-
-  it('shows the code step when requires_code is true, and completes on a correct code', async () => {
-    mockedCheckName.mockResolvedValue({ claimed: true });
-    mockedLogInUser.mockResolvedValue({ success: true, requires_code: true });
-    mockedVerifyLoginCode.mockRejectedValueOnce(new Error('Wrong code'));
-    mockedGetBossfightLobby.mockResolvedValue({ lobby_id: 'DDDD', start_time: '2026-01-01T00:00:00Z' });
-    render(<Page />);
-
-    await clickAthens();
-    fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Enter Raid'));
-      await flush();
-    });
-    fireEvent.change(screen.getByPlaceholderText('email'), { target: { value: 'alice@example.com' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Log in'));
-      await flush();
-    });
-
-    expect(screen.getByPlaceholderText('6-digit code')).toBeInTheDocument();
-
-    fireEvent.change(screen.getByPlaceholderText('6-digit code'), { target: { value: '000000' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Verify'));
-      await flush();
-    });
-    expect(screen.getByText('Wrong code')).toBeInTheDocument();
-    expect(mockedGetBossfightLobby).not.toHaveBeenCalled();
-
-    mockedVerifyLoginCode.mockResolvedValueOnce({ success: true });
-    fireEvent.change(screen.getByPlaceholderText('6-digit code'), { target: { value: '123456' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Verify'));
-      await flush();
-    });
-
-    expect(mockedVerifyLoginCode).toHaveBeenCalledWith('Alice', '123456');
-    expect(mockedGetBossfightLobby).toHaveBeenCalledWith('Alice');
-    expect(push).toHaveBeenCalledWith('/lobby/DDDD');
-  });
-
-  it('shows a toast and hides the loading overlay when entering the raid fails', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedGetBossfightLobby.mockRejectedValue(new Error('Raid full'));
-    render(
-      <ToastProvider>
-        <Page />
-      </ToastProvider>,
-    );
-
-    await clickAthens();
-
-    expect(await screen.findByText('Raid full')).toBeInTheDocument();
-    expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    expect(push).not.toHaveBeenCalled();
+    expect(screen.queryByText('Enter the Hades Bossfight')).not.toBeInTheDocument();
   });
 });
 
-// The "Play Ranked" button used to live in WorldMapOverlay -- it's now driven
-// by clicking the New York sword marker instead, with status text reported
-// via the `rankedInfo` prop WorldMap passes down to CityMarker (mocked out
-// above, so we assert on the captured prop rather than rendered 3D text).
-describe('Page (world map view, New York ranked queue)', () => {
-  it('opens the ranked popup when logged out, and starts the queue for an unclaimed name', async () => {
-    mockedCheckName.mockResolvedValue({ claimed: false });
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+// docs/MERCHANT_PLAN.md §7: WorldMap's planets go stale once its reveal
+// animation settles (PlanetSprites is memoized on `phase` alone) unless
+// something tells it a revert started or ended -- skyRevertKey is that
+// something. Real bug, found live: the globe kept showing the live sky
+// through an active revert.
+describe('Page (Merchant time-revert -> globe sky)', () => {
+  it('passes null when nothing is reverted', async () => {
     render(<Page />);
-
-    await clickNewYork();
-    expect(screen.getByText('Play Ranked')).toBeInTheDocument();
-    expect(lastRankedInfo?.status).toBe('idle');
-
-    fireEvent.change(screen.getByPlaceholderText('Your battle name'), { target: { value: 'Alice' } });
-    await act(async () => {
-      fireEvent.click(screen.getByText('Continue'));
-      await flush();
-    });
-
-    expect(mockedCheckName).toHaveBeenCalledWith('Alice');
-    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
-    expect(mockedJoinRankedQueue).toHaveBeenCalledWith('Alice');
-    expect(localStorage.getItem('playerName')).toBe('Alice');
-    expect(screen.queryByText('Play Ranked')).not.toBeInTheDocument();
-    expect(lastRankedInfo?.status).toBe('searching');
+    await waitForWorldMap();
+    expect(lastSkyRevertKey).toBeNull();
   });
 
-  it('starts the ranked queue directly when already logged in, reporting searching status', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+  it('passes revert_to_date as the key while a revert is active', async () => {
+    const revertedTo = '2026-01-01T00:00:00Z';
+    vi.mocked(getMerchantOffer).mockResolvedValue(revertedState(revertedTo));
     render(<Page />);
+    await waitFor(() => expect(lastSkyRevertKey).toBe(revertedTo));
+  });
+});
 
-    await clickNewYork();
-
-    expect(mockedCheckName).not.toHaveBeenCalled();
-    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
-    expect(lastRankedInfo?.status).toBe('searching');
+// docs/MERCHANT_PLAN.md: every merchant in town gets its own marker -- a
+// conjunction on a full moon is two -- and the conjunction's is drawn in
+// the blend of its two planets' colours.
+describe('Page (merchant markers)', () => {
+  it('draws no marker with nobody in town', async () => {
+    render(<Page />);
+    await waitForWorldMap();
+    expect(lastMerchantMarkers).toEqual([]);
   });
 
-  it('cancels the ranked queue on a second click while searching', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
-    mockedLeaveRankedQueue.mockResolvedValue({ status: 'left', was_queued: true });
+  it('draws one marker per merchant when a conjunction falls on a full moon', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({ offers: [stoneOffer(), paperOffer()] }));
     render(<Page />);
 
-    await clickNewYork();
-    expect(lastRankedInfo?.status).toBe('searching');
-
-    await clickNewYork();
-    expect(mockedLeaveRankedQueue).toHaveBeenCalledWith('Alice');
-    expect(lastRankedInfo?.status).toBe('idle');
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(2));
+    const [moon, conj] = lastMerchantMarkers;
+    expect(moon).toMatchObject({ label: 'Merchant', color: FULL_MOON_MERCHANT_COLOR, outline: null });
+    // Jupiter is the bigger planet: its colour inside, Mercury's outside.
+    expect(conj).toMatchObject({ label: 'Merchant', color: '#008296', outline: '#db9504' });
+    // Each stands under its own sky: the Moon, and the conjunction's planets.
+    expect(moon.bodies).toEqual(['Moon']);
+    expect(conj.bodies).toEqual(['Mercury', 'Jupiter']);
   });
 
-  it('lands the matched player via join_room and navigates, mirroring the lobby-join pattern', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
+  it('keeps a merchant you have already bought from on the globe', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({
+      offers: [paperOffer({ available: false, already_bought_this_period: true })],
+    }));
     render(<Page />);
-
-    await clickNewYork();
-
-    act(() => {
-      socket.__fireSubscribeEvent('ranked_match_found', { lobby_id: 'RNKD', token: 'tok-1' });
-    });
-
-    expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'RNKD', token: 'tok-1' });
-    expect(push).toHaveBeenCalledWith('/lobby/RNKD');
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(1));
   });
 
-  it('reports an active match on mount, and navigates to it on click instead of re-queueing', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedGetActiveRankedLobby.mockResolvedValue({
-      lobby_id: 'RNKD',
-      token: 'tok-active',
-      ranked_countdown_deadline: new Date(Date.now() + 30_000).toISOString(),
-      started: false,
-    });
+  it('opens the scene of the merchant whose marker was clicked', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({ offers: [stoneOffer(), paperOffer()] }));
     render(<Page />);
-    await waitFor(() => expect(lastRankedInfo?.status).toBe('activeMatch'));
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(2));
 
-    expect(mockedGetActiveRankedLobby).toHaveBeenCalledWith('Alice');
-    expect(lastRankedInfo?.activeMatchStarted).toBe(false);
+    act(() => merchantClickHandler!(lastMerchantMarkers[1].key));
 
-    await clickNewYork();
-    expect(mockedJoinRankedQueue).not.toHaveBeenCalled();
-    expect(push).toHaveBeenCalledWith('/lobby/RNKD');
+    expect(await screen.findByTestId('merchant-scene')).toHaveTextContent('Hildegard von Bingen: Paper');
+  });
+});
+
+// The timewarp animation (lib/timewarpFx.ts): `?timewarp` previews it with
+// controls to replay; `&play=1` is a player arriving from a real timewarp.
+describe('Page (?timewarp)', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+    replace.mockClear();
   });
 
-  it('reports the match as started once the countdown deadline has passed', async () => {
-    localStorage.setItem('playerName', 'Alice');
-    mockedGetActiveRankedLobby.mockResolvedValue({
-      lobby_id: 'RNKD',
-      token: 'tok-active',
-      ranked_countdown_deadline: null,
-      started: true,
-    });
+  it('plays nothing on a plain visit, and shows no preview controls', async () => {
     render(<Page />);
-    await waitFor(() => expect(lastRankedInfo?.status).toBe('activeMatch'));
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    expect(lastTimewarpColors).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
+  });
 
-    expect(lastRankedInfo?.activeMatchStarted).toBe(true);
+  it('previews: shows the controls and plays once the whole sky is up', async () => {
+    window.history.replaceState(null, '', '/?timewarp=Mars-Jupiter');
+    render(<Page />);
+    await waitForWorldMap();
+
+    expect(screen.getByRole('group', { name: 'Timewarp preview' })).toBeInTheDocument();
+    // Not before the sky is ready.
+    expect(lastTimewarpColors).toBeNull();
+
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#ff0000', '#008296']));
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('shows the merchants of the previewed moment, under its Moon and conjunction, not today\'s', async () => {
+    vi.mocked(getMerchantOffer).mockResolvedValue(merchantState({ offers: [stoneOffer()] }));
+    window.history.replaceState(null, '', '/?timewarp=Mars-Jupiter');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+
+    await waitFor(() => expect(lastMerchantMarkers.map((m) => m.bodies)).toEqual([['Mars', 'Jupiter']]));
+    // Jupiter is the bigger planet: its colour inside, Mars' outside.
+    expect(lastMerchantMarkers[0]).toMatchObject({ label: 'Merchant', color: '#008296', outline: '#ff0000' });
+  });
+
+  it('opens nothing when a preview merchant is clicked', async () => {
+    window.history.replaceState(null, '', '/?timewarp');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastMerchantMarkers).toHaveLength(1));
+
+    act(() => merchantClickHandler!(lastMerchantMarkers[0].key));
+
+    expect(screen.queryByTestId('merchant-scene')).not.toBeInTheDocument();
+  });
+
+  it('replays with the colours of the button pressed', async () => {
+    window.history.replaceState(null, '', '/?timewarp');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual([FULL_MOON_MERCHANT_COLOR]));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Conjunction' }));
+
+    // The panel starts on Mercury and Jupiter.
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#db9504', '#008296']));
+  });
+
+  it('plays anyone\'s timewarp for everyone on the globe, pushed by the server', async () => {
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    const pollsBefore = vi.mocked(getMerchantOffer).mock.calls.length;
+
+    act(() => socket.__fireSubscribeEvent('timewarp', {
+      revert_to_date: '2026-11-16T06:21:58+00:00',
+      events: [{ kind: 'conjunction', key: 'Mars-Jupiter', bodies: ['Mars', 'Jupiter'], sign: 'Leo', at: 'x' }],
+    }));
+
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#ff0000', '#008296']));
+    // The new moment's merchants are asked for straight away.
+    await waitFor(() => expect(vi.mocked(getMerchantOffer).mock.calls.length).toBeGreaterThan(pollsBefore));
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
+  });
+
+  it('does not replay, for the player who made it, a timewarp already playing from the inventory', async () => {
+    window.history.replaceState(null, '', '/?timewarp=full_moon&to=2028-10-03T12%3A00%3A00Z&play=1');
+    render(<Page />);
+    await waitForWorldMap();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual([FULL_MOON_MERCHANT_COLOR]));
+    const pollsBefore = vi.mocked(getMerchantOffer).mock.calls.length;
+
+    act(() => socket.__fireSubscribeEvent('timewarp', {
+      revert_to_date: '2028-10-03T12:00:00+00:00',
+      events: [{ kind: 'full_moon', key: '', bodies: ['Moon'], sign: 'Aries', at: 'x' }],
+    }));
+
+    expect(vi.mocked(getMerchantOffer).mock.calls.length).toBe(pollsBefore);
+  });
+
+  it('plays a real timewarp without the controls, and takes the parameters off the URL', async () => {
+    window.history.replaceState(null, '', '/?timewarp=full_moon&to=2028-10-03T12%3A00%3A00Z&play=1');
+    render(<Page />);
+    await waitForWorldMap();
+
+    expect(replace).toHaveBeenCalledWith('/');
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
+    act(() => skyReadyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual([FULL_MOON_MERCHANT_COLOR]));
+  });
+});
+
+// The city markers' labels are DOM, not WebGL: FreshHtml appends them into
+// the canvas's container with a z-index off drei's default range (up to
+// 16777271). The container carries no z-index of its own, so without a
+// stacking context those values escaped into the page's root context and
+// beat the top bar's z-20 -- a marker label struck through the text of the
+// user menu whenever it was open.
+describe('Page canvas stacking', () => {
+  it('isolates the canvas container so 3D labels cannot paint over the HUD', async () => {
+    render(<Page />);
+    await waitFor(() =>
+      expect(screen.getByTestId('canvas-container')).toHaveStyle({ isolation: 'isolate' })
+    );
   });
 });

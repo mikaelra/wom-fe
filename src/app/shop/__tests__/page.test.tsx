@@ -53,6 +53,16 @@ const SKIN_PRODUCT = {
   skin: 'cherub_v1',
 };
 
+const AI_CREDITS_PRODUCT = {
+  id: 'ai_credits',
+  name: '10 Bot-Game Credits',
+  price_cents: 100,
+  currency: 'usd',
+  kind: 'ai_credits' as const,
+  credits_per_pack: 10,
+  max_quantity: 100,
+};
+
 const flush = () => act(async () => Promise.resolve());
 
 function loginAs() {
@@ -89,15 +99,14 @@ describe('ShopPage', () => {
     expect(screen.getByText('Inventory')).toHaveAttribute('href', '/inventory');
   });
 
-  it('reveals the wheel odds, matching the served numbers exactly, behind the info toggle (§9.2)', async () => {
+  it('reveals the wheel odds, matching the served numbers exactly, behind the info toggle (App Store 3.1.1)', async () => {
     mockedGetShopProducts.mockResolvedValue({
       shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
     });
     render(<ShopPage />);
     await flush();
 
-    // Not shown until the info icon is clicked -- the odds table used to be
-    // always visible, now it's disclosed on demand.
+    // Not shown until the info icon is clicked.
     expect(screen.queryByText(/silver - /)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Wheel odds info'));
@@ -146,7 +155,7 @@ describe('ShopPage', () => {
     expect(buyButton).not.toBeDisabled();
   });
 
-  it('lets the wheel quantity be adjusted with + and -, clamped to 1..100, and passes it to checkout', async () => {
+  it('lets the wheel quantity be adjusted with + and -, clamped to 1..300, and passes it to checkout', async () => {
     loginAs();
     mockedGetShopProducts.mockResolvedValue({
       shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
@@ -171,18 +180,18 @@ describe('ShopPage', () => {
     expect(screen.getByText('$15.00')).toBeInTheDocument();
     expect(screen.queryByText('$5.00')).not.toBeInTheDocument();
 
-    for (let i = 0; i < 100; i++) fireEvent.click(increase);
-    expect(screen.getByLabelText('Quantity')).toHaveValue('100');
-    expect(increase).toBeDisabled(); // can't go above 100
+    for (let i = 0; i < 300; i++) fireEvent.click(increase);
+    expect(screen.getByLabelText('Quantity')).toHaveValue('300');
+    expect(increase).toBeDisabled(); // can't go above 300
 
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Buy' }));
     await flush();
 
-    expect(mockedPostCheckout).toHaveBeenCalledWith('sess-1', 'wheel_special', false, 100);
+    expect(mockedPostCheckout).toHaveBeenCalledWith('sess-1', 'wheel_special', false, 300);
   });
 
-  it('lets the wheel quantity be typed directly into the field, clamped 1..100', async () => {
+  it('lets the wheel quantity be typed directly into the field, clamped 1..300', async () => {
     loginAs();
     mockedGetShopProducts.mockResolvedValue({
       shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
@@ -196,11 +205,31 @@ describe('ShopPage', () => {
     expect(input).toHaveValue('7');
     expect(screen.getByText('$35.00')).toBeInTheDocument();
 
-    fireEvent.change(input, { target: { value: '250' } });
-    expect(input).toHaveValue('100'); // clamped to the max
+    fireEvent.change(input, { target: { value: '750' } });
+    expect(input).toHaveValue('300'); // clamped to the max
 
     fireEvent.change(input, { target: { value: 'abc' } });
     expect(input).toHaveValue('1'); // non-digits strip to nothing -> falls back to 1
+  });
+
+  it('shows the chance of getting bling under the quantity once more than 50 wheels are picked', async () => {
+    loginAs();
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
+    });
+    render(<ShopPage />);
+    await flush();
+
+    const input = screen.getByLabelText('Quantity');
+
+    fireEvent.change(input, { target: { value: '50' } });
+    expect(screen.queryByText(/chance of getting bling/)).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: '51' } });
+    expect(screen.getByText('you have now a 78,85% chance of getting bling')).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: '300' } });
+    expect(screen.getByText('you have now a 99,99% chance of getting bling')).toBeInTheDocument();
   });
 
   it('does not show a quantity counter for a direct skin purchase', async () => {
@@ -212,6 +241,41 @@ describe('ShopPage', () => {
     await flush();
 
     expect(screen.queryByLabelText('Increase quantity')).not.toBeInTheDocument();
+  });
+
+  it('lets bot-game credits be bought in multiples, clamped to max_quantity, total price and credit count following', async () => {
+    loginAs();
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [AI_CREDITS_PRODUCT],
+    });
+    mockedPostCheckout.mockResolvedValue({ checkout_url: 'https://checkout.stripe.com/pay/cs_9', order_id: 9 });
+
+    render(<ShopPage />);
+    await flush();
+
+    const increase = screen.getByLabelText('Increase quantity');
+    expect(screen.getByLabelText('Quantity')).toHaveValue('1');
+    expect(screen.getByText('$1.00')).toBeInTheDocument();
+    expect(screen.getByText(/^10 bot-game credits/)).toBeInTheDocument();
+    // shown with the My AI Coin, not an emoji
+    expect(screen.getByTestId('my-ai-coin')).toHaveAttribute('src', '/images/my-ai-coin.png');
+    expect(screen.queryByText('🪙')).not.toBeInTheDocument();
+
+    fireEvent.click(increase);
+    fireEvent.click(increase);   // -> 3 packs
+    expect(screen.getByText('$3.00')).toBeInTheDocument();
+    expect(screen.getByText(/^30 bot-game credits/)).toBeInTheDocument();
+
+    for (let i = 0; i < 110; i++) fireEvent.click(increase);
+    expect(screen.getByLabelText('Quantity')).toHaveValue('100');   // clamped to max_quantity
+    expect(increase).toBeDisabled();
+    expect(screen.getByText('$100.00')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Buy' }));
+    await flush();
+
+    expect(mockedPostCheckout).toHaveBeenCalledWith('sess-1', 'ai_credits', false, 100);
   });
 
   it('redirects to the Stripe checkout url on success', async () => {

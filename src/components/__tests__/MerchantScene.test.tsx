@@ -1,0 +1,234 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import MerchantScene from '@/components/merchant/MerchantScene';
+import { purchaseMerchantOffer } from '@/lib/api';
+import type { MerchantOffer } from '@/lib/api';
+import { paperOffer, stoneOffer } from '@/lib/__tests__/merchantFixtures';
+
+vi.mock('@/lib/api', () => ({ purchaseMerchantOffer: vi.fn() }));
+
+// SpinningModelViewer wraps @react-three/fiber's Canvas, which needs a real
+// WebGL context jsdom can't provide (same reasoning as app/__tests__/page.test.tsx's
+// Canvas mock) -- stubbed to a plain element so MerchantScene's own logic
+// (buy/error/close) is what's under test, not R3F.
+vi.mock('@/components/SpinningModelViewer', () => ({
+  default: ({ url }: { url: string }) => <div data-testid="merchant-model" data-url={url} />,
+}));
+
+const mockedPurchase = vi.mocked(purchaseMerchantOffer);
+
+const OFFER: MerchantOffer = stoneOffer();
+
+beforeEach(() => {
+  mockedPurchase.mockReset();
+});
+
+describe('MerchantScene', () => {
+  it('shows the offer and makes no API call until Trade is clicked', () => {
+    render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+
+    expect(screen.getByText('Stone of Vitality')).toBeInTheDocument();
+    // His line about it, between its name and its price.
+    const line = screen.getByText('A stone which exudes vitality');
+    expect(line.previousElementSibling).toHaveTextContent('Stone of Vitality');
+    expect(line.nextElementSibling).toHaveTextContent('5 Hades’ Coins');
+    expect(screen.queryByText(/One could write/)).not.toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.textContent === "5 Hades’ Coins")).toBeInTheDocument();
+    expect(mockedPurchase).not.toHaveBeenCalled();
+  });
+
+  it('Close calls onClose without calling the API', () => {
+    const onClose = vi.fn();
+    render(<MerchantScene offer={OFFER} token="t" onClose={onClose} onPurchased={vi.fn()} />);
+
+    act(() => screen.getByRole('button', { name: 'Close' }).click());
+
+    expect(onClose).toHaveBeenCalled();
+    expect(mockedPurchase).not.toHaveBeenCalled();
+  });
+
+  it('a successful trade calls the API with the token and shows the result', async () => {
+    mockedPurchase.mockResolvedValue({ ok: true, item_name: 'Stone of Vitality' });
+    const onPurchased = vi.fn();
+    render(<MerchantScene offer={OFFER} token="sess-1" onClose={vi.fn()} onPurchased={onPurchased} />);
+
+    act(() => screen.getByRole('button', { name: /Trade for 5/ }).click());
+
+    await waitFor(() => expect(screen.getByText('Deal struck.')).toBeInTheDocument());
+    expect(mockedPurchase).toHaveBeenCalledWith('sess-1', OFFER);
+    expect(onPurchased).toHaveBeenCalled();
+  });
+
+  it('shows the server error and stays on the offer when the trade is rejected', async () => {
+    const { ApiError } = await import('@/lib/http');
+    mockedPurchase.mockRejectedValue(new ApiError(409, "You don't have that many.", 'insufficient_coins'));
+    render(<MerchantScene offer={OFFER} token="sess-1" onClose={vi.fn()} onPurchased={vi.fn()} />);
+
+    act(() => screen.getByRole('button', { name: /Trade for 5/ }).click());
+
+    await waitFor(() => expect(screen.getByText("You don't have that many.")).toBeInTheDocument());
+    expect(screen.queryByText('Deal struck.')).not.toBeInTheDocument();
+  });
+
+  it('the Trade button is disabled when the offer is not available', () => {
+    render(
+      <MerchantScene offer={{ ...OFFER, available: false }} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /Trade for 5/ })).toBeDisabled();
+  });
+
+  it('explains why the button is disabled when this player already traded this moon', () => {
+    render(
+      <MerchantScene
+        offer={{ ...OFFER, available: false, already_bought_this_period: true }}
+        token="t"
+        onClose={vi.fn()}
+        onPurchased={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('You’ve already traded this moon.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Trade for 5/ })).toBeDisabled();
+  });
+
+  it('asks to log in rather than calling the API when there is no token', async () => {
+    render(<MerchantScene offer={OFFER} token={null} onClose={vi.fn()} onPurchased={vi.fn()} />);
+
+    act(() => screen.getByRole('button', { name: /Trade for 5/ }).click());
+
+    await waitFor(() =>
+      expect(screen.getByText('Log in to trade with John Dee.')).toBeInTheDocument(),
+    );
+    expect(mockedPurchase).not.toHaveBeenCalled();
+  });
+
+  it('has John Dee say one of his lines, timewarp or not', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+    render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
+
+    expect(screen.getByText('“The All is Mind.”')).toBeInTheDocument();
+    expect(screen.queryByText(/Appears around/)).not.toBeInTheDocument();
+  });
+
+  it('has John Dee say one of his lines at the new moon too', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+    render(<MerchantScene offer={{ ...OFFER, trigger_kind: 'new_moon', item_name: 'Pen' }} token="t"
+      onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
+
+    expect(screen.getByText('“The All is Mind.”')).toBeInTheDocument();
+    expect(screen.getByText('For writing with')).toBeInTheDocument();
+  });
+
+  it('has John Dee say one of his lines when a timewarp brought him', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+    render(<MerchantScene offer={stoneOffer({ reverted: true })} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
+
+    expect(screen.getByText('John Dee')).toBeInTheDocument();
+    expect(screen.getByText('“The All is Mind.”')).toBeInTheDocument();
+  });
+
+  it('has Hildegard von Bingen say one of hers at a conjunction', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    render(<MerchantScene offer={paperOffer({ reverted: true })} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+    random.mockRestore();
+
+    expect(screen.getByText('Hildegard von Bingen')).toBeInTheDocument();
+    expect(screen.getByText('“Modern life lacks softness.”')).toBeInTheDocument();
+  });
+
+  describe('the Merchant at a conjunction', () => {
+    const PAPER = paperOffer();
+
+    it('sells Paper for 3, staging the Paper model', () => {
+      render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+
+      expect(screen.getByText('Hildegard von Bingen')).toBeInTheDocument();
+      expect(screen.getByText('Paper')).toBeInTheDocument();
+      // He says something about it, between its name and its price.
+      const line = screen.getByText('One could write something on this');
+      expect(line.previousElementSibling).toHaveTextContent('Paper');
+      expect(line.nextElementSibling).toHaveTextContent('3 Hades’ Coins');
+      expect(screen.getByRole('button', { name: /Trade for 3/ })).toBeEnabled();
+      const models = screen.getAllByTestId('merchant-model').map((el) => el.getAttribute('data-url'));
+      expect(models).toContain('/models/relics/paper_v1.glb');
+      // The Lady Merchant stands behind the counter at a conjunction.
+      expect(models).toContain('/models/lady_merchant_v1.glb');
+      expect(models).not.toContain('/models/merchant_v1.glb');
+    });
+
+    it('keeps the old Merchant at the full moon', () => {
+      render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const models = screen.getAllByTestId('merchant-model').map((el) => el.getAttribute('data-url'));
+      expect(models).toContain('/models/merchant_v1.glb');
+      expect(models).not.toContain('/models/lady_merchant_v1.glb');
+    });
+
+    it('stages the Paper at 4x the Stone\'s size, still on the table', () => {
+      const { unmount } = render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const stoneBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
+      const stone = { w: stoneBox.style.width, bottom: stoneBox.style.bottom, left: parseFloat(stoneBox.style.left) };
+      unmount();
+
+      render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const paperBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
+
+      expect(stone.w).toBe('2.5rem'); // 40px, in rem to grow with the UI scale
+      expect(paperBox.style.width).toBe('10rem');
+      expect(paperBox.style.height).toBe('10rem');
+      expect(paperBox.style.bottom).toBe(stone.bottom);
+      // Same centre: 60px (3.75rem) further left for a box 120px wider.
+      expect(parseFloat(paperBox.style.left)).toBe(stone.left - 3.75);
+    });
+
+    it('stages the Pen at 4x the Stone\'s size too, same centre', () => {
+      const { unmount } = render(<MerchantScene offer={OFFER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const stoneBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
+      const stone = { bottom: stoneBox.style.bottom, left: parseFloat(stoneBox.style.left) };
+      unmount();
+
+      render(<MerchantScene offer={{ ...OFFER, trigger_kind: 'new_moon', item_name: 'Pen' }} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      const penBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
+
+      expect(penBox.style.width).toBe('10rem');
+      expect(penBox.style.height).toBe('10rem');
+      expect(penBox.style.bottom).toBe(stone.bottom);
+      expect(parseFloat(penBox.style.left)).toBe(stone.left - 3.75);
+    });
+
+    it('says one of her lines -- never the particular conjunction', () => {
+      const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+      render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
+      random.mockRestore();
+
+      expect(screen.getByText('“Modern life lacks softness.”')).toBeInTheDocument();
+      expect(screen.queryByText(/Mercury|Jupiter|Libra/)).not.toBeInTheDocument();
+    });
+
+    it('buys from this conjunction\'s Merchant', async () => {
+      mockedPurchase.mockResolvedValue({ ok: true, item_name: 'Paper' });
+      render(<MerchantScene offer={PAPER} token="sess-1" onClose={vi.fn()} onPurchased={vi.fn()} />);
+
+      act(() => screen.getByRole('button', { name: /Trade for 3/ }).click());
+
+      await waitFor(() => expect(screen.getByText('Deal struck.')).toBeInTheDocument());
+      expect(mockedPurchase).toHaveBeenCalledWith('sess-1', PAPER);
+    });
+
+    it('says "this conjunction" once already traded', () => {
+      render(
+        <MerchantScene
+          offer={paperOffer({ available: false, already_bought_this_period: true })}
+          token="t"
+          onClose={vi.fn()}
+          onPurchased={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText('You’ve already traded this conjunction.')).toBeInTheDocument();
+    });
+  });
+});

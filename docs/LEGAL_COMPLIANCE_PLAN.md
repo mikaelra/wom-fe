@@ -1,6 +1,6 @@
 # Legal & Regulatory Compliance Plan
 
-Status: draft, nothing implemented yet · Scope: `game/frontend` + `game/backend` · Last updated: 2026-08-05
+Status: draft; Privacy Policy page implemented (§2.1), rest outstanding · Scope: `game/frontend` + `game/backend` · Last updated: 2026-09-02
 
 **This is not legal advice.** It's a working checklist compiled from a review of the
 actual stack (what data we collect, which third parties process it, what we sell and
@@ -31,12 +31,30 @@ actual legal opinion before a wider launch, not just a policy page.
 
 ## 2. GDPR
 
-### 2.1 Privacy Policy page (missing — needs to be written)
+### 2.1 Privacy Policy page (drafted — `src/app/privacy/page.tsx`)
 
 Must cover: what's collected (email, chat, gameplay stats, payment metadata), why
 (contract performance for gameplay; legal obligation for financial records), who it's
 shared with (Stripe, Resend, Sentry, Hetzner as processor), retention periods, user
 rights (access/export/deletion), and a contact address for data requests.
+
+**Drafted.** `src/app/privacy/page.tsx` covers all of the above and matches the
+existing terms/refunds page pattern. Linked from the shop (beside Terms/Refunds,
+deliberately *outside* the consent checkbox — a privacy policy informs, it isn't
+consented to) and from signup, which is the screen that actually collects the
+email and so is where Art. 13 wants the notice.
+
+🔴 **Still blank: the controller's legal identity.** Art. 13(1)(a) requires the
+registered entity name and a contact address, and nothing in the repo names one.
+`src/config.ts` exposes `LEGAL_ENTITY_NAME` / `LEGAL_ENTITY_ADDRESS`, both
+env-overridable (`NEXT_PUBLIC_LEGAL_ENTITY_NAME` / `..._ADDRESS`). The name
+defaults to the trading name "World of Mythos" and the address defaults to empty
+— the page omits the address line entirely rather than render a placeholder that
+reads as real. **Set both in the production env before launch.**
+
+Two claims in the text are promises about behaviour, not descriptions of it, and
+need to stay true: the 30-day response commitment (see §2.2), and "we will tell
+you and the relevant authority" on a breach (see §2.5).
 
 ### 2.2 Data subject rights (access, deletion, portability)
 
@@ -72,6 +90,17 @@ exactly this — worth explicitly signing now that the DB is self-hosted there).
 Verify `sentry_sdk.init(...)` (config.py) isn't sending emails/IPs into breadcrumbs
 or event payloads by default — set `send_default_pii=False` and add scrubbing rules
 for any fields that could carry personal data.
+
+**Checked 2026-09-02: not explicitly set anywhere.** Neither the backend
+(`config.py:49`) nor any of the three frontend inits
+(`instrumentation-client.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`)
+passes `send_default_pii` / `sendDefaultPii`, so all four rely on the SDK default
+of `false`. That is the behaviour we want, but it's true by default rather than
+by intent — an SDK upgrade or a re-run of the Sentry Next.js wizard (which now
+scaffolds `sendDefaultPii: true`) would silently flip it. Set it explicitly in
+all four so the Privacy Policy's "not configured to attach your account details"
+stays true by construction. The policy text is worded to survive either way: it
+says error reports may still *incidentally* contain an IP address.
 
 ### 2.5 Data breach notification plan
 
@@ -158,10 +187,10 @@ mainly needs a stated policy plus a user-facing report path.
 
 ## 10. Status tracker
 
-- [ ] Privacy Policy page written and published
+- [x] Privacy Policy page written and published (`/privacy`; entity identity still to fill — §2.1)
 - [ ] Data subject request runbook documented (manual process is sufficient for now)
 - [ ] DPAs confirmed for Stripe / Resend / Sentry / Hetzner
-- [ ] Sentry PII scrubbing configured (`send_default_pii=False` + rules)
+- [ ] Sentry PII scrubbing configured (`send_default_pii=False` + rules) — currently correct by SDK default only, §2.4
 - [ ] Data breach notification plan documented
 - [ ] Checkout flow's 14-day withdrawal waiver confirmed present
 - [ ] Stripe Tax / VAT handling confirmed

@@ -1,0 +1,18 @@
+// SteamPipe depot build script -- Windows x64. Template; see app_build.vdf.
+"DepotBuild"
+{
+	"DepotID"     "${STEAM_DEPOT_WIN}"
+
+	// electron-builder --win dir output, mounted into the container.
+	"ContentRoot" "${STEAM_CONTENT_WIN}"
+
+	"FileMapping"
+	{
+		"LocalPath"  "*"
+		"DepotPath"  "."
+		"Recursive"  "1"
+	}
+
+	// Debug symbols electron-builder may drop next to the binary.
+	"FileExclusion" "*.pdb"
+}

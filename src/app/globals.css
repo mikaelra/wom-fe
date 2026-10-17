@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+/* The UI scale (lib/uiScale.ts, which keeps these numbers in step): the
+   root font size grows with the viewport's short side past 600px, up to
+   2.5x, so every rem -- Tailwind's text and spacing -- grows with it. Phones
+   stay at 16px. Breakpoints are media queries, which ignore this, so the
+   layout itself does not change. */
+html {
+  font-size: clamp(16px, calc(min(100vw, 100vh) * 16 / 600), 40px);
+}
+
+/* Tiny viewports (both sides under 640px, e.g. an Apple Watch-sized
+   window): compact arrangements, written `compact:…` (lib/uiScale.ts
+   COMPACT_MAX_SIDE). */
+@custom-variant compact (@media (max-width: 639.98px) and (max-height: 639.98px));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -39,6 +53,12 @@ body {
                 0 0 0 3px rgba(239, 68, 68, 0.9),
                 0 0 12px 5px rgba(239, 68, 68, 0.45),
                 0 0 28px 10px rgba(239, 68, 68, 0.15); }
+}
+
+/* LD relic buttons: the 10s change cooldown filling left to right. */
+@keyframes relic-cooldown-fill {
+  from { width: 0%; }
+  to   { width: 100%; }
 }
 
 .warn-blink-gold { animation: blink-gold 0.8s ease-in-out infinite; }
@@ -97,3 +117,14 @@ body {
   100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
 }
 .resource-block-aura { animation: resource-block-aura 0.73s ease-out; } /* scaled to 0.8x for a modest speedup */
+
+/* Top-bar user avatar while its equipped skin is still loading (bug list
+   260916): a plain green circle blinking subtly into a darker green,
+   rather than a specific skin's thumbnail (previously always the green
+   frog default, which just read as "your skin is a frog" before the real
+   one swapped in). */
+@keyframes avatar-loading-blink {
+  0%, 100% { background-color: #4ade80; }
+  50%       { background-color: #14532d; }
+}
+.avatar-loading-blink { animation: avatar-loading-blink 1.4s ease-in-out infinite; }

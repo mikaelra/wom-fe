@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { getSocket, subscribe } from '@/lib/socket';
-import { getStoredToken } from '@/lib/http';
+import { getStoredAccountToken, getStoredToken, setStoredToken } from '@/lib/http';
 import type { LobbyState, ChatMessage } from '@/types/game';
+import { noteDisconnect } from '@/lib/textModeOffer';
+
+/** Away this long (in the background), the socket reconnects on return. */
+export const AWAY_RECONNECT_MS = 3000;
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -25,6 +29,10 @@ export type UseLobbyConnectionOptions = {
  * Rematch feature's live vote count -- today's gameover screen has nothing
  * live left to poll for, so that half was dropped, not carried forward.)
  */
+function joinRoomPayload(lobbyId: string) {
+  return { lobby_id: lobbyId, token: getStoredToken(lobbyId), account_token: getStoredAccountToken() ?? undefined };
+}
+
 export function useLobbyConnection(
   lobbyId: string,
   playerName: string,
@@ -65,10 +73,14 @@ export function useLobbyConnection(
     // reconnect, which the backend correctly reads as "someone else's
     // email" and rejects with "This name is claimed" even for the account's
     // own owner.
+    // The account session rides along on join_room too: a player already
+    // in this lobby from another device (or from before an app restart)
+    // holds no join token here, and the backend resumes them from it,
+    // answering with a fresh token via joined_lobby.
     const rejoin = () => {
       const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
-      sock.emit('join_lobby', { lobby_id: lobbyId, name: playerName, email });
-      sock.emit('join_room', { lobby_id: lobbyId, token: getStoredToken(lobbyId) });
+      sock.emit('join_lobby', { lobby_id: lobbyId, name: playerName, email, account_token: getStoredAccountToken() ?? undefined });
+      sock.emit('join_room', joinRoomPayload(lobbyId));
     };
 
     // Deliberately does NOT set connectionStatus to 'connected' here --
@@ -82,12 +94,34 @@ export function useLobbyConnection(
     const handleConnect = () => {
       rejoin();
     };
-    const handleDisconnect = () => {
+    const handleDisconnect = (reason?: string) => {
       setConnectionStatus('disconnected');
+      // A connection that keeps dropping may be a device struggling with
+      // the 3D match: lib/textModeOffer.ts offers text mode. Not our own
+      // reconnect below, which is no drop.
+      if (reason !== 'io client disconnect') noteDisconnect();
+    };
+
+    // Back from the background (the app left and opened again, the phone
+    // locked): the socket can still look connected while iOS has long cut
+    // it, and socket.io only notices at its ping timeout, half a minute on.
+    // Reconnect at once instead; handleConnect rejoins.
+    let hiddenAt: number | null = null;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+      }
+      const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
+      hiddenAt = null;
+      if (away < AWAY_RECONNECT_MS) return;
+      sock.disconnect();
+      sock.connect();
     };
 
     sock.on('connect', handleConnect);
     sock.on('disconnect', handleDisconnect);
+    document.addEventListener('visibilitychange', handleVisibility);
     rejoin();
 
     const unsubState = subscribe('state_update', (data) => {
@@ -103,6 +137,10 @@ export function useLobbyConnection(
       optionsRef.current.onChatMessage?.(msg);
     });
 
+    const unsubJoined = subscribe('joined_lobby', (data) => {
+      if (data.lobby_id === lobbyId) setStoredToken(lobbyId, data.token);
+    });
+
     const unsubError = subscribe('error', (data) => {
       optionsRef.current.onError?.(data.message);
     });
@@ -110,9 +148,11 @@ export function useLobbyConnection(
     return () => {
       sock.off('connect', handleConnect);
       sock.off('disconnect', handleDisconnect);
+      document.removeEventListener('visibilitychange', handleVisibility);
       sock.emit('leave_room', { lobby_id: lobbyId });
       unsubState();
       unsubChat();
+      unsubJoined();
       unsubError();
     };
   }, [lobbyId, playerName]);
@@ -124,7 +164,7 @@ export function useLobbyConnection(
     if (!lobbyId || !playerName) return;
     if (gameStarted) return;
     const interval = setInterval(() => {
-      getSocket().emit('join_room', { lobby_id: lobbyId, token: getStoredToken(lobbyId) });
+      getSocket().emit('join_room', joinRoomPayload(lobbyId));
     }, 3000);
     return () => clearInterval(interval);
   }, [lobbyId, playerName, gameStarted]);

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { confirmEmailVerification } from '@/lib/api';
 import { useToast } from '@/components/Toast';
+import { CITY_PATH } from '@/lib/cities';
 
 type Status = 'loading' | 'error';
 
@@ -32,10 +33,21 @@ function VerifyEmailContent() {
         // None of these purposes has any other status the user is
         // watching on this standalone page -- send them on with the
         // confirmation as a toast instead of stranding them here behind a
-        // click. A claimed Wheel goes to /inventory (where it can be
-        // spun); everything else goes home.
+        // click. Anything that lands an item in the inventory goes there
+        // (where it can be spun or equipped); everything else goes home.
+        //
+        // An unrecognised purpose is NOT an error: by the time this runs the
+        // backend has already verified the email and granted whatever it was
+        // granting. Falling through to the generic confirmation is right --
+        // see ConfirmEmailVerificationResponseSchema for what happened the
+        // one time this was strict.
         if (data.purpose === 'claim_wheel') {
           showSuccess('Wheel verified! Spin it in your inventory.');
+          router.replace('/inventory');
+          return;
+        }
+        if (data.purpose === 'claim_artifact') {
+          showSuccess('Artifact claimed! Equip it in your inventory.');
           router.replace('/inventory');
           return;
         }
@@ -63,13 +75,23 @@ function VerifyEmailContent() {
           {status === 'error' && (
             <>
               <p className="text-red-400 font-semibold mb-3">{message}</p>
-              <Link
-                href="/"
-                className="inline-block bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors"
-                aria-label="Back to Home"
-              >
-                🏠
-              </Link>
+              {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+              <span className="emoji-pair inline-flex items-center gap-2">
+                <Link
+                  href="/"
+                  className="inline-block bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors"
+                  aria-label="Back to Home"
+                >
+                  🌍
+                </Link>
+                <Link
+                  href={CITY_PATH}
+                  className="inline-block bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold no-underline hover:bg-white/20 transition-colors"
+                  aria-label="Go to the city"
+                >
+                  🏛️
+                </Link>
+              </span>
             </>
           )}
         </div>

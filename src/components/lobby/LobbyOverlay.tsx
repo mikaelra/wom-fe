@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import SceneOverlay, {
   type SceneOverlayConfig,
@@ -10,11 +11,22 @@ import SceneOverlay, {
 } from '@/components/SceneOverlay';
 import BossSignupNudge from '@/components/BossSignupNudge';
 import WheelClaimNudge from '@/components/WheelClaimNudge';
+import ArtifactClaimNudge from '@/components/ArtifactClaimNudge';
 import StartGameButton from '@/components/StartGameButton';
 import RulesModal from '@/components/lobby/RulesModal';
 import RankBadge from '@/components/hud/RankBadge';
+import RopedButton from '@/components/hud/RopedButton';
+import RopedFrame from '@/components/hud/RopedFrame';
+import MusicToggleButton from '@/components/audio/MusicToggleButton';
+import SfxToggleButton from '@/components/audio/SfxToggleButton';
 import { useLobbyGame } from '@/lib/useLobbyGame';
+import { BOT_TYPES } from '@/lib/botTypes';
+import { playMusic, PRE_LOBBY_MUSIC, BATTLE_MUSIC } from '@/lib/music';
 import type { LobbyState } from '@/types/game';
+import { CITY_PATH, RANKED_CITY_PATH } from '@/lib/cities';
+import WheelIcon from '@/components/WheelIcon';
+import RankOutcome from '@/components/hud/RankOutcome';
+import { rem } from '@/lib/uiScale';
 
 type LobbyOverlayProps = {
   lobbyId: string;
@@ -35,6 +47,9 @@ type LobbyOverlayProps = {
    *  by LobbyScene (see its own onInstakillActiveChange), passed straight
    *  through to SceneOverlay. */
   instakillActive?: boolean;
+  /** Fired when the socket says this lobby no longer exists -- the page
+   *  walks the player back out to the world map. See SceneOverlay. */
+  onLobbyGone?: () => void;
 };
 
 export function InviteSection({ lobbyId }: { lobbyId: string }) {
@@ -42,8 +57,8 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
   const [copied, setCopied] = useState(false);
 
   const lobbyUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/lobby/${lobbyId}`
-    : `/lobby/${lobbyId}`;
+    ? `${window.location.origin}/lobby?id=${lobbyId}`
+    : `/lobby?id=${lobbyId}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(lobbyUrl).then(() => {
@@ -93,7 +108,18 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
         </div>
       </div>
 
-      {showQR && (
+      {showQR && typeof document !== 'undefined' && createPortal(
+        // Portalled straight to <body>: InviteSection is nested inside the
+        // lobby's bottom action stack, which carries `-translate-x-1/2` to
+        // center itself horizontally -- and a `transform` on any ancestor
+        // makes IT (not the viewport) the containing block for this modal's
+        // `fixed inset-0`. Left in place, that shrinks "inset-0" down to
+        // that small bottom stack's own box instead of the full screen,
+        // which is why this rendered squashed near the bottom of the
+        // screen with the card half cut off, confirmed live on mobile --
+        // portalling out from under that ancestor restores the true
+        // viewport as the containing block.
+        //
         // overflow-y-auto on THIS outer layer (not just the card below) is
         // what actually guarantees reachability on a short viewport: a
         // max-height + internal scroll on the card alone still left the top
@@ -118,11 +144,12 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
                 ✕
               </button>
               <h3 className="text-xl font-bold mb-5 text-gray-800">Scan to Join</h3>
-              <QRCodeSVG value={lobbyUrl} size={200} />
-              <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[200px]">{lobbyUrl}</p>
+              <QRCodeSVG value={lobbyUrl} size={200} style={{ width: rem(200), height: rem(200) }} />
+              <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[12.5rem]">{lobbyUrl}</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
@@ -161,55 +188,56 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
       </p>
       {myPlayer?.wheel_awarded && (
         <p className="text-amber-300 font-semibold mb-2">
-          🎡 You won a Wheel!{' '}
+          <WheelIcon /> You won a Wheel!{' '}
           <Link href="/inventory" className="underline hover:text-amber-200">
             Spin it in your inventory
+          </Link>
+        </p>
+      )}
+      {myPlayer?.artifact_awarded && (
+        <p className="text-amber-300 font-semibold mb-2">
+          📜 You discovered an artifact!{' '}
+          {/* Points at the inventory rather than naming the action: equipping
+              and unequipping both live there, so the link should promise the
+              place, not one of the two things you can do in it. */}
+          <Link href="/inventory" className="underline hover:text-amber-200">
+            Your Inventory
           </Link>
         </p>
       )}
       {/* No raw rating number shown -- only the derived tier, once there is
           one (rankedResult.tier_after is null while still hidden during
           placements, docs/RANK_SYSTEM_PLAN.md §4/§5). */}
-      {rankedResult?.tier_after && (
-        <p className="mb-2 flex items-center justify-center gap-2 flex-wrap">
-          <RankBadge tier={rankedResult.tier_after} />
-          {/* tier_before is only ever null here on the game-10 debut reveal
-              (docs/RANK_SYSTEM_PLAN.md §5) -- promoted stays null too since
-              the backend has nothing to compare against, so this and the
-              up/down text below are mutually exclusive. */}
-          {rankedResult.tier_before === null && (
-            <span className="text-cyan-400 font-semibold">Placement complete!</span>
-          )}
-          {rankedResult.promoted === true && <span className="text-green-400 font-semibold">Ranked up!</span>}
-          {rankedResult.promoted === false && <span className="text-red-400 font-semibold">Ranked down.</span>}
-        </p>
+      {/* Getting Principality: the loading mark's figure, big, with the new
+          leaderboard number, in place of the small badge. */}
+      {rankedResult?.tier_after === 'Principality' && rankedResult.promoted === true ? (
+        <div className="mb-3 flex flex-col items-center gap-1">
+          <RankBadge tier="Principality" playerName={playerName} size="lg" />
+          <span className="text-green-400 font-semibold">Ranked up!</span>
+        </div>
+      ) : (
+        <RankOutcome result={rankedResult} playerName={playerName} />
       )}
       <div className="flex flex-col gap-2 items-center">
         <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
-          🏠
+          🌍
+        </Link>
+        {/* After a ranked game, to the ranked signpost to queue again. */}
+        <Link
+          href={state.ranked || state.ai_ranked ? RANKED_CITY_PATH : CITY_PATH}
+          className="text-blue-400 no-underline text-2xl"
+          aria-label="Go to the city"
+        >
+          🏛️
         </Link>
       </div>
     </div>
   );
 }
 
-// Kept in sync by hand with wom-be's config.BOT_TYPES/BOT_DISPLAY_NAMES --
-// this is the menu of choices offered *before* a bot exists, so unlike an
-// existing player's bot_type (now on the wire, see PlayerAvatars.tsx's
-// BOT_MODEL_URLS), there's no live state to derive it from at runtime.
-//
-// The empty-string entry isn't a real bot_type -- sockets/lobby.py's
-// handle_add_dummy falls back to its own random pick for anything that
-// doesn't name one of BOT_TYPES, which this deliberately relies on rather
-// than duplicating the random choice here.
-const RANDOM_BOT_TYPE = '';
-const BOT_TYPES: { type: string; label: string }[] = [
-  { type: 'TURTLE', label: 'Turtle' },
-  { type: 'SHEEP', label: 'Sheep' },
-  { type: 'WOLF', label: 'Wolf' },
-  { type: 'OWL', label: 'Owl' },
-  { type: RANDOM_BOT_TYPE, label: 'Random' },
-];
+// The bot types offered: lib/botTypes.ts (no three.js there, for the text
+// match too).
+
 
 // "Add Bot" expands into one button per bot type, stacked vertically above
 // where it was -- picking one adds that bot and immediately collapses back
@@ -251,13 +279,15 @@ function AddBotButton({ btn, onAddDummy }: { btn: string; onAddDummy: (botType: 
           items-center), which visibly shifted Start Game sideways every
           time this opened. `invisible` keeps the exact same box reserved
           (and stops clicks on it, unlike opacity-0) without that shift. */}
-      <button
-        type="button"
+      <RopedButton
         onClick={() => setPicking(true)}
-        className={`${btn} bg-gray-600 text-white ${picking ? 'invisible' : ''}`}
+        width={180}
+        height={54}
+        fillColor="#4b5563"
+        className={picking ? 'invisible' : ''}
       >
         Add Bot
-      </button>
+      </RopedButton>
       {picking && (
         <div
           ref={containerRef}
@@ -284,8 +314,8 @@ export function renderPreGame({
   lobbyId,
   isAdmin,
   boss,
-  raidMins,
-  raidSecs,
+  bossfightMins,
+  bossfightSecs,
   rankedSecondsLeft,
   btn,
   onStartGame,
@@ -301,35 +331,52 @@ export function renderPreGame({
   // status pill plus the admin/invite controls pinned to the bottom.
   return (
     <>
-      <div className="absolute top-4 left-4 z-20 pointer-events-auto">
+      {/* Home, and beside it the city. flex+gap so the two icons sit as a
+          pair rather than butting straight up against each other. */}
+      <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-4 z-20 pointer-events-auto flex items-center gap-2">
         <Link href="/" className="text-white/90 no-underline text-2xl drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" aria-label="Back to Home">
-          🏠
+          🌍
+        </Link>
+        <Link href={CITY_PATH} className="text-white/90 no-underline text-2xl drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" aria-label="Go to the city">
+          🏛️
         </Link>
       </div>
 
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-2">
-        <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
-          {state.boss_fight && boss ? (
-            <>
-              <p className="font-bold">{boss.name}</p>
-              <p className="text-white/60 text-xs">{boss.title}</p>
-              <p className="text-sm">HP: {boss.hp}</p>
-              {raidMins != null && raidSecs != null && (
-                <p className="text-white/60 text-xs">Boss-fight starts in {raidMins}m {raidSecs}s</p>
-              )}
-            </>
-          ) : state.ranked ? (
-            <>
-              <p className="font-bold text-amber-300">Ranked Match</p>
-              <p className="text-white/70 text-sm">{state.players.length}/6 players joined</p>
-              {rankedSecondsLeft != null && (
-                <p className="text-white/70 text-xs">Match starts in {rankedSecondsLeft}s</p>
-              )}
-            </>
-          ) : (
-            <p className="font-bold tracking-tight">Lobby ID: {lobbyId}</p>
-          )}
-        </div>
+      <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-2">
+        {state.boss_fight && boss ? (
+          <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
+            <p className="font-bold">{boss.name}</p>
+            <p className="text-white/60 text-xs">{boss.title}</p>
+            <p className="text-sm">HP: {boss.hp}</p>
+            {bossfightMins != null && bossfightSecs != null && (
+              <p className="text-white/60 text-xs">Bossfight starts in {bossfightMins}m {bossfightSecs}s</p>
+            )}
+          </div>
+        ) : state.ranked ? (
+          <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
+            <p className="font-bold text-amber-300">Ranked Match</p>
+            <p className="text-white/70 text-sm">{state.players.length}/6 players joined</p>
+            {rankedSecondsLeft != null && (
+              <p className="text-white/70 text-xs">Match starts in {rankedSecondsLeft}s</p>
+            )}
+          </div>
+        ) : state.ai_ranked ? (
+          <div className="bg-black/60 backdrop-blur-sm rounded-xl border border-white/15 px-5 py-2 text-white text-center">
+            <p className="font-bold text-amber-300">Bot-Ranked Match</p>
+            <p className="text-white/70 text-sm">
+              {rankedSecondsLeft != null
+                ? 'Waiting for players… bots fill in the last few seconds'
+                : 'Match in progress'}
+            </p>
+            {rankedSecondsLeft != null && (
+              <p className="text-white/70 text-xs">Match starts in {rankedSecondsLeft}s</p>
+            )}
+          </div>
+        ) : (
+          <RopedFrame width={220} height={54} textClassName="font-bold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+            Lobby ID: {lobbyId}
+          </RopedFrame>
+        )}
         {/* Pauses CameraFlyIn's ambient pre-round orbit -- it's hard to land a
             kick/relic click in the 3D scene while the table is drifting. Its own
             box, separate from the status pill above. */}
@@ -342,7 +389,18 @@ export function renderPreGame({
         </button>
       </div>
 
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-4">
+      {/* bottom offset via style, not bottom-6: on notched/home-indicator
+          phones (viewport-fit=cover is set in layout.tsx, so env() is live)
+          a flat 1.5rem sits inside the unsafe zone -- the OS's own gesture
+          bar/home indicator visually overlaps the bottom of this stack
+          (the Invite/QR row, being last), reading as "half cut off" even
+          though the element is technically fully laid out on-screen.
+          calc() falls back to plain 1.5rem wherever safe-area-inset-bottom
+          is 0 (no notch, desktop, most Android), so this is a no-op there. */}
+      <div
+        className="absolute left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center gap-4"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
+      >
         {isAdmin && (
           // w-max, not the default auto: this div's ancestor is centered via
           // `left-1/2 -translate-x-1/2`, and for an absolutely-positioned
@@ -355,7 +413,7 @@ export function renderPreGame({
           // this row to its own content instead of that phantom half-width
           // cap, so flex-wrap never needs to trigger.
           <div className="flex w-max gap-3">
-            <StartGameButton state={state} btn={btn} onStartGame={onStartGame} />
+            <StartGameButton state={state} onStartGame={onStartGame} />
             <AddBotButton btn={btn} onAddDummy={onAddDummy} />
           </div>
         )}
@@ -376,9 +434,6 @@ const lobbyConfig: SceneOverlayConfig = {
   theme: {
     accentColorClass: 'text-gray-300',
     panelBorderClass: 'border-white/20',
-    msgBorderClass: 'border-white/20',
-    msgTextClass: 'text-gray-200',
-    showMoreClass: 'text-gray-400 hover:text-white',
     backLinkClass: 'text-white',
     enemyBorderClass: 'border-red-500/30',
     enemyNameClass: 'text-red-400',
@@ -387,23 +442,24 @@ const lobbyConfig: SceneOverlayConfig = {
     loadingTextClass: 'text-gray-700',
     loadingBgClass: 'bg-gray-100',
   },
-  backLabel: '🏠',
+  backLabel: '🌍',
   loadingText: 'Loading lobby…',
   enemyMaxHp: 8,
   suppressEnemyPanel: true,
   showEnemyAlways: false,
   showPlayerList: true,
   showChat: true,
-  enableRaidTimer: true,
+  enableBossfightTimer: true,
   hidePlayerActionButtons: true,
   stageCombatDamage: true,
   renderGameOver,
 };
 
-export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, onResourceChange, spinEnabled, onToggleSpin, cameraMoved, onResetCamera, instakillActive }: LobbyOverlayProps) {
+export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, onActionChange, onResourceChange, spinEnabled, onToggleSpin, cameraMoved, onResetCamera, instakillActive, onLobbyGone }: LobbyOverlayProps) {
   const [localState, setLocalState] = useState<LobbyState | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [wheelNudgeDismissed, setWheelNudgeDismissed] = useState(false);
+  const [artifactNudgeDismissed, setArtifactNudgeDismissed] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [playerName, setPlayerName] = useState('');
   // Mirrors SceneOverlay's own gate for when the Game Over text actually
@@ -425,7 +481,16 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
     onStateChange?.(s);
   };
 
-  const { myPlayer } = useLobbyGame(localState, playerName);
+  const { myPlayer, phase } = useLobbyGame(localState, playerName);
+
+  // Quiet Ascent plays while everyone's still waiting in the lobby;
+  // Chamber takes over the moment the battle actually starts, and keeps
+  // playing through the Game Over screen rather than cutting back.
+  const battleStarted = phase === 'playing' || phase === 'gameover';
+  useEffect(() => {
+    playMusic(battleStarted ? BATTLE_MUSIC : PRE_LOBBY_MUSIC);
+  }, [battleStarted]);
+
   const showNudge =
     !nudgeDismissed &&
     gameOverRevealed &&
@@ -437,9 +502,22 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
     !wheelNudgeDismissed &&
     gameOverRevealed &&
     (myPlayer?.pending_wheel_nudge ?? false);
+  // Same gating as the Wheel nudge: any match end, PvP or boss fight.
+  const showArtifactNudge =
+    !artifactNudgeDismissed &&
+    gameOverRevealed &&
+    (myPlayer?.pending_artifact_nudge ?? false);
 
   return (
     <>
+      {/* Music/SFX toggles -- pinned just below the house button, which sits
+          at top-4 left-4 in both the pre-game overlay (renderPreGame below)
+          and SceneOverlay's own in-round back button, so this one row here
+          covers both without duplicating it in each render path. */}
+      <div className="absolute top-[calc(env(safe-area-inset-top)+4rem)] left-4 z-20 pointer-events-auto flex items-center gap-2">
+        <MusicToggleButton />
+        <SfxToggleButton />
+      </div>
       <SceneOverlay
         lobbyId={lobbyId}
         onStateChange={handleStateChange}
@@ -455,6 +533,7 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
         cameraMoved={cameraMoved}
         onResetCamera={onResetCamera}
         instakillActive={instakillActive}
+        onLobbyGone={onLobbyGone}
       />
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
       {showNudge && (
@@ -469,6 +548,13 @@ export default function LobbyOverlay({ lobbyId, onStateChange, externalAction, o
           lobbyId={lobbyId}
           playerName={playerName}
           onDismiss={() => setWheelNudgeDismissed(true)}
+        />
+      )}
+      {showArtifactNudge && (
+        <ArtifactClaimNudge
+          lobbyId={lobbyId}
+          playerName={playerName}
+          onDismiss={() => setArtifactNudgeDismissed(true)}
         />
       )}
     </>

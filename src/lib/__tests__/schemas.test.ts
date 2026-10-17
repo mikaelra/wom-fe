@@ -22,6 +22,8 @@ import {
   JoinedPayloadSchema,
   LeftPayloadSchema,
   ErrorPayloadSchema,
+  TradeUpRulesResponseSchema,
+  TradeUpResponseSchema,
 } from '@/lib/schemas';
 
 // Fixtures mirror the exact shapes documented in wom-be's docs/PROTOCOL.md
@@ -117,6 +119,7 @@ describe('Player/LobbyState/ChatMessage/Relic schemas', () => {
       id: 3,
       boss_id: 7,
       created_at: '2026-01-01T00:00:00+00:00',
+      newest_copy_created_at: '2026-01-01T00:00:00+00:00',
       name: 'Shiny Relic',
       power_category: 'fire',
       flavour_text: 'A shiny relic.',
@@ -126,7 +129,25 @@ describe('Player/LobbyState/ChatMessage/Relic schemas', () => {
   });
 
   it('parses a relic missing the optional flavour_text', () => {
-    const relic = { id: 3, boss_id: 7, created_at: '2026-01-01T00:00:00+00:00', name: 'Shiny Relic', power_category: 'fire', count: 1 };
+    const relic = {
+      id: 3, boss_id: 7, created_at: '2026-01-01T00:00:00+00:00',
+      newest_copy_created_at: '2026-01-01T00:00:00+00:00',
+      name: 'Shiny Relic', power_category: 'fire', count: 1,
+    };
+    expect(RelicSchema.safeParse(relic).success).toBe(true);
+  });
+
+  it('parses a relic with no boss (docs/MERCHANT_PLAN.md\'s Stone of Vitality, boss_id: null)', () => {
+    // Regression: this used to be `z.number().int()` (required), which
+    // failed the *entire* relics array for any player owning a relic with
+    // no boss, silently emptying the Relics box (getPlayerRelics's
+    // catch-all swallowed the resulting SchemaMismatchError) even for
+    // relics that do have a boss, like Hades' Coin. Traced live 2026-09-25.
+    const relic = {
+      id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00',
+      newest_copy_created_at: '2026-09-25T19:57:42+00:00',
+      name: 'Stone of Vitality', power_category: 'HEALTH', count: 1,
+    };
     expect(RelicSchema.safeParse(relic).success).toBe(true);
   });
 });
@@ -191,7 +212,10 @@ describe('HTTP response schemas', () => {
 
   it('parses get_player_relics', () => {
     const body = {
-      relics: [{ id: 1, boss_id: 7, created_at: '2026-01-01T00:00:00+00:00', name: 'Relic', power_category: 'fire', count: 1 }],
+      relics: [{
+        id: 1, boss_id: 7, created_at: '2026-01-01T00:00:00+00:00',
+        newest_copy_created_at: '2026-01-01T00:00:00+00:00', name: 'Relic', power_category: 'fire', count: 1,
+      }],
     };
     expect(GetPlayerRelicsResponseSchema.safeParse(body).success).toBe(true);
   });
@@ -264,6 +288,42 @@ describe('HTTP response schemas', () => {
     expect(CheckClaimVerifiedResponseSchema.safeParse({ verified: true, session_token: 'tok' }).success).toBe(true);
     expect(CheckClaimVerifiedResponseSchema.safeParse({ verified: false }).success).toBe(true);
   });
+
+  it('parses tradeup/rules', () => {
+    const body = {
+      rules: {
+        frog_blue_v1: { cost: 5, output_kind: 'wheel', output: 'special' },
+        frog_silver_v1: { cost: 5, output_kind: 'skin', output: 'frog_gold_v1' },
+      },
+    };
+    expect(TradeUpRulesResponseSchema.safeParse(body).success).toBe(true);
+  });
+
+  it('rejects a tradeup rule with an invalid output_kind', () => {
+    const body = { rules: { frog_blue_v1: { cost: 5, output_kind: 'bogus', output: 'special' } } };
+    expect(TradeUpRulesResponseSchema.safeParse(body).success).toBe(false);
+  });
+
+  it('parses a trade_up response minting a wheel', () => {
+    const body = {
+      success: true, trade_up_id: 900, output_kind: 'wheel', output: 'special',
+      wheel_id: 501, remaining: 0,
+    };
+    expect(TradeUpResponseSchema.safeParse(body).success).toBe(true);
+  });
+
+  it('parses a trade_up response minting a skin, with no wheel_id', () => {
+    const body = { success: true, trade_up_id: 901, output_kind: 'skin', output: 'frog_gold_v1', remaining: 3 };
+    expect(TradeUpResponseSchema.safeParse(body).success).toBe(true);
+  });
+
+  it('parses a trade_up response that also resets equipped_skin', () => {
+    const body = {
+      success: true, trade_up_id: 900, output_kind: 'wheel', output: 'special',
+      wheel_id: 501, remaining: 0, equipped_skin: 'frog_green_v1',
+    };
+    expect(TradeUpResponseSchema.safeParse(body).success).toBe(true);
+  });
 });
 
 describe('Socket.IO payload schemas', () => {
@@ -277,5 +337,41 @@ describe('Socket.IO payload schemas', () => {
   it('rejects a malformed payload with a helpful, non-throwing failure', () => {
     const result = ErrorPayloadSchema.safeParse({ msg: 'wrong key name' });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('Paper -> Artifact shapes (wom-be MARKET_PLAN.md §1B)', () => {
+  it('reads a reproduced copy in the inventory: no ordinal, an origin, who it went to', async () => {
+    const { InventoryResponseSchema } = await import('@/lib/schemas');
+    const parsed = InventoryResponseSchema.parse({
+      equipped_skin: 'frog_green_v1',
+      skins: [],
+      wheels: [],
+      artifact: {
+        ordinal: null,
+        discovered_at: '2026-09-27T12:00:00Z',
+        cosmetic: 'artifact_v1',
+        origin: 'Alice#1',
+        reproduced_to: [{ name: 'Cleo', origin: 'Bob#1', at: '2026-09-27T13:00:00Z' }],
+      },
+    });
+    expect(parsed.artifact?.ordinal).toBeNull();
+    expect(parsed.artifact?.origin).toBe('Alice#1');
+    expect(parsed.artifact?.reproduced_to?.[0].name).toBe('Cleo');
+  });
+
+  it('reads an Artifact on a trade and a reproduction on accept', async () => {
+    const { MarketMutationResponseSchema } = await import('@/lib/schemas');
+    const item = { item_type: 'artifact', skin: null, relic_id: null, wheel_kind: null, quantity: 1 };
+    const parsed = MarketMutationResponseSchema.parse({
+      success: true,
+      listing: {
+        id: 1, kind: 'quick', status: 'fulfilled', seller_player_id: 2, seller_name: 'Bob',
+        created_at: 'x', expires_at: 'y', give: [item], want: [],
+      },
+      reproduced: { to: 'Alice', origin: 'Bob#1' },
+    });
+    expect(parsed.listing.give[0].item_type).toBe('artifact');
+    expect(parsed.reproduced?.to).toBe('Alice');
   });
 });

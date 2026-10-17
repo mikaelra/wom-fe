@@ -5,6 +5,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getPlayerProfile, getRankedProfile, getWellProfile } from '@/lib/api';
 import RankBadge from '@/components/hud/RankBadge';
+import SeasonTimer from '@/components/hud/SeasonTimer';
+import SeasonHistoryOverlay from '@/components/hud/SeasonHistoryOverlay';
+import RankedGamesOverlay from '@/components/hud/RankedGamesOverlay';
+import { CITY_PATH } from '@/lib/cities';
+import LoadingState from '@/components/loading/LoadingState';
 
 // Labels/emoji for every key in wom-be's config.WELL_REWARDS, matching the
 // emoji already used in that reward's in-game message (engine/rewards.py)
@@ -23,6 +28,9 @@ const WELL_REWARD_LABELS: Record<string, { label: string; emoji: string }> = {
   reveal_info: { label: 'Reveal Info', emoji: '🔍' },
 };
 
+const linkButton =
+  'bg-transparent border-none p-0 text-sm text-blue-400 underline hover:text-blue-300 cursor-pointer';
+
 export default function StatsPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -30,6 +38,7 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [tier, setTier] = useState<string | null>(null);
+  const [principalityRank, setPrincipalityRank] = useState<number | null>(null);
   const [rankedGamesPlayed, setRankedGamesPlayed] = useState(0);
   const [wellWins, setWellWins] = useState(0);
   const [wellRewards, setWellRewards] = useState<
@@ -39,6 +48,9 @@ export default function StatsPage() {
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [wins, setWins] = useState(0);
   const [kills, setKills] = useState(0);
+  const [bossesDefeated, setBossesDefeated] = useState(0);
+  const [showSeasons, setShowSeasons] = useState(false);
+  const [showGames, setShowGames] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -55,6 +67,7 @@ export default function StatsPage() {
     Promise.all([
       getRankedProfile(name).then((data) => {
         setTier(data.tier);
+        setPrincipalityRank(data.principality_rank ?? null);
         setRankedGamesPlayed(data.ranked_games_played);
       }),
       getWellProfile(name).then((data) => {
@@ -66,6 +79,7 @@ export default function StatsPage() {
         setGamesPlayed(data.played_games);
         setWins(data.wins);
         setKills(data.kills);
+        setBossesDefeated(data.bosses_defeated ?? 0);
       }),
     ])
       .catch((err: unknown) => {
@@ -79,8 +93,13 @@ export default function StatsPage() {
   // Games 1-10 are placements: rank stays hidden until the debut at game
   // 10 (docs/RANK_SYSTEM_PLAN.md §5) -- same display rule the badge and
   // post-game summary already follow, so this reads identically whether
-  // the player has never queued or is still mid-placement.
-  const gamesRemaining = 10 - rankedGamesPlayed;
+  // the player has never queued or is still mid-placement. Floored at 1:
+  // this branch only renders when `tier` is null, but ranked_games_played
+  // is a separate field that can already be >= 10 for a few more matches
+  // after that (bug list 260916 -- shown_tier_this_season lags a match
+  // behind on a season rollover until the next result writes it) --
+  // without the floor that read as a negative "Play -9 more matches."
+  const gamesRemaining = Math.max(1, 10 - rankedGamesPlayed);
   const placementMessage =
     rankedGamesPlayed === 0
       ? 'Play 10 matches to get your rank.'
@@ -101,19 +120,37 @@ export default function StatsPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white p-6 flex flex-col items-center">
       <div className="w-full max-w-xl">
         <div className="flex items-center justify-between mb-6">
-          <button
-            type="button"
-            onClick={() => router.push('/')}
-            className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
-            aria-label="Back to Home"
-          >
-            🏠
-          </button>
+          {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+          <span className="emoji-pair inline-flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+              aria-label="Back to Home"
+            >
+              🌍
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push(CITY_PATH)}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-2 rounded-lg text-lg font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+              aria-label="Go to the city"
+            >
+              🏛️
+            </button>
+          </span>
           <h1 className="text-2xl font-bold tracking-wide">Stats</h1>
         </div>
 
+        {showSeasons && playerName && (
+          <SeasonHistoryOverlay playerName={playerName} onClose={() => setShowSeasons(false)} />
+        )}
+        {showGames && playerName && (
+          <RankedGamesOverlay playerName={playerName} onClose={() => setShowGames(false)} />
+        )}
+
         {loading ? (
-          <p className="text-white/70">Loading…</p>
+          <LoadingState />
         ) : loadError ? (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <p className="text-red-400 mb-3">{loadError}</p>
@@ -128,15 +165,34 @@ export default function StatsPage() {
           <>
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
               <p className="text-sm text-white/50 mb-3">{playerName}</p>
-              <h2 className="text-sm font-semibold text-white/70 mb-2">Ranked</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-white/70">Ranked</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowSeasons(true)}
+                  className="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-white/20 transition-colors cursor-pointer"
+                >
+                  Seasons
+                </button>
+              </div>
               {tier ? (
-                <RankBadge tier={tier} className="text-base px-3 py-1" />
+                <>
+                  <RankBadge tier={tier} placement={principalityRank} className="text-base px-3 py-1" />
+                  <SeasonTimer className="text-sm mt-3" />
+                </>
               ) : (
                 <>
                   <RankBadge tier={null} className="text-base px-3 py-1" />
                   <p className="text-sm text-white/50 mt-3">{placementMessage}</p>
                 </>
               )}
+              {/* This season's ranked games. Every rank ever seen is under
+                  Seasons, with the ranks of each season. */}
+              <div className="flex gap-4 mt-3">
+                <button type="button" onClick={() => setShowGames(true)} className={linkButton}>
+                  Games
+                </button>
+              </div>
             </div>
 
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6 mb-6">
@@ -157,6 +213,9 @@ export default function StatsPage() {
                 {avgKillsPerGame !== null && (
                   <span className="text-white/40"> ({avgKillsPerGame}/game)</span>
                 )}
+              </p>
+              <p className="text-sm text-white/50 mt-1">
+                Bosses defeated: <span className="text-white font-semibold">{bossesDefeated}</span>
               </p>
             </div>
 
@@ -194,7 +253,7 @@ export default function StatsPage() {
                             style={{ width: `${actualWidthPercent}%` }}
                           />
                           <div
-                            className="absolute top-[7px] bottom-[7px] left-[7px] bg-red-900/25 rounded-lg"
+                            className="absolute top-[0.4375rem] bottom-[0.4375rem] left-[0.4375rem] bg-red-900/25 rounded-lg"
                             style={{ width: `${expectedWidthPercent}%` }}
                             title="True well odds"
                           />

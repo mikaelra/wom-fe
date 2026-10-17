@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { claimPendingWheel } from '@/lib/api';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
+import WheelIcon from '@/components/WheelIcon';
 
 type Props = {
   lobbyId: string;
@@ -52,7 +53,7 @@ export default function WheelClaimNudge({ lobbyId, playerName, onDismiss }: Prop
       <div className="bg-gray-900 border border-amber-500/40 text-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4">
         {claimed ? (
           <div className="text-center">
-            <p className="text-3xl mb-3">🎡</p>
+            <p className="text-3xl mb-3"><WheelIcon /></p>
             <p className="text-green-400 font-bold text-lg mb-1">Wheel claimed!</p>
             <p className="text-gray-400 text-sm mb-5">
               Your name is now linked to your email.{' '}
@@ -99,7 +100,7 @@ export default function WheelClaimNudge({ lobbyId, playerName, onDismiss }: Prop
           </div>
         ) : (
           <>
-            <p className="text-3xl text-center mb-3">🎡</p>
+            <p className="text-3xl text-center mb-3"><WheelIcon /></p>
             <h2 className="text-lg font-bold text-amber-400 mb-2 text-center">
               You won a Wheel!
             </h2>

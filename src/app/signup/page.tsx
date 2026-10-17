@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { claimName } from '@/lib/api';
+import { CITY_PATH } from '@/lib/cities';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -41,16 +42,16 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 p-6">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-gray-900">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-gray-950 to-gray-900 p-6">
+      <div className="bg-gray-900 border border-white/10 p-8 rounded-xl shadow-2xl w-full max-w-md text-white">
         <h2 className="text-2xl font-bold text-center mb-6">Create User</h2>
 
         {awaitingVerification ? (
           <>
-            <p className="text-green-700 font-semibold text-center mb-3">
+            <p className="text-green-400 font-semibold text-center mb-3">
               Almost there — check your inbox.
             </p>
-            <p className="text-gray-700 text-center mb-6">
+            <p className="text-white/70 text-center mb-6">
               Click the link we sent to <strong>{email.trim()}</strong> to verify it and
               finish claiming <strong>{name.trim()}</strong>.
             </p>
@@ -58,11 +59,11 @@ export default function SignupPage() {
               type="button"
               onClick={handleSignup}
               disabled={sending}
-              className="w-full px-4 py-2 border-2 border-black rounded font-bold bg-gray-200 text-black cursor-pointer disabled:opacity-50"
+              className="w-full px-4 py-2 rounded-lg font-bold bg-amber-700 hover:bg-amber-600 text-white transition-colors cursor-pointer disabled:opacity-50"
             >
               {sending ? 'Sending…' : 'Resend email'}
             </button>
-            {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
+            {error && <p className="text-red-400 mt-4 text-center">{error}</p>}
           </>
         ) : (
           <>
@@ -71,32 +72,51 @@ export default function SignupPage() {
               placeholder="Enter your name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full mb-4 p-2 border-2 border-black rounded text-gray-800"
+              className="w-full mb-4 p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-amber-500"
             />
             <input
               type="email"
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full mb-6 p-2 border-2 border-black rounded text-gray-800"
+              className="w-full mb-6 p-2 rounded-md bg-gray-800 border border-white/20 text-white placeholder-white/30 focus:outline-none focus:border-amber-500"
             />
-            {error && <p className="text-red-500 mb-4 text-center">{error}</p>}
+            {error && <p className="text-red-400 mb-4 text-center">{error}</p>}
             <button
               type="button"
               onClick={handleSignup}
               disabled={sending}
-              className="w-full px-4 py-2 border-2 border-black rounded font-bold bg-gray-200 text-black cursor-pointer disabled:opacity-50"
+              className="w-full px-4 py-2 rounded-lg font-bold bg-amber-700 hover:bg-amber-600 text-white transition-colors cursor-pointer disabled:opacity-50"
             >
               {sending ? 'Sending…' : 'Create User'}
             </button>
+            {/* Art. 13 wants the player told what happens to their data at
+                the moment it's handed over, not only once they reach the
+                shop -- this is the screen that actually collects the email. */}
+            <p className="text-xs text-white/40 mt-4 text-center">
+              We use your email to verify your account and log you in. See our{' '}
+              <Link href="/privacy" className="text-amber-300 underline hover:text-amber-200">
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </>
         )}
 
-        <p className="mt-4 text-center">
-          <Link href="/" className="text-xl no-underline" aria-label="Back to Home">
-            🏠
+        <div className="mt-4 flex justify-between">
+          {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+          <span className="emoji-pair inline-flex items-center gap-2">
+            <Link href="/" className="text-xl no-underline" aria-label="Back to Home">
+              🌍
+            </Link>
+            <Link href={CITY_PATH} className="text-xl no-underline" aria-label="Go to the city">
+              🏛️
+            </Link>
+          </span>
+          <Link href="/login" className="text-blue-400 hover:text-blue-300 underline">
+            Log in
           </Link>
-        </p>
+        </div>
       </div>
     </div>
   );

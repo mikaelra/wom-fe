@@ -9,12 +9,18 @@ import { useRoundTimer } from '@/lib/useRoundTimer';
 import { useBossfightCountdown } from '@/lib/useBossfightCountdown';
 import { useCountdown } from '@/lib/useCountdown';
 import { useGameEvents } from '@/lib/useGameEvents';
+import { useOrientation } from '@/lib/useOrientation';
 import { buildCombatAnimationPlan } from '@/lib/combatAnimationPlan';
 import type { LobbyState, Player } from '@/types/game';
 import ResourceCard from '@/components/ResourceCard';
 import { useStagedResources } from '@/lib/useStagedResources';
 import { useToast } from '@/components/Toast';
 import ActionImageButton from '@/components/lobby/ActionImageButton';
+import { CITY_PATH } from '@/lib/cities';
+import { isLobbyGoneError } from '@/lib/lobbyErrors';
+import ChatMessageActions, { MutedMark, type ChatTarget } from '@/components/chat/ChatMessageActions';
+import { getMutedPlayers, useMutedPlayers, hideMuted } from '@/lib/chatMute';
+import { useChatText } from '@/lib/chatFilter';
 
 export const btn = 'px-4 py-2 rounded-lg border-2 border-black font-bold cursor-pointer transition-colors';
 
@@ -25,9 +31,6 @@ const GAMEOVER_REVEAL_FALLBACK_MS = 4000;
 export type SceneOverlayTheme = {
   accentColorClass: string;   // Round label color, e.g. 'text-green-400'
   panelBorderClass: string;   // Main panel border, e.g. 'border-green-500/30'
-  msgBorderClass: string;     // Message divider border, e.g. 'border-green-500/20'
-  msgTextClass: string;       // Message item color, e.g. 'text-green-200'
-  showMoreClass: string;      // Show more/less button classes
   backLinkClass: string;      // Back link color, e.g. 'text-green-300'
   enemyBorderClass: string;   // Enemy panel border, e.g. 'border-green-500/30'
   enemyNameClass: string;     // Enemy name color, e.g. 'text-green-400'
@@ -50,8 +53,8 @@ export type PreGameRenderOpts = {
   playerName: string;
   isAdmin: boolean;
   boss: Player | undefined;
-  raidMins: number | null;
-  raidSecs: number | null;
+  bossfightMins: number | null;
+  bossfightSecs: number | null;
   rankedSecondsLeft: number | null;
   btn: string;
   onStartGame: () => void;
@@ -76,7 +79,7 @@ export type SceneOverlayConfig = {
   showEnemyAlways?: boolean;
   showPlayerList?: boolean;
   showChat?: boolean;
-  enableRaidTimer?: boolean;
+  enableBossfightTimer?: boolean;
   /** When true the WELL/DEFEND/resource/nametag buttons are suppressed from the
    *  overlay — the 3D scene renders them anchored to the player model instead. */
   hidePlayerActionButtons?: boolean;
@@ -130,9 +133,13 @@ type SceneOverlayProps = {
    *  its own onInstakillActiveChange), passed down instead of re-derived
    *  here so the card and the 3D scene's cues stay in lockstep. */
   instakillActive?: boolean;
+  /** Fired when the socket reports that this lobby no longer exists.
+   *  Routing lives with the caller (the same split as CityScene's
+   *  onBackToEarth), so this component stays free of next/navigation. */
+  onLobbyGone?: () => void;
 };
 
-export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera, onGameOverRevealed, instakillActive }: SceneOverlayProps) {
+export default function SceneOverlay({ lobbyId, onStateChange, config, renderPreGame, externalAction, onActionChange, onResourceChange, spinEnabled = true, onToggleSpin, onOpenRules, cameraMoved, onResetCamera, onGameOverRevealed, instakillActive, onLobbyGone }: SceneOverlayProps) {
   const {
     theme,
     backLabel,
@@ -141,7 +148,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     showEnemyAlways = false,
     showPlayerList = false,
     showChat = false,
-    enableRaidTimer = false,
+    enableBossfightTimer = false,
     hidePlayerActionButtons = false,
     suppressEnemyPanel = false,
     stageCombatDamage = false,
@@ -150,14 +157,12 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   } = config;
 
   const [playerName, setPlayerName] = useState('');
-  const [messages, setMessages] = useState<(string | string[])[]>([]);
   const [action, setAction] = useState('');
   const [resource, setResource] = useState('');
-  const [messagesExpanded, setMessagesExpanded] = useState(false);
-  const [messagesOverflow, setMessagesOverflow] = useState(false);
-  const [messagesHidden, setMessagesHidden] = useState(false);
   const [playerListCollapsed, setPlayerListCollapsed] = useState(false);
-  const messagesRef = useRef<HTMLUListElement>(null);
+  const muted = useMutedPlayers();
+  const chatText = useChatText();
+  const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatExpanded, setChatExpanded] = useState(false);
   const [unreadChat, setUnreadChat] = useState(false);
@@ -167,6 +172,11 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   const chatExpandedRef = useRef(chatExpanded);
   useEffect(() => { chatExpandedRef.current = chatExpanded; }, [chatExpanded]);
   const { showError } = useToast();
+  // Held in a ref for the same reason useLobbyConnection keeps its own
+  // callbacks in one: the socket subscription must not be torn down and
+  // rebuilt because a parent re-rendered with a fresh closure.
+  const onLobbyGoneRef = useRef(onLobbyGone);
+  onLobbyGoneRef.current = onLobbyGone;
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -174,15 +184,23 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     }
   }, []);
 
-  useEffect(() => {
-    setMessages([]);
-  }, [lobbyId]);
-
+  const orientation = useOrientation();
   const { state, connectionStatus } = useLobbyConnection(lobbyId, playerName, {
-    onChatMessage: () => {
+    onChatMessage: (msg) => {
+      if (getMutedPlayers().has(msg.sender)) return;
       if (!chatExpandedRef.current) setUnreadChat(true);
     },
     onError: (message) => {
+      // The lobby itself is gone -- most often the backend restarted and
+      // took its in-memory lobbies with it. There is nothing here to come
+      // back to and nothing the player did wrong, so showing them
+      // "Lobby not found" only names an internal object at someone who
+      // was playing a game a second ago. Walk them back out to the world
+      // map instead and say nothing.
+      if (isLobbyGoneError(message)) {
+        onLobbyGoneRef.current?.();
+        return;
+      }
       if (message !== 'Name taken') {
         showError(message);
       }
@@ -231,14 +249,13 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   useEffect(() => {
     setAction('');
     setResource('');
-    setMessagesExpanded(false);
   }, [state?.round]);
 
   const gameEvents = useGameEvents(lobbyId, playerName, state?.round, state?.deny_target);
 
-  // Which round's messages + Game Over screen have actually been revealed.
-  // Ordinary rounds reveal the instant their events arrive (unchanged from
-  // before); a round that ends the game holds off until the kill animation
+  // Which round's Game Over screen has actually been revealed. (The round's
+  // messages no longer pop up over the battle -- Mikael, 2026-10-13.)
+  // Ordinary rounds reveal the instant their events arrive; a round that ends the game holds off until the kill animation
   // that caused it (the sword strike, kill-fire glow, dead-pose reveal --
   // timed identically to LobbyScene's own buildCombatAnimationPlan, just
   // re-run here with placeholder positions since only the *timing* matters
@@ -253,13 +270,7 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
     // content and still need its one-time reveal to fire.
     if (revealedRound === gameEvents.round) return;
 
-    const newMsgs = gameEvents.messages ?? [];
-
-    const reveal = () => {
-      setMessages(newMsgs);
-      setMessagesExpanded(false);
-      setRevealedRound(gameEvents.round);
-    };
+    const reveal = () => setRevealedRound(gameEvents.round);
 
     if (!state.gameover) {
       reveal();
@@ -306,31 +317,12 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
   // the player's real values for every other case.
   const stagedResources = useStagedResources(state, playerName, gameEvents, { stageCombat: stageCombatDamage });
 
-  const { raidMins, raidSecs } = useBossfightCountdown(enableRaidTimer && isAlive);
-  const rankedSecondsLeft = useCountdown(state?.ranked_countdown_deadline);
-
-  // Detect if messages overflow the collapsed container. We compare the
-  // list's natural height against the fixed collapsed limit (the max-h-[4.5rem]
-  // on the wrapper) so the result is correct whether the panel is currently
-  // expanded or collapsed. Re-measure via ResizeObserver and once web fonts
-  // settle, otherwise a stale snapshot can leave "Show more" showing when
-  // there is nothing more to reveal.
-  useEffect(() => {
-    const list = messagesRef.current;
-    if (!list) return;
-
-    const measure = () => {
-      const rootFont = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      const collapsedLimit = rootFont * 4.5; // matches max-h-[4.5rem]
-      setMessagesOverflow(list.scrollHeight > collapsedLimit + 2);
-    };
-
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(list);
-    document.fonts?.ready.then(measure).catch(() => {});
-    return () => ro.disconnect();
-  }, [messages, messagesHidden]);
+  const { bossfightMins, bossfightSecs } = useBossfightCountdown(enableBossfightTimer && isAlive);
+  // One countdown feeds the pre-game pill for both ladders -- a lobby is
+  // only ever one of ranked / bot-ranked, so at most one deadline is set.
+  const rankedSecondsLeft = useCountdown(
+    state?.ranked_countdown_deadline ?? state?.ai_ranked_countdown_deadline,
+  );
 
   const effectiveAction = externalAction !== undefined ? externalAction : action;
 
@@ -543,9 +535,16 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         <p className={`${theme.loadingTextClass} text-lg font-semibold`}>
           You were removed from this lobby.
         </p>
-        <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
-          🏠
-        </Link>
+        {/* Home, and beside it the city -- as a pair, so the column layout
+            of this screen does not stack them one above the other. */}
+        <span className="inline-flex items-center gap-3">
+          <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
+            🌍
+          </Link>
+          <Link href={CITY_PATH} className="text-blue-400 no-underline text-2xl" aria-label="Go to the city">
+            🏛️
+          </Link>
+        </span>
       </div>
     );
   }
@@ -560,8 +559,8 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           playerName,
           isAdmin,
           boss: enemy,
-          raidMins,
-          raidSecs,
+          bossfightMins,
+          bossfightSecs,
           rankedSecondsLeft,
           btn,
           onStartGame: handleStartGame,
@@ -576,13 +575,19 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             className="fixed pointer-events-auto z-50"
             style={{ bottom: '4%', left: '1%' }}
           >
+            <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
             {chatExpanded && (
               <div className="absolute bottom-14 left-0 w-72 max-w-[85vw] bg-black/85 backdrop-blur-sm rounded-xl border border-white/20 flex flex-col mb-1">
                 <div className="overflow-y-auto max-h-52 px-3 py-2 space-y-1">
-                  {(state.chat ?? []).map((m, i) => (
-                    <div key={i} className="text-xs leading-tight break-words">
+                  {hideMuted(state.chat ?? [], muted).map((m, i) => (
+                    <div
+                      key={i}
+                      className={`text-xs leading-tight break-words ${m.sender !== playerName ? 'cursor-pointer hover:bg-white/10 rounded' : ''} ${muted.has(m.sender) ? 'opacity-50' : ''}`}
+                      onClick={m.sender !== playerName ? () => setChatTarget(m) : undefined}
+                    >
+                      {muted.has(m.sender) && <MutedMark />}
                       <span className="text-blue-300 font-semibold">{m.sender}: </span>
-                      <span className="text-gray-200">{m.message}</span>
+                      <span className="text-gray-200">{chatText(m.message)}</span>
                     </div>
                   ))}
                   <div ref={chatEndRef} />
@@ -597,7 +602,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                     onBlur={handleChatBlur}
                     onFocus={handleChatFocus}
                     placeholder="Chat…"
-                    className="flex-1 bg-black/60 text-white text-xs rounded px-2 py-1 border border-white/20 outline-none min-w-0"
+                    // 16px: any smaller and iOS zooms the whole page in on focus, and with
+                    // pinch-zoom off there was no zooming back out (Mikael, 2026-10-12).
+                    className="flex-1 bg-black/60 text-white text-base rounded px-2 py-1 border border-white/20 outline-none min-w-0"
                     autoFocus
                   />
                   <button
@@ -645,27 +652,52 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
         }
       `}</style>
 
-      {/* Back button */}
-      <div className="absolute top-4 left-4 pointer-events-auto z-20">
+      {/* Back button, and beside it the way into the city. The globe is the
+          theme's own `backLabel` (a string, so it cannot carry a second link
+          of its own) -- hence the temple being spelled out here rather than
+          coming through the theme with it. */}
+      <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-4 pointer-events-auto z-20 flex items-center gap-2">
         <Link href="/" className={`${theme.backLinkClass} no-underline text-2xl drop-shadow-md`} aria-label="Back to Home">
           {backLabel}
         </Link>
+        <Link href={CITY_PATH} className={`${theme.backLinkClass} no-underline text-2xl drop-shadow-md`} aria-label="Go to the city">
+          🏛️
+        </Link>
       </div>
 
-      {/* Missing-action reminder — top left, below the back button. Only
-          shows up once the same 10s/5s warning window as the blinking
+      {/* Missing-action reminder — top left, below the back button and the
+          music/SFX toggle row (LobbyOverlay renders that at top-16 left-4).
+          Only shows up once the same 10s/5s warning window as the blinking
           buttons kicks in, and blinks along with it. Vanishes the moment
           the player picks attack/well/defend. */}
       {actionCue && (
-        <div className="absolute top-16 left-4 w-1/2 max-w-xs px-4 z-20">
+        // In portrait, top-28/w-1/2 would sit directly under the round
+        // messages panel below (both anchored near the top edge-to-edge) --
+        // pushed below it instead of narrowed, since a narrow phone screen
+        // gives the two panels' 50%-each widths no gap to share.
+        <div
+          className={
+            orientation === 'portrait'
+              ? 'absolute top-[calc(env(safe-area-inset-top)+14rem)] inset-x-4 px-4 z-20'
+              : 'absolute top-[calc(env(safe-area-inset-top)+7rem)] left-4 w-1/2 max-w-xs px-4 z-20'
+          }
+        >
           <div className={`bg-black/80 backdrop-blur-sm rounded-xl border ${theme.panelBorderClass} p-3 text-white text-sm ${actionCue}`}>
             You must choose an action: Attack someone, Well or Defend.
           </div>
         </div>
       )}
 
-      {/* Round messages panel — top right, half width */}
-      <div className="absolute top-12 right-4 w-1/2 max-w-2xl px-4 pointer-events-auto z-20">
+      {/* Round panel (round number, countdown, Game Over) — top right. Half width in landscape; wider in
+          portrait since there's no adjacent panel left to share space with
+          once actionCue moves below it. */}
+      <div
+        className={
+          orientation === 'portrait'
+            ? 'absolute top-[calc(env(safe-area-inset-top)+3rem)] right-4 w-[85%] max-w-2xl px-4 pointer-events-auto z-20'
+            : 'absolute top-[calc(env(safe-area-inset-top)+3rem)] right-4 w-1/2 max-w-2xl px-4 pointer-events-auto z-20'
+        }
+      >
         <div className={`bg-black/80 backdrop-blur-sm rounded-xl border ${theme.panelBorderClass} p-3 sm:p-4 text-white`}>
           <div className="flex justify-between items-center">
             <span className={`${theme.accentColorClass} font-semibold`}>
@@ -678,42 +710,6 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
             )}
           </div>
 
-          {messages.length > 0 && (
-            <div className={`mt-2 border-t ${theme.msgBorderClass} pt-2`}>
-              {!messagesHidden && (
-                <div
-                  className={`overflow-hidden transition-all duration-300 ${messagesExpanded ? '' : 'max-h-[4.5rem]'}`}
-                >
-                  <ul ref={messagesRef} className="text-sm space-y-1">
-                    {messages.map((m, i) => (
-                      <li key={i} className={theme.msgTextClass}>{Array.isArray(m) ? m.join(' ') : m}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <div className="mt-1 flex justify-between items-center">
-                {!messagesHidden && (messagesOverflow || messagesExpanded) ? (
-                  <button
-                    type="button"
-                    onClick={() => setMessagesExpanded((e) => !e)}
-                    className={`text-xs ${theme.showMoreClass} pointer-events-auto`}
-                  >
-                    {messagesExpanded ? '▲ Show less' : '▼ Show more'}
-                  </button>
-                ) : (
-                  <span />
-                )}
-                <button
-                  type="button"
-                  onClick={() => setMessagesHidden((h) => !h)}
-                  className={`text-xs ${theme.showMoreClass} pointer-events-auto`}
-                >
-                  {messagesHidden ? 'Show' : 'Hide'}
-                </button>
-              </div>
-            </div>
-          )}
-
           {gameOverRevealed && renderGameOver({ state, playerName, enemy, btn })}
         </div>
       </div>
@@ -722,7 +718,15 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           lobby can run quite tall, especially on a phone, so clicking the
           header hides everything but the count. */}
       {showPlayerList && (
-        <div className="absolute bottom-4 right-4 pointer-events-auto z-20 max-w-[calc(50%-7.5rem)] sm:max-w-none">
+        // The old sm:-breakpoint cap keyed off viewport width, which
+        // conflates a narrow-landscape phone with a portrait one -- keying
+        // off orientation directly instead so this doesn't clip player
+        // names down to ~75px on a portrait screen.
+        <div
+          className={`absolute bottom-4 right-4 pointer-events-auto z-20 ${
+            orientation === 'portrait' ? 'max-w-[70%]' : 'max-w-[calc(50%-7.5rem)]'
+          }`}
+        >
           <div className="bg-black/70 backdrop-blur-sm rounded-xl border border-white/20 p-2 sm:p-3 text-white text-sm">
             <button
               type="button"
@@ -742,9 +746,33 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                     <span className={`truncate min-w-0 ${p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}`}>
                       {p.name}
                     </span>
+                    {muted.has(p.name) && <MutedMark />}
                   </li>
                 ))}
               </ul>
+            )}
+            {/* Watchers, under their own heading below the players. The
+                list has always filtered them out of the player COUNT; until
+                now it dropped them entirely, so someone spectating could
+                not see they were in the lobby at all. */}
+            {!playerListCollapsed && state.players.some((p) => p.spectator) && (
+              <>
+                <p className="text-xs text-gray-400 font-semibold mt-2">
+                  {state.players.filter((p) => p.spectator).length === 1 ? 'Spectator' : 'Spectators'}
+                  {' '}({state.players.filter((p) => p.spectator).length})
+                </p>
+                <ul className="space-y-1 mt-1">
+                  {state.players.filter((p) => p.spectator).map((p, i) => (
+                    <li key={`spectator-${p.name}-${i}`} className="flex items-center gap-1 opacity-60">
+                      <span className="shrink-0" title="Spectator">👁</span>
+                      <span className={`truncate min-w-0 ${p.name === playerName ? 'text-blue-300 font-bold' : 'text-gray-300'}`}>
+                        {p.name}
+                      </span>
+                      {muted.has(p.name) && <MutedMark />}
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </div>
         </div>
@@ -864,13 +892,19 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
           className="fixed pointer-events-auto z-50"
           style={{ bottom: '4%', left: '1%' }}
         >
+          <ChatMessageActions target={chatTarget} context="lobby" onClose={() => setChatTarget(null)} />
           {chatExpanded && (
             <div className="absolute bottom-14 left-0 w-72 max-w-[85vw] bg-black/85 backdrop-blur-sm rounded-xl border border-white/20 flex flex-col mb-1">
               <div className="overflow-y-auto max-h-52 px-3 py-2 space-y-1">
-                {(state?.chat ?? []).map((m, i) => (
-                  <div key={i} className="text-xs leading-tight break-words">
+                {hideMuted(state?.chat ?? [], muted).map((m, i) => (
+                  <div
+                    key={i}
+                    className={`text-xs leading-tight break-words ${m.sender !== playerName ? 'cursor-pointer hover:bg-white/10 rounded' : ''} ${muted.has(m.sender) ? 'opacity-50' : ''}`}
+                    onClick={m.sender !== playerName ? () => setChatTarget(m) : undefined}
+                  >
+                    {muted.has(m.sender) && <MutedMark />}
                     <span className="text-blue-300 font-semibold">{m.sender}: </span>
-                    <span className="text-gray-200">{m.message}</span>
+                    <span className="text-gray-200">{chatText(m.message)}</span>
                   </div>
                 ))}
                 <div ref={chatEndRef} />
@@ -885,7 +919,9 @@ export default function SceneOverlay({ lobbyId, onStateChange, config, renderPre
                   onBlur={handleChatBlur}
                   onFocus={handleChatFocus}
                   placeholder="Chat…"
-                  className="flex-1 bg-black/60 text-white text-xs rounded px-2 py-1 border border-white/20 outline-none min-w-0"
+                  // 16px: any smaller and iOS zooms the whole page in on focus, and with
+                    // pinch-zoom off there was no zooming back out (Mikael, 2026-10-12).
+                    className="flex-1 bg-black/60 text-white text-base rounded px-2 py-1 border border-white/20 outline-none min-w-0"
                   autoFocus
                 />
                 <button

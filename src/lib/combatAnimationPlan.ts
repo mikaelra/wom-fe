@@ -1,9 +1,17 @@
 import type { GameEvent, WellRewardComponent } from '@/lib/gameEvents';
-import { combatFromEvents, wellRewardFromEvents, glowForReward } from '@/lib/gameEvents';
+import { combatFromEvents, wellRewardFromEvents, wellStealVictimFromEvents, glowForReward } from '@/lib/gameEvents';
 import type { HpFxEvent } from '@/lib/resourceFx';
+import type { DamageNumberColor } from '@/components/lobby/DamageNumberEffect';
 import { STRIKE_DUR, HOLD_DUR, RETREAT_DUR, BOUNCE_DUR } from '@/components/lobby/SwordEffect';
 import { WELL_REWARD_FLIGHT_DUR, WELL_REWARD_SCALE, type WellRewardType } from '@/components/lobby/WellRewardEffect';
 import { INSTAKILL_BURST_DURATION } from '@/components/lobby/InstakillBurstEffect';
+import type { ResourceSound } from '@/lib/sounds';
+
+// Floating combat number spawned at a strike's impact -- shown on BOTH ends
+// of an exchange (the attacker sees it over their target; the target sees
+// it over themselves), unlike incomingFx below (local-player-HP-card only).
+// Not populated for instakills, which already have their own distinct burst.
+export type DamageNumberFx = { text: string; color: DamageNumberColor };
 
 export type StrikeEvent = {
   id: string;
@@ -23,6 +31,13 @@ export type StrikeEvent = {
   bounceFlashPos?: [number, number, number];
   // For incoming strikes: HP-card feedback to emit at the impact moment.
   incomingFx?: HpFxEvent;
+  // Floating "-X"/"0" text to spawn over the target at impact -- see
+  // DamageNumberFx above.
+  damageNumber?: DamageNumberFx;
+  // For bounce-back strikes only: the second "-X" that shows where
+  // bounceFlashPos does, when the reflected blow actually lands on the
+  // original attacker (a real, separate hit from the initial block).
+  bounceDamageNumber?: DamageNumberFx;
   // True when this strike's outcome was 'instakill'/'instakill_blocked' — adds
   // the instakill reward's green (kill) or blue (blocked) burst on top of the
   // normal hit/shield effects.
@@ -33,6 +48,13 @@ export type HitFlashEvent = {
   id: string;
   position: [number, number, number];
   instakill?: boolean;
+};
+
+// A spawned instance of DamageNumberFx (LobbyScene assigns the id and
+// spawn position -- above the target's head -- at the strike's impact).
+export type DamageNumberEvent = DamageNumberFx & {
+  id: string;
+  position: [number, number, number];
 };
 
 export type WellRewardEvent = {
@@ -209,6 +231,7 @@ export type CombatAnimationAction =
   | { type: 'markDead'; name: string }
   | { type: 'addWellRewardEvents'; events: WellRewardEvent[] }
   | { type: 'emitHpFx'; event: HpFxEvent }
+  | { type: 'playResourceSound'; resource: ResourceSound }
   | { type: 'addWellWinFx'; fx: WellWinFx }
   | { type: 'removeWellWinFx'; id: string }
   | { type: 'addHitFlash'; event: HitFlashEvent }
@@ -285,6 +308,14 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
   // Coins land ~one travel-arc after launch (WellRewardEffect TRAVEL_DUR).
   // Scaled to 0.8x for a modest speedup.
   const KILL_LOOT_LAND_MS = 1030;
+  // The +1 ATK from a kill has no flying model to hang a landing sound off
+  // of (coins do, via WellRewardEffect's own onLand) -- its sound is
+  // scheduled directly, this much before the ATK card's own tick-up
+  // (KILL_LOOT_LAND_MS) so it doesn't read as trailing behind it. Same
+  // reasoning/magnitude as WellRewardEffect/ResourceGainEffect's
+  // LAND_LEAD_SEC, just in ms since everything here is scheduled in ms.
+  // Bumped 80 -> 150, same as those (still read as late at 80).
+  const ATK_SOUND_LEAD_MS = 150;
   const killStamp = Date.now();
   let killSeq = 0;
 
@@ -317,6 +348,38 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     batches.push({ delayMs: offMs, actions: [{ type: 'removeBlockGlow', id }] });
   };
 
+  // Shared by both sides of a kill's coin handoff: the killer's own view
+  // (scheduleKillLoot below, which also reveals their +1 ATK/coin-card
+  // tick-up) and the victim's (scheduleKillLoss below, coins-only -- the
+  // reward is the killer's gain, not theirs).
+  const spawnCoinFlight = (
+    fromPos: [number, number, number],
+    toPos: [number, number, number],
+    coins: number,
+    atMs: number,
+  ) => {
+    if (coins <= 0) return;
+    const delayMs = Math.max(0, atMs);
+    const from: [number, number, number] = [fromPos[0], fromPos[1] + 0.3, fromPos[2]];
+    const evs: WellRewardEvent[] = [];
+    for (let c = 0; c < coins; c++) {
+      // Spread coins at the source seat so they don't perfectly overlap
+      // leaving, but converge on the actual destination -- else a big kill
+      // (e.g. looting a coin-heavy Owl) reads as a scattered line beside the
+      // target instead of a pile landing on them.
+      const jitter = coins > 1 ? (c - (coins - 1) / 2) * 0.15 : 0;
+      evs.push({
+        id:   `kill-coin-${killStamp}-${killSeq++}`,
+        type: 'steal',
+        fromPos: [from[0] + jitter, from[1], from[2]],
+        toPos,
+        orbit: true,
+        delay:   c * WELL_REWARD_STAGGER,
+      });
+    }
+    batches.push({ delayMs, actions: [{ type: 'addWellRewardEvents', events: evs }] });
+  };
+
   // Killer only: fling the victim's coins over and tick up the ATK/coin cards.
   const scheduleKillLoot = (
     fromPos: [number, number, number],
@@ -325,47 +388,39 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
     atMs: number,
   ) => {
     const delayMs = Math.max(0, atMs);
-    if (coins > 0) {
-      const from: [number, number, number] = [fromPos[0], fromPos[1] + 0.3, fromPos[2]];
-      const evs: WellRewardEvent[] = [];
-      for (let c = 0; c < coins; c++) {
-        // Spread coins at the victim's seat so they don't perfectly overlap
-        // leaving, but converge on the killer's actual position -- else a
-        // big kill (e.g. looting a coin-heavy Owl) reads as a scattered
-        // line beside the killer instead of a pile landing on them.
-        const jitter = coins > 1 ? (c - (coins - 1) / 2) * 0.15 : 0;
-        evs.push({
-          id:   `kill-coin-${killStamp}-${killSeq++}`,
-          type: 'steal',
-          fromPos: [from[0] + jitter, from[1], from[2]],
-          toPos,
-          orbit: true,
-          delay:   c * WELL_REWARD_STAGGER,
-        });
-      }
-      batches.push({ delayMs, actions: [{ type: 'addWellRewardEvents', events: evs }] });
-    }
+    spawnCoinFlight(fromPos, toPos, coins, atMs);
     // Reveal the gained coins (+ the +1 ATK) on the resource cards once the
     // coins have arrived — staged like the Well reward (see useStagedResources).
     batches.push({
       delayMs: delayMs + KILL_LOOT_LAND_MS,
       actions: [{ type: 'emitHpFx', event: { kind: 'killgain', coins, atk: 1 } }],
     });
+    batches.push({
+      delayMs: Math.max(0, delayMs + KILL_LOOT_LAND_MS - ATK_SOUND_LEAD_MS),
+      actions: [{ type: 'playResourceSound', resource: 'gain_attack' }],
+    });
   };
+
+  // Victim only: my own coins fly away to whoever just eliminated me -- no
+  // reward-card feedback here, that's the killer's gain (scheduleKillLoot
+  // above), not mine.
+  const scheduleKillLoss = (
+    fromPos: [number, number, number],
+    toPos: [number, number, number],
+    coins: number,
+    atMs: number,
+  ) => spawnCoinFlight(fromPos, toPos, coins, atMs);
 
   // ── Well reward: only for the player who actually won the well ──────────
   // (steal *victims* also receive a "Steal-all!" line, so gate on wellwinner.)
-  // Spawned first; the combat strikes below are delayed until it finishes so
-  // the two don't play at once and confuse the player.
-  let wellDelayMs = 0;
+  // Computed here but not yet pushed to `batches` -- see pushWellFx below for
+  // why a steal defers that.
+  let wellFx: { fx: WellWinFx; rewardEvents: WellRewardEvent[]; rewardDurMs: number; isSteal: boolean } | null = null;
   if (myPos && wonWell) {
     const components = wellRewardFromEvents(events);
     if (components.length) {
-      // Splash + rarity glow on the well itself.
       const fxId = `wellfx-${Date.now()}`;
       const fx: WellWinFx = { id: fxId, splash: true, glow: glowForReward(components), glowStartMs: performance.now() };
-      batches.push({ delayMs: 0, actions: [{ type: 'addWellWinFx', fx }] });
-      batches.push({ delayMs: WELL_FX_DURATION, actions: [{ type: 'removeWellWinFx', id: fxId }] });
 
       // For steal: one coin per stolen coin, flying from each victim's seat.
       const stealVictims = components.find((c) => c.type === 'steal')?.victims ?? [];
@@ -376,12 +431,66 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       const rewardDurMs = rewardEvents.length
         ? (Math.max(...rewardEvents.map((e) => e.delay)) + WELL_REWARD_FLIGHT_DUR) * 1000
         : 0;
-      if (rewardEvents.length) batches.push({ delayMs: 0, actions: [{ type: 'addWellRewardEvents', events: rewardEvents }] });
-      // Hold combat strikes until both the splash/glow and any reward
-      // models have finished.
-      wellDelayMs = Math.max(rewardDurMs, WELL_FX_DURATION);
+      wellFx = { fx, rewardEvents, rewardDurMs, isSteal: components.some((c) => c.type === 'steal') };
     }
   }
+
+  // ── Well reward: the *victim* side of a steal-all -- purple rarity glow
+  // plus my own coins flying away to the winner, the mirror image of the
+  // block above (which only ever runs on the winner's own client, since
+  // wellRewardFromEvents reads an event that's never attached to a victim).
+  // Driven instead by well_steal_victim, which IS attached to each victim
+  // (see backend/engine/rewards.py's _steal_gold). No splash -- that's the
+  // water erupting for whoever actually interacted with the well, same
+  // reasoning as the "chose well but lost" red glow above. Always a steal
+  // (there is no other way to be on this side of it).
+  if (myPos && !wonWell) {
+    const stolen = wellStealVictimFromEvents(events);
+    const winnerPos = stolen ? posMap.get(stolen.winner) : undefined;
+    if (stolen && winnerPos) {
+      const fxId = `wellfx-steal-victim-${Date.now()}`;
+      const fx: WellWinFx = { id: fxId, splash: false, glow: 'purple', glowStartMs: performance.now() };
+      const stealSources: StealSource[] = [{ pos: myPos, count: stolen.amount }];
+      const rewardEvents = buildWellRewardEvents([{ type: 'steal', count: 1 }], winnerPos, stealSources);
+      const rewardDurMs = rewardEvents.length
+        ? (Math.max(...rewardEvents.map((e) => e.delay)) + WELL_REWARD_FLIGHT_DUR) * 1000
+        : 0;
+      wellFx = { fx, rewardEvents, rewardDurMs, isSteal: true };
+    }
+  }
+
+  // A steal-all can sweep up coins a same-round kill only just looted
+  // (engine/combat.py runs the attack phase before the well phase, so a
+  // kill's loot is already in its recipient's pile by the time steal-all
+  // draws from everyone's coins) -- animating steal's flight *before*
+  // combat's own kill-loot flight then showed money leaving a pile it
+  // hadn't visibly arrived at yet (bug list 260916). Non-steal rewards have
+  // no such dependency on combat's outcome, so they keep the original
+  // "well plays first, combat waits" pacing untouched.
+  const pushWellFx = (delayMs: number) => {
+    if (!wellFx) return;
+    const fxId = wellFx.fx.id;
+    batches.push({ delayMs, actions: [{ type: 'addWellWinFx', fx: wellFx.fx }] });
+    batches.push({ delayMs: delayMs + WELL_FX_DURATION, actions: [{ type: 'removeWellWinFx', id: fxId }] });
+    if (wellFx.rewardEvents.length) {
+      batches.push({ delayMs, actions: [{ type: 'addWellRewardEvents', events: wellFx.rewardEvents }] });
+    }
+  };
+  const stealInvolved = !!wellFx?.isSteal;
+  if (!stealInvolved) pushWellFx(0);
+  // Hold combat strikes until both the splash/glow and any reward models
+  // have finished -- unless a steal is involved, in which case combat runs
+  // first (from 0) and the well reward above is pushed after it, once its
+  // real duration (staggerMs, mutated by the combat loop below) is known.
+  const wellDelayMs = stealInvolved ? 0 : Math.max(wellFx?.rewardDurMs ?? 0, wellFx ? WELL_FX_DURATION : 0);
+  // Captures the combat loop's final `staggerMs` (its own local variable,
+  // out of scope here) once that loop below has run, so a deferred steal
+  // reward can be pushed at "whenever this round's combat actually
+  // finishes" instead of guessing at its duration ahead of time. Left equal
+  // to wellDelayMs for a spectator with no personal combat this round (the
+  // loop below never runs), so a deferred push still lands at the right
+  // spot -- right where it would have gone had there been no combat at all.
+  let combatEndMs = wellDelayMs;
 
   // ── Combat strikes: my own attack (outgoing) and attacks landing on me
   // (incoming), played in the order `events` lists them -- which mirrors the
@@ -433,12 +542,22 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           }
         }
 
+        const damageNumber: DamageNumberFx | undefined = isInstakill
+          ? undefined
+          : tgtHit
+            ? { text: `-${e.damage ?? 0}`, color: 'red' }
+            : tgtDefended
+              ? { text: '0', color: 'blue' }
+              : undefined;
+
         const strike: StrikeEvent = {
           id: `out-${Date.now()}`, fromPos, toPos,
           targetDefended: tgtDefended, targetHit: tgtHit, isIncoming: false,
           postImpact:     tgtDefended ? (reflected ? 'bounce' : 'stop') : 'retreat',
           flashPosition:  tgtHit    ? tgtPos : undefined,
           bounceFlashPos: reflected ? myPos  : undefined,
+          damageNumber,
+          bounceDamageNumber: reflected ? { text: `-${e.reflectDamage ?? 0}`, color: 'red' } : undefined,
           instakill:      isInstakill,
         };
         const delay = staggerMs;
@@ -475,6 +594,11 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           : inc.outcome === 'instakill'
             ? { kind: 'kill' }
             : { kind: 'hit', damage: inc.damage ?? 1 };
+        const damageNumber: DamageNumberFx | undefined = isInstakill
+          ? undefined
+          : isDefended
+            ? { text: '0', color: 'blue' }
+            : { text: `-${inc.damage ?? 0}`, color: 'red' };
 
         let toPos = baseToPos;
         if (isDefended) {
@@ -497,6 +621,8 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           flashPosition:  !isDefended         ? myPos  : undefined,
           bounceFlashPos: atkReflected && atkPos ? atkPos : undefined,
           incomingFx,
+          damageNumber,
+          bounceDamageNumber: atkReflected && atkPos ? { text: `-${inc.reflectDamage ?? 0}`, color: 'red' } : undefined,
           instakill:      isInstakill,
         };
 
@@ -510,13 +636,21 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
           scheduleKillFire(myPos, delay + ONE_DEF_MS, inc.attacker ?? undefined);
           scheduleKillLoot(atkPos, myPos, inc.coinsReceived, delay + ONE_DEF_MS);
         }
-        // I was killed this round: I see the fiery glow erupt under my killer
-        // (no coins — those go to them, not me). Only the last fatal-looking
-        // blow reveals my dead pose (see lastFatalIdx above); earlier attacks
-        // in the same round still play out their own strike/flash normally,
-        // they just don't flip me into the dead pose themselves.
+        // I was killed this round: I see the fiery glow erupt under my killer,
+        // plus my own coins flying away to them (coinsLost -- the mirror of
+        // coinsReceived above, set on my incoming event instead of their
+        // outgoing one; see backend/engine/phases/attacks.py). Only the last
+        // fatal-looking blow reveals my dead pose (see lastFatalIdx above);
+        // earlier attacks in the same round still play out their own
+        // strike/flash normally, they just don't flip me into the dead pose
+        // themselves. coinsLost/atkPos are both absent when the kill was
+        // anonymised -- nowhere to fly the coins toward without a revealed
+        // killer position, same constraint the kill-fire glow is already
+        // under.
         if (iDied && i === lastFatalIdx) {
-          scheduleKillFire(atkPos, delay + killDelayMs(isInstakill), playerName);
+          const atMs = delay + killDelayMs(isInstakill);
+          scheduleKillFire(atkPos, atMs, playerName);
+          if (atkPos && inc.coinsLost) scheduleKillLoss(myPos, atkPos, inc.coinsLost, atMs);
         }
 
         const strikeActions: CombatAnimationAction[] = [{ type: 'addStrike', strike }];
@@ -576,7 +710,12 @@ export function buildCombatAnimationPlan(input: BuildCombatAnimationPlanInput): 
       const defendShieldClearMs = !anyIncoming ? 0 : (firstBlockAtMs ?? staggerMs);
       batches.push({ delayMs: defendShieldClearMs, actions: [{ type: 'clearDefendShield' }] });
     }
+    combatEndMs = staggerMs;
   }
+  // Deferred from up above: a steal's coins fly (and its glow lights up)
+  // only once this round's combat has actually finished playing, so a
+  // same-round kill's loot has visibly arrived before steal-all can take it.
+  if (stealInvolved) pushWellFx(combatEndMs);
 
   // ── Witnessed eliminations ────────────────────────────────────────────────
   // The lone witness sees the actual killing blow -- the attacker's sword

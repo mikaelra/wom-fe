@@ -9,15 +9,18 @@ import {
   computeViewportGeometry,
   createSeededRng,
   oddsTable,
+  suppressNearMiss,
   wheelKindFromString,
   type Slice,
   type ViewportGeometry,
 } from '@/lib/wheelGeometry';
 import { getQualityTier } from '@/lib/deviceQuality';
+import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 import WheelCanvas from '@/components/wheel/WheelCanvas';
 import WheelFlapper from '@/components/wheel/WheelFlapper';
 import { useWheelAnimation } from '@/components/wheel/useWheelAnimation';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
+import WheelIcon from '@/components/WheelIcon';
 
 type Props = {
   wheelId: number;
@@ -26,6 +29,13 @@ type Props = {
   onSpun: (resultSkin: string) => void;
   onEquipped?: (equippedSkin: string) => void;
 };
+
+// The Special Wheel's rarest prize (§ wheelGeometry's WHEEL_WEIGHTS). Once
+// the server's result is in and it isn't this, seeing the wheel visibly
+// slide past/near a Bling wedge on the way to stopping reads as a near-miss
+// even though nothing was ever at stake there -- bug list 260916 asks to
+// stop showing that.
+const BLING_SKIN = 'frog_bling_v1';
 
 // Captured once at mount, deliberately not reactive to resize. A committed
 // spin target (§ handleRoll) is an index into a specific `slices` array --
@@ -42,18 +52,6 @@ function useFrozenViewportSize() {
     vh: typeof window !== 'undefined' ? window.innerHeight : 844,
   }));
   return size;
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setReduced(mq.matches);
-    const onChange = () => setReduced(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-  return reduced;
 }
 
 export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquipped }: Props) {
@@ -88,6 +86,10 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
     () => buildSlices(table, { R: geometry.R, H: geometry.H }, createSeededRng(rngSeedRef.current)).slices,
     [table, geometry.R, geometry.H],
   );
+  const displaySlices = useMemo<Slice[]>(
+    () => (resultSkin ? suppressNearMiss(slices, resultSkin, BLING_SKIN) : slices),
+    [slices, resultSkin],
+  );
 
   const handleRoll = () => {
     if (rollingRef.current) return;
@@ -104,7 +106,7 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
   };
 
   const anim = useWheelAnimation({
-    slices,
+    slices: displaySlices,
     resultSkin: spinError ? null : resultSkin,
     reducedMotion,
     qualityTier: getQualityTier(),
@@ -131,6 +133,16 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
     return () => window.removeEventListener('keydown', onKey);
   }, [isResult, onClose]);
 
+  // The page behind stays put while the wheel is up -- otherwise the window
+  // itself could grow a scrollbar on Steam (Electron) during the roll.
+  useEffect(() => {
+    const before = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = before;
+    };
+  }, []);
+
   const handleEquip = async () => {
     if (!resultSkin) return;
     const token = getStoredAccountToken();
@@ -152,7 +164,7 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
         <div className="bg-gray-900 border border-amber-500/40 text-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 text-center">
-          <p className="text-3xl mb-3">🎡</p>
+          <p className="text-3xl mb-3"><WheelIcon special={wheelKindFromString(kind) === 'special'} /></p>
           <p className="text-red-400 font-semibold mb-4">{spinError}</p>
           <button
             type="button"
@@ -168,13 +180,13 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-gray-950 text-white"
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-gray-950 text-white"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       {useFallback ? (
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-amber-500/40 rounded-xl shadow-2xl max-w-sm w-full p-6 text-center">
-            <p className="text-3xl mb-3">🎡</p>
+            <p className="text-3xl mb-3"><WheelIcon special={wheelKindFromString(kind) === 'special'} /></p>
             <div
               data-testid="wheel-spin-swatch"
               className="w-24 h-24 mx-auto rounded-full mb-4 border-4 border-amber-500/60 transition-colors duration-100"
@@ -233,7 +245,7 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
         <>
           <div className="relative w-full shrink-0" style={{ height: geometry.H }}>
             <WheelCanvas
-              slices={slices}
+              slices={displaySlices}
               geometry={geometry}
               rotation={anim.rotation}
               rotationDelta={anim.rotationDelta}
@@ -244,7 +256,14 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
             <WheelFlapper geometry={geometry} thetaRad={anim.flapperTheta} />
           </div>
 
-          <div className="flex-1 flex flex-col items-center gap-4 px-4 py-6 mx-auto w-full max-w-[480px] overflow-y-auto">
+          {/* No scrolling while the wheel turns: on Steam (Chromium on
+              Windows/Linux, real scrollbars, not overlay ones) a scrollbar
+              came and went down the right side during the roll. */}
+          <div
+            className={`flex-1 flex flex-col items-center gap-4 px-4 py-6 mx-auto w-full max-w-[30rem] ${
+              rolling ? 'overflow-hidden' : 'overflow-y-auto'
+            }`}
+          >
             {!rolling && (
               <div className="flex gap-3">
                 <button

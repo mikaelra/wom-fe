@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CITY_PATH } from '@/lib/cities';
 
 export default function RulesPage() {
   return (
@@ -15,9 +16,15 @@ export default function RulesPage() {
           A quick walk through how to play World of Mythos, with the real buttons and cards you&apos;ll actually see in a match.
         </p>
         <div className="mt-2 flex gap-6">
-          <Link href="/" className="no-underline" style={{ fontSize: '2rem' }} aria-label="Back to Home">
-            🏠
-          </Link>
+          {/* Home, and beside it the city. Kept as one item so a justify-between parent cannot fling them apart. */}
+          <span className="emoji-pair inline-flex items-center gap-2">
+            <Link href="/" className="no-underline" style={{ fontSize: '2rem' }} aria-label="Back to Home">
+              🌍
+            </Link>
+            <Link href={CITY_PATH} className="no-underline" style={{ fontSize: '2rem' }} aria-label="Go to the city">
+              🏛️
+            </Link>
+          </span>
           <Link href="/rules/p1" className="underline text-blue-600" style={{ fontSize: '2rem' }}>
             Start →
           </Link>

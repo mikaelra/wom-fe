@@ -33,21 +33,21 @@ export default function RulesModal({ onClose }: RulesModalProps) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl p-6 shadow-2xl relative w-80 max-w-[90vw] flex flex-col items-center"
+        className="bg-gray-900 border border-white/10 rounded-2xl p-6 shadow-2xl relative w-80 max-w-[90vw] flex flex-col items-center"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
           aria-label="Close rules"
-          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold cursor-pointer transition-colors"
+          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white font-bold cursor-pointer transition-colors"
         >
           ✕
         </button>
 
-        <h3 className="text-xl font-bold mb-4 text-gray-800">Rules</h3>
+        <h3 className="text-xl font-bold mb-4 text-white">Rules</h3>
 
-        <p className="text-sm leading-snug text-center min-h-[3rem] flex items-center justify-center text-gray-800">
+        <p className="text-sm leading-snug text-center min-h-[3rem] flex items-center justify-center text-white/80">
           {current.text}
         </p>
 
@@ -61,11 +61,11 @@ export default function RulesModal({ onClose }: RulesModalProps) {
             onClick={() => setStep((s) => Math.max(0, s - 1))}
             disabled={isFirst}
             aria-label="Previous"
-            className="w-8 h-8 rounded-full text-lg font-bold flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-default text-gray-700 hover:bg-gray-100 cursor-pointer"
+            className="w-8 h-8 rounded-full text-lg font-bold flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-default text-white hover:bg-white/10 cursor-pointer"
           >
             ‹
           </button>
-          <span className="text-xs font-semibold text-gray-400 select-none">
+          <span className="text-xs font-semibold text-white/50 select-none">
             {step + 1} / {GUIDE_STEPS.length}
           </span>
           <button
@@ -73,7 +73,7 @@ export default function RulesModal({ onClose }: RulesModalProps) {
             onClick={() => setStep((s) => Math.min(GUIDE_STEPS.length - 1, s + 1))}
             disabled={isLast}
             aria-label="Next"
-            className="w-8 h-8 rounded-full text-lg font-bold flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-default text-gray-700 hover:bg-gray-100 cursor-pointer"
+            className="w-8 h-8 rounded-full text-lg font-bold flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-default text-white hover:bg-white/10 cursor-pointer"
           >
             ›
           </button>

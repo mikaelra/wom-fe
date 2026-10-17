@@ -3,7 +3,10 @@ import { BACKEND_URL, PROTOCOL_VERSION } from '@/config';
 import {
   checkClaimVerified,
   checkName,
+  claimPendingArtifact,
   claimPendingWheel,
+  equipCosmetic,
+  getArtifactLedger,
   confirmEmailVerification,
   createLobby,
   equipSkin,
@@ -13,19 +16,39 @@ import {
   getPlayerProfile,
   getPlayerRelics,
   getRankedProfile,
+  getMarketTrades,
   getShopProducts,
+  getMyAiStatus,
+  toggleMyAi,
+  saveMyAiSettings,
+  getMyAiMatches,
   getWellProfile,
   getWheelTables,
+  getTradeUpRules,
   joinRankedQueue,
   leaveRankedQueue,
   logInUser,
   logOut,
+  deleteAccount,
+  affirmAge,
+  connectWeb,
+  getConnections,
+  reportChatMessage,
   postCheckout,
   resolveAccountSession,
   spinWheel,
+  tradeUp,
   verifyLoginCode,
 } from '@/lib/api';
-import { ApiError, getStoredAccountToken, getStoredToken, setStoredAccountToken, setStoredToken } from '@/lib/http';
+import {
+  ApiError,
+  getStoredAccountToken,
+  getStoredRankedTicket,
+  getStoredToken,
+  setStoredAccountToken,
+  setStoredRankedTicket,
+  setStoredToken,
+} from '@/lib/http';
 
 const jsonResponse = (data: unknown, status = 200) =>
   ({
@@ -86,32 +109,73 @@ describe('createLobby', () => {
   });
 });
 
+/** A Map-backed window.localStorage for the node project, where the ranked
+ *  ticket helpers otherwise no-op. vi.unstubAllGlobals() removes it. */
+function stubLocalStorage() {
+  const store = new Map<string, string>();
+  vi.stubGlobal('window', {
+    localStorage: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    },
+  });
+}
+
+const POST_JSON = {
+  method: 'POST',
+  headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+};
+
 describe('joinRankedQueue', () => {
-  it('posts name and returns the queue status', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ status: 'queued' }));
+  it('posts the name and stores the ranked ticket it gets back', async () => {
+    stubLocalStorage();
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'queued', ticket: 'tkt-1' }));
 
     const result = await joinRankedQueue('Alice');
 
-    expect(result).toEqual({ status: 'queued' });
+    expect(result).toEqual({ status: 'queued', ticket: 'tkt-1' });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/join`, {
-      method: 'POST',
-      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      ...POST_JSON,
       body: JSON.stringify({ name: 'Alice' }),
     });
+    expect(getStoredRankedTicket('Alice')).toBe('tkt-1');
+    expect(getStoredRankedTicket('Bob')).toBeNull();
+  });
+
+  it('sends the stored ticket and the account session when there are any', async () => {
+    stubLocalStorage();
+    setStoredRankedTicket('Alice', 'tkt-1');
+    setStoredAccountToken('acct-1');
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'queued', ticket: 'tkt-1' }));
+
+    await joinRankedQueue('Alice');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/join`, {
+      ...POST_JSON,
+      body: JSON.stringify({ name: 'Alice', ticket: 'tkt-1', token: 'acct-1' }),
+    });
+  });
+
+  it('still parses a response without a ticket', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'queued' }));
+
+    await expect(joinRankedQueue('Alice')).resolves.toEqual({ status: 'queued' });
   });
 });
 
 describe('leaveRankedQueue', () => {
-  it('posts name and returns was_queued', async () => {
+  it('posts the name with its ranked ticket and returns was_queued', async () => {
+    stubLocalStorage();
+    setStoredRankedTicket('Alice', 'tkt-1');
     fetchMock.mockResolvedValue(jsonResponse({ status: 'left', was_queued: true }));
 
     const result = await leaveRankedQueue('Alice');
 
     expect(result).toEqual({ status: 'left', was_queued: true });
     expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/queue/leave`, {
-      method: 'POST',
-      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Alice' }),
+      ...POST_JSON,
+      body: JSON.stringify({ name: 'Alice', ticket: 'tkt-1' }),
     });
   });
 });
@@ -140,7 +204,9 @@ describe('getRankedProfile', () => {
 });
 
 describe('getActiveRankedLobby', () => {
-  it('GETs whether the player has a currently unfinished ranked match', async () => {
+  it('POSTs the name and ranked ticket to ask for an unfinished ranked match', async () => {
+    stubLocalStorage();
+    setStoredRankedTicket('Alice', 'tkt-1');
     fetchMock.mockResolvedValue(
       jsonResponse({
         lobby_id: 'RNKD',
@@ -158,21 +224,31 @@ describe('getActiveRankedLobby', () => {
       ranked_countdown_deadline: '2026-01-01T00:00:00Z',
       started: false,
     });
-    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active/Alice`, {
-      method: 'GET',
-      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION) },
-      body: undefined,
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active`, {
+      ...POST_JSON,
+      body: JSON.stringify({ name: 'Alice', ticket: 'tkt-1' }),
     });
   });
 
-  it('URL-encodes the player name', async () => {
+  it('uses the account session when there is no ticket', async () => {
+    setStoredAccountToken('acct-1');
     fetchMock.mockResolvedValue(
       jsonResponse({ lobby_id: null, token: null, ranked_countdown_deadline: null, started: false }),
     );
 
     await getActiveRankedLobby('A B');
 
-    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active/A%20B`, expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/ranked/active`, {
+      ...POST_JSON,
+      body: JSON.stringify({ name: 'A B', token: 'acct-1' }),
+    });
+  });
+
+  it('answers "no match" without asking when it has nothing to prove who we are', async () => {
+    const result = await getActiveRankedLobby('Alice');
+
+    expect(result).toEqual({ lobby_id: null, token: null, ranked_countdown_deadline: null, started: false });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
@@ -340,6 +416,17 @@ describe('confirmEmailVerification', () => {
     expect(getStoredAccountToken()).toBe('sess-3');
   });
 
+  it('remembers who a connect_web link logged in', async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', { setItem: (k: string, v: string) => void store.set(k, v) });
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, purpose: 'connect_web', session_token: 'sess-5', name: 'Toad', email: 'toad@example.com' }),
+    );
+    await confirmEmailVerification('tok');
+    expect(store.get('playerName')).toBe('Toad');
+    expect(store.get('playerEmail')).toBe('toad@example.com');
+  });
+
   it.each([
     [404, 'Invalid or expired link.'],
     [409, 'Name already claimed by a different email.'],
@@ -417,6 +504,70 @@ describe('logOut', () => {
   });
 });
 
+describe('deleteAccount', () => {
+  it('posts the typed name and logs this browser out', async () => {
+    setStoredAccountToken('sess-1');
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'deleted' }));
+    await deleteAccount('sess-1', 'Toad');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: 'sess-1', confirm_name: 'Toad' });
+    expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/account/delete`);
+    expect(getStoredAccountToken()).toBeNull();
+  });
+
+  it("passes on the backend's refusal and stays logged in", async () => {
+    setStoredAccountToken('sess-1');
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Finish or leave your current game first.', code: 'in_game' }, 409));
+    await expect(deleteAccount('sess-1', 'Toad')).rejects.toThrow('Finish or leave your current game first.');
+    expect(getStoredAccountToken()).toBe('sess-1');
+  });
+});
+
+describe('affirmAge', () => {
+  it('posts the token', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ age_affirmed: true }));
+    await affirmAge('sess-1');
+    expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/account/age`);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: 'sess-1' });
+  });
+});
+
+describe('getConnections', () => {
+  it('posts the token and returns each connection', async () => {
+    const body = { steam: { name: 'Gaben' }, web: null };
+    fetchMock.mockResolvedValue(jsonResponse(body));
+    await expect(getConnections('sess-1')).resolves.toEqual(body);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/account/connections`);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: 'sess-1' });
+  });
+});
+
+describe('connectWeb', () => {
+  it('posts the token and the email', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'sent' }));
+    await connectWeb('sess-1', 'toad@example.com');
+    expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/account/connect_web`);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: 'sess-1', email: 'toad@example.com' });
+  });
+});
+
+describe('reportChatMessage', () => {
+  it('posts the report', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'reported' }));
+    await reportChatMessage('sess-1', { reportedName: 'Toad', message: 'rude', context: 'lobby', complaint: 'Rude.' });
+    expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND_URL}/chat/report`);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      token: 'sess-1', reported_name: 'Toad', message: 'rude', context: 'lobby', complaint: 'Rude.',
+    });
+  });
+
+  it("throws the backend's refusal", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Write what is wrong with the message.', code: 'complaint_required' }, 400));
+    await expect(
+      reportChatMessage('sess-1', { reportedName: 'Toad', message: 'rude', context: 'lobby', complaint: ' ' }),
+    ).rejects.toThrow('Write what is wrong with the message.');
+  });
+});
+
 describe('checkName', () => {
   it('falls back to a generic message when the error body is not json', async () => {
     fetchMock.mockResolvedValue(failingJsonResponse(500));
@@ -430,6 +581,28 @@ describe('error-swallowing endpoints', () => {
   it('getPlayerRelics returns an empty list on failure', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: 'boom' }, 500));
     await expect(getPlayerRelics('Alice')).resolves.toEqual({ relics: [] });
+  });
+
+  it('getPlayerRelics does not swallow a relic with no boss (regression, traced 2026-09-25)', async () => {
+    // Stone of Vitality's boss_id is null; RelicSchema used to require a
+    // number there, which failed the whole array's parse -- and this same
+    // catch-all turned that real schema bug into an indistinguishable
+    // empty list, hiding it (including hiding every *other* owned relic,
+    // e.g. Hades' Coin, in the same response).
+    fetchMock.mockResolvedValue(jsonResponse({
+      relics: [{
+        id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00',
+        newest_copy_created_at: '2026-09-25T19:57:42+00:00',
+        name: 'Stone of Vitality', power_category: 'HEALTH', count: 1,
+      }],
+    }));
+    await expect(getPlayerRelics('Oni')).resolves.toEqual({
+      relics: [{
+        id: 9, boss_id: null, created_at: '2026-09-25T19:57:42+00:00',
+        newest_copy_created_at: '2026-09-25T19:57:42+00:00',
+        name: 'Stone of Vitality', power_category: 'HEALTH', count: 1,
+      }],
+    });
   });
 
   it('getPlayerMessages returns empty lists on failure', async () => {
@@ -526,6 +699,19 @@ describe('getInventory', () => {
   it('throws on an invalid session', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: 'Invalid or expired session.' }, 401));
     await expect(getInventory('bad')).rejects.toThrow('Invalid or expired session.');
+  });
+
+  it('passes through the session-resolved name', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        name: 'Oni',
+        equipped_skin: 'frog_green_v1',
+        skins: [],
+        wheels: [],
+      }),
+    );
+
+    await expect(getInventory('sess-1')).resolves.toMatchObject({ name: 'Oni' });
   });
 });
 
@@ -625,5 +811,355 @@ describe('getWheelTables', () => {
     };
     fetchMock.mockResolvedValue(jsonResponse(body));
     await expect(getWheelTables()).resolves.toEqual(body);
+  });
+});
+
+describe('getTradeUpRules', () => {
+  it('returns the ladder as served', async () => {
+    const body = { rules: { frog_blue_v1: { cost: 5, output_kind: 'wheel', output: 'special' } } };
+    fetchMock.mockResolvedValue(jsonResponse(body));
+    await expect(getTradeUpRules()).resolves.toEqual(body);
+  });
+});
+
+describe('tradeUp', () => {
+  it('returns the trade-up result', async () => {
+    const body = {
+      success: true, trade_up_id: 900, output_kind: 'wheel', output: 'special', wheel_id: 501, remaining: 0,
+    };
+    fetchMock.mockResolvedValue(jsonResponse(body));
+    await expect(tradeUp('sess-1', 'frog_blue_v1')).resolves.toEqual(body);
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/inventory/trade_up`, expect.objectContaining({
+      body: JSON.stringify({ token: 'sess-1', skin: 'frog_blue_v1' }),
+    }));
+  });
+
+  it('maps insufficient_copies to a friendlier message', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'You need 5 copies.', code: 'insufficient_copies' }, 409));
+    await expect(tradeUp('sess-1', 'frog_blue_v1')).rejects.toThrow('You no longer have enough copies.');
+  });
+
+  it('maps email_unverified to a friendlier message', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Email not verified.', code: 'email_unverified' }, 403));
+    await expect(tradeUp('sess-1', 'frog_blue_v1')).rejects.toThrow('Verify your email to trade up.');
+  });
+
+  it('maps not_tradeable to a friendlier message', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: "This skin can't be traded up.", code: 'not_tradeable' }, 400));
+    await expect(tradeUp('sess-1', 'frog_green_v1')).rejects.toThrow("This skin can't be traded up.");
+  });
+
+  it('passes through an unmapped error code unchanged', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Invalid or expired session.', code: 'invalid_session' }, 401));
+    await expect(tradeUp('bad', 'frog_blue_v1')).rejects.toThrow('Invalid or expired session.');
+  });
+});
+
+describe('confirmEmailVerification', () => {
+  it('accepts a purpose this build does not know about', async () => {
+    // The schema used to pin `purpose` to a closed enum, which turned a new
+    // backend purpose into a hard failure of work the backend had already
+    // done. Kept loose on purpose.
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, purpose: 'claim_artifact', session_token: 'sess' }),
+    );
+
+    await expect(confirmEmailVerification('tok')).resolves.toMatchObject({
+      purpose: 'claim_artifact',
+    });
+  });
+
+  it('stores the session token the link returns', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ success: true, purpose: 'claim_artifact', session_token: 'sess-art' }),
+    );
+
+    await confirmEmailVerification('tok');
+
+    expect(getStoredAccountToken()).toBe('sess-art');
+  });
+});
+
+describe('getInventory (artifact fields)', () => {
+  it('carries the equipped cosmetic and the caller\'s artifact through', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        equipped_skin: 'frog_green_v1',
+        skins: [],
+        wheels: [],
+        equipped_cosmetic: 'artifact_v1',
+        artifact: { ordinal: 4, discovered_at: '2026-09-01T00:00:00+00:00', cosmetic: 'artifact_v1' },
+      }),
+    );
+
+    const result = await getInventory('sess-1');
+
+    expect(result.equipped_cosmetic).toBe('artifact_v1');
+    expect(result.artifact?.ordinal).toBe(4);
+  });
+
+  it('accepts a response with no artifact fields at all', async () => {
+    // Deploy independence: a wom-be built before the artifact system omits
+    // these entirely, and the inventory page must still render.
+    fetchMock.mockResolvedValue(
+      jsonResponse({ equipped_skin: 'frog_green_v1', skins: [], wheels: [] }),
+    );
+
+    const result = await getInventory('sess-1');
+
+    expect(result.equipped_cosmetic).toBeUndefined();
+    expect(result.artifact).toBeUndefined();
+  });
+
+  it('accepts a null artifact for an account that has never found one', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        equipped_skin: 'frog_green_v1',
+        skins: [],
+        wheels: [],
+        equipped_cosmetic: null,
+        artifact: null,
+      }),
+    );
+
+    await expect(getInventory('sess-1')).resolves.toMatchObject({ artifact: null });
+  });
+});
+
+describe('equipCosmetic', () => {
+  it('posts the cosmetic and returns what is now equipped', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, equipped_cosmetic: 'artifact_v1' }));
+
+    const result = await equipCosmetic('tok', 'artifact_v1');
+
+    expect(result.equipped_cosmetic).toBe('artifact_v1');
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/inventory/equip_cosmetic`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'tok', cosmetic: 'artifact_v1' }),
+    });
+  });
+
+  it('unequips by sending an empty string, and accepts a null result', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, equipped_cosmetic: null }));
+
+    await expect(equipCosmetic('tok', '')).resolves.toEqual({
+      success: true,
+      equipped_cosmetic: null,
+    });
+  });
+
+  it('turns a 403 into an ownership message', async () => {
+    fetchMock.mockResolvedValue(failingJsonResponse(403));
+
+    await expect(equipCosmetic('tok', 'artifact_v1')).rejects.toThrow(
+      'You do not own this cosmetic.',
+    );
+  });
+});
+
+describe('getArtifactLedger', () => {
+  it('POSTs the session token with a keyset cursor', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        artifacts: [{ ordinal: 1, finder_name: 'Alice', discovered_at: '2026-09-01T00:00:00+00:00' }],
+        total: 1,
+        current_chance: 0.001,
+      }),
+    );
+
+    const result = await getArtifactLedger('tok', 0, 100);
+
+    expect(result.artifacts[0].finder_name).toBe('Alice');
+    expect(result.total).toBe(1);
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/artifacts/ledger`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'tok', after: 0, limit: 100 }),
+    });
+  });
+
+  it('passes the cursor through so pages continue from the last ordinal', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ artifacts: [], total: 5, current_chance: 1 }));
+
+    await getArtifactLedger('tok', 3, 50);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${BACKEND_URL}/artifacts/ledger`,
+      expect.objectContaining({ body: JSON.stringify({ token: 'tok', after: 3, limit: 50 }) }),
+    );
+  });
+
+  it('surfaces a 403 as an ApiError so callers can show "sealed", not an error', async () => {
+    // The ledger is readable only by someone who has discovered an artifact.
+    // That is a state, not a fault, and the component distinguishes them by
+    // status -- so the status has to survive.
+    fetchMock.mockResolvedValue(failingJsonResponse(403));
+
+    await expect(getArtifactLedger('tok')).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('accepts a null discovery date', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        artifacts: [{ ordinal: 1, finder_name: 'Alice', discovered_at: null }],
+        total: 1,
+        current_chance: 0.001,
+      }),
+    );
+
+    await expect(getArtifactLedger('tok')).resolves.toMatchObject({
+      artifacts: [{ discovered_at: null }],
+    });
+  });
+});
+
+describe('claimPendingArtifact', () => {
+  it('posts the lobby, name and email', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, pending_verification: true }));
+
+    const result = await claimPendingArtifact('lobby1', 'Alice', 'a@b.c');
+
+    expect(result).toEqual({ success: true, pending_verification: true });
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/claim_pending_artifact`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lobby_id: 'lobby1', name: 'Alice', email: 'a@b.c' }),
+    });
+  });
+});
+
+describe('getMarketTrades', () => {
+  const page = {
+    trades: [
+      {
+        id: 5,
+        listing_id: 50,
+        kind: 'quick',
+        role: 'seller',
+        counterparty_name: 'Bo',
+        completed_at: '2026-09-02T12:00:00+00:00',
+        gave: [{ item_type: 'skin', skin: 'frog_gold_v1', relic_id: null, wheel_kind: null, quantity: 1 }],
+        got: [],
+      },
+    ],
+    has_more: true,
+    next_before: 5,
+  };
+
+  it('POSTs the token to /market/trades with no cursor on the first page', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(page));
+
+    await expect(getMarketTrades('sess-1')).resolves.toEqual(page);
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/market/trades`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'sess-1' }),
+    });
+  });
+
+  it('passes the keyset cursor and limit in the body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ trades: [], has_more: false, next_before: null }));
+
+    await getMarketTrades('sess-1', { before: 5, limit: 10 });
+
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/market/trades`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'sess-1', before: 5, limit: 10 }),
+    });
+  });
+});
+
+describe('My AI endpoints', () => {
+  const fullStatus = {
+    enabled: false,
+    minute_counter: 10,
+    knobs: {},
+    override_rules: [],
+    credits: 3,
+    trainable: true,
+    logged_rows: 50,
+    min_rows: 40,
+    bot_rank: { tier: null, games_played: 0 },
+    queue: { queued: false, queue_size: 0 },
+  };
+
+  it('getMyAiStatus posts the token and parses the status', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(fullStatus));
+
+    const res = await getMyAiStatus('sess');
+
+    expect(res.credits).toBe(3);
+    expect(fetchMock).toHaveBeenCalledWith(`${BACKEND_URL}/my_ai/status`, {
+      method: 'POST',
+      headers: { 'X-Protocol-Version': String(PROTOCOL_VERSION), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'sess' }),
+    });
+  });
+
+  it('toggleMyAi posts the desired state', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ enabled: true, queued: true, reason: 'queued' }));
+
+    const res = await toggleMyAi('sess', true);
+
+    expect(res).toEqual({ enabled: true, queued: true, reason: 'queued' });
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'sess', enabled: true,
+    });
+  });
+
+  it('saveMyAiSettings spreads the settings into the body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      saved: true, enabled: false, minute_counter: 20, knobs: {}, override_rules: [],
+    }));
+
+    await saveMyAiSettings('sess', { minute_counter: 20, knobs: { revenge: 0.5 } });
+
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'sess', minute_counter: 20, knobs: { revenge: 0.5 },
+    });
+  });
+
+  it('joinBotRankedQueue posts the account token to the queue endpoint', async () => {
+    const { joinBotRankedQueue } = await import('@/lib/api');
+    fetchMock.mockResolvedValue(jsonResponse({ queued: true, queue_size: 2 }));
+
+    const res = await joinBotRankedQueue('acct');
+
+    expect(res).toEqual({ queued: true, queue_size: 2 });
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      token: 'acct',
+    });
+    expect(fetchMock.mock.calls[0][0]).toContain('/my_ai/bot_ranked');
+  });
+
+  it('getActiveBotRankedLobby posts the account token to the /active endpoint', async () => {
+    const { getActiveBotRankedLobby } = await import('@/lib/api');
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        lobby_id: 'BOTP', token: 'lobby-tok',
+        ai_ranked_countdown_deadline: null, started: false,
+      }),
+    );
+
+    const res = await getActiveBotRankedLobby('acct');
+
+    expect(res.lobby_id).toBe('BOTP');
+    expect(fetchMock.mock.calls[0][0]).toContain('/my_ai/bot_ranked/active');
+  });
+
+
+  it('getMyAiMatches parses the history', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      matches: [{
+        match_id: 'm1', placement: 1, rank: 'Warlock II',
+        opponents: [{ name: "Ben's AI", owner: 'Ben', place: 2 }],
+        at: '2026-09-03T14:03:00Z',
+      }],
+    }));
+    const res = await getMyAiMatches('sess');
+    expect(res.matches[0].rank).toBe('Warlock II');
+    expect(res.matches[0].at).toBe('2026-09-03T14:03:00Z');
   });
 });
