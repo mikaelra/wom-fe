@@ -61,6 +61,8 @@ beforeEach(() => {
   mockedRevertMerchantTime.mockReset();
   mockedGetMerchantOffer.mockReset();
   mockedGetMerchantOffer.mockResolvedValue(merchantState());
+  // SD/HD unless a test says otherwise: web opens in Low Definition by default.
+  localStorage.setItem('textMode', 'off');
   vi.useFakeTimers();
 });
 
@@ -68,6 +70,7 @@ afterEach(() => {
   setStoredAccountToken(null);
   localStorage.removeItem('playerName');
   localStorage.removeItem('playerEmail');
+  localStorage.removeItem('textMode');
   vi.useRealTimers();
 });
 
@@ -677,5 +680,43 @@ describe('InventoryPage', () => {
       expect(screen.queryByRole('button', { name: 'Timewarp' })).not.toBeInTheDocument();
       expect(mockedRevertMerchantTime).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('InventoryPage in Low Definition', () => {
+  it('draws the 32x32 faces and the artifact scroll, with no 3D preview', async () => {
+    setStoredAccountToken('sess-1');
+    localStorage.setItem('textMode', 'on');
+    mockedGetInventory.mockResolvedValue({
+      equipped_skin: 'frog_green_v1',
+      skins: [{ skin: 'frog_gold_v1', count: 1 }],
+      wheels: [],
+      artifact: { ordinal: 3, discovered_at: null, cosmetic: 'artifact_v1' },
+    });
+    const { container } = render(<InventoryPage />);
+    await flush();
+    await flush();
+
+    const sources = Array.from(container.querySelectorAll('img')).map((i) => i.getAttribute('src'));
+    expect(sources).toEqual(expect.arrayContaining(['/pixel/frog_green_v1.png', '/pixel/frog_gold_v1.png', '/pixel/artifact.png']));
+    expect(sources.some((src) => src?.startsWith('/skins/thumbnails/'))).toBe(false);
+    expect(screen.queryByTestId('skin-preview')).not.toBeInTheDocument();
+    expect(screen.getByTestId('my-ai-coin-pixel')).toHaveAttribute('src', '/pixel/my_ai_coin.png');
+    for (const img of container.querySelectorAll('img[src^="/pixel/"]')) {
+      expect((img as HTMLElement).style.imageRendering).toBe('pixelated');
+    }
+  });
+
+  it('keeps the rendered thumbnails and the 3D preview in SD and HD', async () => {
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({ equipped_skin: 'frog_green_v1', skins: [{ skin: 'frog_gold_v1', count: 1 }], wheels: [] });
+    const { container } = render(<InventoryPage />);
+    await flush();
+    await flush();
+
+    expect(container.querySelector('img[src="/skins/thumbnails/frog_gold_v1.png"]')).not.toBeNull();
+    expect(container.querySelector('img[src^="/pixel/"]')).toBeNull();
+    expect(screen.queryByTestId('my-ai-coin-pixel')).not.toBeInTheDocument();
+    expect(screen.getByTestId('skin-preview')).toBeInTheDocument();
   });
 });

@@ -1,6 +1,8 @@
 'use client';
 
-import { skinColor, skinThumbnailUrl } from '@/lib/frogSkins';
+import { skinColor } from '@/lib/frogSkins';
+import { pixelImageStyle, skinPicture } from '@/lib/pixelArt';
+import { useTextMode } from '@/lib/textMode';
 import { itemName, type MarketCatalog, type MarketItem } from '@/lib/market';
 
 /**
@@ -16,6 +18,7 @@ export default function MarketItemChip({
   catalog: Pick<MarketCatalog, 'relics'> | null;
 }) {
   const name = itemName(item, catalog);
+  const lowDefinition = useTextMode() === true;
   return (
     <span className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-md px-2 py-1 text-xs">
       <span
@@ -24,7 +27,12 @@ export default function MarketItemChip({
       >
         {item.item_type === 'skin' && (
           // eslint-disable-next-line @next/next/no-img-element -- local static asset
-          <img src={skinThumbnailUrl(item.skin ?? '')} alt="" className="w-full h-full object-cover" />
+          <img
+            src={skinPicture(item.skin ?? '', lowDefinition)}
+            alt=""
+            className="w-full h-full object-cover"
+            style={lowDefinition ? pixelImageStyle : undefined}
+          />
         )}
       </span>
       <span className="whitespace-nowrap">

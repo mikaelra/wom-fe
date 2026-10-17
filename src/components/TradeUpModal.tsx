@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { equipSkin, tradeUp } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
-import { skinLabel, skinUrl } from '@/lib/frogSkins';
+import { skinLabel } from '@/lib/frogSkins';
 import { canAfford, costLabel, outputLabel, type TradeUpRule, type TradeUpResult } from '@/lib/tradeUps';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
-import SpinningModelViewer from '@/components/SpinningModelViewer';
+import SkinPreview from '@/components/SkinPreview';
 import SpecialWheelEmblem from '@/components/SpecialWheelEmblem';
 
 type Props = {
@@ -147,7 +147,7 @@ export default function TradeUpModal({ skin, owned, rule, onClose, onTraded, onE
             </h2>
             {result.output_kind === 'skin' ? (
               <div className="w-32 h-32 mx-auto mb-2">
-                <SpinningModelViewer key={result.output} url={skinUrl(result.output)} targetSize={1.6} spinSpeed={0.7} />
+                <SkinPreview skin={result.output} targetSize={1.6} spinSpeed={0.7} />
               </div>
             ) : (
               <div className="w-28 h-28 mx-auto mb-2">
@@ -202,7 +202,7 @@ export default function TradeUpModal({ skin, owned, rule, onClose, onTraded, onE
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
               <div className="text-center">
                 <div className="w-28 h-28 mx-auto">
-                  <SpinningModelViewer url={skinUrl(skin)} targetSize={1.4} spinSpeed={0.5} />
+                  <SkinPreview skin={skin} targetSize={1.4} spinSpeed={0.5} />
                 </div>
                 <p className="text-sm font-semibold capitalize mt-1">{skinLabel(skin)}</p>
                 <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded bg-amber-700/60 text-amber-200 border border-amber-600">
@@ -217,7 +217,7 @@ export default function TradeUpModal({ skin, owned, rule, onClose, onTraded, onE
                 {rule.output_kind === 'skin' ? (
                   <>
                     <div className="w-28 h-28 mx-auto">
-                      <SpinningModelViewer url={skinUrl(rule.output)} targetSize={1.4} spinSpeed={0.5} />
+                      <SkinPreview skin={rule.output} targetSize={1.4} spinSpeed={0.5} />
                     </div>
                     <p className="text-sm font-semibold capitalize mt-1">{skinLabel(rule.output)}</p>
                   </>

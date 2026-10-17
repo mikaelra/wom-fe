@@ -133,7 +133,7 @@ FROGS = {
     'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#a81426', iris='#a81426', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
     'frog_silver_v1': dict(skin='#62646e', belly='#52545e', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#dce0ea'),
     'frog_bling_v1': dict(mouth=bling_mouth, skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#2a1860', bar='#000000', py=0, ir=3.0, pr=1.75, sparkle=True),
-    'frog_robot_v1': dict(mouth=(20.6, 2.6), rivets=[(5, 17), (25, 17)], seam=True, skin='#80838a', belly='#8d9098', sclera='#55575d', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95, hi='#cfd2da'),
+    'frog_robot_v1': dict(mouth=(20.6, 2.6), rivets=[(5, 17), (25, 17)], panels=True, no_glint=True, center_dot=True, skin='#80838a', belly='#8d9098', sclera='#000000', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95, hi='#cfd2da'),
     'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True, adaptive_rim=True),
 }
 
@@ -241,6 +241,27 @@ def draw_frog(c, p, dark_outline='#15121e'):
             y = int(round(17.2 - 3.6 * (1 - ((x - 15.5) / 10.0) ** 2)))
             if s['skin'][y, x] and not c.px[y, x, :3].tolist() == list(rgb(p['sclera'])):
                 c.dot(x, y, darken(skin, 0.38))
+    if p.get('panels'):  # more plating: seams between and under the eyes, down each cheek, across the jaw
+        seam_col = darken(skin, 0.4)
+        seams = [
+            [(15, 9), (15, 13)], [(16, 9), (16, 13)],            # down the middle, between the eyes
+            [(13, 12), (18, 12)],                                 # across the brow
+            [(3, 15), (3, 19), (4, 22), (7, 25)],                 # the left cheek plate
+            [(28, 15), (28, 19), (27, 22), (24, 25)],             # the right cheek plate
+            [(9, 26), (22, 26)],                                  # under the jaw
+        ]
+        for pts in seams:
+            m = Image.new('L', (N, N), 0)
+            ImageDraw.Draw(m).line(pts, fill=255, width=1)
+            hit = (np.array(m) > 0) & s['skin']
+            keep = hit & ~np.all(c.px[:, :, :3] == np.array(rgb(p['sclera'])), axis=2)
+            c.fill(keep, seam_col)
+        # bolts on either side: a dark head with a glint, at the temples, cheeks and jaw corners
+        for bx, by in [(2, 13), (29, 13), (5, 21), (26, 21), (9, 24), (22, 24), (6, 28), (25, 28)]:
+            if s['skin'][by, bx]:
+                c.dot(bx, by, darken(skin, 0.55))
+                if s['skin'][by - 1, bx - 1]:
+                    c.dot(bx - 1, by - 1, lighten(skin, 0.4))
     # nostrils
     for x in (13, 18):
         c.dot(x, 15, lo)
@@ -274,6 +295,8 @@ def draw_frog(c, p, dark_outline='#15121e'):
         if not p.get('no_glint'):
             c.dot(int(cx - 2), int(cy - 2), (255, 255, 255))
             c.dot(int(cx - 1), int(cy - 2), (255, 255, 255))
+        if p.get('center_dot'):  # no reflection: one white pixel in the middle of the black eye
+            c.dot(int(cx - 0.5), int(cy - 0.5), (255, 255, 255))
         if p.get('gloss'):  # a little white at the lower left of the pupil, as on the 3D model,
             # kept two pixels or more from the pupil's edge
             ax, ay = int(cx - 0.5), int(cy - 0.5)
@@ -580,9 +603,56 @@ def merchant_lady():
     return c
 
 
+def coin(c, rim, rim_hi, rim_lo, face_lo, face_hi, line, tick, outline):
+    """A coin seen face-on: a raised rim with a ridged edge round a concave face,
+    lit from the upper left (so the dish is shadowed there and bright opposite)."""
+    cx = cy = 16.0
+    r = np.sqrt((CX - cx) ** 2 + (CY - cy) ** 2)
+    ang = (np.degrees(np.arctan2(CY - cy, CX - cx)) + 360) % 360
+    disc = r <= 14.6
+    c.fill(disc, rgb(rim))
+    c.fill(disc & (r > 12.4) & (CX + CY < 31), rgb(rim_hi))     # the rim, lit
+    c.fill(disc & (r > 12.4) & (CX + CY > 33), rgb(rim_lo))     # the rim, shaded
+    for k in range(0, 360, 15):                                  # the ridges
+        x = int(cx + 13.7 * np.cos(np.radians(k)))
+        y = int(cy + 13.7 * np.sin(np.radians(k)))
+        c.dot(x, y, rgb(tick))
+    dish = r <= 10.8
+    c.fill(dish, rgb(face_lo))                                   # the concave face
+    c.fill(dish & (CX + CY > 31), rgb(face_hi))                  # bright opposite the light
+    c.fill(dish & (CX + CY > 36), rgb(rim_hi))
+    c.fill((r > 10.2) & (r <= 11.2) & (CX + CY < 30), rgb(line)) # the lip's inner shadow, upper left
+    c.outline(rgb(outline))
+
+
+def hades_coin():
+    """Hades' Coin: the plain gold coin (public/models/well/rewards/gold-ld.glb)."""
+    c = Canvas()
+    coin(c, '#d99f38', '#f0c866', '#a8701f', '#b7822c', '#d3a04a', '#8c5c18', '#8a5a18', '#5a3608')
+    for x, y in [(8, 9), (9, 8)]:
+        c.dot(x, y, rgb('#fbe6a0'))
+    return c
+
+
+def my_ai_coin():
+    """The My AI coin: a silver coin with a robot's head (public/images/my-ai-coin.png)."""
+    c = Canvas()
+    coin(c, '#c9ced8', '#eef1f6', '#8d94a2', '#dfe3ea', '#f6f8fb', '#9aa1ae', '#7c8493', '#3c424f')
+    ink, white, grey = rgb('#14161c'), (255, 255, 255), rgb('#c4c9d4')
+    c.fill((YY >= 12) & (YY <= 19) & (XX >= 11) & (XX <= 20), ink)       # the head
+    c.fill((YY >= 14) & (YY <= 16) & ((XX == 9) | (XX == 10) | (XX == 21) | (XX == 22)), ink)  # the ears
+    c.fill((YY >= 14) & (YY <= 15) & ((XX == 13) | (XX == 14) | (XX == 17) | (XX == 18)), white)  # the eyes
+    c.fill((YY == 17) & (XX >= 13) & (XX <= 18), grey)                   # the mouth
+    c.fill((YY >= 10) & (YY <= 11) & ((XX == 15) | (XX == 16)), ink)     # the antenna
+    c.fill((YY == 9) & ((XX == 15) | (XX == 16)), ink)
+    return c
+
+
 def artifacts_list():
     out = {n: frog(n) for n in FROGS}
     out['cherub_v1'] = cherub()
+    out['hades_coin'] = hades_coin()
+    out['my_ai_coin'] = my_ai_coin()
     out['merchant_v1'] = merchant_man()
     out['lady_merchant_v1'] = merchant_lady()
     out['artifact'] = artifact()

@@ -1,6 +1,33 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import WheelIcon, { SPECIAL_WHEEL_ICON_URL, WHEEL_ICON_URL, WheelText } from '@/components/WheelIcon';
+
+beforeEach(() => {
+  // These are about SD and HD; web opens in Low Definition unless a choice is saved.
+  localStorage.setItem('textMode', 'off');
+});
+
+describe('WheelIcon in Low Definition', () => {
+  it('draws the 8-bit wheel, with square pixels', async () => {
+    localStorage.setItem('textMode', 'on');
+    render(<WheelIcon />);
+    const img = await screen.findByTestId('wheel-icon');
+    await waitFor(() => expect(img).toHaveAttribute('src', '/pixel/wheel.png'));
+    expect(img).toHaveStyle({ imageRendering: 'pixelated' });
+  });
+
+  it('draws the 8-bit Special Wheel, and the wheel in a message', async () => {
+    localStorage.setItem('textMode', 'on');
+    render(
+      <>
+        <WheelIcon special />
+        <WheelText text="🎡 You won a Wheel! 🎡" />
+      </>,
+    );
+    await waitFor(() => expect(screen.getByTestId('special-wheel-icon')).toHaveAttribute('src', '/pixel/special-wheel.png'));
+    await waitFor(() => screen.getAllByTestId('wheel-icon').forEach((i) => expect(i).toHaveAttribute('src', '/pixel/wheel.png')));
+  });
+});
 
 describe('WheelIcon', () => {
   it('shows the wheel picture at emoji size, hidden from screen readers', () => {

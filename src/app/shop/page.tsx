@@ -6,8 +6,10 @@ import { useRouter } from 'next/navigation';
 import { claimName, getShopProducts, postCheckout, resolveAccountSession, type ShopProduct } from '@/lib/api';
 import { ApiError, getStoredAccountToken } from '@/lib/http';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
-import { skinLabel, skinUrl } from '@/lib/frogSkins';
-import SpinningModelViewer from '@/components/SpinningModelViewer';
+import { skinLabel } from '@/lib/frogSkins';
+import SkinPreview from '@/components/SkinPreview';
+import { PIXEL_MY_AI_COIN_URL, pixelImageStyle } from '@/lib/pixelArt';
+import { useTextMode } from '@/lib/textMode';
 import { CITY_PATH } from '@/lib/cities';
 import LoadingState from '@/components/loading/LoadingState';
 import { buyWithApple, isIosApp, loadAppleShop, type AppleShop, type BuyOutcome } from '@/lib/appleShop';
@@ -68,6 +70,7 @@ const STEAM_NOTICES: Record<SteamBuyOutcome, string | null> = {
 
 export default function ShopPage() {
   const router = useRouter();
+  const lowDefinition = useTextMode() === true; // 32x32 pictures (lib/pixelArt.ts)
   const [mounted, setMounted] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -442,7 +445,7 @@ export default function ShopPage() {
 
                   {product.kind === 'skin' && product.skin && (
                     <div className="mb-4 w-32 h-32 mx-auto">
-                      <SpinningModelViewer url={skinUrl(product.skin)} targetSize={1.8} spinSpeed={0.6} />
+                      <SkinPreview skin={product.skin} targetSize={1.8} spinSpeed={0.6} />
                     </div>
                   )}
 
@@ -453,11 +456,12 @@ export default function ShopPage() {
                             robot face, rendered from /modelling's myaicoinv02. */}
                         {/* eslint-disable-next-line @next/next/no-img-element -- a small static file from public/, like the wheel icon */}
                         <img
-                          src="/images/my-ai-coin.png"
+                          src={lowDefinition ? PIXEL_MY_AI_COIN_URL : '/images/my-ai-coin.png'}
                           alt=""
                           data-testid="my-ai-coin"
                           draggable={false}
                           className="h-12 w-12"
+                          style={lowDefinition ? pixelImageStyle : undefined}
                         />
                       </div>
                       <p className="text-xs text-white/50">

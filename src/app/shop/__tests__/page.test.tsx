@@ -75,6 +75,7 @@ beforeEach(() => {
   mockedPostCheckout.mockReset();
   mockedResolveAccountSession.mockReset();
   mockedClaimName.mockReset();
+  localStorage.setItem('textMode', 'off'); // SD/HD unless a test says otherwise: web opens in Low Definition
 });
 
 afterEach(() => {
@@ -115,6 +116,22 @@ describe('ShopPage', () => {
     expect(screen.getByText('gold - 30%')).toBeInTheDocument();
     expect(screen.getByText('rainbow - 6.67%')).toBeInTheDocument();
     expect(screen.getByText('bling - 0.33%')).toBeInTheDocument();
+  });
+
+  it('shows a skin as its 32x32 face and the My AI coin as pixels in Low Definition, with no 3D preview', async () => {
+    loginAs();
+    localStorage.setItem('textMode', 'on');
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [SKIN_PRODUCT, AI_CREDITS_PRODUCT],
+    });
+    const { container } = render(<ShopPage />);
+    await flush();
+    await flush();
+
+    expect(screen.queryByTestId('skin-preview')).not.toBeInTheDocument();
+    expect(container.querySelector('img[src="/pixel/cherub_v1.png"]')).not.toBeNull();
+    expect(screen.getByTestId('my-ai-coin')).toHaveAttribute('src', '/pixel/my_ai_coin.png');
+    expect(screen.getByTestId('my-ai-coin').style.imageRendering).toBe('pixelated');
   });
 
   it('renders a skin product generically', async () => {

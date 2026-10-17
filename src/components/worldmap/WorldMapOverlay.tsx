@@ -118,7 +118,7 @@ export default function WorldMapOverlay({
     <>
       {/* Rules, music and the user menu, shared with the city scene so the
           top bar is continuous between them (locked decision 4). */}
-      <SceneTopBar belowRules={clock} belowSound={<CameraSpeedButton />} />
+      <SceneTopBar belowRules={clock} belowSound={<CameraSpeedButton />} showSoundEffects={false} />
 
       {/* Bottom: lobby controls */}
       <div className="absolute bottom-8 left-0 right-0 z-20 flex flex-col items-center gap-2 pointer-events-none">

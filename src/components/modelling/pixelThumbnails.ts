@@ -40,6 +40,7 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
   {
     title: 'Relics (inventory and the merchants)',
     items: [
+      { id: 'hades_coin', label: "Hades' Coin", was: '/models/well/rewards/gold-ld.thumbnail.png' },
       { id: 'pen', label: 'Pen', was: '/models/relics/pen_v1.thumbnail.png' },
       { id: 'paper', label: 'Paper' },
       { id: 'stone', label: 'Stone of Vitality (v2)', was: '/models/relics/stone_of_vitality_v2.thumbnail.png' },
@@ -51,6 +52,7 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
       { id: 'wheel', label: 'Wheel', was: '/images/wheel.png' },
       { id: 'special-wheel', label: 'Special Wheel', was: '/images/special-wheel.png' },
       { id: 'artifact', label: 'Artifact (the scroll, its 3D model)' },
+      { id: 'my_ai_coin', label: 'My AI coin (shop)', was: '/images/my-ai-coin.png' },
     ],
   },
 ];

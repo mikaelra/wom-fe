@@ -28,6 +28,7 @@ vi.mock('@/lib/api', () => ({
   getPlayerRelics: vi.fn(async () => ({
     relics: [
       { id: 1, name: "Hades' Coin", count: 2, boss_id: 6, created_at: '', power_category: 'MONETARY', newest_copy_created_at: '' },
+      { id: 2, name: 'Stone of Vitality', count: 1, boss_id: null, created_at: '', power_category: 'HEALTH', newest_copy_created_at: '' },
       { id: 9, name: 'Paper', count: 1, boss_id: null, created_at: '', power_category: 'X', newest_copy_created_at: '' },
     ],
   })),
@@ -106,12 +107,42 @@ describe('TextLobby', () => {
     expect(row.textContent).toBe('☠️🐺✅Wolf 1'); // dead, so no kick ❌
   });
 
+  it("shows each player's 32x32 face, the robot frog's for a My AI agent, an emoji for the house bots", async () => {
+    await show(
+      lobby({
+        players: [
+          player('Oni', { admin: true, skin: 'frog_blue_v1' }),
+          player('Toad', { skin: 'cherub_v1' }),
+          player('Robo', { bot: true }),
+          player('Wolf 1', { bot: true, bot_type: 'WOLF' }),
+        ],
+      }),
+    );
+    const face = async (name: string) => (await screen.findByText(name)).closest('li')!.querySelector('img');
+    expect((await face('Oni'))!.getAttribute('src')).toBe('/pixel/frog_blue_v1.png');
+    expect((await face('Toad'))!.getAttribute('src')).toBe('/pixel/cherub_v1.png');
+    expect((await face('Robo'))!.getAttribute('src')).toBe('/pixel/frog_robot_v1.png');
+    expect(await face('Wolf 1')).toBeNull(); // a house bot keeps its emoji
+    expect((await screen.findByText('Wolf 1')).closest('li')!.textContent).toContain('🐺');
+    expect((await face('Oni'))!.style.imageRendering).toBe('pixelated');
+  });
+
+  it("shows the 32x32 pictures of the Stone and Hades' Coin in the players' rows", async () => {
+    await show(lobby({ players: [player('Oni', { admin: true, selected_relic_ids: [2] }), player('Toad', { selected_relic_ids: [1] })] }));
+    const stone = (await screen.findByText('Oni')).closest('li')!.querySelector('img[alt="Stone of Vitality"]');
+    expect(stone).toHaveAttribute('src', '/pixel/stone.png');
+    expect((await screen.findByText('Toad')).closest('li')!.querySelector('img[alt="Hades\' Coin"]')).toHaveAttribute('src', '/pixel/hades_coin.png');
+  });
+
   it("shows a player's equipped relics after their name before the game", async () => {
     await show(lobby({ players: [player('Oni', { admin: true }), player('Toad', { selected_relic_ids: [1] })] }));
     const row = (await screen.findByText('Toad')).closest('li')!;
     await act(async () => Promise.resolve());
     expect(row.textContent!.startsWith('Toad')).toBe(true);
-    expect(row.textContent!.length).toBeGreaterThan('Toad❌'.length); // a relic badge after the name
+    // a relic badge after the name: Hades' Coin, drawn as its 32x32 picture
+    const badge = row.querySelector('img[alt="Hades\' Coin"]')!;
+    expect(badge).toHaveAttribute('src', '/pixel/hades_coin.png');
+    expect(row.textContent!.indexOf('Toad')).toBe(0);
   });
 
   it('waits for the game to start with counting dots, then shows the round', async () => {
@@ -153,7 +184,7 @@ describe('TextLobby', () => {
     await show(lobby({ players: [player('Oni', { admin: true, selected_relic_ids: [1] }), player('Toad')] }));
     const heading = await screen.findByText(/Relics/);
     expect(screen.queryByText(/\+1💰/)).toBeNull();
-    expect(heading.textContent).toContain('🪙'); // what is picked shows while folded
+    expect(heading.querySelector('img[alt="Hades\' Coin"]')).not.toBeNull(); // what is picked shows while folded
     fireEvent.click(heading);
     const coin = screen.getByText(/\+1💰/);
     expect(screen.queryByText(/Paper/)).toBeNull();

@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 const SpinningModelViewer = dynamic(() => import('@/components/SpinningModelViewer'), { ssr: false });
 import { skinUrl } from '@/lib/frogSkins';
 import { relicModelUrl } from '@/lib/relics';
+import { pixelImageStyle, pixelMerchantUrl, pixelRelicUrl } from '@/lib/pixelArt';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
@@ -127,6 +128,38 @@ export default function MerchantScene({ offer, token, onClose, onPurchased, text
             Merchant paints first (furthest back), the table next (so it
             covers his middle like a real counter), the Stone last (so it
             reads as sitting on the table, not embedded in it). */}
+        {/* Low Definition: no 3D stage. The merchant's 32x32 portrait and the
+            relic he sells, resting on his counter (lib/pixelArt.ts). */}
+        {textOnly && (
+          <div data-testid="pixel-stage" className="mt-3 px-6">
+            <div className="flex items-end justify-center gap-6">
+              {pixelMerchantUrl(merchantModel) && (
+                // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets
+                <img
+                  src={pixelMerchantUrl(merchantModel)!}
+                  alt={offer.merchant_name}
+                  draggable={false}
+                  style={{ ...pixelImageStyle, width: rem(128), height: rem(128) }}
+                />
+              )}
+              {pixelRelicUrl(offer.item_name) && (
+                // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets
+                <img
+                  src={pixelRelicUrl(offer.item_name)!}
+                  alt={offer.item_name}
+                  draggable={false}
+                  className={reducedMotion ? '' : 'merchant-stone-hover'}
+                  style={{ ...pixelImageStyle, width: rem(96), height: rem(96) }}
+                />
+              )}
+            </div>
+            <div
+              className="mx-auto mt-0 h-3 rounded-md border border-amber-950/60"
+              style={{ background: 'linear-gradient(180deg, #8a5a34 0%, #6b4224 60%, #52341c 100%)' }}
+            />
+          </div>
+        )}
+
         {!textOnly && (
         <div className="relative mt-2" style={{ height: rem(STAGE_H) }}>
           <div

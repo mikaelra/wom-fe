@@ -25,6 +25,7 @@ beforeEach(() => {
   mockedLogOut.mockReset();
   mockedLogOut.mockResolvedValue({ success: true });
   localStorage.setItem('playerName', 'Alice');
+  localStorage.setItem('textMode', 'off'); // SD/HD unless a test says otherwise
   setStoredAccountToken('acct-tok');
 });
 
@@ -38,6 +39,25 @@ afterEach(() => {
 function avatarSpan(container: HTMLElement): HTMLElement {
   return container.querySelector('span.w-7.h-7') as HTMLElement;
 }
+
+describe('SceneTopBar avatar in Low Definition', () => {
+  it("shows the equipped skin's 32x32 face, with square pixels", async () => {
+    localStorage.setItem('textMode', 'on');
+    mockedGetInventory.mockResolvedValue(inventory('frog_pink_v1'));
+    const { container } = render(<SceneTopBar />);
+    await screen.findByText('Alice');
+    await waitFor(() => expect(avatarSpan(container).querySelector('img')).not.toBeNull());
+    await waitFor(() => expect(avatarSpan(container).querySelector('img')).toHaveAttribute('src', '/pixel/frog_pink_v1.png'));
+    expect(avatarSpan(container).querySelector('img')!.style.imageRendering).toBe('pixelated');
+  });
+
+  it('keeps the rendered thumbnail in SD and HD', async () => {
+    mockedGetInventory.mockResolvedValue(inventory('frog_pink_v1'));
+    const { container } = render(<SceneTopBar />);
+    await screen.findByText('Alice');
+    await waitFor(() => expect(avatarSpan(container).querySelector('img')).toHaveAttribute('src', '/skins/thumbnails/frog_pink_v1.png'));
+  });
+});
 
 describe('SceneTopBar avatar loading placeholder', () => {
   it('shows only the blinking-green placeholder while the equipped skin loads, never a specific skin', async () => {
@@ -79,6 +99,24 @@ describe('SceneTopBar avatar loading placeholder', () => {
     expect(avatarSpan(container)).toBeNull();
     expect(container.querySelector('.avatar-loading-blink')).toBeNull();
     expect(mockedGetInventory).not.toHaveBeenCalled();
+  });
+});
+
+describe('SceneTopBar sound buttons', () => {
+  it('has the music and the sound-effects buttons by default', async () => {
+    mockedGetInventory.mockResolvedValue(inventory());
+    render(<SceneTopBar />);
+    await screen.findByText('Alice');
+    expect(screen.getByRole('button', { name: 'Mute music' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mute sound effects' })).toBeInTheDocument();
+  });
+
+  it('leaves the effects out for Earth and the city, keeping the music', async () => {
+    mockedGetInventory.mockResolvedValue(inventory());
+    render(<SceneTopBar showSoundEffects={false} />);
+    await screen.findByText('Alice');
+    expect(screen.getByRole('button', { name: 'Mute music' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sound effects/ })).not.toBeInTheDocument();
   });
 });
 

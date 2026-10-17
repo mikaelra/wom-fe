@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { equipSkin, spinWheel } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
-import { NORMAL_WHEEL_SKINS, skinColor, skinLabel, skinUrl } from '@/lib/frogSkins';
+import { NORMAL_WHEEL_SKINS, skinColor, skinLabel } from '@/lib/frogSkins';
 import {
   buildSlices,
   computeViewportGeometry,
@@ -19,7 +19,7 @@ import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 import WheelCanvas from '@/components/wheel/WheelCanvas';
 import WheelFlapper from '@/components/wheel/WheelFlapper';
 import { useWheelAnimation } from '@/components/wheel/useWheelAnimation';
-import SpinningModelViewer from '@/components/SpinningModelViewer';
+import SkinPreview from '@/components/SkinPreview';
 import WheelIcon from '@/components/WheelIcon';
 
 type Props = {
@@ -286,7 +286,7 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
             {isResult && (
               <div className="text-center w-full">
                 <div className="w-32 h-32 mx-auto mb-2">
-                  <SpinningModelViewer key={resultSkin} url={skinUrl(resultSkin!)} targetSize={1.6} spinSpeed={0.7} />
+                  <SkinPreview skin={resultSkin!} targetSize={1.6} spinSpeed={0.7} />
                 </div>
                 <p className="text-green-400 font-bold text-lg mb-1">You got:</p>
                 <p className="text-amber-300 font-semibold mb-4 capitalize">{skinLabel(resultSkin!)}</p>

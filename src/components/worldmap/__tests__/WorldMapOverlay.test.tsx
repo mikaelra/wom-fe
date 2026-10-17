@@ -84,6 +84,12 @@ afterEach(() => {
 });
 
 describe('WorldMapOverlay', () => {
+  it('has the music button and no sound-effects button: Earth has no effects to mute', () => {
+    render(<WorldMapOverlay />);
+    expect(screen.getByRole('button', { name: 'Mute music' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sound effects/ })).not.toBeInTheDocument();
+  });
+
   it('shows the logged-out top bar and lobby controls, with no user menu', () => {
     render(<WorldMapOverlay />);
     expect(screen.getByRole('button', { name: 'Log in' })).toBeInTheDocument();
