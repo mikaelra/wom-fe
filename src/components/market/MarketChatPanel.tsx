@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { recentChat, type MarketChatEntry } from '@/lib/market';
 import type { MarketFrogs } from '@/lib/schemas';
+import { useMutedPlayers, hideMuted } from '@/lib/chatMute';
+import { useChatText } from '@/lib/chatFilter';
+import ChatMessageActions, { MutedMark, type ChatTarget } from '@/components/chat/ChatMessageActions';
 
 /** Local wall-clock "HH:MM" for a chat line, or "" if the timestamp
  *  doesn't parse. */
@@ -52,7 +55,19 @@ export default function MarketChatPanel({
     return () => clearInterval(id);
   }, []);
 
-  const visible = useMemo(() => recentChat(messages, nowMs), [messages, nowMs]);
+  const muted = useMutedPlayers();
+  const chatText = useChatText();
+  const visible = useMemo(() => hideMuted(recentChat(messages, nowMs), muted), [messages, nowMs, muted]);
+  const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
+  // Your own lines can't be muted or reported.
+  const [ownName, setOwnName] = useState('');
+  useEffect(() => {
+    try {
+      setOwnName(localStorage.getItem('playerName') || '');
+    } catch {
+      setOwnName('');
+    }
+  }, []);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -85,7 +100,7 @@ export default function MarketChatPanel({
           type="button"
           onClick={() => setShowFrogs((v) => !v)}
           aria-expanded={showFrogs}
-          className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
+          className={`px-2 py-1 rounded-md text-[0.6875rem] font-semibold transition-colors cursor-pointer ${
             showFrogs ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-white/10 hover:bg-white/20'
           }`}
         >
@@ -101,6 +116,7 @@ export default function MarketChatPanel({
           {frogs.names.map((name) => (
             <div key={name} className="text-white/85 leading-snug">
               <span className="text-emerald-400/80">🐸</span> {name}
+              {muted.has(name) && <> <MutedMark /></>}
             </div>
           ))}
           {frogs.count > frogs.names.length && (
@@ -119,21 +135,27 @@ export default function MarketChatPanel({
           </p>
         )}
         {visible.map((m, i) => (
-          <div key={`${m.timestamp}-${i}`} className="flex gap-2 leading-snug">
+          <div
+            key={`${m.timestamp}-${i}`}
+            className={`flex gap-2 leading-snug ${m.sender !== ownName ? 'cursor-pointer hover:bg-white/5 rounded' : ''} ${muted.has(m.sender) ? 'opacity-50' : ''}`}
+            onClick={m.sender !== ownName ? () => setChatTarget(m) : undefined}
+          >
             <div className="min-w-0 flex-1">
+              {muted.has(m.sender) && <><MutedMark /> </>}
               <span className="text-emerald-400/90 font-semibold">{m.sender}</span>
               <span className="text-white/40"> · </span>
-              <span className="text-white/85 break-words">{m.message}</span>
+              <span className="text-white/85 break-words">{chatText(m.message)}</span>
             </div>
             <time
               dateTime={m.timestamp}
-              className="shrink-0 text-[11px] tabular-nums text-white/30 pt-0.5"
+              className="shrink-0 text-[0.6875rem] tabular-nums text-white/30 pt-0.5"
             >
               {formatClock(m.timestamp)}
             </time>
           </div>
         ))}
       </div>
+      <ChatMessageActions target={chatTarget} context="market" onClose={() => setChatTarget(null)} />
       <div className="p-2 border-t border-white/10 flex gap-2">
         <input
           value={draft}

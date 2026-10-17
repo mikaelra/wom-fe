@@ -5,13 +5,13 @@ import {
   subscribeSoundSettings,
 } from './soundSettings';
 
-export const HOME_MUSIC = '/audio/music/Broken by Water.mp3';
+/** The earth screen and the city share one track, so walking between them
+ *  keeps the song playing instead of restarting it (playMusic skips the src
+ *  swap when the track is unchanged). */
+export const HOME_MUSIC = '/audio/music/Moonlit Saddle.mp3';
 export const PRE_LOBBY_MUSIC = '/audio/music/Quiet Ascent.mp3';
 export const BATTLE_MUSIC = '/audio/music/Chamber.mp3';
-/** The city. Main Theme.mp3 shipped in public/audio/music/ from the start
- *  but was never wired to anything -- the city scene had no music call at
- *  all, so its toggle sat over silence and looked broken. */
-export const CITY_MUSIC = '/audio/music/Main Theme.mp3';
+export const CITY_MUSIC = HOME_MUSIC;
 
 // A single shared <audio> element rather than one per screen -- screens
 // mount/unmount their music via plain useEffects as the player navigates

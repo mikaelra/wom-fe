@@ -61,7 +61,7 @@ export function cosmeticLabel(id: string): string {
 }
 
 const COSMETIC_DESCRIPTIONS: Record<string, string> = {
-  [ARTIFACT]: 'A single piece of paper, once pulled from a well.',
+  [ARTIFACT]: 'This ancient gif claims to be the source',
 };
 
 export function cosmeticDescription(id: string): string {

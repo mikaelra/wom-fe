@@ -1,14 +1,37 @@
 'use client';
 
-import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import WorldMapOverlay from '@/components/worldmap/WorldMapOverlay';
+import WorldClock from '@/components/worldmap/WorldClock';
+import TimewarpPanel from '@/components/worldmap/TimewarpPanel';
+import { timewarpColorsFor, timewarpFxState } from '@/lib/timewarpFx';
+import { getSky } from '@/lib/astrology';
+import { useTimewarpFx } from '@/lib/useTimewarpFx';
+import { useTimewarpRun } from '@/lib/useTimewarpRun';
 import CityLoadingScreen from '@/components/city/CityLoadingScreen';
 import type { City } from '@/lib/cities';
+import { useMerchantOffer } from '@/lib/useMerchantOffer';
+import { MERCHANT_MARKER_LABEL, merchantMarkerColors, merchantSkyBodies } from '@/lib/merchant';
+import { getStoredAccountToken } from '@/lib/http';
+import ExitGamePrompt from '@/components/ExitGamePrompt';
+import HudToggle from '@/components/worldmap/HudToggle';
+import HudLoadingMark from '@/components/worldmap/HudLoadingMark';
+import { useHudHidden, useHudLoadingMark } from '@/lib/hudHidden';
+import { useTextMode } from '@/lib/textMode';
+import { watch3dScene } from '@/lib/textModeOffer';
+
+// three.js only when a scene is drawn: in text mode (lib/textMode.ts) none
+// is, and the renderer is never downloaded.
+const Canvas = dynamic(() => import('@react-three/fiber').then((m) => m.Canvas), { ssr: false });
+const ContextLossRecovery = dynamic(() => import('@/components/hud/ContextLossRecovery'), { ssr: false });
+const AssetLoadingReporter = dynamic(() => import('@/components/loading/AssetLoadingReporter'), { ssr: false });
+const PREVIEW_MERCHANT_PREFIX = 'timewarp-preview|';
 
 const WorldMap = dynamic(() => import('@/components/worldmap/WorldMap'), { ssr: false });
+const MerchantScene = dynamic(() => import('@/components/merchant/MerchantScene'), { ssr: false });
+const TextHome = dynamic(() => import('@/components/text/TextHome'), { ssr: false });
 
 /**
  * The world map — the game's home screen (docs/CITY_SCENE_PLAN.md §4.4).
@@ -29,11 +52,104 @@ export default function Page() {
   // Defer Canvas mount by one paint frame so the UI controls render and
   // become interactive before the WebGL context initialises.
   const [sceneReady, setSceneReady] = useState(false);
+  // Text mode (lib/textMode.ts): no globe, its markers as text (TextHome).
+  const textMode = useTextMode();
+  // A 3D scene up: marked, so a crash in it offers text mode next start
+  // (lib/textModeOffer.ts).
+  useEffect(() => (textMode === false ? watch3dScene() : undefined), [textMode]);
+  // Text mode too: the eye leaves just the 8-bit sky (TextHome's hideLinks).
+  const hudHidden = useHudHidden();
+  const hudLoadingMark = useHudLoadingMark();
 
   // Set once the city route has been asked for but this page is still
   // mounted. Never cleared: the only way out is the navigation itself, and
   // clearing it would flash the globe back for a frame.
   const [enteringCity, setEnteringCity] = useState<City | null>(null);
+
+  // docs/MERCHANT_PLAN.md -- the merchants. One marker per merchant in
+  // town: a full moon and a conjunction at once are two.
+  const {
+    offers: merchantOffers,
+    merchant,
+    receivedAt: merchantReceivedAt,
+    reverted,
+    revertToDate,
+    revertExpiresAt,
+    refresh: refreshMerchantOffer,
+  } = useMerchantOffer();
+  // Which merchant's scene is open, by `offer_id|event_key` -- a key rather
+  // than the offer object, so the scene follows the latest poll (a
+  // purchase flips already_bought_this_period) instead of a stale copy.
+  const [openMerchantKey, setOpenMerchantKey] = useState<string | null>(null);
+  // Markers draw for every merchant in town (`active`), regardless of
+  // whether this player has already bought from it -- the merchant stays
+  // visible and clickable either way; only the offer itself (inside
+  // MerchantScene) goes unavailable. Filtering on `available` instead
+  // would make a marker vanish for anyone who's already traded, which is
+  // the actual bug this was fixed from (traced live 2026-09-25).
+  const merchantKey = (o: { offer_id: number; event_key: string }) => `${o.offer_id}|${o.event_key}`;
+  // Each stands on the globe under its own sky: the full moon's under the
+  // Moon, a conjunction's under its two planets (MerchantMarker moves it
+  // there every frame as the sky turns).
+  const realMerchantMarkers = useMemo(
+    () =>
+      merchantOffers.map((o) => ({
+        key: merchantKey(o),
+        bodies: merchantSkyBodies(o.event),
+        ...(({ fill, outline }) => ({ color: fill, outline }))(merchantMarkerColors(o.event)),
+        label: MERCHANT_MARKER_LABEL,
+      })),
+    [merchantOffers],
+  );
+  const openMerchant = merchantOffers.find((o) => merchantKey(o) === openMerchantKey) ?? null;
+
+  // The timewarp animation (lib/timewarpFx.ts): a `?timewarp` preview, a
+  // player arriving with `&play=1` from the inventory, or anyone's
+  // timewarp pushed by the server (lib/useTimewarpRun.ts).
+  const {
+    preview: timewarpPreview,
+    run: timewarpRun,
+    runId: timewarpRunId,
+    playPreview,
+    playPreviewEnd,
+  } = useTimewarpRun({ onArrival: () => router.replace('/'), refreshMerchantOffer });
+  const [skyReady, setSkyReady] = useState(false);
+
+  // A preview shows the merchants of the moment it warps to -- one for each
+  // of its events, under the Moon or that conjunction -- rather than
+  // today's, which would stand under whatever today has. For looking at
+  // only: clicking one opens nothing. A real timewarp needs none of this;
+  // the merchant poll brings the new moment's own.
+  const merchantMarkers = useMemo(
+    () =>
+      timewarpPreview && timewarpRun && !timewarpRun.ending
+        ? timewarpRun.spec.events.map((e, i) => ({
+          key: `${PREVIEW_MERCHANT_PREFIX}${i}`,
+          bodies: e.bodies,
+          ...(({ fill, outline }) => ({ color: fill, outline }))(
+            merchantMarkerColors({ kind: e.kind, key: e.key, bodies: e.bodies, sign: '', at: '' }),
+          ),
+          label: MERCHANT_MARKER_LABEL,
+        }))
+        : realMerchantMarkers,
+    [timewarpPreview, timewarpRun, realMerchantMarkers],
+  );
+  const handleMerchantClick = useCallback((key: string) => {
+    if (!key.startsWith(PREVIEW_MERCHANT_PREFIX)) setOpenMerchantKey(key);
+  }, []);
+
+  // Waits for the whole sky to be up, so the animation has something to
+  // act on.
+  const { playing: timewarpPlaying, step: timewarpStep } = useTimewarpFx(
+    timewarpRun,
+    timewarpRunId,
+    // Text mode has no globe to wait on: its sky is ready at once.
+    skyReady || textMode === true,
+  );
+  // The text sky's moment: the timewarp's, running through time while it
+  // plays (redrawn each of its steps), or a reverted sky's; else none, and
+  // it keeps time itself.
+  const textSkyDate = textMode && (timewarpPlaying || reverted) ? getSky().date : undefined;
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setSceneReady(true));
@@ -65,8 +181,34 @@ export default function Page() {
 
   return (
     <div style={{ width: '100%', height: '100dvh', position: 'relative', overflow: 'hidden', background: '#070b15' }}>
-      <WorldMapOverlay />
-      {sceneReady && (
+      {!hudHidden && <WorldMapOverlay
+        clock={
+          <WorldClock
+            reverted={reverted}
+            revertToDate={revertToDate ?? null}
+            skyDate={merchant?.sky_date ?? null}
+            skyDateReceivedAt={merchantReceivedAt}
+            revertExpiresAt={revertExpiresAt}
+            warpColors={timewarpColorsFor(merchantOffers.map((o) => o.event))}
+          />
+        }
+      />}
+      {textMode && (
+        <TextHome
+          hideLinks={hudHidden}
+          offers={merchantOffers}
+          onEnterCity={handleCityClick}
+          onOpenMerchant={(o) => setOpenMerchantKey(merchantKey(o))}
+          skyDate={textSkyDate}
+          timewarp={timewarpPlaying && timewarpRun ? { glow: timewarpFxState.glow, colors: timewarpRun.spec.colors } : null}
+        />
+      )}
+      {textMode !== null && <HudToggle />}
+      {/* With the HUD hidden, a tap on the globe loops the loading animation
+          where the loading screen shows it, half the Earth's size (lib/hudHidden.ts). */}
+      {hudLoadingMark && <HudLoadingMark />}
+      {textMode === false && <AssetLoadingReporter />}
+      {sceneReady && textMode === false && (
         <Canvas
           camera={{ position: [0, 3, 10.5], fov: 50 }}
           // Same containment as the city's canvas, for the same reason: the
@@ -79,16 +221,40 @@ export default function Page() {
           // its z-20 against this container's auto is.
           style={{ isolation: 'isolate' }}
         >
-          <WorldMap onCityClick={handleCityClick} />
+          <ContextLossRecovery />
+          <WorldMap
+            onCityClick={handleCityClick}
+            merchantMarkers={merchantMarkers}
+            onMerchantClick={handleMerchantClick}
+            // The timewarp's step too: each one moves the sky's instant, and
+            // the planets have to be redrawn where it now has them.
+            skyRevertKey={timewarpStep ? `${merchant?.sky_date ?? ''}|${timewarpStep}` : merchant?.sky_date ?? null}
+            timewarpColors={timewarpPlaying && timewarpRun ? timewarpRun.spec.colors : null}
+            onSkyReady={() => setSkyReady(true)}
+          />
         </Canvas>
       )}
+
+      {timewarpPreview && <TimewarpPanel onPlay={playPreview} onPlayEnd={playPreviewEnd} />}
 
       {enteringCity && (
         <CityLoadingScreen
           title={enteringCity.actionLabel ?? enteringCity.name}
-          accent={enteringCity.color}
         />
       )}
+
+      {openMerchant && (
+        <MerchantScene
+          offer={openMerchant}
+          token={getStoredAccountToken()}
+          onClose={() => setOpenMerchantKey(null)}
+          onPurchased={refreshMerchantOffer}
+          textOnly={!!textMode}
+        />
+      )}
+
+      {/* Steam client only: Escape on the globe offers to exit the game. */}
+      <ExitGamePrompt disabled={!!openMerchant || !!enteringCity || !!timewarpPreview} />
     </div>
   );
 }

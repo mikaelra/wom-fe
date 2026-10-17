@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  COMMON_SKINS, NORMAL_WHEEL_SKINS, skinColor, skinLabel, skinThumbnailUrl, skinUrl,
+  COMMON_SKINS, NORMAL_WHEEL_SKINS, skinColor, skinLabel, skinThumbnailUrl, skinUrl, sortSkins,
 } from '@/lib/frogSkins';
 
 describe('skinUrl', () => {
@@ -10,6 +10,11 @@ describe('skinUrl', () => {
 
   it('routes Cherub to its own asset instead of the frogs/ pattern (§3.4/§8.3)', () => {
     expect(skinUrl('cherub_v1')).toBe('/models/cherub-v01.glb');
+  });
+
+  it('routes the Merchant NPC to its own asset (docs/MERCHANT_PLAN.md)', () => {
+    expect(skinUrl('merchant_v1')).toBe('/models/merchant_v1.glb');
+    expect(skinUrl('lady_merchant_v1')).toBe('/models/lady_merchant_v1.glb');
   });
 });
 
@@ -63,5 +68,26 @@ describe('skinLabel', () => {
 
   it('gives Cherub its own display name, not a derived one', () => {
     expect(skinLabel('cherub_v1')).toBe('Cherub');
+  });
+});
+
+describe('sortSkins', () => {
+  it('orders colours, then silver, gold, rainbow, bling, then Cherub', () => {
+    const shuffled = [
+      'cherub_v1', 'frog_bling_v1', 'frog_red_v1', 'frog_gold_v1',
+      'frog_green_v1', 'frog_rainbow_v2', 'frog_silver_v1', 'frog_blue_v1',
+    ];
+    expect(sortSkins(shuffled, (s) => s)).toEqual([
+      'frog_green_v1', 'frog_blue_v1', 'frog_red_v1',
+      'frog_silver_v1', 'frog_gold_v1', 'frog_rainbow_v2', 'frog_bling_v1',
+      'cherub_v1',
+    ]);
+  });
+
+  it('puts unknown skins last and does not mutate the input', () => {
+    const input = [{ skin: 'frog_mystery_v9' }, { skin: 'frog_gold_v1' }];
+    expect(sortSkins(input, (e) => e.skin).map((e) => e.skin))
+      .toEqual(['frog_gold_v1', 'frog_mystery_v9']);
+    expect(input[0].skin).toBe('frog_mystery_v9');
   });
 });

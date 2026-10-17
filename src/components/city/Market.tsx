@@ -26,13 +26,13 @@ import Senate from '@/components/city/Senate';
  * shrinking to meet the depth, which is the same choice the arena made.
  *
  * `color` tints the stonework the same way the Senate is tinted on hover;
- * CityScene passes it and nothing else. The accent light stays green to
- * match MARKET_COLOR on the signpost's arm, the way the Senate's stays red
+ * CityScene passes it and nothing else. The accent light stays parchment yellow
+ * to match MARKET_COLOR on the signpost's arm, the way the Senate's stays red
  * -- each building says from a distance what it sends you to.
  */
 
 /** Matches the signpost's Market arm. */
-const MARKET_GREEN = '#5fd88a';
+const MARKET_YELLOW = '#e8d9a0';
 
 export interface MarketProps {
   position?: [number, number, number];
@@ -54,7 +54,7 @@ export default function Market({
       width={width}
       depth={depth}
       roof={false}
-      accentLight={MARKET_GREEN}
+      accentLight={MARKET_YELLOW}
       // Shorter and lighter than the Senate's columns. With no dome on top
       // of them there is nothing for a tall colonnade to be carrying, and
       // the Market should not out-rank the building it stands opposite.

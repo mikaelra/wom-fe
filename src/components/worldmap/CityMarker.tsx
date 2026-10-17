@@ -198,6 +198,8 @@ export default function CityMarker({ city, globeRadius, onClick }: CityMarkerPro
         <div
           style={{
             color: '#fff',
+            // Fades with the pin while a timewarp spins the globe.
+            opacity: 'var(--timewarp-markers, 1)',
             fontSize: hovered ? 14 : 11,
             fontWeight: 700,
             textShadow: '0 0 6px rgba(0,0,0,0.9)',

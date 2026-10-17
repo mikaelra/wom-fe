@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  boundaryIndexAt,
+  sliceIndexAt,
   buildSlices,
   clampFlapperRestBias,
   computeViewportGeometry,
@@ -183,25 +183,39 @@ describe('computeViewportGeometry', () => {
   });
 });
 
-describe('boundaryIndexAt', () => {
-  it('finds the boundary nearest the pointer at zero rotation', () => {
-    const table = oddsTable('normal');
-    const { slices } = buildSlices(table, { R: 900, H: 260 });
-    const idx = boundaryIndexAt(slices, 0);
-    // The nearest boundary to angle 0 is either the very first or very last.
-    expect([0, slices.length - 1]).toContain(idx);
+describe('sliceIndexAt', () => {
+  const slices = [
+    { skin: 'a', startAngle: 0, endAngle: 1 },
+    { skin: 'b', startAngle: 1, endAngle: 1.5 },
+    { skin: 'c', startAngle: 1.5, endAngle: TWO_PI },
+  ];
+
+  it('names the slice under the pointer (pointer sits at local angle -rotation)', () => {
+    expect(sliceIndexAt(slices, -0.5)).toBe(0);
+    expect(sliceIndexAt(slices, -1.2)).toBe(1);
+    expect(sliceIndexAt(slices, -3)).toBe(2);
+    expect(sliceIndexAt(slices, TWO_PI - 3)).toBe(2);
   });
 
-  it('tracks rotation continuously: index changes as rotation sweeps a full turn', () => {
+  it('changes at the peg, not at the middle of a slice', () => {
+    // Crossing slice a's middle (0.5) keeps the index; crossing its edge (1) changes it.
+    expect(sliceIndexAt(slices, -0.49)).toBe(sliceIndexAt(slices, -0.51));
+    expect(sliceIndexAt(slices, -0.99)).toBe(0);
+    expect(sliceIndexAt(slices, -1.01)).toBe(1);
+  });
+
+  it('visits every slice exactly once per full sweep of a real wheel', () => {
     const table = oddsTable('normal');
-    const { slices } = buildSlices(table, { R: 900, H: 260 });
-    const seen = new Set<number>();
-    const steps = 500;
-    for (let i = 0; i < steps; i++) {
-      seen.add(boundaryIndexAt(slices, (TWO_PI * i) / steps));
+    const { slices: real } = buildSlices(table, { R: 900, H: 260 });
+    let changes = 0;
+    let last = sliceIndexAt(real, 0);
+    const steps = 20000;
+    for (let i = 1; i <= steps; i++) {
+      const idx = sliceIndexAt(real, -(TWO_PI * i) / steps);
+      if (idx !== last) changes++;
+      last = idx;
     }
-    // Every boundary should be visited at least once over a full sweep.
-    expect(seen.size).toBeGreaterThan(slices.length * 0.9);
+    expect(changes).toBe(real.length);
   });
 });
 

@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 
 import ArtifactLedger from '@/components/ArtifactLedger';
+import TranscribedToList from '@/components/TranscribedToList';
+import type { TranscribedEntry } from '@/lib/api';
+import type { LedgerMark } from '@/lib/market';
+
+type Tab = 'discoverers' | 'transcribed';
 
 // The mystery reveal -- unoptimized because Next's image pipeline re-encodes
 // local images to a static frame, which would silently kill the animation.
@@ -24,13 +29,19 @@ const REVEAL_GIF_TALL = '/images/artifacts/white-frog-void-vertical.gif';
  * IS the backdrop -- so closing is the × button or Escape only.
  */
 export default function ArtifactLedgerModal({
-  highlightOrdinal = null,
+  marks = [],
+  transcribedTo = [],
   onClose,
 }: {
-  highlightOrdinal?: number | null;
+  /** Rows to mark in the discoverers list (lib/market.ts ledgerMarks). */
+  marks?: LedgerMark[];
+  /** Who the viewer's Artifact was transcribed to, in order (wom-be
+   *  docs/MARKET_PLAN.md §1B) -- the second tab beside the discoverers. */
+  transcribedTo?: TranscribedEntry[];
   onClose: () => void;
 }) {
   const [revealed, setRevealed] = useState(false);
+  const [tab, setTab] = useState<Tab>('discoverers');
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -82,8 +93,34 @@ export default function ArtifactLedgerModal({
           ref={panelRef}
           className="bg-gray-900 border-t border-amber-500/40 p-6"
         >
-          <h2 className="text-lg font-semibold mb-4">Discoverers of Artifact#1</h2>
-          <ArtifactLedger highlightOrdinal={highlightOrdinal} />
+          <div role="tablist" className="flex gap-2 mb-4 border-b border-white/10">
+            {(
+              [
+                ['discoverers', 'Discoverers of Artifact#1'],
+                ['transcribed', 'Transcribed to'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                className={`-mb-px px-3 py-2 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+                  tab === id
+                    ? 'border-amber-400 text-white'
+                    : 'border-transparent text-white/50 hover:text-white/80'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {tab === 'discoverers' ? (
+            <ArtifactLedger marks={marks} />
+          ) : (
+            <TranscribedToList entries={transcribedTo} />
+          )}
         </div>
       )}
     </div>

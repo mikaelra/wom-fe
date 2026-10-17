@@ -32,6 +32,29 @@
 # SteamPipe: rendered VDFs (real IDs, absolute paths) + build logs/cache
 /steam/output/
 
+# iOS / Capacitor -- the native project under ios/ is committed, but its build
+# products, resolved SwiftPM checkout, synced web assets and generated config
+# are not (ios/.gitignore covers most; these are belt-and-suspenders).
+/ios/App/App/public/
+/ios/App/App/capacitor.config.json
+/ios/App/App/config.xml
+/ios/App/build/
+/ios/DerivedData/
+/ios/output/
+/ios/capacitor-cordova-ios-plugins/
+/ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
+**/*.xcuserdatad/
+
+# fastlane -- signing material must never be committed; certs live in the
+# private match repo (ios/README.md).
+/fastlane/report.xml
+/fastlane/Preview.html
+/fastlane/test_output/
+*.p8
+*.mobileprovision
+*.p12
+*.cer
+
 # misc
 .DS_Store
 *.pem

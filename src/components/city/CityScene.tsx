@@ -9,28 +9,37 @@ import Temple from '@/components/temple';
 import Senate from '@/components/city/Senate';
 import Market from '@/components/city/Market';
 import CitySky, { useCitySky } from '@/components/city/CitySky';
+import TimewarpFx from '@/components/worldmap/TimewarpFx';
 import Signpost, { type SignpostArm } from '@/components/city/Signpost';
 import SkyLabels, { type SkyLabelBody } from '@/components/sky/SkyLabels';
 import CompassMarks from '@/components/city/CompassMarks';
 import Campfire from '@/components/city/Campfire';
+import Bay from '@/components/city/Bay';
 import { GLYPH, labelDetail } from '@/lib/skyLabelText';
 import { sunIsDown } from '@/lib/skyLocal';
 import { horizonToScene, SKY_R } from '@/lib/citySkyGeometry';
+// Kept in lib/cityCamera.ts (no three.js there): the city page needs them
+// without loading this scene in text mode.
+import { CITY_CAMERA, CITY_FOV, EYE, EYE_RADIUS } from '@/lib/cityCamera';
+export { CITY_CAMERA, CITY_FOV, EYE };
 // Temple left, Senate right, signpost between (§1.1). In lib/ so the
 // left/right pairing with the signpost's arms can be tested.
 import {
   TEMPLE_POSITION, SENATE_POSITION, SIGNPOST_POSITION, CAMPFIRE_POSITION, MARKET_POSITION,
   SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION, RANKED_FORK_SIGNPOST_ROTATION_Y,
-  RANKED_FORK_VIEW_PIN, RANKED_FORK_VIEW_OFFSET,
-  SEA_LEVEL, LAND_LEVEL, EYE_HEIGHT,
+  RANKED_FORK_VIEW_PIN, RANKED_FORK_VIEW_OFFSET, BAY_POSITION, BAY_ROTATION_Y,
+  SEA_LEVEL, LAND_LEVEL,
 } from '@/lib/cityLayout';
 import Terrain from '@/components/city/Terrain';
 import TempleTableau from '@/components/city/TempleTableau';
 import BuildingSign, { playingLabel, inMarketLabel } from '@/components/city/BuildingSign';
 import { TEMPLE_TABLEAU_LIFT } from '@/lib/templeTableau';
+import { fovAfterPinch, fovAfterWheel, rotateSpeedForFov } from '@/lib/cityZoom';
 import type { BossfightRoster } from '@/lib/api';
 import type { CityPresence } from '@/lib/schemas';
 import { useClickNotDrag } from '@/lib/useClickNotDrag';
+import { BACK_COLOR, BOSSFIGHT_COLOR, EARTH_COLOR, MARKET_COLOR, RANKED_COLOR } from '@/components/city/signpostColors';
+import { rankedTopSign } from '@/lib/rankedSign';
 
 /**
  * The Athens city scene (docs/CITY_SCENE_PLAN.md §5).
@@ -47,8 +56,9 @@ import { useClickNotDrag } from '@/lib/useClickNotDrag';
  * panorama-viewer arrangement -- orbiting at a radius of a centimetre is
  * indistinguishable from turning your head, and it means the well-tested
  * OrbitControls damping and touch handling come along for free rather than
- * hand-rolling a look controller. Pan and zoom are off: both would slide the
- * viewer off the spot they are pinned to.
+ * hand-rolling a look controller. Pan and OrbitControls' dolly zoom are
+ * off: both would slide the viewer off the spot they are pinned to. Zoom
+ * narrows the field of view instead (CityZoom).
  *
  * The sky is the real one over Athens at `date`, ephemeris-placed and
  * lit by where the Sun actually is (CitySky).
@@ -60,21 +70,15 @@ import { useClickNotDrag } from '@/lib/useClickNotDrag';
  * the measurements behind them.
  */
 
-/** Where the player stands: eye height above the GROUND, at the origin. Was
- *  measured from the sea until there was ground to stand on. */
-export const EYE: [number, number, number] = [0, LAND_LEVEL + EYE_HEIGHT, 0];
-/** How far the camera sits from the pin. Small enough to read as rotating in
- *  place, large enough to keep OrbitControls' maths well-conditioned. */
-const EYE_RADIUS = 0.01;
-/** Start pose: offset along +Z of the pin, so the default view looks toward
- *  -Z -- where the signpost and both buildings stand. */
-export const CITY_CAMERA: [number, number, number] = [EYE[0], EYE[1], EYE[2] + EYE_RADIUS];
+
+/** The timewarp's weather overhead: inside the sphere the Sun, the Moon
+ *  and the planets are placed on, so the buildings stand in front of it. */
+const TIMEWARP_DOME_R = SKY_R * 0.9;
+
 /** The entry pose as a unit offset direction, for GuidedView: a hair south
  *  of the pin, looking north. The fork's is this turned onto its face. */
 const CITY_VIEW_OFFSET: readonly [number, number, number] = [0, 0, 1];
-/** Wider than the lobby's 75: standing among buildings and looking up wants
- *  more sky in frame than a table-top scene does. */
-export const CITY_FOV = 70;
+
 
 /**
  * Keeps a gaze label at its authored pixel size (docs/CITY_SCENE_PLAN.md §7).
@@ -93,16 +97,13 @@ const LABEL_DISTANCE_FACTOR = SKY_R * 2 * Math.tan((CITY_FOV * Math.PI) / 360);
 const MIN_POLAR = 0.02;               // ~1 deg off the zenith
 const MAX_POLAR = Math.PI * 0.86;     // well below the horizon, short of inverting
 
+/** Drag-to-turn speed at the base FOV. Negative so dragging feels like
+ *  turning your head rather than spinning an object in front of you -- the
+ *  same sign three.js's own panorama example uses. */
+const ROTATE_SPEED = -0.35;
 
-const BOSSFIGHT_COLOR = '#4da6ff';
-const RANKED_COLOR = '#ff6666';
-/** Green, matching Market.tsx's awning: the right arm and the building it
- *  pairs with read as one colour from a distance, like the temple/Senate. */
-const MARKET_COLOR = '#5fd88a';
-const LIT_MARKET = '#eafff2';
-/** Parchment rather than a third saturated hue: the way out is not a third
- *  destination competing with the two fights. */
-const BACK_COLOR = '#e8d9a0';
+
+const LIT_MARKET = '#fffbea';
 
 /**
  * The light Hades keeps burning (docs/CITY_SCENE_PLAN.md §5.2).
@@ -160,6 +161,8 @@ export interface CitySceneProps {
   /** Enter a bot-ranked game against the field of other players' trained
    *  AIs (docs/MY_AI.md §4) -- the BOTS arm of the fork signpost.
    *  Your own AI isn't in it; it competes on its own in the queue. */
+  /** Open with the camera at the ranked fork's signpost (?board=ranked). */
+  startAtFork?: boolean;
   onBotRanked: () => void;
   rankedLabel: string;
   rankedSublabel?: string | null;
@@ -180,6 +183,10 @@ export interface CitySceneProps {
   /** Fired once the scene is genuinely on screen, so the loading curtain
    *  knows when to lift. */
   onReady?: () => void;
+  /** While a timewarp plays (lib/timewarpFx.ts), its colours: the same
+   *  clouds and lightning the globe wears, over the city's sky. null
+   *  otherwise. */
+  timewarpColors?: string[] | null;
 }
 
 /**
@@ -211,6 +218,62 @@ export interface CitySceneProps {
  * re-arm, so BACK eases from the fork's facing rather than snapping. Once
  * settled the rig stops touching the camera and free look resumes.
  */
+/**
+ * Zoom by narrowing the field of view (lib/cityZoom.ts): mouse wheel or
+ * trackpad on desktop, two-finger pinch on touch. OrbitControls' own zoom
+ * stays off because it dollies, which would move the viewer off the pin.
+ * Drag speed follows the FOV so turning stays proportionate when zoomed in.
+ */
+function CityZoom() {
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+  const gl = useThree((s) => s.gl);
+  const controls = useThree((s) => s.controls) as { rotateSpeed: number } | null;
+
+  useEffect(() => {
+    const el = gl.domElement;
+    const apply = (fov: number) => {
+      if (fov === camera.fov) return;
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+      if (controls) controls.rotateSpeed = rotateSpeedForFov(ROTATE_SPEED, fov, CITY_FOV);
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      apply(fovAfterWheel(camera.fov, e.deltaY, CITY_FOV));
+    };
+
+    let pinch: { distance: number; fov: number } | null = null;
+    const spread = (t: TouchList) =>
+      Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const onTouchStart = (e: TouchEvent) => {
+      pinch = e.touches.length === 2 ? { distance: spread(e.touches), fov: camera.fov } : null;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return;
+      apply(fovAfterPinch(pinch.fov, pinch.distance, spread(e.touches), CITY_FOV));
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = null;
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: true });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [camera, gl, controls]);
+
+  return null;
+}
+
 function GuidedView({
   pin,
   offsetDir,
@@ -312,6 +375,7 @@ export default function CityScene({
   roster,
   onRanked,
   onBotRanked,
+  startAtFork = false,
   rankedLabel,
   rankedSublabel,
   botRankedLabel,
@@ -320,12 +384,20 @@ export default function CityScene({
   onMarket,
   presence,
   onReady,
+  timewarpColors = null,
 }: CitySceneProps) {
   // The city's primary RANKED arm doesn't queue -- it walks the camera over
   // to the fork signpost between the two Senates, where you pick PLAYERS or
   // BOTS. The fork's BACK arm walks it home again (§5.2b).
-  const [view, setView] = useState<'city' | 'fork'>('city');
+  // Back from a ranked game (?board=ranked), the camera starts at the
+  // ranked fork's signpost (Mikael, 2026-10-12).
+  const [view, setView] = useState<'city' | 'fork'>(startAtFork ? 'fork' : 'city');
   const focusRanked = () => setView('fork');
+  const rankedTop = rankedTopSign(
+    { label: rankedLabel, sublabel: rankedSublabel, enter: onRanked },
+    { label: botRankedLabel, sublabel: botRankedSublabel, enter: onBotRanked },
+    focusRanked,
+  );
   // Same hook CitySky uses, so the lighting below and the sky itself are
   // reading one computation rather than two that could disagree.
   const { placements, sky, nightness, sunAltitude } = useCitySky(date, realLat, realLng, EYE);
@@ -383,9 +455,7 @@ export default function CityScene({
         // The body's own aspect colour, so the label and the glow sprite it
         // sits on are the same hue by construction.
         color: p.color,
-        // The city has a horizon to measure against, so its detail line
-        // opens with where the body actually stands (§7.5).
-        detail: labelDetail(sky, p.body, p.horizon),
+        detail: labelDetail(sky, p.body),
       })),
     [placements, sky],
   );
@@ -401,7 +471,7 @@ export default function CityScene({
   const arms: SignpostArm[] = [
     {
       side: 'left',
-      label: 'BOSSFIGHT',
+      label: 'HADES',
       sublabel: bossfightSublabel,
       color: BOSSFIGHT_COLOR,
       onActivate: onBossfight,
@@ -420,12 +490,14 @@ export default function CityScene({
       // Bossfight without being lesser than it.
       side: 'right',
       tier: 0.5,
-      label: rankedLabel,
-      sublabel: rankedSublabel,
+      // RETURN TO MATCH while a match of yours is on, straight back to it
+      // (lib/rankedSign.ts); otherwise RANKED.
+      label: rankedTop.label,
+      sublabel: rankedTop.sublabels[0] ?? null,
       color: RANKED_COLOR,
       // Walks the camera to the fork -- it stands for both ladders, so
       // it pairs with no single building.
-      onActivate: focusRanked,
+      onActivate: rankedTop.onActivate,
     },
     {
       // A third full-size destination, hanging below RANKED on the right the
@@ -447,8 +519,8 @@ export default function CityScene({
       // the way back to the world map is no lesser a place to go.
       side: 'left',
       tier: 1,
-      label: '\u{1F30D} EARTH',
-      color: BACK_COLOR,
+      label: 'EARTH',
+      color: EARTH_COLOR,
       onActivate: onBackToEarth,
     },
   ];
@@ -456,6 +528,12 @@ export default function CityScene({
   return (
     <>
       <CitySky date={date} realLat={realLat} realLng={realLng} eye={EYE} seaLevel={SEA_LEVEL} />
+
+      {timewarpColors && timewarpColors.length > 0 && (
+        <group position={EYE}>
+          <TimewarpFx colors={timewarpColors} radius={TIMEWARP_DOME_R} dome />
+        </group>
+      )}
 
       {/* Outside the <Suspense> below: the labels are DOM, not a model, and
           must not wait on a texture to start naming what you look at. */}
@@ -513,7 +591,7 @@ export default function CityScene({
       {/* The island, and the islands beyond it. Outside the Suspense below:
           it loads no assets, and the ground appearing a beat after the
           buildings would look worse than either arriving alone. */}
-      <Terrain nightness={nightness} />
+      <Terrain nightness={nightness} bay />
 
       <Suspense fallback={null}>
         <SceneReady onReady={onReady} />
@@ -552,28 +630,19 @@ export default function CityScene({
           decay={TEMPLE_GLOW_DECAY}
         />
 
-        {/* The human ladder. Clicking it enters ranked directly, the same
-            as the PLAYERS arm it pairs with -- exactly how the Temple and
-            Market buildings work. */}
-        <BuildingTarget
-          position={SENATE_POSITION}
-          onActivate={onRanked}
-          onHoverChange={setPlayersHot}
-        >
+        {/* The human ladder. Not a way in (Mikael, 2026-10-12): ranked is
+            entered only from the signposts -- it lights up with the PLAYERS
+            arm it pairs with. */}
+        <group position={SENATE_POSITION}>
           <Senate color={playersHot ? LIT_RANKED : PLAIN} />
-        </BuildingTarget>
+        </group>
 
         {/* The bot ladder, touching the first at a corner (docs/MY_AI.md
             §9.1). A plain second Senate until the /modelling building
-            exists. Clicking it starts a bot-ranked game, the same as the
-            BOTS arm it pairs with. */}
-        <BuildingTarget
-          position={SENATE_BOT_POSITION}
-          onActivate={onBotRanked}
-          onHoverChange={setBotsHot}
-        >
+            exists. Not a way in either: it lights up with the BOTS arm. */}
+        <group position={SENATE_BOT_POSITION}>
           <Senate color={botsHot ? LIT_RANKED : PLAIN} />
-        </BuildingTarget>
+        </group>
 
         <Signpost
           position={RANKED_FORK_SIGNPOST_POSITION}
@@ -626,6 +695,12 @@ export default function CityScene({
           <Market color={marketHot ? LIT_MARKET : PLAIN} />
         </BuildingTarget>
 
+        {/* The Bay, in the back-left corner the Market left clear: a quay at
+            the head of the inlet Terrain carves, a boat leaving it, and a
+            sign saying more is coming. Scenery for now -- no click target
+            until there is something for it to open. */}
+        <Bay position={BAY_POSITION} rotationY={BAY_ROTATION_Y} />
+
         <Signpost position={SIGNPOST_POSITION} arms={arms} />
 
         {/* Between the viewer and the signpost, so it lights the face of the
@@ -648,18 +723,18 @@ export default function CityScene({
         <Mountain scale={150} position={[40, -282, 62]} />
       </Suspense>
 
+      <CityZoom />
       <OrbitControls
         makeDefault
         target={EYE}
         // Both off: either would move the viewer off the spot they are
         // pinned to, which is the one thing this camera must not do.
+        // Zoom is CityZoom's FOV zoom instead.
         enablePan={false}
         enableZoom={false}
         autoRotate={false}
-        // Negative so dragging feels like turning your head rather than
-        // spinning an object in front of you -- the same sign three.js's own
-        // panorama example uses. Purely a feel choice; flip if it reads wrong.
-        rotateSpeed={-0.35}
+        // CityZoom rescales this as the FOV narrows.
+        rotateSpeed={ROTATE_SPEED}
         enableDamping
         dampingFactor={0.08}
         minPolarAngle={MIN_POLAR}
