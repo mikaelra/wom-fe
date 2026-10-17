@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { anchorOverField, typingField } from '@/lib/blimkinAnchor';
+import { getSunOnScreen, subscribeSunOnScreen, type ScreenPoint } from '@/lib/sunOnScreen';
 import { BLIMKIN_BREATHE, BLIMKIN_COLS, BLIMKIN_IDLE, BLIMKIN_ROWS, type BlimkinFrame } from '@/lib/blimkinSprite';
 
 // Blimkin bringing a message (Mikael, 2026-10-17): "a void in wherever is
@@ -86,9 +87,10 @@ export interface BlimkinCloudProps {
   onCloudClick?: () => void;
   /** The cross in the cloud's top-right corner. */
   onClose?: () => void;
-  /** Where he stands when nobody is typing: his corner, or the middle of
-   *  the screen with the cloud over it (the Earth screen's "Searching"). */
-  placement?: 'corner' | 'center';
+  /** Where he stands when nobody is typing: his corner; the middle of the
+   *  screen with the cloud over it; or popping up out of the Sun on the
+   *  Low Definition Earth (the middle wherever no Sun is drawn). */
+  placement?: 'corner' | 'center' | 'sun';
   label?: string;
 }
 
@@ -104,6 +106,13 @@ export default function BlimkinCloud({
   const [shownKey, setShownKey] = useState<string | null>(null);
   // Where he stands: his corner, or just over the field being typed in.
   const [anchor, setAnchor] = useState<{ left: number; bottom: number } | null>(null);
+  // The Sun he pops up out of, followed as the sky turns.
+  const [sun, setSun] = useState<ScreenPoint | null>(null);
+  useEffect(() => {
+    if (placement !== 'sun' || !appearance) return;
+    setSun(getSunOnScreen());
+    return subscribeSunOnScreen(() => setSun(getSunOnScreen()));
+  }, [placement, appearance]);
 
   useEffect(() => {
     if (!appearance) return;
@@ -152,7 +161,13 @@ export default function BlimkinCloud({
       style={
         anchor
           ? { left: `${anchor.left}px`, bottom: `${anchor.bottom}px` }
-          : placement === 'center'
+          : placement === 'sun' && sun
+            ? {
+                // His feet, and the void, on the Sun.
+                left: `calc(${Math.round(sun.x)}px - ${(SPRITE_W / 2).toFixed(2)}rem)`,
+                bottom: `calc(100% - ${Math.round(sun.y)}px)`,
+              }
+            : placement !== 'corner'
             ? {
                 // The cloud (up and right of him) centred on the screen.
                 left: `max(0.5rem, calc(50% - ${(SPRITE_W * 0.72 + 6.5).toFixed(2)}rem))`,
