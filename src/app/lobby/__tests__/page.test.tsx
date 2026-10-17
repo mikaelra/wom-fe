@@ -32,6 +32,9 @@ vi.mock('@/lib/socket', () => ({
 // @react-three/fiber's real Canvas needs a WebGL context jsdom can't
 // provide -- rendering children directly avoids that without needing any
 // R3F-specific stubs (this page doesn't call useFrame/useThree itself).
+// Needs a real R3F renderer (useThree); nothing to test here.
+vi.mock('@/components/hud/ContextLossRecovery', () => ({ default: () => null }));
+
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children }: { children?: ReactNode }) => <>{children}</>,
 }));

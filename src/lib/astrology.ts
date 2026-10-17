@@ -13,6 +13,7 @@
  */
 import * as THREE from 'three';
 import * as Astronomy from 'astronomy-engine';
+import { BODY_COLOR } from '@/lib/bodyColors';
 
 const RAD = Math.PI / 180;
 
@@ -174,14 +175,9 @@ const DONOR_COLOR: Record<Exclude<AspectBody, 'Sun'>, number> = {
 
 // What a body shows with no aspect active -- must be the exact literal each
 // *Body component uses today so the zero-aspect invariant holds bit-for-bit.
-const BASE_COLOR: Record<Exclude<AspectBody, 'Sun'>, number> = {
-  Moon: 0xcfe3ff,
-  Mercury: 0xDB9504,
-  Venus: 0xAB9D00,
-  Mars: 0xFF0000,
-  Jupiter: 0x008296,
-  Saturn: 0xA16300,
-};
+// The bodies' own colours live in lib/bodyColors.ts (no three.js there,
+// for the text Earth page's pixel sky).
+const BASE_COLOR: Record<Exclude<AspectBody, 'Sun'>, number> = BODY_COLOR;
 
 // Mercury's retrograde flip applies to both its donor and base colours.
 const MERCURY_RETRO_COLOR = 0xCE70FF;
