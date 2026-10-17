@@ -113,8 +113,8 @@ function ModellingPageContent() {
         {model.thumbnail && (
           <figure className="bg-black/50 rounded-lg p-2 backdrop-blur-sm pointer-events-auto w-40">
             {/* eslint-disable-next-line @next/next/no-img-element -- dev-only sandbox, a plain file from public/ */}
-            <img src={model.thumbnail} alt={`Meshy thumbnail: ${model.label}`} className="w-full rounded" />
-            <figcaption className="text-[10px] text-white/50 mt-1 font-mono">Meshy thumbnail</figcaption>
+            <img src={model.thumbnail} alt={`Thumbnail: ${model.label}`} className="w-full rounded" />
+            <figcaption className="text-[10px] text-white/50 mt-1 font-mono">Thumbnail</figcaption>
           </figure>
         )}
 
