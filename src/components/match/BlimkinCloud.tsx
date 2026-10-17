@@ -13,7 +13,7 @@ const BlimkinModel3D = dynamic(() => import('@/components/match/BlimkinModel3D')
 // Blimkin bringing a message (Mikael, 2026-10-17): "a void in wherever is
 // created and Blimkin comes out and breathes out the cloud with the
 // information before he exits into the void again." He is the 8-bit Blimkin
-// of the thumbnail (public/pixel/blimkin.png, drawn by scripts/pixel-
+// of the thumbnail (public/pixel/blimkin_v1.png, drawn by scripts/pixel-
 // thumbnails.py), no longer the statusline's cells (Mikael, 2026-10-17). The
 // cloud stays up after he
 // has gone, until the cross in its top-right corner closes it (Mikael,
@@ -28,7 +28,7 @@ const BlimkinModel3D = dynamic(() => import('@/components/match/BlimkinModel3D')
 // under it (Mikael, 2026-10-17).
 
 /** His picture: square, in rem so it grows with the UI scale. */
-const BLIMKIN_URL = '/pixel/blimkin.png';
+const BLIMKIN_URL = '/pixel/blimkin_v1.png';
 const SPRITE_W = 7.4;
 const SPRITE_H = 7.4;
 /** Only the top of him comes through the void: his arms show, his legs stay
