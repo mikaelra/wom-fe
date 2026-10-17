@@ -3,10 +3,18 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getAlwaysVerifyEmailFlag, requestToggleVerifyEmail } from '@/lib/api';
+import { getAlwaysVerifyEmailFlag, getConnections, requestToggleVerifyEmail } from '@/lib/api';
+import { getStoredAccountToken } from '@/lib/http';
 import { APP_VERSION, BUILD_NUMBER } from '@/config';
 import { CITY_PATH } from '@/lib/cities';
 import AudioSettingsPanel from '@/components/audio/AudioSettingsPanel';
+import DeleteAccountPanel from '@/components/settings/DeleteAccountPanel';
+import MutedPlayersPanel from '@/components/settings/MutedPlayersPanel';
+import ChatFilterPanel from '@/components/settings/ChatFilterPanel';
+import ConnectionsPanel from '@/components/settings/ConnectionsPanel';
+import HdTexturesPanel from '@/components/settings/HdTexturesPanel';
+import LoadingState from '@/components/loading/LoadingState';
+import { reloadPage } from '@/lib/reloadPage';
 
 const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
@@ -32,24 +40,42 @@ export default function SettingsPage() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
 
+  // A Steam or Apple account with no email to verify: no toggle to show.
+  const [noEmail, setNoEmail] = useState(false);
+
   useEffect(() => {
     setMounted(true);
     if (typeof window === 'undefined') return;
     const name = localStorage.getItem('playerName') || '';
-    const email = localStorage.getItem('playerEmail') || '';
+    const storedEmail = localStorage.getItem('playerEmail') || '';
+    const token = getStoredAccountToken();
     setPlayerName(name);
-    setPlayerEmail(email);
+    setPlayerEmail(storedEmail);
 
-    if (!name || !email) {
+    if (!name || (!storedEmail && !token)) {
       setLoading(false);
       setLoadError('You must be logged in to view settings.');
       return;
     }
 
-    getAlwaysVerifyEmailFlag(name, email)
-      .then((data) => {
-        setServerValue(!!data.always_verify_email);
-        setChecked(!!data.always_verify_email);
+    // A Steam or Apple login keeps no email on the device (lib/steamAccount.ts,
+    // lib/appleAccount.ts): the session says which, if any, the account has.
+    const email: Promise<string | null> =
+      storedEmail || !token
+        ? Promise.resolve(storedEmail)
+        : getConnections(token).then((c) => c.web?.email ?? null);
+
+    email
+      .then((found) => {
+        if (!found) {
+          setNoEmail(true);
+          return;
+        }
+        setPlayerEmail(found);
+        return getAlwaysVerifyEmailFlag(name, found).then((data) => {
+          setServerValue(!!data.always_verify_email);
+          setChecked(!!data.always_verify_email);
+        });
       })
       .catch((err: unknown) => {
         setLoadError(err instanceof Error ? err.message : 'Failed to load settings.');
@@ -91,7 +117,7 @@ export default function SettingsPage() {
   };
 
   const handleRefresh = () => {
-    window.location.reload();
+    reloadPage();
   };
 
   return (
@@ -121,7 +147,7 @@ export default function SettingsPage() {
         </div>
 
         {loading ? (
-          <p className="text-white/70">Loading…</p>
+          <LoadingState />
         ) : loadError ? (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <p className="text-red-400 mb-3">{loadError}</p>
@@ -132,7 +158,7 @@ export default function SettingsPage() {
               Go to log in
             </Link>
           </div>
-        ) : (
+        ) : noEmail ? null : (
           <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6">
             <label className="flex items-center gap-3 cursor-pointer select-none">
               <input
@@ -191,6 +217,14 @@ export default function SettingsPage() {
             and no reason a logged-out player should be unable to turn the
             music down. */}
         <AudioSettingsPanel />
+        <HdTexturesPanel />
+
+        {/* Also outside the gate: a Steam account has no email but can
+            still connect the web version and delete itself. */}
+        <ConnectionsPanel />
+        <ChatFilterPanel />
+        <MutedPlayersPanel />
+        <DeleteAccountPanel />
 
         {/* First question in any store support ticket is "which build are
             you on" (docs/MOBILE_AND_STEAM_PLAN.md §4.2). */}

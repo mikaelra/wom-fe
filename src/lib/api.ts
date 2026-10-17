@@ -1,6 +1,13 @@
 import { request, ApiError } from '@/lib/http';
 import { getSocket, subscribe } from '@/lib/socket';
-import { setStoredToken, getStoredToken, setStoredAccountToken } from '@/lib/http';
+import {
+  setStoredToken,
+  getStoredToken,
+  setStoredAccountToken,
+  getStoredAccountToken,
+  getStoredRankedTicket,
+  setStoredRankedTicket,
+} from '@/lib/http';
 import type { z } from 'zod';
 import type { Relic } from '@/types/game';
 import type { SeasonHistoryEntry, MerchantOfferSchema, MerchantEventSchema } from '@/lib/schemas';
@@ -38,6 +45,12 @@ import {
   ConfirmEmailVerificationResponseSchema,
   ForgotUsernameResponseSchema,
   ResolveAccountSessionResponseSchema,
+  DeleteAccountResponseSchema,
+  AgeAffirmResponseSchema,
+  ConnectionsResponseSchema,
+  EntitlementsResponseSchema,
+  ConnectWebResponseSchema,
+  ChatReportResponseSchema,
   LogOutResponseSchema,
   ClaimPendingWheelResponseSchema,
   ArtifactLedgerResponseSchema,
@@ -53,10 +66,19 @@ import {
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
   SeasonHistoryResponseSchema,
+  RankedGamesResponseSchema,
+  RankedRanksResponseSchema,
+  type RankedGames,
+  type RankedRanks,
   SeasonInfoResponseSchema,
   WellProfileResponseSchema,
   ShopProductsResponseSchema,
   CheckoutResponseSchema,
+  ApplePrepareResponseSchema,
+  SteamAuthResponseSchema,
+  AppleVerifyResponseSchema,
+  SteamFinalizeResponseSchema,
+  SteamInitResponseSchema,
   OrderStatusResponseSchema,
   WheelTablesResponseSchema,
   TradeUpRulesResponseSchema,
@@ -70,6 +92,7 @@ import {
 } from '@/lib/schemas';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import type { MarketCatalog, MarketItemInput, MarketListing, MarketTrade } from '@/lib/market';
+import { GAMES_PER_PAGE } from '@/lib/paging';
 
 export type ShopProduct = {
   id: string;
@@ -86,7 +109,9 @@ export type ShopProduct = {
 
 export async function createLobby(name: string, email: string): Promise<{ lobby_id: string; token: string }> {
   const data = await request('/create_lobby', CreateLobbyResponseSchema, {
-    body: { name, email },
+    // account_token: a Steam player has no email; their account session is
+    // what proves the name is theirs (wom-be routes/steam_auth.py).
+    body: { name, email, account_token: getStoredAccountToken() ?? undefined },
     defaultErrorMessage: 'Create lobby failed',
   });
   setStoredToken(data.lobby_id, data.token);
@@ -107,7 +132,7 @@ export async function joinLobby(joinCode: string, name: string, email: string): 
       reject(new Error(data.message));
     });
 
-    getSocket().emit('join_lobby', { lobby_id: joinCode, name, email });
+    getSocket().emit('join_lobby', { lobby_id: joinCode, name, email, account_token: getStoredAccountToken() ?? undefined });
   });
 }
 
@@ -121,7 +146,7 @@ export async function getBossfightLobby(playerName: string): Promise<{ lobby_id:
   // the token from their original join, so don't clobber it.
   if (data.token) setStoredToken(data.lobby_id, data.token);
   const email = typeof window !== 'undefined' ? localStorage.getItem('playerEmail') ?? '' : '';
-  getSocket().emit('join_lobby', { lobby_id: data.lobby_id, name: playerName, email });
+  getSocket().emit('join_lobby', { lobby_id: data.lobby_id, name: playerName, email, account_token: getStoredAccountToken() ?? undefined });
   return data;
 }
 
@@ -144,6 +169,7 @@ export type BossfightRosterPlayer = BossfightRoster['players'][number];
 
 export async function getBossfightRoster(): Promise<BossfightRoster> {
   return request('/get_bossfight_roster', BossfightRosterResponseSchema, {
+    quiet: true, // polled
     defaultErrorMessage: 'Failed to fetch the bossfight roster',
   });
 }
@@ -205,21 +231,38 @@ export async function getMerchantSkyEvents(at: string): Promise<MerchantEvent[]>
 
 // docs/RANK_SYSTEM_PLAN.md §6/§10 -- ranked matchmaking queue + rank badge.
 
-export async function joinRankedQueue(playerName: string): Promise<{ status: string }> {
-  return request('/ranked/queue/join', RankedQueueJoinResponseSchema, {
-    body: { name: playerName },
+/**
+ * What proves to wom-be that this client is `playerName` in ranked: the
+ * ranked ticket /ranked/queue/join handed out, and the account session if
+ * logged in. Either is enough; undefined fields drop out of the JSON.
+ * Also the join_ranked_queue socket payload.
+ */
+export function rankedCredentials(playerName: string): { ticket?: string; token?: string } {
+  return {
+    ticket: getStoredRankedTicket(playerName) ?? undefined,
+    token: getStoredAccountToken() ?? undefined,
+  };
+}
+
+export async function joinRankedQueue(playerName: string): Promise<{ status: string; ticket?: string }> {
+  const data = await request('/ranked/queue/join', RankedQueueJoinResponseSchema, {
+    body: { name: playerName, ...rankedCredentials(playerName) },
     defaultErrorMessage: 'Failed to join the ranked queue.',
   });
+  if (data.ticket) setStoredRankedTicket(playerName, data.ticket);
+  return data;
 }
 
 export async function leaveRankedQueue(playerName: string): Promise<{ status: string; was_queued: boolean }> {
   return request('/ranked/queue/leave', RankedQueueLeaveResponseSchema, {
-    body: { name: playerName },
+    body: { name: playerName, ...rankedCredentials(playerName) },
     defaultErrorMessage: 'Failed to leave the ranked queue.',
   });
 }
 
-export async function getRankedProfile(playerName: string): Promise<{ tier: string | null; ranked_games_played: number }> {
+export async function getRankedProfile(
+  playerName: string,
+): Promise<{ tier: string | null; ranked_games_played: number; principality_rank?: number | null }> {
   return request(`/ranked/profile/${encodeURIComponent(playerName)}`, RankedProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch ranked profile.',
   });
@@ -239,10 +282,35 @@ export async function getSeasonHistory(
   });
 }
 
+/** This season's ranked games, a page at a time, newest first. */
+export async function getRankedGames(playerName: string, page = 1, perPage = GAMES_PER_PAGE): Promise<RankedGames> {
+  return request(
+    `/ranked/games/${encodeURIComponent(playerName)}?page=${page}&per_page=${perPage}`,
+    RankedGamesResponseSchema,
+    { defaultErrorMessage: 'Failed to load games.' },
+  );
+}
+
+/** Every rank the player has ever been shown in ranked, all seasons. */
+export async function getRankedRanks(playerName: string): Promise<RankedRanks> {
+  return request(`/ranked/ranks/${encodeURIComponent(playerName)}`, RankedRanksResponseSchema, {
+    defaultErrorMessage: 'Failed to load ranks.',
+  });
+}
+
 export async function getActiveRankedLobby(
   playerName: string
 ): Promise<{ lobby_id: string | null; token: string | null; ranked_countdown_deadline: string | null; started: boolean }> {
-  return request(`/ranked/active/${encodeURIComponent(playerName)}`, RankedActiveResponseSchema, {
+  const credentials = rankedCredentials(playerName);
+  // Nothing to prove who we are with -- the backend would 403, and a
+  // player who never queued (or queued on another browser, logged out)
+  // has no match here to return to anyway.
+  if (!credentials.ticket && !credentials.token) {
+    return { lobby_id: null, token: null, ranked_countdown_deadline: null, started: false };
+  }
+  return request('/ranked/active', RankedActiveResponseSchema, {
+    quiet: true, // polled
+    body: { name: playerName, ...credentials },
     defaultErrorMessage: 'Failed to check for an active ranked match.',
   });
 }
@@ -258,7 +326,7 @@ export async function getWellProfile(playerName: string): Promise<{
 
 export async function getPlayerProfile(
   playerName: string,
-): Promise<{ created_at: string | null; played_games: number; wins: number; kills: number }> {
+): Promise<{ created_at: string | null; played_games: number; wins: number; kills: number; bosses_defeated?: number }> {
   return request(`/player/profile/${encodeURIComponent(playerName)}`, PlayerProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch player profile.',
   });
@@ -546,6 +614,12 @@ export async function confirmEmailVerification(
     // login -- store the session so e.g. a claim_wheel redirect into
     // /inventory actually shows something instead of "log in first".
     if (data.session_token) setStoredAccountToken(data.session_token);
+    // A connect_web link opens in a browser that has never seen this
+    // account: remember who is logged in, as the login page does.
+    if (data.name && data.email) {
+      localStorage.setItem('playerName', data.name);
+      localStorage.setItem('playerEmail', data.email);
+    }
     return data;
   } catch (e) {
     if (e instanceof ApiError) {
@@ -565,6 +639,7 @@ export async function forgotUsername(email: string): Promise<{ success: boolean 
 
 export async function checkClaimVerified(name: string, email: string): Promise<{ verified: boolean }> {
   const data = await request('/check_claim_verified', CheckClaimVerifiedResponseSchema, {
+    quiet: true, // polled
     body: { name, email },
     defaultErrorMessage: 'Failed to check verification status.',
   });
@@ -578,10 +653,80 @@ export async function checkClaimVerified(name: string, email: string): Promise<{
 
 export async function resolveAccountSession(
   token: string
-): Promise<{ name: string; email: string | null; always_verify_email: boolean; email_verified: boolean }> {
+): Promise<{
+  name: string;
+  email: string | null;
+  always_verify_email: boolean;
+  email_verified: boolean;
+  age_affirmed?: boolean;
+}> {
   return request('/resolve_account_session', ResolveAccountSessionResponseSchema, {
     body: { token },
     defaultErrorMessage: 'Invalid or expired session.',
+  });
+}
+
+/** Delete the logged-in account for good (wom-be routes/account.py). The
+ *  player confirms by typing their exact name. On success this browser is
+ *  logged out too -- the backend has already revoked every session. */
+export async function deleteAccount(token: string, confirmName: string): Promise<void> {
+  await request('/account/delete', DeleteAccountResponseSchema, {
+    body: { token, confirm_name: confirmName },
+    defaultErrorMessage: 'Could not delete your account.',
+  });
+  setStoredAccountToken(null);
+}
+
+/** Record that the player confirmed they're 18 or older (or have guardian
+ *  consent). */
+export async function affirmAge(token: string): Promise<void> {
+  await request('/account/age', AgeAffirmResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Could not save your answer.',
+  });
+}
+
+/** Settings -> Connections: where else the logged-in account plays. */
+export async function getConnections(token: string): Promise<z.infer<typeof ConnectionsResponseSchema>> {
+  return request('/account/connections', ConnectionsResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Could not load your connections.',
+  });
+}
+
+/** What the logged-in account has paid for beyond items -- HD textures on
+ *  the web (lib/hdTextures.ts). */
+export async function getEntitlements(token: string): Promise<z.infer<typeof EntitlementsResponseSchema>> {
+  return request('/account/entitlements', EntitlementsResponseSchema, {
+    body: { token },
+    defaultErrorMessage: 'Could not load your account.',
+  });
+}
+
+/** Email a link that lets this account log in on the web too (an account
+ *  without an email -- one made on Steam). */
+export async function connectWeb(token: string, email: string): Promise<void> {
+  await request('/account/connect_web', ConnectWebResponseSchema, {
+    body: { token, email },
+    defaultErrorMessage: 'Could not send the email.',
+  });
+}
+
+/** Report another player's chat message (wom-be routes/chat_report.py).
+ *  `token` is null for a player without an account. */
+export async function reportChatMessage(
+  token: string | null,
+  report: { reportedName: string; message: string; context: 'lobby' | 'market'; complaint: string },
+): Promise<void> {
+  await request('/chat/report', ChatReportResponseSchema, {
+    body: {
+      token,
+      reported_name: report.reportedName,
+      message: report.message,
+      context: report.context,
+      complaint: report.complaint,
+    },
+    defaultErrorMessage: 'Could not send the report.',
   });
 }
 
@@ -609,11 +754,148 @@ export async function postCheckout(
   });
 }
 
+// Each Steam call also sends the Steam account's name (steamName), which the
+// backend keeps for Settings -> Connections on other devices.
+
+/** Log in with a Steam auth ticket (src/lib/steamAccount.ts). */
+export async function postSteamLogin(
+  ticket: string,
+  steamName: string | null = null
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/steam', SteamAuthResponseSchema, {
+    body: { ticket, steam_name: steamName },
+    defaultErrorMessage: 'Steam login failed.',
+  });
+}
+
+/** A new account for this Steam account ("Play now"). */
+export async function postSteamCreate(
+  ticket: string,
+  name: string,
+  steamName: string | null = null
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/steam/create', SteamAuthResponseSchema, {
+    body: { ticket, name, steam_name: steamName },
+    defaultErrorMessage: 'Could not create the account.',
+  });
+}
+
+/** This Steam account logs into the logged-in account from now on. */
+export async function postSteamLink(
+  ticket: string,
+  token: string,
+  steamName: string | null = null
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/steam/link', SteamAuthResponseSchema, {
+    body: { ticket, token, steam_name: steamName },
+    defaultErrorMessage: 'Could not link your Steam account.',
+  });
+}
+
+// The iOS app logs in with its signed AppTransaction (src/lib/appleAccount.ts,
+// wom-be routes/apple_auth.py); the answers are the Steam calls' answers.
+
+/** Log in with the Apple account the iOS app was got with. */
+export async function postAppleLogin(appTransaction: string): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/apple', SteamAuthResponseSchema, {
+    body: { app_transaction: appTransaction },
+    defaultErrorMessage: 'Apple login failed.',
+  });
+}
+
+/** A new account for this Apple account ("Play now"). */
+export async function postAppleCreate(
+  appTransaction: string,
+  name: string
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/apple/create', SteamAuthResponseSchema, {
+    body: { app_transaction: appTransaction, name },
+    defaultErrorMessage: 'Could not create the account.',
+  });
+}
+
+/** This Apple account logs into the logged-in account from now on. */
+export async function postAppleLink(
+  appTransaction: string,
+  token: string
+): Promise<z.infer<typeof SteamAuthResponseSchema>> {
+  return request('/auth/apple/link', SteamAuthResponseSchema, {
+    body: { app_transaction: appTransaction, token },
+    defaultErrorMessage: 'Could not link your Apple account.',
+  });
+}
+
+/** The iOS app's shop (src/lib/appleShop.ts): what may be sold in this App
+ *  Store country, and the token StoreKit stamps on the purchase. */
+export async function postApplePrepare(
+  token: string,
+  storefront?: string
+): Promise<z.infer<typeof ApplePrepareResponseSchema>> {
+  return request('/shop/apple/prepare', ApplePrepareResponseSchema, {
+    body: { token, storefront },
+    defaultErrorMessage: 'Failed to load the shop.',
+  });
+}
+
+/** Hand a StoreKit purchase's signed transaction to the backend to grant. */
+export async function postAppleVerify(
+  token: string,
+  signedTransaction: string
+): Promise<z.infer<typeof AppleVerifyResponseSchema>> {
+  return request('/shop/apple/verify', AppleVerifyResponseSchema, {
+    body: { token, signed_transaction: signedTransaction },
+    defaultErrorMessage: 'Failed to deliver the purchase.',
+  });
+}
+
+/** Start a Steam Wallet purchase in the Steam build (src/lib/steamShop.ts).
+ *  `web` makes it a web purchase, approved on the page in steam_url (Linux,
+ *  which has no Steam overlay). */
+export async function postSteamInit(
+  token: string,
+  product: string,
+  quantity: number,
+  confirmDuplicate: boolean,
+  language: string,
+  web = false
+): Promise<z.infer<typeof SteamInitResponseSchema>> {
+  return request('/shop/steam/init', SteamInitResponseSchema, {
+    body: { token, product, quantity, confirm_duplicate: confirmDuplicate, language, ...(web ? { web: true } : {}) },
+    defaultErrorMessage: 'Failed to start the purchase.',
+  });
+}
+
+/** Pass on the player's answer to Steam's purchase dialog. */
+export async function postSteamFinalize(
+  token: string,
+  orderId: number,
+  authorized: boolean
+): Promise<z.infer<typeof SteamFinalizeResponseSchema>> {
+  return request('/shop/steam/finalize', SteamFinalizeResponseSchema, {
+    body: { token, order_id: orderId, authorized },
+    defaultErrorMessage: 'Failed to complete the purchase.',
+  });
+}
+
+/** Ask whether a Steam web purchase has been approved yet: "fulfilled",
+ *  "pending", or anything else when it won't go through. */
+export async function postSteamCheck(
+  token: string,
+  orderId: number
+): Promise<z.infer<typeof SteamFinalizeResponseSchema>> {
+  return request('/shop/steam/finalize', SteamFinalizeResponseSchema, {
+    body: { token, order_id: orderId, check: true },
+    defaultErrorMessage: 'Failed to check the purchase.',
+    quiet: true, // polled
+  });
+}
+
 export async function getOrderStatus(
   token: string,
   orderId: string | number,
 ): Promise<{ status: string; product: string; fulfilled: boolean }> {
   return request('/shop/order', OrderStatusResponseSchema, {
+    quiet: true, // polled
     body: { token, order_id: orderId },
     defaultErrorMessage: 'Failed to check the order.',
   });
@@ -834,9 +1116,9 @@ export async function saveMyAiSettings(
   });
 }
 
-export async function getMyAiMatches(token: string): Promise<MyAiMatches> {
+export async function getMyAiMatches(token: string, page = 1, perPage = GAMES_PER_PAGE): Promise<MyAiMatches> {
   return request('/my_ai/matches', MyAiMatchesSchema, {
-    body: { token },
+    body: { token, page, per_page: perPage },
     defaultErrorMessage: 'Failed to load match history.',
   });
 }
@@ -879,6 +1161,7 @@ export async function getActiveBotRankedLobby(
   started: boolean;
 }> {
   return request('/my_ai/bot_ranked/active', MyAiBotRankedActiveResponseSchema, {
+    quiet: true, // polled
     body: { token: accountToken },
     defaultErrorMessage: 'Failed to check for an active bot-ranked match.',
   });

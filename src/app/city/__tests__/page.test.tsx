@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { merchantState, revertedState } from '@/lib/__tests__/merchantFixtures';
 import { formatWorldClock } from '@/lib/worldClock';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -15,16 +15,19 @@ import * as socketModule from '@/lib/socket';
 import { findCity } from '@/lib/cities';
 
 const push = vi.fn();
+const replace = vi.fn();
 let searchId: string | null = 'athens';
 let searchT: string | null = null;
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, replace }),
   useSearchParams: () => ({
     get: (k: string) => (k === 'id' ? searchId : k === 't' ? searchT : null),
   }),
 }));
 
 vi.mock('@/lib/api', () => ({
+  // The graphics quality button asks whether the account has HD.
+  getEntitlements: vi.fn(async () => ({ hd: false })),
   checkName: vi.fn(),
   logInUser: vi.fn(),
   verifyLoginCode: vi.fn(),
@@ -33,6 +36,7 @@ vi.mock('@/lib/api', () => ({
   getActiveRankedLobby: vi.fn(),
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
+  rankedCredentials: (name: string) => ({ ticket: `ticket-for-${name}` }),
   getBossfightRoster: vi.fn(),
   joinBotRankedQueue: vi.fn(),
   leaveBotRankedQueue: vi.fn(),
@@ -93,6 +97,9 @@ const socket = socketModule as unknown as {
 // Renders the wrapper div R3F would, carrying the style through, so the
 // canvas container's stacking behaviour is assertable -- the labels
 // FreshHtml appends live in exactly this element.
+// Needs a real R3F renderer (useThree); nothing to test here.
+vi.mock('@/components/hud/ContextLossRecovery', () => ({ default: () => null }));
+
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children, style }: { children?: ReactNode; style?: CSSProperties }) => (
     <div data-testid="canvas-container" style={style}>
@@ -118,11 +125,12 @@ let marketHandler: (() => void) | undefined;
 let botRankedHandler: (() => void) | undefined;
 let lastCoords: { realLat: number; realLng: number } | undefined;
 let lastDate: Date | undefined;
+let lastTimewarpColors: string[] | null | undefined;
 vi.mock('@/components/city/CityScene', () => ({
   default: ({
     onBossfight, bossfightSublabel, onRanked, onBotRanked, rankedLabel, rankedSublabel,
     botRankedLabel, botRankedSublabel,
-    onBackToEarth, onMarket, onReady, realLat, realLng, date,
+    onBackToEarth, onMarket, onReady, realLat, realLng, date, timewarpColors,
   }: {
     onBossfight: () => void; bossfightSublabel?: string | null;
     onRanked: () => void; onBotRanked: () => void;
@@ -133,6 +141,7 @@ vi.mock('@/components/city/CityScene', () => ({
     onReady?: () => void;
     realLat: number; realLng: number;
     date: Date;
+    timewarpColors?: string[] | null;
   }) => {
     bossfightHandler = onBossfight;
     lastSublabel = bossfightSublabel;
@@ -149,6 +158,7 @@ vi.mock('@/components/city/CityScene', () => ({
     marketHandler = onMarket;
     lastCoords = { realLat, realLng };
     lastDate = date;
+    lastTimewarpColors = timewarpColors;
     return <div data-testid="city-scene" />;
   },
   CITY_CAMERA: [0, 5, 0.01],
@@ -195,6 +205,8 @@ const clickRanked = async () => {
 
 beforeEach(() => {
   push.mockClear();
+  replace.mockClear();
+  lastTimewarpColors = undefined;
   searchId = 'athens';
   searchT = null;
   bossfightHandler = undefined;
@@ -236,6 +248,8 @@ beforeEach(() => {
   });
   botRankedHandler = undefined;
   localStorage.clear();
+  // These tests are about the 3D game; the web's default is text mode.
+  localStorage.setItem('textMode', 'off');
   setStoredAccountToken(null);
 });
 
@@ -261,6 +275,16 @@ describe('CityPage (routing)', () => {
     renderCity();
     await waitForScene();
     expect(lastCoords).toEqual({ realLat: ATHENS.realLat, realLng: ATHENS.realLng });
+  });
+
+  it('has the eye, which hides the top bar and leaves the scene', async () => {
+    renderCity();
+    await waitForScene();
+    expect(screen.getByRole('button', { name: 'Rules' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide HUD' }));
+    expect(screen.queryByRole('button', { name: 'Rules' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show HUD' }));
+    expect(screen.getByRole('button', { name: 'Rules' })).toBeInTheDocument();
   });
 
   it('shows no city nameplate over the scene', async () => {
@@ -325,7 +349,9 @@ describe('CityPage world clock (under Rules, as on the Earth screen)', () => {
 
     const clock = await screen.findByRole('timer', { name: 'Timewarped time' });
     expect((clock.querySelector('span') as HTMLElement).style.backgroundImage).toContain('rgb(248, 113, 113)');
-    expect(clock).toHaveTextContent(formatWorldClock(new Date('2028-10-03T12:00:00Z')));
+    // Greece's time, whatever the viewer's timezone: 12:00 UTC is 15:00 in Athens (EEST)
+    expect(clock).toHaveTextContent('15:00 03.10.2028');
+    expect(clock).toHaveTextContent(formatWorldClock(new Date('2028-10-03T12:00:00Z'), 'Europe/Athens'));
   });
 });
 
@@ -365,21 +391,20 @@ describe('CityPage (loading curtain)', () => {
     // temple.glb, the Senate, the mountain and the Milky Way texture all
     // load behind a Suspense that used to fall back to null -- i.e. to an
     // empty dark screen with no sign that anything was coming.
-    expect(screen.getByText('ENTERING')).toBeInTheDocument();
-    expect(screen.getByText('GREECE')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Entering GREECE' })).toBeInTheDocument();
   });
 
   it('lifts once the scene signals it is on screen', async () => {
     renderCity();
     await waitFor(() => expect(readyHandler).toBeDefined());
-    expect(screen.getByText('ENTERING')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Entering GREECE' })).toBeInTheDocument();
 
     // The real scene calls this from a useFrame, two drawn frames after its
     // models resolve -- Suspense resolving only means they are parsed.
     act(() => { readyHandler!(); });
 
     // It fades before it unmounts, so this is not synchronous.
-    await waitFor(() => expect(screen.queryByText('ENTERING')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('status', { name: 'Entering GREECE' })).not.toBeInTheDocument());
   });
 
   // The 20s "the scene never reported" fallback is deliberately NOT tested
@@ -483,7 +508,7 @@ describe('CityPage (entering the bossfight)', () => {
     await clickBossfight();
 
     expect(await screen.findByText('Bossfight is full')).toBeInTheDocument();
-    expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading' })).not.toBeInTheDocument();
     expect(push).not.toHaveBeenCalledWith(expect.stringContaining('/lobby'));
   });
 });
@@ -601,7 +626,7 @@ describe('CityPage (ranked)', () => {
     await act(async () => { fireEvent.click(screen.getByText('Continue')); await flush(); });
 
     expect(mockedCheckName).toHaveBeenCalledWith('Alice');
-    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice', ticket: 'ticket-for-Alice' });
     expect(mockedJoinRankedQueue).toHaveBeenCalledWith('Alice');
     expect(localStorage.getItem('playerName')).toBe('Alice');
     expect(screen.queryByText('Play Ranked')).not.toBeInTheDocument();
@@ -616,7 +641,7 @@ describe('CityPage (ranked)', () => {
     await clickRanked();
 
     expect(mockedCheckName).not.toHaveBeenCalled();
-    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice' });
+    expect(socket.__emit).toHaveBeenCalledWith('join_ranked_queue', { name: 'Alice', ticket: 'ticket-for-Alice' });
     expect(lastRankedSublabel).toMatch(/^SEARCHING/);
   });
 
@@ -698,7 +723,7 @@ describe('CityPage (bot ranked)', () => {
       await flush();
     });
 
-    expect(socket.__emit).toHaveBeenCalledWith('join_ai_ranked_queue', { name: 'Alice' });
+    expect(socket.__emit).toHaveBeenCalledWith('join_ai_ranked_queue', { token: 'acct-tok' });
     expect(joinBotRankedQueue).toHaveBeenCalledWith('acct-tok');
     expect(lastBotRankedLabel).toBe('BOTS');
     expect(lastBotRankedSublabel).toMatch(/^SEARCHING/);
@@ -774,5 +799,67 @@ describe('CityPage canvas stacking', () => {
   it('still lets the canvas fill the scene', () => {
     renderCity();
     expect(screen.getByTestId('canvas-container')).toHaveStyle({ position: 'absolute' });
+  });
+});
+
+// The timewarp plays in the city too (lib/useTimewarpRun.ts), not only on
+// the globe: the same clouds and lightning over the city's sky, and the
+// city's own Sun, Moon and planets running through time to the moment.
+describe('CityPage (timewarp)', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
+  const JUPITER_SATURN = {
+    revert_to_date: '2040-10-31T11:54:11+00:00',
+    events: [{ kind: 'conjunction', key: 'Jupiter-Saturn', bodies: ['Jupiter', 'Saturn'], sign: 'Libra', at: 'x' }],
+  };
+
+  it('plays nothing on a plain visit, and shows no preview controls', async () => {
+    renderCity();
+    await waitForScene();
+    act(() => readyHandler!());
+    expect(lastTimewarpColors).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
+  });
+
+  it('plays anyone\'s timewarp once the scene is up, running the city\'s sky to the moment', async () => {
+    renderCity();
+    await waitForScene();
+    const pollsBefore = vi.mocked(getMerchantOffer).mock.calls.length;
+
+    act(() => socket.__fireSubscribeEvent('timewarp', JUPITER_SATURN));
+    // Not before there is a sky to act on.
+    expect(lastTimewarpColors).toBeNull();
+    await waitFor(() => expect(vi.mocked(getMerchantOffer).mock.calls.length).toBeGreaterThan(pollsBefore));
+
+    act(() => readyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#008296', '#a16300']));
+    // Past the spin-up, the city's sky is on its way to 2040.
+    const now = Date.now();
+    await waitFor(
+      () => expect(lastDate!.getTime()).toBeGreaterThan(now + 365 * 24 * 3600 * 1000),
+      { timeout: 4000 },
+    );
+  });
+
+  it('previews ?timewarp with the controls', async () => {
+    window.history.replaceState(null, '', '/city?id=athens&timewarp=Mars-Jupiter');
+    renderCity();
+    await waitForScene();
+
+    expect(screen.getByRole('group', { name: 'Timewarp preview' })).toBeInTheDocument();
+    act(() => readyHandler!());
+    await waitFor(() => expect(lastTimewarpColors).toEqual(['#ff0000', '#008296']));
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('plays an arrival with &play=1 and takes the parameters off the URL, staying in the city', async () => {
+    window.history.replaceState(null, '', '/city?id=athens&timewarp=full_moon&to=2028-10-03T12%3A00%3A00Z&play=1');
+    renderCity();
+    await waitForScene();
+
+    expect(replace).toHaveBeenCalledWith('/city?id=athens');
+    expect(screen.queryByRole('group', { name: 'Timewarp preview' })).not.toBeInTheDocument();
   });
 });

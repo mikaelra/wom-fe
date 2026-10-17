@@ -24,25 +24,51 @@ export interface TimewarpRun {
   /** A timewarp's hour running out: the way back to now. The pins it
    *  hands back to are now's merchants, not the warped moment's. */
   ending?: boolean;
+  /** The player who made it, arriving from the inventory: the pins on the
+   *  globe are already the moment warped to's merchants, so they stay
+   *  hidden -- while the sky is still loading, too -- and only come in at
+   *  the end, rather than showing first and then leaving. */
+  markersHidden?: boolean;
 }
 
 /**
  * Plays the timewarp animation for `run`, from the start each time `runId`
- * changes. Returns `step`, which moves every time the sky's instant does --
- * WorldMap is keyed on it so the planets are redrawn where they now are.
+ * changes -- once `ready` (the sky is up for it to act on). Returns `step`,
+ * which moves every time the sky's instant does -- WorldMap is keyed on it
+ * so the planets are redrawn where they now are.
  */
-export function useTimewarpFx(run: TimewarpRun | null, runId: number): { playing: boolean; step: number } {
+export function useTimewarpFx(
+  run: TimewarpRun | null,
+  runId: number,
+  ready = true,
+): { playing: boolean; step: number } {
   const [playing, setPlaying] = useState(false);
   const [step, setStep] = useState(0);
 
   useEffect(() => {
     if (!run) return;
+    const hidden = !!run.markersHidden;
+    if (!ready) {
+      // Waiting on the sky: a run whose pins come in only at the end keeps
+      // them out of sight meanwhile.
+      if (!hidden) return;
+      timewarpFxState.markers = 0;
+      applyMarkerLabelFade(0);
+      return () => {
+        timewarpFxState.markers = 1;
+        applyMarkerLabelFade(1);
+      };
+    }
     const from = run.from instanceof Date ? run.from : run.from === 'now' ? new Date() : getSky().date;
     const start = performance.now();
     let lastScrub = -Infinity;
     let raf = 0;
     let finished = false;
     timewarpFxState.colors = run.spec.colors;
+    // Where the pins stand at the first instant, now rather than at the
+    // first frame -- one frame in between would flash hidden ones back.
+    timewarpFxState.markers = timewarpFrame(0, hidden).markers;
+    applyMarkerLabelFade(timewarpFxState.markers);
     setPlaying(true);
 
     const settle = () => {
@@ -54,7 +80,7 @@ export function useTimewarpFx(run: TimewarpRun | null, runId: number): { playing
     };
 
     const tick = (now: number) => {
-      const frame = timewarpFrame(now - start);
+      const frame = timewarpFrame(now - start, hidden);
       skyDrift.boost = frame.spin * MAX_SKY_BOOST;
       timewarpFxState.glow = frame.glow;
       timewarpFxState.spin = frame.spin;
@@ -83,7 +109,7 @@ export function useTimewarpFx(run: TimewarpRun | null, runId: number): { playing
       // Leaving mid-run, or replaying: let go of the sky either way.
       if (!finished || run.hold) setSkyFxOverride(null);
     };
-  }, [run, runId]);
+  }, [run, runId, ready]);
 
   return { playing, step };
 }

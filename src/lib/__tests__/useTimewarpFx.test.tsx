@@ -3,7 +3,9 @@ import { renderHook, act } from '@testing-library/react';
 import { useTimewarpFx, type TimewarpRun } from '@/lib/useTimewarpFx';
 import { _resetSkyCache, getSky, setSkyRevertOverride } from '@/lib/astrology';
 import { skyDrift, skyStep, BASE_SKY_STEP } from '@/lib/skyDrift';
-import { TIMEWARP_DURATION_MS, timewarpFxState, SPIN_UP_MS, SCRUB_END_MS } from '@/lib/timewarpFx';
+import {
+  TIMEWARP_DURATION_MS, timewarpFxState, SPIN_UP_MS, SCRUB_END_MS, MARKERS_IN_MS, MARKER_OPACITY_VAR,
+} from '@/lib/timewarpFx';
 
 const TO = new Date('2028-10-03T12:00:00Z');
 const run = (over: Partial<TimewarpRun> = {}): TimewarpRun => ({
@@ -27,6 +29,51 @@ afterEach(() => {
 const advance = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
 
 describe('useTimewarpFx', () => {
+  it('waits for the sky before playing, leaving the pins be', () => {
+    const { result, rerender } = renderHook(({ ready }) => useTimewarpFx(run(), 0, ready), {
+      initialProps: { ready: false },
+    });
+    expect(result.current.playing).toBe(false);
+    expect(timewarpFxState.markers).toBe(1);
+
+    rerender({ ready: true });
+    expect(result.current.playing).toBe(true);
+    advance(TIMEWARP_DURATION_MS);
+  });
+
+  it('keeps already-warped pins hidden while the sky loads, and only brings them in at the end', () => {
+    const r = run({ markersHidden: true });
+    const { result, rerender, unmount } = renderHook(({ ready }) => useTimewarpFx(r, 0, ready), {
+      initialProps: { ready: false },
+    });
+    expect(result.current.playing).toBe(false);
+    expect(timewarpFxState.markers).toBe(0);
+    expect(document.documentElement.style.getPropertyValue(MARKER_OPACITY_VAR)).toBe('0');
+
+    // The sky is up: still hidden from the first instant, never shown first.
+    rerender({ ready: true });
+    expect(result.current.playing).toBe(true);
+    expect(timewarpFxState.markers).toBe(0);
+    advance(SPIN_UP_MS);
+    expect(timewarpFxState.markers).toBe(0);
+    advance(TIMEWARP_DURATION_MS - MARKERS_IN_MS - SPIN_UP_MS - 50);
+    expect(timewarpFxState.markers).toBe(0);
+
+    advance(MARKERS_IN_MS + 100);
+    expect(result.current.playing).toBe(false);
+    expect(timewarpFxState.markers).toBe(1);
+    expect(document.documentElement.style.getPropertyValue(MARKER_OPACITY_VAR)).toBe('');
+    unmount();
+  });
+
+  it('shows the pins again if left while still waiting for the sky', () => {
+    const { unmount } = renderHook(() => useTimewarpFx(run({ markersHidden: true }), 0, false));
+    expect(timewarpFxState.markers).toBe(0);
+    unmount();
+    expect(timewarpFxState.markers).toBe(1);
+    expect(document.documentElement.style.getPropertyValue(MARKER_OPACITY_VAR)).toBe('');
+  });
+
   it('does nothing without a run', () => {
     const { result } = renderHook(() => useTimewarpFx(null, 0));
     expect(result.current.playing).toBe(false);

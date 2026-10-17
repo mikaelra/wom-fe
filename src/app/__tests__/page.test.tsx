@@ -77,6 +77,9 @@ const socket = socketModule as unknown as {
 // click mounted the City Hub view's CameraAnimator, which called useThree()
 // at render time. Step 12 deleted that whole branch, so Canvas is now the
 // only thing the page takes from R3F.
+// Needs a real R3F renderer (useThree); nothing to test here.
+vi.mock('@/components/hud/ContextLossRecovery', () => ({ default: () => null }));
+
 vi.mock('@react-three/fiber', () => ({
   // Renders the wrapper R3F would, style included: the city markers' labels
   // are appended into exactly this element, so its stacking behaviour is
@@ -151,6 +154,8 @@ const clickCity = async (city: City) => {
 const clickAthens = () => clickCity(ATHENS);
 
 beforeEach(() => {
+  // These tests are about the 3D game; the web's default is text mode.
+  localStorage.setItem('textMode', 'off');
   push.mockClear();
   cityClickHandler = undefined;
   lastSkyRevertKey = undefined;
@@ -192,15 +197,14 @@ describe('Page (world map view, city routing)', () => {
   it('raises the loading curtain on the click, not after the route change', async () => {
     render(<Page />);
     // Nothing to see until the sword is actually tapped.
-    expect(screen.queryByText('ENTERING')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: /^Entering / })).not.toBeInTheDocument();
 
     await clickAthens();
 
     // The route change and the city chunk's download both happen while this
     // page is still mounted, so without this a tap looks like it did
     // nothing at all.
-    expect(screen.getByText('ENTERING')).toBeInTheDocument();
-    expect(screen.getByText(ATHENS.name)).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: /^Entering / })).toBeInTheDocument();
   });
 
   it('routes to the city the same way when already logged in', async () => {
@@ -288,7 +292,7 @@ describe('Page (merchant markers)', () => {
 
     act(() => merchantClickHandler!(lastMerchantMarkers[1].key));
 
-    expect(await screen.findByTestId('merchant-scene')).toHaveTextContent('The Merchant: Paper');
+    expect(await screen.findByTestId('merchant-scene')).toHaveTextContent('Hildegard von Bingen: Paper');
   });
 });
 

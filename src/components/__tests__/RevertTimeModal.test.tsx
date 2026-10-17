@@ -9,6 +9,10 @@ import { FULL_MOON_EVENT, MERCURY_JUPITER_EVENT } from '@/lib/__tests__/merchant
 import type { Relic } from '@/types/game';
 
 vi.mock('@/lib/api', () => ({ revertMerchantTime: vi.fn(), getMerchantSkyEvents: vi.fn() }));
+// Real RelicCoin renders a react-three-fiber <Canvas>, which jsdom can't.
+vi.mock('@/components/RelicCoin', () => ({
+  default: ({ relicName }: { relicName?: string }) => <div data-testid="relic-coin" data-relic={relicName} />,
+}));
 
 const mockedRevert = vi.mocked(revertMerchantTime);
 const mockedSkyEvents = vi.mocked(getMerchantSkyEvents);
@@ -60,6 +64,17 @@ const renderModal = (props: Partial<Parameters<typeof RevertTimeModal>[0]> = {})
   );
 
 describe('RevertTimeModal', () => {
+  it('shows the relic\'s picture at 1.5x its inventory card, between title and flavour text', async () => {
+    renderModal({ relic: { ...STONE, name: 'Pen', flavour_text: 'Ink remembers.' } });
+    await waitFor(() => expect(mockedSkyEvents).toHaveBeenCalled());
+    const title = screen.getByRole('heading', { name: 'Pen' });
+    const picture = screen.getByTestId('revert-relic-picture');
+    expect(picture).toHaveClass('w-24', 'h-24');
+    expect(within(picture).getByTestId('relic-coin')).toHaveAttribute('data-relic', 'Pen');
+    expect(title.nextElementSibling).toBe(picture);
+    expect(picture.nextElementSibling).toHaveTextContent('Ink remembers.');
+  });
+
   it('shows the exact purchase instant and what was in the sky then, and calls no revert yet', async () => {
     renderModal();
 

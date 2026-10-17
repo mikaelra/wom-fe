@@ -56,7 +56,7 @@ export default function MarketListingCard({
   }, [listing.expires_at, clockOffsetMs]);
 
   const low = secs <= 15 && listing.kind === 'quick';
-  const noun = tradeNoun(tradeName(listing.give, listing.want, catalog?.paper_relic_id));
+  const noun = tradeNoun(tradeName(listing.give, listing.want, catalog));
 
   return (
     <div className="rounded-xl bg-gray-900/80 border border-white/10 p-3 flex flex-col gap-2">

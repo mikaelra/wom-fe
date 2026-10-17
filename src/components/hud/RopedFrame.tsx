@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { rem } from '@/lib/uiScale';
 
 const DEFAULT_IMAGE = '/models/buttons/rope_button-ld-v2.png';
 // Same art as DEFAULT_IMAGE with its flat gray fill (162,162,162 exactly)
@@ -53,7 +54,7 @@ export default function RopedFrame({
   const resolvedImageUrl = imageUrl ?? (fillColor ? FRAME_IMAGE : DEFAULT_IMAGE);
 
   return (
-    <div className="relative inline-block" style={{ width, height }}>
+    <div className="relative inline-block" style={{ width: rem(width), height: rem(height) }}>
       {fillColor && (
         <div
           className="absolute inset-0 pointer-events-none transition-[filter,transform] duration-150"

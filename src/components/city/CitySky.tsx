@@ -19,7 +19,8 @@ import {
 } from '@/lib/seaGlitter';
 
 export { horizonToScene } from '@/lib/citySkyGeometry';
-import { IS_NATIVE_BUILD } from '@/lib/buildTarget';
+import { useHdTextures } from '@/lib/hdTextures';
+import { useGameTextures } from '@/lib/useGameTextures';
 import {
   milkyWayQuaternion, milkyWayTexturePath, orientMilkyWayTexture,
 } from '@/lib/milkyWay';
@@ -212,7 +213,7 @@ export function useCitySky(
 function MilkyWay({ frame, eye, opacity }: {
   frame: LocalFrame; eye: readonly [number, number, number]; opacity: number;
 }) {
-  const tex = useTexture(milkyWayTexturePath(IS_NATIVE_BUILD));
+  const [tex] = useGameTextures([milkyWayTexturePath(useHdTextures())]);
   useMemo(() => orientMilkyWayTexture(tex), [tex]);
 
   const quaternion = useMemo(() => {
