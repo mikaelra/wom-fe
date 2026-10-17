@@ -6,7 +6,7 @@ public/models/relics/pen_v1.thumbnail.png, rendered on the CPU.
 
 numpy + PIL only (a headless browser's WebGL is not available on the dev VM).
 Reads the first mesh's base-colour and metallic-roughness textures (normal maps are ignored): positions and normals through the node transforms (translation /
-rotation / scale or a matrix), vertex strides, one base-colour texture. It
+rotation / scale or a matrix), vertex strides, one base-colour texture (or COLOR_0 vertex colours). It
 lights with a soft sky, a key light from the upper left and a rim light, adds
 a Blinn-Phong highlight from the material's roughness and metalness, and
 supersamples 3x for smooth edges. Not a PBR renderer: a faithful thumbnail,
@@ -101,6 +101,7 @@ def render(path, size=512, yaw=30.0, pitch=15.0, ssaa=3, top=None):
     pos = accessor(j, blob, prim['attributes']['POSITION']).astype(float)
     nrm = accessor(j, blob, prim['attributes']['NORMAL']).astype(float)
     uv = accessor(j, blob, prim['attributes']['TEXCOORD_0']).astype(float)
+    vcol = accessor(j, blob, prim['attributes']['COLOR_0']).astype(float)[:, :3] if 'COLOR_0' in prim['attributes'] else None
     idx = accessor(j, blob, prim['indices']).reshape(-1, 3)
     world = mesh_world_matrix(j)
     pos = pos @ world[:3, :3].T + world[:3, 3]
@@ -166,11 +167,15 @@ def render(path, size=512, yaw=30.0, pitch=15.0, ssaa=3, top=None):
         n /= np.linalg.norm(n, axis=-1, keepdims=True) + 1e-12
         u = w0 * uv[t[0], 0] + w1 * uv[t[1], 0] + w2 * uv[t[2], 0]
         v = w0 * uv[t[0], 1] + w1 * uv[t[1], 1] + w2 * uv[t[2], 1]
+        if vcol is not None:  # vertex colours (linear), across the triangle
+            vc = w0[..., None] * vcol[t[0]] + w1[..., None] * vcol[t[1]] + w2[..., None] * vcol[t[2]]
         if tex is not None:
             h, w = tex.shape[:2]
             base = tex[(np.mod(v, 1) * (h - 1)).astype(int), (np.mod(u, 1) * (w - 1)).astype(int)] * tint
         else:
             base = np.broadcast_to(tint, n.shape)
+        if vcol is not None:
+            base = base * vc
         if mr_tex is not None:  # this pixel's own roughness (green) and metalness (blue)
             h, w = mr_tex.shape[:2]
             mr = mr_tex[(np.mod(v, 1) * (h - 1)).astype(int), (np.mod(u, 1) * (w - 1)).astype(int)]
