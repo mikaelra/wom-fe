@@ -11,7 +11,7 @@ import {
   joinBotRankedQueue, leaveBotRankedQueue, getActiveBotRankedLobby, getMerchantOffer,
 } from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
-import { setStoredAccountToken } from '@/lib/http';
+import { ApiError, setStoredAccountToken } from '@/lib/http';
 import * as socketModule from '@/lib/socket';
 import { findCity } from '@/lib/cities';
 
@@ -732,6 +732,18 @@ describe('CityPage (ranked)', () => {
     await waitForScene();
     await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
     expect(lastRankedSublabel).toBe('GAME STARTED!');
+  });
+
+  it('drops the match once wom-be stops taking our ticket (it ended; 2026-10-17)', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedGetActiveRankedLobby
+      .mockResolvedValueOnce({ lobby_id: 'RNKD', token: null, ranked_countdown_deadline: null, started: true })
+      .mockRejectedValue(new ApiError(403, 'Not your ranked match.', 'not_authorized'));
+    renderCity();
+    await waitForScene();
+    // The restore found it; the poll right after was refused.
+    await waitFor(() => expect(mockedGetActiveRankedLobby.mock.calls.length).toBeGreaterThanOrEqual(2));
+    await waitFor(() => expect(lastRankedLabel).toBe('RANKED'));
   });
 });
 

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getActiveRankedLobby, renewRankedQueue } from '@/lib/api';
-import { setStoredToken } from '@/lib/http';
+import { ApiError, setStoredToken } from '@/lib/http';
 import { useRankedQueue } from '@/lib/useRankedQueue';
 import { isIosApp } from '@/lib/appleShop';
 import { notifyRankedStarted } from '@/lib/matchNotice';
@@ -66,6 +66,12 @@ function storedName(): string | null {
   } catch {
     return null;
   }
+}
+
+/** wom-be refused to say: our ranked credentials are no longer good, so
+ *  there is no match of ours to show. */
+function notOurs(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403;
 }
 
 function matchFrom(
@@ -186,8 +192,12 @@ export default function RankedQueueProvider({ children }: { children: React.Reac
           if (cancelled) return;
           setMatch((prev) => (data.lobby_id === lobbyId ? matchFrom(data, prev) : null));
         })
-        .catch(() => {
-          // The next tick tries again.
+        .catch((err) => {
+          // A 403 means wom-be no longer takes our ranked ticket: it drops
+          // it once the match is over (a name without an account has
+          // nothing else to show), so the match is gone. Anything else:
+          // the next tick tries again.
+          if (!cancelled && notOurs(err)) setMatch(null);
         });
     };
     tick();
@@ -275,7 +285,14 @@ export default function RankedQueueProvider({ children }: { children: React.Reac
   const joinMatch = useCallback(async () => {
     const name = storedName();
     if (!name || !lobbyId) return;
-    const data = await getActiveRankedLobby(name);
+    let data: Awaited<ReturnType<typeof getActiveRankedLobby>>;
+    try {
+      data = await getActiveRankedLobby(name);
+    } catch (err) {
+      if (!notOurs(err)) throw err;
+      setMatch(null);
+      return;
+    }
     if (data.lobby_id && data.token) {
       setStoredToken(data.lobby_id, data.token);
       router.push(`/lobby?id=${data.lobby_id}`);
