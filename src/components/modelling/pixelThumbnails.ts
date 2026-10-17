@@ -51,7 +51,7 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
     items: [
       { id: 'wheel', label: 'Wheel', was: '/images/wheel.png' },
       { id: 'special-wheel', label: 'Special Wheel', was: '/images/special-wheel.png' },
-      { id: 'artifact', label: 'Artifact (the scroll, its 3D model)' },
+      { id: 'artifact', label: 'Artifact (the scroll, its 3D model)', was: '/skins/items/pergament_v1.thumbnail.png' },
       { id: 'my_ai_coin', label: 'My AI coin (shop)', was: '/images/my-ai-coin.png' },
     ],
   },
