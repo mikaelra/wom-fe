@@ -60,7 +60,7 @@ const AI_CREDITS_PRODUCT = {
   currency: 'usd',
   kind: 'ai_credits' as const,
   credits_per_pack: 10,
-  max_quantity: 50,
+  max_quantity: 100,
 };
 
 const flush = () => act(async () => Promise.resolve());
@@ -155,7 +155,7 @@ describe('ShopPage', () => {
     expect(buyButton).not.toBeDisabled();
   });
 
-  it('lets the wheel quantity be adjusted with + and -, clamped to 1..100, and passes it to checkout', async () => {
+  it('lets the wheel quantity be adjusted with + and -, clamped to 1..300, and passes it to checkout', async () => {
     loginAs();
     mockedGetShopProducts.mockResolvedValue({
       shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
@@ -180,18 +180,18 @@ describe('ShopPage', () => {
     expect(screen.getByText('$15.00')).toBeInTheDocument();
     expect(screen.queryByText('$5.00')).not.toBeInTheDocument();
 
-    for (let i = 0; i < 100; i++) fireEvent.click(increase);
-    expect(screen.getByLabelText('Quantity')).toHaveValue('100');
-    expect(increase).toBeDisabled(); // can't go above 100
+    for (let i = 0; i < 300; i++) fireEvent.click(increase);
+    expect(screen.getByLabelText('Quantity')).toHaveValue('300');
+    expect(increase).toBeDisabled(); // can't go above 300
 
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Buy' }));
     await flush();
 
-    expect(mockedPostCheckout).toHaveBeenCalledWith('sess-1', 'wheel_special', false, 100);
+    expect(mockedPostCheckout).toHaveBeenCalledWith('sess-1', 'wheel_special', false, 300);
   });
 
-  it('lets the wheel quantity be typed directly into the field, clamped 1..100', async () => {
+  it('lets the wheel quantity be typed directly into the field, clamped 1..300', async () => {
     loginAs();
     mockedGetShopProducts.mockResolvedValue({
       shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
@@ -205,8 +205,8 @@ describe('ShopPage', () => {
     expect(input).toHaveValue('7');
     expect(screen.getByText('$35.00')).toBeInTheDocument();
 
-    fireEvent.change(input, { target: { value: '250' } });
-    expect(input).toHaveValue('100'); // clamped to the max
+    fireEvent.change(input, { target: { value: '750' } });
+    expect(input).toHaveValue('300'); // clamped to the max
 
     fireEvent.change(input, { target: { value: 'abc' } });
     expect(input).toHaveValue('1'); // non-digits strip to nothing -> falls back to 1
@@ -246,16 +246,16 @@ describe('ShopPage', () => {
     expect(screen.getByText('$3.00')).toBeInTheDocument();
     expect(screen.getByText(/^30 bot-game credits/)).toBeInTheDocument();
 
-    for (let i = 0; i < 60; i++) fireEvent.click(increase);
-    expect(screen.getByLabelText('Quantity')).toHaveValue('50');   // clamped to max_quantity
+    for (let i = 0; i < 110; i++) fireEvent.click(increase);
+    expect(screen.getByLabelText('Quantity')).toHaveValue('100');   // clamped to max_quantity
     expect(increase).toBeDisabled();
-    expect(screen.getByText('$50.00')).toBeInTheDocument();
+    expect(screen.getByText('$100.00')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Buy' }));
     await flush();
 
-    expect(mockedPostCheckout).toHaveBeenCalledWith('sess-1', 'ai_credits', false, 50);
+    expect(mockedPostCheckout).toHaveBeenCalledWith('sess-1', 'ai_credits', false, 100);
   });
 
   it('redirects to the Stripe checkout url on success', async () => {
