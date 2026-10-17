@@ -655,6 +655,13 @@ describe('TextLobby title and PC layout', () => {
     expect(screen.queryByText('Unranked')).toBeNull();
   });
 
+  it('says Timed out! when everyone went quiet, not that someone won (2026-10-17)', async () => {
+    const base = lobby({ round: 3, gameover: true, winner: null });
+    await show({ ...base, players: base.players.map((p) => ({ ...p, alive: true })) });
+    expect(screen.getByText('⏱️ Timed out!')).toBeTruthy();
+    expect(screen.queryByText(/has won the game/)).toBeNull();
+  });
+
   it('shows no ranks after a ranked match that timed out (2026-10-17)', async () => {
     const base = lobby({ round: 3, ranked: true, gameover: true, winner: null });
     await show({ ...base, players: base.players.map((p) => ({ ...p, rank_tier: 'Djinn II', alive: true })) });

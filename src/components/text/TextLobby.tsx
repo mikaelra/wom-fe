@@ -962,7 +962,11 @@ export default function TextLobby({
             lost ? 'bg-red-950/60 border-red-700 text-red-300' : 'bg-green-950/60 border-green-700 text-green-300'
           }`}
         >
-          <p className="text-xl font-semibold mb-3">🎉 Game Over! {winnerName} has won the game!</p>
+          <p className="text-xl font-semibold mb-3">
+            {/* Nobody won a game everyone walked away from: the same words as
+                the 3D lobby's (LobbyOverlay) (Mikael, 2026-10-17). */}
+            {timedOut ? '⏱️ Timed out!' : `🎉 Game Over! ${winnerName} has won the game!`}
+          </p>
           <RankOutcome result={state?.ranked_results?.[playerName]} playerName={playerName} />
           {/* Home, and beside it the city -- the pair from the top corner. */}
           <span className="emoji-pair inline-flex items-center justify-center gap-2">
