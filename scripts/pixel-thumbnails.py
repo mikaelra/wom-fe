@@ -1,0 +1,341 @@
+#!/usr/bin/env python3
+"""8-bit thumbnails (Mikael, 2026-10-17): every frog skin, the Cherub, the
+artifact, the relics (Pen, Paper, Stone) and the wheels, drawn on a 32x32
+grid and scaled x8 to 256x256 with nearest-neighbour, so each pixel stays a
+square at any size.
+
+    python3 scripts/pixel-thumbnails.py            # writes public/pixel/*.png
+    python3 scripts/pixel-thumbnails.py --sheet X  # also a preview sheet
+
+PIL + numpy only. One frog drawing, recoloured per skin: the skin and belly
+colours were sampled from the 3D thumbnails in public/skins/thumbnails/, the
+eyes read off them by eye.
+"""
+import argparse
+import math
+import os
+
+import numpy as np
+from PIL import Image, ImageDraw
+
+N = 32
+SCALE = 8
+OUT = os.path.join(os.path.dirname(__file__), '..', 'public', 'pixel')
+
+YY, XX = np.mgrid[0:N, 0:N]
+CX, CY = XX + 0.5, YY + 0.5
+
+
+def ell(cx, cy, rx, ry):
+    return ((CX - cx) ** 2 / rx**2 + (CY - cy) ** 2 / ry**2) <= 1.0
+
+
+def rgb(h):
+    h = h.lstrip('#')
+    return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def mix(c, to, t):
+    return tuple(int(round(a + (b - a) * t)) for a, b in zip(c, to))
+
+
+def lighten(c, t=0.28):
+    return mix(c, (255, 255, 255), t)
+
+
+def darken(c, t=0.28):
+    return mix(c, (0, 0, 20), t)
+
+
+def shift(mask, dx, dy):
+    out = np.zeros_like(mask)
+    ys, xs = np.nonzero(mask)
+    ys2, xs2 = ys + dy, xs + dx
+    ok = (ys2 >= 0) & (ys2 < N) & (xs2 >= 0) & (xs2 < N)
+    out[ys2[ok], xs2[ok]] = True
+    return out
+
+
+def dilate(mask):
+    return mask | shift(mask, 1, 0) | shift(mask, -1, 0) | shift(mask, 0, 1) | shift(mask, 0, -1)
+
+
+class Canvas:
+    def __init__(self, bg=None):
+        self.px = np.zeros((N, N, 4), dtype=np.uint8)
+        if bg:
+            self.px[:, :] = (*rgb(bg), 255)
+
+    def fill(self, mask, color):
+        self.px[mask] = (*color, 255)
+
+    def dot(self, x, y, color):
+        if 0 <= x < N and 0 <= y < N:
+            self.px[y, x] = (*color, 255)
+
+    def alpha(self):
+        return self.px[:, :, 3] > 0
+
+    def outline(self, color):
+        a = self.alpha()
+        self.fill(dilate(a) & ~a, color)
+
+    def rim(self, base_mask, hi, lo):
+        """Cel shading: the lit upper-left edge and the shaded lower-right edge."""
+        lit = base_mask & ~shift(base_mask, 1, 1)
+        shade = base_mask & ~shift(base_mask, -1, -1)
+        self.fill(shade, lo)
+        self.fill(lit, hi)
+
+    def save(self, name):
+        os.makedirs(OUT, exist_ok=True)
+        im = Image.fromarray(self.px).resize((N * SCALE, N * SCALE), Image.NEAREST)
+        im.save(os.path.join(OUT, name))
+        return im
+
+
+# ---------------------------------------------------------------- frogs ----
+
+EYE_L, EYE_R = (8.5, 8.6), (23.5, 8.6)
+
+# skin, belly: sampled. sclera / iris / pupil: the eye as it looks in the 3D
+# thumbnail. pr: pupil radius. ir: iris radius.
+FROGS = {
+    'frog_green_v1': dict(skin='#d8ea6a', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
+    'frog_blue_v1': dict(skin='#a8e0ee', belly='#f0f0f0', sclera='#f4f4f4', iris='#000000', pupil='#000000', ir=2.9, pr=2.9),
+    'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#3a2b25', pupil='#0b0807', ir=2.7, pr=1.6),
+    'frog_pink_v1': dict(skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
+    'frog_purple_v1': dict(skin='#cfa0ea', belly='#f0e6f0', sclera='#ffffff', iris='#111111', pupil='#000000', ir=2.0, pr=2.0),
+    'frog_red_v1': dict(skin='#ff4a2e', belly='#ecd8d8', sclera='#eef0dc', iris='#000000', pupil='#000000', ir=2.8, pr=2.8),
+    'frog_yellow_v1': dict(skin='#f4e060', belly='#f3e8b8', sclera='#c99650', iris='#150802', pupil='#000000', ir=2.7, pr=1.7),
+    'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#3c0008', iris='#a31423', pupil='#1a0003', ir=2.8, pr=1.6, hi='#e2b04a'),
+    'frog_silver_v1': dict(skin='#3a3a40', belly='#2c2c32', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#c4c8d2'),
+    'frog_bling_v1': dict(skin='#55cc34', belly='#d6e8c0', sclera='#44b8b0', iris='#6a38a8', pupil='#10102a', ir=2.7, pr=1.6, sparkle=True),
+    'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True),
+}
+
+
+def frog_shapes():
+    head = ell(16, 14, 12.5, 6.8)
+    bumps = ell(*EYE_L, 4.9, 4.9) | ell(*EYE_R, 4.9, 4.9)
+    body = ell(16, 25.5, 8.6, 8.2)
+    arms = ell(6.6, 24.5, 2.3, 5.2) | ell(25.4, 24.5, 2.3, 5.2)
+    feet = ell(5.2, 30, 3.8, 1.9) | ell(26.8, 30, 3.8, 1.9)
+    skin = head | bumps | body | arms | feet
+    belly = ell(16, 25, 5.8, 8.0) & (YY >= 16) & body
+    return dict(head=head, bumps=bumps, body=body, arms=arms, feet=feet, skin=skin, belly=belly)
+
+
+def draw_frog(c, p, dark_outline='#15121e'):
+    s = frog_shapes()
+    skin, belly = rgb(p['skin']), rgb(p['belly'])
+    hi = rgb(p['hi']) if 'hi' in p else lighten(skin, 0.35)
+    lo = darken(skin, 0.22)
+    c.fill(s['skin'], skin)
+    c.fill(s['belly'], belly)
+    if p.get('rainbow'):
+        c.fill(ell(16, 12, 4.2, 3.0) & s['head'], rgb('#c4ee8c'))  # the lime forehead
+        c.fill(s['arms'] & (YY >= 20), rgb('#ff3a2c'))
+        c.fill(s['feet'] & (CX < 16), rgb('#9a3cff'))
+        c.fill(s['feet'] & (CX >= 16), rgb('#3a6cff'))
+        c.fill(s['feet'] & (YY >= 30) & ((XX % 3) == 0), rgb('#ff40c0'))
+        c.fill(s['belly'] & (YY >= 24), rgb('#c4ee8c'))
+    c.rim(s['skin'], hi, lo)
+    # the chin: a lighter band under the mouth
+    # mouth: a wide smile, ends higher than the middle
+    outline = rgb(dark_outline)
+    for x in range(7, 26):
+        y = 14 + round(2.2 * (1 - ((x - 16) / 9.6) ** 2))
+        c.dot(x, y, darken(skin, 0.7) if sum(skin) > 150 else outline)
+    # nostrils
+    c.dot(14, 11, lo)
+    c.dot(18, 11, lo)
+    # eyes
+    for cx, cy in (EYE_L, EYE_R):
+        c.fill(ell(cx, cy, 3.7, 3.7), rgb(p['sclera']))
+        c.fill(ell(cx, cy + 0.2, p['ir'], p['ir']), rgb(p['iris']))
+        c.fill(ell(cx, cy + 0.2, p['pr'], p['pr']), rgb(p['pupil']))
+        c.dot(int(cx - 1.5), int(cy - 1.5), (255, 255, 255))
+    # a gloss mark on the forehead
+    c.dot(15, 10, hi)
+    c.dot(14, 10, hi)
+    if p.get('sparkle'):
+        for x, y in [(12, 13), (20, 12), (15, 21), (19, 23), (14, 26), (17, 28), (10, 22), (22, 20), (6, 20), (26, 21), (16, 18)]:
+            c.dot(x, y, (255, 255, 255))
+        for x, y in [(13, 21), (18, 25), (15, 24)]:
+            c.dot(x, y, rgb('#b8f0ff'))
+    # outline last, around everything drawn
+    c.outline(darken(skin, 0.78) if sum(skin) > 200 else outline)
+
+
+def frog(name):
+    c = Canvas()
+    draw_frog(c, FROGS[name])
+    return c
+
+
+# --------------------------------------------------------------- others ----
+
+
+def artifact():
+    """The white frog in the void (public/images/artifacts), black and glowing."""
+    c = Canvas('#000000')
+    # a dithered halo
+    d = np.sqrt((CX - 16) ** 2 + (CY - 17) ** 2)
+    for r, col, dither in [(17.5, '#1c1c22', 1), (15.5, '#2e2e38', 1), (13.5, '#444452', 1)]:
+        ring = (d <= r) & (((XX + YY) % 2 == 0) if dither else True)
+        c.fill(ring, rgb(col))
+    p = dict(skin='#e6e4de', belly='#fbfaf4', sclera='#cfcdc6', iris='#000000', pupil='#000000', ir=3.0, pr=3.0, hi='#ffffff')
+    # draw the frog on a transparent layer, then stamp it over the halo
+    f = Canvas()
+    draw_frog(f, p, dark_outline='#2a2a30')
+    m = f.px[:, :, 3] > 0
+    c.px[m] = f.px[m]
+    return c
+
+
+def poly(c, pts, color):
+    """A polygon filled on the pixel grid (no anti-aliasing)."""
+    m = Image.new('L', (N, N), 0)
+    ImageDraw.Draw(m).polygon(pts, fill=255)
+    c.fill(np.array(m) > 0, color)
+
+
+def line(c, pts, color):
+    m = Image.new('L', (N, N), 0)
+    ImageDraw.Draw(m).line(pts, fill=255, width=1)
+    c.fill(np.array(m) > 0, color)
+
+
+def cherub():
+    c = Canvas()
+    white, shade = rgb('#f8f8fc'), rgb('#bcbfd0')
+    # wings first, with an outline of their own so they stay apart from the dress
+    for sign in (-1, 1):
+        x0 = 16 + sign * 5
+        pts = [(x0, 13), (16 + sign * 9, 4), (16 + sign * 14, 6), (16 + sign * 14, 14), (16 + sign * 10, 20), (x0, 19)]
+        poly(c, pts, white)
+        line(c, [(16 + sign * 9, 8), (16 + sign * 12, 15)], shade)
+        line(c, [(16 + sign * 7, 11), (16 + sign * 10, 17)], shade)
+    c.outline(rgb('#6a6882'))
+    dress = ell(16, 23, 6.6, 7.4) & (YY >= 15)
+    c.fill(dress, white)
+    c.rim(dress, (255, 255, 255), shade)
+    c.fill((YY == 29) & (XX >= 11) & (XX <= 20), shade)  # the hem
+    c.fill(((XX >= 12) & (XX <= 14) | (XX >= 18) & (XX <= 20)) & (YY >= 30), rgb('#f1c9b0'))  # feet
+    c.fill(ell(9.2, 20, 1.5, 3.0) | ell(22.8, 20, 1.5, 3.0), rgb('#f1c9b0'))  # arms
+    head = ell(16, 9.4, 5.2, 5.2)
+    c.fill(head, rgb('#f6d3bc'))
+    hair = ell(16, 7.2, 6.0, 4.6) & (YY <= 8)
+    c.fill(hair | ell(11.2, 9.6, 1.8, 2.4) | ell(20.8, 9.6, 1.8, 2.4), rgb('#f0c23c'))
+    c.fill(ell(16, 5.6, 5.0, 2.6), rgb('#ffe27a'))
+    c.dot(14, 10, rgb('#5a6a98'))
+    c.dot(18, 10, rgb('#5a6a98'))
+    c.dot(16, 12, rgb('#e08878'))
+    # the dagger in the right hand: gold hilt, silver blade
+    for i in range(8):
+        c.dot(24 + i // 2, 22 - i, rgb('#e2e6f2') if i > 2 else rgb('#c8962a'))
+    c.dot(23, 23, rgb('#8a5a14'))
+    c.dot(25, 22, rgb('#c8962a'))
+    c.outline(rgb('#4a4660'))
+    return c
+
+
+def pen():
+    c = Canvas()
+    for t in np.linspace(0, 1, 220):
+        x, y = 4 + t * 24, 3 + t * 25
+        half = 4.6 * (math.sin(math.pi * min(1, t * 1.25)) ** 0.6) if t < 0.8 else 0
+        for ox in np.linspace(-half, half, 16):
+            c.dot(int(x + ox * 0.7), int(y - ox * 0.7), rgb('#eceef4') if ox < 0.8 else rgb('#aeb2c2'))
+    for t in np.linspace(0, 1, 120):
+        c.dot(int(4 + t * 24), int(3 + t * 25), rgb('#50505a'))
+    c.dot(28, 28, rgb('#15121e'))
+    c.dot(27, 27, rgb('#15121e'))
+    c.outline(rgb('#2a2836'))
+    return c
+
+
+def paper():
+    c = Canvas()
+    sheet = (XX >= 7) & (XX <= 24) & (YY >= 4) & (YY <= 27)
+    c.fill(sheet, rgb('#f1e2ba'))
+    c.fill(sheet & ((XX >= 22) | (YY >= 25)), rgb('#dccb98'))
+    # the folded corner, top right: cut away, with the flap in a darker tone
+    cut = sheet & (XX >= 19) & (YY <= 9) & ((XX - 19) + (9 - YY) >= 5)
+    c.px[cut] = 0
+    c.fill(sheet & (XX >= 19) & (YY <= 9) & ((XX - 19) + (9 - YY) < 5) & ((XX - 19) + (9 - YY) >= 3), rgb('#c2ab72'))
+    for row, ln in [(11, 12), (14, 9), (17, 12), (20, 8), (23, 11)]:
+        c.fill((YY == row) & (XX >= 9) & (XX < 9 + ln), rgb('#6e5a38'))
+    c.outline(rgb('#3a2e1a'))
+    return c
+
+
+def stone():
+    """A chunky faceted rock, green."""
+    c = Canvas()
+    top = [(9, 9), (15, 6), (22, 7), (27, 12), (16, 14)]
+    left = [(4, 15), (9, 9), (16, 14), (13, 25), (8, 26), (5, 22)]
+    right = [(16, 14), (27, 12), (28, 20), (24, 26), (14, 27), (13, 25)]
+    poly(c, left, rgb('#52c46f'))
+    poly(c, right, rgb('#2f9a50'))
+    poly(c, top, rgb('#9aeaae'))
+    for a, b in [((4, 15), (16, 14)), ((16, 14), (27, 12)), ((16, 14), (13, 25))]:
+        line(c, [a, b], rgb('#1f7a3c'))
+    line(c, [(9, 9), (16, 14)], rgb('#6fd68a'))
+    for x, y in [(12, 8), (13, 8), (12, 9), (21, 9)]:
+        c.dot(x, y, (255, 255, 255))
+    c.dot(8, 17, rgb('#8fe4a4'))
+    c.dot(9, 18, rgb('#8fe4a4'))
+    c.outline(rgb('#0f3d1d'))
+    return c
+
+
+def wheel(ring, wedge, gap):
+    c = Canvas()
+    r = np.sqrt((CX - 16) ** 2 + (CY - 16) ** 2)
+    ang = (np.degrees(np.arctan2(CY - 16, CX - 16)) + 90) % 360
+    disc = r <= 14.2
+    c.fill(disc, rgb(gap))
+    sector = (ang % 120) < 62
+    c.fill(disc & (r <= 9.6) & sector, rgb(wedge))
+    c.fill(disc & (r <= 9.6) & sector & (r <= 5), darken(rgb(wedge), 0.25))
+    c.fill(disc & (r > 9.6), rgb(ring))
+    c.fill(disc & (r > 12.2), darken(rgb(ring), 0.3))
+    c.fill(r <= 1.6, rgb('#15121e'))
+    c.rim(disc, lighten(rgb(ring), 0.35), darken(rgb(ring), 0.5))
+    c.outline(rgb('#15121e'))
+    return c
+
+
+def artifacts_list():
+    out = {n: frog(n) for n in FROGS}
+    out['cherub_v1'] = cherub()
+    out['artifact'] = artifact()
+    out['pen'] = pen()
+    out['paper'] = paper()
+    out['stone'] = stone()
+    out['wheel'] = wheel('#1c1cf0', '#e8d020', '#7a1c46')
+    out['special-wheel'] = wheel('#8a18ff', '#22e022', '#a0306e')
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--sheet', help='also write a preview sheet to this path')
+    a = ap.parse_args()
+    imgs = {}
+    for name, canvas in artifacts_list().items():
+        imgs[name] = canvas.save(f'{name}.png')
+    print(f'wrote {len(imgs)} thumbnails to {os.path.relpath(OUT)}')
+    if a.sheet:
+        cols = 5
+        rows = math.ceil(len(imgs) / cols)
+        sheet = Image.new('RGBA', (cols * 264, rows * 264), (36, 36, 48, 255))
+        for i, im in enumerate(imgs.values()):
+            sheet.alpha_composite(im, ((i % cols) * 264 + 4, (i // cols) * 264 + 4))
+        sheet.convert('RGB').save(a.sheet)
+
+
+if __name__ == '__main__':
+    main()
