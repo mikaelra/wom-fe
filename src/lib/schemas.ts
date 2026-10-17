@@ -39,6 +39,12 @@ export const GetNextBossfightTimeResponseSchema = z.object({
  * backend ever starts sending more, this schema strips it rather than
  * letting it reach the scene.
  */
+/** GET /lobby_status/<id>: whether a lobby has started or is over. */
+export const LobbyStatusResponseSchema = z.object({
+  round: z.number(),
+  gameover: z.boolean(),
+});
+
 export const BossfightRosterResponseSchema = z.object({
   lobby_id: z.string().nullable(),
   round: z.number().int(),
@@ -454,6 +460,16 @@ export const RankedActiveResponseSchema = z.object({
   token: z.string().nullable(),
   ranked_countdown_deadline: z.string().nullable(),
   started: z.boolean(),
+  // Who else is seated and the headcount, for Blimkin's cloud and the
+  // signpost (wom-be 2026-10-17). Optional: an older backend omits them.
+  players: z.array(z.string()).optional(),
+  player_count: z.number().int().optional(),
+  max_players: z.number().int().optional(),
+});
+
+// POST /ranked/queue/renew -- the app still has the queue with it.
+export const RankedQueueRenewResponseSchema = z.object({
+  status: z.enum(['renewed', 'not_queued']),
 });
 
 // GET /well/profile/<name> -- discovery-style: `rewards` only ever lists

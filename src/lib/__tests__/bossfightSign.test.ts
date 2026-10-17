@@ -61,24 +61,24 @@ describe('bossfightSignSublabel', () => {
   describe('a fight under way', () => {
     it('reports the headcount as playing once round 1 is dealt', () => {
       const started = roster({ round: 1, players: [occupant('Ada'), occupant('Bo')] });
-      expect(bossfightSignSublabel(started, null, null)).toBe('2 PLAYERS PLAYING');
+      expect(bossfightSignSublabel(started, null, null)).toBe('2 PLAYING');
     });
 
     it('uses the singular for a lone fighter', () => {
       const started = roster({ round: 4, players: [occupant('Ada')] });
-      expect(bossfightSignSublabel(started, null, null)).toBe('1 PLAYER PLAYING');
+      expect(bossfightSignSublabel(started, null, null)).toBe('1 PLAYING');
     });
 
     it('keeps counting the dead -- they are in the fight, not watching it', () => {
       const started = roster({
         round: 3, players: [occupant('Ada', { alive: false }), occupant('Bo')],
       });
-      expect(bossfightSignSublabel(started, null, null)).toBe('2 PLAYERS PLAYING');
+      expect(bossfightSignSublabel(started, null, null)).toBe('2 PLAYING');
     });
 
     it('drops the countdown once playing -- it counted down to this lobby, which already started', () => {
       const started = roster({ round: 1, players: [occupant('Ada')] });
-      expect(bossfightSignSublabel(started, 2, 5)).toBe('1 PLAYER PLAYING');
+      expect(bossfightSignSublabel(started, 2, 5)).toBe('1 PLAYING');
     });
   });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { drawMoon, moonPhase, type Sunward } from '@/lib/pixelMoon';
+import { setEarthOnScreen } from '@/lib/earthOnScreen';
 import { getCameraSpeed } from '@/lib/cameraSpeed';
 import {
   PLANETS,
@@ -215,6 +216,8 @@ export default function PixelOrrery({
         .sort((a, b) => a.at.near - b.at.near);
       // The Moon's lit side faces the Sun as drawn.
       const sunAt = shown.find((b) => b.body === 'Sun')?.at;
+      // Where Blimkin springs out from, on top of the Earth (lib/earthOnScreen.ts).
+      setEarthOnScreen({ x: (cx + 0.5) * (window.innerWidth / w), y: (cy - 1) * (window.innerHeight / h) });
       let earthDrawn = false;
       for (const { body, at } of shown) {
         if (!earthDrawn && at.near > 1) {
@@ -263,6 +266,7 @@ export default function PixelOrrery({
       clearInterval(turn);
       clearInterval(minute);
       window.removeEventListener('resize', resize);
+      setEarthOnScreen(null);
     };
   }, []);
 
