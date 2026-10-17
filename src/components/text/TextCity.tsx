@@ -1,0 +1,139 @@
+'use client';
+
+import { useState } from 'react';
+import PixelSignpost, { type SignpostBoard } from '@/components/text/PixelSignpost';
+import { inMarketLabel, playingLabel, searchingLabel } from '@/lib/cityLabels';
+import { BACK_COLOR, BOSSFIGHT_COLOR, EARTH_COLOR, MARKET_COLOR, RANKED_COLOR } from '@/components/city/signpostColors';
+import { rankedTopSign } from '@/lib/rankedSign';
+
+// The city as text (Text mode, src/lib/textMode.ts): the 3D city's signpost
+// in 8-bit (PixelSignpost) -- RANKED and HADES on the top boards, MARKET and
+// EARTH below, each lettered in its arm's colour -- under the city's sky as
+// it is right now. White text over a board says what is going on there.
+// RANKED turns the boards to PLAYERS and BOTS -- the fork in 3D -- with BACK.
+// The top bar, clock and auth popups are the page's own.
+
+/** Lines that are there, one per line; null when none are. */
+function lines(...parts: (string | null | undefined)[]): string | null {
+  const shown = parts.filter(Boolean);
+  return shown.length ? shown.join('\n') : null;
+}
+
+/** Who is searching and who is playing, each line only when there is
+ *  someone (Mikael, 2026-10-11) -- or, from a backend without the split,
+ *  the one "N playing" total. Bot ranked's searching includes its bots. */
+function split(inGame: number | undefined, searching: number | undefined, total: number): (string | null)[] {
+  if (inGame === undefined || searching === undefined) return [playingLabel(total)];
+  return [searchingLabel(searching), playingLabel(inGame)];
+}
+
+export default function TextCity({
+  onBossfight,
+  bossfightSublabel,
+  onRanked,
+  rankedLabel,
+  rankedSublabel,
+  onBotRanked,
+  botRankedLabel,
+  botRankedSublabel,
+  presence,
+  onMarket,
+  onBackToEarth,
+  skyDate,
+  timewarp,
+  lat,
+  lng,
+  startInRanked = false,
+}: {
+  onBossfight: () => void;
+  bossfightSublabel: string | null | undefined;
+  onRanked: () => void;
+  rankedLabel: string;
+  rankedSublabel: string | null | undefined;
+  onBotRanked: () => void;
+  botRankedLabel: string;
+  botRankedSublabel: string | null | undefined;
+  presence: {
+    ranked: number;
+    bot_ranked: number;
+    market: number;
+    ranked_searching?: number;
+    ranked_in_game?: number;
+    bot_ranked_searching?: number;
+    bot_ranked_in_game?: number;
+  };
+  onMarket: () => void;
+  onBackToEarth: () => void;
+  /** The sky's moment, as the 3D city has it (a timewarp's, or now). */
+  skyDate?: Date;
+  /** A timewarp playing: its glow (0..1) and colours. */
+  timewarp?: { glow: number; colors: string[] } | null;
+  lat: number;
+  lng: number;
+  /** Open on the ranked boards (?board=ranked): back from a ranked game. */
+  startInRanked?: boolean;
+}) {
+  const [inRanked, setInRanked] = useState(startInRanked);
+
+  const top = rankedTopSign(
+    { label: rankedLabel, sublabel: rankedSublabel, enter: onRanked },
+    { label: botRankedLabel, sublabel: botRankedSublabel, enter: onBotRanked },
+    () => setInRanked(true),
+  );
+  const boards: SignpostBoard[] = inRanked
+    ? [
+        {
+          label: rankedLabel === 'RANKED' ? 'PLAYERS' : rankedLabel,
+          color: RANKED_COLOR,
+          side: 'left',
+          row: 0,
+          onClick: onRanked,
+          info: lines(rankedSublabel, ...split(presence.ranked_in_game, presence.ranked_searching, presence.ranked)),
+        },
+        {
+          label: botRankedLabel,
+          color: RANKED_COLOR,
+          side: 'right',
+          row: 0,
+          onClick: onBotRanked,
+          info: lines(
+            botRankedSublabel,
+            ...split(presence.bot_ranked_in_game, presence.bot_ranked_searching, presence.bot_ranked),
+          ),
+        },
+        { label: 'BACK', color: BACK_COLOR, side: 'left', row: 1, onClick: () => setInRanked(false) },
+      ]
+    : [
+        {
+          // RETURN TO MATCH while a match of yours is on (lib/rankedSign.ts).
+          label: top.label,
+          color: RANKED_COLOR,
+          side: 'left',
+          row: 0,
+          onClick: top.onActivate,
+          // A queue being searched, or a match to return to, from either arm.
+          info: lines(...top.sublabels),
+        },
+        {
+          label: 'HADES',
+          color: BOSSFIGHT_COLOR,
+          side: 'right',
+          row: 0,
+          onClick: onBossfight,
+          // The signpost's caption alone: it already counts who is playing
+          // or waiting, so the temple's "N playing" would say it twice.
+          info: bossfightSublabel,
+        },
+        {
+          label: 'MARKET',
+          color: MARKET_COLOR,
+          side: 'left',
+          row: 1,
+          onClick: onMarket,
+          info: inMarketLabel(presence.market),
+        },
+        { label: 'EARTH', color: EARTH_COLOR, side: 'right', row: 1, onClick: onBackToEarth },
+      ];
+
+  return <PixelSignpost boards={boards} date={skyDate} timewarp={timewarp} lat={lat} lng={lng} />;
+}

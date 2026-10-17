@@ -111,6 +111,11 @@ export const CITY_PATH: string = (() => {
   return city ? `/city?id=${city.id}` : '/';
 })();
 
+/** The city with its signpost turned to ranked play (PLAYERS / BOTS), as
+ *  the text city shows it -- where 🏛️ leads after a ranked game (Mikael,
+ *  2026-10-11). */
+export const RANKED_CITY_PATH: string = CITY_PATH === '/' ? '/' : `${CITY_PATH}&board=ranked`;
+
 export function findCity(idOrSlug: string | null | undefined): City | undefined {
   if (!idOrSlug) return undefined;
   const key = String(idOrSlug).trim().toLowerCase();

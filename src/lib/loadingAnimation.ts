@@ -31,6 +31,13 @@
 // which spins; then it spins again and the copies fold back into the center
 // lines. The hue goes once round the colour wheel per half, red at each join.
 //
+// v16: v14's loop with a phase at each end -- it starts on just a point, the
+// center lines are drawn out of it (grow) into 14a, and after 14b they
+// retract into the point again (shrink). The hue goes once round the colour
+// wheel over the whole loop, point to point. The figure turns all the way
+// through: a base turn revs up over the grow, runs steady, and revs down
+// over the shrink, under the folds' and the spin's own turns.
+//
 // Each showing picks a version by `mix` (the golden mean, newest first).
 //
 // Coordinates are the spec's: world units, x right / y down, center at 0.
@@ -40,9 +47,9 @@ import specJson from './loadingAnimationSpec.json';
 export type Point = readonly [number, number];
 export type Segment = readonly [x0: number, y0: number, x1: number, y1: number];
 
-/** The versions, newest first: v14, v13 (the wheel), v12 (the rainbow), and
- *  the single-colour v11 (hexagon start) and v10 (center-lines start). */
-export const LOADING_KINDS = ['v14', 'wheel', 'rainbow', 'v11', 'v10'] as const;
+/** The versions, newest first: v16, v14, v13 (the wheel), v12 (the rainbow),
+ *  and the single-colour v11 (hexagon start) and v10 (center-lines start). */
+export const LOADING_KINDS = ['v16', 'v14', 'wheel', 'rainbow', 'v11', 'v10'] as const;
 export type LoadingKind = (typeof LOADING_KINDS)[number];
 const SINGLE_COLOUR: readonly LoadingKind[] = ['v11', 'v10'];
 
@@ -73,8 +80,17 @@ export type LoadingAnimationSpec = {
   wheel?: { trailMaxDegrees: number };
   /** v14: 14a then 14b as one loop (see the top of this file). */
   v14?: { trailMaxDegrees: number };
-  /** Set by specFor for v14: its timeline and figure in place of the others'. */
-  layout?: 'v14';
+  /** v16: v14 with the grow and shrink phases and the base turn (see the top
+   *  of this file). Grow and shrink time like the folds: seconds / speed. */
+  v16?: {
+    trailMaxDegrees: number;
+    grow: { holdBefore: number; duration: number; speed: number };
+    shrink: { duration: number; speed: number };
+    /** Degrees the base turn adds per loop -- a multiple of 120. */
+    baseTurn: number;
+  };
+  /** Set by specFor for v14 and v16: its timeline and figure in place of the others'. */
+  layout?: 'v14' | 'v16';
   lineRadius: number;
   /** Half-width of the square view, in world units. */
   extent: number;
@@ -95,7 +111,7 @@ export type LoadingAnimationSpec = {
 export const LOADING_SPEC = specJson as unknown as LoadingAnimationSpec;
 
 /** The pose at one instant: how far the copies have swung out (0 = logo,
- *  1 = cube) and how far the figure has spun so far in the loop, in degrees
+ *  1 = cube; v16's grow and shrink run -1 = the point .. 0) and how far the figure has spun so far in the loop, in degrees
  *  (cumulative across the phases). */
 export type Pose = { progress: number; spin: number };
 
@@ -138,10 +154,10 @@ function steps(spec: LoadingAnimationSpec): Step[] {
   const spin = spinDuration(spec);
   const a1 = o.spin;
   const a2 = a1 + spinAngle(spec, spin);
-  if (spec.layout === 'v14') {
+  if (spec.layout === 'v14' || spec.layout === 'v16') {
     // 14a: unfold and spin; 14b: spin again (on from 14a's angle) and fold back
     const b2 = a2 + spinAngle(spec, spin);
-    return [
+    const v14: Step[] = [
       { seconds: o.holdBefore / o.speed, pose: () => ({ progress: 0, spin: 0 }) },
       { seconds: o.duration / o.speed, pose: (u) => ({ progress: smoothstep(u), spin: foldSpin(u, o.spin) }) },
       { seconds: o.holdAfter / o.speed, pose: () => ({ progress: 1, spin: a1 }) },
@@ -151,6 +167,16 @@ function steps(spec: LoadingAnimationSpec): Step[] {
       { seconds: i.duration / i.speed, pose: (u) => ({ progress: 1 - smoothstep(u), spin: b2 + foldSpin(u, i.spin) }) },
       { seconds: i.holdAfter / i.speed, pose: () => ({ progress: 0, spin: b2 + i.spin }) },
     ];
+    if (spec.layout === 'v14' || !spec.v16) return v14;
+    // v16: the center lines grow out of the point first and retract into it last
+    const { grow: g, shrink: k } = spec.v16;
+    const end = b2 + i.spin;
+    return withBaseTurn(spec.v16, [
+      { seconds: g.holdBefore / g.speed, pose: () => ({ progress: -1, spin: 0 }) },
+      { seconds: g.duration / g.speed, pose: (u) => ({ progress: smoothstep(u) - 1, spin: 0 }) },
+      ...v14,
+      { seconds: k.duration / k.speed, pose: (u) => ({ progress: -smoothstep(u), spin: end }) },
+    ]);
   }
   return [
     { seconds: o.holdBefore / o.speed, pose: () => ({ progress: 0, spin: 0 }) },
@@ -161,6 +187,39 @@ function steps(spec: LoadingAnimationSpec): Step[] {
     { seconds: i.duration / i.speed, pose: (u) => ({ progress: 1 - smoothstep(u), spin: a2 + foldSpin(u, i.spin) }) },
     { seconds: i.holdAfter / i.speed, pose: () => ({ progress: 0, spin: a2 + i.spin }) },
   ];
+}
+
+/** v16's base turn at loop time `t` of a `loop`-second loop, degrees: revs
+ *  up linearly over the grow, steady, revs down linearly over the shrink --
+ *  still at both ends, `baseTurn` in all. */
+export function baseTurnAt(v16: NonNullable<LoadingAnimationSpec['v16']>, t: number, loop: number): number {
+  const up0 = v16.grow.holdBefore / v16.grow.speed;
+  const up = v16.grow.duration / v16.grow.speed;
+  const down = v16.shrink.duration / v16.shrink.speed;
+  const steady = loop - up0 - up - down;
+  const w = v16.baseTurn / (up / 2 + steady + down / 2);
+  if (t <= up0) return 0;
+  t -= up0;
+  if (t <= up) return (w * t * t) / (2 * up);
+  if (t - up <= steady) return (w * up) / 2 + w * (t - up);
+  const x = Math.min(t - up - steady, down);
+  return (w * up) / 2 + w * steady + w * (x - (x * x) / (2 * down));
+}
+
+function withBaseTurn(v16: NonNullable<LoadingAnimationSpec['v16']>, all: Step[]): Step[] {
+  const loop = all.reduce((sum, s) => sum + s.seconds, 0);
+  let offset = 0;
+  return all.map(({ seconds, pose }) => {
+    const start = offset;
+    offset += seconds;
+    return {
+      seconds,
+      pose: (u: number) => {
+        const p = pose(u);
+        return { progress: p.progress, spin: p.spin + baseTurnAt(v16, start + u * seconds, loop) };
+      },
+    };
+  });
 }
 
 function poseIn(all: Step[], t: number): Pose {
@@ -274,6 +333,13 @@ export function wheelColorAt(spec: LoadingAnimationSpec, t: number): string {
   return `rgb(${f(5)}, ${f(3)}, ${f(1)})`;
 }
 
+/** v16's colour at loop time `t` (wraps): the hue once round the colour
+ *  wheel over the whole loop, point to point -- the wheel's colour over v16's
+ *  longer loop. */
+export function v16ColorAt(spec: LoadingAnimationSpec, t: number): string {
+  return wheelColorAt(spec, t);
+}
+
 /** v14's colour at loop time `t` (wraps): the hue once round the colour
  *  wheel through 14a and again through 14b, red at each join. */
 export function v14ColorAt(spec: LoadingAnimationSpec, t: number): string {
@@ -303,12 +369,12 @@ export function echoColors(
 /** The spec as `kind` plays it: the rainbow and the wheel with their own
  *  (bigger) trail cap in place of the six's. */
 export function specFor(spec: LoadingAnimationSpec, kind: LoadingKind): LoadingAnimationSpec {
-  const own = SINGLE_COLOUR.includes(kind) ? undefined : spec[kind as 'v14' | 'wheel' | 'rainbow'];
+  const own = SINGLE_COLOUR.includes(kind) ? undefined : spec[kind as 'v16' | 'v14' | 'wheel' | 'rainbow'];
   if (!own) return spec;
   return {
     ...spec,
     trail: { ...spec.trail, maxDegrees: own.trailMaxDegrees },
-    ...(kind === 'v14' ? { layout: 'v14' as const } : {}),
+    ...(kind === 'v14' || kind === 'v16' ? { layout: kind } : {}),
   };
 }
 
@@ -353,7 +419,18 @@ export function segmentsAt(
       const [x1, y1] = turn ? rotate(b, center, turn) : b;
       return [x0, y0, x1, y1] as const;
     });
-  if (spec.layout === 'v14') {
+  if (spec.layout === 'v16' && progress < 0) {
+    // v16's grow / shrink: the center lines alone, drawn out of the point
+    // (progress -1) to full length (0)
+    const k = 1 + progress;
+    return spun(
+      spec.swing.map(
+        ({ tip }) =>
+          [center, [center[0] + (tip[0] - center[0]) * k, center[1] + (tip[1] - center[1]) * k]] as [Point, Point],
+      ),
+    );
+  }
+  if (spec.layout === 'v14' || spec.layout === 'v16') {
     // each spoke and two copies swinging round its tip, from the center, one
     // to each hexagon corner beside it (each edge runs from a tip)
     return spun(
