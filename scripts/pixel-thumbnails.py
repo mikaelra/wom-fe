@@ -87,6 +87,16 @@ class Canvas:
         self.fill(shade, lo)
         self.fill(lit, hi)
 
+    def rim_adaptive(self, base_mask, lit_t=0.35, shade_t=0.22):
+        """Like rim(), but each edge pixel is the colour already there, lightened
+        or darkened -- for a skin of several colours."""
+        lit = base_mask & ~shift(base_mask, 1, 1)
+        shade = base_mask & ~shift(base_mask, -1, -1)
+        rgbs = self.px[:, :, :3].astype(float)
+        rgbs[shade] = rgbs[shade] * (1 - shade_t)
+        rgbs[lit] = rgbs[lit] + (255 - rgbs[lit]) * lit_t
+        self.px[:, :, :3] = np.clip(rgbs, 0, 255).astype(np.uint8)
+
     def save(self, name):
         os.makedirs(OUT, exist_ok=True)
         im = Image.fromarray(self.px).resize((N * SCALE, N * SCALE), Image.NEAREST)
@@ -114,7 +124,7 @@ FROGS = {
     'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#a81426', iris='#a81426', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
     'frog_silver_v1': dict(skin='#62646e', belly='#52545e', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#dce0ea'),
     'frog_bling_v1': dict(mouth=(23, -2.8), skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#2a1860', bar='#000000', py=0, ir=3.0, pr=1.75, sparkle=True),
-    'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True),
+    'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True, adaptive_rim=True),
 }
 
 
@@ -163,18 +173,21 @@ def draw_frog(c, p, dark_outline='#15121e'):
     c.fill(s['skin'], skin)
     c.fill(s['belly'], belly)
     if p.get('rainbow'):
-        lime = ((np.abs(CX - 16) <= 5.8) & (CY <= 16.5)) | ell(16, 15.5, 4.6, 3.0)
+        lime = ((np.abs(CX - 16) <= 6.6) & (CY <= 16.5)) | ell(16, 15.5, 4.6, 3.0)
         c.fill(lime & s['skin'], rgb('#c4ee8c'))  # the lime stripe: nose to the top of the skull, a little onto the eyes
         c.fill(s['belly'] & (YY >= 26), rgb('#c4ee8c'))
         c.fill(s['head'] & (CX < 5) & (YY >= 16), rgb('#ff3a2c'))
         c.fill(s['head'] & (CX > 27) & (YY >= 16), rgb('#ff3a2c'))
-    c.rim(s['skin'], hi, lo)
-    if p.get('sparkle'):  # fine glitter over the middle of the face and the lower face
-        wear = ((np.abs(CX - 16) <= 4.8) & (CY >= 9.5) & s['head']) | s['belly']
-        grain = np.random.default_rng(7).random((N, N)) * 100  # seeded: the same glitter every run
+    if p.get('adaptive_rim'):
+        c.rim_adaptive(s['skin'])
+    else:
+        c.rim(s['skin'], hi, lo)
+    if p.get('sparkle'):
+        # under the mouth: fine glitter (seeded: the same every run)
+        grain = np.random.default_rng(7).random((N, N)) * 100
         for y in range(N):
             for x in range(N):
-                if not wear[y, x]:
+                if not s['belly'][y, x]:
                     continue
                 h = grain[y, x]
                 if h < 22:
@@ -183,6 +196,21 @@ def draw_frog(c, p, dark_outline='#15121e'):
                     c.dot(x, y, rgb('#c8f4ff'))
                 elif h < 40:
                     c.dot(x, y, rgb('#9fe6c0'))
+        # above it: diamonds in arcs round each eye, as on the 3D model, ending
+        # a clear gap before the mouth
+        keep = s['skin'] & ~s['belly']
+        for y in range(N):
+            for x in range(N):
+                if y > mouth_y(x, mouth) - 3:
+                    keep[y, x] = False
+        for cx, cy in (EYE_L, EYE_R):
+            for ring, r in enumerate((6.3, 8.3, 10.3)):
+                n = int(2 * math.pi * r / 2.2)
+                for k in range(n):
+                    ang = 2 * math.pi * k / n  # the dots line up radially, ring to ring
+                    x, y = int(math.floor(cx + r * math.cos(ang))), int(math.floor(cy + r * math.sin(ang)))
+                    if 0 <= x < N and 0 <= y < N and keep[y, x]:
+                        c.dot(x, y, (255, 255, 255) if (k + ring) % 3 else rgb('#c8f4ff'))
     outline = rgb(dark_outline)
     line_col = darken(skin, 0.7) if sum(skin) > 150 else outline
     for x in range(4, 29):
