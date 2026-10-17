@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getActiveBotRankedLobby, getBossfightRoster } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
-import { forgetSeat, readSeat, type Seat } from '@/lib/matchCloud';
+import { forgetBotQueue, forgetSeat, readBotQueue, readSeat, rememberSeat, type Seat } from '@/lib/matchCloud';
 
 // A bossfight or bot-ranked lobby the player is seated in, watched while they
 // are anywhere else in the app: when its game starts, Blimkin brings a cloud
@@ -11,6 +11,10 @@ import { forgetSeat, readSeat, type Seat } from '@/lib/matchCloud';
 // where the player joins (lib/useEnterBossfight, lib/useBotRankedQueue).
 // Both checks are peeks: the bossfight roster is public, and bot ranked's
 // /active is asked with peek, so neither ever mints a lobby token.
+//
+// Queued for bot ranked and walked off the city (whose hook hears the
+// match-found push), the match is found here instead: the queue is
+// remembered (lib/matchCloud's rememberBotQueue) and asked after.
 
 const WATCH_MS = 3000;
 
@@ -20,6 +24,22 @@ function storedName(): string | null {
   } catch {
     return null;
   }
+}
+
+/** Queued for bot ranked: has a match been found meanwhile? Then it's a
+ *  seat like any other. */
+async function seatFromBotQueue(): Promise<Seat | null> {
+  if (!readBotQueue()) return null;
+  const token = getStoredAccountToken();
+  if (!token) {
+    forgetBotQueue();
+    return null;
+  }
+  const active = await getActiveBotRankedLobby(token, { peek: true });
+  if (!active.lobby_id) return null;
+  forgetBotQueue();
+  rememberSeat('bot_ranked', active.lobby_id);
+  return readSeat();
 }
 
 /** Whether that seat's game has started (true), is still to start (false),
@@ -54,11 +74,14 @@ export function useLobbyStartNotice(isShown: (lobbyId: string) => boolean): {
   useEffect(() => {
     let busy = false;
     const id = setInterval(() => {
-      const seat = readSeat();
-      if (!seat || busy) return;
+      if (busy) return;
+      const known = readSeat();
+      if (!known && !readBotQueue()) return;
       busy = true;
-      seatStarted(seat)
-        .then((started) => {
+      (known ? Promise.resolve(known) : seatFromBotQueue())
+        .then(async (seat) => {
+          if (!seat) return;
+          const started = await seatStarted(seat);
           if (started === false) return;
           forgetSeat(seat.lobbyId);
           if (started && !isShownRef.current(seat.lobbyId)) setNotice(seat);

@@ -4,7 +4,7 @@ import { ToastProvider } from '@/components/Toast';
 import RankedQueueProvider from '@/components/match/RankedQueueProvider';
 import MatchCloud from '@/components/match/MatchCloud';
 import { getActiveBotRankedLobby, getActiveRankedLobby, getBossfightRoster } from '@/lib/api';
-import { rememberSeat, writeQueue, STILL_QUEUING_AFTER_MS } from '@/lib/matchCloud';
+import { rememberBotQueue, rememberSeat, writeQueue, STILL_QUEUING_AFTER_MS } from '@/lib/matchCloud';
 import { setStoredAccountToken } from '@/lib/http';
 
 let pathname = '/';
@@ -210,6 +210,47 @@ describe('MatchCloud', () => {
     expect(screen.queryByText('Bossfight started.')).toBeNull();
     expect(localStorage.getItem('wom.seatedLobby')).toBeNull();
     window.history.pushState({}, '', '/');
+  });
+
+  it('finds a bot-ranked match made while the player was off in the market, and says when it starts', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    pathname = '/market';
+    setStoredAccountToken('acct');
+    rememberBotQueue();
+    let started = false;
+    vi.mocked(getActiveBotRankedLobby).mockImplementation(async () => ({
+      lobby_id: 'AIQ2', token: null, ai_ranked_countdown_deadline: null, started,
+    }));
+    renderCloud();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3100);
+    });
+    expect(localStorage.getItem('wom.botRankedQueue')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('wom.seatedLobby')!).lobbyId).toBe('AIQ2');
+    expect(screen.queryByText('Bot ranked game started.')).toBeNull();
+
+    started = true;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3100);
+    });
+    expect(screen.getByText('Bot ranked game started.')).toBeInTheDocument();
+  });
+
+  it('comes up over the text field being typed in, above any open window', async () => {
+    vi.mocked(getActiveRankedLobby).mockResolvedValue(found);
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.getBoundingClientRect = () => ({ left: 40, top: 500 }) as DOMRect;
+    input.focus();
+    renderCloud();
+
+    const cloud = await screen.findByText('You are currently in a lobby.');
+    const stand = cloud.closest('.fixed') as HTMLElement;
+    expect(stand.className).toContain('z-[100]');
+    expect(stand.style.left).toBe('40px');
+    expect(stand.style.bottom).toBe(`${window.innerHeight - 500 + 8}px`);
+    input.remove();
   });
 
   it('announces a bot-ranked start the same way, minting the token only on Join Lobby', async () => {

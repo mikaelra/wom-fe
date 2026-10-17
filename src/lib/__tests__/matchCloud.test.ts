@@ -4,8 +4,12 @@ import {
   RENEW_EVERY_MS,
   SEAT_MAX_AGE_MS,
   STILL_QUEUING_AFTER_MS,
+  BOT_QUEUE_MAX_AGE_MS,
   askDue,
   clearQueue,
+  forgetBotQueue,
+  readBotQueue,
+  rememberBotQueue,
   countLine,
   forgetSeat,
   lobbyStartedCloud,
@@ -163,6 +167,18 @@ describe('matchCloud', () => {
       expect(readDontAsk(s)).toBe(false);
       writeDontAsk(s);
       expect(readDontAsk(s)).toBe(true);
+    });
+  });
+
+  describe('the bot-ranked queue', () => {
+    it('is remembered until its stale time, and forgotten', () => {
+      const s = memory();
+      expect(readBotQueue(0, s)).toBe(false);
+      rememberBotQueue(0, s);
+      expect(readBotQueue(BOT_QUEUE_MAX_AGE_MS, s)).toBe(true);
+      expect(readBotQueue(BOT_QUEUE_MAX_AGE_MS + 1, s)).toBe(false);
+      forgetBotQueue(s);
+      expect(readBotQueue(1, s)).toBe(false);
     });
   });
 

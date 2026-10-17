@@ -191,6 +191,29 @@ export function renewDue(q: StoredQueue, now: number): boolean {
   return q.askedAt === undefined && now - q.heardAt >= RENEW_EVERY_MS;
 }
 
+// --- the bot-ranked queue, remembered so a match found away is noticed -------
+
+export const BOT_QUEUE_KEY = 'wom.botRankedQueue';
+/** wom-be's AI_RANKED_QUEUE_STALE_SECONDS: by then the entry is gone. */
+export const BOT_QUEUE_MAX_AGE_MS = 15 * 60 * 1000;
+
+/** Queued for bot ranked. The queue hook lives on the city page, so once
+ *  the player walks off (the market, say) nothing hears the match-found
+ *  push; this lets the seat watcher find the match instead (Mikael,
+ *  2026-10-17: queued for a bot match, crafting a trade, no notice). */
+export function rememberBotQueue(now = Date.now(), storage: Storage | null = local()) {
+  writeJson(BOT_QUEUE_KEY, { at: now }, storage);
+}
+
+export function readBotQueue(now = Date.now(), storage: Storage | null = local()): boolean {
+  const q = readJson<{ at: number }>(BOT_QUEUE_KEY, storage);
+  return !!q && typeof q.at === 'number' && now - q.at <= BOT_QUEUE_MAX_AGE_MS;
+}
+
+export function forgetBotQueue(storage: Storage | null = local()) {
+  remove(BOT_QUEUE_KEY, storage);
+}
+
 // --- a seat in a bossfight or bot-ranked lobby -----------------------------
 
 export const SEAT_KEY = 'wom.seatedLobby';

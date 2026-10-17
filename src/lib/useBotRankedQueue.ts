@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSocket, subscribe, subscribeConnect } from '@/lib/socket';
 import { setStoredToken } from '@/lib/http';
-import { rememberSeat } from '@/lib/matchCloud';
+import { forgetBotQueue, rememberBotQueue, rememberSeat } from '@/lib/matchCloud';
 import {
   getActiveBotRankedLobby,
   joinBotRankedQueue,
@@ -80,6 +80,7 @@ export function useBotRankedQueue() {
       enteredRef.current = true;
       stopListening();
       // So Blimkin can say when it starts if the player wanders off.
+      forgetBotQueue();
       rememberSeat('bot_ranked', lobbyId);
       router.push(`/lobby?id=${lobbyId}`);
     },
@@ -124,6 +125,8 @@ export function useBotRankedQueue() {
 
       try {
         await joinBotRankedQueue(accountToken);
+        // Found again from anywhere in the app if the player walks off.
+        if (!enteredRef.current) rememberBotQueue();
       } catch (err) {
         stopListening();
         setStatus('idle');
@@ -136,6 +139,7 @@ export function useBotRankedQueue() {
   const cancelQueue = useCallback(async () => {
     stopListening();
     setStatus('idle');
+    forgetBotQueue();
     const token = tokenRef.current;
     if (token) {
       await leaveBotRankedQueue(token).catch(() => {

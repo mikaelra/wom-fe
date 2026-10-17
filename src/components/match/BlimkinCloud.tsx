@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { anchorOverField, typingField } from '@/lib/blimkinAnchor';
 import { BLIMKIN_BREATHE, BLIMKIN_COLS, BLIMKIN_IDLE, BLIMKIN_ROWS, type BlimkinFrame } from '@/lib/blimkinSprite';
 
 // Blimkin bringing a message (Mikael, 2026-10-17): "a void in wherever is
@@ -12,6 +13,11 @@ import { BLIMKIN_BREATHE, BLIMKIN_COLS, BLIMKIN_IDLE, BLIMKIN_ROWS, type Blimkin
 //
 // A new `appearance` key brings him again; the same key with new content
 // only changes the cloud's words (a countdown ticking, the cloud tapped).
+//
+// He comes up over everything, open windows included (a trade being
+// crafted, say), and when the player is typing he comes out right over the
+// field they're typing in, keyboard and all, rather than in his corner
+// under it (Mikael, 2026-10-17).
 
 /** One cell of the sprite, in rem so it grows with the UI scale. */
 const CELL_W = 0.62;
@@ -86,6 +92,30 @@ export interface BlimkinCloudProps {
 export default function BlimkinCloud({ appearance, children, onCloudClick, onClose, label }: BlimkinCloudProps) {
   const [phase, setPhase] = useState<Phase>('gone');
   const [shownKey, setShownKey] = useState<string | null>(null);
+  // Where he stands: his corner, or just over the field being typed in.
+  const [anchor, setAnchor] = useState<{ left: number; bottom: number } | null>(null);
+
+  useEffect(() => {
+    if (!appearance) return;
+    const place = () => {
+      const field = typingField(document.activeElement);
+      setAnchor(field ? anchorOverField(field.getBoundingClientRect(), window.innerWidth, window.innerHeight) : null);
+    };
+    place();
+    const vv = window.visualViewport;
+    document.addEventListener('focusin', place);
+    document.addEventListener('focusout', place);
+    window.addEventListener('resize', place);
+    vv?.addEventListener('resize', place);
+    vv?.addEventListener('scroll', place);
+    return () => {
+      document.removeEventListener('focusin', place);
+      document.removeEventListener('focusout', place);
+      window.removeEventListener('resize', place);
+      vv?.removeEventListener('resize', place);
+      vv?.removeEventListener('scroll', place);
+    };
+  }, [appearance]);
 
   useEffect(() => {
     setShownKey(appearance);
@@ -108,11 +138,15 @@ export default function BlimkinCloud({ appearance, children, onCloudClick, onClo
 
   return (
     <div
-      className="fixed z-40 pointer-events-none"
-      style={{
-        left: 'calc(1rem + env(safe-area-inset-left))',
-        bottom: 'calc(1rem + env(safe-area-inset-bottom))',
-      }}
+      className="fixed z-[100] pointer-events-none"
+      style={
+        anchor
+          ? { left: `${anchor.left}px`, bottom: `${anchor.bottom}px` }
+          : {
+              left: 'calc(1rem + env(safe-area-inset-left))',
+              bottom: 'calc(1rem + env(safe-area-inset-bottom))',
+            }
+      }
     >
       <div style={{ position: 'relative', width: `${SPRITE_W}rem`, height: `${SPRITE_H}rem` }}>
         {/* The void he comes out of: a hole in whatever is behind. */}
