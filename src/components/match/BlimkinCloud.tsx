@@ -25,6 +25,12 @@ import { getEarthOnScreen, subscribeEarthOnScreen, type ScreenPoint } from '@/li
 const BLIMKIN_URL = '/pixel/blimkin.png';
 const SPRITE_W = 7.4;
 const SPRITE_H = 7.4;
+/** Only the top of him comes through the void: his arms show, his legs stay
+ *  below its lip (Mikael, 2026-10-17). */
+const HIDDEN = SPRITE_H * 0.18;
+const BOX_H = SPRITE_H - HIDDEN;
+/** The cloud leaves his mouth, which is low on the picture. */
+const CLOUD_BOTTOM = SPRITE_H * 0.4 - HIDDEN;
 
 type Phase = 'opening' | 'rising' | 'breathing' | 'sinking' | 'closing' | 'gone';
 
@@ -160,7 +166,7 @@ export default function BlimkinCloud({
             ? {
                 // The cloud (up and right of him) centred on the screen.
                 left: `max(0.5rem, calc(50% - ${(SPRITE_W * 0.72 + 6.5).toFixed(2)}rem))`,
-                bottom: `calc(50% - ${(SPRITE_H * 0.4 + 1.5).toFixed(2)}rem)`,
+                bottom: `calc(50% - ${(CLOUD_BOTTOM + 1.5).toFixed(2)}rem)`,
               }
             : {
                 left: 'calc(1rem + env(safe-area-inset-left))',
@@ -168,7 +174,7 @@ export default function BlimkinCloud({
               }
       }
     >
-      <div style={{ position: 'relative', width: `${SPRITE_W}rem`, height: `${SPRITE_H}rem` }}>
+      <div style={{ position: 'relative', width: `${SPRITE_W}rem`, height: `${BOX_H}rem` }}>
         {/* The void he comes out of: a hole in whatever is behind. */}
         <div
           aria-hidden="true"
@@ -191,7 +197,7 @@ export default function BlimkinCloud({
             style={{
               position: 'absolute',
               left: 0,
-              bottom: 0,
+              bottom: `-${HIDDEN}rem`, // the legs below the void's lip
               transform: up ? 'translateY(0)' : 'translateY(105%)',
               transition: phase === 'rising' ? 'transform 420ms cubic-bezier(.2,.9,.3,1.2)' : 'transform 400ms ease-in',
             }}
@@ -215,7 +221,7 @@ export default function BlimkinCloud({
           style={{
             position: 'absolute',
             left: `${SPRITE_W * 0.72}rem`,
-            bottom: `${SPRITE_H * 0.4}rem`,
+            bottom: `${CLOUD_BOTTOM}rem`,
             minWidth: '11rem',
             maxWidth: 'min(18rem, calc(100vw - 7rem))',
             padding: '0.65rem 0.9rem',
