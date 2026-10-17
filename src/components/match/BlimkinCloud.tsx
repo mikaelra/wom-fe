@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import { anchorOverField, typingField } from '@/lib/blimkinAnchor';
 import { getEarthOnScreen, subscribeEarthOnScreen, type ScreenPoint } from '@/lib/earthOnScreen';
-import { BLIMKIN_BREATHE, BLIMKIN_COLS, BLIMKIN_IDLE, BLIMKIN_ROWS, type BlimkinFrame } from '@/lib/blimkinSprite';
 
 // Blimkin bringing a message (Mikael, 2026-10-17): "a void in wherever is
 // created and Blimkin comes out and breathes out the cloud with the
-// information before he exits into the void again." He looks exactly as he
-// does in the statusline (lib/blimkinSprite.ts). The cloud stays up after he
+// information before he exits into the void again." He is the 8-bit Blimkin
+// of the thumbnail (public/pixel/blimkin.png, drawn by scripts/pixel-
+// thumbnails.py), no longer the statusline's cells (Mikael, 2026-10-17). The
+// cloud stays up after he
 // has gone, until the cross in its top-right corner closes it (Mikael,
 // 2026-10-17) or whoever shows it takes it away.
 //
@@ -20,11 +21,10 @@ import { BLIMKIN_BREATHE, BLIMKIN_COLS, BLIMKIN_IDLE, BLIMKIN_ROWS, type Blimkin
 // field they're typing in, keyboard and all, rather than in his corner
 // under it (Mikael, 2026-10-17).
 
-/** One cell of the sprite, in rem so it grows with the UI scale. */
-const CELL_W = 0.62;
-const CELL_H = 1.05;
-const SPRITE_W = CELL_W * BLIMKIN_COLS;
-const SPRITE_H = CELL_H * BLIMKIN_ROWS;
+/** His picture: square, in rem so it grows with the UI scale. */
+const BLIMKIN_URL = '/pixel/blimkin.png';
+const SPRITE_W = 7.4;
+const SPRITE_H = 7.4;
 
 type Phase = 'opening' | 'rising' | 'breathing' | 'sinking' | 'closing' | 'gone';
 
@@ -46,36 +46,25 @@ function prefersReducedMotion(): boolean {
   }
 }
 
-function Sprite({ frame }: { frame: BlimkinFrame }) {
+function Sprite({ breathing }: { breathing: boolean }) {
   return (
-    <div
+    // eslint-disable-next-line @next/next/no-img-element -- a small static file from public/
+    <img
+      src={BLIMKIN_URL}
+      alt=""
       aria-hidden="true"
+      draggable={false}
       style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${BLIMKIN_COLS}, ${CELL_W}rem)`,
-        gridAutoRows: `${CELL_H}rem`,
-        fontFamily: 'var(--font-geist-mono), Menlo, "DejaVu Sans Mono", monospace',
-        fontSize: `${CELL_H * 0.92}rem`,
-        lineHeight: `${CELL_H}rem`,
+        display: 'block',
+        width: `${SPRITE_W}rem`,
+        height: `${SPRITE_H}rem`,
+        imageRendering: 'pixelated',
+        // Breathing the cloud out: he swells, then settles.
+        transform: breathing ? 'scale(1.06, 0.95)' : 'none',
+        transformOrigin: '50% 100%',
+        transition: 'transform 220ms ease-out',
       }}
-    >
-      {frame.flatMap((row, r) =>
-        row.map(([ch, fg, bg], c) => (
-          <span
-            key={`${r}-${c}`}
-            style={{
-              color: fg ?? undefined,
-              background: bg ?? undefined,
-              textAlign: 'center',
-              overflow: 'visible',
-              whiteSpace: 'pre',
-            }}
-          >
-            {ch}
-          </span>
-        )),
-      )}
-    </div>
+    />
   );
 }
 
@@ -171,7 +160,7 @@ export default function BlimkinCloud({
             ? {
                 // The cloud (up and right of him) centred on the screen.
                 left: `max(0.5rem, calc(50% - ${(SPRITE_W * 0.72 + 6.5).toFixed(2)}rem))`,
-                bottom: `calc(50% - ${(SPRITE_H * 0.55 + 1.5).toFixed(2)}rem)`,
+                bottom: `calc(50% - ${(SPRITE_H * 0.4 + 1.5).toFixed(2)}rem)`,
               }
             : {
                 left: 'calc(1rem + env(safe-area-inset-left))',
@@ -207,7 +196,7 @@ export default function BlimkinCloud({
               transition: phase === 'rising' ? 'transform 420ms cubic-bezier(.2,.9,.3,1.2)' : 'transform 400ms ease-in',
             }}
           >
-            <Sprite frame={phase === 'breathing' ? BLIMKIN_BREATHE : BLIMKIN_IDLE} />
+            <Sprite breathing={phase === 'breathing'} />
           </div>
         </div>
         {/* The cloud he breathes out, from his mouth up and to the right. */}
@@ -226,7 +215,7 @@ export default function BlimkinCloud({
           style={{
             position: 'absolute',
             left: `${SPRITE_W * 0.72}rem`,
-            bottom: `${SPRITE_H * 0.55}rem`,
+            bottom: `${SPRITE_H * 0.4}rem`,
             minWidth: '11rem',
             maxWidth: 'min(18rem, calc(100vw - 7rem))',
             padding: '0.65rem 0.9rem',
