@@ -170,13 +170,13 @@ export default function MatchCloud() {
 
   if (rq.status === 'searching' && pathname === '/' && !closed.has('searching')) {
     return (
-      // Popping up out of the Sun on the Earth screen (Mikael, 2026-10-17);
-      // in the middle, over the Earth, where no Sun is drawn.
+      // Springing out from on top of the Earth on the Earth screen (Mikael,
+      // 2026-10-17); in the middle for the 3D Earth.
       <BlimkinCloud
         appearance="searching"
         label={`${SEARCHING} ${RANKED}`}
         onClose={() => close('searching')}
-        placement="sun"
+        placement="earth"
       >
         <p className="font-semibold">
           <span className="text-[#111]">{SEARCHING}</span> <span className="text-red-600">{RANKED}</span>

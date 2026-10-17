@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { anchorOverField, typingField } from '@/lib/blimkinAnchor';
-import { getSunOnScreen, subscribeSunOnScreen, type ScreenPoint } from '@/lib/sunOnScreen';
+import { getEarthOnScreen, subscribeEarthOnScreen, type ScreenPoint } from '@/lib/earthOnScreen';
 import { BLIMKIN_BREATHE, BLIMKIN_COLS, BLIMKIN_IDLE, BLIMKIN_ROWS, type BlimkinFrame } from '@/lib/blimkinSprite';
 
 // Blimkin bringing a message (Mikael, 2026-10-17): "a void in wherever is
@@ -88,9 +88,9 @@ export interface BlimkinCloudProps {
   /** The cross in the cloud's top-right corner. */
   onClose?: () => void;
   /** Where he stands when nobody is typing: his corner; the middle of the
-   *  screen with the cloud over it; or popping up out of the Sun on the
-   *  Low Definition Earth (the middle wherever no Sun is drawn). */
-  placement?: 'corner' | 'center' | 'sun';
+   *  screen with the cloud over it; or springing out from on top of the
+   *  Earth on the Low Definition Earth (the middle for the 3D Earth). */
+  placement?: 'corner' | 'center' | 'earth';
   label?: string;
 }
 
@@ -106,12 +106,12 @@ export default function BlimkinCloud({
   const [shownKey, setShownKey] = useState<string | null>(null);
   // Where he stands: his corner, or just over the field being typed in.
   const [anchor, setAnchor] = useState<{ left: number; bottom: number } | null>(null);
-  // The Sun he pops up out of, followed as the sky turns.
-  const [sun, setSun] = useState<ScreenPoint | null>(null);
+  // The Earth he springs out from.
+  const [earth, setEarth] = useState<ScreenPoint | null>(null);
   useEffect(() => {
-    if (placement !== 'sun' || !appearance) return;
-    setSun(getSunOnScreen());
-    return subscribeSunOnScreen(() => setSun(getSunOnScreen()));
+    if (placement !== 'earth' || !appearance) return;
+    setEarth(getEarthOnScreen());
+    return subscribeEarthOnScreen(() => setEarth(getEarthOnScreen()));
   }, [placement, appearance]);
 
   useEffect(() => {
@@ -161,11 +161,11 @@ export default function BlimkinCloud({
       style={
         anchor
           ? { left: `${anchor.left}px`, bottom: `${anchor.bottom}px` }
-          : placement === 'sun' && sun
+          : placement === 'earth' && earth
             ? {
-                // His feet, and the void, on the Sun.
-                left: `calc(${Math.round(sun.x)}px - ${(SPRITE_W / 2).toFixed(2)}rem)`,
-                bottom: `calc(100% - ${Math.round(sun.y)}px)`,
+                // His feet, and the void, on top of the Earth.
+                left: `calc(${Math.round(earth.x)}px - ${(SPRITE_W / 2).toFixed(2)}rem)`,
+                bottom: `calc(100% - ${Math.round(earth.y)}px)`,
               }
             : placement !== 'corner'
             ? {

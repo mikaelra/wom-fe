@@ -7,7 +7,7 @@ import { getActiveBotRankedLobby, getActiveRankedLobby, getBossfightRoster } fro
 import { useRankedQueueContext } from '@/components/match/RankedQueueProvider';
 import { rememberBotQueue, rememberSeat, writeQueue, STILL_QUEUING_AFTER_MS } from '@/lib/matchCloud';
 import { setStoredAccountToken } from '@/lib/http';
-import { setSunOnScreen } from '@/lib/sunOnScreen';
+import { setEarthOnScreen } from '@/lib/earthOnScreen';
 
 let pathname = '/';
 const push = vi.fn();
@@ -135,14 +135,14 @@ describe('MatchCloud', () => {
     fireEvent.click(screen.getByText('queue'));
     expect(await screen.findByText('Searching')).toBeInTheDocument();
     expect(screen.getByText('Ranked').className).toContain('text-red-600');
-    // With no Sun drawn (the 3D Earth): the middle of the screen.
+    // With no sky drawn (the 3D Earth): the middle of the screen.
     const stand = screen.getByText('Searching').closest('.fixed') as HTMLElement;
     expect(stand.style.bottom).toContain('calc(50%');
-    // The Low Definition Earth draws its Sun: he pops up out of it.
-    act(() => setSunOnScreen({ x: 200, y: 300 }));
+    // The Low Definition Earth publishes its top: he springs out from there.
+    act(() => setEarthOnScreen({ x: 200, y: 300 }));
     expect(stand.style.bottom).toBe('calc(100% - 300px)');
     expect(stand.style.left).toContain('200px');
-    act(() => setSunOnScreen(null));
+    act(() => setEarthOnScreen(null));
 
     pathname = '/market';
     rerender(
