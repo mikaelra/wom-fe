@@ -77,6 +77,9 @@ const socket = socketModule as unknown as {
 // click mounted the City Hub view's CameraAnimator, which called useThree()
 // at render time. Step 12 deleted that whole branch, so Canvas is now the
 // only thing the page takes from R3F.
+// Needs a real R3F renderer (useThree); nothing to test here.
+vi.mock('@/components/hud/ContextLossRecovery', () => ({ default: () => null }));
+
 vi.mock('@react-three/fiber', () => ({
   // Renders the wrapper R3F would, style included: the city markers' labels
   // are appended into exactly this element, so its stacking behaviour is
@@ -151,6 +154,8 @@ const clickCity = async (city: City) => {
 const clickAthens = () => clickCity(ATHENS);
 
 beforeEach(() => {
+  // These tests are about the 3D game; the web's default is text mode.
+  localStorage.setItem('textMode', 'off');
   push.mockClear();
   cityClickHandler = undefined;
   lastSkyRevertKey = undefined;

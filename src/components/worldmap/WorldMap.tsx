@@ -26,6 +26,7 @@ import { useHdTextures } from '@/lib/hdTextures';
 import { earthTexturePaths } from '@/lib/ktx2Textures';
 import { useGameTextures } from '@/lib/useGameTextures';
 import { isHudLoadingMarkOn, reportHudMarkSize, toggleHudLoadingMark, useHudHidden } from '@/lib/hudHidden';
+import { useCameraSpeed } from '@/lib/cameraSpeed';
 
 const GLOBE_RADIUS = 2.5;
 const STAR_R = 50;
@@ -1282,6 +1283,8 @@ export default function WorldMap({
   // Flips to true once Globe signals its textures have finished loading.
   // Planet timers only start after this so planets never appear before the earth.
   const [globeReady, setGlobeReady] = useState(false);
+  // How fast the camera turns round the Earth (CameraSpeedButton).
+  const cameraSpeed = useCameraSpeed();
 
   // Phase 1: mount the Globe immediately.
   useEffect(() => { setPhase(1); }, []);
@@ -1360,7 +1363,7 @@ export default function WorldMap({
         minDistance={4}
         maxDistance={18}
         autoRotate
-        autoRotateSpeed={0.4}
+        autoRotateSpeed={0.4 * cameraSpeed}
         maxPolarAngle={Math.PI * 0.80}
         minPolarAngle={Math.PI * 0.10}
       />

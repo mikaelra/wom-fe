@@ -709,7 +709,7 @@ export const LOST_SOUL_POSITIONS: [number, number, number][] = [
 ];
 
 // GLB-only sub-component so Suspense can wrap the model without blocking the HTML labels.
-function LostSoulMesh() {
+export function LostSoulMesh() {
   const { scene } = useGLTF('/models/lost_soul_v2.glb');
   const sceneClone = useMemo(() => scene.clone(), [scene]);
   return <primitive object={sceneClone} scale={0.4} />;

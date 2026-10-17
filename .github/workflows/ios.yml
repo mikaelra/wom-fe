@@ -74,7 +74,15 @@ jobs:
       - name: Derive build identity from git
         id: version
         run: |
-          echo "app_version=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.0.1)" >> "$GITHUB_OUTPUT"
+          # A tag may carry letters after its numbers (v0.7.8a, v0.7.8-hotfix;
+          # Mikael, 2026-10-14). The game shows it whole (app_version); the
+          # App Store only takes up to three numbers, so the store version is
+          # the leading numbers alone (0.7.8).
+          tag="$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.1)"
+          full="${tag#v}"
+          store="$(printf '%s' "$full" | grep -oE '^[0-9]+(\.[0-9]+){0,2}' || true)"
+          echo "app_version=$full" >> "$GITHUB_OUTPUT"
+          echo "store_version=${store:-0.0.1}" >> "$GITHUB_OUTPUT"
           echo "build_number=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Build web (static export)
@@ -101,7 +109,7 @@ jobs:
           (vars.IOS_TESTFLIGHT_ENABLED != 'true')
         run: bundle exec fastlane build_unsigned
         env:
-          APP_VERSION: ${{ steps.version.outputs.app_version }}
+          APP_VERSION: ${{ steps.version.outputs.store_version }}
           BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
 
       # --- Sign + upload to TestFlight: tag push / manual dispatch, only when
@@ -119,7 +127,7 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-          APP_VERSION: ${{ steps.version.outputs.app_version }}
+          APP_VERSION: ${{ steps.version.outputs.store_version }}
           BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
 
       - name: Upload build logs
