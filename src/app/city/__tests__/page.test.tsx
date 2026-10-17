@@ -4,13 +4,14 @@ import { formatWorldClock } from '@/lib/worldClock';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { CSSProperties, ReactNode } from 'react';
 import CityPage from '@/app/city/page';
+import RankedQueueProvider from '@/components/match/RankedQueueProvider';
 import {
   checkName, logInUser, verifyLoginCode, getBossfightLobby, getNextBossfightTime,
   getActiveRankedLobby, joinRankedQueue, leaveRankedQueue, getBossfightRoster,
   joinBotRankedQueue, leaveBotRankedQueue, getActiveBotRankedLobby, getMerchantOffer,
 } from '@/lib/api';
 import { ToastProvider } from '@/components/Toast';
-import { setStoredAccountToken } from '@/lib/http';
+import { ApiError, setStoredAccountToken } from '@/lib/http';
 import * as socketModule from '@/lib/socket';
 import { findCity } from '@/lib/cities';
 
@@ -36,6 +37,7 @@ vi.mock('@/lib/api', () => ({
   getActiveRankedLobby: vi.fn(),
   joinRankedQueue: vi.fn(),
   leaveRankedQueue: vi.fn(),
+  renewRankedQueue: vi.fn().mockResolvedValue({ status: 'renewed' }),
   rankedCredentials: (name: string) => ({ ticket: `ticket-for-${name}` }),
   getBossfightRoster: vi.fn(),
   joinBotRankedQueue: vi.fn(),
@@ -98,6 +100,9 @@ const socket = socketModule as unknown as {
 // canvas container's stacking behaviour is assertable -- the labels
 // FreshHtml appends live in exactly this element.
 // Needs a real R3F renderer (useThree); nothing to test here.
+// The ranked match notification is iOS-only and imports Capacitor.
+vi.mock('@/lib/matchNotice', () => ({ notifyRankedStarted: vi.fn() }));
+
 vi.mock('@/components/hud/ContextLossRecovery', () => ({ default: () => null }));
 
 vi.mock('@react-three/fiber', () => ({
@@ -191,7 +196,16 @@ const flush = () => act(async () => Promise.resolve());
 // the city adopted the same top bar (locked decision 4).
 const gate = (title: string) =>
   screen.getByText(title).closest('.bg-gray-900') as HTMLElement;
-const renderCity = () => render(<ToastProvider><CityPage /></ToastProvider>);
+// The ranked queue lives app-wide now (app/layout.tsx), so the city needs
+// its provider around it, as the layout gives it.
+const renderCity = () =>
+  render(
+    <ToastProvider>
+      <RankedQueueProvider>
+        <CityPage />
+      </RankedQueueProvider>
+    </ToastProvider>,
+  );
 // CityScene arrives through next/dynamic, so it is not mounted synchronously.
 const waitForScene = () => waitFor(() => expect(bossfightHandler).toBeDefined());
 const clickBossfight = async () => {
@@ -574,7 +588,7 @@ describe('CityPage (bossfight countdown)', () => {
     });
     renderCity();
     await waitForScene();
-    await waitFor(() => expect(lastSublabel).toBe('2 PLAYERS PLAYING'), { timeout: 3000 });
+    await waitFor(() => expect(lastSublabel).toBe('2 PLAYING'), { timeout: 3000 });
   });
 
   it('does not count Hades, who arrives in the roster as a bot', async () => {
@@ -660,16 +674,24 @@ describe('CityPage (ranked)', () => {
     expect(lastRankedSublabel).toBeNull();
   });
 
-  it('lands a matched player via join_room and navigates', async () => {
+  it('takes a player who pressed Ranked straight into a match found right away (2026-10-17)', async () => {
     localStorage.setItem('playerName', 'Alice');
     mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
     renderCity();
 
     await clickRanked();
+    mockedGetActiveRankedLobby.mockResolvedValue({
+      lobby_id: 'RNKD', token: null, ranked_countdown_deadline: null, started: false,
+      players: ['Bob', 'Cid'], player_count: 3, max_players: 6,
+    });
     act(() => { socket.__fireSubscribeEvent('ranked_match_found', { lobby_id: 'RNKD', token: 'tok-1' }); });
 
-    expect(socket.__emit).toHaveBeenCalledWith('join_room', { lobby_id: 'RNKD', token: 'tok-1' });
+    await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
+    await waitFor(() => expect(lastRankedSublabel).toBe('STARTING SOON\n3/6'));
+    // Found right after the press: into the lobby, the signpost still saying it
+    // for when they come back.
     expect(push).toHaveBeenCalledWith('/lobby?id=RNKD');
+    expect(mockedGetActiveRankedLobby).toHaveBeenCalledWith('Alice', { peek: true });
   });
 
   it('offers a return to an existing match instead of re-queueing', async () => {
@@ -684,15 +706,18 @@ describe('CityPage (ranked)', () => {
     await waitForScene();
     await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
 
-    expect(mockedGetActiveRankedLobby).toHaveBeenCalledWith('Alice');
+    // Checked with a peek: no lobby token is minted until the player goes.
+    expect(mockedGetActiveRankedLobby).toHaveBeenCalledWith('Alice', { peek: true });
     // useCountdown publishes null until its first tick, so the sublabel
     // legitimately reads STARTING SOON for a moment before the seconds
-    // appear. Asserting immediately raced that and made this flaky.
-    await waitFor(() => expect(lastRankedSublabel).toMatch(/^STARTS IN \d+s$/), { timeout: 3000 });
+    // appear. Asserting immediately raced that and made this flaky. An
+    // older backend sends no headcount: never fewer than 2.
+    await waitFor(() => expect(lastRankedSublabel).toMatch(/^STARTS IN \d+s\n2\/6$/), { timeout: 3000 });
 
     await clickRanked();
     expect(mockedJoinRankedQueue).not.toHaveBeenCalled();
-    expect(push).toHaveBeenCalledWith('/lobby?id=RNKD');
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/lobby?id=RNKD'));
+    expect(mockedGetActiveRankedLobby).toHaveBeenCalledWith('Alice');
   });
 
   it('reads GAME STARTED! once the match is under way', async () => {
@@ -707,6 +732,18 @@ describe('CityPage (ranked)', () => {
     await waitForScene();
     await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
     expect(lastRankedSublabel).toBe('GAME STARTED!');
+  });
+
+  it('drops the match once wom-be stops taking our ticket (it ended; 2026-10-17)', async () => {
+    localStorage.setItem('playerName', 'Alice');
+    mockedGetActiveRankedLobby
+      .mockResolvedValueOnce({ lobby_id: 'RNKD', token: null, ranked_countdown_deadline: null, started: true })
+      .mockRejectedValue(new ApiError(403, 'Not your ranked match.', 'not_authorized'));
+    renderCity();
+    await waitForScene();
+    // The restore found it; the poll right after was refused.
+    await waitFor(() => expect(mockedGetActiveRankedLobby.mock.calls.length).toBeGreaterThanOrEqual(2));
+    await waitFor(() => expect(lastRankedLabel).toBe('RANKED'));
   });
 });
 

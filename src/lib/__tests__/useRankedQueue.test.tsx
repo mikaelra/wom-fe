@@ -157,6 +157,31 @@ describe('useRankedQueue', () => {
     expect(push).toHaveBeenCalledWith('/lobby?id=ABCD');
   });
 
+  it('with onMatch, stays put: stores the token, hands over the lobby, goes idle (2026-10-17)', async () => {
+    const onMatch = vi.fn();
+    mockedJoin.mockResolvedValue({ status: 'queued' });
+    const { result } = renderHook(() => useRankedQueue({ onMatch }));
+
+    await act(async () => {
+      await result.current.startQueue('Alice');
+    });
+    act(() => {
+      socket.__fireSubscribeEvent('ranked_match_found', { lobby_id: 'RNKD', token: 'tok-1' });
+    });
+
+    expect(mockedSetStoredToken).toHaveBeenCalledWith('RNKD', 'tok-1');
+    expect(onMatch).toHaveBeenCalledWith('RNKD');
+    expect(push).not.toHaveBeenCalled();
+    expect(socket.__emit).not.toHaveBeenCalledWith('join_room', expect.anything());
+    expect(result.current.status).toBe('idle');
+
+    // A late poll answer for the same match hands it over only once.
+    act(() => {
+      socket.__fireSubscribeEvent('ranked_match_found', { lobby_id: 'RNKD', token: 'tok-2' });
+    });
+    expect(onMatch).toHaveBeenCalledTimes(1);
+  });
+
   it('goes back to idle and surfaces the error if the REST join fails', async () => {
     mockedJoin.mockRejectedValue(new Error('queue full'));
     const { result } = renderHook(() => useRankedQueue());

@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBossfightLobby } from '@/lib/api';
+import { rememberSeat } from '@/lib/matchCloud';
 import { useAuthFlow } from '@/lib/useAuthFlow';
 import { useToast } from '@/components/Toast';
 
@@ -28,6 +29,8 @@ export function useEnterBossfight() {
     setLoading(true);
     try {
       const data = await getBossfightLobby(name);
+      // So Blimkin can say when it starts if the player wanders off.
+      rememberSeat('bossfight', data.lobby_id);
       router.push(`/lobby?id=${data.lobby_id}`);
     } catch (err) {
       setLoading(false);

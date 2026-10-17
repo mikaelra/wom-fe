@@ -1,33 +1,32 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { getActiveRankedLobby } from '@/lib/api';
-import { setStoredToken } from '@/lib/http';
 import { useAuthFlow } from '@/lib/useAuthFlow';
-import { useRankedQueue } from '@/lib/useRankedQueue';
 import { useCountdown } from '@/lib/useCountdown';
 import { useToast } from '@/components/Toast';
 import { RETURN_TO_MATCH } from '@/lib/rankedSign';
+import { rankedSignSublabel } from '@/lib/matchCloud';
+import { useRankedQueueContext } from '@/components/match/RankedQueueProvider';
 
 /**
  * Joining, watching and rejoining the ranked queue
- * (docs/CITY_SCENE_PLAN.md §5.2).
+ * (docs/CITY_SCENE_PLAN.md §5.2), as the city's signpost presents it.
  *
- * Lifted out of `app/page.tsx`, where it hung off the New York sword, so the
- * city's Senate and signpost arm can own it. Behaviour is unchanged; only
- * where it is presented moved. It reports its own arm copy, because the
- * three states this can be in (idle / searching / already in a match) are
- * exactly what the arm has to say.
+ * The queue itself is held for the whole app by RankedQueueProvider, so it
+ * follows the player everywhere (Mikael, 2026-10-17); this is the signpost's
+ * view of it. Three states: idle (RANKED), searching (SEARCHING...), and a
+ * match found (RETURN TO MATCH, with the countdown over "X/6", or GAME
+ * STARTED!) -- at the signpost Blimkin's cloud stays away and the sign says
+ * it instead.
  */
 export interface RankedEntry {
-  /** Click the arm or the Senate. Queues, cancels, or returns to a match
+  /** Click the arm or the Senate. Queues, cancels, or goes to the match
    *  depending on which of the three states we are in. */
   enterRanked: () => void;
   status: 'idle' | 'searching' | 'activeMatch';
   /** Top line for the signpost arm. */
   label: string;
-  /** Live second line, or null when there is nothing to say. */
+  /** Live line(s) under it, `\n`-joined, or null when there is nothing to say. */
   sublabel: string | null;
   gateOpen: boolean;
   closeGate: () => void;
@@ -35,60 +34,37 @@ export interface RankedEntry {
 }
 
 export function useEnterRanked(): RankedEntry {
-  const router = useRouter();
   const { showError } = useToast();
   const [gateOpen, setGateOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const rankedQueue = useRankedQueue();
-
-  // A match this player is already in -- either matched and then navigated
-  // away from (going "Back to Earth" only leaves the page, never the lobby
-  // server-side; see wom-be's sockets/lobby.py handle_disconnect) or one
-  // already in progress. Checked once per mount.
-  const [activeMatch, setActiveMatch] = useState<{
-    lobbyId: string;
-    deadline: string | null;
-    started: boolean;
-  } | null>(null);
-  const activeMatchSecondsLeft = useCountdown(activeMatch?.started ? null : activeMatch?.deadline);
-
-  useEffect(() => {
-    const name = typeof window !== 'undefined' ? localStorage.getItem('playerName') : null;
-    if (!name) return;
-    getActiveRankedLobby(name)
-      .then((data) => {
-        if (!data.lobby_id || !data.token) return;
-        setStoredToken(data.lobby_id, data.token);
-        setActiveMatch({ lobbyId: data.lobby_id, deadline: data.ranked_countdown_deadline, started: data.started });
-      })
-      .catch(() => {
-        // Best-effort -- worst case the player sees "RANKED" again, and the
-        // backend's own duplicate-name guard still protects them if they
-        // re-queue while actually still in the old match.
-      });
-  }, []);
+  const rq = useRankedQueueContext();
+  const match = rq.match;
+  const secondsLeft = useCountdown(match && !match.started ? match.deadline : null);
 
   // Animated "" -> "." -> ".." -> "..." while queued, so "SEARCHING" reads
   // as active rather than stalled. Starts at 0 dots so the bare word is
   // actually one of the states shown.
   const [searchingDots, setSearchingDots] = useState(0);
   useEffect(() => {
-    if (rankedQueue.status !== 'searching') return;
+    if (rq.status !== 'searching') return;
     const id = setInterval(() => setSearchingDots((d) => (d + 1) % 4), 500);
     return () => clearInterval(id);
-  }, [rankedQueue.status]);
+  }, [rq.status]);
 
-  const doRanked = useCallback(async (name: string) => {
-    setLoading(true);
-    try {
-      await rankedQueue.startQueue(name);
-      if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Failed to join the ranked queue');
-    } finally {
-      setLoading(false);
-    }
-  }, [rankedQueue, showError]);
+  const doRanked = useCallback(
+    async (name: string) => {
+      setLoading(true);
+      try {
+        await rq.startQueue(name);
+        if (typeof window !== 'undefined') localStorage.setItem('playerName', name);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : 'Failed to join the ranked queue');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [rq, showError],
+  );
 
   const authFlow = useAuthFlow({
     submitErrorFallback: 'Failed to join the ranked queue.',
@@ -104,12 +80,12 @@ export function useEnterRanked(): RankedEntry {
   const resetAuthFlow = authFlow.reset;
 
   const enterRanked = useCallback(() => {
-    if (rankedQueue.status === 'searching') {
-      rankedQueue.cancelQueue();
+    if (rq.status === 'searching') {
+      void rq.cancelQueue();
       return;
     }
-    if (activeMatch) {
-      router.push(`/lobby?id=${activeMatch.lobbyId}`);
+    if (rq.match) {
+      rq.joinMatch().catch((err) => showError(err instanceof Error ? err.message : 'Failed to join the match.'));
       return;
     }
     if (loading) return;
@@ -120,22 +96,17 @@ export function useEnterRanked(): RankedEntry {
       return;
     }
     doRanked(name);
-  }, [rankedQueue, activeMatch, loading, router, doRanked, resetAuthFlow]);
+  }, [rq, loading, doRanked, resetAuthFlow, showError]);
 
-  const status: RankedEntry['status'] =
-    rankedQueue.status === 'searching' ? 'searching' : activeMatch ? 'activeMatch' : 'idle';
+  const status: RankedEntry['status'] = rq.status === 'searching' ? 'searching' : match ? 'activeMatch' : 'idle';
 
   let label = 'RANKED';
   let sublabel: string | null = null;
   if (status === 'searching') {
     sublabel = `SEARCHING${'.'.repeat(searchingDots)}`;
-  } else if (status === 'activeMatch') {
+  } else if (match) {
     label = RETURN_TO_MATCH;
-    sublabel = activeMatch?.started
-      ? 'GAME STARTED!'
-      : activeMatchSecondsLeft != null
-        ? `STARTS IN ${activeMatchSecondsLeft}s`
-        : 'STARTING SOON';
+    sublabel = rankedSignSublabel(match, secondsLeft);
   }
 
   const closeGate = useCallback(() => setGateOpen(false), []);

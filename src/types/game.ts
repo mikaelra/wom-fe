@@ -45,6 +45,10 @@ export const PlayerSchema = z.object({
   // null for nearly everyone, since the only one is granted by discovering
   // an artifact.
   cosmetic: z.string().nullable().optional(),
+  // The ranked tier shown for this player in a ranked lobby -- the rank
+  // beside each name in the player list (wom-be #269); null in placement,
+  // absent from an older backend.
+  rank_tier: z.string().nullable().optional(),
   wheel_awarded: z.boolean().nullable().optional(),
   pending_wheel_nudge: z.boolean().nullable().optional(),
   // An artifact was discovered by this player this match: granted straight
@@ -86,6 +90,9 @@ export const RankedResultSchema = z.object({
   // Games in a row at tier_after, this one included (wom-be #263); human
   // ranked only, optional while an older backend may answer without it.
   games_at_tier: z.number().int().nullable().optional(),
+  // Still in placement: how many more ranked games until the rank shows
+  // (wom-be #269); null once ranked, absent from an older backend.
+  games_until_rank: z.number().int().nullable().optional(),
 });
 export type RankedResult = z.infer<typeof RankedResultSchema>;
 

@@ -38,7 +38,8 @@ export function bossfightSignSublabel(
     const noun = fighters === 1 ? 'PLAYER' : 'PLAYERS';
     // `round` is 0 for a lobby still filling and 1+ once the first round has
     // been dealt, which is exactly the waiting/playing line.
-    if (roster.round > 0) return `${fighters} ${noun} PLAYING`;
+    // "X playing", never "X players playing" (Mikael, 2026-10-17).
+    if (roster.round > 0) return `${fighters} PLAYING`;
     const headcountLine = `${fighters} ${noun} WAITING`;
     return countdownLine ? `${headcountLine}\n${countdownLine}` : headcountLine;
   }

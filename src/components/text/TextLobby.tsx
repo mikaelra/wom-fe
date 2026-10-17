@@ -34,6 +34,7 @@ import { playerMark, shownPlayerName } from '@/lib/playerThumbnail';
 import type { Player, Relic } from '@/types/game';
 import { WheelText } from '@/components/WheelIcon';
 import RankOutcome from '@/components/hud/RankOutcome';
+import RankBadge from '@/components/hud/RankBadge';
 import { useCompactViewport } from '@/lib/useCompactViewport';
 
 // A match as text (Settings -> Graphics -> Text mode, src/lib/textMode.ts):
@@ -638,6 +639,16 @@ export default function TextLobby({
   const attackable = (p: { name: string; hp: number; spectator?: boolean }) =>
     canChoose && p.name !== playerName && p.hp > 0 && !p.spectator;
   const leftColumnWidth = 'w-36';
+  // The only time ranks are shown to the others is at the end of a ranked
+  // match, bot-ranked included -- never while it is played, never in casual
+  // (private) lobbies or bossfights (Mikael, 2026-10-17). A bot-ranked list
+  // ranks only the bots: a person there has none.
+  // Not after a game that timed out, though (everyone still alive went
+  // quiet, no winner): it isn't rated, so no ranks at all (Mikael, 2026-10-17).
+  const timedOut =
+    gameOver && !state?.winner && !!state?.players.some((p) => !p.bot && !p.spectator && p.alive);
+  const rankedList = gameOver && !timedOut && (!!state?.ranked || !!state?.ai_ranked);
+  const showsRank = (p: { rank_tier?: string | null }) => !!state?.ranked || !!p.rank_tier;
   const playersCard = (
     <>
       <div className={compact ? compactCard : card}>
@@ -650,11 +661,19 @@ export default function TextLobby({
           </p>
         )}
         {/* One grid for the whole list, so every line's columns line up:
-            info | crown or skull | avatar | ready or away | name | Attack,
-            framed together, and after the frame the chat bubble and kick.
-            Each frame spans its six columns (a subgrid), so all are as wide
-            as the widest. */}
-        <ul className="text-gray-200 grid grid-cols-[auto_auto_auto_auto_max-content_auto_minmax(0,1fr)] gap-y-2 items-center">
+            info | crown or skull | avatar | ready or away | name | (rank) |
+            Attack, framed together, and after the frame the chat bubble and
+            kick. Each frame spans its columns (a subgrid), so all are as
+            wide as the widest. At the end of a ranked match each player's
+            rank sits in a column right of the name -- never on the left
+            (Mikael, 2026-10-17). */}
+        <ul
+          className={`text-gray-200 grid gap-y-2 items-center ${
+            rankedList
+              ? 'grid-cols-[auto_auto_auto_auto_max-content_auto_auto_minmax(0,1fr)]'
+              : 'grid-cols-[auto_auto_auto_auto_max-content_auto_minmax(0,1fr)]'
+          }`}
+        >
           {state?.players.map((p) => {
             const info = infoFor(p);
             const hit = info ? undefined : hits?.get(p.name)?.[hitStep];
@@ -688,7 +707,9 @@ export default function TextLobby({
             return (
               // Each player framed in a very thin black line (Mikael, 2026-10-12).
               <li key={p.name} className="contents">
-                <div className="col-span-6 grid grid-cols-subgrid gap-x-2 items-center py-1 px-2 border border-black rounded-md">
+                <div
+                  className={`${rankedList ? 'col-span-7' : 'col-span-6'} grid grid-cols-subgrid gap-x-2 items-center py-1 px-2 border border-black rounded-md`}
+                >
                 {/* In columns, so every line lines up (Mikael, 2026-10-12):
                     what you know of them -- the Well's info, the round's
                     hits (blinking), or a bossfight bot's health -- set
@@ -731,6 +752,11 @@ export default function TextLobby({
                       return <span key={id}>{relic ? <RelicGlyph name={relic.name} fallback="🪙" /> : '🪙'}</span>;
                     })}
                 </span>
+                {rankedList && (
+                  <span className="shrink-0 flex justify-start">
+                    {showsRank(p) && <RankBadge tier={p.rank_tier ?? null} playerName={p.name} />}
+                  </span>
+                )}
                 {/* Attack, the word in red, inside the frame after the name
                     of everyone you can attack -- a tap attacks them. On a PC
                     its column is as wide as the info column, so the frame
@@ -950,11 +976,22 @@ export default function TextLobby({
       )}
     </>
   );
+  // A soft green box for the winner, a soft red one for anyone else who played
+  // (Mikael, 2026-10-17); the words are the same.
+  const lost = !!myPlayer && !myPlayer.spectator && state?.winner !== playerName;
   const gameOverCard = (
     <>
       {gameOver && (
-        <div className="w-full bg-green-950/60 border border-green-700 text-green-300 p-4 rounded-xl mt-4 text-center">
-          <p className="text-xl font-semibold mb-3">🎉 Game Over! {winnerName} has won the game!</p>
+        <div
+          className={`w-full p-4 rounded-xl mt-4 text-center border ${
+            lost ? 'bg-red-950/60 border-red-700 text-red-300' : 'bg-green-950/60 border-green-700 text-green-300'
+          }`}
+        >
+          <p className="text-xl font-semibold mb-3">
+            {/* Nobody won a game everyone walked away from: the same words as
+                the 3D lobby's (LobbyOverlay) (Mikael, 2026-10-17). */}
+            {timedOut ? '⏱️ Timed out!' : `🎉 Game Over! ${winnerName} has won the game!`}
+          </p>
           <RankOutcome result={state?.ranked_results?.[playerName]} playerName={playerName} />
           {/* Home, and beside it the city -- the pair from the top corner. */}
           <span className="emoji-pair inline-flex items-center justify-center gap-2">
