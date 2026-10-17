@@ -35,6 +35,10 @@ const FORMING_POLL_MS = 2000;
 const STARTED_POLL_MS = 10000;
 /** How often the queue's 30-minute question and its renewal are checked. */
 const QUEUE_CHECK_MS = 10000;
+/** A match found this soon after the player pressed Ranked is one they are
+ *  waiting for: they are taken straight into its lobby (Mikael, 2026-10-17).
+ *  Later than this, the cloud and the signpost tell them. */
+const RIGHT_AWAY_MS = 10000;
 
 export interface RankedQueueApi {
   status: 'idle' | 'searching';
@@ -87,16 +91,25 @@ export default function RankedQueueProvider({ children }: { children: React.Reac
   /** The lobby whose start has been announced (or was already under way
    *  when the app learned of it), so the phone is told once. */
   const announcedRef = useRef<string | null>(null);
+  /** When Ranked was last pressed (not a queue picked up again on launch). */
+  const pressedAtRef = useRef<number | null>(null);
 
-  const onMatch = useCallback((lobbyId: string) => {
-    clearQueue();
-    setAsking(false);
-    setMatch((prev) =>
-      prev?.lobbyId === lobbyId
-        ? prev
-        : { lobbyId, players: [], playerCount: 2, maxPlayers: 6, deadline: null, started: false },
-    );
-  }, []);
+  const onMatch = useCallback(
+    (lobbyId: string) => {
+      clearQueue();
+      setAsking(false);
+      // The token for this lobby is stored already (useRankedQueue).
+      const pressedAt = pressedAtRef.current;
+      pressedAtRef.current = null;
+      if (pressedAt !== null && Date.now() - pressedAt < RIGHT_AWAY_MS) router.push(`/lobby?id=${lobbyId}`);
+      setMatch((prev) =>
+        prev?.lobbyId === lobbyId
+          ? prev
+          : { lobbyId, players: [], playerCount: 2, maxPlayers: 6, deadline: null, started: false },
+      );
+    },
+    [router],
+  );
 
   const queue = useRankedQueue({ onMatch });
   const { startQueue: queueStart, cancelQueue: queueCancel, status } = queue;
@@ -105,10 +118,12 @@ export default function RankedQueueProvider({ children }: { children: React.Reac
     async (name: string) => {
       const now = Date.now();
       writeQueue({ name, queuedAt: now, heardAt: now });
+      pressedAtRef.current = now;
       try {
         await queueStart(name);
       } catch (err) {
         clearQueue();
+        pressedAtRef.current = null;
         throw err;
       }
       // At once, so wom-be counts this queue as one that leaves when the
@@ -121,6 +136,7 @@ export default function RankedQueueProvider({ children }: { children: React.Reac
   const cancelQueue = useCallback(async () => {
     clearQueue();
     setAsking(false);
+    pressedAtRef.current = null;
     await queueCancel();
   }, [queueCancel]);
 

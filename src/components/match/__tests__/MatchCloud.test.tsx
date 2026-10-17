@@ -156,6 +156,51 @@ describe('MatchCloud', () => {
     expect(screen.queryByText('Searching')).toBeNull();
   });
 
+  describe('a match found after pressing Ranked', () => {
+    function Queue() {
+      const rq = useRankedQueueContext();
+      return (
+        <button type="button" onClick={() => void rq.startQueue('Alice')}>
+          queue
+        </button>
+      );
+    }
+    const press = async (foundAfterMs: number) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      pathname = '/city';
+      // Nothing yet; the poll behind the push finds the match once it is made.
+      let at = 0;
+      vi.mocked(getActiveRankedLobby).mockImplementation(async (_n, opts) =>
+        at >= foundAfterMs ? (opts?.peek ? found : { ...found, token: 'tok' }) : noMatch,
+      );
+      render(
+        <ToastProvider>
+          <RankedQueueProvider>
+            <Queue />
+            <MatchCloud />
+          </RankedQueueProvider>
+        </ToastProvider>,
+      );
+      fireEvent.click(screen.getByText('queue'));
+      for (let t = 0; t < 16000; t += 1000) {
+        at = t;
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1000);
+        });
+      }
+    };
+
+    it('takes the player straight into the lobby when it is found right away', async () => {
+      await press(4000);
+      expect(push).toHaveBeenCalledWith('/lobby?id=RNKD');
+    });
+
+    it('leaves a player where they are when it comes much later', async () => {
+      await press(14000);
+      expect(push).not.toHaveBeenCalled();
+    });
+  });
+
   it('stays away in the city, where the signpost says it', async () => {
     pathname = '/city';
     vi.mocked(getActiveRankedLobby).mockResolvedValue(found);

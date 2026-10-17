@@ -674,7 +674,7 @@ describe('CityPage (ranked)', () => {
     expect(lastRankedSublabel).toBeNull();
   });
 
-  it('leaves a matched player where they are, the signpost saying it (2026-10-17)', async () => {
+  it('takes a player who pressed Ranked straight into a match found right away (2026-10-17)', async () => {
     localStorage.setItem('playerName', 'Alice');
     mockedJoinRankedQueue.mockResolvedValue({ status: 'queued' });
     renderCity();
@@ -688,8 +688,9 @@ describe('CityPage (ranked)', () => {
 
     await waitFor(() => expect(lastRankedLabel).toBe('RETURN TO MATCH'));
     await waitFor(() => expect(lastRankedSublabel).toBe('STARTING SOON\n3/6'));
-    expect(socket.__emit).not.toHaveBeenCalledWith('join_room', expect.anything());
-    expect(push).not.toHaveBeenCalled();
+    // Found right after the press: into the lobby, the signpost still saying it
+    // for when they come back.
+    expect(push).toHaveBeenCalledWith('/lobby?id=RNKD');
     expect(mockedGetActiveRankedLobby).toHaveBeenCalledWith('Alice', { peek: true });
   });
 
