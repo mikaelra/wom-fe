@@ -22,8 +22,8 @@ describe('relicModelUrl', () => {
 describe('RelicCoin in Low Definition', () => {
   beforeEach(() => localStorage.setItem('textMode', 'on'));
 
-  it('draws the Stone, the Pen and the Paper as 32x32 pictures, never a 3D model', async () => {
-    for (const [name, src] of [['Stone of Vitality', '/pixel/stone.png'], ['Pen', '/pixel/pen.png'], ['Paper', '/pixel/paper.png']]) {
+  it('draws the Stone, the Pen and the Paper as 32x32 pictures on their aura, never a 3D model', async () => {
+    for (const [name, src] of [['Stone of Vitality', '/pixel2/stone.png'], ['Pen', '/pixel2/pen.png'], ['Paper', '/pixel2/paper.png']]) {
       const { unmount } = render(<RelicCoin relicName={name} />);
       const img = await screen.findByRole('img', { name });
       await waitFor(() => expect(img).toHaveAttribute('src', src));
@@ -37,7 +37,7 @@ describe('RelicCoin in Low Definition', () => {
     for (const name of ["Hades' Coin", 'Spirit of Nobody']) {
       const { unmount } = render(<RelicCoin relicName={name} />);
       const img = await screen.findByRole('img', { name });
-      await waitFor(() => expect(img).toHaveAttribute('src', '/pixel/hades_coin.png'));
+      await waitFor(() => expect(img).toHaveAttribute('src', '/pixel2/hades_coin.png'));
       expect(screen.queryByTestId('model')).toBeNull();
       unmount();
     }

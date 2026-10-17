@@ -14,6 +14,7 @@ import {
   pixelRelicUrl,
   pixelSkinUrl,
   skinPicture,
+  withAura,
 } from '@/lib/pixelArt';
 
 const inPublic = (url: string) => existsSync(join(process.cwd(), 'public', url));
@@ -56,6 +57,28 @@ describe('pixel art (Low Definition)', () => {
     for (const url of [PIXEL_WHEEL_URL, PIXEL_SPECIAL_WHEEL_URL, PIXEL_ARTIFACT_URL, PIXEL_ROBOT_URL, PIXEL_MY_AI_COIN_URL]) {
       expect(inPublic(url), url).toBe(true);
     }
+  });
+
+  it('has every picture on its aura too (v2), written beside the plain one', () => {
+    expect(withAura('/pixel/frog_blue_v1.png')).toBe('/pixel2/frog_blue_v1.png');
+    expect(withAura('/images/other.png')).toBe('/images/other.png'); // only sprites have one
+    for (const skin of [...ALL_FROG_SKINS, 'cherub_v1']) expect(inPublic(pixelSkinUrl(skin, true)!), skin).toBe(true);
+    for (const name of ["Hades' Coin", 'Stone of Vitality', 'Pen', 'Paper']) expect(inPublic(pixelRelicUrl(name, true)!), name).toBe(true);
+    for (const m of ['merchant_v1', 'lady_merchant_v1']) expect(inPublic(pixelMerchantUrl(m, true)!), m).toBe(true);
+    for (const url of [PIXEL_WHEEL_URL, PIXEL_SPECIAL_WHEEL_URL, PIXEL_ARTIFACT_URL, PIXEL_ROBOT_URL, PIXEL_MY_AI_COIN_URL, PIXEL_COIN_URL]) {
+      expect(inPublic(withAura(url)), url).toBe(true);
+    }
+  });
+
+  it('shows the aura only when asked: never in the plain default', () => {
+    expect(pixelSkinUrl('frog_blue_v1')).toBe('/pixel/frog_blue_v1.png');
+    expect(pixelSkinUrl('frog_blue_v1', true)).toBe('/pixel2/frog_blue_v1.png');
+    expect(skinPicture('frog_blue_v1', true)).toBe('/pixel/frog_blue_v1.png');
+    expect(skinPicture('frog_blue_v1', true, true)).toBe('/pixel2/frog_blue_v1.png');
+    expect(skinPicture('frog_blue_v1', false, true)).toBe('/skins/thumbnails/frog_blue_v1.png'); // SD/HD: no sprites at all
+    expect(pixelRelicUrl('Pen', true)).toBe('/pixel2/pen.png');
+    expect(pixelMerchantUrl('merchant_v1', true)).toBe('/pixel2/merchant_v1.png');
+    expect(pixelSkinUrl('nope', true)).toBeNull();
   });
 
   it('keeps sprites as square pixels', () => {

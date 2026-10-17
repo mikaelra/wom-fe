@@ -684,7 +684,7 @@ describe('InventoryPage', () => {
 });
 
 describe('InventoryPage in Low Definition', () => {
-  it('draws the 32x32 faces and the artifact scroll, with no 3D preview', async () => {
+  it('draws the 32x32 faces and the artifact scroll on their aura, with no 3D preview', async () => {
     setStoredAccountToken('sess-1');
     localStorage.setItem('textMode', 'on');
     mockedGetInventory.mockResolvedValue({
@@ -698,11 +698,11 @@ describe('InventoryPage in Low Definition', () => {
     await flush();
 
     const sources = Array.from(container.querySelectorAll('img')).map((i) => i.getAttribute('src'));
-    expect(sources).toEqual(expect.arrayContaining(['/pixel/frog_green_v1.png', '/pixel/frog_gold_v1.png', '/pixel/artifact.png']));
+    expect(sources).toEqual(expect.arrayContaining(['/pixel2/frog_green_v1.png', '/pixel2/frog_gold_v1.png', '/pixel2/artifact.png']));
     expect(sources.some((src) => src?.startsWith('/skins/thumbnails/'))).toBe(false);
     expect(screen.queryByTestId('skin-preview')).not.toBeInTheDocument();
-    expect(screen.getByTestId('my-ai-coin-pixel')).toHaveAttribute('src', '/pixel/my_ai_coin.png');
-    for (const img of container.querySelectorAll('img[src^="/pixel/"]')) {
+    expect(screen.getByTestId('my-ai-coin-pixel')).toHaveAttribute('src', '/pixel2/my_ai_coin.png');
+    for (const img of container.querySelectorAll('img[src^="/pixel2/"]')) {
       expect((img as HTMLElement).style.imageRendering).toBe('pixelated');
     }
   });
@@ -715,7 +715,7 @@ describe('InventoryPage in Low Definition', () => {
     await flush();
 
     expect(container.querySelector('img[src="/skins/thumbnails/frog_gold_v1.png"]')).not.toBeNull();
-    expect(container.querySelector('img[src^="/pixel/"]')).toBeNull();
+    expect(container.querySelector('img[src^="/pixel"]')).toBeNull();
     expect(screen.queryByTestId('my-ai-coin-pixel')).not.toBeInTheDocument();
     expect(screen.getByTestId('skin-preview')).toBeInTheDocument();
   });

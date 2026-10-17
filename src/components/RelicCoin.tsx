@@ -4,7 +4,7 @@ import { useGLTF } from '@react-three/drei';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 // The model urls: lib/relics.ts (no three.js there).
 import { COIN_MODEL_URL, RELIC_MODEL_URLS, relicModelUrl } from '@/lib/relics';
-import { PIXEL_COIN_URL, pixelImageStyle, pixelRelicUrl } from '@/lib/pixelArt';
+import { PIXEL_COIN_URL, pixelImageStyle, pixelRelicUrl, withAura } from '@/lib/pixelArt';
 import { useTextMode } from '@/lib/textMode';
 export { relicModelUrl };
 
@@ -30,7 +30,7 @@ export default function RelicCoin({ relicName }: { relicName?: string } = {}) {
   if (lowDefinition === null) return null;
   if (lowDefinition) {
     // Any relic without a picture of its own is the gold coin, as it is in 3D.
-    const url = pixelRelicUrl(relicName) ?? PIXEL_COIN_URL;
+    const url = pixelRelicUrl(relicName, true) ?? withAura(PIXEL_COIN_URL);
     // eslint-disable-next-line @next/next/no-img-element -- a small static file from public/
     return <img src={url} alt={relicName} className="w-full h-full object-contain" style={pixelImageStyle} draggable={false} />;
   }

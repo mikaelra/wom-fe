@@ -133,19 +133,19 @@ export default function MerchantScene({ offer, token, onClose, onPurchased, text
         {textOnly && (
           <div data-testid="pixel-stage" className="mt-3 px-6">
             <div className="flex items-end justify-center gap-6">
-              {pixelMerchantUrl(merchantModel) && (
+              {pixelMerchantUrl(merchantModel, true) && (
                 // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets
                 <img
-                  src={pixelMerchantUrl(merchantModel)!}
+                  src={pixelMerchantUrl(merchantModel, true)!}
                   alt={offer.merchant_name}
                   draggable={false}
                   style={{ ...pixelImageStyle, width: rem(128), height: rem(128) }}
                 />
               )}
-              {pixelRelicUrl(offer.item_name) && (
+              {pixelRelicUrl(offer.item_name, true) && (
                 // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets
                 <img
-                  src={pixelRelicUrl(offer.item_name)!}
+                  src={pixelRelicUrl(offer.item_name, true)!}
                   alt={offer.item_name}
                   draggable={false}
                   className={reducedMotion ? '' : 'merchant-stone-hover'}

@@ -8,7 +8,7 @@ import { ApiError, getStoredAccountToken } from '@/lib/http';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
 import { skinLabel } from '@/lib/frogSkins';
 import SkinPreview from '@/components/SkinPreview';
-import { PIXEL_MY_AI_COIN_URL, pixelImageStyle } from '@/lib/pixelArt';
+import { PIXEL_MY_AI_COIN_URL, pixelImageStyle, withAura } from '@/lib/pixelArt';
 import { useTextMode } from '@/lib/textMode';
 import { CITY_PATH } from '@/lib/cities';
 import LoadingState from '@/components/loading/LoadingState';
@@ -456,7 +456,7 @@ export default function ShopPage() {
                             robot face, rendered from /modelling's myaicoinv02. */}
                         {/* eslint-disable-next-line @next/next/no-img-element -- a small static file from public/, like the wheel icon */}
                         <img
-                          src={lowDefinition ? PIXEL_MY_AI_COIN_URL : '/images/my-ai-coin.png'}
+                          src={lowDefinition ? withAura(PIXEL_MY_AI_COIN_URL) : '/images/my-ai-coin.png'}
                           alt=""
                           data-testid="my-ai-coin"
                           draggable={false}

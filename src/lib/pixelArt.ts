@@ -5,6 +5,12 @@ import { ALL_FROG_SKINS, skinThumbnailUrl } from '@/lib/frogSkins';
 // a 32x32 grid by scripts/pixel-thumbnails.py into public/pixel/ (Mikael,
 // 2026-10-17). LD shows these wherever SD and HD show a 3D model or a
 // rendered thumbnail -- never a 3D scene. A frog is its face only.
+//
+// Two versions of each: plain (public/pixel/, 32x32) and v2 on a faint aura in
+// its predominant colour (public/pixel2/, 40x40). The aura is for thumbnails
+// at a decent size -- the inventory, the shop, the merchants. Never in battle
+// (Mikael, 2026-10-17), and not in the small marks beside a name, a chip or
+// a line of text, where it would only blur. Every helper takes `aura`.
 
 /** The skins that have a 32x32 face: the frogs and the Cherub. */
 export const PIXEL_SKINS: ReadonlySet<string> = new Set([...ALL_FROG_SKINS, 'cherub_v1']);
@@ -34,25 +40,32 @@ const PIXEL_MERCHANTS: Record<string, string> = {
   lady_merchant_v1: '/pixel/lady_merchant_v1.png',
 };
 
+/** The same picture on its aura (v2). */
+export function withAura(url: string): string {
+  return url.replace(/^\/pixel\//, '/pixel2/');
+}
+
+const pick = (url: string | null, aura: boolean): string | null => (url && aura ? withAura(url) : url);
+
 /** A skin's 32x32 face, or null when it has none. */
-export function pixelSkinUrl(skin: string | null | undefined): string | null {
-  return skin && PIXEL_SKINS.has(skin) ? `/pixel/${skin}.png` : null;
+export function pixelSkinUrl(skin: string | null | undefined, aura = false): string | null {
+  return pick(skin && PIXEL_SKINS.has(skin) ? `/pixel/${skin}.png` : null, aura);
 }
 
 /** A skin's picture for this mode: in Low Definition its 32x32 face when it has
  *  one, otherwise (or in SD and HD) the usual rendered thumbnail. */
-export function skinPicture(skin: string, lowDefinition: boolean): string {
-  return (lowDefinition && pixelSkinUrl(skin)) || skinThumbnailUrl(skin);
+export function skinPicture(skin: string, lowDefinition: boolean, aura = false): string {
+  return (lowDefinition && pixelSkinUrl(skin, aura)) || skinThumbnailUrl(skin);
 }
 
 /** A relic's 32x32 picture, or null when it has none. */
-export function pixelRelicUrl(name: string | null | undefined): string | null {
-  return (name && PIXEL_RELICS[name]) || null;
+export function pixelRelicUrl(name: string | null | undefined, aura = false): string | null {
+  return pick((name && PIXEL_RELICS[name]) || null, aura);
 }
 
 /** A merchant's 32x32 portrait, or null when it has none. */
-export function pixelMerchantUrl(model: string | null | undefined): string | null {
-  return (model && PIXEL_MERCHANTS[model]) || null;
+export function pixelMerchantUrl(model: string | null | undefined, aura = false): string | null {
+  return pick((model && PIXEL_MERCHANTS[model]) || null, aura);
 }
 
 /** So a small sprite stays a grid of square pixels at any size. */

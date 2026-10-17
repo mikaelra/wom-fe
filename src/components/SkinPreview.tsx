@@ -7,8 +7,8 @@ import { useTextMode } from '@/lib/textMode';
 
 /**
  * A skin's preview, filling its box. SD and HD spin the 3D model; Low
- * Definition (lib/textMode.ts) draws the skin's 32x32 face instead
- * (lib/pixelArt.ts) and never starts a 3D scene -- so nothing is drawn until
+ * Definition (lib/textMode.ts) draws the skin's 32x32 face on its aura
+ * instead (lib/pixelArt.ts) and never starts a 3D scene -- so nothing is drawn until
  * the mode is known.
  */
 export default function SkinPreview({
@@ -26,7 +26,7 @@ export default function SkinPreview({
     return (
       // eslint-disable-next-line @next/next/no-img-element -- a small fixed set of local static assets
       <img
-        src={skinPicture(skin, true)}
+        src={skinPicture(skin, true, true)}
         alt=""
         className="w-full h-full object-contain"
         style={pixelImageStyle}

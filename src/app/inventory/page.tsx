@@ -8,7 +8,7 @@ import { getInventory, equipSkin, equipCosmetic, getPlayerRelics, getTradeUpRule
 import { ledgerMarks } from '@/lib/market';
 import { getStoredAccountToken } from '@/lib/http';
 import { skinColor, skinLabel, sortSkins } from '@/lib/frogSkins';
-import { PIXEL_ARTIFACT_URL, PIXEL_MY_AI_COIN_URL, pixelImageStyle, skinPicture } from '@/lib/pixelArt';
+import { PIXEL_ARTIFACT_URL, PIXEL_MY_AI_COIN_URL, pixelImageStyle, skinPicture, withAura } from '@/lib/pixelArt';
 import { useTextMode } from '@/lib/textMode';
 import { cosmeticDescription, cosmeticLabel, cosmeticModelUrl } from '@/lib/cosmetics';
 import { wheelKindFromString, wheelKindLabel } from '@/lib/wheelGeometry';
@@ -308,7 +308,7 @@ export default function InventoryPage() {
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl px-5 py-4 mb-6 flex items-center justify-between gap-3">
               {lowDefinition && (
                 // eslint-disable-next-line @next/next/no-img-element -- a small static file from public/
-                <img src={PIXEL_MY_AI_COIN_URL} alt="" className="h-10 w-10 shrink-0 mr-3" style={pixelImageStyle} draggable={false} data-testid="my-ai-coin-pixel" />
+                <img src={withAura(PIXEL_MY_AI_COIN_URL)} alt="" className="h-10 w-10 shrink-0 mr-3" style={pixelImageStyle} draggable={false} data-testid="my-ai-coin-pixel" />
               )}
               <div className="mr-auto">
                 <p className="text-sm font-semibold">My AI credits</p>
@@ -434,7 +434,7 @@ export default function InventoryPage() {
                         {/* eslint-disable-next-line @next/next/no-img-element -- a small
                             fixed set of local static assets, not remote/user content */}
                         <img
-                          src={skinPicture(skin, lowDefinition === true)}
+                          src={skinPicture(skin, lowDefinition === true, true)}
                           alt=""
                           className={`w-full h-full ${lowDefinition ? 'object-contain' : 'object-cover'}`}
                           style={lowDefinition ? pixelImageStyle : undefined}
@@ -503,7 +503,7 @@ export default function InventoryPage() {
                     {lowDefinition === null ? null : lowDefinition ? (
                       // eslint-disable-next-line @next/next/no-img-element -- a small static file from public/
                       <img
-                        src={PIXEL_ARTIFACT_URL}
+                        src={withAura(PIXEL_ARTIFACT_URL)}
                         alt=""
                         className="w-full h-full object-contain"
                         style={pixelImageStyle}

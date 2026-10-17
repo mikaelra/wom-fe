@@ -129,8 +129,8 @@ describe('ShopPage', () => {
     await flush();
 
     expect(screen.queryByTestId('skin-preview')).not.toBeInTheDocument();
-    expect(container.querySelector('img[src="/pixel/cherub_v1.png"]')).not.toBeNull();
-    expect(screen.getByTestId('my-ai-coin')).toHaveAttribute('src', '/pixel/my_ai_coin.png');
+    expect(container.querySelector('img[src="/pixel2/cherub_v1.png"]')).not.toBeNull();
+    expect(screen.getByTestId('my-ai-coin')).toHaveAttribute('src', '/pixel2/my_ai_coin.png');
     expect(screen.getByTestId('my-ai-coin').style.imageRendering).toBe('pixelated');
   });
 
