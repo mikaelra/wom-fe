@@ -58,3 +58,6 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
 ];
 
 export const pixelUrl = (id: string) => `/pixel/${id}.png`;
+
+/** v2: the same picture on a faint aura in its predominant colour (40x40; public/pixel2/). */
+export const pixel2Url = (id: string) => `/pixel2/${id}.png`;

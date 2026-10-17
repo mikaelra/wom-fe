@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PIXEL_GROUPS, pixelUrl } from '@/components/modelling/pixelThumbnails';
+import { PIXEL_GROUPS, pixel2Url, pixelUrl } from '@/components/modelling/pixelThumbnails';
 
 const pub = (url: string) => join(process.cwd(), 'public', url);
 
@@ -15,6 +15,16 @@ describe('the 8-bit thumbnails', () => {
       const png = readFileSync(file);
       expect(png.subarray(1, 4).toString(), it.id).toBe('PNG');
       expect([png.readUInt32BE(16), png.readUInt32BE(20)], it.id).toEqual([256, 256]);
+    }
+  });
+
+  it('also have a v2 on a faint aura: a 240x240 PNG each, drawn with some see-through pixels', () => {
+    for (const it of items) {
+      const file = pub(pixel2Url(it.id));
+      expect(existsSync(file), it.id).toBe(true);
+      const png = readFileSync(file);
+      expect([png.readUInt32BE(16), png.readUInt32BE(20)], it.id).toEqual([240, 240]);
+      expect(png[25], `${it.id} is RGBA`).toBe(6); // colour type 6: with alpha, so the aura can be faint
     }
   });
 

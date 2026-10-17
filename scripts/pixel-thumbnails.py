@@ -123,7 +123,7 @@ def bling_mouth(x):
 # / pupil: the eye as it looks there. pr: pupil radius, ir: iris radius, in
 # the units of the old body drawing (the face scales them up).
 FROGS = {
-    'frog_green_v1': dict(mouth=(20.8, 2.3), curl=True, skin='#d8ea6a', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
+    'frog_green_v1': dict(mouth=(20.8, 2.3), curl=True, skin='#a2e25c', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
     'frog_blue_v1': dict(skin='#a8e0ee', belly='#f0f0f0', sclera='#f4f4f4', iris='#000000', pupil='#000000', ir=2.9, pr=2.9),
     'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#4a3a34', iris_edge='#8a6a56', speck='#b09a86', pupil='#0b0807', ir=2.95, pr=0, diamond=4),
     'frog_pink_v1': dict(gloss=True, no_glint=True, skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', py=0, ir=2.65, pr=2.65),
@@ -664,6 +664,105 @@ def artifacts_list():
     return out
 
 
+# ------------------------------------------------------------------ v2: auras ----
+# Thumbnails v2 (Mikael, 2026-10-17): every picture sits on a faint aura in its
+# predominant colour, on a 40x40 canvas (the 32x32 sprite untouched in the
+# middle, AURA_PAD pixels of room all round), written to public/pixel2/.
+
+AURA_PAD = 4
+V2_DIR = os.path.join(os.path.dirname(__file__), '..', 'public', 'pixel2')
+RAINBOW = ['#ff3b30', '#ff9500', '#ffd60a', '#34c759', '#0a84ff', '#bf5af2']  # red lowest, purple highest
+
+# The aura's colour: what the picture mostly is (not always the skin: silver and
+# gold are shown as silver and gold; bling is ice blue; the rainbow is a rainbow).
+AURA = {
+    'frog_green_v1': '#a2e25c', 'frog_blue_v1': '#8fd8ee', 'frog_orange_cursed_v1': '#f8be3c',
+    'frog_pink_v1': '#f4a8c0', 'frog_purple_v1': '#b88cea', 'frog_red_v1': '#ff4a2e',
+    'frog_yellow_v1': '#f4e060', 'frog_gold_v1': '#f2c14e', 'frog_silver_v1': '#c8ccd6',
+    'frog_bling_v1': '#8fdcff', 'frog_rainbow_v2': 'rainbow', 'cherub_v1': '#fff0c0',
+    'frog_robot_v1': '#9aa1ad', 'merchant_v1': '#a8682c', 'lady_merchant_v1': '#a8682c',
+    'stone': '#2fb84a', 'pen': '#dfe3ec', 'paper': '#ecd9a8', 'hades_coin': '#f0b84a',
+    'my_ai_coin': '#c9ced8', 'artifact': '#dcc38c', 'wheel': '#3a3af5', 'special-wheel': '#a040ff',
+}
+
+
+def _shift_pad(mask, dx, dy):
+    """`mask` moved by (dx, dy) on a canvas, nothing wrapping round."""
+    h, w = mask.shape
+    out = np.zeros_like(mask)
+    ys, xs = slice(max(dy, 0), h + min(dy, 0)), slice(max(dx, 0), w + min(dx, 0))
+    yd, xd = slice(max(-dy, 0), h + min(-dy, 0)), slice(max(-dx, 0), w + min(-dx, 0))
+    out[ys, xs] = mask[yd, xd]
+    return out
+
+
+def with_aura(sprite, key):
+    """The 32x32 `sprite` on a faint aura: stepped rings round its outline, the last
+    one a checkerboard, like a soft glow in 8 bits. Returns an RGBA array."""
+    n2 = N + 2 * AURA_PAD
+    arr = np.zeros((n2, n2, 4), dtype=np.uint8)
+    arr[AURA_PAD : AURA_PAD + N, AURA_PAD : AURA_PAD + N] = sprite.px
+    solid = arr[:, :, 3] > 0
+    dist = np.full(solid.shape, np.inf)
+    reach = AURA_PAD + 1
+    for dy in range(-reach, reach + 1):
+        for dx in range(-reach, reach + 1):
+            r = math.hypot(dx, dy)
+            if 0 < r <= reach + 0.5:
+                dist = np.where(_shift_pad(solid, dx, dy), np.minimum(dist, r), dist)
+    yy, xx = np.mgrid[0:n2, 0:n2]
+    alpha = np.zeros(solid.shape)
+    alpha[dist <= 1.5] = 0.46
+    alpha[(dist > 1.5) & (dist <= 2.9)] = 0.30
+    alpha[(dist > 2.9) & (dist <= 4.2)] = 0.17
+    alpha[(dist > 4.2) & (dist <= reach + 0.5) & ((xx + yy) % 2 == 0)] = 0.10   # the soft edge
+    alpha[solid] = 0
+    if AURA[key] == 'rainbow':
+        alpha = np.where(alpha > 0, np.minimum(alpha * 1.7 + 0.08, 0.8), 0)  # a rainbow has to read as one
+        # bands at a slight angle, rising to the right: red at the bottom, purple at the top
+        height = (n2 - 1 - yy) + 0.3 * (xx - n2 / 2)
+        t = (height - height.min()) / (height.max() - height.min())
+        band = np.clip((t * len(RAINBOW)).astype(int), 0, len(RAINBOW) - 1)
+        colour = np.array([rgb(h) for h in RAINBOW])[band]
+    else:
+        colour = np.broadcast_to(np.array(rgb(AURA[key])), (n2, n2, 3))
+    glow = alpha > 0
+    arr[glow, :3] = colour[glow]
+    arr[glow, 3] = (alpha[glow] * 255).astype(np.uint8)
+    if key == 'frog_bling_v1':
+        # small stars and diamonds in the aura
+        rng = np.random.default_rng(5)
+        free = (dist > 1.5) & ~solid
+        placed = 0
+        for _ in range(400):
+            x, y = int(rng.integers(1, n2 - 1)), int(rng.integers(1, n2 - 1))
+            if placed >= 9:
+                break
+            cells = [(y, x), (y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)]
+            if not all(free[cy, cx] for cy, cx in cells):
+                continue
+            # keep the stars apart
+            if any(abs(x - px) + abs(y - py) < 7 for px, py in getattr(with_aura, '_stars', [])):
+                continue
+            with_aura._stars = getattr(with_aura, '_stars', []) + [(x, y)]
+            arr[y, x] = (255, 255, 255, 235)
+            tip = (200, 244, 255, 150)
+            if placed % 2 == 0:       # a four-point star
+                for cy, cx in cells[1:]:
+                    arr[cy, cx] = tip
+            placed += 1
+        with_aura._stars = []
+    return arr
+
+
+def save_v2(arr, name):
+    os.makedirs(V2_DIR, exist_ok=True)
+    scale = 6
+    im = Image.fromarray(arr).resize((arr.shape[1] * scale, arr.shape[0] * scale), Image.NEAREST)
+    im.save(os.path.join(V2_DIR, f'{name}.png'))
+    return im
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--sheet', help='also write a preview sheet to this path')
@@ -672,6 +771,10 @@ def main():
     for name, canvas in artifacts_list().items():
         imgs[name] = canvas.save(f'{name}.png')
     print(f'wrote {len(imgs)} thumbnails to {os.path.relpath(OUT)}')
+    with_auras = artifacts_list()
+    for name, canvas in with_auras.items():
+        save_v2(with_aura(canvas, name), name)
+    print(f'wrote {len(with_auras)} thumbnails with auras to {os.path.relpath(V2_DIR)}')
     if a.sheet:
         cols = 5
         rows = math.ceil(len(imgs) / cols)
