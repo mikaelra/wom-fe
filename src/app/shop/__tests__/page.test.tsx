@@ -212,6 +212,26 @@ describe('ShopPage', () => {
     expect(input).toHaveValue('1'); // non-digits strip to nothing -> falls back to 1
   });
 
+  it('shows the chance of getting bling under the quantity once more than 50 wheels are picked', async () => {
+    loginAs();
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
+    });
+    render(<ShopPage />);
+    await flush();
+
+    const input = screen.getByLabelText('Quantity');
+
+    fireEvent.change(input, { target: { value: '50' } });
+    expect(screen.queryByText(/chance of getting bling/)).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: '51' } });
+    expect(screen.getByText('you have now a 78,85% chance of getting bling')).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: '300' } });
+    expect(screen.getByText('you have now a 99,99% chance of getting bling')).toBeInTheDocument();
+  });
+
   it('does not show a quantity counter for a direct skin purchase', async () => {
     loginAs();
     mockedGetShopProducts.mockResolvedValue({
