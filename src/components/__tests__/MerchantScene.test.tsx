@@ -29,17 +29,17 @@ describe('MerchantScene in Low Definition', () => {
 
     const stage = screen.getByTestId('pixel-stage');
     const pictures = Array.from(stage.querySelectorAll('img')).map((i) => i.getAttribute('src'));
-    expect(pictures).toEqual(['/pixel2/merchant_v1.png', '/pixel2/stone.png']);
+    expect(pictures).toEqual(['/pixel/merchant_v1.png', '/pixel/stone.png']) // plain: no aura in the merchant window;
     expect(screen.queryByTestId('merchant-model')).not.toBeInTheDocument();
   });
 
   it('draws the Lady merchant at a conjunction and the Paper at a full moon', () => {
     const lady = { ...stoneOffer(), trigger_kind: 'conjunction' } as MerchantOffer;
     const { unmount } = render(<MerchantScene offer={lady} token="t" onClose={vi.fn()} onPurchased={vi.fn()} textOnly />);
-    expect(screen.getByAltText(lady.merchant_name)).toHaveAttribute('src', '/pixel2/lady_merchant_v1.png');
+    expect(screen.getByAltText(lady.merchant_name)).toHaveAttribute('src', '/pixel/lady_merchant_v1.png');
     unmount();
     render(<MerchantScene offer={paperOffer()} token="t" onClose={vi.fn()} onPurchased={vi.fn()} textOnly />);
-    expect(screen.getByAltText('Paper')).toHaveAttribute('src', '/pixel2/paper.png');
+    expect(screen.getByAltText('Paper')).toHaveAttribute('src', '/pixel/paper.png');
   });
 
   it('keeps the 3D stage for SD and HD', async () => {
