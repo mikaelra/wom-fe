@@ -24,6 +24,16 @@ function formatOddsPercent(probability: number): string {
   return `${Number((probability * 100).toFixed(2))}%`;
 }
 
+// Each special wheel spin has a 3% chance of bling, so X wheels give
+// 1 - 0.97^X of at least one. Written with a decimal comma as Mikael asked
+// (300 wheels -> "99,99%").
+const BLING_CHANCE_MIN_WHEELS = 50;
+
+function blingChanceText(wheels: number): string {
+  const percent = ((1 - Math.pow(0.97, wheels)) * 100).toFixed(2).replace('.', ',');
+  return `you have now a ${percent}% chance of getting bling`;
+}
+
 function formatPrice(cents: number, currency: string): string {
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.toUpperCase() }).format(
@@ -555,6 +565,14 @@ export default function ShopPage() {
                       </button>
                     </div>
                   )}
+
+                  {product.kind === 'wheel' &&
+                    loggedIn &&
+                    !duplicateConfirm.has(product.id) &&
+                    hasPicker(product) &&
+                    (quantities[product.id] ?? 1) > BLING_CHANCE_MIN_WHEELS && (
+                      <p className="text-xs text-amber-300 mt-2">{blingChanceText(quantities[product.id] ?? 1)}</p>
+                    )}
                 </div>
               ))}
             </div>
