@@ -133,6 +133,7 @@ FROGS = {
     'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#a81426', iris='#a81426', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
     'frog_silver_v1': dict(skin='#62646e', belly='#52545e', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#dce0ea'),
     'frog_bling_v1': dict(mouth=bling_mouth, skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#2a1860', bar='#000000', py=0, ir=3.0, pr=1.75, sparkle=True),
+    'frog_robot_v1': dict(mouth=(20.6, 2.6), rivets=[(5, 17), (25, 17)], seam=True, skin='#80838a', belly='#8d9098', sclera='#55575d', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95, hi='#cfd2da'),
     'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True, adaptive_rim=True),
 }
 
@@ -231,6 +232,15 @@ def draw_frog(c, p, dark_outline='#15121e'):
     if p.get('curl'):  # the corners of a real smile curl up
         c.dot(3, mouth_y(4, mouth) - 1, line_col)
         c.dot(28, mouth_y(28, mouth) - 1, line_col)
+    for rx, ry in p.get('rivets', []):  # rivets at the corners of the mouth: a dark 2x2 with a glint
+        for dx, dy in ((0, 0), (1, 0), (0, 1), (1, 1)):
+            c.dot(rx + dx, ry + dy, darken(skin, 0.5))
+        c.dot(rx, ry, lighten(skin, 0.45))
+    if p.get('seam'):  # a panel seam arching over the mouth between the rivets
+        for x in range(6, 26):
+            y = int(round(17.2 - 3.6 * (1 - ((x - 15.5) / 10.0) ** 2)))
+            if s['skin'][y, x] and not c.px[y, x, :3].tolist() == list(rgb(p['sclera'])):
+                c.dot(x, y, darken(skin, 0.38))
     # nostrils
     for x in (13, 18):
         c.dot(x, 15, lo)

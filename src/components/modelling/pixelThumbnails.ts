@@ -27,6 +27,7 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
       skin('frog_rainbow_v2', 'Rainbow'),
       skin('frog_bling_v1', 'Bling'),
       skin('cherub_v1', 'Cherub'),
+      { id: 'frog_robot_v1', label: 'Robot frog (My AI)', was: '/models/frog_robot_v1.thumbnail.png' },
     ],
   },
   {
