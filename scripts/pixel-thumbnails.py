@@ -421,9 +421,100 @@ def wheel(ring, wedge, gap):
     return c
 
 
+ROBE, ROBE_LIT, ROBE_DARK = '#7b4a22', '#9c6632', '#4f2d10'
+SKIN_TONE, CHEEK, NOSE = '#f1c6a2', '#f3a493', '#ee9a86'
+HAIR, HAIR_LO, HAIR_HI = '#dcd8d4', '#aaa6a8', '#f6f4f2'
+INK = '#2a180e'
+FACE = (16, 14.6, 8.4, 8.2)  # centre x, y and radii of the face
+
+
+def merchant_base(c):
+    """What the two merchants share: the brown hooded robe sloping off the
+    shoulders, the head with its ears, the rosy nose and cheeks, and closed
+    smiling eyes."""
+    hood = ell(16, 31.5, 13.2, 8.0) | ell(16, 26.4, 9.6, 3.6)
+    c.fill(hood, rgb(ROBE))
+    c.fill(hood & (CX < 11) & (CY > 26), rgb(ROBE_LIT))
+    c.fill(hood & (CX > 21) & (CY > 26), rgb(ROBE_DARK))
+    c.fill(ell(16, 25.8, 9.0, 2.2) & (CY >= 24), rgb(ROBE_DARK))  # the hood's shadow behind the neck
+    c.fill(ell(7.4, 15.2, 1.5, 2.0) | ell(24.6, 15.2, 1.5, 2.0), rgb(NOSE))  # ears
+    face = ell(*FACE) & (CY >= 8.5)
+    c.fill(face, rgb(SKIN_TONE))
+    return face
+
+
+def merchant_eyes(c, y=13):
+    for x0 in (10, 18):  # closed, smiling eyes
+        for dx, dy in [(0, 1), (1, 0), (2, 0), (3, 0), (4, 1)]:
+            c.dot(x0 + dx, y + dy, rgb(INK))
+
+
+def merchant_face(c):
+    c.fill(ell(10.4, 17.4, 2.0, 1.5) | ell(21.6, 17.4, 2.0, 1.5), rgb(CHEEK))
+    c.fill(ell(16, 16.8, 2.2, 2.0), rgb(NOSE))
+    c.dot(15, 15, rgb('#f8bfae'))
+    merchant_eyes(c)
+
+
+def merchant_man():
+    c = Canvas()
+    face = merchant_base(c)
+    hair = ell(16, 7.6, 11.4, 6.8) & ~(face & (CY >= 9.5))
+    hair |= ell(6.2, 13.2, 2.4, 4.4) | ell(25.8, 13.2, 2.4, 4.4)  # the tufts over the ears
+    hair |= ell(8.0, 6.6, 4.0, 3.4)  # swept up and to the side, as the model's is
+    c.fill(hair, rgb(HAIR))
+    c.fill(hair & (CX + CY < 22), rgb(HAIR_HI))
+    c.fill(hair & (CX - CY > 15), rgb(HAIR_LO))
+    for x, y in [(12, 3), (15, 4), (19, 4), (9, 8), (23, 6), (14, 7)]:  # strands
+        c.dot(x, y, rgb(HAIR_LO))
+    merchant_face(c)
+    for x0 in (9, 18):  # bushy eyebrows
+        c.fill((YY == 11) & (XX >= x0) & (XX <= x0 + 5), rgb(HAIR))
+        c.fill((YY == 10) & (XX >= x0 + 1) & (XX <= x0 + 4), rgb(HAIR_HI))
+    beard = ell(16, 22.2, 8.8, 5.6) & (CY >= 18.6)
+    c.fill(beard, rgb(HAIR))
+    c.fill(beard & (CY >= 25), rgb(HAIR_LO))
+    c.fill(beard & (CX + CY < 33) & (CY < 25), rgb(HAIR_HI))
+    c.fill(ell(16, 19.4, 5.6, 1.6), rgb(HAIR_HI))  # the moustache
+    c.fill((YY == 20) & (XX >= 15) & (XX <= 16), rgb('#c8786a'))  # a hint of smile
+    c.outline(rgb(INK))
+    return c
+
+
+def merchant_lady():
+    c = Canvas()
+    face = merchant_base(c)
+    hair = ell(16, 9.6, 11.2, 5.6) & ~(face & (CY >= 9.5))  # lower than the man's, so the bun stands clear
+    hair |= ell(6.4, 14.0, 2.2, 4.6) | ell(25.6, 14.0, 2.2, 4.6)
+    bun = ell(10.6, 3.2, 4.2, 3.2)
+    c.fill(hair | bun, rgb(HAIR))
+    c.fill((hair | bun) & (CX + CY < 21), rgb(HAIR_HI))
+    c.fill(hair & (CX - CY > 15), rgb(HAIR_LO))
+    c.fill(bun & (CY > 4.4), rgb(HAIR_LO))
+    c.dot(9, 2, rgb(HAIR_HI))
+    for x, y in [(15, 4), (18, 5), (21, 6), (9, 9), (23, 9), (13, 7)]:
+        c.dot(x, y, rgb(HAIR_LO))
+    merchant_face(c)
+    gold = rgb('#d8a630')
+    for cx in (12.5, 19.5):  # round gold glasses, a pixel thick
+        c.fill(ell(cx, 14.0, 3.5, 3.4) & ~ell(cx, 14.0, 2.5, 2.4), gold)
+    c.fill((YY == 13) & (XX >= 15) & (XX <= 16), gold)  # the bridge
+    merchant_eyes(c, y=13)  # the eyes again, inside the glasses
+    for x in (7, 25):  # the glasses' cords, hanging by the ears
+        for y in range(15, 21):
+            c.dot(x, y, rgb('#f2f0f0'))
+    c.fill((YY == 20) & (XX >= 14) & (XX <= 18), rgb('#cf6f60'))  # her smile
+    c.dot(13, 19, rgb('#cf6f60'))
+    c.dot(19, 19, rgb('#cf6f60'))
+    c.outline(rgb(INK))
+    return c
+
+
 def artifacts_list():
     out = {n: frog(n) for n in FROGS}
     out['cherub_v1'] = cherub()
+    out['merchant_v1'] = merchant_man()
+    out['lady_merchant_v1'] = merchant_lady()
     out['artifact'] = artifact()
     out['pen'] = pen()
     out['paper'] = paper()

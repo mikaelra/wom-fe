@@ -30,6 +30,13 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
     ],
   },
   {
+    title: 'The merchants (portraits)',
+    items: [
+      { id: 'merchant_v1', label: 'Merchant' },
+      { id: 'lady_merchant_v1', label: 'Lady merchant' },
+    ],
+  },
+  {
     title: 'Relics (inventory and the merchants)',
     items: [
       { id: 'pen', label: 'Pen', was: '/models/relics/pen_v1.thumbnail.png' },
