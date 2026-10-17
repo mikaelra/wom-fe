@@ -1,13 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import SpinningModelViewer from '@/components/SpinningModelViewer';
+import dynamic from 'next/dynamic';
+// Loaded only to be drawn: in text mode (textOnly) it never is, and three.js
+// with it stays unloaded.
+const SpinningModelViewer = dynamic(() => import('@/components/SpinningModelViewer'), { ssr: false });
 import { skinUrl } from '@/lib/frogSkins';
-import { relicModelUrl } from '@/components/RelicCoin';
+import { relicModelUrl } from '@/lib/relics';
 import { purchaseMerchantOffer, type MerchantOffer } from '@/lib/api';
 import { ApiError } from '@/lib/http';
 import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
 import { MERCHANT_ITEM_LINES, merchantModelFor, merchantQuote } from '@/lib/merchant';
+import { rem } from '@/lib/uiScale';
 
 // The merchant's box at its original 160px, scaled 2.3x then another 1.5x
 // per Mikael's asks -- kept as a constant since the clip wrapper's height
@@ -41,6 +45,9 @@ type Props = {
   /** Called after a successful trade so the caller can refresh the offer
    * (already_bought_this_period flips, the globe marker disappears). */
   onPurchased: () => void;
+  /** Text mode (lib/textMode.ts): the offer without the merchant's and the
+   *  relic's 3D models. */
+  textOnly?: boolean;
 };
 
 /**
@@ -54,7 +61,7 @@ type Props = {
  * backdrop/crate for real geometry or a rendered background later without
  * touching the offer logic below.
  */
-export default function MerchantScene({ offer, token, onClose, onPurchased }: Props) {
+export default function MerchantScene({ offer, token, onClose, onPurchased, textOnly = false }: Props) {
   const [buying, setBuying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bought, setBought] = useState(false);
@@ -103,7 +110,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
       >
         <div className="px-5 pt-5 text-center">
           <p className="text-amber-200/80 text-xs font-bold tracking-widest uppercase">{offer.merchant_name}</p>
-          <p className="text-amber-100/60 text-[11px] mt-0.5">
+          <p className="text-amber-100/60 text-[0.6875rem] mt-0.5">
             {`“${quote}”`}
           </p>
         </div>
@@ -120,10 +127,11 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
             Merchant paints first (furthest back), the table next (so it
             covers his middle like a real counter), the Stone last (so it
             reads as sitting on the table, not embedded in it). */}
-        <div className="relative mt-2" style={{ height: STAGE_H }}>
+        {!textOnly && (
+        <div className="relative mt-2" style={{ height: rem(STAGE_H) }}>
           <div
             className="absolute right-2 top-0 overflow-hidden"
-            style={{ width: MERCHANT_BOX_PX, maxWidth: '70%', height: STAGE_H }}
+            style={{ width: rem(MERCHANT_BOX_PX), maxWidth: '70%', height: rem(STAGE_H) }}
           >
             <div style={{ width: '100%', aspectRatio: '1 / 1' }}>
               <SpinningModelViewer
@@ -141,20 +149,20 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
           <div
             className="absolute rounded-md border border-amber-950/60 shadow-inner"
             style={{
-              left: 24,
-              right: 24,
-              top: TABLE_TOP_Y,
-              height: TABLE_THICKNESS,
+              left: rem(24),
+              right: rem(24),
+              top: rem(TABLE_TOP_Y),
+              height: rem(TABLE_THICKNESS),
               background: 'linear-gradient(180deg, #8a5a34 0%, #6b4224 60%, #52341c 100%)',
             }}
           />
           <div
             className="absolute rounded-sm"
-            style={{ left: 34, top: TABLE_TOP_Y + TABLE_THICKNESS, width: 10, height: TABLE_LEG_HEIGHT, background: '#4a2e18' }}
+            style={{ left: rem(34), top: rem(TABLE_TOP_Y + TABLE_THICKNESS), width: rem(10), height: rem(TABLE_LEG_HEIGHT), background: '#4a2e18' }}
           />
           <div
             className="absolute rounded-sm"
-            style={{ right: 34, top: TABLE_TOP_Y + TABLE_THICKNESS, width: 10, height: TABLE_LEG_HEIGHT, background: '#4a2e18' }}
+            style={{ right: rem(34), top: rem(TABLE_TOP_Y + TABLE_THICKNESS), width: rem(10), height: rem(TABLE_LEG_HEIGHT), background: '#4a2e18' }}
           />
 
           <div
@@ -162,10 +170,10 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
             style={{
               // Centred where the Stone's 40px box always stood, and still
               // resting on the tabletop, whatever its size.
-              left: RELIC_CENTER_X - relicBox / 2,
-              bottom: STONE_BOTTOM,
-              width: relicBox,
-              height: relicBox,
+              left: rem(RELIC_CENTER_X - relicBox / 2),
+              bottom: rem(STONE_BOTTOM),
+              width: rem(relicBox),
+              height: rem(relicBox),
             }}
           >
             <SpinningModelViewer
@@ -176,6 +184,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
             />
           </div>
         </div>
+        )}
 
         {/* A slight hover on the Stone, off (usePrefersReducedMotion) for
             anyone who has that preference set -- same convention as
@@ -209,7 +218,7 @@ export default function MerchantScene({ offer, token, onClose, onPurchased }: Pr
               {/* The merchant on what he sells -- in the same type as his
                   quote at the top. */}
               {MERCHANT_ITEM_LINES[offer.item_name] && (
-                <p className="text-amber-100/60 text-[11px] mb-1">{MERCHANT_ITEM_LINES[offer.item_name]}</p>
+                <p className="text-amber-100/60 text-[0.6875rem] mb-1">{MERCHANT_ITEM_LINES[offer.item_name]}</p>
               )}
               <p className="text-white/60 text-sm mb-4">
                 {offer.cost_hades_coins} Hades&rsquo; Coin{offer.cost_hades_coins === 1 ? '' : 's'}
