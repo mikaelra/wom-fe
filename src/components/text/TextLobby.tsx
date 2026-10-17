@@ -978,7 +978,10 @@ export default function TextLobby({
   );
   // A soft green box for the winner, a soft red one for anyone else who played
   // (Mikael, 2026-10-17); the words are the same.
-  const lost = !!myPlayer && !myPlayer.spectator && state?.winner !== playerName;
+  // A bossfight the players won is every player's win: wom-be calls the winner
+  // "Players" (engine/boss_ai.py), so it is green for all of them (Mikael, 2026-10-17).
+  const playersWon = !!state?.boss_fight && state.winner === 'Players';
+  const lost = !!myPlayer && !myPlayer.spectator && !playersWon && state?.winner !== playerName;
   const gameOverCard = (
     <>
       {gameOver && (
