@@ -17,7 +17,7 @@ describe('BlimkinCloud', () => {
     const { container } = render(<BlimkinCloud appearance="a">Your match is ready.</BlimkinCloud>);
     await screen.findByText('Your match is ready.');
     const img = container.querySelector('img')!;
-    expect(img.getAttribute('src')).toBe('/pixel/blimkin.png');
+    expect(img.getAttribute('src')).toBe('/pixel/blimkin_v1.png');
     expect(img.style.imageRendering).toBe('pixelated');
     expect(screen.queryByTestId('model')).toBeNull();
   });
