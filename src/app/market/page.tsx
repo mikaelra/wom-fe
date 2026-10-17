@@ -13,7 +13,6 @@ import {
 } from '@/lib/api';
 import { getStoredAccountToken } from '@/lib/http';
 import { CITY_PATH } from '@/lib/cities';
-import MarketHudControls from '@/components/market/MarketHudControls';
 import { skinLabel, sortSkins } from '@/lib/frogSkins';
 import { wheelKindLabel } from '@/lib/wheelGeometry';
 import { useToast } from '@/components/Toast';
@@ -294,7 +293,6 @@ export default function MarketPage() {
           </Link>
         </span>
         <div className="flex items-center gap-3 flex-wrap justify-end">
-          <MarketHudControls />
           {token && (
             <button
               type="button"
