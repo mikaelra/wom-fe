@@ -39,7 +39,7 @@ type VerifyState = 'idle' | 'sending' | 'awaiting' | 'error';
 // Wheels are a stackable inventory item; the FE cap mirrors routes/shop.py's
 // _MAX_WHEEL_QUANTITY. AI-credit packs carry their own `max_quantity` from
 // the API (docs/MY_AI.md §5). A direct skin purchase has no quantity concept.
-const MAX_WHEEL_QUANTITY = 100;
+const MAX_WHEEL_QUANTITY = 300;
 
 function maxQuantityFor(product: ShopProduct): number {
   if (product.kind === 'wheel') return MAX_WHEEL_QUANTITY;
