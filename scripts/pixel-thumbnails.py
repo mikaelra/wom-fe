@@ -123,7 +123,7 @@ def bling_mouth(x):
 # / pupil: the eye as it looks there. pr: pupil radius, ir: iris radius, in
 # the units of the old body drawing (the face scales them up).
 FROGS = {
-    'frog_green_v1': dict(mouth=(20.8, 2.3), curl=True, skin='#a2e25c', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
+    'frog_green_v1': dict(mouth=(20.8, 2.3), curl=True, skin='#86f23e', belly='#f1ece2', sclera='#f4f4ea', iris='#9a1233', pupil='#150003', ir=2.7, pr=1.5),
     'frog_blue_v1': dict(skin='#a8e0ee', belly='#f0f0f0', sclera='#f4f4f4', iris='#000000', pupil='#000000', ir=2.9, pr=2.9),
     'frog_orange_cursed_v1': dict(skin='#f8be3c', belly='#f6d878', sclera='#c98a2c', iris='#4a3a34', iris_edge='#8a6a56', speck='#b09a86', pupil='#0b0807', ir=2.95, pr=0, diamond=4),
     'frog_pink_v1': dict(gloss=True, no_glint=True, skin='#f4bfd0', belly='#fbe0e8', sclera='#ffffff', iris='#111111', pupil='#000000', py=0, ir=2.65, pr=2.65),
@@ -676,7 +676,7 @@ RAINBOW = ['#ff3b30', '#ff9500', '#ffd60a', '#34c759', '#0a84ff', '#bf5af2']  # 
 # The aura's colour: what the picture mostly is (not always the skin: silver and
 # gold are shown as silver and gold; bling is ice blue; the rainbow is a rainbow).
 AURA = {
-    'frog_green_v1': '#a2e25c', 'frog_blue_v1': '#8fd8ee', 'frog_orange_cursed_v1': '#f8be3c',
+    'frog_green_v1': '#86f23e', 'frog_blue_v1': '#8fd8ee', 'frog_orange_cursed_v1': '#f8be3c',
     'frog_pink_v1': '#f4a8c0', 'frog_purple_v1': '#b88cea', 'frog_red_v1': '#ff4a2e',
     'frog_yellow_v1': '#f4e060', 'frog_gold_v1': '#f2c14e', 'frog_silver_v1': '#c8ccd6',
     'frog_bling_v1': '#8fdcff', 'frog_rainbow_v2': 'rainbow', 'cherub_v1': '#fff0c0',
