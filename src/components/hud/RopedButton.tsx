@@ -2,6 +2,7 @@
 
 import { useState, ReactNode } from 'react';
 import RopedFrame from '@/components/hud/RopedFrame';
+import { rem } from '@/lib/uiScale';
 
 type RopedButtonProps = {
   onClick?: () => void;
@@ -70,7 +71,7 @@ export default function RopedButton({
       aria-label={ariaLabel}
       title={title}
       className={`relative inline-block bg-transparent border-0 p-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 select-none ${className}`}
-      style={{ width, height }}
+      style={{ width: rem(width), height: rem(height) }}
     >
       <RopedFrame
         width={width}

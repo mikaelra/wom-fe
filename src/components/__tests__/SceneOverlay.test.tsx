@@ -86,8 +86,8 @@ const baseLobbyGameResult: UseLobbyGameResult = {
 
 const baseConfig: SceneOverlayConfig = {
   theme: {
-    accentColorClass: '', panelBorderClass: '', msgBorderClass: '', msgTextClass: '',
-    showMoreClass: '', backLinkClass: '', enemyBorderClass: '', enemyNameClass: '',
+    accentColorClass: '', panelBorderClass: '',
+    backLinkClass: '', enemyBorderClass: '', enemyNameClass: '',
     enemyHpBarClass: '', enemyHpTextClass: '', loadingTextClass: '', loadingBgClass: '',
   },
   backLabel: '← Back',
@@ -271,7 +271,7 @@ describe('game over', () => {
     }));
   });
 
-  it('holds off Game Over (and this round\'s messages) until the eliminating kill animation has played', () => {
+  it('holds off Game Over until the eliminating kill animation has played', () => {
     vi.useFakeTimers();
     localStorage.setItem('playerName', 'Alice');
     const bob: Player = { ...basePlayer, name: 'Bob', hp: 0 };
@@ -298,7 +298,8 @@ describe('game over', () => {
     act(() => { vi.advanceTimersByTime(1630); });
 
     expect(screen.getByTestId('game-over')).toBeInTheDocument();
-    expect(screen.getByText('Alice eliminated Bob!')).toBeInTheDocument();
+    // The round's messages no longer pop up, not even at Game Over.
+    expect(screen.queryByText('Alice eliminated Bob!')).not.toBeInTheDocument();
 
     vi.useRealTimers();
   });
@@ -541,58 +542,18 @@ describe('chat panel', () => {
   });
 });
 
-describe('messages panel overflow', () => {
-  class FakeResizeObserver {
-    private cb: ResizeObserverCallback;
-    constructor(cb: ResizeObserverCallback) { this.cb = cb; }
-    observe() { this.cb([], this as unknown as ResizeObserver); }
-    unobserve() {}
-    disconnect() {}
-  }
-
-  beforeEach(() => {
-    // jsdom has no ResizeObserver at all; a minimal stub scoped to this
-    // suite only, since nothing else needs it.
-    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+describe('round messages', () => {
+  it('no longer pop up over the battle (Mikael, 2026-10-13)', () => {
     mockedUseGameEvents.mockReturnValue({
       round: 1,
-      messages: [['A long message that would overflow the collapsed panel.']],
+      messages: [['You attacked Hades.']],
       events: [],
       instakill: false,
     });
-  });
-
-  it('shows "Show more" only when the message list overflows the collapsed height', () => {
-    Object.defineProperty(HTMLUListElement.prototype, 'scrollHeight', { configurable: true, value: 500 });
     render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
-    expect(screen.getByText('▼ Show more')).toBeInTheDocument();
-  });
-
-  it('does not show "Show more" when the content fits the collapsed height', () => {
-    Object.defineProperty(HTMLUListElement.prototype, 'scrollHeight', { configurable: true, value: 10 });
-    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
+    expect(screen.queryByText(/You attacked Hades/)).not.toBeInTheDocument();
     expect(screen.queryByText('▼ Show more')).not.toBeInTheDocument();
-  });
-
-  it('expands past the collapsed clamp and toggles to "Show less"', () => {
-    Object.defineProperty(HTMLUListElement.prototype, 'scrollHeight', { configurable: true, value: 500 });
-    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
-    const wrapper = screen.getByText(/A long message/).closest('ul')?.parentElement;
-    expect(wrapper?.className).toContain('max-h-[4.5rem]');
-
-    fireEvent.click(screen.getByText('▼ Show more'));
-    expect(screen.getByText('▲ Show less')).toBeInTheDocument();
-    expect(wrapper?.className).not.toContain('max-h-[4.5rem]');
-  });
-
-  it('hides the message body entirely via the Hide/Show toggle', () => {
-    Object.defineProperty(HTMLUListElement.prototype, 'scrollHeight', { configurable: true, value: 10 });
-    render(<SceneOverlay lobbyId="AAAA" config={baseConfig} />);
-    expect(screen.getByText(/A long message/)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('Hide'));
-    expect(screen.queryByText(/A long message/)).not.toBeInTheDocument();
-    expect(screen.getByText('Show')).toBeInTheDocument();
+    expect(screen.queryByText('Hide')).not.toBeInTheDocument();
   });
 });
 

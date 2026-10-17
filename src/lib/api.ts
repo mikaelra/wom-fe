@@ -66,6 +66,10 @@ import {
   RankedQueueJoinResponseSchema,
   RankedQueueLeaveResponseSchema,
   SeasonHistoryResponseSchema,
+  RankedGamesResponseSchema,
+  RankedRanksResponseSchema,
+  type RankedGames,
+  type RankedRanks,
   SeasonInfoResponseSchema,
   WellProfileResponseSchema,
   ShopProductsResponseSchema,
@@ -88,6 +92,7 @@ import {
 } from '@/lib/schemas';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import type { MarketCatalog, MarketItemInput, MarketListing, MarketTrade } from '@/lib/market';
+import { GAMES_PER_PAGE } from '@/lib/paging';
 
 export type ShopProduct = {
   id: string;
@@ -277,6 +282,22 @@ export async function getSeasonHistory(
   });
 }
 
+/** This season's ranked games, a page at a time, newest first. */
+export async function getRankedGames(playerName: string, page = 1, perPage = GAMES_PER_PAGE): Promise<RankedGames> {
+  return request(
+    `/ranked/games/${encodeURIComponent(playerName)}?page=${page}&per_page=${perPage}`,
+    RankedGamesResponseSchema,
+    { defaultErrorMessage: 'Failed to load games.' },
+  );
+}
+
+/** Every rank the player has ever been shown in ranked, all seasons. */
+export async function getRankedRanks(playerName: string): Promise<RankedRanks> {
+  return request(`/ranked/ranks/${encodeURIComponent(playerName)}`, RankedRanksResponseSchema, {
+    defaultErrorMessage: 'Failed to load ranks.',
+  });
+}
+
 export async function getActiveRankedLobby(
   playerName: string
 ): Promise<{ lobby_id: string | null; token: string | null; ranked_countdown_deadline: string | null; started: boolean }> {
@@ -305,7 +326,7 @@ export async function getWellProfile(playerName: string): Promise<{
 
 export async function getPlayerProfile(
   playerName: string,
-): Promise<{ created_at: string | null; played_games: number; wins: number; kills: number }> {
+): Promise<{ created_at: string | null; played_games: number; wins: number; kills: number; bosses_defeated?: number }> {
   return request(`/player/profile/${encodeURIComponent(playerName)}`, PlayerProfileResponseSchema, {
     defaultErrorMessage: 'Failed to fetch player profile.',
   });
@@ -827,16 +848,19 @@ export async function postAppleVerify(
   });
 }
 
-/** Start a Steam Wallet purchase in the Steam build (src/lib/steamShop.ts). */
+/** Start a Steam Wallet purchase in the Steam build (src/lib/steamShop.ts).
+ *  `web` makes it a web purchase, approved on the page in steam_url (Linux,
+ *  which has no Steam overlay). */
 export async function postSteamInit(
   token: string,
   product: string,
   quantity: number,
   confirmDuplicate: boolean,
-  language: string
+  language: string,
+  web = false
 ): Promise<z.infer<typeof SteamInitResponseSchema>> {
   return request('/shop/steam/init', SteamInitResponseSchema, {
-    body: { token, product, quantity, confirm_duplicate: confirmDuplicate, language },
+    body: { token, product, quantity, confirm_duplicate: confirmDuplicate, language, ...(web ? { web: true } : {}) },
     defaultErrorMessage: 'Failed to start the purchase.',
   });
 }
@@ -850,6 +874,19 @@ export async function postSteamFinalize(
   return request('/shop/steam/finalize', SteamFinalizeResponseSchema, {
     body: { token, order_id: orderId, authorized },
     defaultErrorMessage: 'Failed to complete the purchase.',
+  });
+}
+
+/** Ask whether a Steam web purchase has been approved yet: "fulfilled",
+ *  "pending", or anything else when it won't go through. */
+export async function postSteamCheck(
+  token: string,
+  orderId: number
+): Promise<z.infer<typeof SteamFinalizeResponseSchema>> {
+  return request('/shop/steam/finalize', SteamFinalizeResponseSchema, {
+    body: { token, order_id: orderId, check: true },
+    defaultErrorMessage: 'Failed to check the purchase.',
+    quiet: true, // polled
   });
 }
 
@@ -1079,9 +1116,9 @@ export async function saveMyAiSettings(
   });
 }
 
-export async function getMyAiMatches(token: string): Promise<MyAiMatches> {
+export async function getMyAiMatches(token: string, page = 1, perPage = GAMES_PER_PAGE): Promise<MyAiMatches> {
   return request('/my_ai/matches', MyAiMatchesSchema, {
-    body: { token },
+    body: { token, page, per_page: perPage },
     defaultErrorMessage: 'Failed to load match history.',
   });
 }
