@@ -20,9 +20,13 @@ import RopedFrame from '@/components/hud/RopedFrame';
 import MusicToggleButton from '@/components/audio/MusicToggleButton';
 import SfxToggleButton from '@/components/audio/SfxToggleButton';
 import { useLobbyGame } from '@/lib/useLobbyGame';
+import { BOT_TYPES } from '@/lib/botTypes';
 import { playMusic, PRE_LOBBY_MUSIC, BATTLE_MUSIC } from '@/lib/music';
 import type { LobbyState } from '@/types/game';
-import { CITY_PATH } from '@/lib/cities';
+import { CITY_PATH, RANKED_CITY_PATH } from '@/lib/cities';
+import WheelIcon from '@/components/WheelIcon';
+import RankOutcome from '@/components/hud/RankOutcome';
+import { rem } from '@/lib/uiScale';
 
 type LobbyOverlayProps = {
   lobbyId: string;
@@ -140,8 +144,8 @@ export function InviteSection({ lobbyId }: { lobbyId: string }) {
                 ✕
               </button>
               <h3 className="text-xl font-bold mb-5 text-gray-800">Scan to Join</h3>
-              <QRCodeSVG value={lobbyUrl} size={200} />
-              <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[200px]">{lobbyUrl}</p>
+              <QRCodeSVG value={lobbyUrl} size={200} style={{ width: rem(200), height: rem(200) }} />
+              <p className="mt-4 text-xs text-gray-400 text-center break-all max-w-[12.5rem]">{lobbyUrl}</p>
             </div>
           </div>
         </div>,
@@ -184,7 +188,7 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
       </p>
       {myPlayer?.wheel_awarded && (
         <p className="text-amber-300 font-semibold mb-2">
-          🎡 You won a Wheel!{' '}
+          <WheelIcon /> You won a Wheel!{' '}
           <Link href="/inventory" className="underline hover:text-amber-200">
             Spin it in your inventory
           </Link>
@@ -211,25 +215,19 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
           <RankBadge tier="Principality" playerName={playerName} size="lg" />
           <span className="text-green-400 font-semibold">Ranked up!</span>
         </div>
-      ) : rankedResult?.tier_after && (
-        <p className="mb-2 flex items-center justify-center gap-2 flex-wrap">
-          <RankBadge tier={rankedResult.tier_after} playerName={playerName} />
-          {/* tier_before is only ever null here on the game-10 debut reveal
-              (docs/RANK_SYSTEM_PLAN.md §5) -- promoted stays null too since
-              the backend has nothing to compare against, so this and the
-              up/down text below are mutually exclusive. */}
-          {rankedResult.tier_before === null && (
-            <span className="text-cyan-400 font-semibold">Placement complete!</span>
-          )}
-          {rankedResult.promoted === true && <span className="text-green-400 font-semibold">Ranked up!</span>}
-          {rankedResult.promoted === false && <span className="text-red-400 font-semibold">Ranked down.</span>}
-        </p>
+      ) : (
+        <RankOutcome result={rankedResult} playerName={playerName} />
       )}
       <div className="flex flex-col gap-2 items-center">
         <Link href="/" className="text-blue-400 no-underline text-2xl" aria-label="Back to Home">
           🌍
         </Link>
-        <Link href={CITY_PATH} className="text-blue-400 no-underline text-2xl" aria-label="Go to the city">
+        {/* After a ranked game, to the ranked signpost to queue again. */}
+        <Link
+          href={state.ranked || state.ai_ranked ? RANKED_CITY_PATH : CITY_PATH}
+          className="text-blue-400 no-underline text-2xl"
+          aria-label="Go to the city"
+        >
           🏛️
         </Link>
       </div>
@@ -237,23 +235,9 @@ export function renderGameOver({ state, playerName }: GameOverRenderOpts) {
   );
 }
 
-// Kept in sync by hand with wom-be's config.BOT_TYPES/BOT_DISPLAY_NAMES --
-// this is the menu of choices offered *before* a bot exists, so unlike an
-// existing player's bot_type (now on the wire, see PlayerAvatars.tsx's
-// BOT_MODEL_URLS), there's no live state to derive it from at runtime.
-//
-// The empty-string entry isn't a real bot_type -- sockets/lobby.py's
-// handle_add_dummy falls back to its own random pick for anything that
-// doesn't name one of BOT_TYPES, which this deliberately relies on rather
-// than duplicating the random choice here.
-const RANDOM_BOT_TYPE = '';
-const BOT_TYPES: { type: string; label: string }[] = [
-  { type: 'TURTLE', label: 'Turtle' },
-  { type: 'SHEEP', label: 'Sheep' },
-  { type: 'WOLF', label: 'Wolf' },
-  { type: 'OWL', label: 'Owl' },
-  { type: RANDOM_BOT_TYPE, label: 'Random' },
-];
+// The bot types offered: lib/botTypes.ts (no three.js there, for the text
+// match too).
+
 
 // "Add Bot" expands into one button per bot type, stacked vertically above
 // where it was -- picking one adds that bot and immediately collapses back
@@ -450,9 +434,6 @@ const lobbyConfig: SceneOverlayConfig = {
   theme: {
     accentColorClass: 'text-gray-300',
     panelBorderClass: 'border-white/20',
-    msgBorderClass: 'border-white/20',
-    msgTextClass: 'text-gray-200',
-    showMoreClass: 'text-gray-400 hover:text-white',
     backLinkClass: 'text-white',
     enemyBorderClass: 'border-red-500/30',
     enemyNameClass: 'text-red-400',
