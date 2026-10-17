@@ -33,6 +33,7 @@ import { playerMark, shownPlayerName } from '@/lib/playerThumbnail';
 import type { Player, Relic } from '@/types/game';
 import { WheelText } from '@/components/WheelIcon';
 import RankOutcome from '@/components/hud/RankOutcome';
+import RankBadge from '@/components/hud/RankBadge';
 import { useCompactViewport } from '@/lib/useCompactViewport';
 
 // A match as text (Settings -> Graphics -> Text mode, src/lib/textMode.ts):
@@ -613,6 +614,8 @@ export default function TextLobby({
   const attackable = (p: { name: string; hp: number; spectator?: boolean }) =>
     canChoose && p.name !== playerName && p.hp > 0 && !p.spectator;
   const leftColumnWidth = 'w-36';
+  // Ranked lobbies show each player's rank in the list.
+  const rankedList = !!state?.ranked;
   const playersCard = (
     <>
       <div className={compact ? compactCard : card}>
@@ -625,11 +628,18 @@ export default function TextLobby({
           </p>
         )}
         {/* One grid for the whole list, so every line's columns line up:
-            info | crown or skull | avatar | ready or away | name | Attack,
-            framed together, and after the frame the chat bubble and kick.
-            Each frame spans its six columns (a subgrid), so all are as wide
-            as the widest. */}
-        <ul className="text-gray-200 grid grid-cols-[auto_auto_auto_auto_max-content_auto_minmax(0,1fr)] gap-y-2 items-center">
+            info | crown or skull | avatar | ready or away | (rank) | name |
+            Attack, framed together, and after the frame the chat bubble and
+            kick. Each frame spans its columns (a subgrid), so all are as
+            wide as the widest. In a ranked lobby each player's rank sits
+            in a column left of the name (Mikael, 2026-10-17). */}
+        <ul
+          className={`text-gray-200 grid gap-y-2 items-center ${
+            rankedList
+              ? 'grid-cols-[auto_auto_auto_auto_auto_max-content_auto_minmax(0,1fr)]'
+              : 'grid-cols-[auto_auto_auto_auto_max-content_auto_minmax(0,1fr)]'
+          }`}
+        >
           {state?.players.map((p) => {
             const info = infoFor(p);
             const hit = info ? undefined : hits?.get(p.name)?.[hitStep];
@@ -663,7 +673,9 @@ export default function TextLobby({
             return (
               // Each player framed in a very thin black line (Mikael, 2026-10-12).
               <li key={p.name} className="contents">
-                <div className="col-span-6 grid grid-cols-subgrid gap-x-2 items-center py-1 px-2 border border-black rounded-md">
+                <div
+                  className={`${rankedList ? 'col-span-7' : 'col-span-6'} grid grid-cols-subgrid gap-x-2 items-center py-1 px-2 border border-black rounded-md`}
+                >
                 {/* In columns, so every line lines up (Mikael, 2026-10-12):
                     what you know of them -- the Well's info, the round's
                     hits (blinking), or a bossfight bot's health -- set
@@ -691,6 +703,11 @@ export default function TextLobby({
                     <span className="text-gray-400">👻</span>
                   ) : null}
                 </span>
+                {rankedList && (
+                  <span className="shrink-0 flex justify-end">
+                    <RankBadge tier={p.rank_tier ?? null} playerName={p.name} />
+                  </span>
+                )}
                 <span className="flex items-center gap-2">
                   {/* On an Apple Watch-sized window, after the name on its one line. */}
                   <span className={compact ? 'flex flex-row-reverse justify-end items-baseline gap-1' : 'flex flex-col'}>

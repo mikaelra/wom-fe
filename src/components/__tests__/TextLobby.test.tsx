@@ -627,8 +627,27 @@ describe('TextLobby title and PC layout', () => {
       }),
     );
     expect(screen.queryByText(/You lost/)).toBeNull();
-    expect(screen.getByText('Same rank')).toBeTruthy();
+    expect(screen.queryByText('Same rank')).toBeNull();
     expect(screen.getByText('3 games at Wizard I')).toBeTruthy();
+  });
+
+  it('in a ranked lobby shows each player\'s rank left of the name (2026-10-17)', async () => {
+    const base = lobby({ round: 1, ranked: true });
+    await show({
+      ...base,
+      players: base.players.map((p, i) => ({ ...p, rank_tier: i === 0 ? 'Djinn II' : null })),
+    });
+    const first = base.players[0].name;
+    const row = screen.getAllByText(first).map((el) => el.closest('li')).find(Boolean)!;
+    const badge = within(row as HTMLElement).getByText('Djinn II');
+    // The rank comes before the name in the frame.
+    expect(badge.compareDocumentPosition(within(row as HTMLElement).getByText(first)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByText('Unranked').length).toBe(base.players.length - 1);
+  });
+
+  it('shows no ranks outside ranked lobbies', async () => {
+    await show(lobby({ round: 1 }));
+    expect(screen.queryByText('Unranked')).toBeNull();
   });
 });
 
