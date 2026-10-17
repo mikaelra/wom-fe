@@ -175,6 +175,9 @@ def carve_face(q, p):
     return q - axis / (np.linalg.norm(axis) + 1e-9) * d
 
 
+ARMS = 0.66  # the arms' size, length and thickness, against the first round (Mikael, 2026-10-17)
+
+
 def build():
     m = Mesh()
     ts = np.linspace(0, TOP, 150)
@@ -196,8 +199,8 @@ def build():
         ay = BASE_Y + HEIGHT * 0.36
         ax = centre(0.36)[0] + sgn * radius(0.36) * 0.55
         n = 12
-        pts = [(ax + sgn * 0.50 * s, ay - 0.50 * s, 0.0) for s in np.linspace(0, 1, n)]
-        flare = [0.045 + 0.075 * math.exp(-5.5 * s) for s in np.linspace(0, 1, n)]
+        pts = [(ax + sgn * 0.50 * ARMS * s, ay - 0.50 * ARMS * s, 0.0) for s in np.linspace(0, 1, n)]
+        flare = [ARMS * (0.045 + 0.075 * math.exp(-5.5 * s)) for s in np.linspace(0, 1, n)]
         tube(m, pts, [(f, f) for f in flare], lambda q: YELLOW, segs=16, cap_start=False)
         lx = centre(0.04)[0] + sgn * 0.13
         n = 8
