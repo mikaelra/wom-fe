@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { boundaryIndexAt, clampFlapperRestBias, spinDistance, pickTargetRotation, type Slice } from '@/lib/wheelGeometry';
+import { sliceIndexAt, clampFlapperRestBias, spinDistance, pickTargetRotation, type Slice } from '@/lib/wheelGeometry';
 import {
   FLAPPER_REST_BIAS,
   applyPegImpulse,
@@ -230,7 +230,7 @@ export function useWheelAnimation({
       const landedSlice = targetRef.current ? slicesRef.current[targetRef.current.sliceIndex] : undefined;
       const restTheta = isSettled ? clampFlapperRestBias(FLAPPER_REST_BIAS, landedSlice) : 0;
       if (slicesRef.current.length > 0) {
-        const boundary = boundaryIndexAt(slicesRef.current, mod(rotationRef.current, TWO_PI));
+        const boundary = sliceIndexAt(slicesRef.current, mod(rotationRef.current, TWO_PI));
         if (lastBoundaryRef.current !== null && boundary !== lastBoundaryRef.current) {
           const n = slicesRef.current.length;
           const raw = Math.abs(boundary - lastBoundaryRef.current);

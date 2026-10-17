@@ -4,6 +4,7 @@ import {
   CAMPFIRE_POSITION, SEA_LEVEL, LAND_LEVEL, TEMPLE_BASE_DROP, MARKET_POSITION,
   SENATE_BOT_POSITION, RANKED_FORK_SIGNPOST_POSITION, RANKED_FORK_SIGNPOST_ROTATION_Y,
   RANKED_FORK_VIEW_PIN, RANKED_FORK_VIEW_DISTANCE, RANKED_FORK_VIEW_OFFSET, EYE_HEIGHT,
+  BAY_POSITION, BAY_DIRECTION, BAY_ROTATION_Y, BAY_HEAD_DISTANCE,
 } from '@/lib/cityLayout';
 
 // Scene compass (lib/citySkyGeometry.ts): -Z is north, +X is east, and the
@@ -46,6 +47,32 @@ describe('the Market (wom-be docs/MARKET_PLAN.md §3.2)', () => {
 
   it('is a doorway you walk to, not a far backdrop like the temple', () => {
     expect(groundDistance(MARKET_POSITION)).toBeLessThan(groundDistance(TEMPLE_POSITION));
+  });
+});
+
+describe('the Bay', () => {
+  it('takes the back-left (south-west) quadrant the Market left clear', () => {
+    expect(BAY_POSITION[0]).toBeLessThan(0);
+    expect(BAY_POSITION[2]).toBeGreaterThan(0);
+  });
+
+  it('is diagonally opposite the ranked Senates', () => {
+    expect(Math.sign(BAY_POSITION[0])).toBe(-Math.sign(SENATE_POSITION[0]));
+    expect(Math.sign(BAY_POSITION[2])).toBe(-Math.sign(SENATE_POSITION[2]));
+  });
+
+  it('stands its quay on the land and points the inlet away from the viewer', () => {
+    expect(BAY_POSITION[1]).toBe(LAND_LEVEL);
+    expect(groundDistance(BAY_POSITION)).toBeCloseTo(BAY_HEAD_DISTANCE, 9);
+    // Out to sea is further from the viewer, not back toward them.
+    const out = [BAY_POSITION[0] + BAY_DIRECTION[0], BAY_POSITION[2] + BAY_DIRECTION[1]];
+    expect(Math.hypot(out[0], out[1])).toBeGreaterThan(groundDistance(BAY_POSITION));
+  });
+
+  it('turns the model\'s +Z (seaward) onto the inlet\'s bearing', () => {
+    // A Y-rotation by θ takes +Z to (sin θ, cos θ).
+    expect(Math.sin(BAY_ROTATION_Y)).toBeCloseTo(BAY_DIRECTION[0], 9);
+    expect(Math.cos(BAY_ROTATION_Y)).toBeCloseTo(BAY_DIRECTION[1], 9);
   });
 });
 

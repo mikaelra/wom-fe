@@ -6,9 +6,31 @@ import { useRouter } from 'next/navigation';
 import { claimName, getShopProducts, postCheckout, resolveAccountSession, type ShopProduct } from '@/lib/api';
 import { ApiError, getStoredAccountToken } from '@/lib/http';
 import { useClaimVerificationPoll } from '@/lib/useClaimVerificationPoll';
-import { skinUrl } from '@/lib/frogSkins';
+import { skinLabel, skinUrl } from '@/lib/frogSkins';
 import SpinningModelViewer from '@/components/SpinningModelViewer';
 import { CITY_PATH } from '@/lib/cities';
+import LoadingState from '@/components/loading/LoadingState';
+import { buyWithApple, isIosApp, loadAppleShop, type AppleShop, type BuyOutcome } from '@/lib/appleShop';
+import { isSteamClient } from '@/lib/steamShell';
+import { buyWithSteam, type SteamBuyOutcome } from '@/lib/steamShop';
+import WheelIcon from '@/components/WheelIcon';
+
+// Trims trailing zeros (63.00 -> 63) while still showing real precision where
+// it matters (6.67, 0.33) -- .toFixed(2) alone would show "63.00%" for a
+// round number, which reads oddly next to "6.67%".
+function formatOddsPercent(probability: number): string {
+  return `${Number((probability * 100).toFixed(2))}%`;
+}
+
+// Each special wheel spin has a 3% chance of bling, so X wheels give
+// 1 - 0.97^X of at least one. Written with a decimal comma as Mikael asked
+// (300 wheels -> "99,99%").
+const BLING_CHANCE_MIN_WHEELS = 50;
+
+function blingChanceText(wheels: number): string {
+  const percent = ((1 - Math.pow(0.97, wheels)) * 100).toFixed(2).replace('.', ',');
+  return `you have now a ${percent}% chance of getting bling`;
+}
 
 function formatPrice(cents: number, currency: string): string {
   try {
@@ -25,7 +47,7 @@ type VerifyState = 'idle' | 'sending' | 'awaiting' | 'error';
 // Wheels are a stackable inventory item; the FE cap mirrors routes/shop.py's
 // _MAX_WHEEL_QUANTITY. AI-credit packs carry their own `max_quantity` from
 // the API (docs/MY_AI.md §5). A direct skin purchase has no quantity concept.
-const MAX_WHEEL_QUANTITY = 100;
+const MAX_WHEEL_QUANTITY = 300;
 
 function maxQuantityFor(product: ShopProduct): number {
   if (product.kind === 'wheel') return MAX_WHEEL_QUANTITY;
@@ -36,6 +58,23 @@ function maxQuantityFor(product: ShopProduct): number {
 function hasQuantityPicker(product: ShopProduct): boolean {
   return maxQuantityFor(product) > 1;
 }
+
+// What the player is told after an App Store purchase (iOS app). A refusal
+// is shown as an error instead; a cancelled purchase says nothing.
+const APPLE_NOTICES: Record<BuyOutcome, string | null> = {
+  fulfilled: 'Added to your inventory.',
+  pending: 'Waiting for approval — it will arrive in your inventory once approved.',
+  retry: 'Payment received — it will show up in your inventory shortly.',
+  cancelled: null,
+  refused: null,
+};
+
+// The same after a Steam Wallet purchase (Steam build).
+const STEAM_NOTICES: Record<SteamBuyOutcome, string | null> = {
+  fulfilled: 'Added to your inventory.',
+  retry: 'Payment received — it will show up in your inventory shortly.',
+  cancelled: null,
+};
 
 export default function ShopPage() {
   const router = useRouter();
@@ -49,9 +88,22 @@ export default function ShopPage() {
   const [buying, setBuying] = useState<string | null>(null);
   const [productErrors, setProductErrors] = useState<Record<string, string>>({});
   const [duplicateConfirm, setDuplicateConfirm] = useState<Set<string>>(new Set());
+  // Paid random items must disclose their odds before purchase (App Store
+  // guideline 3.1.1), so the Special Wheel's odds sit behind an info toggle.
+  const [oddsInfoOpen, setOddsInfoOpen] = useState<Set<string>>(new Set());
   // Wheels and AI-credit packs can both be bought several at a time; the
   // per-product cap comes from maxQuantityFor.
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  // Inside the iOS app the shop sells through the App Store (src/lib/appleShop.ts).
+  const [ios, setIos] = useState(false);
+  const [appleShop, setAppleShop] = useState<AppleShop | null>(null);
+  const [appleUnverified, setAppleUnverified] = useState(false);
+  const [productNotices, setProductNotices] = useState<Record<string, string>>({});
+  // Inside the Steam build the shop sells through the Steam Wallet (src/lib/steamShop.ts).
+  const [steamApp, setSteamApp] = useState(false);
+  const appleFor = (productId: string) => appleShop?.products.find((p) => p.product === productId);
+  const maxQty = (product: ShopProduct) => (ios ? (appleFor(product.id)?.maxQuantity ?? 1) : maxQuantityFor(product));
+  const hasPicker = (product: ShopProduct) => maxQty(product) > 1;
 
   const adjustQuantity = (productId: string, delta: number, max: number) => {
     setQuantities((prev) => {
@@ -74,6 +126,18 @@ export default function ShopPage() {
     setQuantities((prev) => ({ ...prev, [productId]: clamped }));
   };
 
+  const toggleOddsInfo = (productId: string) => {
+    setOddsInfoOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  };
+
   const [verifyState, setVerifyState] = useState<VerifyState>('idle');
   const [verifyName, setVerifyName] = useState('');
   const [verifyEmail, setVerifyEmail] = useState('');
@@ -82,13 +146,41 @@ export default function ShopPage() {
   // gate's copy so it's clear what re-clicking Buy afterward will do.
   const [pendingProduct, setPendingProduct] = useState<ShopProduct | null>(null);
 
+  // The iOS app's shop: open only if the App Store side is (the web
+  // shop's shop_enabled is about Stripe), with what Apple may sell here.
+  const loadApple = async () => {
+    const token = getStoredAccountToken();
+    if (!token) {
+      setShopEnabled(true); // shows the products with "Log in to buy"
+      return;
+    }
+    try {
+      setAppleShop(await loadAppleShop(token));
+      setAppleUnverified(false);
+      setShopEnabled(true);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'email_unverified') {
+        setAppleUnverified(true);
+        setShopEnabled(true);
+      } else if (e instanceof ApiError && e.code === 'shop_disabled') {
+        setShopEnabled(false);
+      } else {
+        throw e;
+      }
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
     setLoggedIn(!!getStoredAccountToken());
+    const inIosApp = isIosApp();
+    setIos(inIosApp);
+    setSteamApp(isSteamClient());
     getShopProducts()
-      .then((data) => {
-        setShopEnabled(data.shop_enabled);
+      .then(async (data) => {
         setProducts(data.products);
+        if (inIosApp) await loadApple();
+        else setShopEnabled(data.shop_enabled);
       })
       .catch((e: unknown) => {
         setLoadError(e instanceof Error ? e.message : 'Failed to load the shop.');
@@ -99,6 +191,7 @@ export default function ShopPage() {
   useClaimVerificationPoll(verifyState === 'awaiting', verifyName, verifyEmail, () => {
     setVerifyState('idle');
     setPendingProduct(null);
+    if (ios) void loadApple().catch(() => undefined);
   });
 
   const openVerificationGate = async (product: ShopProduct) => {
@@ -130,16 +223,65 @@ export default function ShopPage() {
     }
   };
 
+  const handleAppleBuy = async (product: ShopProduct) => {
+    const token = getStoredAccountToken();
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+    if (appleUnverified) {
+      openVerificationGate(product);
+      return;
+    }
+    const apple = appleFor(product.id);
+    if (!appleShop || !apple) return;
+    setProductErrors((prev) => ({ ...prev, [product.id]: '' }));
+    setProductNotices((prev) => ({ ...prev, [product.id]: '' }));
+    setBuying(product.id);
+    try {
+      const quantity = hasPicker(product) ? (quantities[product.id] ?? 1) : 1;
+      const outcome = await buyWithApple(token, appleShop, apple, quantity);
+      if (outcome === 'refused') {
+        setProductErrors((prev) => ({ ...prev, [product.id]: 'This purchase could not be delivered.' }));
+      } else {
+        setProductNotices((prev) => ({ ...prev, [product.id]: APPLE_NOTICES[outcome] ?? '' }));
+      }
+    } catch (e) {
+      setProductErrors((prev) => ({
+        ...prev,
+        [product.id]: e instanceof Error ? e.message : 'Something went wrong.',
+      }));
+    } finally {
+      setBuying(null);
+    }
+  };
+
   const handleBuy = async (product: ShopProduct, confirmDuplicate = false) => {
+    if (ios) {
+      void handleAppleBuy(product);
+      return;
+    }
     const token = getStoredAccountToken();
     if (!token) {
       router.push('/login');
       return;
     }
     setProductErrors((prev) => ({ ...prev, [product.id]: '' }));
+    setProductNotices((prev) => ({ ...prev, [product.id]: '' }));
     setBuying(product.id);
     try {
       const quantity = hasQuantityPicker(product) ? (quantities[product.id] ?? 1) : undefined;
+      if (steamApp) {
+        const outcome = await buyWithSteam(token, product.id, quantity ?? 1, confirmDuplicate);
+        setBuying(null);
+        setDuplicateConfirm((prev) => {
+          const next = new Set(prev);
+          next.delete(product.id);
+          return next;
+        });
+        setProductNotices((prev) => ({ ...prev, [product.id]: STEAM_NOTICES[outcome] ?? '' }));
+        return;
+      }
       const { checkout_url } = await postCheckout(token, product.id, confirmDuplicate, quantity);
       window.location.href = checkout_url;
       // No finally-reset of `buying` on this path -- the page is navigating
@@ -206,7 +348,7 @@ export default function ShopPage() {
         </div>
 
         {loading ? (
-          <p className="text-white/70">Loading…</p>
+          <LoadingState />
         ) : loadError ? (
           <div className="bg-black/40 border border-white/10 rounded-xl p-5">
             <p className="text-red-400">{loadError}</p>
@@ -249,7 +391,7 @@ export default function ShopPage() {
             </p>
 
             <div className="flex flex-col gap-6">
-              {products.map((product) => (
+              {(ios && appleShop ? products.filter((p) => appleFor(p.id)) : products).map((product) => (
                 <div
                   key={product.id}
                   className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-xl p-6"
@@ -259,21 +401,52 @@ export default function ShopPage() {
                       {product.kind === 'skin' ? `${product.name} skin` : product.name}
                     </h2>
                     <span className="text-amber-300 font-bold text-lg">
-                      {formatPrice(
-                        product.price_cents * (hasQuantityPicker(product) ? (quantities[product.id] ?? 1) : 1),
-                        product.currency
-                      )}
+                      {ios
+                        ? (() => {
+                            // App Store prices come from StoreKit, already formatted
+                            const apple = appleFor(product.id);
+                            const quantity = hasPicker(product) ? (quantities[product.id] ?? 1) : 1;
+                            if (!apple) return null;
+                            return quantity > 1 ? `${quantity} × ${apple.displayPrice}` : apple.displayPrice;
+                          })()
+                        : formatPrice(
+                            product.price_cents * (hasQuantityPicker(product) ? (quantities[product.id] ?? 1) : 1),
+                            product.currency
+                          )}
                     </span>
                   </div>
 
                   {product.kind === 'wheel' && product.odds && (
                     <div className="mb-4">
                       <div className="flex justify-center py-4" aria-hidden="true">
-                        <span className="text-5xl">🎡</span>
+                        <span className="text-5xl"><WheelIcon special /></span>
                       </div>
-                      <p className="text-xs text-white/50">
-                        Buy a special wheel and roll it to get a special skin
-                      </p>
+                      <div className="flex items-start gap-1.5">
+                        <p className="text-xs text-white/50 flex-1">
+                          Buy a special wheel and roll it to get a special skin
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => toggleOddsInfo(product.id)}
+                          aria-label="Wheel odds info"
+                          aria-expanded={oddsInfoOpen.has(product.id)}
+                          className="shrink-0 w-4 h-4 rounded-full border border-white/30 text-white/60 text-[10px] leading-none flex items-center justify-center hover:bg-white/10 hover:text-white cursor-pointer"
+                        >
+                          i
+                        </button>
+                      </div>
+                      {oddsInfoOpen.has(product.id) && (
+                        <div className="mt-2 text-xs text-white/60 bg-white/5 border border-white/10 rounded-lg p-3">
+                          <p className="mb-1">
+                            You get a random skin when rolling the wheel. The odds for getting each skin is:
+                          </p>
+                          {product.odds.map((entry) => (
+                            <p key={entry.skin} className="capitalize">
+                              {skinLabel(entry.skin)} - {formatOddsPercent(entry.probability)}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -286,7 +459,16 @@ export default function ShopPage() {
                   {product.kind === 'ai_credits' && (
                     <div className="mb-4">
                       <div className="flex justify-center py-4" aria-hidden="true">
-                        <span className="text-5xl">🪙</span>
+                        {/* The My AI Coin (Mikael, 2026-10-12): Hades' Coin in silver with a
+                            robot face, rendered from /modelling's myaicoinv02. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element -- a small static file from public/, like the wheel icon */}
+                        <img
+                          src="/images/my-ai-coin.png"
+                          alt=""
+                          data-testid="my-ai-coin"
+                          draggable={false}
+                          className="h-12 w-12"
+                        />
                       </div>
                       <p className="text-xs text-white/50">
                         {(product.credits_per_pack ?? 0) * (quantities[product.id] ?? 1)} bot-game credits — your AI
@@ -297,6 +479,9 @@ export default function ShopPage() {
 
                   {productErrors[product.id] && (
                     <p className="text-red-400 text-sm mb-2">{productErrors[product.id]}</p>
+                  )}
+                  {productNotices[product.id] && (
+                    <p className="text-green-400 text-sm mb-2">{productNotices[product.id]}</p>
                   )}
 
                   {duplicateConfirm.has(product.id) ? (
@@ -335,11 +520,11 @@ export default function ShopPage() {
                     </Link>
                   ) : (
                     <div className="flex items-center gap-3">
-                      {hasQuantityPicker(product) && (
+                      {hasPicker(product) && (
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
-                            onClick={() => adjustQuantity(product.id, -1, maxQuantityFor(product))}
+                            onClick={() => adjustQuantity(product.id, -1, maxQty(product))}
                             disabled={(quantities[product.id] ?? 1) <= 1}
                             aria-label="Decrease quantity"
                             className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
@@ -351,14 +536,14 @@ export default function ShopPage() {
                             inputMode="numeric"
                             pattern="[0-9]*"
                             value={quantities[product.id] ?? 1}
-                            onChange={(e) => setQuantityFromInput(product.id, e.target.value, maxQuantityFor(product))}
+                            onChange={(e) => setQuantityFromInput(product.id, e.target.value, maxQty(product))}
                             aria-label="Quantity"
                             className="w-10 text-center font-semibold bg-white/5 border border-white/20 rounded-lg py-1"
                           />
                           <button
                             type="button"
-                            onClick={() => adjustQuantity(product.id, 1, maxQuantityFor(product))}
-                            disabled={(quantities[product.id] ?? 1) >= maxQuantityFor(product)}
+                            onClick={() => adjustQuantity(product.id, 1, maxQty(product))}
+                            disabled={(quantities[product.id] ?? 1) >= maxQty(product)}
                             aria-label="Increase quantity"
                             className="w-8 h-8 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                           >
@@ -372,10 +557,18 @@ export default function ShopPage() {
                         onClick={() => handleBuy(product)}
                         className="flex-1 px-4 py-2 rounded-lg bg-amber-700/80 text-amber-200 border border-amber-600 font-bold hover:bg-amber-600/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                       >
-                        {buying === product.id ? 'Starting checkout…' : 'Buy'}
+                        {buying === product.id ? (ios || steamApp ? 'Buying…' : 'Starting checkout…') : 'Buy'}
                       </button>
                     </div>
                   )}
+
+                  {product.kind === 'wheel' &&
+                    loggedIn &&
+                    !duplicateConfirm.has(product.id) &&
+                    hasPicker(product) &&
+                    (quantities[product.id] ?? 1) > BLING_CHANCE_MIN_WHEELS && (
+                      <p className="text-xs text-amber-300 mt-2">{blingChanceText(quantities[product.id] ?? 1)}</p>
+                    )}
                 </div>
               ))}
             </div>

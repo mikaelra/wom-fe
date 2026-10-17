@@ -30,9 +30,16 @@ const nextConfig: NextConfig = {
   // `next dev` sets NODE_ENV to development; `next build` sets it to
   // production. Keep the sandbox usable by running the dev server -- which
   // is exactly how it is used.
-  pageExtensions: isDevServer
-    ? ["dev.tsx", "dev.ts", "tsx", "ts", "jsx", "js"]
-    : ["tsx", "ts", "jsx", "js"],
+  //
+  // The same trick, keyed on the build target instead: a `route.web.ts`
+  // exists only on the web server (src/app/hd/[...file]/route.web.ts, which
+  // serves the HD textures to accounts that have them) -- a native build is
+  // a static export with no server to run it.
+  pageExtensions: [
+    ...(isDevServer ? ["dev.tsx", "dev.ts"] : []),
+    ...(isNative ? [] : ["web.ts"]),
+    "tsx", "ts", "jsx", "js",
+  ],
 
   // Mirrors BUILD_TARGET into the client bundle as NEXT_PUBLIC_BUILD_TARGET
   // -- see src/lib/buildTarget.ts. BUILD_TARGET itself is a plain server/

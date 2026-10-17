@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
+  artifactTradeProblem,
+  hasPaperAndPen,
   clampCoins,
   formatRemaining,
   itemKey,
   itemLabel,
   itemName,
   listingIsMine,
+  tradeName,
+  tradeNamePast,
+  tradeNoun,
+  copyMark,
+  ledgerMarks,
   longOfferHours,
   mergeItemInputs,
   NON_TRADEABLE_SKIN,
@@ -181,5 +188,118 @@ describe('recentChat', () => {
       timestamp: new Date().toISOString(),
     };
     expect(recentChat([fresh])).toEqual([fresh]);
+  });
+});
+
+describe('Paper + Pen -> Artifact (wom-be MARKET_PLAN.md §1B)', () => {
+  const IDS = { paper_relic_id: 11, pen_relic_id: 12 };
+  const artifact = { item_type: 'artifact' as const };
+  const paper = { item_type: 'relic' as const, relic_id: 11 };
+  const pen = { item_type: 'relic' as const, relic_id: 12 };
+  const coin = { item_type: 'relic' as const, relic_id: 1 };
+
+  it('names and keys the Artifact', () => {
+    const item = { item_type: 'artifact' as const, skin: null, relic_id: null, wheel_kind: null };
+    expect(itemName(item, null)).toBe('Artifact');
+    expect(itemKey(item)).toBe('artifact');
+  });
+
+  it('allows an Artifact opposite a Paper and a Pen, either way round, alongside anything', () => {
+    expect(artifactTradeProblem([artifact], [paper, pen], IDS)).toBeNull();
+    expect(artifactTradeProblem([paper, pen, coin], [artifact], IDS)).toBeNull();
+    expect(artifactTradeProblem([coin], [coin], IDS)).toBeNull();
+  });
+
+  it('needs both a Paper and a Pen on the other side of the Artifact', () => {
+    expect(artifactTradeProblem([artifact], [coin], IDS)).toMatch(/Paper and a Pen on the other side/);
+    expect(artifactTradeProblem([artifact], [paper], IDS)).toMatch(/Paper and a Pen on the other side/);
+    expect(artifactTradeProblem([artifact], [pen], IDS)).toMatch(/Paper and a Pen on the other side/);
+    expect(artifactTradeProblem([paper], [artifact], IDS)).toMatch(/Paper and a Pen on your side/);
+    expect(artifactTradeProblem([artifact, paper, pen], [coin], IDS)).toMatch(/Paper and a Pen on the other side/);
+  });
+
+  it('refuses an Artifact on both sides, or any Artifact without known Paper and Pen', () => {
+    expect(artifactTradeProblem([artifact, paper, pen], [artifact, paper, pen], IDS)).toMatch(/both sides/);
+    expect(artifactTradeProblem([artifact], [paper, pen], null)).not.toBeNull();
+    expect(artifactTradeProblem([artifact], [paper, pen], { paper_relic_id: 11 })).not.toBeNull();
+  });
+
+  it('hasPaperAndPen needs both on the one side', () => {
+    expect(hasPaperAndPen([paper, pen], IDS)).toBe(true);
+    expect(hasPaperAndPen([paper], IDS)).toBe(false);
+    expect(hasPaperAndPen([pen, coin], IDS)).toBe(false);
+    expect(hasPaperAndPen([paper, pen], undefined)).toBe(false);
+  });
+});
+
+describe('tradeName -- Transcribe / Transcribe and Trade', () => {
+  const IDS = { paper_relic_id: 11, pen_relic_id: 12 };
+  const artifact = { item_type: 'artifact', quantity: 1 };
+  const paper = (quantity = 1) => ({ item_type: 'relic', relic_id: 11, quantity });
+  const pen = (quantity = 1) => ({ item_type: 'relic', relic_id: 12, quantity });
+  const coin = { item_type: 'relic', relic_id: 1, quantity: 1 };
+
+  it('is a Transcribe when only the Artifact, one Paper and one Pen are on it, either way round', () => {
+    expect(tradeName([artifact], [paper(), pen()], IDS)).toBe('Transcribe');
+    expect(tradeName([paper(), pen()], [artifact], IDS)).toBe('Transcribe');
+  });
+
+  it('is a Transcribe and Trade when anything else rides along', () => {
+    expect(tradeName([artifact, coin], [paper(), pen()], IDS)).toBe('Transcribe and Trade');
+    expect(tradeName([artifact], [paper(), pen(), coin], IDS)).toBe('Transcribe and Trade');
+    expect(tradeName([artifact], [paper(2), pen()], IDS)).toBe('Transcribe and Trade');
+    expect(tradeName([artifact], [paper(), pen(2)], IDS)).toBe('Transcribe and Trade');
+  });
+
+  it('is a Trade without an Artifact opposite a Paper and a Pen', () => {
+    expect(tradeName([coin], [paper(), pen()], IDS)).toBe('Trade');
+    expect(tradeName([artifact], [coin], IDS)).toBe('Trade');
+    expect(tradeName([artifact], [paper()], IDS)).toBe('Trade');
+    expect(tradeName([artifact], [paper(), pen()], null)).toBe('Trade');
+  });
+
+  it('reads mid-sentence and in the past tense', () => {
+    expect(tradeNoun('Trade')).toBe('trade');
+    expect(tradeNoun('Transcribe')).toBe('Transcribe');
+    expect(tradeNamePast('Trade')).toBe('traded');
+    expect(tradeNamePast('Transcribe')).toBe('transcribed');
+    expect(tradeNamePast('Transcribe and Trade')).toBe('transcribed and traded');
+  });
+});
+
+describe('the viewer\'s marks in the discoverers list', () => {
+  it('reads a copy\'s number off its origin', () => {
+    expect(copyMark('Oni#1')).toBe('#1');
+    expect(copyMark('A#b#12')).toBe('#12');
+    expect(copyMark(null)).toBeNull();
+    expect(copyMark(undefined)).toBeNull();
+    expect(copyMark('Oni')).toBeNull();
+    expect(copyMark('Oni#')).toBeNull();
+  });
+
+  it('marks your own find', () => {
+    expect(ledgerMarks({ ordinal: 4, origin: null, origin_ordinal: null })).toEqual([{ ordinal: 4, label: '(you)' }]);
+  });
+
+  it('marks the row a copy traces back to with its place under it: "#2 Oni #2"', () => {
+    // Blimkin, transcribed from Skoober (Skoober#1), the 2nd under Oni.
+    expect(ledgerMarks({ ordinal: null, origin: 'Skoober#1', origin_ordinal: 2, origin_order: 2 })).toEqual([
+      { ordinal: 2, label: '#2' },
+    ]);
+  });
+
+  it('falls back to the copy\'s own number from a backend without origin_order', () => {
+    expect(ledgerMarks({ ordinal: null, origin: 'Oni#1', origin_ordinal: 2 })).toEqual([{ ordinal: 2, label: '#1' }]);
+  });
+
+  it('marks both for a copy holder who then found one', () => {
+    expect(ledgerMarks({ ordinal: 5, origin: 'Oni#1', origin_ordinal: 2 })).toEqual([
+      { ordinal: 5, label: '(you)' },
+      { ordinal: 2, label: '#1' },
+    ]);
+  });
+
+  it('marks nothing without an Artifact', () => {
+    expect(ledgerMarks(null)).toEqual([]);
   });
 });

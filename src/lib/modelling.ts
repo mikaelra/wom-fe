@@ -12,17 +12,22 @@
  * test could catch has to sit outside one.
  */
 
-export type ModellingModelId = 'ranked' | 'market' | 'senate-city';
+export type ModellingModelId = 'ranked' | 'market' | 'senate-city' | 'bay' | 'pen' | 'signpost';
 
 export interface ModellingModel {
   id: ModellingModelId;
   /** Button caption. */
   label: string;
   /** The signpost-arm colour the building answers to, so the buttons read
-   *  the same way the city's arms do: red ranked, green market. */
+   *  the same way the city's arms do: red ranked, parchment-yellow market. */
   accent: string;
   /** One line under the button saying what you are looking at. */
   blurb: string;
+  /** A finished model file (Meshy, via wom-tools/model-generation) shown
+   *  instead of a procedural component. Served from public/. */
+  glb?: string;
+  /** Meshy's own render of that model, shown beside the controls. */
+  thumbnail?: string;
 }
 
 export const MODELLING_MODELS: readonly ModellingModel[] = [
@@ -35,7 +40,7 @@ export const MODELLING_MODELS: readonly ModellingModel[] = [
   {
     id: 'market',
     label: 'Market',
-    accent: '#5fd88a',
+    accent: '#e8d9a0',
     blurb: 'The agora stall-row that stands on the city’s right hand.',
   },
   {
@@ -43,6 +48,26 @@ export const MODELLING_MODELS: readonly ModellingModel[] = [
     label: 'Senate (city size)',
     accent: '#ff9d6e',
     blurb: 'The same Senate component at the size it stands at in the city -- sized, not scaled, so both have to be looked at.',
+  },
+  {
+    id: 'bay',
+    label: 'Bay',
+    accent: '#f2c230',
+    blurb: 'Quay, pier and a boat leaving for the sea, at the head of the inlet in the city’s south-west corner. +Z is out to sea.',
+  },
+  {
+    id: 'pen',
+    label: 'Pen',
+    accent: '#9fb8ff',
+    blurb: 'Meshy feather quill for the new-moon Pen (public/models/relics/pen_v1.glb), texture cut to 1024 -- the model the new-moon merchant stages.',
+    glb: '/models/relics/pen_v1.glb',
+    thumbnail: '/models/relics/pen_v1.thumbnail.png',
+  },
+  {
+    id: 'signpost',
+    label: 'Signpost',
+    accent: '#c89a5a',
+    blurb: 'The city signpost, carved: lettering burnt into the planks and painted in each arm’s colour (components/city/CarvedSignpost.tsx).',
   },
 ] as const;
 

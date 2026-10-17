@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BACKEND_URL, PROTOCOL_VERSION } from '@/config';
+import { beginRequest } from '@/lib/loadingTracker';
 
 /** A non-2xx HTTP response. Carries the server's {error} message when the
  *  body had one, or a per-call fallback string otherwise. `code` is the
@@ -131,11 +132,45 @@ export function setStoredAccountToken(token: string | null | undefined): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Ranked ticket (wom-be docs/PROTOCOL.md, "Ranked tickets").
+//
+// Ranked is open to guests, so the backend can't take a bare name as proof
+// of who is asking: /ranked/queue/join hands back a secret ticket for the
+// name, and leaving the queue, /ranked/active and the join_ranked_queue
+// room all want it back. localStorage, not sessionStorage, because the
+// "return to match" check runs on a fresh page load. Stored with its name
+// so a ticket is never sent on behalf of a different one.
+// ---------------------------------------------------------------------------
+
+const RANKED_TICKET_KEY = 'wom_ranked_ticket';
+
+export function getStoredRankedTicket(name: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(RANKED_TICKET_KEY) ?? 'null');
+    return stored && stored.name === name && typeof stored.ticket === 'string' ? stored.ticket : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredRankedTicket(name: string, ticket: string | null | undefined): void {
+  if (typeof window === 'undefined') return;
+  if (ticket) {
+    window.localStorage.setItem(RANKED_TICKET_KEY, JSON.stringify({ name, ticket }));
+  } else {
+    window.localStorage.removeItem(RANKED_TICKET_KEY);
+  }
+}
+
 type RequestOpts = {
   /** JSON body. Its presence also selects the method: POST if set, GET otherwise. */
   body?: unknown;
   /** Used only when a non-ok response body has no {error} field. */
   defaultErrorMessage?: string;
+  /** Background polling: don't raise the loading overlay for this call. */
+  quiet?: boolean;
 };
 
 /**
@@ -155,6 +190,21 @@ export async function request<S extends z.ZodTypeAny>(
   path: string,
   schema: S,
   opts: RequestOpts = {}
+): Promise<z.infer<S>> {
+  // In flight until the response is read and parsed (or anything fails), so
+  // the loading overlay covers the whole wait. Polls opt out (quiet).
+  const done = opts.quiet ? () => {} : beginRequest();
+  try {
+    return await requestInner(path, schema, opts);
+  } finally {
+    done();
+  }
+}
+
+async function requestInner<S extends z.ZodTypeAny>(
+  path: string,
+  schema: S,
+  opts: RequestOpts
 ): Promise<z.infer<S>> {
   const res = await fetch(`${BACKEND_URL}${path}`, {
     method: opts.body !== undefined ? 'POST' : 'GET',

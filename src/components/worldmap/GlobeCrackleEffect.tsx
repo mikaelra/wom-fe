@@ -21,7 +21,7 @@ function lcg(seed: number) {
  * on the sphere surface, emanating from `epicenter`.
  * Returns the number of THREE.js vertices written (ptr / 3).
  */
-function buildCrackles(
+export function buildCrackles(
   epicenter: THREE.Vector3,
   radius: number,
   seed: number,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getMarketTrades } from '@/lib/api';
-import { itemLabel, type MarketCatalog, type MarketTrade } from '@/lib/market';
+import { itemLabel, tradeName, tradeNamePast, type MarketCatalog, type MarketTrade } from '@/lib/market';
 
 /**
  * "History" -- the signed-in player's own completed swaps, newest first
@@ -84,12 +84,14 @@ export default function MarketHistoryModal({
               >
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-white/90">
-                    <span className="text-white/40">traded with </span>
+                    <span className="text-white/40">
+                      {tradeNamePast(tradeName(t.gave, t.got, catalog))} with{' '}
+                    </span>
                     <span className="font-semibold text-sky-400/90">{t.counterparty_name}</span>
                   </span>
                   <time
                     dateTime={t.completed_at}
-                    className="shrink-0 text-[11px] tabular-nums text-white/40"
+                    className="shrink-0 text-[0.6875rem] tabular-nums text-white/40"
                   >
                     {formatWhen(t.completed_at)}
                   </time>

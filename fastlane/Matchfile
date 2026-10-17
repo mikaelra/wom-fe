@@ -1,0 +1,19 @@
+# `match` keeps the iOS distribution certificate and provisioning profile in a
+# separate PRIVATE git repo, encrypted with MATCH_PASSWORD. See the secrets
+# table in ios/README.md.
+#
+#   MATCH_GIT_URL                  -> git_url        (the private certs repo)
+#   MATCH_GIT_BASIC_AUTHORIZATION  -> CI clone auth  (base64 "user:PAT")
+#   MATCH_PASSWORD                 -> repo encryption passphrase
+#
+# are all read from the environment by `match` directly; only the non-secret
+# settings live here.
+storage_mode("git")
+git_url(ENV["MATCH_GIT_URL"]) if ENV["MATCH_GIT_URL"]
+
+type("appstore")
+app_identifier(["net.worldofmythos.game"])
+
+# CI never mints new certs on a normal run -- only the one-off `bootstrap_certs`
+# lane passes readonly:false explicitly.
+readonly(true)

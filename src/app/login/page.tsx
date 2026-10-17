@@ -1,22 +1,51 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import { CITY_PATH } from '@/lib/cities';
+import { completePendingSteamLink } from '@/lib/steamAccount';
+import { completePendingAppleLink } from '@/lib/appleAccount';
 
 export default function LoginPage() {
   const router = useRouter();
+  // Logged in from "I already have an account" in the Steam client or the
+  // iOS app, but the Steam or Apple account couldn't be linked
+  // (src/lib/steamAccount.ts, src/lib/appleAccount.ts).
+  const [steamLinkError, setSteamLinkError] = useState('');
 
   const authFlow = useAuthFlow({
-    onAuthenticated: (name, email) => {
+    onAuthenticated: async (name, email) => {
       if (typeof window !== 'undefined') {
         localStorage.setItem('playerName', name);
         localStorage.setItem('playerEmail', email);
       }
+      const linkError = (await completePendingSteamLink()) ?? (await completePendingAppleLink());
+      if (linkError) {
+        setSteamLinkError(linkError);
+        return;
+      }
       router.push('/');
     },
   });
+
+  if (steamLinkError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-gray-950 to-gray-900 p-6">
+        <div className="bg-gray-900 border border-white/10 p-8 rounded-xl shadow-2xl w-full max-w-md text-white text-center">
+          <p className="text-red-400 mb-6">{steamLinkError}</p>
+          <button
+            type="button"
+            onClick={() => router.push('/')}
+            className="w-full px-4 py-2 rounded-lg font-bold bg-amber-700 hover:bg-amber-600 text-white transition-colors cursor-pointer"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // This page has no checkName step (it's a plain login, not join-or-create),
   // so authFlow.handleLogin's own empty-email check runs unguarded, but its
