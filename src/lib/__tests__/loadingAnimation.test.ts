@@ -7,12 +7,15 @@ import {
   pickLoadingColor,
   pickLoadingStart,
   pickLoadingVariant,
+  pickNextLoadingVariant,
   loopDuration,
   rainbowColorAt,
   echoColors,
   specFor,
   wheelColorAt,
   v14ColorAt,
+  v16ColorAt,
+  baseTurnAt,
   poseAt,
   segmentsAt,
   smoothstep,
@@ -321,9 +324,9 @@ describe('pickLoadingVariant', () => {
   it('shares the loads by the golden mean, newest first', () => {
     const phi = (1 + Math.sqrt(5)) / 2;
     const mix = LOADING_SPEC.mix ?? {};
-    expect(Object.keys(mix)).toEqual(['v14', 'wheel', 'rainbow', 'v11', 'v10']);
+    expect(Object.keys(mix)).toEqual(['v16', 'v14', 'wheel', 'rainbow', 'v11', 'v10']);
     let left = 1;
-    for (const kind of ['v14', 'wheel', 'rainbow', 'v11'] as const) {
+    for (const kind of ['v16', 'v14', 'wheel', 'rainbow', 'v11'] as const) {
       expect(mix[kind]).toBeCloseTo(left / phi, 5);
       left -= left / phi;
     }
@@ -332,12 +335,13 @@ describe('pickLoadingVariant', () => {
 
   it('picks the version by the mix, then a colour (v11/v10) and a start', () => {
     const seq = (...values: number[]) => () => values.shift() ?? 0;
-    expect(pickLoadingVariant(LOADING_SPEC, seq(0.1, 0.7))).toEqual({ kind: 'v14', color: '#ff0000', startFoldedOut: true });
-    expect(pickLoadingVariant(LOADING_SPEC, seq(0.7, 0.2))).toEqual({ kind: 'wheel', color: '#ff0000', startFoldedOut: false });
-    expect(pickLoadingVariant(LOADING_SPEC, seq(0.9, 0.7))).toEqual({ kind: 'rainbow', color: '#ff0000', startFoldedOut: true });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.1, 0.7))).toEqual({ kind: 'v16', color: '#ff0000', startFoldedOut: true });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.7, 0.7))).toEqual({ kind: 'v14', color: '#ff0000', startFoldedOut: true });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.9, 0.2))).toEqual({ kind: 'wheel', color: '#ff0000', startFoldedOut: false });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.96, 0.7))).toEqual({ kind: 'rainbow', color: '#ff0000', startFoldedOut: true });
     // v11 always from the hexagon, v10 always from the center lines
-    expect(pickLoadingVariant(LOADING_SPEC, seq(0.96, 0.5))).toEqual({ kind: 'v11', color: '#ffff00', startFoldedOut: true });
-    expect(pickLoadingVariant(LOADING_SPEC, seq(0.99, 0.9))).toEqual({ kind: 'v10', color: '#0000ff', startFoldedOut: false });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.985, 0.5))).toEqual({ kind: 'v11', color: '#ffff00', startFoldedOut: true });
+    expect(pickLoadingVariant(LOADING_SPEC, seq(0.995, 0.9))).toEqual({ kind: 'v10', color: '#0000ff', startFoldedOut: false });
     expect(pickLoadingVariant(LOADING_SPEC, seq(1, 0))).toEqual({ kind: 'v10', color: '#ff0000', startFoldedOut: false });
     expect(pickLoadingVariant({ ...LOADING_SPEC, mix: undefined }, seq(0.5))).toEqual({
       kind: 'v10',
@@ -346,7 +350,7 @@ describe('pickLoadingVariant', () => {
     });
   });
 
-  it('comes out 61.8% / 23.6% / 9.0% / 3.4% / 2.1% over many showings', () => {
+  it('comes out 61.8% / 23.6% / 9.0% / 3.4% / 1.3% / 0.8% over many showings', () => {
     // a seeded generator (mulberry32), so the run is the same every time
     let seed = 42;
     const random = () => {
@@ -361,11 +365,12 @@ describe('pickLoadingVariant', () => {
       const v = pickLoadingVariant(LOADING_SPEC, random);
       counts[v.kind] = (counts[v.kind] ?? 0) + 1;
     }
-    expect(counts.v14 / runs).toBeCloseTo(0.618, 1);
-    expect(counts.wheel / runs).toBeCloseTo(0.236, 1);
-    expect(counts.rainbow / runs).toBeCloseTo(0.09, 1);
-    expect(Math.abs(counts.v11 / runs - 0.0344)).toBeLessThan(0.005);
-    expect(Math.abs(counts.v10 / runs - 0.0213)).toBeLessThan(0.005);
+    expect(counts.v16 / runs).toBeCloseTo(0.618, 1);
+    expect(counts.v14 / runs).toBeCloseTo(0.236, 1);
+    expect(counts.wheel / runs).toBeCloseTo(0.09, 1);
+    expect(Math.abs(counts.rainbow / runs - 0.0344)).toBeLessThan(0.005);
+    expect(Math.abs(counts.v11 / runs - 0.0132)).toBeLessThan(0.004);
+    expect(Math.abs(counts.v10 / runs - 0.0081)).toBeLessThan(0.004);
   });
 });
 
@@ -419,5 +424,102 @@ describe('v14 (14a then 14b)', () => {
 
   it('is the one picked when the mix gives it every showing', () => {
     expect(pickLoadingVariant({ ...LOADING_SPEC, mix: { v14: 1 } }, () => 0.5).kind).toBe('v14');
+  });
+});
+
+describe('v16 (v14 grown out of a point and retracted into it)', () => {
+  const v16 = specFor(LOADING_SPEC, 'v16');
+  const rgb = (c: number[]) => `rgb(${c.map(Math.round).join(', ')})`;
+
+  it('plays grow, 14a, 14b and shrink as one loop, turning all the way through, as in Python', () => {
+    expect(v16.layout).toBe('v16');
+    expect(v16.trail.maxDegrees).toBe(100);
+    expect(loopDuration(v16)).toBeCloseTo(3.2941176470588234, 9);
+    expect(poseAt(v16, 0.1)).toEqual({ progress: -1, spin: 0 });
+    const python: [number, number, number][] = [
+      [0.3, -0.648, 1.1198266522210187],
+      [0.5, 0, 6.998916576381369],
+      [1.0, 1, 147.99566630552548],
+      [1.7, 1, 636.9311159263272],
+      [2.4, 1, 1522.1862455471291],
+      [3.2, -0.5658296320000009, 1799.0988689057422],
+    ];
+    for (const [t, progress, spin] of python) {
+      const pose = poseAt(v16, t);
+      expect(pose.progress).toBeCloseTo(progress, 6);
+      expect(pose.spin).toBeCloseTo(spin, 4);
+    }
+  });
+
+  it('ends a whole number of turns of the figure round, still, so the loop joins', () => {
+    const loop = loopDuration(v16);
+    expect(spinAt(v16, loop)).toBeCloseTo(1800, 6);
+    expect(spinAt(v16, loop) % 120).toBeCloseTo(0, 6);
+    // the base turn alone: BASE_TURN in all, still at both ends
+    const base = LOADING_SPEC.v16!;
+    expect(baseTurnAt(base, 0, loop)).toBe(0);
+    expect(baseTurnAt(base, loop, loop)).toBeCloseTo(base.baseTurn, 9);
+    expect(baseTurnAt(base, loop, loop) - baseTurnAt(base, loop - 1e-4, loop)).toBeLessThan(1e-4);
+  });
+
+  it('goes once round the colour wheel over the whole loop, red at the point, as in Python', () => {
+    expect(v16ColorAt(v16, 0)).toBe('rgb(255, 0, 0)');
+    expect(v16ColorAt(v16, 0.1)).toBe(rgb([255, 46.446, 0]));
+    expect(v16ColorAt(v16, 1.0)).toBe(rgb([45.536, 255, 0]));
+    expect(v16ColorAt(v16, 1.7)).toBe(rgb([0, 230.411, 255]));
+    expect(v16ColorAt(v16, 2.4)).toBe(rgb([94.714, 0, 255]));
+    expect(v16ColorAt(v16, 3.2)).toBe(rgb([255, 0, 43.714]));
+  });
+
+  it('draws the center lines alone while they grow out of the point, as in Python', () => {
+    const python = [
+      [0, 0, -0.408248, -0.235702],
+      [0, 0, 0, 0.471405],
+      [0, 0, 0.408248, -0.235702],
+    ];
+    segmentsAt(v16, -0.5, 0).forEach((seg, i) => seg.forEach((v, k) => expect(v).toBeCloseTo(python[i][k], 5)));
+    // at -1 they are the point; from 0 on it is v14's figure
+    for (const [x0, y0, x1, y1] of segmentsAt(v16, -1, 0)) expect(Math.hypot(x1 - x0, y1 - y0)).toBeCloseTo(0, 9);
+    expect(segmentsAt(v16, 0.25, 0)).toEqual(segmentsAt(specFor(LOADING_SPEC, 'v14'), 0.25, 0));
+  });
+
+  it('plays as v14 when the spec carries no v16 data', () => {
+    const bare = { ...v16, v16: undefined };
+    expect(loopDuration(bare)).toBeCloseTo(loopDuration(specFor(LOADING_SPEC, 'v14')), 9);
+  });
+
+  it('is the one picked when the mix gives it every showing', () => {
+    expect(pickLoadingVariant({ ...LOADING_SPEC, mix: { v16: 1 } }, () => 0.5).kind).toBe('v16');
+  });
+});
+
+describe('pickNextLoadingVariant', () => {
+  const seq = (...values: number[]) => () => values.shift() ?? 0;
+  const blue = { kind: 'v10', color: '#0000ff', startFoldedOut: false } as const;
+
+  it('draws by the usual odds when that gives a different version', () => {
+    expect(pickNextLoadingVariant(LOADING_SPEC, blue, seq(0.1, 0.7))).toEqual({
+      kind: 'v16', color: '#ff0000', startFoldedOut: true,
+    });
+  });
+
+  it('draws again rather than show the same version twice in a row', () => {
+    // first draw is blue v10 again, the second is the wheel
+    expect(pickNextLoadingVariant(LOADING_SPEC, blue, seq(0.995, 0.9, 0.9, 0.2))).toEqual({
+      kind: 'wheel', color: '#ff0000', startFoldedOut: false,
+    });
+  });
+
+  it('never repeats the previous version over many draws', () => {
+    let prev = pickLoadingVariant(LOADING_SPEC);
+    for (let i = 0; i < 500; i++) {
+      const next = pickNextLoadingVariant(LOADING_SPEC, prev);
+      expect(next).not.toEqual(prev);
+      prev = next;
+    }
+  });
+
+  it('gives up and keeps the draw when nothing else is possible', () => {
+    expect(pickNextLoadingVariant(LOADING_SPEC, blue, () => 0.995, 3)).toEqual({ ...blue, startFoldedOut: false });
   });
 });

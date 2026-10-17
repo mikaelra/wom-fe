@@ -29,6 +29,16 @@ async function ticket(w: ShellWindow | undefined): Promise<string | null> {
   }
 }
 
+/** The Steam account's name as the Steam client reports it, or null. */
+export async function steamPersonaName(w: ShellWindow | undefined = globalThis.window): Promise<string | null> {
+  if (!isSteamClient(w)) return null;
+  try {
+    return (await w?.wom?.getSteamInfo())?.playerName ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function remember(name: string, sessionToken: string) {
   setStoredAccountToken(sessionToken);
   localStorage.setItem('playerName', name);
@@ -45,29 +55,29 @@ export async function steamSignIn(w: ShellWindow | undefined = globalThis.window
   if (!isSteamClient(w)) return { status: 'skipped' };
   const token = getStoredAccountToken();
   const t = await ticket(w);
+  const steamName = await steamPersonaName(w);
   if (token) {
     // Already logged in: check in with this Steam account, which links it
     // to the account if it isn't yet and lets the backend award Steam
     // achievements (wom-be routes/steam_auth.py). Nothing to show if it
     // can't (linked to another Steam account, Steam off, offline).
-    if (t) await postSteamLink(t, token).catch(() => undefined);
+    if (t) await postSteamLink(t, token, steamName).catch(() => undefined);
     return { status: 'skipped' };
   }
   if (!t) return { status: 'skipped' };
-  const data = await postSteamLogin(t);
+  const data = await postSteamLogin(t, steamName);
   if (data.status === 'ok' && data.name && data.session_token) {
     remember(data.name, data.session_token);
     return { status: 'signed-in', name: data.name };
   }
-  const info = await w?.wom?.getSteamInfo().catch(() => null);
-  return { status: 'new', steamName: info?.playerName ?? null };
+  return { status: 'new', steamName };
 }
 
 /** "Play now": a new account named `name`, logged in with this Steam account. */
 export async function createSteamAccount(name: string, w: ShellWindow | undefined = globalThis.window): Promise<void> {
   const t = await ticket(w);
   if (!t) throw new Error('Steam is not available.');
-  const data = await postSteamCreate(t, name);
+  const data = await postSteamCreate(t, name, await steamPersonaName(w));
   if (!data.name || !data.session_token) throw new Error('Could not create the account.');
   remember(data.name, data.session_token);
 }
@@ -85,7 +95,7 @@ export async function completePendingSteamLink(w: ShellWindow | undefined = glob
   const t = await ticket(w);
   if (!token || !t) return null;
   try {
-    await postSteamLink(t, token);
+    await postSteamLink(t, token, await steamPersonaName(w));
     localStorage.removeItem(LINK_PENDING_KEY);
     return null;
   } catch (e) {

@@ -203,6 +203,27 @@ export const AgeAffirmResponseSchema = z.object({
   age_affirmed: z.boolean(),
 });
 
+// POST /account/connections -- Settings -> Connections: each way into the
+// account, null while not connected.
+export const ConnectionsResponseSchema = z.object({
+  steam: z.object({ name: z.string().nullable() }).nullable(),
+  // Optional while a backend from before the iOS app's Apple login may answer.
+  apple: z.object({}).nullable().optional(),
+  web: z.object({ email: z.string() }).nullable(),
+});
+
+export const EntitlementsResponseSchema = z.object({
+  hd: z.boolean(),
+});
+
+export const ConnectWebResponseSchema = z.object({
+  status: z.literal('sent'),
+});
+
+export const ChatReportResponseSchema = z.object({
+  status: z.literal('reported'),
+});
+
 export const LogOutResponseSchema = z.object({
   success: z.boolean(),
 });
@@ -246,6 +267,9 @@ export const ConfirmEmailVerificationResponseSchema = z.object({
   purpose: z.string(),
   relic_name: z.string().nullable().optional(),
   session_token: z.string().optional(),
+  // connect_web only: the account the link logged this browser into.
+  name: z.string().optional(),
+  email: z.string().optional(),
 });
 
 export const ForgotUsernameResponseSchema = z.object({
@@ -354,6 +378,9 @@ export const SpinWheelResponseSchema = z.object({
 export const RankedProfileResponseSchema = z.object({
   tier: z.string().nullable(),
   ranked_games_played: z.number().int(),
+  // Principality's leaderboard number (docs/RANK_SYSTEM_PLAN.md §5); null
+  // below Principality, absent from a backend that predates it.
+  principality_rank: z.number().int().nullable().optional(),
 });
 
 // POST /ranked/queue/join, /ranked/queue/leave (docs/RANK_SYSTEM_PLAN.md §6).
@@ -391,6 +418,33 @@ export const SeasonHistoryResponseSchema = z.object({
 });
 export type SeasonHistoryEntry = z.infer<typeof SeasonHistoryEntrySchema>;
 
+// GET /ranked/games/<name> -- this season's ranked games, a page at a time
+// (the stats page's Games list).
+export const RankedGamesResponseSchema = z.object({
+  games: z.array(z.object({
+    game_id: z.string(),
+    placement: z.number().int(),
+    // The tier shown after this game; null while hidden during placement.
+    rank: z.string().nullable(),
+    opponents: z.array(z.object({ name: z.string(), place: z.number().int() })),
+    at: z.string().nullable(),
+  })),
+  total: z.number().int(),
+  page: z.number().int(),
+  per_page: z.number().int(),
+});
+export type RankedGames = z.infer<typeof RankedGamesResponseSchema>;
+
+// GET /ranked/ranks/<name> -- every rank ever shown in ranked, all seasons.
+const RankSeenSchema = z.object({ tier: z.string(), season: z.string(), at: z.string().nullable() });
+export const RankedRanksResponseSchema = z.object({
+  ranks: z.array(RankSeenSchema),
+  // The bot-ranked ladder's (the player's AI), when each rank was first
+  // shown -- optional while an older backend may answer without it.
+  ai_ranks: z.array(RankSeenSchema).optional(),
+});
+export type RankedRanks = z.infer<typeof RankedRanksResponseSchema>;
+
 // POST /ranked/active -- does this player have a currently
 // unfinished ranked match to return to (docs/RANK_SYSTEM_PLAN.md §6/§10)?
 // "Back to Home" only navigates away, it never leaves the lobby server-side,
@@ -427,6 +481,9 @@ export const PlayerProfileResponseSchema = z.object({
   played_games: z.number().int(),
   wins: z.number().int(),
   kills: z.number().int(),
+  // Bossfights the players won (wom-be #263); optional while an older
+  // backend may answer without it.
+  bosses_defeated: z.number().int().optional(),
 });
 
 // docs/MONETIZATION_PLAN.md §5.2/§5.3/§8 -- shop, checkout, wheel odds.
@@ -504,13 +561,16 @@ export const AppleVerifyResponseSchema = z.object({
 });
 
 // POST /shop/steam/init -- a Steam Wallet purchase started; Steam is
-// showing the player its approval dialog for this order.
+// showing the player its approval dialog for this order. A web purchase
+// (Linux, no overlay) comes with steam_url, the page to approve it on.
 export const SteamInitResponseSchema = z.object({
   order_id: z.number().int(),
+  steam_url: z.string().optional(),
 });
 
 // POST /shop/steam/finalize -- "fulfilled" once charged and granted,
-// "cancelled" when the player declined.
+// "cancelled" when the player declined. A web purchase's check is
+// "pending" until the player has approved it on Steam's page.
 export const SteamFinalizeResponseSchema = z.object({
   status: z.string(),
   product: z.string(),
@@ -716,6 +776,13 @@ export const CityPresenceSchema = z.object({
   ranked: z.number().int(),
   bot_ranked: z.number().int(),
   market: z.number().int(),
+  // People only, split into searching (queued) and in a lobby or game
+  // (wom-be #259) -- the text city's ranked boards. Optional while an older
+  // backend may answer without them.
+  ranked_searching: z.number().int().optional(),
+  ranked_in_game: z.number().int().optional(),
+  bot_ranked_searching: z.number().int().optional(),
+  bot_ranked_in_game: z.number().int().optional(),
 });
 export type CityPresence = z.infer<typeof CityPresenceSchema>;
 export type MarketFrogs = z.infer<typeof MarketFrogsSchema>;
@@ -805,6 +872,11 @@ export const MyAiMatchesSchema = z.object({
     })),
     at: z.string().nullable(),
   })),
+  // Paged through the whole season (wom-be #257); optional while an older
+  // backend may answer with the latest games only.
+  total: z.number().int().optional(),
+  page: z.number().int().optional(),
+  per_page: z.number().int().optional(),
 });
 export type MyAiStatus = z.infer<typeof MyAiStatusSchema>;
 export type MyAiKnobs = z.infer<typeof MyAiKnobsSchema>;

@@ -6,11 +6,13 @@ import { useRouter } from 'next/navigation';
 import { useAuthFlow, NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
 import { CITY_PATH } from '@/lib/cities';
 import { completePendingSteamLink } from '@/lib/steamAccount';
+import { completePendingAppleLink } from '@/lib/appleAccount';
 
 export default function LoginPage() {
   const router = useRouter();
-  // Logged in from the Steam client's "I already have an account", but the
-  // Steam account couldn't be linked (src/lib/steamAccount.ts).
+  // Logged in from "I already have an account" in the Steam client or the
+  // iOS app, but the Steam or Apple account couldn't be linked
+  // (src/lib/steamAccount.ts, src/lib/appleAccount.ts).
   const [steamLinkError, setSteamLinkError] = useState('');
 
   const authFlow = useAuthFlow({
@@ -19,7 +21,7 @@ export default function LoginPage() {
         localStorage.setItem('playerName', name);
         localStorage.setItem('playerEmail', email);
       }
-      const linkError = await completePendingSteamLink();
+      const linkError = (await completePendingSteamLink()) ?? (await completePendingAppleLink());
       if (linkError) {
         setSteamLinkError(linkError);
         return;

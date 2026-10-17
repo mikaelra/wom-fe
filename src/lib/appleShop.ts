@@ -30,6 +30,8 @@ export interface WomStoreKitPlugin {
   finish(options: { transactionId: string }): Promise<void>;
   unfinished(): Promise<{ transactions: SignedTransaction[] }>;
   storefront(): Promise<{ countryCode: string | null }>;
+  /** The signed AppTransaction the app logs in with (src/lib/appleAccount.ts). */
+  appTransaction(): Promise<{ jws: string }>;
   addListener(event: 'transaction', listener: (t: SignedTransaction) => void): Promise<PluginListenerHandle>;
 }
 

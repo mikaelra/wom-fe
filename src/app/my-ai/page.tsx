@@ -8,6 +8,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import GameHistoryTable from '@/components/history/GameHistoryTable';
+import { GAMES_PER_PAGE } from '@/lib/paging';
 import { getStoredAccountToken } from '@/lib/http';
 import {
   getMyAiStatus,
@@ -66,20 +68,11 @@ function dhmToMinutes(days: number, hours: number, minutes: number): number {
 
 /** "14:03" for a game that ended today, "Sep 1, 14:03" otherwise -- local
  *  clock. "—" if it doesn't parse. */
-function formatEnded(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (new Date().toDateString() === d.toDateString()) return time;
-  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
-}
-
 function reasonText(reason: string): string {
   return (
     {
-      queued: 'Your AI is on. It plays bot-ranked games while you\'re away.',
+      queued: 'Your AI is on. It plays bot-ranked games at your chosen pace, even while you play.',
       no_credits: "No credits — your AI can't play. Finish a ranked or bot-ranked game, or buy a pack.",
-      owner_idle: 'Your AI plays in the gaps between your own games.',
       already_queued: 'Your AI is already on.',
       toggled_off: 'Your AI is off.',
     }[reason] ?? reason
@@ -105,7 +98,10 @@ export default function MyAiPage() {
   const [knobs, setKnobs] = useState<MyAiKnobs>({});
   const [rules, setRules] = useState<MyAiOverrideRule[]>([]);
 
+  const [matchPage, setMatchPage] = useState(1);
+  const [matchTick, setMatchTick] = useState(0);
   const refresh = useCallback((t: string) => {
+    setMatchTick((n) => n + 1);
     getMyAiStatus(t)
       .then((s) => {
         setStatus(s);
@@ -117,8 +113,14 @@ export default function MyAiPage() {
         setRules(s.override_rules);
       })
       .catch((e: unknown) => setLoadError(e instanceof Error ? e.message : 'Failed to load your AI.'));
-    getMyAiMatches(t).then(setMatches).catch(() => {});
   }, []);
+
+  // The season's games, a page at a time (GameHistoryTable), fetched again
+  // whenever the rest of the page is (matchTick).
+  useEffect(() => {
+    if (!token) return;
+    getMyAiMatches(token, matchPage).then(setMatches).catch(() => {});
+  }, [token, matchPage, matchTick]);
 
   useEffect(() => {
     setMounted(true);
@@ -209,11 +211,9 @@ export default function MyAiPage() {
           {toggleNote && <p className="text-white/70 text-sm -mt-4">{toggleNote}</p>}
           {status.enabled && status.queue.queued && (
             <p className="text-white/60 text-sm -mt-6">
-              {status.queue.playing
-                ? `Playing while you're away · ${status.queue.games_played ?? 0} game${
-                    (status.queue.games_played ?? 0) === 1 ? '' : 's'
-                  } this session`
-                : 'Standing by — starts when you go idle'}
+              {`Playing at your pace · ${status.queue.games_played ?? 0} game${
+                (status.queue.games_played ?? 0) === 1 ? '' : 's'
+              } this session`}
             </p>
           )}
 
@@ -362,32 +362,25 @@ export default function MyAiPage() {
 
           {/* --- match history --- */}
           <section>
-            <h2 className="text-white font-semibold mb-2">Recent bot-ranked games</h2>
+            <h2 className="text-white font-semibold mb-2">Bot-ranked games this season</h2>
             {!matches || matches.matches.length === 0 ? (
               <p className="text-white/50 text-sm">No games yet.</p>
             ) : (
-              <table className="text-sm text-white/80 w-full max-w-lg">
-                <thead className="text-white/50 text-xs">
-                  <tr>
-                    <th className="text-left">Placed</th>
-                    <th className="text-left">Rank after</th>
-                    <th className="text-left">Opponents</th>
-                    <th className="text-right">Ended</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {matches.matches.map((m) => (
-                    <tr key={m.match_id} className="border-t border-white/10">
-                      <td>#{m.placement}</td>
-                      <td>{m.rank ?? '—'}</td>
-                      <td>{m.opponents.map((o) => o.name).join(', ')}</td>
-                      <td className="text-right text-white/50 whitespace-nowrap">
-                        {m.at ? formatEnded(m.at) : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="max-w-lg">
+                <GameHistoryTable
+                  rows={matches.matches.map((m) => ({
+                    id: m.match_id,
+                    placement: m.placement,
+                    rank: m.rank,
+                    opponents: m.opponents.map((o) => o.name).join(', '),
+                    at: m.at,
+                  }))}
+                  total={matches.total ?? matches.matches.length}
+                  page={matches.page ?? matchPage}
+                  perPage={matches.per_page ?? GAMES_PER_PAGE}
+                  onPage={setMatchPage}
+                />
+              </div>
             )}
           </section>
         </div>
@@ -425,7 +418,7 @@ function CreditInfo() {
         aria-label="How credits work"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="w-4 h-4 rounded-full border border-white/40 text-white/70 text-[10px] leading-none flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
+        className="w-4 h-4 rounded-full border border-white/40 text-white/70 text-[0.625rem] leading-none flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
       >
         i
       </button>

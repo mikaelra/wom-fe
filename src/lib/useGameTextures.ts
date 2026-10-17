@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { use, useEffect } from 'react';
 import { useLoader, useThree } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import type * as THREE from 'three';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { BASIS_TRANSCODER_PATH, isKtx2 } from '@/lib/ktx2Textures';
+import { hdSources } from '@/lib/hdTextures';
 
 /**
  * KTX2 textures, transcoded for this GPU (ASTC on iPhone, BC7 on desktop).
@@ -16,14 +17,16 @@ import { BASIS_TRANSCODER_PATH, isKtx2 } from '@/lib/ktx2Textures';
  */
 export function useKtx2Textures(urls: string[]): THREE.Texture[] {
   const gl = useThree((s) => s.gl);
-  const textures = useLoader(KTX2Loader, urls, (loader) => {
+  // On the web, HD files come from the browser's own copy (lib/hdTextures.ts).
+  const srcs = use(hdSources(urls));
+  const textures = useLoader(KTX2Loader, srcs, (loader) => {
     loader.setTranscoderPath(BASIS_TRANSCODER_PATH);
     loader.detectSupport(gl);
   }) as THREE.Texture[];
 
-  const key = urls.join('|');
+  const key = srcs.join('|');
   useEffect(() => () => {
-    useLoader.clear(KTX2Loader, urls);
+    useLoader.clear(KTX2Loader, srcs);
     textures.forEach((t) => t.dispose());
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -32,9 +35,9 @@ export function useKtx2Textures(urls: string[]): THREE.Texture[] {
 
 /**
  * useTexture for JPEG/PNG urls, useKtx2Textures for .ktx2 ones. Callers pass
- * one kind per call -- the native build's paths are all KTX2 and the web's all
- * JPEG (lib/ktx2Textures.ts), fixed at build time, so the hook called here
- * never changes between renders.
+ * one kind per call -- the HD paths are all KTX2 and the others all JPEG
+ * (lib/ktx2Textures.ts), chosen once when the scene mounts
+ * (lib/hdTextures.ts), so the hook called here never changes between renders.
  */
 export function useGameTextures(urls: string[]): THREE.Texture[] {
   const ktx2 = urls.every(isKtx2);

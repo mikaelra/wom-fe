@@ -182,7 +182,7 @@ export default function ArtifactLedger({
                     and gets none. */}
                 {gap !== null && (
                   <span
-                    className="shrink-0 text-[11px] font-semibold tabular-nums"
+                    className="shrink-0 text-[0.6875rem] font-semibold tabular-nums"
                     style={{
                       color: '#6bff9e',
                       textShadow: '0 0 6px rgba(107, 255, 158, 0.55)',
