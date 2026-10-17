@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { ALL_FROG_SKINS } from '@/lib/frogSkins';
 import {
   PIXEL_ARTIFACT_URL,
+  PIXEL_BLIMKIN_URL,
   PIXEL_COIN_URL,
   PIXEL_MY_AI_COIN_URL,
   PIXEL_ROBOT_URL,
@@ -54,7 +55,7 @@ describe('pixel art (Low Definition)', () => {
   });
 
   it('has the wheels, the artifact, the robot frog and the My AI coin on disk', () => {
-    for (const url of [PIXEL_WHEEL_URL, PIXEL_SPECIAL_WHEEL_URL, PIXEL_ARTIFACT_URL, PIXEL_ROBOT_URL, PIXEL_MY_AI_COIN_URL]) {
+    for (const url of [PIXEL_WHEEL_URL, PIXEL_SPECIAL_WHEEL_URL, PIXEL_ARTIFACT_URL, PIXEL_BLIMKIN_URL, PIXEL_ROBOT_URL, PIXEL_MY_AI_COIN_URL]) {
       expect(inPublic(url), url).toBe(true);
     }
   });
@@ -65,7 +66,7 @@ describe('pixel art (Low Definition)', () => {
     for (const skin of [...ALL_FROG_SKINS, 'cherub_v1']) expect(inPublic(pixelSkinUrl(skin, true)!), skin).toBe(true);
     for (const name of ["Hades' Coin", 'Stone of Vitality', 'Pen', 'Paper']) expect(inPublic(pixelRelicUrl(name, true)!), name).toBe(true);
     for (const m of ['merchant_v1', 'lady_merchant_v1']) expect(inPublic(pixelMerchantUrl(m, true)!), m).toBe(true);
-    for (const url of [PIXEL_WHEEL_URL, PIXEL_SPECIAL_WHEEL_URL, PIXEL_ARTIFACT_URL, PIXEL_ROBOT_URL, PIXEL_MY_AI_COIN_URL, PIXEL_COIN_URL]) {
+    for (const url of [PIXEL_WHEEL_URL, PIXEL_SPECIAL_WHEEL_URL, PIXEL_ARTIFACT_URL, PIXEL_BLIMKIN_URL, PIXEL_ROBOT_URL, PIXEL_MY_AI_COIN_URL, PIXEL_COIN_URL]) {
       expect(inPublic(withAura(url)), url).toBe(true);
     }
   });

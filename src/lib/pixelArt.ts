@@ -25,6 +25,8 @@ export const PIXEL_COIN_URL = '/pixel/hades_coin.png';
 export const PIXEL_MY_AI_COIN_URL = '/pixel/my_ai_coin.png';
 /** The artifact is its scroll. */
 export const PIXEL_ARTIFACT_URL = '/pixel/artifact.png';
+/** Blimkin, as he stands in the statusline (a first try, to refine). */
+export const PIXEL_BLIMKIN_URL = '/pixel/blimkin.png';
 
 /** The relics with a picture, by name. Any other relic keeps its glyph. */
 const PIXEL_RELICS: Record<string, string> = {

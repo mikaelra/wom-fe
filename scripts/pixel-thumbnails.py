@@ -717,6 +717,37 @@ def my_ai_coin():
     return c
 
 
+BLIM, BLIM_LIT, BLIM_DARK, BLIM_INK, BLIM_EYE = '#ffd214', '#ffe97a', '#e1a500', '#1a1204', '#e61e28'
+
+
+def blimkin():
+    """Blimkin, as he stands in the statusline (lib/blimkinSprite.ts): the yellow
+    gremlin with a spike on his head and another on his left, arms hanging out
+    from his sides, two red eyes in black sockets looking right, a flat black
+    mouth, an amber underside and two thin legs. A first try, to refine."""
+    c = Canvas()
+    body = ell(16, 17.5, 10.2, 8.6)
+    poly(c, [(16, 1), (11.5, 10), (20.5, 10)], rgb(BLIM))            # the big spike
+    poly(c, [(3, 13), (9, 10), (9, 17)], rgb(BLIM))                  # the small one, on his left
+    poly(c, [(29.5, 21), (25, 18.5), (25, 23.5)], rgb(BLIM_DARK))    # a nub on his right, amber
+    line(c, [(7, 21), (3, 25)], rgb(BLIM))                           # arms hanging out from the sides
+    line(c, [(8, 22), (4, 26)], rgb(BLIM))
+    line(c, [(25, 21), (29, 25)], rgb(BLIM))
+    line(c, [(24, 22), (28, 26)], rgb(BLIM))
+    line(c, [(13, 26), (11, 30)], rgb(BLIM))                         # legs
+    line(c, [(19, 26), (21, 30)], rgb(BLIM))
+    c.fill(body, rgb(BLIM))
+    c.fill(body & (CY >= 22.2), rgb(BLIM_DARK))                      # the amber underside
+    c.fill(body & (CX + CY < 20), rgb(BLIM_LIT))                     # the lit upper left
+    c.fill(body & (CX + CY < 17.5) & (CX + CY >= 15.5), rgb(BLIM_LIT))
+    for x0 in (8, 18):                                               # eyes: black sockets, red looking right
+        c.fill((YY >= 13) & (YY <= 17) & (XX >= x0) & (XX <= x0 + 4), rgb(BLIM_INK))
+        c.fill((YY >= 14) & (YY <= 16) & (XX >= x0 + 2) & (XX <= x0 + 3), rgb(BLIM_EYE))
+    c.fill((YY >= 20) & (YY <= 21) & (XX >= 11) & (XX <= 20), rgb(BLIM_INK))   # the mouth
+    c.outline(rgb(BLIM_INK))
+    return c
+
+
 def artifacts_list():
     out = {n: frog(n) for n in FROGS}
     out['cherub_v1'] = cherub()
@@ -725,6 +756,7 @@ def artifacts_list():
     out['merchant_v1'] = merchant_man()
     out['lady_merchant_v1'] = merchant_lady()
     out['artifact'] = artifact()
+    out['blimkin'] = blimkin()
     out['pen'] = pen()
     out['paper'] = paper()
     out['stone'] = stone()
@@ -750,7 +782,7 @@ AURA = {
     'frog_yellow_v1': '#f4e060', 'frog_gold_v1': '#f2c14e', 'frog_silver_v1': '#c8ccd6',
     'frog_bling_v1': '#8fdcff', 'frog_rainbow_v2': 'rainbow', 'cherub_v1': '#fff0c0',
     'frog_robot_v1': '#9aa1ad', 'merchant_v1': '#a8682c', 'lady_merchant_v1': '#a8682c',
-    'stone': '#2fb84a', 'pen': '#dfe3ec', 'paper': '#d1aa57', 'hades_coin': '#f0b84a',
+    'blimkin': '#ffd214', 'stone': '#2fb84a', 'pen': '#dfe3ec', 'paper': '#d1aa57', 'hades_coin': '#f0b84a',
     'my_ai_coin': '#c9ced8', 'artifact': '#dcc38c', 'wheel': '#3a3af5', 'special-wheel': '#a040ff',
 }
 

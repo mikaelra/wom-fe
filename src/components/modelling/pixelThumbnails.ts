@@ -47,6 +47,10 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
     ],
   },
   {
+    title: 'Blimkin',
+    items: [{ id: 'blimkin', label: 'Blimkin (first try, to refine)' }],
+  },
+  {
     title: 'Wheels and the artifact',
     items: [
       { id: 'wheel', label: 'Wheel', was: '/images/wheel.png' },
