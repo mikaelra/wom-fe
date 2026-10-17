@@ -176,12 +176,12 @@ describe('MerchantScene', () => {
       render(<MerchantScene offer={PAPER} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
       const paperBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
 
-      expect(stone.w).toBe('40px');
-      expect(paperBox.style.width).toBe('160px');
-      expect(paperBox.style.height).toBe('160px');
+      expect(stone.w).toBe('2.5rem'); // 40px, in rem to grow with the UI scale
+      expect(paperBox.style.width).toBe('10rem');
+      expect(paperBox.style.height).toBe('10rem');
       expect(paperBox.style.bottom).toBe(stone.bottom);
-      // Same centre: 60px further left for a box 120px wider.
-      expect(parseFloat(paperBox.style.left)).toBe(stone.left - 60);
+      // Same centre: 60px (3.75rem) further left for a box 120px wider.
+      expect(parseFloat(paperBox.style.left)).toBe(stone.left - 3.75);
     });
 
     it('stages the Pen at 4x the Stone\'s size too, same centre', () => {
@@ -193,10 +193,10 @@ describe('MerchantScene', () => {
       render(<MerchantScene offer={{ ...OFFER, trigger_kind: 'new_moon', item_name: 'Pen' }} token="t" onClose={vi.fn()} onPurchased={vi.fn()} />);
       const penBox = screen.getAllByTestId('merchant-model').at(-1)!.parentElement!;
 
-      expect(penBox.style.width).toBe('160px');
-      expect(penBox.style.height).toBe('160px');
+      expect(penBox.style.width).toBe('10rem');
+      expect(penBox.style.height).toBe('10rem');
       expect(penBox.style.bottom).toBe(stone.bottom);
-      expect(parseFloat(penBox.style.left)).toBe(stone.left - 60);
+      expect(parseFloat(penBox.style.left)).toBe(stone.left - 3.75);
     });
 
     it('says one of her lines -- never the particular conjunction', () => {

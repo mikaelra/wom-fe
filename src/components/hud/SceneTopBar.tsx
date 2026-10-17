@@ -30,9 +30,12 @@ import SfxToggleButton from '@/components/audio/SfxToggleButton';
 
 export default function SceneTopBar({
   belowRules,
+  belowSound,
 }: {
   /** Drawn directly under the Rules button -- the Earth screen's clock. */
   belowRules?: ReactNode;
+  /** Under the sound buttons: the Earth's camera speed (CameraSpeedButton). */
+  belowSound?: ReactNode;
 } = {}) {
   const router = useRouter();
   const [loggedInName, setLoggedInName] = useState('');
@@ -135,7 +138,8 @@ export default function SceneTopBar({
           RopedButton(168), no gap = 352px total -- so "Enter lobby
           code..."'s left edge always sits at `center - 176px`, regardless
           of viewport width. This button is 163px wide; pinning its
-          *outer* (left) edge to `center - 257px` puts its span at
+          *outer* (left) edge to `center - 257px` (16.0625rem, so it grows
+          with the UI scale, lib/uiScale.ts) puts its span at
           [center-257px, center-94px], whose rightmost ~82px (half its own
           163px width), [center-176px, center-94px], lands almost exactly
           on that 176px mark. 257px still keeps the button fully on-screen
@@ -145,10 +149,13 @@ export default function SceneTopBar({
           wider viewport since it's a fixed pixel offset from center, not
           a percentage. */}
       <div
-        className="absolute top-0 left-3 sm:left-[calc(50%-257px)] z-20 pointer-events-none"
+        className="absolute top-0 left-3 sm:left-[calc(50%-16.0625rem)] z-20 pointer-events-none"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
       >
-        <div className="pointer-events-auto flex flex-col items-start gap-2">
+        {/* On an Apple Watch-sized window drawn at 80%, the small buttons
+            under Rules side by side, so the column doesn't run down over
+            the scene. */}
+        <div className="pointer-events-auto flex flex-col items-start gap-2 compact:scale-[0.8] compact:origin-top-left">
           <RopedButton
             // 163 -- same exact-fit width as the user-menu chip (see its own
             // comment): rope_button-ld-v2.png's natural size is 595x197
@@ -163,12 +170,15 @@ export default function SceneTopBar({
             Rules
           </RopedButton>
           {belowRules}
+          <div className="contents compact:flex compact:flex-wrap compact:items-center compact:gap-1">
           <MusicToggleButton />
           {/* The sound-effects toggle was only ever rendered in the lobby
               (LobbyOverlay), so every screen carrying this bar -- the city
               included -- offered a music button and no way at all to mute
               the effects. */}
           <SfxToggleButton />
+          {belowSound}
+          </div>
         </div>
       </div>
       <div
@@ -187,11 +197,11 @@ export default function SceneTopBar({
         // 257px offset as the left side, so it keeps the same on-screen
         // margin down to the 640px breakpoint and the same constant
         // overlap ratio at any wider viewport.
-        className="absolute top-0 right-3 sm:right-[calc(50%-257px)] z-20 pointer-events-none"
+        className="absolute top-0 right-3 sm:right-[calc(50%-16.0625rem)] z-20 pointer-events-none"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}
       >
         {/* Right: player info */}
-        <div className="pointer-events-auto flex items-center gap-3">
+        <div className="pointer-events-auto flex items-center gap-3 compact:scale-[0.8] compact:origin-top-right">
           {!isLoggedIn && (
             <RopedButton
               width={153}
