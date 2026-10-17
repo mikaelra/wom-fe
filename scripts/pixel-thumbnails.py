@@ -285,6 +285,37 @@ def line(c, pts, color):
     c.fill(np.array(m) > 0, color)
 
 
+def dagger(c):
+    """The cherub's small dagger, held across its chest as in the 3D model:
+    gold pommel, brown grip in the hand, gold crossguard, a steel blade
+    tapering up and to the right."""
+    d = Canvas()
+    gold, gold_lo, grip = rgb('#d8a830'), rgb('#8a5a14'), rgb('#8a4a30')
+    for x, y in [(4, 21), (5, 21), (4, 22), (5, 22)]:  # the pommel
+        d.dot(x, y, gold)
+    d.dot(5, 22, gold_lo)
+    for x, y in [(6, 21), (7, 20), (8, 20), (9, 19)]:  # the grip
+        d.dot(x, y, grip)
+    for x, y in [(10, 17), (10, 18), (11, 18), (10, 19), (11, 19), (11, 20), (10, 21), (11, 21)]:  # the crossguard
+        d.dot(x, y, gold)
+    d.dot(11, 19, gold_lo)
+    for i in range(11):  # the blade
+        x = 12 + i
+        yc = 19 - round(i * 0.4)
+        half = 1 if i < 7 else 0
+        d.dot(x, yc - half, rgb('#f2f5fb'))
+        if half:
+            d.dot(x, yc, rgb('#c4c9d8'))
+            d.dot(x, yc + 1, rgb('#6a6e82'))
+        else:
+            d.dot(x, yc, rgb('#c4c9d8'))
+    for x, y in [(8, 19), (9, 20), (8, 20)]:  # the hand round the grip
+        d.dot(x, y, rgb('#f1c9b0'))
+    m = d.alpha()
+    c.fill(dilate(m) & ~m & c.alpha(), rgb('#4a4660'))  # a dark edge where it lies on the dress
+    c.px[m] = d.px[m]
+
+
 def cherub():
     c = Canvas()
     white, shade = rgb('#f8f8fc'), rgb('#bcbfd0')
@@ -301,7 +332,7 @@ def cherub():
     c.rim(dress, (255, 255, 255), shade)
     c.fill((YY == 29) & (XX >= 11) & (XX <= 20), shade)  # the hem
     c.fill(((XX >= 12) & (XX <= 14) | (XX >= 18) & (XX <= 20)) & (YY >= 30), rgb('#f1c9b0'))  # feet
-    c.fill(ell(9.2, 20, 1.5, 3.0) | ell(22.8, 20, 1.5, 3.0), rgb('#f1c9b0'))  # arms
+    c.fill(ell(8.6, 17.4, 1.6, 3.4) | ell(22.8, 20, 1.5, 3.0), rgb('#f1c9b0'))  # arms: the left one is bent to hold the dagger
     head = ell(16, 9.4, 5.2, 5.2)
     c.fill(head, rgb('#f6d3bc'))
     hair = ell(16, 7.2, 6.0, 4.6) & (YY <= 8)
@@ -310,11 +341,7 @@ def cherub():
     c.dot(14, 10, rgb('#5a6a98'))
     c.dot(18, 10, rgb('#5a6a98'))
     c.dot(16, 12, rgb('#e08878'))
-    # the dagger in the right hand: gold hilt, silver blade
-    for i in range(8):
-        c.dot(24 + i // 2, 22 - i, rgb('#e2e6f2') if i > 2 else rgb('#c8962a'))
-    c.dot(23, 23, rgb('#8a5a14'))
-    c.dot(25, 22, rgb('#c8962a'))
+    dagger(c)
     c.outline(rgb('#4a4660'))
     return c
 
