@@ -717,6 +717,17 @@ describe('TextLobby title and PC layout', () => {
     expect(screen.queryByText('Unranked')).toBeNull();
   });
 
+  it('is green for everyone when the players beat the boss, red when the boss wins', async () => {
+    const base = lobby({ round: 5, gameover: true, boss_fight: true, winner: 'Players' });
+    await show(base);
+    const won = screen.getByText(/Game Over! Players has won the game!/).parentElement!;
+    expect(won.className).toContain('bg-green-950');
+    expect(won.className).not.toContain('red');
+    cleanup();
+    await show({ ...base, winner: 'Hades' });
+    expect(screen.getByText(/Game Over! Hades has won the game!/).parentElement!.className).toContain('bg-red-950');
+  });
+
   it('ends in a soft green box for the winner and a soft red one for the rest, with the same words', async () => {
     await show(lobby({ round: 3, gameover: true, winner: 'Oni' }));
     expect(screen.getByText(/Game Over!/).parentElement!.className).toContain('bg-green-950');
