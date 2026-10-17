@@ -29,6 +29,33 @@ describe('WheelIcon in Low Definition', () => {
   });
 });
 
+describe('WheelIcon glow', () => {
+  it('gives the Special Wheel a purple glow in SD and HD', async () => {
+    render(<WheelIcon special glow />);
+    const img = await screen.findByTestId('special-wheel-icon');
+    expect(img.style.filter).toContain('drop-shadow');
+    expect(img.style.filter).toContain('168, 85, 247'); // purple
+    expect(img).toHaveAttribute('src', SPECIAL_WHEEL_ICON_URL);
+  });
+
+  it('gives the normal wheel a blue one', async () => {
+    render(<WheelIcon glow />);
+    expect((await screen.findByTestId('wheel-icon')).style.filter).toContain('59, 130, 246');
+  });
+
+  it('has no glow unless asked', async () => {
+    render(<WheelIcon special />);
+    expect((await screen.findByTestId('special-wheel-icon')).style.filter).toBe('');
+  });
+
+  it('is the purple-aura picture in Low Definition', async () => {
+    localStorage.setItem('textMode', 'on');
+    render(<WheelIcon special glow />);
+    await waitFor(() => expect(screen.getByTestId('special-wheel-icon')).toHaveAttribute('src', '/pixel2/special-wheel.png'));
+    expect(screen.getByTestId('special-wheel-icon').style.filter).toBe('');
+  });
+});
+
 describe('WheelIcon', () => {
   it('shows the wheel picture at emoji size, hidden from screen readers', () => {
     render(<WheelIcon />);

@@ -133,7 +133,7 @@ FROGS = {
     'frog_gold_v1': dict(skin='#a66f12', belly='#dcb888', sclera='#a81426', iris='#a81426', pupil='#0c0002', ir=2.95, pr=0, diamond=4, hi='#e2b04a'),
     'frog_silver_v1': dict(skin='#62646e', belly='#52545e', sclera='#16161a', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, hi='#dce0ea'),
     'frog_bling_v1': dict(mouth=bling_mouth, skin='#55cc34', belly='#d6e8c0', sclera='#2f9c8c', iris='#46c4b8', iris_edge='#7040b0', crescent=True, pupil='#2a1860', bar='#000000', py=0, ir=3.0, pr=1.75, sparkle=True),
-    'frog_robot_v1': dict(mouth=(20.6, 2.6), rivets=[(5, 17), (25, 17)], panels=True, no_glint=True, center_dot=True, skin='#80838a', belly='#8d9098', sclera='#000000', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95, hi='#cfd2da'),
+    'frog_robot_v1': dict(mouth=(20.6, 2.6), smile_thick=2, no_glint=True, center_dot=True, skin='#80838a', belly='#8d9098', sclera='#000000', iris='#000000', pupil='#000000', py=0, ir=2.95, pr=2.95, hi='#cfd2da'),
     'frog_rainbow_v2': dict(skin='#ff6a30', belly='#f4ec96', sclera='#ff9a2c', iris='#000000', pupil='#000000', ir=2.8, pr=2.8, rainbow=True, adaptive_rim=True),
 }
 
@@ -226,9 +226,10 @@ def draw_frog(c, p, dark_outline='#15121e'):
     outline = rgb(dark_outline)
     line_col = darken(skin, 0.7) if sum(skin) > 150 else outline
     for x in range(4, 29):
-        y = mouth_y(x, mouth)
-        if s['skin'][y, x]:
-            c.dot(x, y, line_col)
+        for row in range(p.get('smile_thick', 1)):  # a thicker smile repeats the curve a row lower
+            y = mouth_y(x, mouth) + row
+            if s['skin'][y, x]:
+                c.dot(x, y, line_col)
     if p.get('curl'):  # the corners of a real smile curl up
         c.dot(3, mouth_y(4, mouth) - 1, line_col)
         c.dot(28, mouth_y(28, mouth) - 1, line_col)
@@ -437,16 +438,27 @@ def cherub():
 
 
 def pen():
+    """The quill: a feather's vane, then a long bare quill (the calamus -- the end
+    you write with) running on to a dark nib (Mikael, 2026-10-17: it was too short)."""
     c = Canvas()
-    for t in np.linspace(0, 1, 220):
-        x, y = 4 + t * 24, 3 + t * 25
-        half = 4.6 * (math.sin(math.pi * min(1, t * 1.25)) ** 0.6) if t < 0.8 else 0
-        for ox in np.linspace(-half, half, 16):
-            c.dot(int(x + ox * 0.7), int(y - ox * 0.7), rgb('#eceef4') if ox < 0.8 else rgb('#aeb2c2'))
-    for t in np.linspace(0, 1, 120):
-        c.dot(int(4 + t * 24), int(3 + t * 25), rgb('#50505a'))
-    c.dot(28, 28, rgb('#15121e'))
-    c.dot(27, 27, rgb('#15121e'))
+    x0, y0, x1, y1 = 3.0, 2.0, 30.0, 30.0       # the whole length, corner to corner
+    vane_end = 0.60                              # the vane is the first 60%; the rest is quill
+    for t in np.linspace(0, 1, 260):
+        x, y = x0 + t * (x1 - x0), y0 + t * (y1 - y0)
+        if t < vane_end:
+            half = 4.6 * (math.sin(math.pi * t / vane_end) ** 0.6)
+            for ox in np.linspace(-half, half, 16):
+                c.dot(int(x + ox * 0.7), int(y - ox * 0.7), rgb('#eceef4') if ox < 0.8 else rgb('#aeb2c2'))
+    for t in np.linspace(0, 1, 200):
+        x, y = int(x0 + t * (x1 - x0)), int(y0 + t * (y1 - y0))
+        # the shaft: dark through the vane, then the pale bare quill, then the nib
+        if t < vane_end:
+            c.dot(x, y, rgb('#50505a'))
+        elif t < 0.90:
+            c.dot(x, y, rgb('#d4d8e4'))
+            c.dot(x + 1, y, rgb('#a9aebd'))          # its shaded side
+        else:
+            c.dot(x, y, rgb('#15121e'))              # the nib
     c.outline(rgb('#2a2836'))
     return c
 

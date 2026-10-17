@@ -15,6 +15,7 @@ import { wheelKindFromString, wheelKindLabel } from '@/lib/wheelGeometry';
 import type { TradeUpRule, TradeUpResult } from '@/lib/tradeUps';
 import WheelSpinModal from '@/components/WheelSpinModal';
 import TradeUpModal from '@/components/TradeUpModal';
+import SkinDetailModal from '@/components/SkinDetailModal';
 import RelicCoin from '@/components/RelicCoin';
 import ArtifactLedgerModal from '@/components/ArtifactLedgerModal';
 import RevertTimeModal from '@/components/merchant/RevertTimeModal';
@@ -97,6 +98,8 @@ export default function InventoryPage() {
   const [spinningWheel, setSpinningWheel] = useState<{ id: number; kind: string } | null>(null);
   const [tradeUpRules, setTradeUpRules] = useState<Record<string, TradeUpRule>>({});
   const [tradingUp, setTradingUp] = useState<{ skin: string; owned: number; rule: TradeUpRule } | null>(null);
+  // The skin whose picture was clicked, shown bigger -- with Trade up (SkinDetailModal).
+  const [viewingSkin, setViewingSkin] = useState<string | null>(null);
   // Set when we're logged out but localStorage remembers a name+email pair
   // (i.e. a claim was submitted from this browser) -- covers verifying that
   // claim's email link on a different device (a phone) than this one, which
@@ -427,8 +430,11 @@ export default function InventoryPage() {
                       key={skin}
                       className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-4"
                     >
-                      <div
-                        className={`w-16 h-16 overflow-hidden ${lowDefinition ? '' : 'rounded-full border-2 border-white/20'}`}
+                      <button
+                        type="button"
+                        onClick={() => setViewingSkin(skin)}
+                        aria-label={`Show ${skinLabel(skin)} bigger`}
+                        className={`w-16 h-16 overflow-hidden p-0 cursor-zoom-in ${lowDefinition ? 'bg-transparent border-0' : 'rounded-full border-2 border-white/20'}`}
                         style={lowDefinition ? undefined : { background: skinColor(skin) }}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- a small
@@ -439,7 +445,7 @@ export default function InventoryPage() {
                           className={`w-full h-full ${lowDefinition ? 'object-contain' : 'object-cover'}`}
                           style={lowDefinition ? pixelImageStyle : undefined}
                         />
-                      </div>
+                      </button>
                       <p className="text-sm font-semibold capitalize text-center">{skinLabel(skin)}</p>
                       {count > 1 && <p className="text-xs text-white/50">×{count}</p>}
                       <div className="flex items-center justify-center gap-2 flex-wrap">
@@ -453,15 +459,6 @@ export default function InventoryPage() {
                             className="text-xs px-3 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             {equipping === skin ? 'Equipping…' : 'Equip'}
-                          </button>
-                        )}
-                        {tradeUpRules[skin] && (
-                          <button
-                            type="button"
-                            onClick={() => setTradingUp({ skin, owned: count, rule: tradeUpRules[skin] })}
-                            className="text-xs px-3 py-1 rounded-md bg-amber-700/80 text-amber-200 border border-amber-600 hover:bg-amber-600/80 transition-colors cursor-pointer"
-                          >
-                            Trade up
                           </button>
                         )}
                       </div>
@@ -601,6 +598,21 @@ export default function InventoryPage() {
           onClose={() => setSpinningWheel(null)}
           onSpun={handleSpun}
           onEquipped={setEquippedSkin}
+        />
+      )}
+
+      {viewingSkin !== null && (
+        <SkinDetailModal
+          skin={viewingSkin}
+          count={ownedSkins.find((o) => o.skin === viewingSkin)?.count ?? 1}
+          canTradeUp={!!tradeUpRules[viewingSkin]}
+          onTradeUp={() => {
+            const rule = tradeUpRules[viewingSkin];
+            const owned = ownedSkins.find((o) => o.skin === viewingSkin)?.count ?? 1;
+            setViewingSkin(null);
+            if (rule) setTradingUp({ skin: viewingSkin, owned, rule });
+          }}
+          onClose={() => setViewingSkin(null)}
         />
       )}
 

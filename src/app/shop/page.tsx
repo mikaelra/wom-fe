@@ -412,7 +412,7 @@ export default function ShopPage() {
                   {product.kind === 'wheel' && product.odds && (
                     <div className="mb-4">
                       <div className="flex justify-center py-4" aria-hidden="true">
-                        <span className="text-5xl"><WheelIcon special /></span>
+                        <span className="text-5xl"><WheelIcon special glow /></span>
                       </div>
                       <div className="flex items-start gap-1.5">
                         <p className="text-xs text-white/50 flex-1">

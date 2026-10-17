@@ -134,6 +134,23 @@ describe('ShopPage', () => {
     expect(screen.getByTestId('my-ai-coin').style.imageRendering).toBe('pixelated');
   });
 
+  it('gives the Special Wheel a purple glow in the shop, and its aura picture in Low Definition', async () => {
+    mockedGetShopProducts.mockResolvedValue({
+      shop_enabled: true, terms_version: '2026-07', products: [WHEEL_PRODUCT],
+    });
+    const { unmount } = render(<ShopPage />);
+    await flush();
+    const glowing = screen.getByTestId('special-wheel-icon');
+    expect(glowing.style.filter).toContain('168, 85, 247');
+    unmount();
+
+    localStorage.setItem('textMode', 'on');
+    render(<ShopPage />);
+    await flush();
+    await flush();
+    expect(screen.getByTestId('special-wheel-icon')).toHaveAttribute('src', '/pixel2/special-wheel.png');
+  });
+
   it('renders a skin product generically', async () => {
     mockedGetShopProducts.mockResolvedValue({
       shop_enabled: true, terms_version: '2026-07', products: [SKIN_PRODUCT],

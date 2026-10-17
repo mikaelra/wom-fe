@@ -385,7 +385,7 @@ describe('InventoryPage', () => {
     expect(screen.getByText('OG Green')).toBeInTheDocument();
   });
 
-  it('shows a Trade up button only for skins with a rule', async () => {
+  it('shows Trade up in the skin\'s bigger view, only for skins with a rule, and not on the card', async () => {
     setStoredAccountToken('sess-1');
     mockedGetInventory.mockResolvedValue({
       equipped_skin: 'frog_green_v1',
@@ -398,9 +398,16 @@ describe('InventoryPage', () => {
     render(<InventoryPage />);
     await flush();
 
-    // frog_blue_v1 has a rule -- one Trade up button. frog_green_v1 (always
+    // Not on the cards any more: Trade up lives in the bigger view.
+    expect(screen.queryByRole('button', { name: 'Trade up' })).not.toBeInTheDocument();
+    // frog_blue_v1 has a rule -- Trade up in its window. frog_green_v1 (always
     // present, implicitly owned) has none.
-    expect(screen.getAllByRole('button', { name: 'Trade up' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Show Bleak Blue bigger' }));
+    expect(screen.getByRole('button', { name: 'Trade up' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show OG Green bigger' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Trade up' })).not.toBeInTheDocument();
   });
 
   it('renders no Trade up buttons, without blocking the page, when the rules fetch fails', async () => {
@@ -414,7 +421,9 @@ describe('InventoryPage', () => {
     render(<InventoryPage />);
     await flush();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Show Bleak Blue bigger' }));
     expect(screen.queryByRole('button', { name: 'Trade up' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     // The rest of the grid still renders -- a rules-fetch failure isn't an inventory failure.
     expect(screen.getByText('Equip')).toBeInTheDocument();
   });
@@ -435,7 +444,9 @@ describe('InventoryPage', () => {
     render(<InventoryPage />);
     await flush();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Show Bleak Blue bigger' }));
     fireEvent.click(screen.getByRole('button', { name: 'Trade up' }));
+    expect(screen.queryByRole('dialog', { name: 'Bleak Blue' })).not.toBeInTheDocument(); // the bigger view gave way to the trade
     fireEvent.click(screen.getByRole('button', { name: 'Trade up (5 × Bleak Blue)' }));
     expect(screen.getByText('Trade up 5 × Bleak Blue?')).toBeInTheDocument();
 
@@ -718,5 +729,62 @@ describe('InventoryPage in Low Definition', () => {
     expect(container.querySelector('img[src^="/pixel"]')).toBeNull();
     expect(screen.queryByTestId('my-ai-coin-pixel')).not.toBeInTheDocument();
     expect(screen.getByTestId('skin-preview')).toBeInTheDocument();
+  });
+});
+
+describe('InventoryPage: a skin shown bigger', () => {
+  const owned = () => {
+    setStoredAccountToken('sess-1');
+    mockedGetInventory.mockResolvedValue({
+      equipped_skin: 'frog_green_v1',
+      skins: [{ skin: 'frog_blue_v1', count: 3 }],
+      wheels: [],
+    });
+  };
+
+  it('opens from the skin\'s picture with its name, its count and a bigger preview, and closes three ways', async () => {
+    owned();
+    render(<InventoryPage />);
+    await flush();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Bleak Blue bigger' }));
+    const dialog = screen.getByRole('dialog', { name: 'Bleak Blue' });
+    expect(within(dialog).getByText('×3')).toBeInTheDocument();
+    expect(within(dialog).getByTestId('skin-preview')).toHaveAttribute('data-url', expect.stringContaining('frog_blue_v1'));
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Bleak Blue bigger' }));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Bleak Blue bigger' }));
+    fireEvent.click(screen.getByRole('dialog').parentElement!); // the dark backdrop
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('stays open when the window itself is clicked', async () => {
+    owned();
+    render(<InventoryPage />);
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Show Bleak Blue bigger' }));
+    fireEvent.click(screen.getByRole('dialog'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('shows the 32x32 face on its aura, bigger, in Low Definition', async () => {
+    owned();
+    localStorage.setItem('textMode', 'on');
+    render(<InventoryPage />);
+    await flush();
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: 'Show Bleak Blue bigger' }));
+    const dialog = screen.getByRole('dialog', { name: 'Bleak Blue' });
+    const img = dialog.querySelector('img')!;
+    expect(img).toHaveAttribute('src', '/pixel2/frog_blue_v1.png');
+    expect(img.style.imageRendering).toBe('pixelated');
+    expect(within(dialog).queryByTestId('skin-preview')).not.toBeInTheDocument();
   });
 });
