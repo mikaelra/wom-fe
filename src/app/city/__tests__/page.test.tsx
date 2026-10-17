@@ -26,6 +26,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/lib/api', () => ({
+  // The graphics quality button asks whether the account has HD.
+  getEntitlements: vi.fn(async () => ({ hd: false })),
   checkName: vi.fn(),
   logInUser: vi.fn(),
   verifyLoginCode: vi.fn(),
@@ -95,6 +97,9 @@ const socket = socketModule as unknown as {
 // Renders the wrapper div R3F would, carrying the style through, so the
 // canvas container's stacking behaviour is assertable -- the labels
 // FreshHtml appends live in exactly this element.
+// Needs a real R3F renderer (useThree); nothing to test here.
+vi.mock('@/components/hud/ContextLossRecovery', () => ({ default: () => null }));
+
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children, style }: { children?: ReactNode; style?: CSSProperties }) => (
     <div data-testid="canvas-container" style={style}>
@@ -243,6 +248,8 @@ beforeEach(() => {
   });
   botRankedHandler = undefined;
   localStorage.clear();
+  // These tests are about the 3D game; the web's default is text mode.
+  localStorage.setItem('textMode', 'off');
   setStoredAccountToken(null);
 });
 
@@ -268,6 +275,16 @@ describe('CityPage (routing)', () => {
     renderCity();
     await waitForScene();
     expect(lastCoords).toEqual({ realLat: ATHENS.realLat, realLng: ATHENS.realLng });
+  });
+
+  it('has the eye, which hides the top bar and leaves the scene', async () => {
+    renderCity();
+    await waitForScene();
+    expect(screen.getByRole('button', { name: 'Rules' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide HUD' }));
+    expect(screen.queryByRole('button', { name: 'Rules' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show HUD' }));
+    expect(screen.getByRole('button', { name: 'Rules' })).toBeInTheDocument();
   });
 
   it('shows no city nameplate over the scene', async () => {
