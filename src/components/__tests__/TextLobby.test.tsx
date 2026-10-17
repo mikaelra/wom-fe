@@ -631,7 +631,7 @@ describe('TextLobby title and PC layout', () => {
     expect(screen.getByText('3 games at Wizard I')).toBeTruthy();
   });
 
-  it('at the end of a ranked match shows each player\'s rank left of the name (2026-10-17)', async () => {
+  it('at the end of a ranked match shows each player\'s rank right of the name (2026-10-17)', async () => {
     const base = lobby({ round: 4, ranked: true, gameover: true, winner: 'Oni' });
     await show({
       ...base,
@@ -640,8 +640,8 @@ describe('TextLobby title and PC layout', () => {
     const first = base.players[0].name;
     const row = screen.getAllByText(first).map((el) => el.closest('li')).find(Boolean)!;
     const badge = within(row as HTMLElement).getByText('Djinn II');
-    // The rank comes before the name in the frame.
-    expect(badge.compareDocumentPosition(within(row as HTMLElement).getByText(first)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The rank comes after the name in the frame, never before it.
+    expect(badge.compareDocumentPosition(within(row as HTMLElement).getByText(first)) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
     expect(screen.getAllByText('Unranked').length).toBe(base.players.length - 1);
   });
 

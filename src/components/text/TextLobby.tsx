@@ -632,15 +632,16 @@ export default function TextLobby({
           </p>
         )}
         {/* One grid for the whole list, so every line's columns line up:
-            info | crown or skull | avatar | ready or away | (rank) | name |
+            info | crown or skull | avatar | ready or away | name | (rank) |
             Attack, framed together, and after the frame the chat bubble and
             kick. Each frame spans its columns (a subgrid), so all are as
-            wide as the widest. In a ranked lobby each player's rank sits
-            in a column left of the name (Mikael, 2026-10-17). */}
+            wide as the widest. At the end of a ranked match each player's
+            rank sits in a column right of the name -- never on the left
+            (Mikael, 2026-10-17). */}
         <ul
           className={`text-gray-200 grid gap-y-2 items-center ${
             rankedList
-              ? 'grid-cols-[auto_auto_auto_auto_auto_max-content_auto_minmax(0,1fr)]'
+              ? 'grid-cols-[auto_auto_auto_auto_max-content_auto_auto_minmax(0,1fr)]'
               : 'grid-cols-[auto_auto_auto_auto_max-content_auto_minmax(0,1fr)]'
           }`}
         >
@@ -707,11 +708,6 @@ export default function TextLobby({
                     <span className="text-gray-400">👻</span>
                   ) : null}
                 </span>
-                {rankedList && (
-                  <span className="shrink-0 flex justify-end">
-                    {showsRank(p) && <RankBadge tier={p.rank_tier ?? null} playerName={p.name} />}
-                  </span>
-                )}
                 <span className="flex items-center gap-2">
                   {/* On an Apple Watch-sized window, after the name on its one line. */}
                   <span className={compact ? 'flex flex-row-reverse justify-end items-baseline gap-1' : 'flex flex-col'}>
@@ -727,6 +723,11 @@ export default function TextLobby({
                       return <span key={id}>{(relic && RELIC_BADGE_EMOJI[relic.name]) ?? '🪙'}</span>;
                     })}
                 </span>
+                {rankedList && (
+                  <span className="shrink-0 flex justify-start">
+                    {showsRank(p) && <RankBadge tier={p.rank_tier ?? null} playerName={p.name} />}
+                  </span>
+                )}
                 {/* Attack, the word in red, inside the frame after the name
                     of everyone you can attack -- a tap attacks them. On a PC
                     its column is as wide as the info column, so the frame
