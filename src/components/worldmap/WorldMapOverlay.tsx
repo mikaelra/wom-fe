@@ -126,7 +126,7 @@ export default function WorldMapOverlay({
           className="pointer-events-auto flex flex-wrap justify-center items-center px-3"
           onSubmit={(e) => { e.preventDefault(); handleJoinLobby(); }}
         >
-          <RopedInput width={184} height={54} innerPadding="8px 11px">
+          <RopedInput width={184} height={54} innerPadding="0.5rem 0.6875rem">
             <input
               type="text"
               placeholder="Enter lobby code..."

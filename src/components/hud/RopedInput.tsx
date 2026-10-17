@@ -1,6 +1,7 @@
 'use client';
 
 import { forwardRef, ReactNode } from 'react';
+import { rem } from '@/lib/uiScale';
 
 const LD_IMAGE = '/models/buttons/rope_button-ld-v2.png';
 
@@ -14,14 +15,14 @@ type RopedInputProps = {
 };
 
 const RopedInput = forwardRef<HTMLDivElement, RopedInputProps>(function RopedInput(
-  { width = 220, height = 70, innerPadding = '14px 70px', children },
+  { width = 220, height = 70, innerPadding = '0.875rem 4.375rem', children },
   ref,
 ) {
   return (
     <div
       ref={ref}
       className="relative inline-block select-none"
-      style={{ width, height }}
+      style={{ width: rem(width), height: rem(height) }}
     >
       <img
         src={LD_IMAGE}

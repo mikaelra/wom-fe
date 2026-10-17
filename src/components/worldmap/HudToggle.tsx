@@ -16,8 +16,11 @@ import GraphicsQualityButton from '@/components/hud/GraphicsQualityButton';
 // quality button (GraphicsQualityButton) sits to its left, and hides with
 // the HUD.
 // Under the top bar's user-menu button.
-const CORNER_CLASS = 'absolute right-3 sm:right-[calc(50%-257px)] z-10';
-const CORNER_STYLE = { top: 'calc(env(safe-area-inset-top) + 0.5rem + 54px + 0.5rem)' };
+// Under the user pill (SceneTopBar: 0.5rem down, 54px = 3.375rem tall, in rem
+// so it moves with the UI scale, lib/uiScale.ts) -- on an Apple Watch-sized
+// window under the pill drawn at 80% there.
+const CORNER_CLASS =
+  'absolute right-3 sm:right-[calc(50%-16.0625rem)] z-10 top-[calc(env(safe-area-inset-top)+4.375rem)] compact:top-[calc(env(safe-area-inset-top)+3.45rem)] compact:scale-[0.8] compact:origin-top-right';
 
 export default function HudToggle() {
   const hidden = useHudHidden();
@@ -36,7 +39,7 @@ export default function HudToggle() {
   useEffect(() => () => setHudHidden(false), []);
 
   return (
-    <div className={`${CORNER_CLASS} flex items-start gap-2`} style={CORNER_STYLE}>
+    <div className={`${CORNER_CLASS} flex items-start gap-2`}>
       <GraphicsQualityButton hidden={hidden} />
       <button
         type="button"

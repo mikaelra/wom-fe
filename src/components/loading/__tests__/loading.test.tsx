@@ -21,7 +21,7 @@ describe('LoadingMark', () => {
     render(<LoadingMark size={40} label="Loading relics" />);
     const canvas = screen.getByRole('img', { name: 'Loading relics' });
     expect(canvas.tagName).toBe('CANVAS');
-    expect(canvas).toHaveStyle({ width: '40px', height: '40px' });
+    expect(canvas).toHaveStyle({ width: '2.5rem', height: '2.5rem' }); // 40px, growing with the UI scale
   });
 
   it('plays a version picked at random as it mounts, or a given colour', () => {

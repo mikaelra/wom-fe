@@ -418,7 +418,7 @@ function CreditInfo() {
         aria-label="How credits work"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="w-4 h-4 rounded-full border border-white/40 text-white/70 text-[10px] leading-none flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
+        className="w-4 h-4 rounded-full border border-white/40 text-white/70 text-[0.625rem] leading-none flex items-center justify-center hover:bg-white/10 hover:text-white transition-colors"
       >
         i
       </button>

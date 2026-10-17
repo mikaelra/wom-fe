@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { drawMoon, moonPhase } from '@/lib/pixelMoon';
+import { drawMoon, moonPhase, type Sunward } from '@/lib/pixelMoon';
 import { getCameraSpeed } from '@/lib/cameraSpeed';
 import {
   PLANETS,
@@ -19,6 +19,7 @@ import {
   type OrreryBody,
   type Planet,
 } from '@/lib/pixelOrrery';
+import { currentUiScale } from '@/lib/uiScale';
 
 // The text Earth page's background (lib/pixelOrrery.ts): an 8-bit solar
 // system with the Earth at the centre of the screen -- the Sun, the Moon and
@@ -63,11 +64,12 @@ function drawBody(
   y: number,
   near: number,
   phase: number,
+  sunward?: Sunward,
 ) {
   ctx.fillStyle = hex(orreryColor(body));
   if (body === 'Moon') {
     // Big enough to show its phase (lib/pixelMoon.ts).
-    drawMoon(ctx, x, y, MOON_SIZE, phase, { lit: hex(orreryColor('Moon')), dark: MOON_DARK });
+    drawMoon(ctx, x, y, MOON_SIZE, phase, { lit: hex(orreryColor('Moon')), dark: MOON_DARK }, sunward);
     return;
   }
   if (body === 'Sun') {
@@ -211,6 +213,8 @@ export default function PixelOrrery({
         .map(([body, p]) => ({ body, at: project(cam, p) }))
         .filter((b): b is { body: Exclude<OrreryBody, 'Earth'>; at: NonNullable<ReturnType<typeof project>> } => !!b.at)
         .sort((a, b) => a.at.near - b.at.near);
+      // The Moon's lit side faces the Sun as drawn.
+      const sunAt = shown.find((b) => b.body === 'Sun')?.at;
       let earthDrawn = false;
       for (const { body, at } of shown) {
         if (!earthDrawn && at.near > 1) {
@@ -219,7 +223,8 @@ export default function PixelOrrery({
         }
         let { x, y } = at;
         if (body === 'Moon') [x, y] = offEarth(x, y, cx, cy);
-        drawBody(ctx, body, x, y, at.near, phase);
+        const sunward: Sunward | undefined = sunAt && [sunAt.x - x, sunAt.y - y];
+        drawBody(ctx, body, x, y, at.near, phase, sunward);
       }
       if (!earthDrawn) drawEarth(ctx, cx, cy);
       const fx = fxRef.current;
@@ -233,8 +238,10 @@ export default function PixelOrrery({
     };
 
     const resize = () => {
-      w = Math.ceil(window.innerWidth / PX);
-      h = Math.ceil(window.innerHeight / PX);
+      // Bigger sky pixels on a big screen, with the UI (lib/uiScale.ts).
+      const px = PX * currentUiScale();
+      w = Math.ceil(window.innerWidth / px);
+      h = Math.ceil(window.innerHeight / px);
       canvas.width = w;
       canvas.height = h;
       ctx.imageSmoothingEnabled = false;

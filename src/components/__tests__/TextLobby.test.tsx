@@ -40,6 +40,7 @@ vi.mock('@/components/BossSignupNudge', () => ({ default: () => <div>relic nudge
 vi.mock('@/components/ArtifactClaimNudge', () => ({ default: () => <div>artifact nudge</div> }));
 
 import TextLobby, { RELIC_COOLDOWN_MS } from '@/components/text/TextLobby';
+import { COMPACT_QUERY } from '@/lib/uiScale';
 import { isUrgentScreenLoading, resetLoadingTracker } from '@/lib/loadingTracker';
 
 function player(name: string, extra: Partial<Player> = {}): Player {
@@ -151,10 +152,10 @@ describe('TextLobby', () => {
   it('offers only the relics that do something in battle, folded away until opened', async () => {
     await show(lobby({ players: [player('Oni', { admin: true, selected_relic_ids: [1] }), player('Toad')] }));
     const heading = await screen.findByText(/Relics/);
-    expect(screen.queryByText(/Start the game with 1 coin/)).toBeNull();
+    expect(screen.queryByText(/\+1💰/)).toBeNull();
     expect(heading.textContent).toContain('🪙'); // what is picked shows while folded
     fireEvent.click(heading);
-    const coin = screen.getByText(/Start the game with 1 coin/);
+    const coin = screen.getByText(/\+1💰/);
     expect(screen.queryByText(/Paper/)).toBeNull();
     fireEvent.click(coin);
     expect(emit).toHaveBeenCalledWith('toggle_relic_selection', { lobby_id: 'ABCD', relic_id: 1 });
@@ -165,7 +166,7 @@ describe('TextLobby', () => {
     fireEvent.click(await screen.findByText(/Relics/));
     vi.useFakeTimers();
     try {
-      const label = screen.getByText(/Start the game with 1 coin/);
+      const label = screen.getByText(/\+1💰/);
       const button = label.closest('button')!;
       expect(label.className).toContain('line-through'); // chosen, free to take off
       emit.mockClear();
@@ -202,9 +203,9 @@ describe('TextLobby', () => {
     try {
       await show(lobby());
       fireEvent.click(await screen.findByText(/Relics/));
-      expect(screen.getByText(/Start the game with 1 coin/)).toBeTruthy();
+      expect(screen.getByText(/\+1💰/)).toBeTruthy();
       act(() => report?.([{ isIntersecting: false }]));
-      expect(screen.queryByText(/Start the game with 1 coin/)).toBeNull();
+      expect(screen.queryByText(/\+1💰/)).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }
@@ -356,6 +357,38 @@ describe('TextLobby title and PC layout', () => {
     await show(lobby({ round: 2 }));
     expect(screen.getByLabelText('Toggle chat')).toBeTruthy();
     expect(screen.queryByLabelText('Chat message')).toBeNull();
+  });
+
+  it('docks everything to play a round at the foot on an Apple Watch-sized window', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === COMPACT_QUERY,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    events.value = { round: 2, messages: ['Toad attacked you', 'You won The Well'], events: [], instakill: false };
+    await show(lobby({ round: 2, round_end_time: new Date(Date.now() + 8000).toISOString() }));
+    // One header line: the title and the round beside the chat button.
+    const chat = screen.getByLabelText('Toggle chat');
+    expect(chat.closest('div')!.textContent).toContain('Round: 2');
+    // The dock: the latest message only, Well and Defend, the resources and the time.
+    const latest = screen.getByRole('button', { name: 'Round Messages' });
+    const dock = latest.parentElement!;
+    expect(latest.textContent).toBe('You won The Well');
+    expect(screen.queryByText('Toad attacked you')).toBeNull();
+    for (const el of [
+      screen.getByRole('button', { name: 'The Well' }),
+      screen.getByRole('button', { name: 'Defend' }),
+      screen.getByText('HP'),
+      screen.getByText(/Time left/),
+    ]) {
+      expect(dock.contains(el)).toBe(true);
+    }
+    // A tap shows them all.
+    fireEvent.click(latest);
+    expect(screen.getByText('Toad attacked you')).toBeTruthy();
+    // The players, one line each, in the middle.
+    expect(screen.getByText('Players in Lobby').className).toContain('sr-only');
   });
 
   it('puts the round messages straight in the list on a PC, no bubble', async () => {

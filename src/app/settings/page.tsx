@@ -14,6 +14,7 @@ import ChatFilterPanel from '@/components/settings/ChatFilterPanel';
 import ConnectionsPanel from '@/components/settings/ConnectionsPanel';
 import HdTexturesPanel from '@/components/settings/HdTexturesPanel';
 import LoadingState from '@/components/loading/LoadingState';
+import { reloadPage } from '@/lib/reloadPage';
 
 const ALWAYS_VERIFY_EXPLANATION =
   "When this is on, every time you log in to World of Mythos from any device " +
@@ -116,7 +117,7 @@ export default function SettingsPage() {
   };
 
   const handleRefresh = () => {
-    window.location.reload();
+    reloadPage();
   };
 
   return (

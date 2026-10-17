@@ -260,7 +260,7 @@ export default function WheelSpinModal({ wheelId, kind, onClose, onSpun, onEquip
               Windows/Linux, real scrollbars, not overlay ones) a scrollbar
               came and went down the right side during the roll. */}
           <div
-            className={`flex-1 flex flex-col items-center gap-4 px-4 py-6 mx-auto w-full max-w-[480px] ${
+            className={`flex-1 flex flex-col items-center gap-4 px-4 py-6 mx-auto w-full max-w-[30rem] ${
               rolling ? 'overflow-hidden' : 'overflow-y-auto'
             }`}
           >

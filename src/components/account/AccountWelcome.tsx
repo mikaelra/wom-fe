@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { NAME_MAX_LENGTH } from '@/lib/useAuthFlow';
+import { reloadPage } from '@/lib/reloadPage';
 
 export type WelcomeSignIn =
   | { status: 'skipped' | 'signed-in' }
@@ -40,7 +41,7 @@ export default function AccountWelcome({
         if (cancelled) return;
         if (result.status === 'signed-in') {
           // Everything that read "not logged in" on mount picks the login up.
-          window.location.reload();
+          reloadPage();
         } else if (result.status === 'new') {
           setSuggestedName(result.suggestedName ?? null);
           setName((result.suggestedName ?? '').slice(0, NAME_MAX_LENGTH));
@@ -60,7 +61,7 @@ export default function AccountWelcome({
     setError('');
     try {
       await create(name.trim());
-      window.location.reload();
+      reloadPage();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create the account.');
       setBusy(false);
