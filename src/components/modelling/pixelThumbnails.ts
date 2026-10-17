@@ -48,7 +48,7 @@ export const PIXEL_GROUPS: { title: string; items: PixelThumbnail[] }[] = [
   },
   {
     title: 'Blimkin',
-    items: [{ id: 'blimkin', label: 'Blimkin (a short fat banana; the 3D model is public/models/blimkin_v1.glb)', was: '/models/blimkin_v1.thumbnail.png' }],
+    items: [{ id: 'blimkin_v1', label: 'Blimkin (a short fat banana; the 3D model is public/models/blimkin_v1.glb)', was: '/models/blimkin_v1.thumbnail.png' }],
   },
   {
     title: 'Wheels and the artifact',

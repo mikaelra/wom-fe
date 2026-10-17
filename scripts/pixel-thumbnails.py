@@ -767,7 +767,7 @@ def artifacts_list():
     out['merchant_v1'] = merchant_man()
     out['lady_merchant_v1'] = merchant_lady()
     out['artifact'] = artifact()
-    out['blimkin'] = blimkin()
+    out['blimkin_v1'] = blimkin()
     out['pen'] = pen()
     out['paper'] = paper()
     out['stone'] = stone()
@@ -793,7 +793,7 @@ AURA = {
     'frog_yellow_v1': '#f4e060', 'frog_gold_v1': '#f2c14e', 'frog_silver_v1': '#c8ccd6',
     'frog_bling_v1': '#8fdcff', 'frog_rainbow_v2': 'rainbow', 'cherub_v1': '#fff0c0',
     'frog_robot_v1': '#9aa1ad', 'merchant_v1': '#a8682c', 'lady_merchant_v1': '#a8682c',
-    'blimkin': '#ffd214', 'stone': '#2fb84a', 'pen': '#dfe3ec', 'paper': '#d1aa57', 'hades_coin': '#f0b84a',
+    'blimkin_v1': '#ffd214', 'stone': '#2fb84a', 'pen': '#dfe3ec', 'paper': '#d1aa57', 'hades_coin': '#f0b84a',
     'my_ai_coin': '#c9ced8', 'artifact': '#dcc38c', 'wheel': '#3a3af5', 'special-wheel': '#a040ff',
 }
 
